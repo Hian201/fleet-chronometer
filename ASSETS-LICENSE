@@ -1,0 +1,27 @@
+Image & Icon Assets License
+
+Copyright (c) 2026 Hian201. All rights reserved.
+
+This license covers the original image assets in this repository:
+
+- `public/icons/equipment/**` — equipment icons
+- `public/icons/resource/**` — resource icons
+- `public/icons/ui/**` — UI icons
+- `public/icon/**` — extension app icon (all sizes)
+- `tools/app-icon/**` — app icon source files
+
+These assets are provided for viewing within this repository only.
+No permission is granted to copy, modify, redistribute, sublicense, or
+otherwise reuse them — in this project or any other — without prior
+written permission from the copyright holder. This is unlike the MIT
+license that covers the source code (see `LICENSE`) and is a deliberate,
+separate restriction on these specific files.
+
+Design provenance and any historically-referenced third-party sources for
+these assets are documented in `THIRD-PARTY-NOTICES.md` §3 — that section
+records development history and does not grant any rights beyond what is
+stated here.
+
+This license does not apply to reference material outside the paths above
+(e.g. files under `samples/`), which are not original assets of this
+project — see the note in `THIRD-PARTY-NOTICES.md`.
