@@ -1,0 +1,14 @@
+{
+    "api_map_info": [
+        { "api_id": 11, "api_cleared": 1 },
+        { "api_id": 15, "api_cleared": 0, "api_defeat_count": 0, "api_required_defeat_count": 4, "api_gauge_type": 1, "api_gauge_num": 1 },
+        { "api_id": 64, "api_cleared": 1, "api_gauge_type": 1, "api_gauge_num": 1, "api_air_base_decks": 1 },
+        { "api_id": 65, "api_cleared": 0, "api_defeat_count": 4, "api_required_defeat_count": 6, "api_gauge_type": 1, "api_gauge_num": 1, "api_air_base_decks": 2 },
+        {
+            "api_id": 621, "api_cleared": 0, "api_s_no": 1,
+            "api_eventmap": { "api_now_maphp": 9999, "api_max_maphp": 9999, "api_state": 1, "api_selected_rank": 0, "api_limit_flag": 0 },
+            "api_sally_flag": [1, 0, 0],
+            "api_gauge_type": 2, "api_gauge_num": 1, "api_air_base_decks": 1
+        }
+    ]
+}

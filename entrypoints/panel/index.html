@@ -1,0 +1,2222 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>航海鐘</title>
+    <style>
+        :root {
+            --bg: #10151d;
+            --panel: #182030;
+            --line: #2a3548;
+            --text: #cfd6e4;
+            --dim: #7d8aa0;
+            --brass: #b8860b;
+            --stub: #4a5468;
+            --dmg-major: #e05555;
+            --dmg-mid: #e08b3d;
+            --dmg-minor: #d4b83a;
+            --sparkle: #e6c35c;
+            /* 索敵/航向/觸接/航空戰數值色。刻意獨立於 --dmg-mid（傷害語意），
+               避免兩種無關語意共用同一色而互相稀釋（design-guidelines §4.5）。 */
+            --stat-mini: #e0954d;
+
+            /* 字距（tracking）級距：與字級成反比——字愈小需要愈多字距才好讀，字愈大
+               則要收緊。原本各處硬寫死的值彼此不成比例（9px 的 .04em 比 11px 的 .12em
+               還窄，與此原則相反），改由這組變數統一。三種擴充頁面共用同一組值。 */
+            --track-tag: .14em;
+            /* 8–9px 標籤 */
+            --track-label: .12em;
+            /* 10–11px 小標題 */
+            --track-body: 0;
+            /* 13px 內文 */
+            --track-title: -.01em;
+            /* 14px 以上標題 */
+        }
+
+        /* 亮色主題（由「鎮守府情報總括」的主題切換透過 <html data-theme> 全域套用，#2）。
+           M7 全圖示已帶深墨描邊，亮底可讀性已保證。傷害色維持不變（語意色，亮底仍清楚）。 */
+        :root[data-theme="light"] {
+            --bg: #eef0f4;
+            --panel: #ffffff;
+            --line: #d3d8e2;
+            --text: #26303f;
+            --dim: #6b7688;
+            --brass: #9a6b0b;
+            --stub: #aab3c2;
+            --sparkle: #8a6d1a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        /* 捲軸配色（與 overview 同一套規則，見 design-guidelines §1.4）：軌道 transparent
+           讓它跟著所在容器底色走，滑塊用 --line、hover 提到 --dim。 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--line) transparent;
+        }
+
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track,
+        ::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            border: 2px solid transparent;
+            border-radius: 6px;
+            background: var(--line) padding-box;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--dim) padding-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            /* system-ui 置前：依使用者 OS 與語系解析到該平台的系統字（macOS SF／
+               日文環境 Hiragino／中文環境思源黑體等），已內建字級光學調整與可讀性微調。
+               -apple-system 保留作舊版 Safari/WebKit 回退。 */
+            font: 13px/1.5 system-ui, -apple-system, "Hiragino Sans", sans-serif;
+            letter-spacing: var(--track-body);
+        }
+
+        #header {
+            /* 統計標籤改為圖示後（.h-icon 高於文字）改用 center 對齊；
+               單行文字之間 center 與 baseline 視覺差可忽略 */
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--line);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 提督識別區：名稱＋等級成組，共用一個 title（hover 顯示「全名　Lv等級」）。
+           整組可收縮，收縮壓力落在名稱上（等級固定不縮）。 */
+        #header .idbox {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            min-width: 0;
+            flex: 0 1 auto;
+        }
+
+        #header .nick {
+            color: var(--sparkle);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: var(--track-title);
+            /* 提督名稱可能過長（遊戲上限 12 文字，全角時仍會擠掉右側統計）：
+               唯一允許收縮的項目，超出以省略號截斷、全名在 title */
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #header .grow {
+            flex: 1;
+        }
+
+        #header .stat {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex: none;
+        }
+
+        #header .h-icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+            display: block;
+        }
+
+        #header .stat b {
+            color: var(--brass);
+            font-weight: 600;
+        }
+
+        #header .stat.warn b {
+            color: var(--dmg-mid);
+        }
+
+        #header select {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            font-size: 11px;
+            flex: none;
+        }
+
+        #header .num {
+            flex: none;
+        }
+
+        #tabs {
+            display: flex;
+            padding: 0 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        #tabs button {
+            background: none;
+            border: none;
+            color: var(--dim);
+            padding: 6px 12px;
+            font-size: 12px;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            /* 回饋在「按下」當下就發生（見下方 :active），放開才有反應會顯得遲鈍；
+               100ms 純視覺回饋，不阻擋輸入。 */
+            transition: color 100ms ease-out, border-bottom-color 100ms ease-out;
+        }
+
+        /* 按下即回饋：不等 click 事件與分頁重繪（autoSwitch 亦會改變 .on） */
+        #tabs button:not(.stub):active {
+            color: var(--text);
+            border-bottom-color: var(--line);
+        }
+
+        #tabs button.on {
+            color: var(--text);
+            border-bottom-color: var(--brass);
+        }
+
+        #tabs button.stub {
+            color: var(--stub);
+            cursor: default;
+        }
+
+        /* height（非 max-height）：分頁內容不足 300px 時（例如動態分頁資料不多）
+           過去會整個縮小，導致下方艦隊編成跟著往上擠、面板高度不穩定。固定高度後
+           分頁內容不足就留白，內容超過才捲動，艦隊列表位置永遠固定。 */
+        #tabpanel {
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--line) var(--panel);
+        }
+
+        h3 {
+            margin: 12px 0 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: var(--track-label);
+            color: var(--brass);
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 4px;
+        }
+
+        h3:first-child {
+            margin-top: 0;
+        }
+
+        /* 一般分頁上段：資源(左) × 遠征(右) 左右並排；中段：入渠(左) × 建造(右)。
+           兩段共用 1fr 1fr，讓資源/遠征欄寬對齊下方入渠/建造欄寬（同一組欄線貫穿兩段）。
+           align-items:stretch（非 start）：3 個遠征全滿時遠征欄比資源欄高，若資源欄不隨之
+           伸展，兩欄底部會對不齊、緊接著的入渠/建造 row 看起來像貼著較高的那欄——讓兩欄
+           都伸展到同一列高，資源欄再用 align-content:space-between 把 4 列撐開對齊底部。
+           欄寬一律用 minmax(0, 1fr) 而非裸 1fr：裸 1fr 等同 minmax(auto, 1fr)，欄內若有
+           nowrap 長文字（艦名、任務名），該欄的 min-content 會高於半寬並把另一欄擠窄，
+           欄界就不再落在容器正中、上下三段（資源/遠征・入渠/建造・任務）分界線互相錯開。
+           下限改 0 後欄寬恆為精確半寬，截斷交給欄內元素的 min-width:0 + ellipsis 處理。 */
+        .g-top {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 2px 12px;
+            align-items: stretch;
+            margin-bottom: 6px;
+        }
+
+        .g-docks {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 2px 12px;
+            align-items: start;
+            margin-bottom: 4px;
+        }
+
+        /* 資源看板：8 項固定 2 欄×4 列（主資源左欄、消耗材右欄），label 左、數值右對齊。
+           label 目前為單字佔位，之後預計換成圖示。 */
+        .resblock {
+            display: grid;
+            grid-auto-flow: column;
+            grid-template-rows: repeat(4, auto);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1px 12px;
+            align-content: space-between;
+            font-size: 11px;
+            color: var(--dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .resblock span {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .resblock b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .resblock i {
+            font-style: normal;
+            color: var(--brass);
+        }
+
+        .timer-row {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+
+        .timer-row:nth-child(odd) {
+            background: var(--panel);
+        }
+
+        /* 進行中計時看板：遠征/入渠/建造合併，以彩色類型標籤區分（回收原三條 h3 橫幅） */
+        .t-tag {
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1.5;
+            padding: 0 5px;
+            border-radius: 4px;
+            white-space: nowrap;
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        /* 計時列標籤圖示（渠＝吊臂／建＝造船鎚／遠＝羅盤）：與 .g-icon 同尺寸，
+           使計時列高度與裝備 chip 一致；padding 收窄，圖示自身已有留白。
+           align-self: .timer-row 用 baseline 對齊，純圖示標籤的 baseline 落在圖片
+           底緣、會整個浮高於文字——改成在列內垂直置中（文字彼此仍維持 baseline）。 */
+        .t-tag:has(.t-icon) {
+            padding: 0 2px;
+            align-self: center;
+        }
+
+        .t-icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+            display: block;
+        }
+
+        /* tt-exped 只用於遠征空狀態列的色底標籤；有資料時遠征列也放羅盤圖示（艦隊編號與
+           任務編號之間），但用不帶顏色的裸 .t-tag，純粹當分隔標示，不是狀態色塊。 */
+        .t-tag.tt-exped {
+            color: var(--brass);
+            background: color-mix(in srgb, var(--brass) 16%, transparent);
+        }
+
+        .t-tag.tt-dock {
+            color: #7fd0ff;
+            background: color-mix(in srgb, #7fd0ff 16%, transparent);
+        }
+
+        /* 遠征名稱：預設寬度只靠 .timer-row 的 title 懸浮顯示（見 main.ts），這裡的文字
+           仍照常渲染進 DOM（提供 a11y／可選取），只用 color:transparent 隱去視覺——
+           .grow 既有的 flex:1+ellipsis+nowrap 已把它算進版面寬度，隱藏／顯示不改變
+           那顆 badge（倒數時間）的位置，故不需另外用 display:none 挖掉再補空白撐版。
+           使用者手動拉寬超過 460px（與 #quests 切欄同一斷點）時顯示出完整名稱。 */
+        .exped-name {
+            color: transparent;
+        }
+
+        @media (min-width: 460px) {
+            .exped-name {
+                color: inherit;
+            }
+        }
+
+        .t-tag.tt-build {
+            color: #58a55c;
+            background: color-mix(in srgb, #58a55c 16%, transparent);
+        }
+
+        .dim-txt {
+            color: var(--dim);
+        }
+
+        /* 任務雙欄：8 個受注任務由 8 列壓成 4 列，塞進摺線內不需捲動。
+           用 grid（非 column-count）——multi-column 展開詳情變高時會觸發重新平衡，
+           導致後面項目在兩欄間重新分配位置（不只是往下推，會跳欄）；grid-auto-flow:row
+           讓每個任務的欄位由順序固定，展開只會把該列變高、下方項目往下推，不會跳欄。
+           預設（面板視窗預設寬 420，見 background.ts openPanelWindow「不准加寬」硬約束）
+           維持雙欄，欄寬用 minmax(0, 1fr)、column-gap 取 12px 與 .g-top/.g-docks 一致：
+           三段的欄界與欄內起始邊因此完全對齊（任務名靠齊入渠列、受注中狀態靠齊建造列）。
+           **不可改回裸 1fr**——任務名是 nowrap 長文字，min-content 會超過半寬把左欄擠窄，
+           分界線就會偏左、與上方兩段錯開（實測 409px 內寬下曾算出 151px/228px）。
+           使用者手動把 panel 視窗拉寬超過預設寬時（見下方 @media，用視窗寬度而非
+           #tabpanel 容器寬——避免 #tabpanel 因內容過高出現捲軸時誤觸切欄）才切換成單欄，
+           讓任務說明有更寬的可用空間。 */
+        #quests {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 0 12px;
+            align-items: start;
+        }
+
+        @media (min-width: 460px) {
+            #quests {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .quest-row {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            padding: 3px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .quest-cell:nth-child(odd) .quest-row {
+            background: var(--panel);
+        }
+
+        .quest-row.done .grow {
+            color: var(--dmg-minor);
+        }
+
+        .quest-detail {
+            padding: 2px 6px 6px 6px;
+            font-size: 0.9em;
+            color: var(--dim);
+            white-space: normal;
+        }
+
+        .badge {
+            color: var(--brass);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .grow {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .num {
+            font-variant-numeric: tabular-nums;
+            color: var(--dim);
+        }
+
+        .empty,
+        .dim {
+            color: var(--dim);
+            padding: 2px 6px;
+        }
+
+        #log {
+            font: 11px/1.6 ui-monospace, monospace;
+            color: var(--dim);
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        #fleetnav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        #fleetnav button {
+            background: none;
+            border: 1px solid var(--line);
+            color: var(--dim);
+            border-radius: 5px;
+            padding: 3px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        #fleetnav button.on {
+            color: var(--text);
+            border-color: var(--brass);
+            background: color-mix(in srgb, var(--brass) 14%, transparent);
+        }
+
+        #fleetnav button.stub {
+            color: var(--stub);
+            border-style: dashed;
+            cursor: default;
+        }
+
+        /* 該編成有大破或未補給的船——紅框疊在既有 border 外，跟 .on 的 border-color
+           變化互不干擾（不論分頁是否選取都看得到警示）。 */
+        #fleetnav button.attn {
+            box-shadow: 0 0 0 1px var(--dmg-major);
+        }
+
+        #fleetnav .grow {
+            flex: 1;
+        }
+
+        #fleets {
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        section.fleet {
+            flex: 1 1 320px;
+            min-width: 320px;
+            max-width: 480px;
+        }
+
+        /* 聯合艦隊檢視：#fleets 只放一個 .combined-wrap 子元素——上排 .fsummary.combined-total
+           （兩隊合計統計，全寬）、下排 .c-fleet-row（兩隊左右並排，各佔一半可用寬，420
+           視窗內寬 400 − gap 8 → 約 196px），故必須解除單隊檢視的 min-width:320
+           （否則會被擠成上下堆疊）。欄內一切以 min-width:0 允許艦名截斷為前提。 */
+        .combined-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .c-fleet-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        section.fleet.compact {
+            flex: 1 1 0;
+            min-width: 0;
+            max-width: none;
+        }
+
+        /* 聯合檢視是全新版面，窗高 835px 是照「單隊 4 分頁」版面實機量測校準的
+           （見 background.ts openPanelWindow 註解）。單隊版面有「遊撃部隊」最多 7 艘
+           的特殊編成需要容納，聯合檢視兩隊組合則固定各 6 艘（一般艦隊上限，遊撃部隊
+           不會出現在連合艦隊）——用無頭 Chrome 對真實 index.html+CSS 實測驗證：單隊
+           7 艘滿編（沿用已知校準過的 ship-row/sub-row 版面）內容總高 779px，是這個
+           835px 視窗已知安全（無捲動）的配置；聯合檢視 6 艘全裝滿槽的最差情況只要
+           727px，等於還有約 50px 沒用到。這裡把這筆餘裕吃下去、放寬行距與圖示尺寸，
+           不用再逼到 1.2 這麼緊；每項調整後都重新量測，總高抓在 770px 左右、比 779px
+           的已知安全值再留一點餘裕（沒有實機裝置能再驗證，保守一點比較安心）。 */
+        .fsummary.combined-total {
+            padding: 6px 6px 5px;
+            font-size: 12px;
+            line-height: 1.3;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .fsummary.compact {
+            gap: 6px;
+            align-items: center;
+            padding: 2px 4px 4px;
+            line-height: 1.25;
+        }
+
+        .fsummary.compact .badge-tag {
+            font-size: 9px;
+            padding: 0 4px;
+        }
+
+        .ship.c {
+            padding: 2px 5px;
+            line-height: 1.3;
+        }
+
+        .ship.c .c-top,
+        .ship.c .c-bot {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .ship.c .c-top {
+            font-size: 12px;
+        }
+
+        /* 艦種縮寫固定寬度＋置中：縮寫本身長度不一（DD 2字 vs CVL 3字），若跟單隊
+           檢視一樣讓徽章寬度隨文字伸縮，艦名起始位置會逐艦不同，並排欄裡直排下來
+           會參差不齊。固定寬度後徽章本身长度仍隨文字置中顯示，但艦名一律從同一個
+           x 位置起算，同時解決「沒有分隔」（沿用 .stype 徽章底色/邊框）與「對不
+           齊」兩個問題。該艦艦種未知（stype 空字串）時徽章仍佔位、留空，不影響對齊。
+           寬度用 px 非 em：用無頭 Chrome 實測全部 19 種縮寫（見 STYPE_ABBR）的自然
+           寬度，最寬的 CAV/CVL/BBV/SSV/LHA/CVB 落在 28-30.4px（2.6em=23.4px 明顯不夠，
+           CVB 溢出達 7px、正是 BBV 爆框的原因）；32px 留一點緩衝，不用 em 是因為
+           em 是照 .stype 自己的 9px 字級換算，字級微調會連帶改變這個寬度，px 才是
+           真正跟文字寬度需求綁定的單位。 */
+        .ship.c .stype {
+            width: 32px;
+            text-align: center;
+            flex: none;
+            margin-right: 0;
+        }
+
+        /* 艦名過長時截斷（全名在 title）——並排欄寬無法容納長名，換行會破壞列高一致。 */
+        .ship.c .c-top .grow {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ship.c .lv {
+            flex: none;
+            font-size: 11px;
+            color: var(--dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ship.c .cond {
+            width: 2.4em;
+            font-size: 12px;
+        }
+
+        .ship.c .hpbar {
+            flex: 1;
+            width: auto;
+            height: 6px;
+        }
+
+        .ship.c .num {
+            font-size: 11px;
+        }
+
+        /* 燃彈迷你量表：左燃右彈，各自從外緣往內縮，中間露底色＝已消耗（同單隊檢視配色）。 */
+        .ship.c .c-sup {
+            display: inline-flex;
+            gap: 1px;
+            width: 28px;
+            flex: none;
+        }
+
+        .ship.c .c-sup>i {
+            height: 5px;
+            flex: 1;
+            border-radius: 2px;
+            background-color: var(--line);
+        }
+
+        /* 裝備列（HP 列下方新增一行）：不沿用單隊檢視的完整 .chip 結構（那個排法
+           連同 r-col 的熟練/改修兩行，塞進聯合欄寬後看起來就是縮小版單隊列，過於
+           擁擠）。改用單純的「圖示＋搭載數」小標籤：數字放在圖示右側（非疊在圖示
+           角落），改修★／熟練度移進 title、hover 才看到，讓聯合檢視的裝備列真正
+           比單隊檢視精簡。 */
+        /* 外層：一般槽位（.c-gear-slots，可換行）＋打洞格，打洞格 flex:none 天然被
+           推到最右、不隨一般槽位數量變動而跳位（見 main.ts compactGearRow 說明）。 */
+        .c-gear {
+            display: flex;
+            align-items: flex-start;
+            gap: 4px;
+            margin-top: 2px;
+            line-height: 1;
+        }
+
+        .c-gear-slots {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .cg-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .cg-item .g-icon,
+        .cg-item .g-icon-slot {
+            width: 15px;
+            height: 15px;
+        }
+
+        /* 未裝備槽位：同單隊檢視 .chip-empty 的淡化＋虛線語意，但縮到與 .cg-item
+           圖示同尺寸的方框（非撐出完整 chip 寬度——這裡沒有跨艦對齊需求）。 */
+        .cg-item.cg-empty {
+            opacity: .5;
+        }
+
+        .cg-item.cg-empty .g-icon-slot {
+            display: inline-block;
+            outline: 1px dashed var(--line);
+            outline-offset: -1px;
+            border-radius: 2px;
+        }
+
+        /* 打洞格（補強增設）：呼應單隊檢視 .chip.ex 的 brass 虛線標示，跟一般裝備格
+           區分開。:not(.cg-empty) 避免跟下面 .cg-empty .g-icon-slot 的內層虛線疊成雙框。 */
+        .cg-item.ex:not(.cg-empty) {
+            outline: 1px dashed var(--brass);
+            outline-offset: 1px;
+            border-radius: 2px;
+        }
+
+        .cg-item.cg-empty.ex .g-icon-slot {
+            outline-color: var(--brass);
+        }
+
+        .cg-item em {
+            font-style: normal;
+            font-weight: 700;
+            font-size: 9px;
+            line-height: 1;
+            color: var(--dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .cg-item em.hit {
+            color: var(--dmg-mid);
+        }
+
+        .cg-item em.zero {
+            color: var(--dmg-major);
+        }
+
+        section.fleet h4 {
+            margin: 4px 0 4px;
+            font-size: 12px;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .badge-tag {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            color: var(--dim);
+        }
+
+        .badge-tag.mission {
+            color: var(--brass);
+            border-color: var(--brass);
+        }
+
+        .badge-tag.danger {
+            color: #fff;
+            background: var(--dmg-major);
+            border-color: var(--dmg-major);
+        }
+
+        .badge-tag.warn {
+            color: var(--dmg-mid);
+            border-color: var(--dmg-mid);
+        }
+
+        .badge-tag.secretary {
+            color: var(--sparkle);
+            border-color: var(--sparkle);
+        }
+
+        /* 泊地修理／給糧的摘要 badge，與左緣範圍軌同色系互相呼應。 */
+        .badge-tag.repair {
+            color: var(--brass);
+            border-color: var(--brass);
+        }
+
+        .badge-tag.morale {
+            color: var(--sparkle);
+            border-color: var(--sparkle);
+        }
+
+        /* 倒數是「估算值」（遊戲不送泊地修理封包，計時器靠觀察編成封包推算），
+           故刻意用弱化樣式，不與確定性的遠征/入渠倒數同樣強調。 */
+        .badge-tag.est {
+            color: var(--dim);
+            border-style: dashed;
+        }
+
+        .fsummary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 11px;
+            color: var(--dim);
+            padding: 2px 6px 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .fsummary b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .fsummary select {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .ship {
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+
+        .ship:nth-child(odd) {
+            background: var(--panel);
+        }
+
+        /* ── 泊地修理／給糧的「範圍軌」──
+           以 inset box-shadow 疊在艦列左緣畫縱向色條，不動 DOM 結構。多層 inset 時
+           先列的疊在上層，故 3px 的修理軌壓在 6px 的給糧軌之上 → 視覺上並排兩條。
+           左內距讓出 8px 給軌條，避免壓到艦種縮寫。
+           配色：修理用 --brass、給糧用 --sparkle（キラ/改修的既有語意，相符）；
+           **不用 --dmg-* 語意色**，那組專屬損傷程度，見 design-guidelines §4.5。 */
+        .ship.rail-rep,
+        .ship.rail-mor {
+            padding-left: 14px;
+        }
+
+        .ship.rail-rep {
+            box-shadow: inset 3px 0 0 0 var(--brass);
+        }
+
+        .ship.rail-mor {
+            box-shadow: inset 3px 0 0 0 var(--sparkle);
+        }
+
+        .ship.rail-rep.rail-mor {
+            box-shadow: inset 3px 0 0 0 var(--brass), inset 7px 0 0 0 var(--sparkle);
+        }
+
+        /* 逐艦標記：在範圍內、本次結算會實際生效者為實色；因中破/入渠等被跳過者
+           降為 --stub 並加刪除線，讓「在範圍內但不會被處理」與「根本不在範圍」可區分。 */
+        .rmark {
+            font-size: 9px;
+            letter-spacing: var(--track-tag);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rmark.rep {
+            color: var(--brass);
+        }
+
+        .rmark.mor {
+            color: var(--sparkle);
+        }
+
+        .rmark.skip {
+            color: var(--stub);
+            text-decoration: line-through;
+        }
+
+        .ship-row,
+        .sub-row {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+        }
+
+        /* gap 縮到 6px 是寬度預算的一部分（見 .chip 註解）：裝備列總寬貼著 420 視窗
+           上限，靠這裡省 4px 保住不換行的餘裕。 */
+        .sub-row {
+            gap: 6px;
+        }
+
+        .ship-row {
+            flex-wrap: wrap;
+        }
+
+        .hpbar {
+            position: relative;
+            width: 56px;
+            height: 5px;
+            background: var(--line);
+            border-radius: 3px;
+            overflow: hidden;
+            align-self: center;
+        }
+
+        .hpbar>i {
+            position: absolute;
+            inset: 0;
+            right: auto;
+            background: #58a55c;
+        }
+
+        .st-minor .hpbar>i {
+            background: var(--dmg-minor);
+        }
+
+        .st-mid .hpbar>i {
+            background: var(--dmg-mid);
+        }
+
+        .st-major .hpbar>i {
+            background: var(--dmg-major);
+        }
+
+        .st-major .ship-row .grow {
+            color: var(--dmg-major);
+            font-weight: 600;
+        }
+
+        .cond {
+            width: 3em;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            color: var(--dim);
+        }
+
+        .cond.sparkle {
+            color: var(--sparkle);
+        }
+
+        .cond.tired {
+            color: var(--dmg-mid);
+        }
+
+        .cond.heavy {
+            color: var(--dmg-major);
+        }
+
+        .chips {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+
+        /* 內距 3px／圖示 20px／熟練 12px／改修 10px 是算過的預算：一般格內容寬
+           20+gap1+(12+10+gap1)+內距6 = 50px、打洞格（無 r-col，單一置中改修槽 14px）
+           41px。5 一般格（250+gap12=262）＋打洞格 41＋燃彈 46＋.sub-row gap 12 ≈ 361px，
+           收進 420px 視窗（硬約束，不准加寬）的可用內寬（約 373px），不得換行。
+           加寬任何子槽前先重算總和。 */
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 1px;
+            font-size: 10px;
+            line-height: 1;
+            padding: 2px 3px;
+            border-radius: 3px;
+            background: var(--line);
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        /* 空白 chip 的圖示佔位（無 <img>）：與 .g-icon 同尺寸，讓「未裝備」與「跨艦
+           補位」兩種空 chip 都用真實 <u>/<b> 槽位撐出寬度，與有裝備的 chip 完全同寬——
+           不必另外硬編一個總寬度數字去追平（那樣每次調整 padding/gap 都要重算，還容易兜不齊）。 */
+        .g-icon-slot {
+            width: 16px;
+            height: 16px;
+            flex: none;
+            display: inline-block;
+        }
+
+        /* chip 內部佈局：右欄（r-col）上排熟練＋改修（r-top）、下排搭載機數（oc），
+           自然高度約 19px（10+gap1+8）——左側圖示取 20px 正方形填滿這個自然高度，
+           不另外撐大 chip（放大是「用好既有空間」而非搶預算）。oc 行高恆保留——
+           非飛機槽／空格也佔同高，讓所有 chip、進而所有艦列高一致（見 main.ts
+           chip/blankChip）。搭載數平時（滿載）暗灰低調；戰損轉橘、全滅轉紅。
+           圖示放大只限艦隊裝備 chip（.chip 範圍），其餘處（sq-chip、資源列）維持 16px。 */
+        .chip .g-icon,
+        .chip .g-icon-slot {
+            width: 20px;
+            height: 20px;
+        }
+
+        .r-col {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+            flex: none;
+        }
+
+        .r-top {
+            display: flex;
+            align-items: baseline;
+            gap: 1px;
+        }
+
+        .r-col .oc {
+            height: 8px;
+            font-size: 8px;
+            font-style: normal;
+            font-weight: 700;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            color: var(--dim);
+        }
+
+        .r-col .oc.hit {
+            color: var(--dmg-mid);
+        }
+
+        .r-col .oc.zero {
+            color: var(--dmg-major);
+        }
+
+        /* 未裝備槽位：該艦真實存在、但未裝備的槽位，虛線＋低透明度標示。
+           用 outline 而非 border，因 outline 不佔版面（不影響盒子尺寸），確保與
+           有裝備的 chip 同寬。 */
+        .chip-empty {
+            outline: 1px dashed var(--line);
+            outline-offset: -1px;
+            background: none;
+            opacity: .5;
+        }
+
+        /* 跨艦補位槽：該艦本身沒有這個槽位（例如 2 格艦排在 4 格艦旁邊），純粹用來讓
+           同艦隊每艘船的裝備列行數（進而列高）一致，完全不可見（連虛線都不畫，
+           避免被誤讀成「這裡有個空槽」）。 */
+        .chip-pad {
+            visibility: hidden;
+        }
+
+        /* 裝備／資源圖示：本專案原創向量重繪（見 THIRD-PARTY-NOTICES）。SVG 在任何
+           解析度／縮放皆銳利，不隨 DPI 產生鋸齒或糊邊。固定寬度使多語系切換時排版
+           一致（不隨字寬變動）。圖示自帶配色，故 chip 底色維持中性。 */
+        .g-icon,
+        .m-icon {
+            width: 16px;
+            height: 16px;
+            flex: none;
+        }
+
+        .m-icon {
+            vertical-align: -3px;
+        }
+
+        /* 熟練（u，在前）與改修（b，在後）槽固定寬度、不隨內容伸縮（flex:none），
+           空槽也佔位——讓同格數裝備列跨艦等寬對齊。顏色刻意對調：熟練金、改修藍。
+           熟練寬度以 /// 為準；改修僅單字元（數字或滿改修的 ★）故較窄。
+           寬度屬於「六格一行」預算的一部分（見 .chip 註解），加寬前先重算。 */
+        .chip u {
+            flex: none;
+            display: inline-block;
+            width: 12px;
+            text-align: left;
+            text-decoration: none;
+            color: var(--sparkle);
+        }
+
+        .chip b {
+            flex: none;
+            display: inline-block;
+            width: 10px;
+            text-align: left;
+            color: #7fd0ff;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .chip.ex {
+            outline: 1px dashed var(--brass);
+        }
+
+        /* 打洞格的改修沒有 r-col（見 main.ts chip()/blankChip() 的 ex 分支：裝不了
+           熟練度、也裝不了飛機，無需 u／oc 兩個對齊基準），單獨一個 <b> 時置中
+           比沿用一般 chip 的靠左更平衡；垂直置中則直接吃 .chip 既有的
+           align-items:center，不必再寫。 */
+        .chip.ex b {
+            width: 14px;
+            text-align: center;
+        }
+
+        /* 空的打洞格（該艦有補強增設能力、但未裝備）：沿用一般空格的淡化＋虛線，但
+           虛線改用 brass（呼應已裝備打洞格的 .chip.ex），與「一般空裝備格」（灰虛線）
+           及「已裝備打洞格」（brass 實色底）三者都能一眼分辨。 */
+        .chip-empty.ex {
+            outline-color: var(--brass);
+        }
+
+        /* 色別（艦隊裝備 chip 已移除左側色邊：圖示本身已帶配色，色邊會讓有色別/無
+           色別的 chip 寬度不一致、破壞跨艦對齊；基地航空隊 sq-chip 無此對齊需求，保留）。 */
+        .sq-chip.c-gun { border-left: 2px solid #c96a6a; }
+        .sq-chip.c-sec { border-left: 2px solid #cbb35a; }
+        .sq-chip.c-torp { border-left: 2px solid #5a86c9; }
+        .sq-chip.c-ftr { border-left: 2px solid #5ac97a; }
+        .sq-chip.c-db { border-left: 2px solid #d97a5a; }
+        .sq-chip.c-tb { border-left: 2px solid #5ac2cc; }
+        .sq-chip.c-rec { border-left: 2px solid #d9c95a; }
+        .sq-chip.c-sea { border-left: 2px solid #5aa6d9; }
+        .sq-chip.c-radar { border-left: 2px solid #d99e5a; }
+        .sq-chip.c-asw { border-left: 2px solid #5ac2a6; }
+        .sq-chip.c-etc { border-left: 2px solid #6a7488; }
+
+        /* 燃彈合併 chip：與裝備 chip 同一 .sub-row，但位於 .chips 容器之外——由
+           .chips 的 flex:1 把它推到列尾靠右貼齊（總寬受面板寬度約束）。不用圖示，
+           改左右兩色塊＋斜線分開的百分比：燃料綠、彈藥棕（沿用 mat.ammo 圖示主色
+           #a8763e，見 tools/icons/gen_icons.py 的 ammo_crate）。內距歸零讓色塊延伸
+           到 chip 邊緣；flex:none 防被壓縮、align-self:center 因無文字基線可對齊。 */
+        .chip.supply-combo {
+            padding: 0;
+            gap: 0;
+            overflow: hidden;
+            min-width: 46px;
+            flex: none;
+            align-self: center;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+
+        /* 兩半各為迷你量表：色塊背景由 inline linear-gradient 給（寬度=殘量%，
+           燃料錨左、彈藥錨右，見 main.ts supplyChip），透明處露出 .chip 的 --line
+           底色即消耗部分。文字用亮色＋暗描邊，色塊上與露底處都可讀。 */
+        .chip.supply-combo .sup-fuel,
+        .chip.supply-combo .sup-ammo {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 2px 3px;
+            color: var(--text);
+            text-shadow: 0 0 2px #10151d, 0 0 2px #10151d;
+        }
+
+        .exped-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .exped-controls select {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            font-size: 12px;
+            padding: 3px 6px;
+            max-width: 60%;
+        }
+
+        .check-row {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+
+        .check-row:nth-child(odd) {
+            background: var(--panel);
+        }
+
+        .check-row .mark {
+            width: 1.4em;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .check-row.ok .mark {
+            color: #58a55c;
+        }
+
+        .check-row.ng .mark {
+            color: var(--dmg-major);
+        }
+
+        .check-row.ng .grow {
+            color: var(--dmg-mid);
+        }
+
+        /* ── 基地航空隊 ── */
+        #air-bases {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ab-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 4px;
+            overflow-x: auto;
+        }
+
+        .ab-tabs button {
+            background: none;
+            border: 1px solid var(--line);
+            color: var(--dim);
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .ab-tabs button.on {
+            color: var(--text);
+            border-color: var(--brass);
+            background: color-mix(in srgb, var(--brass) 14%, transparent);
+        }
+
+        .ab-tabs button:active {
+            color: var(--text);
+            border-color: var(--brass);
+            transform: scale(.97);
+        }
+
+        .ab-area-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: var(--track-label);
+            color: var(--brass);
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 4px;
+            margin: 0;
+        }
+
+        .ab-card {
+            background: var(--panel);
+            border-radius: 6px;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+        }
+
+        .ab-header {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .ab-header .ab-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .ab-header .grow {
+            flex: 1;
+        }
+
+        .ab-action {
+            font-size: 10px;
+            padding: 1px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .ab-action.act-0 {
+            color: var(--dim);
+            border: 1px solid var(--line);
+        }
+
+        /* 待機 */
+        .ab-action.act-1 {
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
+        }
+
+        /* 出撃 */
+        .ab-action.act-2 {
+            color: #51cf66;
+            border: 1px solid #51cf66;
+        }
+
+        /* 防空 */
+        .ab-action.act-3 {
+            color: var(--stub);
+            border: 1px solid var(--stub);
+        }
+
+        /* 退避 */
+        .ab-action.act-4 {
+            color: #74c0fc;
+            border: 1px solid #74c0fc;
+        }
+
+        /* 休息 */
+
+        .ab-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: var(--dim);
+            margin-bottom: 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ab-stats b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .ab-sq {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 3px 4px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .ab-sq:nth-child(odd) {
+            background: color-mix(in srgb, var(--line) 40%, transparent);
+        }
+
+        .ab-sq .sq-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 1px;
+            font-size: 10px;
+            line-height: 1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            background: var(--line);
+            white-space: nowrap;
+        }
+
+        /* 顏色與編成 chip 一致：熟練金、改修藍。 */
+        .ab-sq .sq-chip b {
+            color: #7fd0ff;
+            font-weight: 600;
+            margin-left: 1px;
+        }
+
+        .ab-sq .sq-chip u {
+            text-decoration: none;
+            color: var(--sparkle);
+            margin-left: 1px;
+        }
+
+        .ab-sq .sq-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ab-sq .sq-count {
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+            color: var(--dim);
+        }
+
+        .ab-sq .sq-count.depleted {
+            color: var(--dmg-major);
+        }
+
+        .ab-sq .sq-cond {
+            font-size: 10px;
+            width: 2.5em;
+            text-align: right;
+        }
+
+        .ab-sq .sq-cond.cond-1 {
+            color: var(--dim);
+        }
+
+        .ab-sq .sq-cond.cond-2 {
+            color: var(--dmg-mid);
+        }
+
+        .ab-sq .sq-cond.cond-3 {
+            color: var(--dmg-major);
+        }
+
+        .ab-sq.empty-sq {
+            color: var(--stub);
+            font-style: italic;
+        }
+
+        /* ── 出擊 (Sortie) ── */
+        .sortie-container {
+            padding: 6px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            background: rgba(10, 20, 30, 0.4);
+            border-radius: 6px;
+            margin: 2px;
+        }
+
+        .s-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .s-map-id {
+            color: var(--sparkle);
+            font-size: 13px;
+            font-weight: 900;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        /* 關卡進度：緊湊量表（擊破數式／HP量表式），或已攻略/未攻略/鎖定小標記 */
+        .s-gauge {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .s-gauge-bar {
+            position: relative;
+            width: 36px;
+            height: 6px;
+            background: var(--line);
+            border-radius: 3px;
+            overflow: hidden;
+            flex: none;
+        }
+
+        .s-gauge-bar > i {
+            position: absolute;
+            inset: 0;
+            right: auto;
+            background: linear-gradient(90deg, var(--dmg-major), var(--sparkle));
+        }
+
+        .s-gauge-num {
+            font-size: 10px;
+            color: var(--dim);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        /* 斬殺場：剩最後一次擊破的醒目提示 */
+        .s-gauge.zansatsu .s-gauge-num {
+            color: #ff6b6b;
+            font-weight: 700;
+            font-size: 11px;
+            text-shadow: 0 0 4px rgba(224, 85, 85, 0.5);
+        }
+
+        .s-gauge.zansatsu .s-gauge-bar > i {
+            background: var(--dmg-major);
+        }
+
+        .s-gauge.cleared,
+        .s-gauge.uncleared,
+        .s-gauge.locked {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--line);
+        }
+
+        .s-gauge.cleared {
+            color: #58a55c;
+            border-color: #58a55c;
+        }
+
+        .s-gauge.locked {
+            font-size: 9px;
+            color: var(--dim);
+        }
+
+        .s-gauge.uncleared {
+            color: var(--dim);
+        }
+
+        .s-phase {
+            font-size: 10px;
+            font-weight: 700;
+            color: #82ccdd;
+            border: 1px solid #82ccdd;
+            background: color-mix(in srgb, #82ccdd 12%, transparent);
+            border-radius: 8px;
+            padding: 0 8px;
+            line-height: 15px;
+            white-space: nowrap;
+        }
+
+        .s-phase.active {
+            color: #fff;
+            background: var(--dmg-major);
+            border-color: var(--dmg-major);
+        }
+
+        /* 節點軌跡：緊湊、不撐滿，避免擠壓戰鬥資訊（#3） */
+        .s-nodes {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+            flex: 0 1 auto;
+            flex-wrap: wrap;
+        }
+
+        .s-node {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            color: #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: bold;
+            position: relative;
+        }
+
+        .s-node.visited {
+            background: #8b0000;
+            border-color: #ff4444;
+            color: white;
+            box-shadow: 0 0 4px rgba(255,0,0,0.5);
+        }
+
+        .s-node.boss::after {
+            content: 'W';
+            position: absolute;
+            top: -8px;
+            color: #ff4444;
+            font-size: 10px;
+            transform: scaleX(1.5);
+        }
+
+        .s-enemies {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .s-enemy-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 26px;
+            gap: 2px;
+        }
+
+        .s-enemy-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: #333;
+            border: 1px solid #777;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .s-enemy-hp {
+            width: 100%;
+            height: 3px;
+            background: #222;
+        }
+        .s-enemy-hp i {
+            display: block;
+            height: 100%;
+            background: #58a55c;
+        }
+
+        /* 出擊戰鬥資訊：左側敵艦晶片（隨伴／主隊）、右側索敵與戰爆固定並排在同一個
+           165px 高的 row（=6 艘晶片的高度），不論敵艦是 1 艘還是連合艦隊 12 艘，
+           索敵/戰爆/下面的陣形支援列都不會跟著移動。s-eside 用 space-between，
+           上緣＝索敵區接晶片頂、下緣＝戰爆區接晶片底（不是跟「主隊/隨伴」文字對齊）。 */
+        .s-battle-row {
+            display: grid;
+            grid-template-columns: 1.35fr 1fr;
+            grid-template-rows: auto 165px;
+            column-gap: 8px;
+        }
+
+        .s-efleet-heads {
+            grid-column: 1;
+            grid-row: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 6px;
+        }
+
+        /* 敵方只有單一艦隊（無隨伴）時橫向填滿，不留一半空白 */
+        .s-efleet-heads.single {
+            grid-template-columns: 1fr;
+        }
+
+        .s-efleet-body {
+            grid-column: 1;
+            grid-row: 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 6px;
+            align-content: start;
+            /* 敵艦數少時晶片靠頂，不撐開、不置中 */
+            overflow: hidden;
+        }
+
+        .s-efleet-body.single {
+            grid-template-columns: 1fr;
+        }
+
+        .s-ecol-h {
+            font-size: 10px;
+            letter-spacing: var(--track-label);
+            color: var(--brass);
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 2px;
+            margin-bottom: 2px;
+        }
+
+        .s-ecol-body {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .s-echip {
+            background: var(--panel);
+            border: .5px solid var(--line);
+            border-radius: 4px;
+            padding: 2px 5px;
+            min-width: 0;
+        }
+
+        .s-echip.sunk {
+            opacity: .5;
+        }
+
+        .s-echip-name {
+            display: block;
+            font-size: 10.5px;
+            line-height: 1.35;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .s-echip.sunk .s-echip-name {
+            text-decoration: line-through;
+            color: var(--dim);
+        }
+
+        .s-echip-hp {
+            display: block;
+            height: 3px;
+            background: var(--line);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 2px;
+        }
+
+        .s-echip-hp>i {
+            display: block;
+            height: 100%;
+        }
+
+        /* 右側：索敵/航向/觸接/航空戰（置中、橘色 --stat-mini）＋我方/敵方戰爆
+           （置中，戰綠/爆紅配色與「我方/敵方」金色標題維持不變）。 */
+        .s-eside {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-width: 0;
+        }
+
+        .s-stats-mini {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 11px;
+        }
+
+        .s-stats-mini .s-stat-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .s-stats-mini .lbl {
+            color: var(--dim);
+        }
+
+        .s-stats-mini .val {
+            color: var(--stat-mini);
+        }
+
+        .s-stats-mini .val.bad {
+            color: var(--dmg-major);
+        }
+
+        .s-air-mini {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr;
+            gap: 2px 10px;
+            font-size: 10.5px;
+            align-items: center;
+        }
+
+        .s-air-mini .hd {
+            color: var(--sparkle);
+            font-weight: 700;
+            text-align: center;
+            font-size: 11px;
+        }
+
+        .s-air-mini .rowlbl {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .s-air-mini>span:not(.rowlbl) {
+            text-align: center;
+        }
+
+        .s-air-icon {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #333;
+            display: inline-block;
+            text-align: center;
+            line-height: 14px;
+            font-size: 9px;
+        }
+
+        .s-air-lost {
+            color: #ff6b6b;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            margin-left: 2px;
+        }
+
+        /* 艦種縮寫（編成艦名前綴，#6）；聯合檢視的 .c-top 共用同一份徽章底色/邊框，
+           固定寬度覆寫見 .ship.c .stype。 */
+        .ship-row .stype,
+        .c-top .stype {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: var(--track-tag);
+            color: var(--brass);
+            background: color-mix(in srgb, var(--brass) 14%, transparent);
+            border: 1px solid color-mix(in srgb, var(--brass) 40%, transparent);
+            border-radius: 3px;
+            /* 右內距扣掉一個字距：letter-spacing 在最後一字後也會留白，
+               窄徽章內不補償會讓文字看起來偏左 */
+            padding: 0 calc(3px - var(--track-tag)) 0 3px;
+            margin-right: 5px;
+            vertical-align: baseline;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 固定寬度＋置中：縮寫本身長度不一（DD 2字 vs CVL 3字），寬度隨文字伸縮的話
+           每艘艦的艦名起始 x 位置都不同，整個艦隊列表看起來參差不齊。32px 是用無頭
+           Chrome 實測全部 19 種縮寫（STYPE_ABBR）自然寬度後訂出來的下限（最寬的
+           CAV/CVL/BBV/SSV/LHA/CVB 落在 28-30.4px），跟聯合檢視 .ship.c .stype 共用
+           同一個數字，兩種檢視視覺一致。 */
+        .ship-row .stype {
+            width: 32px;
+            text-align: center;
+        }
+
+        /* 遠征艦隊編號：比照編成選擇按鈕（僅數字） */
+        .timer-row .fleet-box {
+            font-size: 12px;
+            color: var(--text);
+            border: 1px solid var(--brass);
+            border-radius: 5px;
+            padding: 1px 9px;
+            background: color-mix(in srgb, var(--brass) 14%, transparent);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 陣形/支援/対空CI/夜戰/rank/友軍 一列＋Drop（掉落艦名，#5）：放大圖示、
+           位置固定在敵艦晶片區下方，不隨敵艦數量位移。 */
+        .s-icons-full {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .s-icon-cluster {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .s-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #222;
+            border: 1px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9.5px;
+            line-height: 1.05;
+            color: #aaa;
+            text-align: center;
+        }
+
+        .s-icon.active { color: #82ccdd; border-color: #82ccdd; }
+        .s-icon.predicted { border-style: dashed; }
+        .s-icon.rank-ss { color: #ffe066; border-color: #ffe066; font-size: 14px; font-weight: bold; text-shadow: 0 0 4px rgba(255,224,102,0.6); }
+        .s-icon.rank-s { color: #f1c40f; border-color: #f1c40f; font-size: 15px; font-weight: bold; }
+        .s-icon.rank-a { color: #e74c3c; border-color: #e74c3c; font-size: 15px; font-weight: bold; }
+        .s-icon.rank-b { color: #d35400; border-color: #d35400; font-size: 15px; font-weight: bold; }
+        .s-icon.rank-c { color: #95a5a6; border-color: #7f8c8d; font-size: 15px; font-weight: bold; }
+        .s-icon.rank-d { color: #7f8c8d; border-color: #566060; font-size: 15px; font-weight: bold; }
+
+        .s-drop {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: color-mix(in srgb, var(--sparkle) 12%, var(--panel));
+            border: 1px solid var(--sparkle);
+            border-radius: 12px;
+            padding: 2px 8px 2px 4px;
+        }
+
+        .s-drop-tag {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: var(--track-tag);
+            color: #10151d;
+            background: var(--sparkle);
+            border-radius: 8px;
+            /* 右內距扣掉一個字距，理由同 .ship-row .stype */
+            padding: 1px calc(5px - var(--track-tag)) 1px 5px;
+        }
+
+        .s-drop-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--sparkle);
+            white-space: nowrap;
+        }
+
+        /* ── 出擊紀錄（紀錄分頁）── */
+        .h-group {
+            margin-bottom: 10px;
+        }
+
+        .h-head {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            font-size: 12px;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 2px;
+            margin-bottom: 3px;
+        }
+
+        .h-head b {
+            color: var(--sparkle);
+        }
+
+        .h-head .dim {
+            font-size: 10px;
+        }
+
+        .h-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .h-row:nth-child(even) {
+            background: var(--panel);
+        }
+
+        .h-row.raid .grow {
+            color: var(--dmg-mid);
+        }
+
+        .h-node {
+            width: 24px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--dim);
+            font-size: 10px;
+            flex: none;
+        }
+
+        .h-node.boss {
+            color: #ff4444;
+        }
+
+        .h-node.boss::after {
+            content: '★';
+            font-size: 8px;
+        }
+
+        .h-rank {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            flex: none;
+        }
+
+        .h-rank.rank-s { color: #f1c40f; border-color: #f1c40f; }
+        .h-rank.rank-a { color: #e74c3c; border-color: #e74c3c; }
+        .h-rank.rank-b { color: #d35400; border-color: #d35400; }
+        .h-rank.rank-c { color: #95a5a6; border-color: #7f8c8d; }
+        .h-rank.rank-d, .h-rank.rank-e { color: #7f8c8d; border-color: #566060; }
+
+        .h-seiku {
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .h-seiku.sk-1 { color: #58a55c; }   /* 確保 */
+        .h-seiku.sk-2 { color: #82ccdd; }   /* 優勢 */
+        .h-seiku.sk-0 { color: var(--dim); } /* 互角 */
+        .h-seiku.sk-3, .h-seiku.sk-4 { color: var(--dmg-major); }  /* 劣勢/喪失 */
+
+        .h-taiha {
+            font-size: 10px;
+            color: #fff;
+            background: var(--dmg-major);
+            border-radius: 6px;
+            padding: 0 5px;
+            white-space: nowrap;
+        }
+
+        .h-drop {
+            font-size: 10px;
+            color: var(--sparkle);
+            white-space: nowrap;
+        }
+
+        /* ── 待驗證封包（自動擷取）── */
+        .wanted-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .wanted-row:nth-child(odd) {
+            background: var(--panel);
+        }
+
+        .wanted-tag {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--sparkle);
+            border: 1px solid var(--sparkle);
+            border-radius: 8px;
+            padding: 0 7px;
+            white-space: nowrap;
+        }
+
+        .wanted-path {
+            color: var(--dim);
+            font: 10px/1.4 ui-monospace, monospace;
+        }
+
+        .wanted-row button {
+            background: none;
+            border: 1px solid var(--line);
+            color: var(--text);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+
+        .wanted-row button:hover {
+            border-color: var(--brass);
+        }
+
+        .wanted-row button.copied {
+            color: #58a55c;
+            border-color: #58a55c;
+        }
+
+        /* ── 工廠分頁 ── */
+        .fac-controls {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        /* akashi-list 外部連結：唯一的出站連結，做成按鈕樣（與 wanted-row button 同語彙） */
+        .akashi-link {
+            font-size: 11px;
+            color: #82ccdd;
+            text-decoration: none;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 2px 8px;
+            white-space: nowrap;
+        }
+
+        .akashi-link:hover {
+            border-color: #82ccdd;
+        }
+
+        /* 最新開發/改修結果看板：卡片式，與出擊分頁的資訊區塊同視覺層級 */
+        .fac-card {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin-bottom: 8px;
+            background: var(--panel);
+        }
+
+        .fac-card h4 {
+            margin: 0 0 4px;
+            font-size: 11px;
+            color: var(--dim);
+            font-weight: 600;
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+        }
+
+        .fac-result-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 12px;
+            padding: 2px 0;
+        }
+
+        /* 紀錄列：沿用 .h-row 節奏（斑馬紋、圓角、11px） */
+        .f-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .f-row:nth-child(even) {
+            background: var(--panel);
+        }
+
+        /* 種別徽章：開發／建造／改修（與 .h-rank 同語彙的描邊字） */
+        .f-kind {
+            width: 26px;
+            text-align: center;
+            flex: none;
+            font-size: 10px;
+            font-weight: 700;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+        }
+
+        .f-kind.develop { color: #82ccdd; border-color: #82ccdd; }
+        .f-kind.build { color: var(--dmg-mid); border-color: var(--dmg-mid); }
+        .f-kind.improve { color: #c39bd3; border-color: #c39bd3; }
+        .f-kind.speedup { color: var(--sparkle); border-color: var(--sparkle); }
+
+        /* 投入資材（配方）：圖示＋數字成組，數字用等寬變體便於掃讀 */
+        .f-res {
+            display: inline-flex;
+            gap: 5px;
+            align-items: center;
+            white-space: nowrap;
+            font-size: 10px;
+            color: var(--dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .f-res b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .f-ok { color: #58a55c; }
+        .f-ng { color: var(--dmg-major); }
+        .f-fail { color: var(--stub); }
+
+        /* 改修等級變化：★n → ★n+1 */
+        .f-lv {
+            color: var(--sparkle);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .taiha-alert {
+            background: rgba(224, 85, 85, 0.1);
+            border: 1px solid var(--dmg-major);
+            color: #ff6b6b;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            animation: pulse 2s infinite;
+            margin-bottom: 6px;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(224, 85, 85, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(224, 85, 85, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(224, 85, 85, 0); }
+        }
+
+        /* ── 無障礙偏好 ──
+           減少動態不等於取消回饋，而是換成不會引發前庭不適的等效表現：
+           大破警告是本面板最重要的即時訊號，脈動改為靜態強調光暈，警示強度不變。 */
+        @media (prefers-reduced-motion: reduce) {
+            .taiha-alert {
+                animation: none;
+                box-shadow: 0 0 0 3px rgba(224, 85, 85, 0.35);
+            }
+
+            #tabs button,
+            .ab-tabs button {
+                transition: none;
+            }
+
+            .ab-tabs button:active {
+                transform: none;
+            }
+        }
+
+        /* 降低透明：本面板的半透明底色（color-mix 疊到 transparent、警告框的 rgba）
+           改為不透明——同色相直接混進 --panel，色調維持一致但不再透出底下內容。 */
+        @media (prefers-reduced-transparency: reduce) {
+
+            .ship-row .stype,
+            .c-top .stype {
+                background: color-mix(in srgb, var(--brass) 14%, var(--panel));
+                border-color: color-mix(in srgb, var(--brass) 40%, var(--panel));
+            }
+
+            .timer-row .fleet-box,
+            .ab-tabs button.on {
+                background: color-mix(in srgb, var(--brass) 14%, var(--panel));
+            }
+
+            .s-drop {
+                background: color-mix(in srgb, var(--sparkle) 12%, var(--panel));
+            }
+
+            .taiha-alert {
+                background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
+            }
+        }
+
+        /* 高對比：邊界改為明確可見、弱化文字提高亮度；深淺主題各自調整。
+           大破警告改為實心底＋深色字，不再只靠淡紅底表示。 */
+        @media (prefers-contrast: more) {
+            :root {
+                --line: #6b7a95;
+                --dim: #a9b4c6;
+                --stub: #7f8a9e;
+            }
+
+            :root[data-theme="light"] {
+                --line: #8a8375;
+                --dim: #4a5160;
+                --stub: #7a8291;
+            }
+
+            .taiha-alert {
+                background: var(--dmg-major);
+                color: #10151d;
+            }
+
+            #tabs button.on {
+                color: var(--text);
+                border-bottom-width: 3px;
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="header"></div>
+    <div id="tabs"></div>
+    <div id="tabpanel">
+        <div id="tab-general">
+            <div class="g-top">
+                <div class="resblock" id="resline"></div>
+                <div id="missions"></div>
+            </div>
+            <div class="g-docks">
+                <div id="ndocks"></div>
+                <div id="kdocks"></div>
+            </div>
+            <h3 data-i18n="section.quest">任務</h3>
+            <div id="quests"></div>
+        </div>
+        <div id="tab-exped" style="display:none">
+            <div class="exped-controls">
+                <span id="exped-fleet-label" class="badge"></span>
+                <select id="exped-select"></select>
+            </div>
+            <div id="exped-check"></div>
+        </div>
+        <div id="tab-factory" style="display:none">
+            <div class="fac-controls">
+                <span class="grow"></span>
+                <a class="akashi-link" href="https://akashi-list.me/" target="_blank" rel="noopener"
+                    data-i18n="factory.akashiLink">明石の改修工廠 早見表 ↗</a>
+            </div>
+            <div id="factory-live"></div>
+        </div>
+        <div id="tab-activity" style="display:none">
+            <h3 data-i18n="section.wanted">待驗證封包（自動擷取）</h3>
+            <div id="wanted"></div>
+            <h3 data-i18n="section.log">事件記錄</h3>
+            <div id="log"></div>
+        </div>
+        <div id="tab-sortie" style="display:none">
+            <div id="battle-content">
+                <div style="color:var(--dim); padding:10px;" data-i18n="sortie.notEntered">尚未進入戰鬥。</div>
+            </div>
+        </div>
+    </div>
+    <div id="fleetnav"></div>
+    <div id="fleets"></div>
+    <div id="air-bases" style="display:none"></div>
+    <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

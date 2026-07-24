@@ -1,0 +1,128 @@
+import {
+    createKcApiRuntimeMessage,
+    sendKcApiRuntimeMessageWithRetry,
+} from '../utils/runtime-message';
+import {
+    MUTE_MARK, PORT_MUTE, RELAY_MARK,
+    type MuteBridgeMessage, type TheaterRelayMessage,
+} from '../utils/game-page';
+
+export default defineContentScript({
+    matches: ['*://*.kancolle-server.com/*'],
+    runAt: 'document_start',
+    allFrames: true,
+    main() {
+        // ── 關閉分頁前警示（避免手滑關掉正在進行的出擊／遠征）──────
+        // **關鍵功能：不能靠使用者先授權才生效**。曾經改放到頂層 DMM 頁（需要劇場模式／
+        // 拍照那組 optional host permission 才會注入），但那樣全新安裝、還沒用過那兩個
+        // 功能時完全沒有保護——不可接受。故改回掛在這裡：manifest 靜態注入
+        // （matches kancolle-server.com），安裝當下、零額外授權、零使用者互動就生效，
+        // 涵蓋新舊 DMM 入口。
+        //
+        // 已知代價：Chromium 對「跨源 iframe 掛 beforeunload」有多次社群回報的重複跳出
+        // 對話框問題（例如 crbug.com/1119438），使用者實機也遇過取消一次還會再跳一次。
+        // 試過用 playwright-core（channel:"chrome"）建兩個不同 port 模擬真跨源 iframe、
+        // 呼叫 page.close({runBeforeUnload:true}) 想重現，但 CDP 自動化關閉分頁的路徑本來
+        // 就不會觸發 beforeunload（不論掛在哪、掛幾份，一律 0 次），驗證不了、只能如實記錄
+        // 沒能重現。這裡是刻意的取捨：**零權限、可能跳兩次**比「單次跳窗但需要先授權」更
+        // 貼近「這是關鍵功能」的要求——跳兩次終究還是能擋下誤關，沒有保護才是真正的風險。
+        //
+        // 只在「最外層」的 kancolle-server.com 框安裝，避免遊戲內部若真有巢狀同源子框時
+        // 各自掛一份、放大重複跳窗機率：讀得到 `window.parent.location`（不丟
+        // SecurityError）代表 parent 跟自己同源（也是巢狀在遊戲裡的框），這裡不裝；
+        // 讀不到（跨源，通常是 DMM 頂層頁）才是最外層，才裝這份。
+        const isOutermostGameFrame = () => {
+            if (window === window.top) return true;
+            try { void window.parent.location.href; return false; }
+            catch { return true; }
+        };
+        if (isOutermostGameFrame()) {
+            window.addEventListener('beforeunload', (e) => {
+                e.preventDefault();
+                e.returnValue = '';
+            });
+        }
+
+        // ── 靜音狀態下行通道 ──────────────────────────
+        // background 持有狀態，MAIN world 的 hook 執行。用長連線而非 tabs.sendMessage：
+        // 後者需要對遊戲分頁的 host permission，而 content_scripts 的 matches 不等於
+        // host permission（權限精簡原則）。由 content script 主動連上來就完全不需要權限。
+        try {
+            const port = browser.runtime.connect({ name: PORT_MUTE });
+            port.onMessage.addListener((msg: any) => {
+                if (typeof msg?.muted !== 'boolean') return;
+                window.postMessage(
+                    { [MUTE_MARK]: 1, muted: msg.muted } satisfies MuteBridgeMessage,
+                    location.origin,
+                );
+            });
+        } catch (e) {
+            // 連線失敗只代表靜音鈕對這個分頁無效，封包擷取完全不受影響。
+            console.warn('[KC-Monitor] 靜音狀態通道連線失敗', e);
+        }
+
+        // ── 劇場模式的互動意圖轉發（Alt+滾輪／Esc）────
+        // 滑鼠停在遊戲框上、或焦點落進框內（玩遊戲時的常態）時，滾輪與鍵盤事件只送到框內
+        // 文件，父頁的劇場模式收不到——實測確認放大到滿版後父頁再也收不到任何滾輪與 Esc。
+        // 故在這裡把「Alt+滾輪」與「Esc」轉發上去（**只送互動意圖，不含任何遊戲資料**）。
+        // 兩個 listener 都是 passive、都不 stopPropagation：遊戲照樣收到原本的事件，
+        // 我們沒有改變遊戲的任何行為（設計原則 1 的精神）。
+        const relay = (message: TheaterRelayMessage) => {
+            if (window.top === window) return;
+            try { window.top?.postMessage(message, '*'); } catch { /* 上層不可達時忽略 */ }
+        };
+        window.addEventListener('wheel', (e) => {
+            if (!e.altKey) return;
+            relay({ [RELAY_MARK]: 1, kind: 'wheel', deltaY: e.deltaY, deltaMode: e.deltaMode });
+        }, { passive: true, capture: true });
+        window.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            relay({ [RELAY_MARK]: 1, kind: 'exit' });
+        }, { passive: true, capture: true });
+
+        // ── 遊戲畫布的量測（劇場模式的裁切依據）────────
+        // DMM 的遊戲框裡除了遊戲，還有頁尾按鈕與大片白底；父頁跨源看不見框內任何東西，
+        // 只有這裡量得到遊戲畫布的位置。父頁問一次才答一次（不主動廣播、不定時輪詢）。
+        // 量不到畫布就回 null——父頁會退回「整個框」而不是猜一個矩形。
+        const measureGame = () => {
+            const rects = [...document.querySelectorAll('canvas')]
+                .map(c => c.getBoundingClientRect())
+                .filter(r => r.width >= 200 && r.height >= 150);
+            if (!rects.length) return null;
+            const biggest = rects.sort((a, b) => b.width * b.height - a.width * a.height)[0];
+            return {
+                x: biggest.left, y: biggest.top,
+                width: biggest.width, height: biggest.height,
+            };
+        };
+        window.addEventListener('message', (e) => {
+            const data = e.data as TheaterRelayMessage | undefined;
+            if (!data || (data as any)[RELAY_MARK] !== 1 || data.kind !== 'measure') return;
+            relay({
+                [RELAY_MARK]: 1,
+                kind: 'game-rect',
+                rect: measureGame(),
+                viewport: { width: window.innerWidth, height: window.innerHeight },
+            });
+        });
+
+        window.addEventListener('message', (e) => {
+            if (e.source !== window || e.origin !== location.origin) return;
+            const d = e.data;
+            if (!d || d.__kc_monitor__ !== 1) return;
+            const req = Object.fromEntries(new URLSearchParams(d.req ?? ''));
+            delete req.api_token;
+            delete req.api_verno;
+            const message = createKcApiRuntimeMessage(
+                { path: d.path, req, apiText: d.apiText },
+                { createUuid: () => crypto.randomUUID(), now: () => Date.now() },
+            );
+            void sendKcApiRuntimeMessageWithRetry(message, {
+                send: (runtimeMessage) => browser.runtime.sendMessage(runtimeMessage),
+                retryDelay: () => new Promise(resolve => setTimeout(resolve, 300)),
+            }).catch((e) => {
+                console.warn('[KC-Monitor] 送出封包重試後仍失敗，此筆遺失', e);
+            });
+        });
+    },
+});

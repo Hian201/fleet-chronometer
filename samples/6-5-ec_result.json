@@ -1,0 +1,12 @@
+{
+    "api_ship_id": [1586, 1615, 1527, 1592, 1576, 1576],
+    "api_win_rank": "S",
+    "api_get_exp": 3520,
+    "api_mvp": 4,
+    "api_mvp_combined": null,
+    "api_dests": 12,
+    "api_destsf": 1,
+    "api_quest_name": "KW 環礁沖海域",
+    "api_enemy_info": { "api_level": "", "api_rank": "", "api_deck_name": "任務部隊 主力群" },
+    "api_get_ship": { "api_ship_id": 124, "api_ship_type": "重巡洋艦", "api_ship_name": "鈴谷" }
+}

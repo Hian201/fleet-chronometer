@@ -1,0 +1,35 @@
+{
+  "req": {
+    "api_id": "315",
+    "api_slot_id": "20581",
+    "api_certain_flag": "0"
+  },
+  "api": {
+    "api_remodel_flag": 1,
+    "api_remodel_id": [
+      36,
+      36
+    ],
+    "api_after_material": [
+      348232,
+      333916,
+      345050,
+      344999,
+      1541,
+      2976,
+      725,
+      130
+    ],
+    "api_voice_ship_id": 592,
+    "api_voice_id": 27,
+    "api_after_slot": {
+      "api_id": 20581,
+      "api_slotitem_id": 36,
+      "api_locked": 1,
+      "api_level": 9
+    },
+    "api_use_slot_id": [
+      76234
+    ]
+  }
+}

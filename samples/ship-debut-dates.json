@@ -1,0 +1,1994 @@
+{
+  "長門": {
+    "original": "長門",
+    "tw": "長門",
+    "en": "Nagato",
+    "date": "2013-04-23"
+  },
+  "陸奥": {
+    "original": "陸奥",
+    "tw": "陸奧",
+    "en": "Mutsu",
+    "date": "2013-04-23"
+  },
+  "伊勢": {
+    "original": "伊勢",
+    "tw": "伊勢",
+    "en": "Ise",
+    "date": "2013-04-23"
+  },
+  "日向": {
+    "original": "日向",
+    "tw": "日向",
+    "en": "Hyuuga",
+    "date": "2013-04-23"
+  },
+  "雪風": {
+    "original": "雪風",
+    "tw": "雪風",
+    "en": "Yukikaze",
+    "date": "2013-04-23"
+  },
+  "赤城": {
+    "original": "赤城",
+    "tw": "赤城",
+    "en": "Akagi",
+    "date": "2013-04-23"
+  },
+  "加賀": {
+    "original": "加賀",
+    "tw": "加賀",
+    "en": "Kaga",
+    "date": "2013-04-23"
+  },
+  "蒼龍": {
+    "original": "蒼龍",
+    "tw": "蒼龍",
+    "en": "Soryu",
+    "date": "2013-04-23"
+  },
+  "飛龍": {
+    "original": "飛龍",
+    "tw": "飛龍",
+    "en": "Hiryu",
+    "date": "2013-04-23"
+  },
+  "島風": {
+    "original": "島風",
+    "tw": "島風",
+    "en": "Shimakaze",
+    "date": "2013-04-23"
+  },
+  "吹雪": {
+    "original": "吹雪",
+    "tw": "吹雪",
+    "en": "Fubuki",
+    "date": "2013-04-23"
+  },
+  "白雪": {
+    "original": "白雪",
+    "tw": "白雪",
+    "en": "Shirayuki",
+    "date": "2013-04-23"
+  },
+  "初雪": {
+    "original": "初雪",
+    "tw": "初雪",
+    "en": "Hatsuyuki",
+    "date": "2013-04-23"
+  },
+  "深雪": {
+    "original": "深雪",
+    "tw": "深雪",
+    "en": "Miyuki",
+    "date": "2013-04-23"
+  },
+  "叢雲": {
+    "original": "叢雲",
+    "tw": "叢雲",
+    "en": "Murakumo",
+    "date": "2013-04-23"
+  },
+  "磯波": {
+    "original": "磯波",
+    "tw": "磯波",
+    "en": "Isonami",
+    "date": "2013-04-23"
+  },
+  "綾波": {
+    "original": "綾波",
+    "tw": "綾波",
+    "en": "Ayanami",
+    "date": "2013-04-23"
+  },
+  "敷波": {
+    "original": "敷波",
+    "tw": "敷波",
+    "en": "Shikinami",
+    "date": "2013-04-23"
+  },
+  "大井": {
+    "original": "大井",
+    "tw": "大井",
+    "en": "Ooi",
+    "date": "2013-04-23"
+  },
+  "北上": {
+    "original": "北上",
+    "tw": "北上",
+    "en": "Kitakami",
+    "date": "2013-04-23"
+  },
+  "金剛": {
+    "original": "金剛",
+    "tw": "金剛",
+    "en": "Kongo",
+    "date": "2013-04-23"
+  },
+  "比叡": {
+    "original": "比叡",
+    "tw": "比叡",
+    "en": "Hiei",
+    "date": "2013-04-23"
+  },
+  "榛名": {
+    "original": "榛名",
+    "tw": "榛名",
+    "en": "Haruna",
+    "date": "2013-04-23"
+  },
+  "霧島": {
+    "original": "霧島",
+    "tw": "霧島",
+    "en": "Kirishima",
+    "date": "2013-04-23"
+  },
+  "鳳翔": {
+    "original": "鳳翔",
+    "tw": "鳳翔",
+    "en": "Hosho",
+    "date": "2013-04-23"
+  },
+  "扶桑": {
+    "original": "扶桑",
+    "tw": "扶桑",
+    "en": "Fuso",
+    "date": "2013-04-23"
+  },
+  "山城": {
+    "original": "山城",
+    "tw": "山城",
+    "en": "Yamashiro",
+    "date": "2013-04-23"
+  },
+  "天龍": {
+    "original": "天龍",
+    "tw": "天龍",
+    "en": "Tenryu",
+    "date": "2013-04-23"
+  },
+  "龍田": {
+    "original": "龍田",
+    "tw": "龍田",
+    "en": "Tatsuta",
+    "date": "2013-04-23"
+  },
+  "龍驤": {
+    "original": "龍驤",
+    "tw": "龍驤",
+    "en": "Ryujo",
+    "date": "2013-04-23"
+  },
+  "睦月": {
+    "original": "睦月",
+    "tw": "睦月",
+    "en": "Mutsuki",
+    "date": "2013-04-23"
+  },
+  "如月": {
+    "original": "如月",
+    "tw": "如月",
+    "en": "Kisaragi",
+    "date": "2013-04-23"
+  },
+  "皐月": {
+    "original": "皐月",
+    "tw": "皐月",
+    "en": "Satsuki",
+    "date": "2013-04-23"
+  },
+  "文月": {
+    "original": "文月",
+    "tw": "文月",
+    "en": "Fumizuki",
+    "date": "2013-04-23"
+  },
+  "長月": {
+    "original": "長月",
+    "tw": "長月",
+    "en": "Nagatsuki",
+    "date": "2013-04-23"
+  },
+  "菊月": {
+    "original": "菊月",
+    "tw": "菊月",
+    "en": "Kikuzuki",
+    "date": "2013-04-23"
+  },
+  "三日月": {
+    "original": "三日月",
+    "tw": "三日月",
+    "en": "Mikazuki",
+    "date": "2013-04-23"
+  },
+  "望月": {
+    "original": "望月",
+    "tw": "望月",
+    "en": "Mochizuki",
+    "date": "2013-04-23"
+  },
+  "球磨": {
+    "original": "球磨",
+    "tw": "球磨",
+    "en": "Kuma",
+    "date": "2013-04-23"
+  },
+  "多摩": {
+    "original": "多摩",
+    "tw": "多摩",
+    "en": "Tama",
+    "date": "2013-04-23"
+  },
+  "木曾": {
+    "original": "木曾",
+    "tw": "木曾",
+    "en": "Kiso",
+    "date": "2013-04-23"
+  },
+  "長良": {
+    "original": "長良",
+    "tw": "長良",
+    "en": "Nagara",
+    "date": "2013-04-23"
+  },
+  "五十鈴": {
+    "original": "五十鈴",
+    "tw": "五十鈴",
+    "en": "Isuzu",
+    "date": "2013-04-23"
+  },
+  "名取": {
+    "original": "名取",
+    "tw": "名取",
+    "en": "Natori",
+    "date": "2013-04-23"
+  },
+  "由良": {
+    "original": "由良",
+    "tw": "由良",
+    "en": "Yura",
+    "date": "2013-04-23"
+  },
+  "川内": {
+    "original": "川内",
+    "tw": "川內",
+    "en": "Sendai",
+    "date": "2013-04-23"
+  },
+  "神通": {
+    "original": "神通",
+    "tw": "神通",
+    "en": "Jintsu",
+    "date": "2013-04-23"
+  },
+  "那珂": {
+    "original": "那珂",
+    "tw": "那珂",
+    "en": "Naka",
+    "date": "2013-04-23"
+  },
+  "千歳": {
+    "original": "千歳",
+    "tw": "千歲",
+    "en": "Chitose",
+    "date": "2013-04-23"
+  },
+  "千代田": {
+    "original": "千代田",
+    "tw": "千代田",
+    "en": "Chiyoda",
+    "date": "2013-04-23"
+  },
+  "最上": {
+    "original": "最上",
+    "tw": "最上",
+    "en": "Mogami",
+    "date": "2013-04-23"
+  },
+  "古鷹": {
+    "original": "古鷹",
+    "tw": "古鷹",
+    "en": "Furutaka",
+    "date": "2013-04-23"
+  },
+  "加古": {
+    "original": "加古",
+    "tw": "加古",
+    "en": "Kako",
+    "date": "2013-04-23"
+  },
+  "青葉": {
+    "original": "青葉",
+    "tw": "青葉",
+    "en": "Aoba",
+    "date": "2013-04-23"
+  },
+  "妙高": {
+    "original": "妙高",
+    "tw": "妙高",
+    "en": "Myoko",
+    "date": "2013-04-23"
+  },
+  "那智": {
+    "original": "那智",
+    "tw": "那智",
+    "en": "Nachi",
+    "date": "2013-04-23"
+  },
+  "足柄": {
+    "original": "足柄",
+    "tw": "足柄",
+    "en": "Ashigara",
+    "date": "2013-04-23"
+  },
+  "羽黒": {
+    "original": "羽黒",
+    "tw": "羽黑",
+    "en": "Haguro",
+    "date": "2013-04-23"
+  },
+  "高雄": {
+    "original": "高雄",
+    "tw": "高雄",
+    "en": "Takao",
+    "date": "2013-04-23"
+  },
+  "愛宕": {
+    "original": "愛宕",
+    "tw": "愛宕",
+    "en": "Atago",
+    "date": "2013-04-23"
+  },
+  "摩耶": {
+    "original": "摩耶",
+    "tw": "摩耶",
+    "en": "Maya",
+    "date": "2013-04-23"
+  },
+  "鳥海": {
+    "original": "鳥海",
+    "tw": "鳥海",
+    "en": "Chokai",
+    "date": "2013-04-23"
+  },
+  "利根": {
+    "original": "利根",
+    "tw": "利根",
+    "en": "Tone",
+    "date": "2013-04-23"
+  },
+  "筑摩": {
+    "original": "筑摩",
+    "tw": "筑摩",
+    "en": "Chikuma",
+    "date": "2013-04-23"
+  },
+  "飛鷹": {
+    "original": "飛鷹",
+    "tw": "飛鷹",
+    "en": "Hiyo",
+    "date": "2013-04-23"
+  },
+  "隼鷹": {
+    "original": "隼鷹",
+    "tw": "隼鷹",
+    "en": "Junyo",
+    "date": "2013-04-23"
+  },
+  "朧": {
+    "original": "朧",
+    "tw": "朧",
+    "en": "Oboro",
+    "date": "2013-04-23"
+  },
+  "曙": {
+    "original": "曙",
+    "tw": "曙",
+    "en": "Akebono",
+    "date": "2013-04-23"
+  },
+  "漣": {
+    "original": "漣",
+    "tw": "漣",
+    "en": "Sazanami",
+    "date": "2013-04-23"
+  },
+  "潮": {
+    "original": "潮",
+    "tw": "潮",
+    "en": "Ushio",
+    "date": "2013-04-23"
+  },
+  "暁": {
+    "original": "暁",
+    "tw": "曉",
+    "en": "Akatsuki",
+    "date": "2013-04-23"
+  },
+  "響": {
+    "original": "響",
+    "tw": "響",
+    "en": "Hibiki",
+    "date": "2013-04-23"
+  },
+  "雷": {
+    "original": "雷",
+    "tw": "雷",
+    "en": "Ikazuchi",
+    "date": "2013-04-23"
+  },
+  "電": {
+    "original": "電",
+    "tw": "電",
+    "en": "Inazuma",
+    "date": "2013-04-23"
+  },
+  "初春": {
+    "original": "初春",
+    "tw": "初春",
+    "en": "Hatsuharu",
+    "date": "2013-04-23"
+  },
+  "子日": {
+    "original": "子日",
+    "tw": "子日",
+    "en": "Nenohi",
+    "date": "2013-04-23"
+  },
+  "若葉": {
+    "original": "若葉",
+    "tw": "若葉",
+    "en": "Wakaba",
+    "date": "2013-04-23"
+  },
+  "初霜": {
+    "original": "初霜",
+    "tw": "初霜",
+    "en": "Hatsushimo",
+    "date": "2013-04-23"
+  },
+  "白露": {
+    "original": "白露",
+    "tw": "白露",
+    "en": "Shiratsuyu",
+    "date": "2013-04-23"
+  },
+  "時雨": {
+    "original": "時雨",
+    "tw": "時雨",
+    "en": "Shigure",
+    "date": "2013-04-23"
+  },
+  "村雨": {
+    "original": "村雨",
+    "tw": "村雨",
+    "en": "Murasame",
+    "date": "2013-04-23"
+  },
+  "夕立": {
+    "original": "夕立",
+    "tw": "夕立",
+    "en": "Yudachi",
+    "date": "2013-04-23"
+  },
+  "五月雨": {
+    "original": "五月雨",
+    "tw": "五月雨",
+    "en": "Samidare",
+    "date": "2013-04-23"
+  },
+  "涼風": {
+    "original": "涼風",
+    "tw": "涼風",
+    "en": "Suzukaze",
+    "date": "2013-04-23"
+  },
+  "朝潮": {
+    "original": "朝潮",
+    "tw": "朝潮",
+    "en": "Asashio",
+    "date": "2013-04-23"
+  },
+  "大潮": {
+    "original": "大潮",
+    "tw": "大潮",
+    "en": "Oshio",
+    "date": "2013-04-23"
+  },
+  "満潮": {
+    "original": "満潮",
+    "tw": "滿潮",
+    "en": "Michishio",
+    "date": "2013-04-23"
+  },
+  "荒潮": {
+    "original": "荒潮",
+    "tw": "荒潮",
+    "en": "Arashio",
+    "date": "2013-04-23"
+  },
+  "霰": {
+    "original": "霰",
+    "tw": "霰",
+    "en": "Arare",
+    "date": "2013-04-23"
+  },
+  "霞": {
+    "original": "霞",
+    "tw": "霞",
+    "en": "Kasumi",
+    "date": "2013-04-23"
+  },
+  "陽炎": {
+    "original": "陽炎",
+    "tw": "陽炎",
+    "en": "Kagero",
+    "date": "2013-04-23"
+  },
+  "不知火": {
+    "original": "不知火",
+    "tw": "不知火",
+    "en": "Shiranui",
+    "date": "2013-04-23"
+  },
+  "黒潮": {
+    "original": "黒潮",
+    "tw": "黑潮",
+    "en": "Kuroshio",
+    "date": "2013-04-23"
+  },
+  "祥鳳": {
+    "original": "祥鳳",
+    "tw": "祥鳳",
+    "en": "Shoho",
+    "date": "2013-04-23"
+  },
+  "翔鶴": {
+    "original": "翔鶴",
+    "tw": "翔鶴",
+    "en": "Shokaku",
+    "date": "2013-05-17"
+  },
+  "瑞鶴": {
+    "original": "瑞鶴",
+    "tw": "瑞鶴",
+    "en": "Zuikaku",
+    "date": "2013-05-17"
+  },
+  "鬼怒": {
+    "original": "鬼怒",
+    "tw": "鬼怒",
+    "en": "Kinu",
+    "date": "2013-05-17"
+  },
+  "阿武隈": {
+    "original": "阿武隈",
+    "tw": "阿武隈",
+    "en": "Abukuma",
+    "date": "2013-05-17"
+  },
+  "夕張": {
+    "original": "夕張",
+    "tw": "夕張",
+    "en": "Yubari",
+    "date": "2013-06-05"
+  },
+  "瑞鳳": {
+    "original": "瑞鳳",
+    "tw": "瑞鳳",
+    "en": "Zuiho",
+    "date": "2013-06-05"
+  },
+  "三隈": {
+    "original": "三隈",
+    "tw": "三隈",
+    "en": "Mikuma",
+    "date": "2013-06-26"
+  },
+  "舞風": {
+    "original": "舞風",
+    "tw": "舞風",
+    "en": "Maikaze",
+    "date": "2013-07-10"
+  },
+  "衣笠": {
+    "original": "衣笠",
+    "tw": "衣笠",
+    "en": "Kinugasa",
+    "date": "2013-07-24"
+  },
+  "鈴谷": {
+    "original": "鈴谷",
+    "tw": "鈴谷",
+    "en": "Suzuya",
+    "date": "2013-08-01"
+  },
+  "熊野": {
+    "original": "熊野",
+    "tw": "熊野",
+    "en": "Kumano",
+    "date": "2013-08-01"
+  },
+  "伊168": {
+    "original": "伊168",
+    "tw": "伊168",
+    "en": "I-168",
+    "date": "2013-08-01"
+  },
+  "伊58": {
+    "original": "伊58",
+    "tw": "伊58",
+    "en": "I-58",
+    "date": "2013-08-01"
+  },
+  "伊8": {
+    "original": "伊8",
+    "tw": "伊8",
+    "en": "I-8",
+    "date": "2013-08-01"
+  },
+  "大和": {
+    "original": "大和",
+    "tw": "大和",
+    "en": "Yamato",
+    "date": "2013-08-08"
+  },
+  "初風": {
+    "original": "初風",
+    "tw": "初風",
+    "en": "Hatsukaze",
+    "date": "2013-08-26"
+  },
+  "秋雲": {
+    "original": "秋雲",
+    "tw": "秋雲",
+    "en": "Akigumo",
+    "date": "2013-09-18"
+  },
+  "夕雲": {
+    "original": "夕雲",
+    "tw": "夕雲",
+    "en": "Yugumo",
+    "date": "2013-09-18"
+  },
+  "巻雲": {
+    "original": "巻雲",
+    "tw": "卷雲",
+    "en": "Makigumo",
+    "date": "2013-10-16"
+  },
+  "長波": {
+    "original": "長波",
+    "tw": "長波",
+    "en": "Naganami",
+    "date": "2013-10-16"
+  },
+  "武蔵": {
+    "original": "武蔵",
+    "tw": "武藏",
+    "en": "Musashi",
+    "date": "2013-11-01"
+  },
+  "阿賀野": {
+    "original": "阿賀野",
+    "tw": "阿賀野",
+    "en": "Agano",
+    "date": "2013-11-01"
+  },
+  "能代": {
+    "original": "能代",
+    "tw": "能代",
+    "en": "Noshiro",
+    "date": "2013-11-01"
+  },
+  "伊19": {
+    "original": "伊19",
+    "tw": "伊19",
+    "en": "I-19",
+    "date": "2013-11-01"
+  },
+  "矢矧": {
+    "original": "矢矧",
+    "tw": "矢矧",
+    "en": "Yahagi",
+    "date": "2013-11-20"
+  },
+  "大鳳": {
+    "original": "大鳳",
+    "tw": "大鳳",
+    "en": "Taiho",
+    "date": "2013-12-24"
+  },
+  "あきつ丸": {
+    "original": "あきつ丸",
+    "tw": "秋津丸",
+    "en": "Akitsu Maru",
+    "date": "2013-12-24"
+  },
+  "まるゆ": {
+    "original": "まるゆ",
+    "tw": "丸優",
+    "en": "Maruyu",
+    "date": "2013-12-24"
+  },
+  "伊401": {
+    "original": "伊401",
+    "tw": "伊401",
+    "en": "I-401",
+    "date": "2013-12-24"
+  },
+  "弥生": {
+    "original": "弥生",
+    "tw": "彌生",
+    "en": "Yayoi",
+    "date": "2014-01-29"
+  },
+  "卯月": {
+    "original": "卯月",
+    "tw": "卯月",
+    "en": "Uzuki",
+    "date": "2014-01-29"
+  },
+  "Z1": {
+    "original": "Z1",
+    "tw": "Z1",
+    "en": "Z1",
+    "date": "2014-03-14"
+  },
+  "Z3": {
+    "original": "Z3",
+    "tw": "Z3",
+    "en": "Z3",
+    "date": "2014-03-14"
+  },
+  "Bismarck": {
+    "original": "Bismarck",
+    "tw": "俾斯麥",
+    "en": "Bismarck",
+    "date": "2014-03-14"
+  },
+  "浜風": {
+    "original": "浜風",
+    "tw": "濱風",
+    "en": "Hamakaze",
+    "date": "2014-03-28"
+  },
+  "酒匂": {
+    "original": "酒匂",
+    "tw": "酒匂",
+    "en": "Sakawa",
+    "date": "2014-04-23"
+  },
+  "天津風": {
+    "original": "天津風",
+    "tw": "天津風",
+    "en": "Amatsukaze",
+    "date": "2014-04-23"
+  },
+  "谷風": {
+    "original": "谷風",
+    "tw": "谷風",
+    "en": "Tanikaze",
+    "date": "2014-04-23"
+  },
+  "明石": {
+    "original": "明石",
+    "tw": "明石",
+    "en": "Akashi",
+    "date": "2014-04-23"
+  },
+  "浦風": {
+    "original": "浦風",
+    "tw": "浦風",
+    "en": "Urakaze",
+    "date": "2014-05-23"
+  },
+  "大鯨": {
+    "original": "大鯨",
+    "tw": "大鯨",
+    "en": "Taigei",
+    "date": "2014-06-06"
+  },
+  "春雨": {
+    "original": "春雨",
+    "tw": "春雨",
+    "en": "Harusame",
+    "date": "2014-08-08"
+  },
+  "時津風": {
+    "original": "時津風",
+    "tw": "時津風",
+    "en": "Tokitsukaze",
+    "date": "2014-08-08"
+  },
+  "磯風": {
+    "original": "磯風",
+    "tw": "磯風",
+    "en": "Isokaze",
+    "date": "2014-08-08"
+  },
+  "清霜": {
+    "original": "清霜",
+    "tw": "清霜",
+    "en": "Kiyoshimo",
+    "date": "2014-08-08"
+  },
+  "早霜": {
+    "original": "早霜",
+    "tw": "早霜",
+    "en": "Hayashimo",
+    "date": "2014-08-08"
+  },
+  "大淀": {
+    "original": "大淀",
+    "tw": "大淀",
+    "en": "Oyodo",
+    "date": "2014-08-08"
+  },
+  "雲龍": {
+    "original": "雲龍",
+    "tw": "雲龍",
+    "en": "Unryu",
+    "date": "2014-08-08"
+  },
+  "秋月": {
+    "original": "秋月",
+    "tw": "秋月",
+    "en": "Akizuki",
+    "date": "2014-11-14"
+  },
+  "野分": {
+    "original": "野分",
+    "tw": "野分",
+    "en": "Nowaki",
+    "date": "2014-11-14"
+  },
+  "朝雲": {
+    "original": "朝雲",
+    "tw": "朝雲",
+    "en": "Asagumo",
+    "date": "2014-11-14"
+  },
+  "Prinz Eugen": {
+    "original": "Prinz Eugen",
+    "tw": "歐根親王",
+    "en": "Prinz Eugen",
+    "date": "2014-11-14"
+  },
+  "山雲": {
+    "original": "山雲",
+    "tw": "山雲",
+    "en": "Yamagumo",
+    "date": "2014-12-26"
+  },
+  "U-511": {
+    "original": "U-511",
+    "tw": "U-511",
+    "en": "U-511",
+    "date": "2015-02-06"
+  },
+  "朝霜": {
+    "original": "朝霜",
+    "tw": "朝霜",
+    "en": "Asashimo",
+    "date": "2015-02-06"
+  },
+  "香取": {
+    "original": "香取",
+    "tw": "香取",
+    "en": "Katori",
+    "date": "2015-02-06"
+  },
+  "天城": {
+    "original": "天城",
+    "tw": "天城",
+    "en": "Amagi",
+    "date": "2015-02-06"
+  },
+  "葛城": {
+    "original": "葛城",
+    "tw": "葛城",
+    "en": "Katsuragi",
+    "date": "2015-04-28"
+  },
+  "Littorio": {
+    "original": "Littorio",
+    "tw": "利托里奧",
+    "en": "Littorio",
+    "date": "2015-04-28"
+  },
+  "Roma": {
+    "original": "Roma",
+    "tw": "羅馬",
+    "en": "Roma",
+    "date": "2015-04-28"
+  },
+  "秋津洲": {
+    "original": "秋津洲",
+    "tw": "秋津洲",
+    "en": "Akitsushima",
+    "date": "2015-04-28"
+  },
+  "高波": {
+    "original": "高波",
+    "tw": "高波",
+    "en": "Takanami",
+    "date": "2015-04-28"
+  },
+  "江風": {
+    "original": "江風",
+    "tw": "江風",
+    "en": "Kawakaze",
+    "date": "2015-08-10"
+  },
+  "海風": {
+    "original": "海風",
+    "tw": "海風",
+    "en": "Umikaze",
+    "date": "2015-08-10"
+  },
+  "速吸": {
+    "original": "速吸",
+    "tw": "速吸",
+    "en": "Hayasui",
+    "date": "2015-08-10"
+  },
+  "瑞穂": {
+    "original": "瑞穂",
+    "tw": "瑞穗",
+    "en": "Mizuho",
+    "date": "2015-08-10"
+  },
+  "Libeccio": {
+    "original": "Libeccio",
+    "tw": "西南風",
+    "en": "Libeccio",
+    "date": "2015-08-11"
+  },
+  "風雲": {
+    "original": "風雲",
+    "tw": "風雲",
+    "en": "Kazagumo",
+    "date": "2015-08-11"
+  },
+  "照月": {
+    "original": "照月",
+    "tw": "照月",
+    "en": "Teruzuki",
+    "date": "2015-08-11"
+  },
+  "萩風": {
+    "original": "萩風",
+    "tw": "萩風",
+    "en": "Hagikaze",
+    "date": "2015-11-18"
+  },
+  "嵐": {
+    "original": "嵐",
+    "tw": "嵐",
+    "en": "Arashi",
+    "date": "2015-11-18"
+  },
+  "鹿島": {
+    "original": "鹿島",
+    "tw": "鹿島",
+    "en": "Kashima",
+    "date": "2015-11-18"
+  },
+  "Graf Zeppelin": {
+    "original": "Graf Zeppelin",
+    "tw": "齊柏林伯爵",
+    "en": "Graf Zeppelin",
+    "date": "2015-11-18"
+  },
+  "初月": {
+    "original": "初月",
+    "tw": "初月",
+    "en": "Hatsuzuki",
+    "date": "2016-02-10"
+  },
+  "沖波": {
+    "original": "沖波",
+    "tw": "沖波",
+    "en": "Okinami",
+    "date": "2016-02-10"
+  },
+  "Zara": {
+    "original": "Zara",
+    "tw": "札拉",
+    "en": "Zara",
+    "date": "2016-02-10"
+  },
+  "神風": {
+    "original": "神風",
+    "tw": "神風",
+    "en": "Kamikaze",
+    "date": "2016-05-02"
+  },
+  "春風": {
+    "original": "春風",
+    "tw": "春風",
+    "en": "Harukaze",
+    "date": "2016-05-02"
+  },
+  "親潮": {
+    "original": "親潮",
+    "tw": "親潮",
+    "en": "Oyashio",
+    "date": "2016-05-02"
+  },
+  "Pola": {
+    "original": "Pola",
+    "tw": "波拉",
+    "en": "Pola",
+    "date": "2016-05-02"
+  },
+  "Iowa": {
+    "original": "Iowa",
+    "tw": "愛荷華",
+    "en": "Iowa",
+    "date": "2016-05-02"
+  },
+  "水無月": {
+    "original": "水無月",
+    "tw": "水無月",
+    "en": "Minazuki",
+    "date": "2016-08-12"
+  },
+  "伊26": {
+    "original": "伊26",
+    "tw": "伊26",
+    "en": "I-26",
+    "date": "2016-08-12"
+  },
+  "Aquila": {
+    "original": "Aquila",
+    "tw": "天鷹",
+    "en": "Aquila",
+    "date": "2016-08-12"
+  },
+  "Warspite": {
+    "original": "Warspite",
+    "tw": "厭戰",
+    "en": "Warspite",
+    "date": "2016-08-12"
+  },
+  "浦波": {
+    "original": "浦波",
+    "tw": "浦波",
+    "en": "Uranami",
+    "date": "2016-09-16"
+  },
+  "山風": {
+    "original": "山風",
+    "tw": "山風",
+    "en": "Yamakaze",
+    "date": "2016-11-18"
+  },
+  "Commandant Teste": {
+    "original": "Commandant Teste",
+    "tw": "塔斯特指揮官",
+    "en": "Commandant Teste",
+    "date": "2016-11-18"
+  },
+  "朝風": {
+    "original": "朝風",
+    "tw": "朝風",
+    "en": "Asakaze",
+    "date": "2016-11-19"
+  },
+  "Saratoga": {
+    "original": "Saratoga",
+    "tw": "薩拉托加",
+    "en": "Saratoga",
+    "date": "2016-11-19"
+  },
+  "松風": {
+    "original": "松風",
+    "tw": "松風",
+    "en": "Matsukaze",
+    "date": "2017-02-11"
+  },
+  "藤波": {
+    "original": "藤波",
+    "tw": "藤波",
+    "en": "Fujinami",
+    "date": "2017-02-11"
+  },
+  "伊13": {
+    "original": "伊13",
+    "tw": "伊13",
+    "en": "I-13",
+    "date": "2017-02-12"
+  },
+  "伊14": {
+    "original": "伊14",
+    "tw": "伊14",
+    "en": "I-14",
+    "date": "2017-02-12"
+  },
+  "占守": {
+    "original": "占守",
+    "tw": "占守",
+    "en": "Shimushu",
+    "date": "2017-05-02"
+  },
+  "国後": {
+    "original": "国後",
+    "tw": "國後",
+    "en": "Kunashiri",
+    "date": "2017-05-02"
+  },
+  "神威": {
+    "original": "神威",
+    "tw": "神威",
+    "en": "Kamoi",
+    "date": "2017-05-02"
+  },
+  "春日丸": {
+    "original": "春日丸",
+    "tw": "春日丸",
+    "en": "Kasuga Maru",
+    "date": "2017-05-02"
+  },
+  "択捉": {
+    "original": "択捉",
+    "tw": "擇捉",
+    "en": "Etorofu",
+    "date": "2017-05-04"
+  },
+  "Гангут": {
+    "original": "Гангут",
+    "tw": "甘古特",
+    "en": "Gangut",
+    "date": "2017-05-04"
+  },
+  "旗風": {
+    "original": "旗風",
+    "tw": "旗風",
+    "en": "Hatakaze",
+    "date": "2017-08-10"
+  },
+  "天霧": {
+    "original": "天霧",
+    "tw": "天霧",
+    "en": "Amagiri",
+    "date": "2017-08-10"
+  },
+  "狭霧": {
+    "original": "狭霧",
+    "tw": "狹霧",
+    "en": "Sagiri",
+    "date": "2017-08-10"
+  },
+  "Richelieu": {
+    "original": "Richelieu",
+    "tw": "黎胥留",
+    "en": "Richelieu",
+    "date": "2017-08-10"
+  },
+  "松輪": {
+    "original": "松輪",
+    "tw": "松輪",
+    "en": "Matsuwa",
+    "date": "2017-08-12"
+  },
+  "Luigi Torelli": {
+    "original": "Luigi Torelli",
+    "tw": "路易吉·托雷利",
+    "en": "Luigi Torelli",
+    "date": "2017-08-12"
+  },
+  "Ark Royal": {
+    "original": "Ark Royal",
+    "tw": "皇家方舟",
+    "en": "Ark Royal",
+    "date": "2017-08-12"
+  },
+  "対馬": {
+    "original": "対馬",
+    "tw": "對馬",
+    "en": "Tsushima",
+    "date": "2017-11-17"
+  },
+  "佐渡": {
+    "original": "佐渡",
+    "tw": "佐渡",
+    "en": "Sado",
+    "date": "2017-11-17"
+  },
+  "伊400": {
+    "original": "伊400",
+    "tw": "伊400",
+    "en": "I-400",
+    "date": "2017-11-17"
+  },
+  "涼月": {
+    "original": "涼月",
+    "tw": "涼月",
+    "en": "Suzutsuki",
+    "date": "2017-11-19"
+  },
+  "日振": {
+    "original": "日振",
+    "tw": "日振",
+    "en": "Hiburi",
+    "date": "2018-02-17"
+  },
+  "大東": {
+    "original": "大東",
+    "tw": "大東",
+    "en": "Daito",
+    "date": "2018-02-17"
+  },
+  "Jervis": {
+    "original": "Jervis",
+    "tw": "賈維斯",
+    "en": "Jervis",
+    "date": "2018-02-17"
+  },
+  "Gambier Bay": {
+    "original": "Gambier Bay",
+    "tw": "甘比爾灣",
+    "en": "Gambier Bay",
+    "date": "2018-02-17"
+  },
+  "浜波": {
+    "original": "浜波",
+    "tw": "濱波",
+    "en": "Hamanami",
+    "date": "2018-02-22"
+  },
+  "Ташкент": {
+    "original": "Ташкент",
+    "tw": "塔什干",
+    "en": "Tashkent",
+    "date": "2018-02-22"
+  },
+  "Intrepid": {
+    "original": "Intrepid",
+    "tw": "無畏",
+    "en": "Intrepid",
+    "date": "2018-02-22"
+  },
+  "Samuel B. Roberts": {
+    "original": "Samuel B. Roberts",
+    "tw": "山繆·B·羅伯茲",
+    "en": "Samuel B. Roberts",
+    "date": "2018-04-23"
+  },
+  "福江": {
+    "original": "福江",
+    "tw": "福江",
+    "en": "Fukae",
+    "date": "2018-05-15"
+  },
+  "岸波": {
+    "original": "岸波",
+    "tw": "岸波",
+    "en": "Kishinami",
+    "date": "2018-09-08"
+  },
+  "神鷹": {
+    "original": "神鷹",
+    "tw": "神鷹",
+    "en": "Shinyo",
+    "date": "2018-09-08"
+  },
+  "Maestrale": {
+    "original": "Maestrale",
+    "tw": "西北風",
+    "en": "Maestrale",
+    "date": "2018-09-12"
+  },
+  "Gotland": {
+    "original": "Gotland",
+    "tw": "哥特蘭",
+    "en": "Gotland",
+    "date": "2018-09-12"
+  },
+  "Nelson": {
+    "original": "Nelson",
+    "tw": "納爾遜",
+    "en": "Nelson",
+    "date": "2018-09-12"
+  },
+  "峯雲": {
+    "original": "峯雲",
+    "tw": "峯雲",
+    "en": "Minegumo",
+    "date": "2018-12-26"
+  },
+  "早波": {
+    "original": "早波",
+    "tw": "早波",
+    "en": "Hayanami",
+    "date": "2018-12-26"
+  },
+  "日進": {
+    "original": "日進",
+    "tw": "日進",
+    "en": "Nisshin",
+    "date": "2018-12-26"
+  },
+  "Johnston": {
+    "original": "Johnston",
+    "tw": "強斯頓",
+    "en": "Johnston",
+    "date": "2018-12-26"
+  },
+  "八丈": {
+    "original": "八丈",
+    "tw": "八丈",
+    "en": "Hachijo",
+    "date": "2019-05-20"
+  },
+  "石垣": {
+    "original": "石垣",
+    "tw": "石垣",
+    "en": "Ishigaki",
+    "date": "2019-05-20"
+  },
+  "Giuseppe Garibaldi": {
+    "original": "Giuseppe Garibaldi",
+    "tw": "朱塞佩·加里波底",
+    "en": "Giuseppe Garibaldi",
+    "date": "2019-05-20"
+  },
+  "Fletcher": {
+    "original": "Fletcher",
+    "tw": "弗萊徹",
+    "en": "Fletcher",
+    "date": "2019-05-24"
+  },
+  "Colorado": {
+    "original": "Colorado",
+    "tw": "科羅拉多",
+    "en": "Colorado",
+    "date": "2019-05-24"
+  },
+  "御蔵": {
+    "original": "御蔵",
+    "tw": "御藏",
+    "en": "Mikura",
+    "date": "2019-08-30"
+  },
+  "Grecale": {
+    "original": "Grecale",
+    "tw": "東北風",
+    "en": "Grecale",
+    "date": "2019-08-30"
+  },
+  "L.d.S.D.d.Abruzzi": {
+    "original": "L.d.S.D.d.Abruzzi",
+    "tw": "阿布魯齊公爵",
+    "en": "Luigi di Savoia Duca degli Abruzzi",
+    "date": "2019-08-30"
+  },
+  "Janus": {
+    "original": "Janus",
+    "tw": "傑納斯",
+    "en": "Janus",
+    "date": "2019-09-04"
+  },
+  "De Ruyter": {
+    "original": "De Ruyter",
+    "tw": "戴·魯伊特",
+    "en": "De Ruyter",
+    "date": "2019-11-29"
+  },
+  "Perth": {
+    "original": "Perth",
+    "tw": "伯斯",
+    "en": "Perth",
+    "date": "2019-11-29"
+  },
+  "Houston": {
+    "original": "Houston",
+    "tw": "休士頓",
+    "en": "Houston",
+    "date": "2019-11-29"
+  },
+  "神州丸": {
+    "original": "神州丸",
+    "tw": "神州丸",
+    "en": "Shinshu Maru",
+    "date": "2019-11-29"
+  },
+  "平戸": {
+    "original": "平戸",
+    "tw": "平戶",
+    "en": "Hirado",
+    "date": "2019-12-07"
+  },
+  "秋霜": {
+    "original": "秋霜",
+    "tw": "秋霜",
+    "en": "Akishimo",
+    "date": "2019-12-07"
+  },
+  "Atlanta": {
+    "original": "Atlanta",
+    "tw": "亞特蘭大",
+    "en": "Atlanta",
+    "date": "2019-12-07"
+  },
+  "伊47": {
+    "original": "伊47",
+    "tw": "伊47",
+    "en": "I-47",
+    "date": "2020-06-26"
+  },
+  "第四号海防艦": {
+    "original": "第四号海防艦",
+    "tw": "第四號海防艦",
+    "en": "Coast Defense Ship No. 4",
+    "date": "2020-06-26"
+  },
+  "薄雲": {
+    "original": "薄雲",
+    "tw": "薄雲",
+    "en": "Usugumo",
+    "date": "2020-06-26"
+  },
+  "松": {
+    "original": "松",
+    "tw": "松",
+    "en": "Matsu",
+    "date": "2020-06-26"
+  },
+  "迅鯨": {
+    "original": "迅鯨",
+    "tw": "迅鯨",
+    "en": "Jingei",
+    "date": "2020-06-26"
+  },
+  "屋代": {
+    "original": "屋代",
+    "tw": "屋代",
+    "en": "Yashiro",
+    "date": "2020-07-11"
+  },
+  "有明": {
+    "original": "有明",
+    "tw": "有明",
+    "en": "Ariake",
+    "date": "2020-07-11"
+  },
+  "Helena": {
+    "original": "Helena",
+    "tw": "海倫娜",
+    "en": "Helena",
+    "date": "2020-07-11"
+  },
+  "South Dakota": {
+    "original": "South Dakota",
+    "tw": "南達科他",
+    "en": "South Dakota",
+    "date": "2020-07-11"
+  },
+  "Hornet": {
+    "original": "Hornet",
+    "tw": "黃蜂",
+    "en": "Hornet",
+    "date": "2020-07-11"
+  },
+  "Scirocco": {
+    "original": "Scirocco",
+    "tw": "東南風",
+    "en": "Scirocco",
+    "date": "2020-11-27"
+  },
+  "Sheffield": {
+    "original": "Sheffield",
+    "tw": "雪菲爾",
+    "en": "Sheffield",
+    "date": "2020-11-27"
+  },
+  "Washington": {
+    "original": "Washington",
+    "tw": "華盛頓",
+    "en": "Washington",
+    "date": "2020-11-27"
+  },
+  "竹": {
+    "original": "竹",
+    "tw": "竹",
+    "en": "Take",
+    "date": "2020-12-10"
+  },
+  "桃": {
+    "original": "桃",
+    "tw": "桃",
+    "en": "Momo",
+    "date": "2021-05-08"
+  },
+  "巻波": {
+    "original": "巻波",
+    "tw": "卷波",
+    "en": "Makinami",
+    "date": "2021-05-08"
+  },
+  "伊203": {
+    "original": "伊203",
+    "tw": "伊203",
+    "en": "I-203",
+    "date": "2021-05-08"
+  },
+  "Northampton": {
+    "original": "Northampton",
+    "tw": "北安普頓",
+    "en": "Northampton",
+    "date": "2021-05-08"
+  },
+  "涼波": {
+    "original": "涼波",
+    "tw": "涼波",
+    "en": "Suzunami",
+    "date": "2021-05-20"
+  },
+  "Honolulu": {
+    "original": "Honolulu",
+    "tw": "檀香山",
+    "en": "Honolulu",
+    "date": "2021-05-20"
+  },
+  "宗谷": {
+    "original": "宗谷",
+    "tw": "宗谷",
+    "en": "Soya",
+    "date": "2021-05-20"
+  },
+  "長鯨": {
+    "original": "長鯨",
+    "tw": "長鯨",
+    "en": "Chogei",
+    "date": "2021-08-20"
+  },
+  "Conte di Cavour": {
+    "original": "Conte di Cavour",
+    "tw": "加富爾伯爵",
+    "en": "Conte di Cavour",
+    "date": "2021-08-22"
+  },
+  "第三〇号海防艦": {
+    "original": "第三〇号海防艦",
+    "tw": "第三〇號海防艦",
+    "en": "Coast Defense Ship No. 30",
+    "date": "2021-08-31"
+  },
+  "Victorious": {
+    "original": "Victorious",
+    "tw": "勝利",
+    "en": "Victorious",
+    "date": "2021-08-31"
+  },
+  "昭南": {
+    "original": "昭南",
+    "tw": "昭南",
+    "en": "Shonan",
+    "date": "2021-11-19"
+  },
+  "Scamp": {
+    "original": "Scamp",
+    "tw": "斯坎普",
+    "en": "Scamp",
+    "date": "2021-11-19"
+  },
+  "八幡丸": {
+    "original": "八幡丸",
+    "tw": "八幡丸",
+    "en": "Yawata Maru",
+    "date": "2021-12-28"
+  },
+  "梅": {
+    "original": "梅",
+    "tw": "梅",
+    "en": "Ume",
+    "date": "2022-02-22"
+  },
+  "山汐丸": {
+    "original": "山汐丸",
+    "tw": "山汐丸",
+    "en": "Yamashio Maru",
+    "date": "2022-02-22"
+  },
+  "玉波": {
+    "original": "玉波",
+    "tw": "玉波",
+    "en": "Tamanami",
+    "date": "2022-02-05"
+  },
+  "冬月": {
+    "original": "冬月",
+    "tw": "冬月",
+    "en": "Fuyutsuki",
+    "date": "2022-02-05"
+  },
+  "伊201": {
+    "original": "伊201",
+    "tw": "伊201",
+    "en": "I-201",
+    "date": "2022-05-27"
+  },
+  "早潮": {
+    "original": "早潮",
+    "tw": "早潮",
+    "en": "Hayashio",
+    "date": "2022-05-27"
+  },
+  "倉橋": {
+    "original": "倉橋",
+    "tw": "倉橋",
+    "en": "Kurahashi",
+    "date": "2022-06-17"
+  },
+  "Maryland": {
+    "original": "Maryland",
+    "tw": "馬里蘭",
+    "en": "Maryland",
+    "date": "2022-06-17"
+  },
+  "鵜来": {
+    "original": "鵜来",
+    "tw": "鵜來",
+    "en": "Ukuru",
+    "date": "2022-08-26"
+  },
+  "夏雲": {
+    "original": "夏雲",
+    "tw": "夏雲",
+    "en": "Natsugumo",
+    "date": "2022-08-26"
+  },
+  "Langley": {
+    "original": "Langley",
+    "tw": "蘭利",
+    "en": "Langley",
+    "date": "2022-08-26"
+  },
+  "Brooklyn": {
+    "original": "Brooklyn",
+    "tw": "布魯克林",
+    "en": "Brooklyn",
+    "date": "2022-09-10"
+  },
+  "Ranger": {
+    "original": "Ranger",
+    "tw": "遊騎兵",
+    "en": "Ranger",
+    "date": "2022-09-10"
+  },
+  "Massachusetts": {
+    "original": "Massachusetts",
+    "tw": "麻薩諸塞",
+    "en": "Massachusetts",
+    "date": "2022-09-10"
+  },
+  "Jean Bart": {
+    "original": "Jean Bart",
+    "tw": "讓·巴爾",
+    "en": "Jean Bart",
+    "date": "2022-09-10"
+  },
+  "夕暮": {
+    "original": "夕暮",
+    "tw": "夕暮",
+    "en": "Yugure",
+    "date": "2023-02-28"
+  },
+  "Heywood L.E.": {
+    "original": "Heywood L.E.",
+    "tw": "海伍德·L·E",
+    "en": "Heywood L.E.",
+    "date": "2023-02-28"
+  },
+  "熊野丸": {
+    "original": "熊野丸",
+    "tw": "熊野丸",
+    "en": "Kumano Maru",
+    "date": "2023-03-03"
+  },
+  "能美": {
+    "original": "能美",
+    "tw": "能美",
+    "en": "Nomi",
+    "date": "2023-03-17"
+  },
+  "Tuscaloosa": {
+    "original": "Tuscaloosa",
+    "tw": "塔斯卡盧薩",
+    "en": "Tuscaloosa",
+    "date": "2023-03-17"
+  },
+  "第百一号輸送艦": {
+    "original": "第百一号輸送艦",
+    "tw": "第百一號輸送艦",
+    "en": "Transport Ship No. 101",
+    "date": "2023-03-17"
+  },
+  "白雲": {
+    "original": "白雲",
+    "tw": "白雲",
+    "en": "Shirakumo",
+    "date": "2023-08-08"
+  },
+  "稲木": {
+    "original": "稲木",
+    "tw": "稻木",
+    "en": "Inagi",
+    "date": "2023-08-08"
+  },
+  "第二十二号海防艦": {
+    "original": "第二十二号海防艦",
+    "tw": "第二十二號海防艦",
+    "en": "Coast Defense Ship No. 22",
+    "date": "2023-08-08"
+  },
+  "Salmon": {
+    "original": "Salmon",
+    "tw": "鮭魚",
+    "en": "Salmon",
+    "date": "2023-08-08"
+  },
+  "朝日": {
+    "original": "朝日",
+    "tw": "朝日",
+    "en": "Asahi",
+    "date": "2023-08-08"
+  },
+  "Javelin": {
+    "original": "Javelin",
+    "tw": "標槍",
+    "en": "Javelin",
+    "date": "2023-08-26"
+  },
+  "C. Cappellini": {
+    "original": "C. Cappellini",
+    "tw": "卡佩里尼",
+    "en": "Comandante Cappellini",
+    "date": "2023-08-26"
+  },
+  "Nevada": {
+    "original": "Nevada",
+    "tw": "內華達",
+    "en": "Nevada",
+    "date": "2023-08-26"
+  },
+  "Rodney": {
+    "original": "Rodney",
+    "tw": "羅德尼",
+    "en": "Rodney",
+    "date": "2023-08-28"
+  },
+  "伊36": {
+    "original": "伊36",
+    "tw": "伊36",
+    "en": "I-36",
+    "date": "2024-02-29"
+  },
+  "平安丸": {
+    "original": "平安丸",
+    "tw": "平安丸",
+    "en": "Heian Maru",
+    "date": "2024-02-29"
+  },
+  "Drum": {
+    "original": "Drum",
+    "tw": "鼓魚",
+    "en": "Drum",
+    "date": "2024-02-29"
+  },
+  "伊41": {
+    "original": "伊41",
+    "tw": "伊41",
+    "en": "I-41",
+    "date": "2024-03-08"
+  },
+  "Lexington": {
+    "original": "Lexington",
+    "tw": "列星頓",
+    "en": "Lexington",
+    "date": "2024-08-08"
+  },
+  "Mogador": {
+    "original": "Mogador",
+    "tw": "莫加多爾",
+    "en": "Mogador",
+    "date": "2024-08-08"
+  },
+  "Gloire": {
+    "original": "Gloire",
+    "tw": "葛羅瓦",
+    "en": "Gloire",
+    "date": "2024-08-08"
+  },
+  "Valiant": {
+    "original": "Valiant",
+    "tw": "英勇",
+    "en": "Valiant",
+    "date": "2024-08-08"
+  },
+  "Phoenix": {
+    "original": "Phoenix",
+    "tw": "鳳凰城",
+    "en": "Phoenix",
+    "date": "2024-08-08"
+  },
+  "大泊": {
+    "original": "大泊",
+    "tw": "大泊",
+    "en": "Otomari",
+    "date": "2025-03-08"
+  },
+  "榧": {
+    "original": "榧",
+    "tw": "榧",
+    "en": "Kaya",
+    "date": "2025-03-08"
+  },
+  "Wahoo": {
+    "original": "Wahoo",
+    "tw": "刺鮁",
+    "en": "Wahoo",
+    "date": "2025-03-08"
+  },
+  "Kirov": {
+    "original": "Kirov",
+    "tw": "基洛夫",
+    "en": "Kirov",
+    "date": "2025-03-08"
+  },
+  "杉": {
+    "original": "杉",
+    "tw": "杉",
+    "en": "Sugi",
+    "date": "2025-03-08"
+  },
+  "島根丸": {
+    "original": "島根丸",
+    "tw": "島根丸",
+    "en": "Shimane Maru",
+    "date": "2025-03-08"
+  },
+  "Minneapolis": {
+    "original": "Minneapolis",
+    "tw": "明尼亞波利斯",
+    "en": "Minneapolis",
+    "date": "2025-03-08"
+  },
+  "Norge": {
+    "original": "Norge",
+    "tw": "挪威",
+    "en": "Norge",
+    "date": "2025-10-30"
+  },
+  "Eidsvold": {
+    "original": "Eidsvold",
+    "tw": "艾茲沃爾",
+    "en": "Eidsvold",
+    "date": "2025-10-30"
+  },
+  "Glorious": {
+    "original": "Glorious",
+    "tw": "光榮",
+    "en": "Glorious",
+    "date": "2025-10-30"
+  },
+  "樫": {
+    "original": "樫",
+    "tw": "樫",
+    "en": "Kashi",
+    "date": "2025-10-30"
+  },
+  "南海": {
+    "original": "南海",
+    "tw": "南海",
+    "en": "Nankai",
+    "date": "2025-10-30"
+  },
+  "桐": {
+    "original": "桐",
+    "tw": "桐",
+    "en": "Kiri",
+    "date": "2026-07-08"
+  },
+  "花月": {
+    "original": "花月",
+    "tw": "花月",
+    "en": "Hanazuki",
+    "date": "2026-07-08"
+  },
+  "Indiana": {
+    "original": "Indiana",
+    "tw": "印第安納",
+    "en": "Indiana",
+    "date": "2026-07-08"
+  },
+  "Reno": {
+    "original": "Reno",
+    "tw": "里諾",
+    "en": "Reno",
+    "date": "2026-07-08"
+  },
+  "Independence": {
+    "original": "Independence",
+    "tw": "獨立",
+    "en": "Independence",
+    "date": "2026-07-08"
+  },
+  "Vautour": {
+    "original": "Vautour",
+    "tw": "禿鷲",
+    "en": "Vautour",
+    "date": "2026-07-19"
+  },
+  "日枝丸": {
+    "original": "日枝丸",
+    "tw": "日枝丸",
+    "en": "Hie Maru",
+    "date": "2026-07-19"
+  },
+  "Visby": {
+    "original": "Visby",
+    "tw": "維斯比",
+    "en": "Visby",
+    "date": "2026-07-19"
+  },
+  "Algérie": {
+    "original": "Algérie",
+    "tw": "阿爾及利亞",
+    "en": "Algerie",
+    "date": "2026-07-19"
+  },
+  "Béarn": {
+    "original": "Béarn",
+    "tw": "貝亞恩",
+    "en": "Bearn",
+    "date": "2026-07-19"
+  },
+  "Richard P.Leary": {
+    "original": "Richard P.Leary",
+    "tw": "理查·P·利里",
+    "en": "Richard P. Leary",
+    "date": "2025-05-12"
+  },
+  "Thonburi": {
+    "original": "Thonburi",
+    "tw": "吞武里",
+    "en": "Thonburi",
+    "date": "2025-12-27"
+  },
+  "Dace": {
+    "original": "Dace",
+    "tw": "鰷魚",
+    "en": "Dace",
+    "date": "2025-11-10"
+  },
+  "Wasp": {
+    "original": "Wasp",
+    "tw": "胡蜂",
+    "en": "Wasp",
+    "date": "2020-07-11"
+  }
+}

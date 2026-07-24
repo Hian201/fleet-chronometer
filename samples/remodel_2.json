@@ -1,0 +1,29 @@
+{
+  "req": {
+    "api_id": "315",
+    "api_slot_id": "20581",
+    "api_certain_flag": "0"
+  },
+  "api": {
+    "api_remodel_flag": 0,
+    "api_remodel_id": [
+      36,
+      36
+    ],
+    "api_after_material": [
+      348202,
+      333766,
+      344740,
+      344989,
+      1541,
+      2976,
+      722,
+      129
+    ],
+    "api_voice_ship_id": 592,
+    "api_voice_id": 27,
+    "api_use_slot_id": [
+      118712
+    ]
+  }
+}

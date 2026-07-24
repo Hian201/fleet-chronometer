@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <!-- **這個佔位字串是 load-bearing，別改成實際名字**：WXT 會把 popup entrypoint 的
+         <title> 寫進 manifest 的 action.default_title（而且蓋過 wxt.config.ts 裡的設定），
+         那裡的 __MSG_ 才會被瀏覽器代換成當前語系的品牌名（圖示 tooltip）。
+         HTML 本身不做該代換，故 document.title 由 main.ts 於執行期改寫（同 panel）。 -->
+    <title>__MSG_extShortName__</title>
+    <style>
+        /* 配色沿用 panel/index.html 的深色艦これ風變數（popup 極小，不值得抽共用 CSS） */
+        :root {
+            --bg: #10151d;
+            --panel: #182030;
+            --line: #2a3548;
+            --text: #cfd6e4;
+            --dim: #7d8aa0;
+            --sparkle: #e6c35c;
+
+            /* 字距（tracking）級距：與字級成反比——字愈小需要愈多字距才好讀，
+               字愈大則要收緊。三種擴充頁面共用同一組值（沿用 panel/index.html）。 */
+            --track-tag: .14em;
+            /* 8–9px 標籤 */
+            --track-label: .12em;
+            /* 10–11px 小標題 */
+            --track-body: 0;
+            /* 13–14px 內文 */
+            --track-title: -.01em;
+            /* 15px 以上標題 */
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            width: 232px;
+            background: var(--bg);
+            color: var(--text);
+            /* system-ui 置前：依使用者 OS 與語系解析到該平台的系統字（macOS SF／
+               日文環境 Hiragino／中文環境思源黑體等），已內建字級光學調整與可讀性微調。
+               -apple-system 保留作舊版 Safari/WebKit 回退。 */
+            font: 13px/1.5 system-ui, -apple-system, "Hiragino Sans", sans-serif;
+            letter-spacing: var(--track-body);
+        }
+
+        #menu {
+            display: flex;
+            flex-direction: column;
+            padding: 6px;
+            gap: 2px;
+        }
+
+        button.item {
+            all: unset;
+            display: block;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            /* 回饋在「按下」當下就發生（見下方 :active），放開才有反應會顯得遲鈍；
+               100ms 純視覺回饋，不阻擋輸入。 */
+            transition: background-color 100ms ease-out, transform 100ms ease-out;
+        }
+
+        button.item:hover,
+        button.item:focus-visible {
+            background: var(--panel);
+        }
+
+        /* 按下即回饋：不等 click 事件、不等視窗開啟完成 */
+        button.item:active {
+            background: var(--panel);
+            transform: scale(.98);
+        }
+
+        button.item:hover .main {
+            color: var(--sparkle);
+        }
+
+        .main {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .sub {
+            color: var(--dim);
+            font-size: 11px;
+            letter-spacing: var(--track-label);
+        }
+
+        /* 劇場模式／靜音的就地回饋（這兩項不會關閉 popup，需要一行說明狀態）。
+           左右內距對齊按鈕內文，否則會比上下兩列的文字往左凸出。 */
+        #status {
+            padding: 2px 10px 4px;
+            color: var(--sparkle);
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid var(--line);
+            margin: 4px 2px;
+        }
+
+        /* ── 無障礙偏好 ──
+           減少動態不等於取消回饋：拿掉會位移的 transform，保留純色彩變化的按下回饋。 */
+        @media (prefers-reduced-motion: reduce) {
+            button.item {
+                transition: none;
+            }
+
+            button.item:active {
+                transform: none;
+            }
+        }
+
+        /* 高對比：邊界改為明確可見，弱化文字提高亮度 */
+        @media (prefers-contrast: more) {
+            :root {
+                --line: #6b7a95;
+                --dim: #a9b4c6;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="menu">
+        <button class="item" id="open-panel">
+            <div class="main" data-i18n="ov.menuPanel">開啟面板</div>
+            <div class="sub" data-i18n="ov.menuPanelSub">艦隊即時監控視窗</div>
+        </button>
+        <button class="item" id="open-game">
+            <div class="main" data-i18n="ov.menuGame">開啟遊戲</div>
+            <div class="sub">艦隊これくしょん（DMM）</div>
+        </button>
+        <button class="item" id="theater">
+            <div class="main" data-i18n="ov.menuTheater">劇場模式</div>
+            <div class="sub" data-i18n="ov.menuTheaterSub">把遊戲畫面放大到整個視窗</div>
+        </button>
+        <button class="item" id="mute">
+            <div class="main" data-i18n="ov.menuMute">遊戲靜音</div>
+            <div class="sub" id="mute-state"></div>
+        </button>
+        <button class="item" id="screenshot">
+            <div class="main" data-i18n="ov.menuScreenshot">拍照</div>
+            <div class="sub" data-i18n="ov.menuScreenshotSub">只擷取遊戲畫面並下載</div>
+        </button>
+        <div class="sub" id="status" hidden></div>
+        <hr>
+        <button class="item" id="open-overview">
+            <div class="main" data-i18n="ov.menuOverview">鎮守府情報總括</div>
+            <div class="sub" data-i18n="ov.menuOverviewSub">全覽・紀錄・設定・備份</div>
+        </button>
+    </div>
+    <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

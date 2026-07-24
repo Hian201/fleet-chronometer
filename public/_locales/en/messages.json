@@ -1,0 +1,11 @@
+{
+    "extName": {
+        "message": "Fleet Chronometer - KanColle COP"
+    },
+    "extShortName": {
+        "message": "Fleet Chronometer"
+    },
+    "extDescription": {
+        "message": "A Common Operational Picture (COP) assistant for KanColle."
+    }
+}

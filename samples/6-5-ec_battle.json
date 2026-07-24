@@ -1,0 +1,68 @@
+{
+    "api_deck_id": 1,
+    "api_formation": [1, 13, 2],
+    "api_f_nowhps": [69, 76, 29, 79, 23, 19],
+    "api_f_maxhps": [93, 78, 78, 79, 41, 38],
+    "api_ship_ke": [1586, 1615, 1527, 1592, 1576, 1576],
+    "api_ship_ke_combined": [1555, 1527, 1575, 1575, 1575, 1575],
+    "api_e_nowhps": [350, 96, 76, 66, 37, 37],
+    "api_e_maxhps": [350, 96, 76, 66, 37, 37],
+    "api_e_nowhps_combined": [57, 76, 35, 35, 35, 35],
+    "api_e_maxhps_combined": [57, 76, 35, 35, 35, 35],
+    "api_midnight_flag": 0,
+    "api_search": [1, 1],
+    "api_injection_kouku": {
+        "api_stage1": { "api_f_count": 37, "api_f_lostcount": 0, "api_e_count": 0, "api_e_lostcount": 0 },
+        "api_stage2": { "api_f_count": 37, "api_f_lostcount": 1, "api_e_count": 0, "api_e_lostcount": 0 },
+        "api_stage3": { "api_fdam": [0,0,0,0,0,0], "api_edam": [47,0,0,0,0,0] },
+        "api_stage3_combined": { "api_fdam": null, "api_edam": [0,0,51,0,0,0] }
+    },
+    "api_air_base_attack": [
+        {
+            "api_stage1": { "api_f_count": 58, "api_f_lostcount": 9, "api_e_count": 277, "api_e_lostcount": 68, "api_disp_seiku": 0 },
+            "api_stage2": { "api_f_count": 31, "api_f_lostcount": 2, "api_e_count": 0, "api_e_lostcount": 0 },
+            "api_stage3": { "api_edam": [0,0,0,0,0,0] },
+            "api_stage3_combined": { "api_edam": [111,0,0,0,0,177] }
+        },
+        {
+            "api_stage1": { "api_f_count": 58, "api_f_lostcount": 10, "api_e_count": 207, "api_e_lostcount": 76, "api_disp_seiku": 0 },
+            "api_stage2": { "api_f_count": 28, "api_f_lostcount": 13, "api_e_count": 0, "api_e_lostcount": 0 },
+            "api_stage3": { "api_edam": [0,0,0,0,0,0.1] },
+            "api_stage3_combined": { "api_edam": [0,75,0,0,0,0] }
+        }
+    ],
+    "api_stage_flag": [1, 1, 1],
+    "api_kouku": {
+        "api_stage1": { "api_f_count": 206, "api_f_lostcount": 2, "api_e_count": 123, "api_e_lostcount": 68, "api_disp_seiku": 1, "api_touch_plane": [-1, -1] },
+        "api_stage2": { "api_f_count": 174, "api_f_lostcount": 27, "api_e_count": 36, "api_e_lostcount": 36, "api_air_fire": { "api_idx": 5, "api_kind": 2, "api_use_items": [533, 450] } },
+        "api_stage3": { "api_fdam": [0,0,0,0,0,0], "api_edam": [31,14,165,0,0,0.1] },
+        "api_stage3_combined": { "api_fdam": null, "api_edam": [0,0,0,0,0,0] }
+    },
+    "api_support_flag": 0,
+    "api_hourai_flag": [1, 1, 1, 1],
+    "api_hougeki1": {
+        "api_at_eflag": [0, 0, 0],
+        "api_at_list": [1, 2, 3],
+        "api_df_list": [[7], [9], [10]],
+        "api_damage": [[148], [120], [145]]
+    },
+    "api_raigeki": {
+        "api_frai": [-1,-1,-1,-1,4,-1,-1],
+        "api_fdam": [0,0,0,0,0,0,0],
+        "api_fydam": [0,0,0,0,38,0,0],
+        "api_edam": [0,0,0,0,38,0,0,0,0,0,0,0],
+        "api_eydam": [0,0,0,0,0,0,0,0,0,0,0,0]
+    },
+    "api_hougeki2": {
+        "api_at_eflag": [0,0,0,0,0,0],
+        "api_at_list": [1,2,3,0,4,5],
+        "api_df_list": [[3],[5],[1],[0],[0],[0]],
+        "api_damage": [[135],[111],[271.1],[75],[0],[25]]
+    },
+    "api_hougeki3": {
+        "api_at_eflag": [0,0,0,0],
+        "api_at_list": [0,1,2,3],
+        "api_df_list": [[0],[0],[0],[0]],
+        "api_damage": [[77],[70],[1],[183]]
+    }
+}

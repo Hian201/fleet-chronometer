@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#182c46"/>
+      <stop offset="1" stop-color="#08131f"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f4d27a"/>
+      <stop offset=".42" stop-color="#bd8426"/>
+      <stop offset="1" stop-color="#70410d"/>
+    </linearGradient>
+    <radialGradient id="face" cx="38%" cy="31%" r="75%">
+      <stop stop-color="#fffbe5"/>
+      <stop offset="1" stop-color="#d8c99c"/>
+    </radialGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="25" fill="url(#sea)" stroke="#37302a" stroke-width="5"/>
+  <path d="M64 14a50 50 0 0 0 0 100" fill="none" stroke="#6d4515" stroke-width="11" stroke-linecap="round"/>
+  <path d="M64 14a50 50 0 0 1 0 100" fill="none" stroke="url(#brass)" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="64" cy="64" r="42" fill="#55330f"/>
+  <circle cx="64" cy="64" r="38" fill="url(#brass)" stroke="#f8dfa0" stroke-width="2"/>
+  <circle cx="64" cy="64" r="31" fill="url(#face)" stroke="#37302a" stroke-width="2.5"/>
+  <g stroke="#775c2c" stroke-linecap="round">
+    <path d="M64 37v5M91 64h-5M64 91v-5M37 64h5" stroke-width="4"/>
+    <path d="m76.4 40.3-2 4.4m13.3 19.3-4.7.3m-6.6 23.4-2-4.4m-19.3 4.4 2-4.4m-14.7-19 4.7.3m7.7-24-2 4.4" stroke-width="2.5"/>
+  </g>
+  <circle cx="64" cy="64" r="4.5" fill="#b77b21" stroke="#37302a" stroke-width="2"/>
+  <path d="M64 64 64 45" stroke="#202b35" stroke-width="5" stroke-linecap="round"/>
+  <path d="M64 64 80 72" stroke="#202b35" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="76" cy="79" r="8" fill="#eadcae" stroke="#775c2c" stroke-width="1.8"/>
+  <path d="M76 79v-4m0 4 3 2" fill="none" stroke="#56401f" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M64 11v8M64 109v8M11 64h8M109 64h8" stroke="#f3ce72" stroke-width="5" stroke-linecap="round"/>
+</svg>
