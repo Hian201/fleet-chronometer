@@ -46,6 +46,11 @@ export class EventProjector {
     readonly gaugeSeenUncleared = new Set<number>();
     readonly gaugeBroken = new Set<number>();
     private activeMode: EventProjectorMode;
+    // projectWithMode() 跨多個 await 步驟共用 this.activeMode；呼叫端（panel/main.ts 的
+    // ready/pumping flag）目前保證同一個 projector 一次只處理一筆事件，絕不重入。這面旗標
+    // 不是為了讓重入「能運作」，而是把違反這個假設的情況從「activeMode 被悄悄覆蓋、
+    // 某些事件的 persist/state-only 判斷跟著讀錯」的靜默錯誤，變成立刻丟出的例外。
+    private inFlight = false;
 
     constructor(options: EventProjectorOptions) {
         this.state = options.state;
@@ -65,6 +70,14 @@ export class EventProjector {
         mode: EventProjectorMode,
         afterStateApplied?: () => void,
     ): Promise<void> {
+        if (this.inFlight) {
+            throw new Error(
+                'EventProjector.projectWithMode() called re-entrantly — caller must await each ' +
+                'event before projecting the next; activeMode is shared instance state and cannot ' +
+                'safely interleave across concurrent calls.',
+            );
+        }
+        this.inFlight = true;
         const previousMode = this.activeMode;
         this.activeMode = mode;
         const { id, ts, path, api, req } = event;
@@ -82,6 +95,7 @@ export class EventProjector {
             await this.detectClear(path);
         } finally {
             this.activeMode = previousMode;
+            this.inFlight = false;
         }
     }
 

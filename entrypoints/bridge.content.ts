@@ -47,19 +47,29 @@ export default defineContentScript({
         // background 持有狀態，MAIN world 的 hook 執行。用長連線而非 tabs.sendMessage：
         // 後者需要對遊戲分頁的 host permission，而 content_scripts 的 matches 不等於
         // host permission（權限精簡原則）。由 content script 主動連上來就完全不需要權限。
-        try {
-            const port = browser.runtime.connect({ name: PORT_MUTE });
-            port.onMessage.addListener((msg: any) => {
-                if (typeof msg?.muted !== 'boolean') return;
-                window.postMessage(
-                    { [MUTE_MARK]: 1, muted: msg.muted } satisfies MuteBridgeMessage,
-                    location.origin,
-                );
-            });
-        } catch (e) {
-            // 連線失敗只代表靜音鈕對這個分頁無效，封包擷取完全不受影響。
-            console.warn('[KC-Monitor] 靜音狀態通道連線失敗', e);
-        }
+        const connectMutePort = () => {
+            try {
+                const port = browser.runtime.connect({ name: PORT_MUTE });
+                port.onMessage.addListener((msg: any) => {
+                    if (typeof msg?.muted !== 'boolean') return;
+                    window.postMessage(
+                        { [MUTE_MARK]: 1, muted: msg.muted } satisfies MuteBridgeMessage,
+                        location.origin,
+                    );
+                });
+                // SW 隨時會死（設計原則3）：被系統閒置回收時這個 port 會斷線（分頁本身沒關），
+                // 不是分頁關閉。不重連的話靜音鈕對這個分頁永久失效、需要使用者自行重整才會
+                // 恢復——故斷線後短延遲重連一次。連線本身失敗（見下方 catch）才代表 extension
+                // context 已失效，不再重試。
+                port.onDisconnect.addListener(() => {
+                    setTimeout(connectMutePort, 250);
+                });
+            } catch (e) {
+                // 連線失敗只代表靜音鈕對這個分頁無效，封包擷取完全不受影響。
+                console.warn('[KC-Monitor] 靜音狀態通道連線失敗', e);
+            }
+        };
+        connectMutePort();
 
         // ── 劇場模式的互動意圖轉發（Alt+滾輪／Esc）────
         // 滑鼠停在遊戲框上、或焦點落進框內（玩遊戲時的常態）時，滾輪與鍵盤事件只送到框內
@@ -96,6 +106,10 @@ export default defineContentScript({
             };
         };
         window.addEventListener('message', (e) => {
+            // theater.content.ts 一律直接對遊戲框的 contentWindow 送出量測請求（見
+            // entrypoints/theater.content.ts），故從遊戲框角度看送信者必為 window.parent；
+            // 不驗證會讓任何能對這個 frame postMessage 的來源都能觸發一次量測並廣播結果。
+            if (e.source !== window.parent) return;
             const data = e.data as TheaterRelayMessage | undefined;
             if (!data || (data as any)[RELAY_MARK] !== 1 || data.kind !== 'measure') return;
             relay({

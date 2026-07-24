@@ -547,6 +547,12 @@ export class GameState {
     // 本節點各戰待套用的燃彈消耗費率。出擊途中先不寫回（面板維持戰前油彈，與遊戲戰鬥畫面一致），
     // 直到 battleresult 結算畫面才一併套用（見 battle 分支說明）。
     private pendingConsumption: { fuelRate: number; bullRate: number; nightAmmoBoost: boolean; hasEscort: boolean }[] = [];
+    // 応急修理要員／女神本場出擊已觸發過的艦（key: 艦實例 id）。遊戲不會在節點之間重送裝備
+    // 欄位，故 getDamecon() 單看目前裝備欄位無法分辨「還沒用過」與「已經用掉、封包只是還沒
+    // 反映」——同一艘船在下個節點又被打到 0 血時會誤判成再次獲救（甚至連帶壓下大破警告，見
+    // battle.ts isTaiha 的 damecon===0 判斷），而非正確判定轟沈。故額外記本場出擊已消耗的艦，
+    // 於 api_req_map/start 歸零（見下方分支）。
+    private damaconUsed = new Set<number>();
 
     // ── 泊地修理／給糧的計時器錨點（key: deckIdx，值為該艦隊「最後一次重置計時」的時間戳）──
     // 遊戲**不送任何泊地修理封包**，20 分／15 分是伺服器內部從「編成完了」起算的計時，
@@ -899,6 +905,7 @@ export class GameState {
             this.battleInfo = null;
             this.lastDayBattle = null;
             this.pendingConsumption = [];
+            this.damaconUsed.clear();
             this.sortieInfo = {
                 mapArea: api.api_maparea_id,
                 mapNo: api.api_mapinfo_no,
@@ -956,8 +963,13 @@ export class GameState {
                         if (gid > 0) this.slotItems.delete(gid);
                 this.ships.delete(sid);
             }
-            for (const d of this.decks)
+            // 除籍等同改動了所在艦隊的編成成員，比照 api_req_hensei/change 的規則重置該隊
+            // 泊地修理／給糧計時器錨點；只重置真的受影響的隊，不影響其他艦隊。
+            this.decks.forEach((d, di) => {
+                if (!d.api_ship.some((id: number) => ids.includes(id))) return;
                 d.api_ship = d.api_ship.map((id: number) => (ids.includes(id) ? -1 : id));
+                this.resetRepairAnchor(di, ts);
+            });
             // 解体艦娘任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務609「軍縮条約対応！」）：
             // 一次請求可逗號分隔解體多艘，逐艘計數（非逐次請求計數）。
             if (ids.length > 0) this.bumpQuestProgress('shipScrap', ids.length);
@@ -973,8 +985,12 @@ export class GameState {
             if (api?.api_ship) this.ships.set(api.api_ship.api_id, api.api_ship);
             const feeders = (req.api_id_items ?? '').split(',').map(Number).filter(n => n > 0);
             for (const sid of feeders) this.ships.delete(sid);
-            for (const d of this.decks)
+            // 餌艦被移出編成同等改動成員，比照 api_req_hensei/change 的規則重置該隊計時器錨點。
+            this.decks.forEach((d, di) => {
+                if (!d.api_ship.some((id: number) => feeders.includes(id))) return;
                 d.api_ship = d.api_ship.map((id: number) => (feeders.includes(id) ? -1 : id));
+                this.resetRepairAnchor(di, ts);
+            });
             // 近代化改修没有失敗判定（有餌就必定吃成功），故每次呼叫都算一次成功。
             this.bumpQuestProgress('modernization');
         } else if (path === 'api_req_kaisou/slotset' && req) {
@@ -1163,7 +1179,10 @@ export class GameState {
                     this.battleInfo = analyzeBattle([api], playerDamecons);
                 }
                 // 把戰鬥模擬後的 HP 寫回 this.ships，讓編成面板即時反映受損
-                if (this.battleInfo?.resultFleets) this.applyBattleHp(this.battleInfo.resultFleets);
+                if (this.battleInfo?.resultFleets) {
+                    this.applyBattleHp(this.battleInfo.resultFleets);
+                    this.markDameconConsumed(playerDamecons, this.battleInfo.resultFleets);
+                }
                 // ── 依節點類型套用燃彈消耗率（日wiki「資材」頁實測值，2024/03 版）──
                 // 每戰獨立計算、切捨（0<x<1 時進位為 1）；夜戰彈藥 = 晝彈×1.5 切り上げ。
                 // 活動特殊點（PT 4/8・雷達 4/0・對潛空襲 12/6）無法純靠 path 區分，按普通處理；回港校正。
@@ -1240,6 +1259,11 @@ export class GameState {
                 if (api?.api_win_rank) this.battleInfo.rank = api.api_win_rank;
             }
             if (['S', 'A', 'B'].includes(api?.api_win_rank)) this.bumpQuestProgress('practiceWin');
+            // 演習不消耗實際燃彈（遊戲機制），故不呼叫 applyConsumption；但演習戰鬥分支
+            // 一樣會把費率 push 進 pendingConsumption（與正式出擊共用同一段計算），這裡若不清空
+            // 就會在陣列裡留下不會被套用的殘留項——目前僅因 api_req_map/start 無條件重置才不
+            // 會誤扣，但那個防護不屬於這段程式碼本身保證，故仍在此明確清空。
+            this.pendingConsumption = [];
         }
     }
 
@@ -1310,6 +1334,21 @@ export class GameState {
         if (this.currentSortieFleetId === 0 && this.decks[1]) write(this.decks[1], f.playerEscort);
     }
 
+    // 戰前 damecon>0、戰後 battle.ts 回報變 0 ⇒ 本場觸發並消耗（battle.ts 的 takeDamage 只在
+    // 觸發時才把 s.damecon 歸零，未觸發則整場維持原值不變，故這個比對可靠）。記下後
+    // getDamecon() 下個節點才不會誤把同一顆道具當成還沒用過（見欄位宣告處的說明）。
+    private markDameconConsumed(pre: { main: number[]; escort: number[] }, f: BattleFleetView) {
+        const mark = (deck: any, preArr: number[], post: (BattleShipView | null)[]) => {
+            if (!deck) return;
+            const ids = deck.api_ship.filter((id: number) => id > 0);
+            ids.forEach((id: number, i: number) => {
+                if ((preArr[i] ?? 0) > 0 && post[i] && post[i]!.damecon === 0) this.damaconUsed.add(id);
+            });
+        };
+        mark(this.decks[this.currentSortieFleetId], pre.main, f.playerMain);
+        if (this.currentSortieFleetId === 0 && this.decks[1]) mark(this.decks[1], pre.escort, f.playerEscort);
+    }
+
     // 估算出擊途中的燃彈消耗（遊戲封包不帶途中燃彈實數）。費率由呼叫端依節點類型指定，
     // 規則依日wiki「資材」頁（可用其艦種消費一覽表反推驗證）：
     //   ・每戰獨立計算，端數切捨；但 0<x<1 時進位為 1（最低消費 1）
@@ -1370,6 +1409,7 @@ export class GameState {
     }
 
     private getDamecon(shipId: number): number {
+        if (this.damaconUsed.has(shipId)) return 0;
         const s = this.ships.get(shipId);
         if (!s) return 0;
         const slots = [...(s.api_slot ?? []), s.api_slot_ex > 0 ? s.api_slot_ex : -1];

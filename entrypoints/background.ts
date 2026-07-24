@@ -144,11 +144,20 @@ export default defineBackground(() => {
         return;
       }
     }
+    // 帳號安全紅線的第二道防線：bridge.content.ts 已經剝過 api_token/api_verno，但那是
+    // 靠 URLSearchParams 解析 req 字串的單點防線——若日後某個請求體格式跳脫這個假設而
+    // 讓 token 漏網，這裡是 ingestEvent()（唯一持久化入口）前最後也是唯一的第二道關卡，
+    // 不管 req 從哪個 provider、以什麼路徑送進來都會被擋下，不信任上游已經處理乾淨。
+    const req = msg.req && typeof msg.req === 'object' ? { ...msg.req } : msg.req;
+    if (req) {
+      delete (req as Record<string, unknown>).api_token;
+      delete (req as Record<string, unknown>).api_verno;
+    }
     return ingestEvent({
       ts: msg.ts,
       path: msg.path,
       api,
-      req: msg.req,
+      req,
       captureId: msg.captureId,
       source: 'main',
     });
@@ -343,6 +352,14 @@ async function lookupNdockTime(shipId: number): Promise<number> {
 }
 
 async function scheduleAlarms(api: any, eventId: number) {
+  // clearAll() 會連同「這筆 port 之前才剛建立、但這次 port 快照的 api_ndock 還沒同步反映
+  // 該渠已在修理中」的入渠 alarm 一起清掉，且下面的重建迴圈因為讀到的 api_state 尚未更新
+  // 而不會重新建立——先記下 clearAll 前仍在未來的入渠 alarm，快照沒涵蓋到就原樣續存。
+  // 若渠真的被取消，這個殘留頂多在原訂時間誤發一次通知，Chrome 觸發後自動移除該 alarm，
+  // 不會無限殘留；換來的是「不會靜默漏發」，兩者取捨後者更安全。
+  const staleDockAlarms = (await browser.alarms.getAll())
+    .filter(a => /^入渠ドック\d+ 修理完了$/.test(a.name) && a.scheduledTime > Date.now());
+
   await browser.alarms.clearAll();
   for (const [i, d] of (api.api_deck_port ?? []).entries()) {
     if (d.api_mission?.[0] > 0 && d.api_mission[2] > 0) {
@@ -352,16 +369,25 @@ async function scheduleAlarms(api: any, eventId: number) {
         await db.notified.delete(i + 1);
         continue;
       }
+      // key 用艦隊編號（穩定）而非 api_name（玩家可改，同名會互相覆蓋 alarm）——
+      // 與 mission/start、return_instruction 兩處通知的既有慣例一致。
       await scheduleOrNotify(
-        `${d.api_name} 遠征帰投`,
+        `第${i + 1}艦隊 遠征帰投`,
         d.api_mission[2],
         createEventNotificationId(eventId, `port-mission-${i + 1}`),
       );
     }
   }
+  const recreatedDockNames = new Set<string>();
   for (const [i, n] of (api.api_ndock ?? []).entries()) {
-    if (n.api_state > 0 && n.api_complete_time > 0)
-      await browser.alarms.create(`入渠ドック${i + 1} 修理完了`, { when: n.api_complete_time });
+    if (n.api_state > 0 && n.api_complete_time > 0) {
+      const name = `入渠ドック${i + 1} 修理完了`;
+      recreatedDockNames.add(name);
+      await browser.alarms.create(name, { when: n.api_complete_time });
+    }
+  }
+  for (const a of staleDockAlarms) {
+    if (!recreatedDockNames.has(a.name)) await browser.alarms.create(a.name, { when: a.scheduledTime });
   }
 
   // 疲労（士気）回復通知：自然回復每 3 分鐘 +3、上限 49（回復點）。

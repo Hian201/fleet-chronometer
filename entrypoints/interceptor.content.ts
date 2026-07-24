@@ -135,6 +135,11 @@ export default defineContentScript({
         };
         XMLHttpRequest.prototype.send = function (body?: any) {
             const p = (this as any).__kcPath;
+            // { once: true }：若遊戲重用同一個 XHR 實例送出下一筆請求，這個 listener 不能
+            // 留著——留著的話下一次 load 事件會被這個「舊」listener 跟這次新註冊的一起觸發，
+            // 屆時 this.responseText 已經是新請求的內容，卻會被舊 listener 標成舊的 path
+            // 重複入列（見開發紀錄的 XHR 重用錯位案例）。每個 send() 呼叫只該對應它自己
+            // 那一次 load。
             if (p) this.addEventListener('load', () => {
                 // 不在 load callback 讀 this.responseText；取得大型字串與 postMessage 都留給
                 // idle queue。read() 具快取，只有 XHR 被重用時才可能提早執行一次。
@@ -153,7 +158,7 @@ export default defineContentScript({
                 };
                 (this as any).__kcPendingResponse = pendingResponse;
                 captureQueue.enqueue(p, String(body ?? ''), pendingResponse.read);
-            });
+            }, { once: true });
             return origSend.call(this, body);
         };
     },

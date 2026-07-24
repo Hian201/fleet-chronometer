@@ -22,7 +22,8 @@
    關閉期間不漏資料。SW 視為隨時會死，不持跨事件狀態。
 4. **核心零瀏覽器依賴**：`utils/state.ts`+`battle.ts` 不含 `chrome.*`，可獨立編譯、
    用 node 餵真實封包測試（未來可拆包共用給 macOS app）。
-5. **權限精簡**：安裝時的權限為 `alarms`+`notifications`+`scripting`+`activeTab`，且
+5. **權限精簡**：安裝時的權限為 `alarms`+`notifications`+`scripting`+`activeTab`+`tabs`
+   （`tabs` 僅供 `tabs.update({muted})` 遊戲分頁靜音保底使用，見劇場模式一節），且
    **host permission 一律為空**。`scripting` 不授予任何網站存取權；劇場模式/拍照需要的
    dmm.com 存取權走 `optional_host_permissions`，使用者按下按鈕才跳一次原生授權。
    `tests/manifest.test.ts` 常駐斷言 `host_permissions` 為空——WXT 對
@@ -210,7 +211,7 @@ projection cursor；safe pruning 只刪已投影的 retained raw events，metada
 key generator 後立即刪除 reservation，**不寫 raw event**。去重規則各自見對應檔案職責列。
 
 **v1 產品識別**：package 為 fleet-chronometer 1.0.0，權限 `alarms`、`notifications`、
-`scripting`、`activeTab`。品牌名走 i18n（`public/_locales/{en,ja,zh_TW}/messages.json`），
+`scripting`、`activeTab`、`tabs`。品牌名走 i18n（`public/_locales/{en,ja,zh_TW}/messages.json`），
 manifest 只放 `__MSG_extName__`／`__MSG_extShortName__`／`__MSG_extDescription__`
 （`default_locale: en`）；頁面標題另由 panel/popup/overview 執行期以 `ov.brandShort` 改寫
 `document.title`，兩份必須逐語言一致——`tests/manifest.test.ts` 常駐把關。

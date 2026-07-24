@@ -12,7 +12,13 @@ function hasCaptureId(event: ApiEventRow): event is ApiEventRow & { captureId: s
 
 /**
  * 將上一次 service worker 終止時遺留的 claim 歸還為 pending，再依事件 ID 順序重跑。
- * 歷史 event 沒有 captureId，不是狀態機工作，必須保持不動。
+ * 只認帶 captureId 的事件——這不只是為了不動到歷史資料（v10 遷移前的舊列 postProcessState
+ * 是 undefined，本來就不會命中下面的查詢），更是因為 `persistIngestedEvent` 讓沒有
+ * captureId 的事件也能進入這個狀態機時，明講了「沒有跨 retry 去重保證」：captureId 正是
+ * recovery 敢重跑 postProcess 而不怕副作用重複執行（重複通知等）的依據，沒有它就沒有這個
+ * 安全網。故沒有 captureId 的事件卡在 pending/processing 時寧可放著不管，也不要冒著重複
+ * 副作用的風險去重跑——這是刻意的取捨，不是遺漏（`tests/background-ingestion-lifecycle.test.ts`
+ * 有專門測資鎖住這個行為，別為了「不留孤兒事件」把這層過濾拿掉）。
  */
 export async function recoverPendingPostProcessing(
     dependencies: BackgroundIngestionLifecycleDependencies,
