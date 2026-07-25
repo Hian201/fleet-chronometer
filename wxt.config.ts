@@ -3,6 +3,15 @@ import { GAME_PAGE_MATCHES } from './utils/game-page';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+    // 開發模式：擴充頁（chrome-extension://）會向 Vite 拉 @vite/client；Vite 預設
+    // CORS 不放行該 origin。server.cors 反射 Origin 當雙重保險（主解仍靠下方
+    // host_permissions 保留 localhost）。
+    vite: () => ({
+        server: {
+            // 反射任意 Origin（含 chrome-extension://）；正式建置不走此路徑。
+            cors: true,
+        },
+    }),
     manifest: {
         default_locale: 'en',
         name: '__MSG_extName__',
@@ -38,10 +47,24 @@ export default defineConfig({
         // WXT 對 `registration: 'runtime'` 的 content script 會**自動把 matches 塞進
         // `host_permissions`**（見 wxt/dist/types.d.mts 的 registration 說明）。那等於安裝時
         // 就要求 dmm.com 權限，正是本專案「權限精簡」硬約束要避免的事（CLAUDE.md 設計原則 5）。
-        // 故在這裡剝掉；存取權改由上方的 optional_host_permissions 於執行期索取。
-        // `tests/manifest.test.ts` 常駐斷言 host_permissions 為空，改壞了會立刻亮紅燈。
-        'build:manifestGenerated'(_wxt, manifest) {
-            delete (manifest as { host_permissions?: string[] }).host_permissions;
+        // 故剝掉網站權限；存取權改由上方的 optional_host_permissions 於執行期索取。
+        //
+        // **開發模式例外**：WXT serve 會把 Vite origin（localhost:3000）寫進
+        // host_permissions，Chrome 靠它才能讓擴充頁跨源載入 @vite/client（否則 CORS
+        // 擋下、面板／popup 一片空白）。正式 build 不需要——腳本已打包進擴充。
+        // `tests/manifest.test.ts` 斷言的是正式產物 host_permissions 為空。
+        'build:manifestGenerated'(wxt, manifest) {
+            const m = manifest as { host_permissions?: string[] };
+            if (wxt.config.command === 'serve') {
+                // WXT 會寫入無 port 的 localhost pattern（等同涵蓋 :3000）；
+                // 這裡固定覆寫，避免 theater matches 或剝除邏輯誤傷。
+                m.host_permissions = [
+                    'http://localhost/*',
+                    'http://127.0.0.1/*',
+                ];
+            } else {
+                delete m.host_permissions;
+            }
         },
     },
 });

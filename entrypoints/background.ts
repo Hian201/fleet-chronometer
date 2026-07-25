@@ -112,8 +112,18 @@ export default defineBackground(() => {
   // Promise 只有 Chrome 148 起才支援，舊版會讓 sender 收到 undefined 而非真正的回覆）。
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // popup 快捷選單的「開啟面板」（entrypoints/popup/）：開窗邏輯留在 SW，
-    // popup 送完訊息就自關，不能自己開窗（popup 關閉會中斷其非同步流程）
-    if (msg?.type === 'kc:open-panel') { openPanelWindow(); return; }
+    // popup 送完訊息就自關，不能自己開窗（popup 關閉會中斷其非同步流程）。
+    // 必須 replyWhenSettled 撐到 windows.create 完成——若同步 return 讓通道立刻關閉，
+    // MV3 SW 可能在開窗前就被掛起（dev 模式下尤甚）。setTimeout(0) 則避開
+    // 「在 onMessage 裡再 sendMessage(panel-ping)」的巢狀訊息陷阱。
+    if (msg?.type === 'kc:open-panel') {
+      return replyWhenSettled(
+        new Promise<void>((resolve, reject) => {
+          setTimeout(() => { openPanelWindow().then(() => resolve(), reject); }, 0);
+        }),
+        sendResponse,
+      );
+    }
     // `connected` = 目前連著的遊戲分頁數。0 代表沒有任何分頁跑著新版 content script
     // （擴充更新後遊戲分頁未 F5），此時靜音一定無效——這種「靜靜沒反應」最難查，故回報。
     if (msg?.type === MSG_MUTE_GET) {

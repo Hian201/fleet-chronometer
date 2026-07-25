@@ -233,7 +233,9 @@ describe('匯入 UI 說明', () => {
         expect(note).toContain('KC3Kai');
         expect(note).not.toContain('**');
         expect(tip).not.toContain('**');
-        expect(shellHtml()).not.toContain('**');
+        // 強制帶匯入面板驗文案；正式建置預設不顯示匯入 UI（見 utils/debug-ui.ts）
+        expect(shellHtml({ includeImport: true })).not.toContain('**');
+        expect(shellHtml({ includeImport: false })).not.toContain('sl-import');
         setLang('zh-TW');
     });
 

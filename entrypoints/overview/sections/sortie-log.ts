@@ -40,6 +40,7 @@ import { nodeKindKey } from '@/utils/map-node-kind';
 import type { BattleInfoView, BattleShipView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
+import { isDebugUiEnabled } from '@/utils/debug-ui';
 import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
     loadJsonPrefs, saveJsonPrefs,
@@ -595,7 +596,18 @@ export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, 
  * 工具列＋匯入面板的 markup。抽成函式是為了讓離線版面預覽（tools/preview/sortie-log.ts）
  * 用同一份、不會與這裡漂移。
  */
-export function shellHtml(): string {
+export function shellHtml(opts?: { includeImport?: boolean }): string {
+    // 單場 JSON 匯入是測試向入口（見 utils/debug-ui.ts）；上架建置預設不顯示。
+    const includeImport = opts?.includeImport ?? isDebugUiEnabled();
+    const importUi = includeImport
+        ? `${importToggleHtml('sl', t('ov.slImport'))}`
+        : '';
+    const importPanel = includeImport
+        ? importPanelHtml('sl', '.json,application/json', {
+            hint: t('ov.slImportHint'), go: t('ov.slImportGo'),
+            paste: t('ov.slImportPaste'), note: t('ov.slImportNote'),
+        })
+        : '';
     return `
         <div class="sl">
             <div class="sl-bar">
@@ -608,12 +620,9 @@ export function shellHtml(): string {
                 <span class="grow"></span>
                 <span class="sl-count"></span>
                 <button type="button" class="ov-btn sl-expand">${esc(t('ov.slExpandAll'))}</button>
-                ${importToggleHtml('sl', t('ov.slImport'))}
+                ${importUi}
             </div>
-            ${importPanelHtml('sl', '.json,application/json', {
-                hint: t('ov.slImportHint'), go: t('ov.slImportGo'),
-                paste: t('ov.slImportPaste'), note: t('ov.slImportNote'),
-            })}
+            ${importPanel}
             <div class="sl-body ov-list"></div>
         </div>`;
 }
@@ -707,41 +716,43 @@ export const sortieLogSection: OverviewSection = {
             drawList();
         });
 
-        // ── 單場 JSON 匯入 ──────────────────────────────────────────────
+        // ── 單場 JSON 匯入（僅開發用 UI；上架建置不綁）────────────────
         // 解析／去重／落地都在 utils/sortie-import.ts；面板 UI 走共用 import-panel。
-        let clearImportInputs = () => { /* 綁定後覆寫 */ };
-        clearImportInputs = bindImportPanel(el, 'sl', {
-            onFileLoaded: (name, setStatus) => setStatus('', name),
-            async onImport(text, setStatus) {
-                if (!text) { setStatus('bad', t('ov.slImportEmpty')); return; }
-                let parsed;
-                try {
-                    // 掉落只有 master id（KC3Kai 匯出的形狀），艦名靠目前的 master 解析後一併存進去
-                    parsed = parseSortieImport(JSON.parse(text), { shipName: mst => ctx.state.shipName(mst) });
-                } catch (error) {
-                    const detail = error instanceof SortieImportError ? error.message : t('ov.slImportBadJson');
-                    setStatus('bad', t('ov.slImportBad', { msg: detail }));
-                    return;
-                }
-                try {
-                    await importSortie(db, parsed);
-                } catch (error) {
-                    if (error instanceof SortieImportDuplicateError) {
-                        // 「已存在」是預期結果不是錯誤：如實說是哪一場，讓使用者知道去哪裡看
-                        setStatus('dup', t('ov.slImportDup', {
-                            map: parsed.signature.map, time: fmtTs(parsed.signature.ts),
-                        }));
+        if (isDebugUiEnabled()) {
+            let clearImportInputs = () => { /* 綁定後覆寫 */ };
+            clearImportInputs = bindImportPanel(el, 'sl', {
+                onFileLoaded: (name, setStatus) => setStatus('', name),
+                async onImport(text, setStatus) {
+                    if (!text) { setStatus('bad', t('ov.slImportEmpty')); return; }
+                    let parsed;
+                    try {
+                        // 掉落只有 master id（KC3Kai 匯出的形狀），艦名靠目前的 master 解析後一併存進去
+                        parsed = parseSortieImport(JSON.parse(text), { shipName: mst => ctx.state.shipName(mst) });
+                    } catch (error) {
+                        const detail = error instanceof SortieImportError ? error.message : t('ov.slImportBadJson');
+                        setStatus('bad', t('ov.slImportBad', { msg: detail }));
                         return;
                     }
-                    setStatus('bad', t('ov.slImportBad', { msg: String((error as Error)?.message ?? error) }));
-                    return;
-                }
-                setStatus('ok', t('ov.slImportOk', { map: parsed.signature.map, n: parsed.rows.length }));
-                clearImportInputs();
-                // 重繪整個分區才會把新紀錄排進清單（分類／海域下拉的選項也會跟著更新）
-                ctx.rerender();
-            },
-        }).clearInputs;
+                    try {
+                        await importSortie(db, parsed);
+                    } catch (error) {
+                        if (error instanceof SortieImportDuplicateError) {
+                            // 「已存在」是預期結果不是錯誤：如實說是哪一場，讓使用者知道去哪裡看
+                            setStatus('dup', t('ov.slImportDup', {
+                                map: parsed.signature.map, time: fmtTs(parsed.signature.ts),
+                            }));
+                            return;
+                        }
+                        setStatus('bad', t('ov.slImportBad', { msg: String((error as Error)?.message ?? error) }));
+                        return;
+                    }
+                    setStatus('ok', t('ov.slImportOk', { map: parsed.signature.map, n: parsed.rows.length }));
+                    clearImportInputs();
+                    // 重繪整個分區才會把新紀錄排進清單（分類／海域下拉的選項也會跟著更新）
+                    ctx.rerender();
+                },
+            }).clearInputs;
+        }
 
         // 結果區每次重繪都換掉子元素，故一律事件委派（見 design-guidelines §4.2）
         body.addEventListener('click', async ev => {

@@ -137,7 +137,8 @@ const cards = groups.slice().reverse().map(g => {
 }).join('');
 
 // 工具列與匯入面板用分區自己的 markup（同一份，不另抄），並把匯入面板攤開來看
-const shell = shellHtml()
+// 預覽強制帶匯入面板（版面驗收用）；正式建置的 overview 預設不顯示（見 debug-ui.ts）。
+const shell = shellHtml({ includeImport: true })
     .replace('<div class="sl-import" hidden>', '<div class="sl-import">')
     .replace('<div class="sl-body ov-list"></div>', `<div class="sl-body ov-list">${cards}</div>`);
 

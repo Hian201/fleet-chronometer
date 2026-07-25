@@ -111,10 +111,11 @@ describe('正式版 manifest', () => {
         // 二擇一（見 wxt.config.ts 註解），不顯示警告、不進 host_permissions、且僅在
         // 使用者實際呼叫擴充（開 popup 等）當下對那個分頁暫時授予。
         expect(manifest.permissions).toEqual(['activeTab', 'alarms', 'notifications', 'scripting', 'tabs']);
-        // **這條是權限精簡的底線**：安裝時不得要求任何網站的存取權。劇場模式需要的
-        // dmm.com 權限一律走 optional（使用者按下按鈕才跳授權），且 WXT 對
+        // **這條是權限精簡的底線（正式建置）**：安裝時不得要求任何網站的存取權。
+        // 劇場／視窗適應需要的 dmm.com 權限一律走 optional。WXT 對
         // `registration: 'runtime'` 會自動把 matches 塞進 host_permissions——
-        // wxt.config.ts 的 build:manifestGenerated hook 負責剝掉，壞了這裡就會亮。
+        // wxt.config.ts 的 build:manifestGenerated hook 負責剝掉（開發模式會留
+        // localhost 給 Vite，不在此產物）。壞了這裡就會亮。
         expect(manifest.host_permissions ?? []).toEqual([]);
         expect(manifest.optional_permissions ?? []).toEqual([]);
         expect(manifest.optional_host_permissions ?? []).toEqual(GAME_PAGE_MATCHES);

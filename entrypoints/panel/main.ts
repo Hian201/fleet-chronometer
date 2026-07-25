@@ -9,6 +9,7 @@ import {
     type AnchorageRepairPlan, type MoralePlan,
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
+import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
@@ -29,7 +30,11 @@ applyTheme();
 // 語言／主題變更（其他擴充頁面改的，經 storage 事件送來）：靜態文字、動態渲染，以及
 // 兩個「不在 renderAll 裡」的區塊都要跟著換——遠征下拉的選項在 renderExped 內只建一次
 // （靠 expedSelLang 偵測語言），待驗證封包清單則要重讀 DB 才能換掉按鈕與說明文字。
-onPrefsChange(() => { applyStaticI18n(); renderAll(); void renderWanted().catch(() => { }); });
+onPrefsChange(() => {
+    applyStaticI18n();
+    renderAll();
+    if (isDebugUiEnabled()) void renderWanted().catch(() => { });
+});
 // 靜態 HTML（index.html 內非 JS 產生的標題文字）的翻譯套用點：切語言時連同動態渲染一起重跑。
 function applyStaticI18n() {
     document.title = t('ov.brandShort');   // 面板彈出視窗的標題也用在地化品牌短名
@@ -138,22 +143,27 @@ function renderTabs() {
     // 工廠分頁仍保留（只留「當下」看板：最新開發/改修結果＋建造中渠倒數，見
     // renderFactoryLive）——歷史清單移出不代表即時資訊要跟著消失。
     // 紀錄的擷取/歸檔仍在 consume() 進行（與是否顯示無關），總括頁讀 db 呈現歷史。
+    // 「動態」分頁僅開發用 UI（見 utils/debug-ui.ts），上架建置不顯示。
+    const activityBtn = isDebugUiEnabled()
+        ? `<button data-t="activity" class="${tab === 'activity' ? 'on' : ''}">${t('tab.activity')}</button>`
+        : '';
     tabsEl.innerHTML = `
       <button data-t="general" class="${tab === 'general' ? 'on' : ''}">${t('tab.general')}</button>
       <button data-t="sortie" class="${tab === 'sortie' ? 'on' : ''}">${t('tab.sortie')}</button>
       <button data-t="exped" class="${tab === 'exped' ? 'on' : ''}">${t('tab.exped')}</button>
       <button data-t="factory" class="${tab === 'factory' ? 'on' : ''}">${t('tab.factory')}</button>
-      <button data-t="activity" class="${tab === 'activity' ? 'on' : ''}">${t('tab.activity')}</button>`;
+      ${activityBtn}`;
 }
 // 切換分頁的共用函式（manual=true 代表使用者手動點選，會暫停自動切換）
-function setTab(t: typeof tab, manual: boolean) {
-    tab = t;
+function setTab(next: typeof tab, manual: boolean) {
+    // 正式建置沒有動態分頁：若狀態卡在 activity（舊 session／誤觸），退回一般。
+    tab = next === 'activity' && !isDebugUiEnabled() ? 'general' : next;
     if (manual) manualOverride = true;
     generalEl.style.display = tab === 'general' ? '' : 'none';
     document.getElementById('tab-exped')!.style.display = tab === 'exped' ? '' : 'none';
     document.getElementById('tab-sortie')!.style.display = tab === 'sortie' ? '' : 'none';
     document.getElementById('tab-factory')!.style.display = tab === 'factory' ? '' : 'none';
-    activityEl.style.display = tab === 'activity' ? '' : 'none';
+    activityEl.style.display = tab === 'activity' && isDebugUiEnabled() ? '' : 'none';
     renderTabs(); renderExped(); renderSortie();
     if (tab === 'factory') renderFactory();
 }
@@ -1067,8 +1077,12 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
             || path === 'api_req_kousyou/createship'
             || path === 'api_req_kousyou/getship'
             || path === 'api_req_kousyou/remodel_slot') autoSwitch('factory', 'factory');
-        const tag = state.wantedTag(path, api);
-        if (tag) void captureWanted(id, tag, ts, path);
+        // wanted 擷取只在開發用 UI 開啟時進行——正式建置沒有清除／複製介面，
+        // 繼續寫入會永久釘住 raw events 卻無法由使用者管理（見 utils/debug-ui.ts）。
+        if (isDebugUiEnabled()) {
+            const tag = state.wantedTag(path, api);
+            if (tag) void captureWanted(id, tag, ts, path);
+        }
         const t2 = performance.now();
         renderAll();
         const t3 = performance.now();
@@ -1200,7 +1214,7 @@ setNotice('loading', t('panel.loading'));
         // 重播期間累積的 log 一次性補上（陣列已依時間順序，逐筆 prepend 使最新的在最上面）
         replayLogBuffer.forEach(({ ts, path }) => appendLogRow(ts, path));
         renderAll();      // 重播完成後才做第一次整頁渲染
-        void renderWanted();   // 載入先前 session 已擷取的待驗證封包
+        if (isDebugUiEnabled()) void renderWanted();   // 開發用：載入先前 session 的待驗證封包
         void pump();           // 處理啟動期間積在 pending 的 live 事件
     } catch (error) {
         // 啟動重播失敗：pump 同樣不能在這份半成品 state 上繼續（理由見

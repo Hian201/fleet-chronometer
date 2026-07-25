@@ -26,10 +26,11 @@
    （`tabs` 僅供 `tabs.update({muted})` 遊戲分頁靜音保底使用，見劇場模式一節），且
    **host permission 一律為空**。`scripting` 不授予任何網站存取權；劇場模式/拍照需要的
    dmm.com 存取權走 `optional_host_permissions`，使用者按下按鈕才跳一次原生授權。
-   `tests/manifest.test.ts` 常駐斷言 `host_permissions` 為空——WXT 對
-   `registration: 'runtime'` 的 content script 會自動把 matches 塞進 host_permissions，
-   `wxt.config.ts` 的 `build:manifestGenerated` hook 負責剝掉。任何新增權限都要有明確理由
-   （已否決過的方案見存檔 §設計原則）。
+ `tests/manifest.test.ts` 常駐斷言**正式建置**的 `host_permissions` 為空——WXT 對
+ `registration: 'runtime'` 的 content script 會自動把 matches 塞進 host_permissions，
+ `wxt.config.ts` 的 `build:manifestGenerated` hook 負責剝掉。開發模式（`npm run
+dev`）則保留 `localhost`，否則擴充頁載入 Vite `@vite/client` 會被 CORS 擋下。任何新增
+ 權限都要有明確理由（已否決過的方案見存檔 §設計原則）。
 
 ---
 
@@ -704,12 +705,14 @@ vs 明細），**表頭用目前語言的欄名**——與 drop-log/build-log �
 被 API 格式坑過兩次。演算法可從 wiki/KC3Kai/poi 轉寫，但欄位佈局要實測。拿到樣本先存
 `samples/`，用 node 跑核心驗證（見「建置與驗證」）。
 
-**自動擷取（優先）**：面板「動態」分頁的「待驗證封包」清單。`GameState.wantedTag(path,api)`
-命中即記入 `db.wanted`，附「複製 JSON」按鈕，跨 session 保存。**有上限**：同一分類 5 筆、
-總數 50 筆（`panel/main.ts` 的 `captureWanted`）——`db.wanted` 引用的 raw event 受裁剪永久
-保護（`event-pruning.ts` 的 `protectedEventIds`），無上限等於無界成長並拖住裁剪。
-達上限時清單會明說並提供逐筆／全部刪除，**不可改成靜靜略過，也不可拿掉保護語意**
-（那是「複製 JSON」拿得到原始內容的唯一保證）。
+**自動擷取（開發用 UI）**：面板「動態」分頁的「待驗證封包」清單——**僅
+`npm run dev` 或本機 `localStorage.kc-debug-ui='1'` 時顯示與擷取**（`utils/debug-ui.ts`）。
+上架／`npm run build` 預設關閉（營運對玩家檢視封包敏感；且無 UI 時繼續寫 wanted 會永久
+釘住 raw events）。開啟時：`GameState.wantedTag(path,api)` 命中即記入 `db.wanted`，附
+「複製 JSON」。**有上限**：同一分類 5 筆、總數 50 筆——`db.wanted` 引用的 raw event 受裁剪
+永久保護，達上限時清單明說並提供刪除，**不可改成靜靜略過，也不可拿掉保護語意**。
+出擊紀錄的「單場 JSON 匯入」同屬開發用 UI，正式建置不顯示（`utils/sortie-import.ts` 與
+測試仍保留）。
 
 **手動擷取（備用）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
 Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 篩選。

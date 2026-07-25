@@ -11,6 +11,21 @@ This is a fan-made companion tool. It is not affiliated with, endorsed by,
 or sponsored by DMM.com or Kadokawa Games. "KanColle" and all game assets
 belong to their respective owners.
 
+## Why this exists
+
+Chrome / Chromium is ending Manifest V2: from Chromium 150 onward, remaining
+MV2 code paths and workarounds are being removed, and the Chrome Web Store is
+scheduled to remove remaining MV2 extensions on **31 August 2026**. Tools that
+still depend on MV2 (for example [KC3Kai](https://github.com/KC3Kai/KC3Kai))
+can no longer be relied on in current Chrome. This project is an emergency
+**Manifest V3** response — passive observation and local computation only. It
+does not replace the game, and it does not claim feature or data parity with
+existing tools.
+
+**Do not treat this extension's displays or predictions as your only source of
+truth.** Back up anything that matters (use the local backup feature, or
+whatever else you already trust).
+
 ## What it does
 
 - **Live panel** — fleet HP/fatigue/supply, expedition & docking countdowns
