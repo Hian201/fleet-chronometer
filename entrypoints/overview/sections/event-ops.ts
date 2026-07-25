@@ -28,8 +28,9 @@ import type { OverviewSection, SectionContext } from './types';
 import type { GameState, OwnedShipView } from '@/utils/state';
 import { db, type EventPlanRow } from '@/utils/db';
 import {
-    checkStage, establishedTags, findPlanConflicts, grantedTagsOf, groupBySally, guessMapNo,
-    nextSallySnapshot, observeGrantedTags, plannedByTag, reconcileStages, resolveSallyRoster, sallyBudget,
+    checkStage, ensureUniqueStageKeys, establishedTags, findPlanConflicts, grantedTagsOf,
+    groupBySally, guessMapNo, newStageKey, nextSallySnapshot, observeGrantedTags, plannedByTag,
+    reconcileStages, removeStageAt, resolveSallyRoster, sallyBudget,
     type GrantObservation, type PlanStage, type PlannedMember, type SallyObservationInput,
     type SallyShip, type SlotStatus,
 } from '@/utils/event-plan';
@@ -201,11 +202,30 @@ export const eventOpsSection: OverviewSection = {
     id: 'event-ops',
     titleKey: 'ov.eventOps',
     async render(el: HTMLElement, ctx: SectionContext) {
+        // **先畫殼、再讀資料**：eventPlans／observations 可能被 schema 升級堵住。
+        el.innerHTML = `
+            <div id="eo-top"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
+            <div class="eo-main">
+                <div id="eo-stages" class="eo-stages-pane"></div>
+                <aside id="eo-picker" class="eo-picker-pane"></aside>
+            </div>`;
+        const topEl = el.querySelector<HTMLElement>('#eo-top')!;
+        const stagesEl = el.querySelector<HTMLElement>('#eo-stages')!;
+
         const state = ctx.state;
         const owned = state.ownedShips();
         const liveShips = toSallyShips(owned);
-        const saved = await db.eventPlans.toArray();
-        const observations = await loadObservations();
+
+        let saved: EventPlanRow[];
+        let observations: Map<number, GrantObservation[]>;
+        try {
+            saved = await db.eventPlans.toArray();
+            observations = await loadObservations();
+        } catch (error) {
+            topEl.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+            return;
+        }
+
         const areas = [...new Set([...detectEventAreas(state), ...saved.map(p => p.areaId)])].sort((a, b) => a - b);
 
         // 活動未開始（或活動結束後遊戲已從 mapinfo 移除該海域）時偵測不到 area，
@@ -246,6 +266,12 @@ export const eventOpsSection: OverviewSection = {
             displayOwned = owned.map(ship => ({ ...ship, sallyArea: byId.get(ship.id)?.sallyArea ?? 0 }));
             established = establishedTags(ships);
         };
+        // 髒資料同 key 多列：只改後列的 key、不刪列（手輸計畫不能從 events 重投影）。
+        const uniquified = ensureUniqueStageKeys(plan.stages);
+        if (uniquified.changed) {
+            plan.stages = uniquified.stages;
+            await savePlan(plan);
+        }
         await saveSallySnapshotIfNeeded(plan, liveShips, areaIsCurrentInMaster());
         refreshSallyRoster();
 
@@ -256,14 +282,8 @@ export const eventOpsSection: OverviewSection = {
         const stageLocked = (stage: PlanStage) =>
             isLocked(stage.grantsTag) || stage.allowedTags.some(id => isLocked(id));
 
-        el.innerHTML = `
-            <div id="eo-top"></div>
-            <div class="eo-main">
-                <div id="eo-stages" class="eo-stages-pane"></div>
-                <aside id="eo-picker" class="eo-picker-pane"></aside>
-            </div>`;
-        const topEl = el.querySelector<HTMLElement>('#eo-top')!;
-        const stagesEl = el.querySelector<HTMLElement>('#eo-stages')!;
+        // 清掉 loading；後續 drawTop／drawStages 會填入實際內容。
+        topEl.innerHTML = '';
 
         /**
          * 該活動 area 的海域清單（帶遊戲提供的海域名與作戰名）。
@@ -460,7 +480,7 @@ export const eventOpsSection: OverviewSection = {
             </div>`;
             stagesEl.innerHTML = `
                 <div class="eo-stage-list">
-                    ${plan.stages.length ? header + plan.stages.map(s => stageRowHtml(s, tagIds)).join('')
+                    ${plan.stages.length ? header + plan.stages.map((s, i) => stageRowHtml(s, tagIds, i)).join('')
                         : `<div class="ov-empty">${esc(t('ov.eoNoStages'))}</div>`}
                 </div>
                 ${hasMaster() ? '' : `<div class="ov-toolbar" style="margin-top:8px">
@@ -469,7 +489,7 @@ export const eventOpsSection: OverviewSection = {
             bindStages();
         }
 
-        function stageRowHtml(stage: PlanStage, tagIds: number[]): string {
+        function stageRowHtml(stage: PlanStage, tagIds: number[], stageIdx: number): string {
             const check = checkStage(stage, byId);
             const open = stage.key === selectedKey;
             const locked = stageLocked(stage);
@@ -557,7 +577,7 @@ export const eventOpsSection: OverviewSection = {
                     <span class="grow"></span>
                     <button class="ov-btn eo-add-phase" data-stage="${esc(stage.key)}">＋ ${esc(t('ov.eoAddPhase'))}</button>
                     ${mapOf(stage.mapNo) && !stage.phase ? '' : `<button class="ov-btn danger eo-stage-del"
-                        data-stage="${esc(stage.key)}">${esc(t('ov.eoDelete'))}</button>`}
+                        data-stage="${esc(stage.key)}" data-stage-idx="${stageIdx}">${esc(t('ov.eoDelete'))}</button>`}
                 </div>
             </div>`;
         }
@@ -599,6 +619,11 @@ export const eventOpsSection: OverviewSection = {
             topEl.querySelector<HTMLSelectElement>('#eo-area')?.addEventListener('change', async e => {
                 areaId = Number((e.currentTarget as HTMLSelectElement).value);
                 plan = (await db.eventPlans.get(areaId)) ?? blankPlan(areaId);
+                const fixed = ensureUniqueStageKeys(plan.stages);
+                if (fixed.changed) {
+                    plan.stages = fixed.stages;
+                    await savePlan(plan);
+                }
                 await saveSallySnapshotIfNeeded(plan, liveShips, areaIsCurrentInMaster());
                 refreshSallyRoster();
                 selectedKey = null;
@@ -654,7 +679,7 @@ export const eventOpsSection: OverviewSection = {
 
         function bindStages() {
             stagesEl.querySelector('#eo-add-stage')?.addEventListener('click', () => {
-                const key = `s${Date.now().toString(36)}`;
+                const key = newStageKey(plan.stages.map(s => s.key));
                 plan.stages.push({ key, label: '', allowedTags: [], grantsTag: null, slots: [] });
                 selectedKey = key;   // 新增後直接展開，省一次點擊
                 commit();
@@ -684,7 +709,7 @@ export const eventOpsSection: OverviewSection = {
                     const no = stage.mapNo ?? null;
                     // 預設名沿用使用者表格的寫法：E4-1、E4-2…（依該圖既有階段數編號）
                     const n = plan.stages.filter(s2 => s2.phase && s2.mapNo === no).length + 1;
-                    const key = `p${Date.now().toString(36)}`;
+                    const key = newStageKey(plan.stages.map(s => s.key));
                     plan.stages.push({
                         key, label: no != null ? `E${no}-${n}` : '',
                         allowedTags: [], grantsTag: null, slots: [], mapNo: no, phase: true,
@@ -710,10 +735,14 @@ export const eventOpsSection: OverviewSection = {
                     stage.grantsTag = Number(btn.dataset.tag);
                     commit();
                 }));
+            // 刪除依陣列索引（data-stage-idx），同 key 髒資料時只動被點那一列，不一次砍多筆。
             stagesEl.querySelectorAll<HTMLButtonElement>('.eo-stage-del').forEach(btn =>
                 btn.addEventListener('click', () => {
-                    plan.stages = plan.stages.filter(s => s.key !== btn.dataset.stage);
-                    if (selectedKey === btn.dataset.stage) selectedKey = null;
+                    const idx = Number(btn.dataset.stageIdx);
+                    if (!Number.isInteger(idx) || idx < 0 || idx >= plan.stages.length) return;
+                    const removed = plan.stages[idx];
+                    plan.stages = removeStageAt(plan.stages, idx);
+                    if (selectedKey === removed.key) selectedKey = null;
                     commit();
                 }));
             stagesEl.querySelectorAll<HTMLInputElement>('.eo-allow').forEach(box =>

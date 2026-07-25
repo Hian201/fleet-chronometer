@@ -53,6 +53,29 @@ describe('parseDropLogCsv（自家格式，往返）', () => {
         expect(parsed.rows).toHaveLength(0);
         expect(parsed.skipped).toHaveLength(1);
     });
+
+    it('rank 走 normalizeRank（尾字元／大小寫）', () => {
+        const header = 'ts,map,node,boss,rank,drop,dropMst';
+        const line = `${new Date(row().ts).toISOString()},6-5,53,1,完全勝利!!s,長波,135`;
+        const parsed = parseDropLogCsv(`${header}\r\n${line}\r\n`);
+        expect(parsed.rows).toHaveLength(1);
+        expect(parsed.rows[0].rank).toBe('S');
+    });
+
+    it('無效 node 跳過並記錄原因，不靜默改成 0', () => {
+        const header = 'ts,map,node,boss,rank,drop,dropMst';
+        const bad = [
+            `${new Date(row().ts).toISOString()},6-5,,1,S,長波,135`,
+            `${new Date(row().ts + 1000).toISOString()},6-5,0,1,S,長波,135`,
+            `${new Date(row().ts + 2000).toISOString()},6-5,abc,1,S,長波,135`,
+            `${new Date(row().ts + 3000).toISOString()},6-5,53,1,S,長波,135`,
+        ].join('\r\n');
+        const parsed = parseDropLogCsv(`${header}\r\n${bad}\r\n`);
+        expect(parsed.rows).toHaveLength(1);
+        expect(parsed.rows[0].node).toBe(53);
+        expect(parsed.skipped).toHaveLength(3);
+        expect(parsed.skipped.every(s => /node/.test(s.reason))).toBe(true);
+    });
 });
 
 describe('parseDropLogCsv（航海日誌拡張版相容）', () => {

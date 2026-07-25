@@ -234,9 +234,15 @@ export const buildLogSection: OverviewSection = {
                 importStatus.className = `bl-import-status${kind ? ' ' + kind : ''}`;
                 importStatus.textContent = message;
             };
+            // 連續選 A→B 時，較慢的 file.text() 不得覆寫較新選擇的內容。
+            let importFileGen = 0;
             importFile.addEventListener('change', async () => {
+                const gen = ++importFileGen;
                 const file = importFile.files?.[0];
-                if (file) importText.value = await file.text();
+                if (!file) return;
+                const text = await file.text();
+                if (gen !== importFileGen) return;
+                importText.value = text;
             });
             importGo.addEventListener('click', async () => {
                 const text = importText.value.trim();

@@ -17,6 +17,57 @@ export const GAME_PAGE_MATCHES = [
     '*://www.dmm.com/netgame/*',
 ];
 
+/**
+ * 「這個分頁正在跑艦これ」的比對範圍。**比 GAME_PAGE_MATCHES 窄**：後者是 content script
+ * 的注入範圍／要索取的權限範圍，涵蓋整個 `play.games.dmm.com`（DMM 上的其他遊戲也在內），
+ * 拿來判斷「遊戲是不是已經開著」會把別款遊戲的分頁誤認成艦これ，於是聚焦到錯的分頁。
+ * app_id=854854 是舊入口的艦これ應用編號（見上方 GAME_URL 的改版說明）。
+ */
+export const GAME_TAB_MATCHES = [
+    '*://play.games.dmm.com/game/kancolle*',
+    '*://www.dmm.com/netgame/social/-/gadgets/=/app_id=854854*',
+];
+
+/**
+ * 比對一個 URL 是否符合某個 [match pattern](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns)。
+ *
+ * 為什麼要自己實作：popup 必須在**點擊手勢的第一個呼叫**就送出 `permissions.request()`，
+ * 中間不能 await 任何東西（會失去手勢資格），所以「目前分頁是不是遊戲頁」只能在點下去
+ * 之前先查好、點擊當下同步判斷——沒有可用的非同步瀏覽器 API 可以在那個瞬間問。
+ * 只支援本專案用得到的子集：scheme 為 `*`／`http`／`https`，host 支援 `*` 與 `*.` 前綴，
+ * path 以 `*` 為萬用字元（比對對象含 query string，與瀏覽器行為一致）。純函式、無 chrome.*。
+ */
+export function matchesUrlPattern(url: string, pattern: string): boolean {
+    const parts = /^(\*|https?):\/\/(\*|(?:\*\.)?[^/*]+)(\/.*)$/.exec(pattern);
+    if (!parts) return false;
+    const [, scheme, host, path] = parts;
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return false;
+    }
+    const urlScheme = parsed.protocol.replace(/:$/, '');
+    if (scheme === '*' ? urlScheme !== 'http' && urlScheme !== 'https' : scheme !== urlScheme) return false;
+    if (host !== '*') {
+        // `*.example.com` 依規格同時涵蓋 example.com 本身。
+        const bare = host.startsWith('*.') ? host.slice(2) : null;
+        if (bare === null ? host !== parsed.hostname
+            : parsed.hostname !== bare && !parsed.hostname.endsWith(`.${bare}`)) return false;
+    }
+    const target = parsed.pathname + parsed.search;
+    const source = path.split('*').map(piece => piece.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+    return new RegExp(`^${source}$`).test(target);
+}
+
+/** 這個 URL 是否落在劇場模式／拍照的可注入範圍（＝要索取的 optional host permission）。 */
+export const isGamePageUrl = (url: string | undefined): boolean =>
+    !!url && GAME_PAGE_MATCHES.some(pattern => matchesUrlPattern(url, pattern));
+
+/** 這個 URL 是不是艦これ本身（單例判斷用，見 GAME_TAB_MATCHES）。 */
+export const isGameTabUrl = (url: string | undefined): boolean =>
+    !!url && GAME_TAB_MATCHES.some(pattern => matchesUrlPattern(url, pattern));
+
 /** 動態註冊時的 content script id（registerContentScripts／unregister 都用它）。 */
 export const THEATER_SCRIPT_ID = 'kc-theater';
 /**

@@ -1,4 +1,4 @@
-import { db } from '@/utils/db';
+import { db, type ApiEventRow } from '@/utils/db';
 import { nodeLabel } from '@/utils/map-node-letters';
 import { EventProjector, projectEventAndAdvance } from '@/utils/event-projector';
 import { advanceProjectionCursor, readProjectionCursor } from '@/utils/projection-cursor';
@@ -9,10 +9,10 @@ import {
     type AnchorageRepairPlan, type MoralePlan,
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
-import { t } from '@/utils/ui-i18n';
+import { getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 const $ = (id: string) => document.getElementById(id)!;
-const headerEl = $('header'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
+const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     resline = $('resline'), missionsEl = $('missions'), ndocksEl = $('ndocks'), kdocksEl = $('kdocks'), questsEl = $('quests'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
     wantedEl = $('wanted'),
@@ -25,7 +25,10 @@ const projector = new EventProjector({ state, mode: 'persist', tables: db });
 // 已開頁面（#1/#2）——面板收到就套用並整頁重繪。
 initLang();
 applyTheme();
-onPrefsChange(() => { applyStaticI18n(); renderAll(); });
+// 語言／主題變更（其他擴充頁面改的，經 storage 事件送來）：靜態文字、動態渲染，以及
+// 兩個「不在 renderAll 裡」的區塊都要跟著換——遠征下拉的選項在 renderExped 內只建一次
+// （靠 expedSelLang 偵測語言），待驗證封包清單則要重讀 DB 才能換掉按鈕與說明文字。
+onPrefsChange(() => { applyStaticI18n(); renderAll(); void renderWanted().catch(() => { }); });
 // 靜態 HTML（index.html 內非 JS 產生的標題文字）的翻譯套用點：切語言時連同動態渲染一起重跑。
 function applyStaticI18n() {
     document.title = t('ov.brandShort');   // 面板彈出視窗的標題也用在地化品牌短名
@@ -47,7 +50,16 @@ let cn = 1;
 let showLbas = false;
 let selectedLbasArea: number | null = null;
 const expandedQuests = new Set<number>();   // 使用者展開查看內容的任務編號
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// HTML 跳脫：文字節點與屬性值（title／alt／value）皆涵蓋 & < > " '。
+// **必須與 overview/lib.ts 的 esc 同一套規則**：兩邊都會把遊戲字串（艦名、裝備名、任務
+// 內文）塞進 title／alt，少跳脫引號就等於留一條屬性跳脫的洞，而遊戲字串裡出現引號
+// （如 "Iowa" 之類的暱稱或匯入紀錄的自由文字）並非不可能。
+const esc = (s: string) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 // 裝備／資源圖示：面板是 extension page，public/icons 會複製到擴充根，故 root-relative /icons/… 直接解析。
 // 圖示為本專案原創向量重繪（以遊戲原圖構圖概念為藍本，見 THIRD-PARTY-NOTICES）。
 // 裝備檔名即 api_type[3] id（1–60），無對照表；alt 帶短縮文字，圖示載入失敗時瀏覽器自動退回顯示 alt，
@@ -84,11 +96,37 @@ const mmss = (ms: number) => {
 };
 // 泊地修理／給糧倒數的文字。0＝週期已滿，下次進母港即結算。
 const countdownText = (ms: number) => (ms <= 0 ? t('repair.ready') : mmss(ms));
+// ── 狀態橫幅 ──────────────────────────────
+// 面板「看起來壞掉」的三種狀態（還在載入／讀取暫時失敗積壓中／已停止接收）都必須在
+// 畫面上說出原因：只寫 console 的話使用者只會看到一個不動的面板，無從判斷該不該重載。
+// fatal 一旦顯示就不再被其他訊息蓋掉——那是使用者唯一的線索，只能由重新載入清除。
+type NoticeKind = 'none' | 'loading' | 'backlog' | 'fatal';
+let noticeKind: NoticeKind = 'none';
+function setNotice(kind: NoticeKind, text = '', hint = '') {
+    if (noticeKind === 'fatal' && kind !== 'fatal') return;
+    noticeKind = kind;
+    if (kind === 'none') {
+        noticeEl.hidden = true;
+        noticeEl.innerHTML = '';
+        return;
+    }
+    noticeEl.hidden = false;
+    noticeEl.className = kind === 'fatal' ? 'err' : '';
+    noticeEl.innerHTML = `<span class="grow">${esc(text)}${hint ? ` ${esc(hint)}` : ''}</span>` +
+        (kind === 'fatal' ? `<button data-reload="1">${esc(t('panel.reload'))}</button>` : '');
+}
+noticeEl.addEventListener('click', e => {
+    if ((e.target as HTMLElement).closest('button[data-reload]')) location.reload();
+});
+// 例外訊息原樣顯示（Dexie 的版本衝突等錯誤訊息本身就是最有用的線索），不改寫、不吞。
+const describeError = (error: unknown) =>
+    error instanceof Error ? (error.message || error.name) : String(error);
 const expedFleetLabel = document.getElementById('exped-fleet-label')!;
 const expedSel = document.getElementById('exped-select') as HTMLSelectElement;
 const expedCheckEl = document.getElementById('exped-check')!;
 const currentExpedFleet = () => view[0] ?? 0;   // 永遠跟隨艦隊分頁目前選的第一支
 let expedFleetShown: number | null = null;   // 遠征分頁上次渲染的艦隊，用來偵測切換以帶出該隊上次遠征
+let expedSelLang: ReturnType<typeof getLang> | null = null;   // 遠征下拉建立當下的語言，換語言要重建選項
 function renderHeader() {
     const c = state.counts();
     // 標籤改用圖示（艦＝軍艦側影／裝＝金銀齒輪，與遊戲原圖同語彙）；
@@ -426,8 +464,9 @@ function shipRow(s: ShipView, maxSlots: number, marks?: { cls: string; mark: str
 function renderExped() {
     if (tab !== 'exped') return;
     expedFleetLabel.textContent = t('exped.checkTarget', { n: currentExpedFleet() + 1 });
-    // 選單只在圖鑑載入後、且尚未建立時填充
-    if (expedSel.options.length === 0) {
+    // 選單只在圖鑑載入後、且尚未建立時填充；語言換了也要重建（遠征名與海域標籤都在
+    // 選項文字裡，不重建的話整個下拉會停在切換前的語言）。
+    if (expedSel.options.length === 0 || expedSelLang !== getLang()) {
         const cat = state.expedCatalog();
         if (cat.length === 0) { expedCheckEl.innerHTML = `<div class="empty">${t('exped.masterNotLoaded')}</div>`; return; }
         let area = -1, html = '';
@@ -440,7 +479,13 @@ function renderExped() {
             html += `<option value="${m.id}">[${esc(m.dispNo)}] ${esc(m.name)}</option>`;
         }
         expedSel.innerHTML = html + '</optgroup>';
-        expedId = Number(expedSel.value);
+        expedSelLang = getLang();
+        // 重建會把選取洗掉：把使用者原本選的那個遠征選回來，不要因為換語言就跳回第一項。
+        if (expedId !== null && expedSel.querySelector(`option[value="${expedId}"]`)) {
+            expedSel.value = String(expedId);
+        } else {
+            expedId = Number(expedSel.value);
+        }
     }
     // 切換艦隊時，預設選中該艦隊上次執行/回來的遠征（若已知且存在於選單中）；
     // 同一艦隊內維持使用者目前的選擇，不覆蓋。
@@ -845,26 +890,100 @@ function renderSortie() {
 }
 // 待驗證封包（自動擷取）：顯示清單＋一鍵複製完整 JSON，取代手動翻 Network 面板。
 // 見 utils/state.ts 的 wantedTag() 與 CLAUDE.md「怎麼撈封包驗證」。
+//
+// **擷取有上限**：db.wanted 引用的 raw event 會被 M6 裁剪永久保護（見
+// utils/event-pruning.ts 的 protectedEventIds），一筆待驗證紀錄＝一整包原始封包永遠留在
+// IndexedDB。無上限的分支（自軍聯合艦隊、支援艦隊、友軍艦隊…）每次出擊都會命中，
+// 長期下來就是無界成長，而且被保護的事件連帶拖住裁剪。
+// 取捨：**不動「wanted 保護 raw event」的語意**（那是「複製 JSON」拿得到原始內容的唯一
+// 保證），改為限制新增＋提供刪除。上限只是「同一種現象留幾份樣本」——驗證封包格式 3 份
+// 就夠了，刪掉舊的即可再擷取新的，而且達上限時清單會明說，不靜靜略過。
+const WANTED_TAG_LIMIT = 5;
+const WANTED_TOTAL_LIMIT = 50;
+/** 上次擷取是否因為達上限而略過（達上限要說出來，不能靜靜不擷取）。 */
+let wantedSkipped = false;
+async function captureWanted(eventId: number, tag: string, ts: number, path: string) {
+    try {
+        const [total, sameTag] = await Promise.all([
+            db.wanted.count(),
+            db.wanted.where('tag').equals(tag).count(),
+        ]);
+        if (total >= WANTED_TOTAL_LIMIT || sameTag >= WANTED_TAG_LIMIT) {
+            wantedSkipped = true;
+            console.warn('[KC-Monitor] 待驗證封包已達上限，未擷取', tag, path);
+        } else {
+            await db.wanted.add({ eventId, tag, ts, path });
+        }
+    } catch (e) {
+        // 擷取樣本失敗不能連累事件消費（那會讓 pump 停掉）：只記錄，不往外拋。
+        console.warn('[KC-Monitor] 待驗證封包擷取失敗', e);
+    }
+    await renderWanted().catch(() => { });
+}
 async function renderWanted() {
-    const rows = await db.wanted.orderBy('id').reverse().limit(30).toArray();
-    wantedEl.innerHTML = rows.map(r => `
+    const [rows, total] = await Promise.all([
+        db.wanted.orderBy('id').reverse().limit(30).toArray(),
+        db.wanted.count(),
+    ]);
+    const list = rows.map(r => `
       <div class="wanted-row">
         <span class="wanted-tag">${esc(r.tag)}</span>
         <span class="grow wanted-path">${esc(r.path)}　${new Date(r.ts).toLocaleTimeString()}</span>
         <button data-copy="${r.eventId}">${t('wanted.copyJson')}</button>
-      </div>`).join('') || `<div class="empty">${t('wanted.empty')}</div>`;
+        <button class="wanted-del" data-del="${r.id}" title="${esc(t('wanted.deleteTitle'))}">${t('wanted.delete')}</button>
+      </div>`).join('');
+    // 上限與清理入口一律顯示：使用者要能看出「為什麼沒再擷取」與「怎麼讓它再擷取」。
+    const foot = rows.length ? `
+      <div class="wanted-foot">
+        <span class="grow">${esc(t('wanted.count', { n: total, max: WANTED_TOTAL_LIMIT, perTag: WANTED_TAG_LIMIT }))}</span>
+        <button data-clear="1">${t('wanted.clearAll')}</button>
+      </div>` : '';
+    const skipped = wantedSkipped ? `<div class="wanted-foot warn">${esc(t('wanted.limitHit'))}</div>` : '';
+    wantedEl.innerHTML = (list || `<div class="empty">${t('wanted.empty')}</div>`) + skipped + foot;
+}
+/** 按鈕短暫顯示結果文字後復原（複製成功／原始事件已不在／複製失敗共用）。 */
+function flashButton(btn: HTMLButtonElement, text: string, ok: boolean) {
+    const original = btn.textContent ?? '';
+    btn.textContent = text;
+    btn.classList.toggle('copied', ok);
+    btn.classList.toggle('failed', !ok);
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied', 'failed'); }, ok ? 1500 : 3000);
 }
 wantedEl.addEventListener('click', async e => {
-    const btn = (e.target as HTMLElement).closest('button[data-copy]') as HTMLButtonElement | null;
+    const target = e.target as HTMLElement;
+    const del = target.closest('button[data-del]') as HTMLButtonElement | null;
+    if (del) {
+        // 刪除待驗證紀錄＝解除它對那筆 raw event 的保護，之後的裁剪就能把封包收走（本意如此）。
+        await db.wanted.delete(Number(del.dataset.del)).catch(err =>
+            console.warn('[KC-Monitor] 待驗證封包刪除失敗', err));
+        wantedSkipped = false;
+        await renderWanted().catch(() => { });
+        return;
+    }
+    if (target.closest('button[data-clear]')) {
+        if (!confirm(t('wanted.clearConfirm'))) return;
+        await db.wanted.clear().catch(err => console.warn('[KC-Monitor] 待驗證封包清除失敗', err));
+        wantedSkipped = false;
+        await renderWanted().catch(() => { });
+        return;
+    }
+    const btn = target.closest('button[data-copy]') as HTMLButtonElement | null;
     if (!btn) return;
-    const row = await db.events.get(Number(btn.dataset.copy));
-    if (!row) return;
+    const row = await db.events.get(Number(btn.dataset.copy)).catch(() => undefined);
+    // 原始事件不在了（極端情況：紀錄剛好在保護生效前被裁剪，或使用者匯入過備份）。
+    // 靜靜沒反應會讓人以為是按鈕壞了，這裡直接在按鈕上講明。
+    if (!row) { flashButton(btn, t('wanted.gone'), false); return; }
     // 連 req 一起複製：部分端點（如 api_req_kousyou/remodel_slot）的請求欄位名
     // （api_slot_id/api_certain_flag 等）仍未驗證，只複製 api 回應會漏掉這些。
     // req 為空物件（GET 型或無表單資料）時仍照複製，維持格式一致。
-    await navigator.clipboard.writeText(JSON.stringify({ req: row.req ?? {}, api: row.api }, null, 2));
-    btn.textContent = t('wanted.copied'); btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = t('wanted.copyJson'); btn.classList.remove('copied'); }, 1500);
+    try {
+        await navigator.clipboard.writeText(JSON.stringify({ req: row.req ?? {}, api: row.api }, null, 2));
+    } catch (err) {
+        console.warn('[KC-Monitor] 待驗證封包複製失敗', err);
+        flashButton(btn, t('wanted.copyFailed'), false);
+        return;
+    }
+    flashButton(btn, t('wanted.copied'), true);
 });
 // ── 工廠分頁 ──────────────────────────────
 // 最新開發/改修結果看板（state 內存，跨 session 由事件重播還原）＋歸檔紀錄
@@ -964,7 +1083,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
             || path === 'api_req_kousyou/getship'
             || path === 'api_req_kousyou/remodel_slot') autoSwitch('factory', 'factory');
         const tag = state.wantedTag(path, api);
-        if (tag) db.wanted.add({ eventId: id, tag, ts, path }).then(renderWanted);
+        if (tag) void captureWanted(id, tag, ts, path);
         const t2 = performance.now();
         renderAll();
         const t3 = performance.now();
@@ -1000,10 +1119,19 @@ setInterval(() => {
 // 被 consume 的 `id<=maxId` 去重誤丟。pump 未 ready 時直接返回，live id 先積著等重播完。
 let pumping = false;
 let projectionFailed = false;
+// 讀取失敗的重試節奏。IndexedDB 暫時讀不到（交易衝突、儲存空間忙碌）跟「投影失敗」
+// 是兩回事：前者重試就會過，後者代表衍生資料已經不一致，不能在同一份 GameState 上繼續。
+const READ_RETRY_DELAY_MS = 2000;
+let readRetryTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleReadRetry() {
+    if (readRetryTimer !== null) return;
+    readRetryTimer = setTimeout(() => { readRetryTimer = null; void pump(); }, READ_RETRY_DELAY_MS);
+}
 function stopAfterProjectionFailure(error: unknown) {
     projectionFailed = true;
     // 不在同一份已部分變更的 GameState 上繼續；raw event 仍在 db.events，重開 panel 可重建。
     console.error('[KC-Monitor] derived event projection failed; panel pump stopped', error);
+    setNotice('fatal', t('panel.stopped', { reason: describeError(error) }), t('panel.stoppedHint'));
 }
 async function pump() {
     if (pumping || !ready || projectionFailed) return;
@@ -1015,20 +1143,40 @@ async function pump() {
                 pending.shift();
                 continue;
             }
-            const r = await db.events.get(id);
+            let r: ApiEventRow | undefined;
+            try {
+                r = await db.events.get(id);
+            } catch (error) {
+                // 暫時性讀取失敗：事件留在佇列裡等下一輪，**不可** latch 成永久停止——
+                // 那會讓面板從此不再更新，而原因只是一次讀取抖動。
+                console.warn('[KC-Monitor] 讀取事件失敗，稍後重試', id, error);
+                setNotice('backlog', t('panel.queueBacklog', { n: pending.length }));
+                scheduleReadRetry();
+                return;
+            }
             if (!r) {
                 pending.shift();
                 continue;
             }
-            await consume(r.id!, r.ts, r.path, r.api, r.req);
+            try {
+                await consume(r.id!, r.ts, r.path, r.api, r.req);
+            } catch (error) {
+                stopAfterProjectionFailure(error);
+                return;
+            }
             pending.shift();
         }
-    } catch (error) {
-        stopAfterProjectionFailure(error);
+        // 佇列清空＝先前的讀取問題已經恢復，把積壓提示收掉。
+        if (noticeKind === 'backlog') setNotice('none');
     } finally { pumping = false; }
 }
 browser.runtime.onMessage.addListener((msg) => {
     if (msg?.type !== 'kc:live') return;
+    // id 必須是合法事件 ID 才入佇列：一筆壞訊息就足以讓 db.events.get() 一直丟錯。
+    if (!Number.isSafeInteger(msg.id) || msg.id <= 0) return;
+    // 已停止消費後不再累積：事件本身在 db.events 裡不會遺失，重新載入面板就會重建，
+    // 繼續往 pending 塞只會讓記憶體無止境成長，而且一筆都不會被處理。
+    if (projectionFailed) return;
     if (!pending.includes(msg.id)) {
         pending.push(msg.id);
         pending.sort((left, right) => left - right);
@@ -1043,6 +1191,11 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     browser.windows.getCurrent().then(w => sendResponse(w.id));
     return true;
 });
+// 先畫殼、再讀 DB（同 overview/main.ts renderSection 的慣例）：分頁列與狀態橫幅必須在
+// 任何 await 之前就出現。否則 Dexie 版本升級被其他分頁擋住、或重播中途丟例外時，整個
+// 面板會是一片空白，連「為什麼」都看不到。
+renderTabs();
+setNotice('loading', t('panel.loading'));
 (async () => {
     try {
         const [snapshots, events, storedProjectionCursor] = await Promise.all([
@@ -1058,12 +1211,17 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             await consume(row.id!, row.ts, row.path, row.api, row.req);
         }
         ready = true;
+        setNotice('none');
         // 重播期間累積的 log 一次性補上（陣列已依時間順序，逐筆 prepend 使最新的在最上面）
         replayLogBuffer.forEach(({ ts, path }) => appendLogRow(ts, path));
         renderAll();      // 重播完成後才做第一次整頁渲染
         void renderWanted();   // 載入先前 session 已擷取的待驗證封包
         void pump();           // 處理啟動期間積在 pending 的 live 事件
     } catch (error) {
-        stopAfterProjectionFailure(error);
+        // 啟動重播失敗：pump 同樣不能在這份半成品 state 上繼續（理由見
+        // stopAfterProjectionFailure），但訊息要講「啟動失敗」而不是「已停止接收」。
+        projectionFailed = true;
+        console.error('[KC-Monitor] panel startup failed', error);
+        setNotice('fatal', t('panel.loadFailed', { reason: describeError(error) }), t('panel.stoppedHint'));
     }
 })();

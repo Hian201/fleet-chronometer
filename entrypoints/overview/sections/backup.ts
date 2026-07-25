@@ -25,7 +25,7 @@ import { t } from '@/utils/ui-i18n';
 import { esc, downloadText, fmtTs } from '../lib';
 import { fsaSupported, pickBackupDir, savedBackupDir, forgetBackupDir, ensureRw, dirName, writeFileTo } from '../fsa';
 import { viewerHtml } from '../viewer-html';
-import { planRetention, DEFAULT_RETENTION, type RetentionConfig } from '@/utils/retention';
+import { computePrunableKeys, DEFAULT_RETENTION, type RetentionConfig } from '@/utils/retention';
 import type { GameState } from '@/utils/state';
 
 const RETENTION_CFG_KEY = 'kc-retention-cfg';
@@ -210,22 +210,17 @@ export const backupSection: OverviewSection = {
                 void refreshRetention();
             });
         });
-        // 目前規則下「可裁剪場數／估計釋放大小」；prunable=0 時停用裁剪鈕。
-        let prunableKeys: number[] = [];
+        // 統計列用的快取：只驅動「可裁剪場數」顯示與按鈕 disabled，刪除路徑不依賴它。
+        let cachedPrunableCount = 0;
         const refreshRetention = async () => {
             const [replays, sorties, shipObtained] = await Promise.all([
                 db.replays.toArray(), db.sorties.toArray(), db.shipObtained.toArray(),
             ]);
-            const decisions = planRetention(
-                replays,
-                sorties,
-                shipObtained,
-                unclearedMapsOf(ctx.state),
-                cfg,
-                Date.now(),
+            const keys = computePrunableKeys(
+                replays, sorties, shipObtained, unclearedMapsOf(ctx.state), cfg, Date.now(),
             );
-            const pruneSet = new Set(decisions.filter(d => !d.keep).map(d => d.sortieKey));
-            prunableKeys = [...pruneSet];
+            cachedPrunableCount = keys.length;
+            const pruneSet = new Set(keys);
             const prunables = replays.filter(r => pruneSet.has(r.sortieKey));
             const bytes = prunables.reduce((n, r) => n + JSON.stringify(r).length, 0);
             retStat.textContent = t('ov.retStat', {
@@ -237,10 +232,23 @@ export const backupSection: OverviewSection = {
         void refreshRetention();
 
         el.querySelector('#backup-prune')!.addEventListener('click', async () => {
-            if (!prunableKeys.length) return;
-            if (!confirm(t('ov.retPruneConfirm', { n: prunableKeys.length }))) return;
-            await db.replays.bulkDelete(prunableKeys);
-            retStatus.textContent = t('ov.retPruned', { n: prunableKeys.length });
+            // 手動驗證：確認框期間到另一 overview 分頁釘選該場後，確認應取消刪除（或只刪仍可裁者）。
+            if (!cachedPrunableCount) return;
+            if (!confirm(t('ov.retPruneConfirm', { n: cachedPrunableCount }))) return;
+            // confirm 之後、bulkDelete 之前：讀最新資料重算，絕不用過期快取。
+            const [replays, sorties, shipObtained] = await Promise.all([
+                db.replays.toArray(), db.sorties.toArray(), db.shipObtained.toArray(),
+            ]);
+            const freshKeys = computePrunableKeys(
+                replays, sorties, shipObtained, unclearedMapsOf(ctx.state), cfg, Date.now(),
+            );
+            if (!freshKeys.length) {
+                retStatus.textContent = t('ov.retPruneCancelled');
+                await refreshRetention();
+                return;
+            }
+            await db.replays.bulkDelete(freshKeys);
+            retStatus.textContent = t('ov.retPruned', { n: freshKeys.length });
             await refreshRetention();
         });
     },

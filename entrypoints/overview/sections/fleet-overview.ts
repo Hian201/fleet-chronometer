@@ -198,10 +198,10 @@ export const fleetOverviewSection: OverviewSection = {
     render(el, ctx) {
         const state = ctx.state;
         const fleetsAll = state.fleets();
-        const hasData = fleetsAll.some(f => f.ships.length);
-        if (!hasData) { el.innerHTML = `<div class="ov-empty">${esc(t('ov.fleetOverviewNone'))}</div>`; return; }
-
         const basesAll = state.airBases_();
+        // 艦隊空船但已有基地航空隊時仍要顯示／匯出，不能當「無資料」。
+        const hasData = fleetsAll.some(f => f.ships.length) || basesAll.length > 0;
+        if (!hasData) { el.innerHTML = `<div class="ov-empty">${esc(t('ov.fleetOverviewNone'))}</div>`; return; }
         // 海域名只在渲染時查一次快取起來——mapAreaName() 依 master 查表，逐次呼叫成本低，
         // 但同一顆基地在 chip 列與內文各要用一次，避免兩處算出不一致的字串。
         const areaNames = new Map(basesAll.map(b => [b.rid, state.mapAreaName(b.areaId)]));

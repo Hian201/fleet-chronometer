@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ReplayRow, ShipObtainedRow, SortieLogRow } from '../utils/db';
 import {
+    computePrunableKeys,
     DEFAULT_RETENTION,
     firstOwnedDropKeys,
     planRetention,
+    prunableSortieKeys,
     type RetentionConfig,
 } from '../utils/retention';
 
@@ -145,5 +147,30 @@ describe('planRetention', () => {
             cfg,
             100 * DAY,
         )).toEqual([{ sortieKey: 2, keep: false, reason: null }]);
+    });
+
+    it('prunableSortieKeys／computePrunableKeys：釘選後不再出現在可刪清單', () => {
+        const now = 200 * DAY;
+        const cfg = { ...DEFAULT_RETENTION, keepRecentDays: 0, keepRecentCount: 0 };
+        const sorties: SortieLogRow[] = [];
+        const obtainedRows: ShipObtainedRow[] = [];
+        const uncleared = new Set<string>();
+
+        const before = computePrunableKeys(
+            [replay(7, now - 70 * DAY), replay(8, now - 60 * DAY)],
+            sorties, obtainedRows, uncleared, cfg, now,
+        );
+        expect(before.sort()).toEqual([7, 8]);
+        expect(prunableSortieKeys(planRetention(
+            [replay(7, now - 70 * DAY), replay(8, now - 60 * DAY)],
+            sorties, obtainedRows, uncleared, cfg, now,
+        )).sort()).toEqual([7, 8]);
+
+        // 模擬確認框期間另一分頁釘選 sortieKey=7
+        const afterPin = computePrunableKeys(
+            [replay(7, now - 70 * DAY, { pinned: true }), replay(8, now - 60 * DAY)],
+            sorties, obtainedRows, uncleared, cfg, now,
+        );
+        expect(afterPin).toEqual([8]);
     });
 });

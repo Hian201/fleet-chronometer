@@ -57,6 +57,19 @@ describe('parseBuildLogCsv（自家格式，往返）', () => {
         expect(parsed.skipped).toHaveLength(1);
         expect(parsed.skipped[0].reason).toMatch(/kind/);
     });
+
+    it('資材欄非有限非負整數時 skip，不 Number||0 靜默寫入', () => {
+        const header = 'ts,kind,shipMst,shipName,fuel,ammo,steel,bauxite,devmat,torch,secretary,secretaryName,hqLv';
+        const badFuel = '2026-07-23T12:00:00.000Z,build,135,,abc,30,30,1750,0,0,1,,120';
+        const neg = '2026-07-23T12:00:01.000Z,build,135,,1750,-1,30,1750,0,0,1,,120';
+        const ok = '2026-07-23T12:00:02.000Z,build,135,,1750,30,30,1750,0,0,1,,120';
+        const parsed = parseBuildLogCsv(`${header}\r\n${badFuel}\r\n${neg}\r\n${ok}\r\n`);
+        expect(parsed.rows).toHaveLength(1);
+        expect(parsed.rows[0].used).toEqual([1750, 30, 30, 1750, 0, 0, 0, 0]);
+        expect(parsed.skipped).toHaveLength(2);
+        expect(parsed.skipped[0].reason).toMatch(/fuel/);
+        expect(parsed.skipped[1].reason).toMatch(/ammo/);
+    });
 });
 
 describe('parseBuildLogCsv（航海日誌拡張版相容）', () => {

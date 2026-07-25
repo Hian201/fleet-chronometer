@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KcDb, type ApiEventRow } from '../utils/db';
 import { KEEP_RECENT, planRawEventPrune, pruneRawEventsBefore } from '../utils/event-pruning';
 import { PROJECTION_META_VERSION } from '../utils/projection-cursor';
@@ -29,7 +29,32 @@ async function setProjection(database: KcDb, throughEventId: number, version: nu
     await database.meta.put({ key: 'projection', version, throughEventId, updatedAt: 100 });
 }
 
+/**
+ * 記錄 `events.where('id').below(...)` 上各呼叫了幾次 count／toArray。
+ * `toArray` 會把候選事件（每筆含完整封包）整批讀進記憶體，正是 cursor 為 0 時要避免的動作；
+ * 只斷言「沒刪東西」看不出差別，必須看有沒有真的去載。
+ */
+function watchCandidateReads(database: KcDb) {
+    const reads = { count: 0, toArray: 0 };
+    const realWhere = database.events.where.bind(database.events);
+    vi.spyOn(database.events, 'where').mockImplementation(((index: never) => {
+        const clause = realWhere(index);
+        const realBelow = clause.below.bind(clause);
+        clause.below = (value: never) => {
+            const collection = realBelow(value);
+            const realCount = collection.count.bind(collection);
+            const realToArray = collection.toArray.bind(collection);
+            collection.count = ((...args: never[]) => { reads.count++; return (realCount as never as CallableFunction)(...args); }) as typeof collection.count;
+            collection.toArray = ((...args: never[]) => { reads.toArray++; return (realToArray as never as CallableFunction)(...args); }) as typeof collection.toArray;
+            return collection;
+        };
+        return clause;
+    }) as typeof database.events.where);
+    return reads;
+}
+
 afterEach(async () => {
+    vi.restoreAllMocks();
     for (const database of databases.splice(0)) {
         database.close();
         await Dexie.delete(database.name);
@@ -89,6 +114,46 @@ describe('投影 cursor 安全事件裁剪', () => {
         expect(result).toMatchObject({ removed: 0, skippedForInvalidProjection: true });
         expect(await eventIds(database)).toEqual([1, 2, 3]);
         expect(await database.meta.get('projection')).toMatchObject({ version: PROJECTION_META_VERSION, throughEventId: -1 });
+    });
+
+    it('cursor 為 0（面板從未投影過）時直接跳出，不把候選事件讀進記憶體', async () => {
+        const database = createDb();
+        await seedEvents(database, [event(1), event(2), event(3)]);
+        await setProjection(database, 0);
+        const reads = watchCandidateReads(database);
+
+        const result = await pruneRawEventsBefore(database, 3);
+
+        expect(result).toMatchObject({ removed: 0, skippedForInvalidProjection: false });
+        expect(result.plan.throughEventId).toBe(0);
+        expect(reads.toArray).toBe(0);
+        expect(await eventIds(database)).toEqual([1, 2, 3]);
+    });
+
+    it('cursor 落在整個裁剪窗之前時同樣不讀取候選', async () => {
+        const database = createDb();
+        await seedEvents(database, [event(10), event(11), event(12)]);
+        await setProjection(database, 5);   // 比最小的事件 id 還小＝這個窗裡沒有可刪的
+        const reads = watchCandidateReads(database);
+
+        const result = await pruneRawEventsBefore(database, 12);
+
+        expect(result.removed).toBe(0);
+        expect(reads.toArray).toBe(0);
+        expect(await eventIds(database)).toEqual([10, 11, 12]);
+    });
+
+    it('範圍內有可刪事件時仍照原本流程讀取候選並裁剪', async () => {
+        const database = createDb();
+        await seedEvents(database, [event(1), event(2), event(3)]);
+        await setProjection(database, 2);
+        const reads = watchCandidateReads(database);
+
+        const result = await pruneRawEventsBefore(database, 3);
+
+        expect(reads.toArray).toBe(1);
+        expect(result.removed).toBe(2);
+        expect(await eventIds(database)).toEqual([3]);
     });
 
     it('projection 尚未追完 cutoff 時只刪 cursor 以內，保留所有尚未投影事件', async () => {

@@ -6,7 +6,19 @@ import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
 import { t } from '@/utils/ui-i18n';
 
-export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** HTML 跳脫：文字節點與屬性值（title／value／class 片段）皆涵蓋 & < > " '。 */
+export const esc = (s: string) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/** rank → CSS class 後綴（s/a/b/c/d）；非 S/A/B/C/D 回空，避免匯入字串進 class。 */
+export function rankClassSuffix(rank: string): string {
+    const r = rank.trim().toUpperCase();
+    return r === 'S' || r === 'A' || r === 'B' || r === 'C' || r === 'D' ? r.toLowerCase() : '';
+}
 
 // 重建當前 GameState：共用規劃器會依 retained raw events 的第一筆 ID 選出安全 baseline。
 // overview 僅套用 reducer，不經 EventProjector，因此不寫任何 derived tables。

@@ -131,7 +131,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/audio-mute.ts` | 遊戲框內音訊靜音的純安裝函式：把每個 `AudioContext` 的 `destination` 換成 master GainNode（＋media 元素路徑） |
 | `utils/game-page.ts` | 遊戲頁相關共用常數（新遊戲網址、注入範圍、訊息型別），theater／bridge／background／popup 共用 |
 | `entrypoints/background.ts` | `ingestEvent()`＝provider 合約唯一入口；以 `BackgroundIngestionLifecycle` 串行 recovery／ingestion，完成後才廣播、寫 snapshot、裁剪與排程通知；`MSG_CAPTURE_TAB` 經此轉手截圖 |
-| `entrypoints/popup/` | 擴充圖示點擊後的快捷選單：開面板／開遊戲（DMM）／劇場模式／遊戲分頁靜音／開鎮守府情報總括分頁／拍照。**不提供另開或替換遊戲視窗**，避免產生第二個遊戲執行個體。劇場模式與靜音不關閉 popup |
+| `entrypoints/popup/` | 擴充圖示點擊後的快捷選單：開面板／開遊戲（DMM）／劇場模式／遊戲分頁靜音／開鎮守府情報總括分頁／拍照。**不提供另開或替換遊戲視窗**，避免產生第二個遊戲執行個體——「開遊戲」以 `tabs.query(GAME_TAB_MATCHES)` 聚焦既有分頁，找不到才 `tabs.create`。劇場模式與靜音不關閉 popup（失敗時亦不關，見 `bind()`）。劇場／拍照**先同步判斷目前分頁是否為遊戲頁再 `permissions.request()`**：分頁資訊在 popup 開啟當下就查好（點擊後才 await 會失去手勢資格），查詢尚未回來時不擋 |
 | `entrypoints/overview/` | 「鎮守府情報總括」獨立分頁；艦隊、艦娘、裝備、活動作戰板、出擊、遠征、建造／開發／改修、資源、LLM、備份分區皆已實作（無 stub 分區） |
 | `entrypoints/overview/ship-picker.ts` | 鎮守府全船篩選清單的共用 UI 元件（見「反覆出現的設計慣例」全量重繪陷阱） |
 | `entrypoints/overview/sections/ships.ts` | 艦娘全覽：工具列＋篩選抽屜＋條件 chip 列＋詳細表格＋分頁。欄位開關／每頁筆數／排序／素質模式存 localStorage（`kc-ships-view`），不進 Dexie、不進備份 |
@@ -706,7 +706,11 @@ vs 明細），**表頭用目前語言的欄名**——與 drop-log/build-log �
 `samples/`，用 node 跑核心驗證（見「建置與驗證」）。
 
 **自動擷取（優先）**：面板「動態」分頁的「待驗證封包」清單。`GameState.wantedTag(path,api)`
-命中即記入 `db.wanted`，附「複製 JSON」按鈕，跨 session 保存。
+命中即記入 `db.wanted`，附「複製 JSON」按鈕，跨 session 保存。**有上限**：同一分類 5 筆、
+總數 50 筆（`panel/main.ts` 的 `captureWanted`）——`db.wanted` 引用的 raw event 受裁剪永久
+保護（`event-pruning.ts` 的 `protectedEventIds`），無上限等於無界成長並拖住裁剪。
+達上限時清單會明說並提供逐筆／全部刪除，**不可改成靜靜略過，也不可拿掉保護語意**
+（那是「複製 JSON」拿得到原始內容的唯一保證）。
 
 **手動擷取（備用）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
 Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 篩選。

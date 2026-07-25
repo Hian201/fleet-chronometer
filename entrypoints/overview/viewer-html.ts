@@ -6,9 +6,40 @@
 //
 // 刻意零外部資源（CSP/離線友善）：樣式內聯、無外部字型/腳本；唯一外連是使用者主動
 // 點「開啟重播頁」時跳轉到 KC3Kai 公開的 battleplayer.html。
+//
+// 安全：此頁在 file://／一般瀏覽器開啟、無擴充 CSP，載入的 JSON 不可信。
+// 內嵌 esc 必須涵蓋屬性語境；rank 進 class 前必須白名單。下方匯出的 helper 與
+// HTML 內嵌腳本必須語意一致（tests/viewer-html.test.ts 雙邊把關）。
+
+/** 文字節點與屬性值皆安全的 HTML 跳脫（& < > " '）。 */
+export function viewerEsc(s: unknown): string {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/** rank → class 用字母；僅 S/A/B/C/D，其餘回空（不進 class）。 */
+export function viewerRankClass(rank: unknown): string {
+    const r = String(rank ?? '').trim().toUpperCase();
+    return r === 'S' || r === 'A' || r === 'B' || r === 'C' || r === 'D' ? r : '';
+}
+
+/**
+ * rank 欄位 markup：class 只吃白名單字母，文字節點另走完整 esc。
+ * 與內嵌腳本的組字規則一致，供單元測試直接餵惡意字串。
+ */
+export function viewerRankCellHtml(rankText: unknown): string {
+    const text = rankText == null ? '' : String(rankText);
+    const rc = viewerRankClass(text);
+    return `<td class="rank${rc ? ` ${rc}` : ''}">${viewerEsc(text || '—')}</td>`;
+}
 
 export function viewerHtml(): string {
     // 注意：此字串整段會被寫成獨立 .html，內部的 JS 在使用者瀏覽器執行，與擴充無關。
+    // esc／rankClass 的語意必須與上方匯出 helper 一致。
     return `<!doctype html>
 <html lang="zh-TW">
 <head>
@@ -76,7 +107,16 @@ function lastRank(row) {
   for (var i = bs.length - 1; i >= 0; i--) if (bs[i].rank) return bs[i].rank;
   return "";
 }
-function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+// 屬性／文字皆安全（與匯出的 viewerEsc 語意一致）。
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+// class 白名單（與匯出的 viewerRankClass 語意一致）；非 S/A/B/C/D 不進 class。
+function rankClass(rank) {
+  var r = String(rank == null ? "" : rank).trim().toUpperCase();
+  return r === "S" || r === "A" || r === "B" || r === "C" || r === "D" ? r : "";
+}
 function fmtTs(ts) { try { return new Date(ts).toLocaleString(); } catch (e) { return String(ts); } }
 
 var replays = [];
@@ -87,12 +127,13 @@ function render() {
   var rows = replays.slice().sort(function (a, b) { return b.ts - a.ts; });
   var html = '<table><thead><tr><th>海域</th><th>難度</th><th>日期</th><th>rank</th><th>節點</th><th>操作</th></tr></thead><tbody>';
   rows.forEach(function (r, i) {
-    var rank = lastRank(r);
+    var rankText = lastRank(r);
+    var rc = rankClass(rankText);
     html += '<tr>'
       + '<td>' + esc(r.world) + '-' + esc(r.mapnum) + '</td>'
-      + '<td class="diff">' + (DIFF[r.diff] || "—") + '</td>'
+      + '<td class="diff">' + esc(DIFF[r.diff] || "—") + '</td>'
       + '<td>' + esc(fmtTs(r.ts)) + '</td>'
-      + '<td class="rank ' + esc(rank) + '">' + esc(rank || "—") + '</td>'
+      + '<td class="rank' + (rc ? (' ' + rc) : '') + '">' + esc(rankText || "—") + '</td>'
       + '<td>' + (r.battles ? r.battles.length : 0) + '</td>'
       + '<td class="act">'
         + '<button data-copy="' + i + '">複製物件</button>'
@@ -134,7 +175,7 @@ document.getElementById("f").addEventListener("change", function (e) {
     try {
       var env = JSON.parse(reader.result);
       replays = (env && env.tables && env.tables.replays) || env.replays || [];
-      document.getElementById("st").textContent = "已載入 " + replays.length + " 場重播（" + esc(file.name) + "）。";
+      document.getElementById("st").textContent = "已載入 " + replays.length + " 場重播（" + file.name + "）。";
       render();
     } catch (err) {
       document.getElementById("st").textContent = "解析失敗：" + err;

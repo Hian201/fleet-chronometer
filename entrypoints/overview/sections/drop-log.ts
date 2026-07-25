@@ -8,7 +8,7 @@ import {
     dropLogCsvText, DropLogImportError, importDropLogRows, parseDropLogCsv, reverseShipLookup,
 } from '@/utils/drop-log-import';
 import { t } from '@/utils/ui-i18n';
-import { esc, fmtTs, downloadText, copyWithFeedback } from '../lib';
+import { esc, fmtTs, downloadText, copyWithFeedback, rankClassSuffix } from '../lib';
 import type { OverviewSection, SectionContext } from './types';
 
 const PREFS_KEY = 'kc-drop-log-view';
@@ -55,7 +55,11 @@ const COLUMNS: Column[] = [
         },
     },
     { id: 'boss', labelKey: 'ov.dropColBoss', cell: row => row.boss ? `<span class="dl-boss">BOSS</span>` : `<span class="dl-none">–</span>` },
-    { id: 'rank', labelKey: 'ov.dropColRank', cell: row => row.rank ? `<b class="dl-rank rank-${esc(row.rank.toLowerCase())}">${esc(row.rank)}</b>` : `<span class="dl-none">–</span>` },
+    { id: 'rank', labelKey: 'ov.dropColRank', cell: row => {
+        if (!row.rank) return `<span class="dl-none">–</span>`;
+        const suf = rankClassSuffix(row.rank);
+        return `<b class="dl-rank${suf ? ` rank-${suf}` : ''}">${esc(row.rank)}</b>`;
+    } },
 ];
 
 function loadPrefs(): Prefs {
@@ -241,9 +245,15 @@ export const dropLogSection: OverviewSection = {
             importStatus.className = `dl-import-status${kind ? ' ' + kind : ''}`;
             importStatus.textContent = message;
         };
+        // 連續選 A→B 時，較慢的 file.text() 不得覆寫較新選擇的內容。
+        let importFileGen = 0;
         importFile.addEventListener('change', async () => {
+            const gen = ++importFileGen;
             const file = importFile.files?.[0];
-            if (file) importText.value = await file.text();
+            if (!file) return;
+            const text = await file.text();
+            if (gen !== importFileGen) return;
+            importText.value = text;
         });
         importGo.addEventListener('click', async () => {
             const text = importText.value.trim();

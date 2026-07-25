@@ -13,7 +13,9 @@ import type { SectionContext } from './sections/types';
 
 const $ = (id: string) => document.getElementById(id)!;
 const navEl = $('nav'), contentEl = $('content');
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// 與 lib.esc 對齊：導覽／錯誤訊息也可能含引號，屬性語境要跳脫。
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 // ── 側欄：釘選／收合／滑入 ────────────────────────────────────────────
 // 三個 body[data-nav] 狀態：
@@ -116,18 +118,28 @@ const ctx: SectionContext = {
     reloadState: async () => { sharedState = await loadGameState(); },
 };
 
+// 路由／語言重繪世代：過期的 sec.render 只寫進已卸離的 host，不得蓋掉目前分區。
+let renderGeneration = 0;
+
 async function renderSection() {
+    const gen = ++renderGeneration;
     const sec = sections.find(s => s.id === currentSectionId())!;
     // 分區名放前面、品牌短名放後面：瀏覽器分頁標題從尾端截斷，會變動的分區名須優先可見
     document.title = `${t(sec.titleKey)} — ${t('ov.brandShort')}`;
-    contentEl.innerHTML = '';
+    // 分區畫進獨立 host：新一次 render 會清掉 contentEl（卸離舊 host），舊 await
+    // 結束後即使繼續寫 host 也不會污染目前畫面。
+    const host = document.createElement('div');
+    host.className = 'ov-section-host';
+    contentEl.replaceChildren(host);
     // 分區 render 丟出例外時**不能靜默留白**——使用者只會看到「介面不見了」，
     // 卻沒有任何線索可回報。一律接住並顯示原因（完整堆疊仍進 Console）。
     try {
-        await sec.render(contentEl, ctx);
+        await sec.render(host, ctx);
+        if (gen !== renderGeneration) return;
     } catch (error) {
+        if (gen !== renderGeneration) return;
         console.error(`[overview] 分區 ${sec.id} render 失敗`, error);
-        contentEl.innerHTML =
+        host.innerHTML =
             `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
     }
 }

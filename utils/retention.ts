@@ -136,3 +136,22 @@ export function planRetention(
     }
     return decisions;
 }
+
+/** 從 planRetention 決策取出可裁剪的 sortieKey（刪除路徑應用當場結果，勿快取）。 */
+export function prunableSortieKeys(decisions: RetentionDecision[]): number[] {
+    return decisions.filter(d => !d.keep).map(d => d.sortieKey);
+}
+
+/** 當場重算可裁剪 keys（UI 統計可快取；bulkDelete 必須用這支的回傳值）。 */
+export function computePrunableKeys(
+    replays: ReplayRow[],
+    sorties: SortieLogRow[],
+    shipObtained: ShipObtainedRow[],
+    unclearedMaps: Set<string>,
+    cfg: RetentionConfig,
+    now: number,
+): number[] {
+    return prunableSortieKeys(
+        planRetention(replays, sorties, shipObtained, unclearedMaps, cfg, now),
+    );
+}

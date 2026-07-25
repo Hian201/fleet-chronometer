@@ -72,11 +72,31 @@ export async function pruneRawEventsBefore(
 ): Promise<RawEventPruneResult> {
     // 必須先確認 cursor，再讀候選或進行任何破壞性操作。
     const metadata = await database.meta.get('projection');
-    if (validProjectionThroughEventId(metadata) === undefined) {
+    const throughEventId = validProjectionThroughEventId(metadata);
+    if (throughEventId === undefined) {
         return {
             removed: 0,
             skippedForInvalidProjection: true,
             plan: { candidateEventIds: [], protectedEventIds: new Set(), deleteEventIds: [] },
+        };
+    }
+
+    // 只有 id 同時 < cutoff 且 <= cursor 的事件可能被刪。cursor 為 0（面板從未開過、
+    // 投影還沒推進過）或落在整個裁剪窗之前時，這個範圍是空的——舊寫法仍會把 cutoff 以下
+    // 的事件（每筆都帶完整封包，超長 session 下可達數千筆）全部讀進 service worker，
+    // 算完才發現一筆都不能刪。這裡先用純索引 count 確認範圍非空，再決定要不要載入。
+    // 不改變任何裁剪判斷：範圍非空時走的仍是原本那條路。
+    const deletableBelow = Math.min(cutoff, throughEventId + 1);
+    const deletableInRange = deletableBelow > 0
+        ? await database.events.where('id').below(deletableBelow).count()
+        : 0;
+    if (deletableInRange === 0) {
+        return {
+            removed: 0,
+            skippedForInvalidProjection: false,
+            plan: {
+                candidateEventIds: [], protectedEventIds: new Set(), deleteEventIds: [], throughEventId,
+            },
         };
     }
 

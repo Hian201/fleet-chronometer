@@ -94,8 +94,8 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
 
     // 艦種選項只列名冊裡實際有的，並用該艦種第一艘的 stype 字串當顯示名
     // （OwnedShipView 已帶解析好的艦種名，不需要另外開 master 查詢 API）。
+    // 內容在 drawStypeOptions() 重建——refresh({ ships }) 也會走同一支。
     const stypeLabel = new Map<number, string>();
-    for (const s of rows) if (!stypeLabel.has(s.stypeId)) stypeLabel.set(s.stypeId, s.stype);
 
     el.innerHTML = `
         <div class="sp">
@@ -121,8 +121,7 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
                 </details>
                 <details class="sp-stypes">
                     <summary>${esc(t('ov.spStype'))}</summary>
-                    <div class="sp-stype-chips">${stypeOptions(rows).map(id =>
-                        `<label class="eo-chip"><input type="checkbox" class="sp-stype" value="${id}">${esc(stypeLabel.get(id) ?? String(id))}</label>`).join('')}</div>
+                    <div class="sp-stype-chips sp-stype-box"></div>
                 </details>
                 <details class="sp-gears">
                     <summary>${esc(t('ov.spGearDisplay'))}</summary>
@@ -143,6 +142,12 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
     const hintEl = el.querySelector<HTMLDivElement>('.sp-hint')!;
     const sallySel = el.querySelector<HTMLSelectElement>('.sp-sally')!;
     const nationBox = el.querySelector<HTMLDivElement>('.sp-nation-chips')!;
+    const stypeBox = el.querySelector<HTMLDivElement>('.sp-stype-box')!;
+
+    function rebuildStypeLabels() {
+        stypeLabel.clear();
+        for (const s of rows) if (!stypeLabel.has(s.stypeId)) stypeLabel.set(s.stypeId, s.stype);
+    }
 
     /** 只列名冊裡實際有船的國籍——沒有船的國家排出來只是雜訊（同艦種篩選的規則）。 */
     function drawNationOptions() {
@@ -157,6 +162,27 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
                 filter.nations = box.checked
                     ? [...filter.nations, n]
                     : filter.nations.filter(x => x !== n);
+                box.closest('.eo-chip')?.classList.toggle('on', box.checked);
+                drawList();
+            }));
+    }
+
+    /** 艦種 checkbox 隨 refresh({ ships }) 重建；勾選狀態在仍存在的艦種上保留。 */
+    function drawStypeOptions() {
+        rebuildStypeLabels();
+        const available = new Set(stypeOptions(rows));
+        filter.stypeIds = filter.stypeIds.filter(id => available.has(id));
+        stypeBox.innerHTML = [...available].map(id =>
+            `<label class="eo-chip ${filter.stypeIds.includes(id) ? 'on' : ''}">
+                <input type="checkbox" class="sp-stype" value="${id}"
+                    ${filter.stypeIds.includes(id) ? 'checked' : ''}>${
+                esc(stypeLabel.get(id) ?? String(id))}</label>`).join('');
+        stypeBox.querySelectorAll<HTMLInputElement>('.sp-stype').forEach(box =>
+            box.addEventListener('change', () => {
+                const id = Number(box.value);
+                filter.stypeIds = box.checked
+                    ? [...filter.stypeIds, id]
+                    : filter.stypeIds.filter(x => x !== id);
                 box.closest('.eo-chip')?.classList.toggle('on', box.checked);
                 drawList();
             }));
@@ -205,7 +231,8 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
         }
         listEl.innerHTML = list.map(s => {
             const picked = opts.pickedIds?.has(s.id) ? ' picked' : '';
-            const inPlan = opts.plannedIds?.has(s.id) ? '<span class="sp-plan" title="${esc(t("ov.spPlannedYes"))}">◆</span>' : '';
+            const inPlan = opts.plannedIds?.has(s.id)
+                ? `<span class="sp-plan" title="${esc(t('ov.spPlannedYes'))}">◆</span>` : '';
             const tag = s.sallyArea > 0
                 ? `<span class="sp-tag">#${s.sallyArea}</span>`
                 : `<span class="sp-tag free">${esc(t('ov.spFree'))}</span>`;
@@ -234,15 +261,6 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
         filter.search = (e.currentTarget as HTMLInputElement).value;
         drawList();
     });
-    el.querySelectorAll<HTMLInputElement>('.sp-stype').forEach(box =>
-        box.addEventListener('change', () => {
-            const id = Number(box.value);
-            filter.stypeIds = box.checked
-                ? [...filter.stypeIds, id]
-                : filter.stypeIds.filter(x => x !== id);
-            box.closest('.eo-chip')?.classList.toggle('on', box.checked);
-            drawList();
-        }));
 
     // 事件委派：清單每次重繪都會換掉 <li>，逐項綁定會失效，故綁在容器上。
     listEl.addEventListener('click', e => {
@@ -254,13 +272,17 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
     });
 
     drawNationOptions();
+    drawStypeOptions();
     drawSallyOptions();
     drawList();
 
     return {
         refresh(patch) {
             opts = { ...opts, ...patch };
-            if (patch?.ships) rows = patch.ships.map(s => ({ ...s, nation: nationOf(s.ctype) }));
+            if (patch?.ships) {
+                rows = patch.ships.map(s => ({ ...s, nation: nationOf(s.ctype) }));
+                drawStypeOptions();
+            }
             drawNationOptions();
             drawSallyOptions();
             drawList();

@@ -216,13 +216,13 @@ function renderAiNano(el: HTMLElement, state: GameState) {
     runBtn.addEventListener('click', async () => {
         runBtn.disabled = true;
         result.textContent = '';
+        let session: LanguageModelSession | undefined;
         try {
             const availability = await LanguageModel.availability();
             if (availability === 'unavailable') {
                 status.textContent = t('ov.aiNanoUnavailable');
                 return;
             }
-            let session: LanguageModelSession;
             if (availability !== 'available') {
                 // 'downloadable'／'downloading'：首次使用需要下載模型，顯示進度
                 status.textContent = t('ov.aiNanoDownloading', { n: 0 });
@@ -249,11 +249,12 @@ function renderAiNano(el: HTMLElement, state: GameState) {
                 acc = chunk.startsWith(acc) ? chunk : acc + chunk;
                 result.textContent = acc;
             }
-            session.destroy();
             status.textContent = '';
         } catch (err) {
             status.textContent = t('ov.aiNanoError', { msg: String(err) });
         } finally {
+            // create 成功後無論串流成敗都銷毀，避免裝置端 session 洩漏。
+            try { session?.destroy(); } catch { /* destroy 失敗不影響 UI */ }
             runBtn.disabled = false;
         }
     });

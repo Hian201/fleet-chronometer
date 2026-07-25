@@ -4,7 +4,7 @@ import { KcDb, type ShipObtainedRow } from '../utils/db';
 import { SHIP_NAMES } from '../utils/gamedata-i18n';
 import { GameState } from '../utils/state';
 import {
-    COLUMNS, buildRoster, loadOwnedShipRows, rosterCsv, rosterTableHtml,
+    COLUMNS, buildRoster, loadOwnedShipRows, rosterCsv, rosterTableHtml, visibleColumns,
     type ColumnId, type TableView,
 } from '../entrypoints/overview/sections/ships';
 import {
@@ -152,5 +152,18 @@ describe('艦娘全覽的入手觀測關聯與畫面資料', () => {
         expect(csv[0]).toBe(`${t('ov.rsColName')},${t('ov.rsColGears')}`);
         // 兩件裝備以 ' / ' 相連、不含逗號，故不需引號；空槽輸出「空裝」文字而非留白。
         expect(csv[1]).toBe(`Alpha <Ship>,Gun <Mk.1>★4 / ${t('ov.rsEmptySlot')}`);
+    });
+
+    it('艦名欄 always：prefs 未勾選時仍出現在表格／CSV', () => {
+        expect(COLUMNS.find(c => c.id === 'name')?.always).toBe(true);
+        const cols = visibleColumns(view(['lv']));
+        expect(cols.map(c => c.id)).toEqual(['name', 'lv']);
+
+        const roster = buildRoster([createState().ownedShips().find(ship => ship.id === 101)!]);
+        const html = rosterTableHtml(roster, view(['lv']), ctx);
+        expect(html).toContain('rs-c-name');
+        expect(html).toContain('Alpha &lt;Ship&gt;');
+        expect(rosterCsv(roster, view(['lv']), ctx).split('\n')[0])
+            .toBe(`${t('ov.rsColName')},${t('ov.rsColLv')}`);
     });
 });

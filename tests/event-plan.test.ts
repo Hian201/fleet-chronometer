@@ -4,9 +4,9 @@
 // #5 仏地中海艦隊（尚未產生）。機制前提見該檔檔頭與 CLAUDE.md「活動作戰板」。
 import { describe, expect, it } from 'vitest';
 import {
-    checkStage, establishedTags, findPlanConflicts, freeShips, grantedTagsOf, groupBySally,
-    guessMapNo, nextSallySnapshot, observeGrantedTags, plannedByTag, reconcileStages,
-    resolveSallyRoster, sallyBudget,
+    checkStage, ensureUniqueStageKeys, establishedTags, findPlanConflicts, freeShips,
+    grantedTagsOf, groupBySally, guessMapNo, newStageKey, nextSallySnapshot, observeGrantedTags,
+    plannedByTag, reconcileStages, removeStageAt, resolveSallyRoster, sallyBudget,
     type PlanStage, type SallyObservationInput, type SallyShip,
 } from '../utils/event-plan';
 
@@ -320,5 +320,47 @@ describe('關卡列同步（首要職責：不丟資料）', () => {
 
     it('沒有 master 時原樣返回（手填模式不亂動）', () => {
         expect(reconcileStages([stage({ key: 'keep', label: '手填' })], []).map(x => x.key)).toEqual(['keep']);
+    });
+});
+
+describe('關卡 key 唯一性', () => {
+    it('newStageKey 不與既有集合碰撞', () => {
+        const existing = new Set([newStageKey([]), newStageKey([])]);
+        const next = newStageKey(existing);
+        expect(existing.has(next)).toBe(false);
+        expect(next.length).toBeGreaterThan(0);
+    });
+
+    it('ensureUniqueStageKeys：重複 key 只改後列、不刪列', () => {
+        const { stages, changed } = ensureUniqueStageKeys([
+            stage({ key: 'dup', label: '第一', slots: [{ role: 'A' }] }),
+            stage({ key: 'dup', label: '第二', slots: [{ role: 'B' }] }),
+            stage({ key: 'ok', label: '第三' }),
+        ]);
+        expect(changed).toBe(true);
+        expect(stages).toHaveLength(3);
+        expect(stages[0]).toMatchObject({ key: 'dup', label: '第一', slots: [{ role: 'A' }] });
+        expect(stages[1].key).not.toBe('dup');
+        expect(stages[1]).toMatchObject({ label: '第二', slots: [{ role: 'B' }] });
+        expect(stages[2].key).toBe('ok');
+        expect(new Set(stages.map(s => s.key)).size).toBe(3);
+    });
+
+    it('ensureUniqueStageKeys：已唯一時不改動', () => {
+        const input = [stage({ key: 'a' }), stage({ key: 'b' })];
+        const { stages, changed } = ensureUniqueStageKeys(input);
+        expect(changed).toBe(false);
+        expect(stages).toEqual(input);
+    });
+
+    it('removeStageAt 只刪指定索引，同 key 另一列保留', () => {
+        const stages = [
+            stage({ key: 'dup', label: '留' }),
+            stage({ key: 'dup', label: '刪' }),
+        ];
+        const out = removeStageAt(stages, 1);
+        expect(out).toHaveLength(1);
+        expect(out[0]).toMatchObject({ key: 'dup', label: '留' });
+        expect(removeStageAt(stages, 99)).toEqual(stages);
     });
 });

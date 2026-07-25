@@ -10,6 +10,7 @@ import { pruneRawEventsBefore } from '@/utils/event-pruning';
 import { parseKcsapiResponse } from '@/utils/kcsapi';
 import { captureResources } from '@/utils/resource-capture';
 import { captureShipObtained } from '@/utils/ship-obtained';
+import { replyWhenSettled } from '@/utils/runtime-reply';
 
 // [新增] 提前通知時間：遊戲機制中剩餘 1 分鐘回港即自動結算
 const EARLY_MS = 60_000;
@@ -50,6 +51,13 @@ async function scheduleOrNotify(name: string, completeAt: number, notificationId
   } else {
     await browser.alarms.create(name, { when: target });
   }
+}
+
+// ingestEvent() 失敗時的回覆內容：sender 只需要知道「這筆結束了」，錯誤本身留在 SW console。
+// 舊寫法把 promise 直接回傳給瀏覽器，失敗時會變成無人接手的 unhandled rejection。
+function reportIngestFailure(error: unknown): undefined {
+  console.error('[KC-Monitor] ingestEvent 失敗', error);
+  return undefined;
 }
 
 export default defineBackground(() => {
@@ -100,37 +108,54 @@ export default defineBackground(() => {
     }
   };
 
-  browser.runtime.onMessage.addListener((msg, sender) => {
+  // 所有回覆一律走 sendResponse + return true（見 utils/runtime-reply.ts 檔頭：回傳
+  // Promise 只有 Chrome 148 起才支援，舊版會讓 sender 收到 undefined 而非真正的回覆）。
+  browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // popup 快捷選單的「開啟面板」（entrypoints/popup/）：開窗邏輯留在 SW，
     // popup 送完訊息就自關，不能自己開窗（popup 關閉會中斷其非同步流程）
     if (msg?.type === 'kc:open-panel') { openPanelWindow(); return; }
     // `connected` = 目前連著的遊戲分頁數。0 代表沒有任何分頁跑著新版 content script
     // （擴充更新後遊戲分頁未 F5），此時靜音一定無效——這種「靜靜沒反應」最難查，故回報。
     if (msg?.type === MSG_MUTE_GET) {
-      return readGamePagePrefs().then(p => ({ muted: p.muted, connected: mutePorts.size }));
+      return replyWhenSettled(
+        readGamePagePrefs().then(p => ({ muted: p.muted, connected: mutePorts.size })),
+        sendResponse,
+      );
     }
     if (msg?.type === MSG_MUTE_SET) {
       const muted = !!msg.muted;
       broadcastMute(muted);
-      return writeGamePagePrefs({ muted })
-        // 劇場底部工具列的發送者就是目前遊戲分頁；就算 bridge port 尚未連上，也必須能靜音。
-        .then(() => muteGameTabs(muted, sender.tab?.id))
-        .then(() => ({ muted, connected: mutePorts.size }));
+      return replyWhenSettled(
+        writeGamePagePrefs({ muted })
+          // 劇場底部工具列的發送者就是目前遊戲分頁；就算 bridge port 尚未連上，也必須能靜音。
+          .then(() => muteGameTabs(muted, sender.tab?.id))
+          .then(() => ({ muted, connected: mutePorts.size })),
+        sendResponse,
+      );
     }
-    if (msg?.type === MSG_THEATER_FIT_WINDOW) return fitTheaterWindow(sender.tab?.windowId, msg);
+    if (msg?.type === MSG_THEATER_FIT_WINDOW) {
+      return replyWhenSettled(fitTheaterWindow(sender.tab?.windowId, msg), sendResponse);
+    }
     // 拍照：content script 沒有 tabs API，一律經這裡轉手；popup 走同一條訊息，
     // 錯誤處理只寫一份。captureVisibleTab 只認 <all_urls> 或 activeTab（見 wxt.config.ts），
     // 那是分頁層級的暫時授權，跟呼叫者是 popup 還是 content script 無關。
     if (msg?.type === MSG_CAPTURE_TAB) {
       const windowId = typeof msg.windowId === 'number' ? msg.windowId : sender.tab?.windowId;
-      if (typeof windowId !== 'number') return Promise.resolve({ error: 'no-window' });
-      return browser.tabs.captureVisibleTab(windowId, { format: 'png' })
-        .then(dataUrl => ({ dataUrl }))
-        .catch(e => ({ error: String(e?.message ?? e) }));
+      if (typeof windowId !== 'number') { sendResponse({ error: 'no-window' }); return; }
+      return replyWhenSettled(
+        browser.tabs.captureVisibleTab(windowId, { format: 'png' }).then(dataUrl => ({ dataUrl })),
+        sendResponse,
+        e => ({ error: String((e as { message?: unknown })?.message ?? e) }),
+      );
     }
-    if (msg?.type === MSG_UI_LANG) return readGamePagePrefs().then(p => p.lang);
+    if (msg?.type === MSG_UI_LANG) {
+      return replyWhenSettled(readGamePagePrefs().then(p => p.lang), sendResponse);
+    }
     if (msg?.type === MSG_UI_LANG_SET) {
-      return writeGamePagePrefs({ lang: String(msg.lang ?? '') }).then(() => undefined);
+      return replyWhenSettled(
+        writeGamePagePrefs({ lang: String(msg.lang ?? '') }).then(() => undefined),
+        sendResponse,
+      );
     }
     if (msg?.type !== 'kc:api') return;
     // 新 bridge 交原始文字，讓大型封包在 service worker 解析，避開遊戲 renderer 主執行緒。
@@ -153,14 +178,23 @@ export default defineBackground(() => {
       delete (req as Record<string, unknown>).api_token;
       delete (req as Record<string, unknown>).api_verno;
     }
-    return ingestEvent({
-      ts: msg.ts,
-      path: msg.path,
-      api,
-      req,
-      captureId: msg.captureId,
-      source: 'main',
-    });
+    // ingestion 完成後才回覆（舊寫法是回傳 promise，等於在多數瀏覽器上立刻回覆 undefined）。
+    // 這裡刻意讓通道開到寫入結束：SW 若在寫入途中被回收，通道會以錯誤關閉，bridge 的
+    // sendKcApiRuntimeMessageWithRetry 便會用同一個 envelope 重試一次，而不是靜靜掉一筆封包；
+    // captureId 相同，重複由既有 unique index 去重，不會產生第二筆 raw event。
+    // ingestion 本身失敗（例如寫入被拒）仍只記錄不重試，與既有行為一致。
+    return replyWhenSettled(
+      ingestEvent({
+        ts: msg.ts,
+        path: msg.path,
+        api,
+        req,
+        captureId: msg.captureId,
+        source: 'main',
+      }),
+      sendResponse,
+      reportIngestFailure,
+    );
   });
 
   // [修改] alarm 觸發時改用 notifyNow 統一邏輯

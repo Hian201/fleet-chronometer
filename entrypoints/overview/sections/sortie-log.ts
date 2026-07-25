@@ -102,7 +102,12 @@ function dropName(row: { drop: string | null; dropMst?: number }, state: Section
     if (row.drop) return row.drop;
     return row.dropMst ? state.shipName(row.dropMst) : null;
 }
-const rankClass = (rank: string) => (rank ? `rank-${rank.toLowerCase()}` : '');
+// class 只吃白名單後綴；文字節點另走 esc（匯入／異常 rank 不得進 class）。
+const rankClass = (rank: string) => {
+    const suf = rank.trim().toUpperCase();
+    return (suf === 'S' || suf === 'A' || suf === 'B' || suf === 'C' || suf === 'D')
+        ? `rank-${suf.toLowerCase()}` : '';
+};
 
 /** 海域代號：活動顯示 E{n}（玩家的說法），一般海域維持 6-5。完整編號放 title。 */
 function mapLabel(entry: { event: boolean; mapnum: number; map: string }): string {
@@ -720,10 +725,15 @@ export const sortieLogSection: OverviewSection = {
             importStatus.className = `sl-import-status${kind ? ' ' + kind : ''}`;
             importStatus.textContent = message;
         };
+        // 連續選 A→B 時，較慢的 file.text() 不得覆寫較新選擇的內容。
+        let importFileGen = 0;
         importFile.addEventListener('change', async () => {
+            const gen = ++importFileGen;
             const file = importFile.files?.[0];
             if (!file) return;
-            importText.value = await file.text();
+            const text = await file.text();
+            if (gen !== importFileGen) return;
+            importText.value = text;
             setStatus('', file.name);
         });
         importGo.addEventListener('click', async () => {

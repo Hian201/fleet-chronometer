@@ -163,6 +163,50 @@
             flex: none;
         }
 
+        /* 狀態橫幅（載入中／事件積壓／啟動失敗）。預設是低調的說明語氣；.err 才轉為
+           警示色——「面板停在這裡不動了」必須看得出來，但一般的載入提示不該搶戲。 */
+        #notice {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel);
+            color: var(--dim);
+            font-size: 11px;
+            letter-spacing: var(--track-label);
+        }
+
+        #notice[hidden] {
+            display: none;
+        }
+
+        #notice.err {
+            color: var(--dmg-major);
+        }
+
+        #notice .grow {
+            flex: 1;
+            /* 錯誤訊息可能很長（Dexie 的例外訊息），允許換行，不截斷原因 */
+            min-width: 0;
+        }
+
+        #notice button {
+            flex: none;
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        #notice button:hover {
+            border-color: var(--brass);
+            color: var(--sparkle);
+        }
+
         #tabs {
             display: flex;
             padding: 0 10px;
@@ -1973,6 +2017,52 @@
             border-color: #58a55c;
         }
 
+        .wanted-row button.failed {
+            color: var(--dmg-major);
+            border-color: var(--dmg-major);
+        }
+
+        /* 刪除鈕：語彙上比「複製」次要，平時只有邊框、hover 才轉警示色 */
+        .wanted-row button.wanted-del {
+            color: var(--dim);
+        }
+
+        .wanted-row button.wanted-del:hover {
+            color: var(--dmg-major);
+            border-color: var(--dmg-major);
+        }
+
+        /* 上限說明與清除入口：擷取有上限（見 main.ts captureWanted），
+           使用者必須看得到目前用量與「刪掉就能再擷取」這件事 */
+        .wanted-foot {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 4px 6px;
+            font-size: 10px;
+            color: var(--dim);
+            letter-spacing: var(--track-label);
+        }
+
+        .wanted-foot.warn {
+            color: var(--brass);
+        }
+
+        .wanted-foot button {
+            background: none;
+            border: 1px solid var(--line);
+            color: var(--dim);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+
+        .wanted-foot button:hover {
+            color: var(--dmg-major);
+            border-color: var(--dmg-major);
+        }
+
         /* ── 工廠分頁 ── */
         .fac-controls {
             display: flex;
@@ -2172,6 +2262,9 @@
 
 <body>
     <div id="header"></div>
+    <!-- 狀態橫幅：載入中／事件積壓／啟動失敗共用一條，永遠在最上方。空白面板配一句
+         console 訊息是查不出原因的，任何「面板看起來壞了」的狀態都必須在畫面上說明。 -->
+    <div id="notice" hidden></div>
     <div id="tabs"></div>
     <div id="tabpanel">
         <div id="tab-general">

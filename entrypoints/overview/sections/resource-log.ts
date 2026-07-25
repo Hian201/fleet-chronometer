@@ -344,19 +344,20 @@ export const resourceLogSection: OverviewSection = {
     id: 'resource-log',
     titleKey: 'ov.resourceLog',
     async render(el, ctx) {
-        const [rawRows, markRows] = await Promise.all([
-            db.resources.orderBy('ts').toArray() as Promise<ResourceRow[]>,
-            db.resourceMarks.orderBy('ts').toArray() as Promise<ResourceMarkRow[]>,
-        ]);
-        const all = normalizeSamples(rawRows);
-        if (!all.length) {
-            el.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
-            return;
-        }
-
+        // **先畫殼、再讀資料**（同 sortie／exped）：DB 阻塞時工具列仍可見。
         const prefs = loadPrefs();
-        const periods = buildEventPeriods(markRows, all);
-        const allMilestones = periods.flatMap(p => p.milestones);
+        el.innerHTML = shellHtml(prefs);
+
+        const body = el.querySelector<HTMLDivElement>('.rl-body')!;
+        const granSel = el.querySelector<HTMLSelectElement>('.rl-gran')!;
+        const sizeSel = el.querySelector<HTMLSelectElement>('.rl-size')!;
+        granSel.value = prefs.gran;
+        sizeSel.value = String(prefs.size);
+        body.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
+
+        let all: Sample[] = [];
+        let periods: ReturnType<typeof buildEventPeriods> = [];
+        let allMilestones: Milestone[] = [];
         const opts: RenderOpts = {
             cols: prefs.cols,
             showDelta: prefs.showDelta,
@@ -365,15 +366,6 @@ export const resourceLogSection: OverviewSection = {
         /** 指定期間（按「只看這次活動」設定）；非 null 時蓋過 prefs.range。 */
         let custom: { from: number; to: number } | null = null;
         let page = 1;
-
-        el.innerHTML = shellHtml(prefs);
-
-        const body = el.querySelector<HTMLDivElement>('.rl-body')!;
-        const granSel = el.querySelector<HTMLSelectElement>('.rl-gran')!;
-        const sizeSel = el.querySelector<HTMLSelectElement>('.rl-size')!;
-        granSel.value = prefs.gran;
-        sizeSel.value = String(prefs.size);
-
         /** 目前期間內、已依粒度收斂的樣本（清單與圖表共用）。 */
         let view: Sample[] = [];
         /** 圖表實際畫的（抽稀後）樣本與各格幾何，供十字準線查詢。 */
@@ -390,6 +382,10 @@ export const resourceLogSection: OverviewSection = {
         const detailRows = () => buildDetailRows(view, prefs.marks ? allMilestones : []);
 
         function draw(keepScroll = false) {
+            if (!all.length) {
+                body.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
+                return;
+            }
             const scroll = keepScroll ? body.scrollTop : 0;
             const { from, to } = rangeBounds();
             view = bucketSamples(all.filter(s => s.ts >= from && s.ts <= to), prefs.gran);
@@ -555,6 +551,17 @@ export const resourceLogSection: OverviewSection = {
         });
         body.addEventListener('pointerleave', clearCrosshair);
 
-        draw();
+        try {
+            const [rawRows, markRows] = await Promise.all([
+                db.resources.orderBy('ts').toArray() as Promise<ResourceRow[]>,
+                db.resourceMarks.orderBy('ts').toArray() as Promise<ResourceMarkRow[]>,
+            ]);
+            all = normalizeSamples(rawRows);
+            periods = buildEventPeriods(markRows, all);
+            allMilestones = periods.flatMap(p => p.milestones);
+            draw();
+        } catch (error) {
+            body.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+        }
     },
 };

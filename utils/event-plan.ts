@@ -202,6 +202,49 @@ export function guessMapNo(label: string): number | null {
 }
 
 /**
+ * 產生不與 existing 碰撞的關卡 key。
+ * 用 crypto.randomUUID（擴充／現代瀏覽器／Node 皆有）；绝不靠 Date.now 毫秒字串。
+ */
+export function newStageKey(existing: Iterable<string>): string {
+    const taken = existing instanceof Set ? existing : new Set(existing);
+    for (let i = 0; i < 32; i++) {
+        const key = typeof globalThis.crypto?.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `k${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+        if (!taken.has(key)) return key;
+    }
+    let n = 0;
+    while (taken.has(`kfallback-${n}`)) n++;
+    return `kfallback-${n}`;
+}
+
+/**
+ * 保守修復空 key／重複 key：保留每一列內容，只改後出現的重複（或空）key。
+ * **不刪列**——db.eventPlans 是手輸資料，不能從 events 重投影。
+ */
+export function ensureUniqueStageKeys(stages: PlanStage[]): { stages: PlanStage[]; changed: boolean } {
+    const seen = new Set<string>();
+    let changed = false;
+    const out = stages.map(st => {
+        if (st.key && !seen.has(st.key)) {
+            seen.add(st.key);
+            return st;
+        }
+        changed = true;
+        const key = newStageKey(seen);
+        seen.add(key);
+        return { ...st, key };
+    });
+    return { stages: out, changed };
+}
+
+/** 依陣列索引刪一列（髒資料同 key 多列時，刪除只動被點那一列）。 */
+export function removeStageAt(stages: PlanStage[], index: number): PlanStage[] {
+    if (!Number.isInteger(index) || index < 0 || index >= stages.length) return stages;
+    return stages.filter((_, i) => i !== index);
+}
+
+/**
  * 把計畫的關卡列對齊遊戲提供的海域清單：一圖一個「主列」，其後接該圖的「階段子列」。
  *
  * **這支的首要職責是不丟資料**——關卡列改成自動產生後，既有計畫必須能無損接上：

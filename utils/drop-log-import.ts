@@ -123,14 +123,20 @@ export function parseDropLogCsv(text: string, resolveShipMst?: (name: string) =>
             if (ts == null) { skipped.push({ line, reason: 'ts 欄位不是可解析的時間戳。' }); return; }
             if (!MAP_RE.test(map)) { skipped.push({ line, reason: `map 欄位「${map}」不是 world-mapnum 格式。` }); return; }
             if (!drop) { skipped.push({ line, reason: 'drop 欄位是空的（沒有掉落的列不該匯入）。' }); return; }
+            // own-format 的 node 必須是真實 edge id；無效值 skip，勿靜默改成 0
+            // （0 是航海日誌 path「不可考」的哨兵，語意不同）。
             const nodeRaw = get('node').trim();
-            const node = nodeRaw === '' ? 0 : Number(nodeRaw);
+            const node = Number(nodeRaw);
+            if (nodeRaw === '' || !Number.isSafeInteger(node) || node <= 0) {
+                skipped.push({ line, reason: `node 欄位「${nodeRaw}」不是正整數 edge id。` });
+                return;
+            }
             const dropMstRaw = get('dropMst').trim();
             const dropMst = dropMstRaw === '' ? undefined : Number(dropMstRaw);
             rows.push({
-                ts, map, node: Number.isSafeInteger(node) && node > 0 ? node : 0,
+                ts, map, node,
                 boss: get('boss').trim() === '1' || get('boss').trim().toLowerCase() === 'true',
-                rank: get('rank').trim(),
+                rank: normalizeRank(get('rank')),
                 drop,
                 ...(dropMst != null && Number.isSafeInteger(dropMst) && dropMst > 0 ? { dropMst } : {}),
             });

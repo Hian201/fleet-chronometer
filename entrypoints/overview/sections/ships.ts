@@ -113,6 +113,8 @@ interface ColumnDef {
     numeric?: boolean;
     /** 預設是否顯示。 */
     on: boolean;
+    /** 不可關閉（艦名是識別主詞，關掉整張表就沒有主詞了；同 equipment always）。 */
+    always?: boolean;
     /** 額外的表頭提示（滑鼠停留）。 */
     tipKey?: string;
     cell(ship: ShipsRow, ctx: RenderCtx): string;
@@ -198,7 +200,7 @@ export const COLUMNS: ColumnDef[] = [
         text: s => (s.nation ? t(`nation.${s.nation}`) : ''),
     },
     {
-        id: 'name', labelKey: 'ov.rsColName', sort: 'name', on: true,
+        id: 'name', labelKey: 'ov.rsColName', sort: 'name', on: true, always: true,
         cell: s => `<span class="rs-name" title="${esc(s.name)}">${esc(s.name)}</span>`
             + (s.locked ? `<span class="rs-lock" title="${esc(t('ov.shipsLocked'))}">🔒</span>` : '')
             + (s.married ? `<span class="rs-ring" title="${esc(t('ov.rsMarried'))}">💍</span>` : ''),
@@ -262,9 +264,13 @@ export interface TableView {
     bare: boolean;
 }
 
+/** 依 COLUMNS 宣告順序取顯示欄位；always 欄（艦名）一律保留。 */
+export const visibleColumns = (view: TableView) =>
+    COLUMNS.filter(c => c.always || view.cols.has(c.id));
+
 /** 表頭：可排序欄可點，目前排序欄顯示方向箭頭（純文字，無圖檔依賴）。 */
 function headHtml(view: TableView): string {
-    const cells = COLUMNS.filter(c => view.cols.has(c.id)).map(c => {
+    const cells = visibleColumns(view).map(c => {
         const active = c.sort != null && c.sort === view.sort;
         const arrow = active ? (view.dir === 'asc' ? '▲' : '▼') : '';
         const tip = c.tipKey ? ` title="${esc(t(c.tipKey))}"` : '';
@@ -277,7 +283,7 @@ function headHtml(view: TableView): string {
 
 export function rosterTableHtml(rows: ShipsRow[], view: TableView, ctx: RenderCtx): string {
     if (!rows.length) return `<div class="ov-empty">${esc(t('ov.shipsNoResults'))}</div>`;
-    const cols = COLUMNS.filter(c => view.cols.has(c.id));
+    const cols = visibleColumns(view);
     const body = rows.map(ship => `<tr data-ship="${ship.id}">${cols.map(c =>
         `<td class="${c.numeric ? 'num ' : ''}rs-c-${c.id}">${c.cell(ship, ctx)}</td>`).join('')}</tr>`).join('');
     return `<table class="rs-table">${headHtml(view)}<tbody>${body}</tbody></table>`;
@@ -285,7 +291,7 @@ export function rosterTableHtml(rows: ShipsRow[], view: TableView, ctx: RenderCt
 
 /** 匯出目前**篩選後的全部**列（不是只有這一頁）為 CSV。取代參照圖的「匯出至 kanmusu_list」。 */
 export function rosterCsv(rows: ShipsRow[], view: TableView, ctx: RenderCtx): string {
-    const cols = COLUMNS.filter(c => view.cols.has(c.id));
+    const cols = visibleColumns(view);
     const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
     const lines = [cols.map(c => cell(t(c.labelKey))).join(',')];
     for (const ship of rows) lines.push(cols.map(c => cell(c.text(ship, ctx))).join(','));
@@ -480,20 +486,13 @@ export const shipsSection: OverviewSection = {
     id: 'ships',
     titleKey: 'ov.ships',
     async render(el, ctx) {
-        const rows = await loadOwnedShipRows(ctx.state);
-        if (!rows.length) {
-            el.innerHTML = `<div class="ov-empty">${esc(t('ov.shipsNone'))}</div>`;
-            return;
-        }
-
-        let roster = buildRoster(rows);
-
+        // **先畫殼、再讀資料**（同 sortie／exped）：DB 阻塞時工具列仍可見。
         const filter = emptyRosterFilter();
         const prefs = loadPrefs();
         let page = 1;
-
+        let rows: OwnedShipRow[] = [];
+        let roster: ShipsRow[] = [];
         const stypeLabel = new Map<number, string>();
-        for (const s of roster) if (!stypeLabel.has(s.stypeId)) stypeLabel.set(s.stypeId, s.stype);
         // 札名 API 不提供（見 utils/event-plan.ts 檔頭），故只顯示遊戲給的數字 id。
         const tagLabel = (id: number) => `#${id}`;
         const renderCtx: RenderCtx = { bare: prefs.bare, tagLabel };
@@ -505,7 +504,7 @@ export const shipsSection: OverviewSection = {
                 <button type="button" class="ov-btn rs-toggle" aria-expanded="${prefs.open}">${esc(t('ov.rsFilters'))}<span class="rs-badge"></span></button>
                 <details class="rs-colmenu">
                     <summary class="ov-btn">${esc(t('ov.rsColumns'))}</summary>
-                    <div class="rs-colbox">${COLUMNS.map(c =>
+                    <div class="rs-colbox">${COLUMNS.filter(c => !c.always).map(c =>
             `<label class="eo-chip"><input type="checkbox" class="rs-col" value="${c.id}" ${prefs.cols.includes(c.id) ? 'checked' : ''}>${esc(t(c.labelKey))}</label>`).join('')}</div>
                 </details>
                 <label class="rs-inline"><span>${esc(t('ov.rsPageSize'))}</span>
@@ -522,9 +521,7 @@ export const shipsSection: OverviewSection = {
             <div class="rs-drawer" ${prefs.open ? '' : 'hidden'}>
                 <div class="rs-row">
                     <span class="rs-row-label">${esc(t('ov.rsStype'))}</span>
-                    <div class="rs-stypes">
-                        ${stypeOptions(roster).map(id =>
-            `<label class="eo-chip"><input type="checkbox" class="rs-stype" value="${id}">${esc(stypeLabel.get(id) ?? String(id))}</label>`).join('')}
+                    <div class="rs-stypes rs-stype-chips">
                         <span class="rs-stype-ops">
                             <button type="button" class="rs-mini" data-stype-op="all">${esc(t('ov.rsStypeAll'))}</button>
                             <button type="button" class="rs-mini" data-stype-op="none">${esc(t('ov.rsStypeNone'))}</button>
@@ -534,10 +531,7 @@ export const shipsSection: OverviewSection = {
                 </div>
                 <div class="rs-row">
                     <span class="rs-row-label" title="${esc(t('ov.rsNationTip'))}">${esc(t('ov.rsNation'))}<i class="rs-info">?</i></span>
-                    <div class="rs-stypes">
-                        ${nationOptions(roster).map(o =>
-            `<label class="eo-chip"><input type="checkbox" class="rs-nation" value="${o.nation}">${esc(t(`nation.${o.nation}`))}（${o.count}）</label>`).join('')}
-                    </div>
+                    <div class="rs-stypes rs-nation-chips"></div>
                 </div>
                 ${SEG_ROWS.map(row => seg(row, filter)).join('')}
                 <div class="rs-row">
@@ -550,13 +544,13 @@ export const shipsSection: OverviewSection = {
                 </div>
                 <div class="rs-row">
                     <span class="rs-row-label">${esc(t('ov.spSally'))}</span>
-                    <select class="rs-sally"></select>
+                    <select class="rs-sally"><option value="">${esc(t('ov.spAll'))}</option></select>
                 </div>
             </div>
 
             <div class="rs-chips"></div>
             <div class="rs-summary"></div>
-            <div class="rs-table-wrap"></div>
+            <div class="rs-table-wrap"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <div class="rs-pager"></div>
             <p class="ov-note dim">${esc(t('ov.shipsDateNote'))}</p>
             <p class="rs-status ov-note dim"></p>
@@ -572,12 +566,8 @@ export const shipsSection: OverviewSection = {
         const pagerEl = q<HTMLDivElement>('.rs-pager');
         const statusEl = q<HTMLParagraphElement>('.rs-status');
         const sallyEl = q<HTMLSelectElement>('.rs-sally');
-
-        // 出撃札下拉：只列名冊裡實際出現的札（含 0＝自由身）。札名 API 不提供，顯示 id。
-        sallyEl.innerHTML = [`<option value="">${esc(t('ov.spAll'))}</option>`]
-            .concat(sallyOptions(roster).map(o =>
-                `<option value="${o.sallyArea}">${esc(o.sallyArea === 0 ? t('ov.spFree') : tagLabel(o.sallyArea))}（${o.count}）</option>`))
-            .join('');
+        const stypeChipsEl = q<HTMLDivElement>('.rs-stype-chips');
+        const nationChipsEl = q<HTMLDivElement>('.rs-nation-chips');
 
         /** 目前篩選後的全部列（不分頁）——匯出與分頁都吃它。 */
         let visible: ShipsRow[] = [];
@@ -826,6 +816,30 @@ export const shipsSection: OverviewSection = {
             draw();
         });
 
-        draw();
+        try {
+            rows = await loadOwnedShipRows(ctx.state);
+            if (!rows.length) {
+                tableEl.innerHTML = `<div class="ov-empty">${esc(t('ov.shipsNone'))}</div>`;
+                return;
+            }
+            roster = buildRoster(rows);
+            stypeLabel.clear();
+            for (const s of roster) if (!stypeLabel.has(s.stypeId)) stypeLabel.set(s.stypeId, s.stype);
+            // 艦種／國籍／札選項依名冊填充（殼上先留空容器，避免 await 前整區空白）。
+            const stypeOps = stypeChipsEl.querySelector('.rs-stype-ops')!;
+            for (const id of stypeOptions(roster)) {
+                stypeOps.insertAdjacentHTML('beforebegin',
+                    `<label class="eo-chip"><input type="checkbox" class="rs-stype" value="${id}">${esc(stypeLabel.get(id) ?? String(id))}</label>`);
+            }
+            nationChipsEl.innerHTML = nationOptions(roster).map(o =>
+                `<label class="eo-chip"><input type="checkbox" class="rs-nation" value="${o.nation}">${esc(t(`nation.${o.nation}`))}（${o.count}）</label>`).join('');
+            sallyEl.innerHTML = [`<option value="">${esc(t('ov.spAll'))}</option>`]
+                .concat(sallyOptions(roster).map(o =>
+                    `<option value="${o.sallyArea}">${esc(o.sallyArea === 0 ? t('ov.spFree') : tagLabel(o.sallyArea))}（${o.count}）</option>`))
+                .join('');
+            draw();
+        } catch (error) {
+            tableEl.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+        }
     },
 };

@@ -34,6 +34,7 @@ import {
     type CaptureTabReply, type ScreenshotRectReply, type TheaterRelayMessage,
 } from '@/utils/game-page';
 import { downloadCroppedScreenshot } from '@/utils/screenshot';
+import { replyWhenSettled } from '@/utils/runtime-reply';
 import { LANGS, setLang, t } from '@/utils/ui-i18n';
 import { detectBrowserLang } from '@/utils/ui-prefs';
 
@@ -414,8 +415,16 @@ export default defineContentScript({
         const doScreenshot = async () => {
             const { rect, dpr } = await measureScreenshotRect();
             if (!rect) { ui.flash(t('theater.notFound')); return; }
+            // 回覆可能是 undefined（sender 端收不到回覆時 sendMessage 是 resolve 不是 reject，
+            // 見 utils/runtime-reply.ts）：對 undefined 用 `in` 會直接丟 TypeError，
+            // 整個拍照流程變成「按了完全沒反應」。
             const capture = await browser.runtime.sendMessage({ type: MSG_CAPTURE_TAB })
-                .catch((e): CaptureTabReply => ({ error: String(e) })) as CaptureTabReply;
+                .catch((e): CaptureTabReply => ({ error: String(e) })) as CaptureTabReply | undefined;
+            if (!capture) {
+                console.warn('[KC-Monitor] 拍照失敗：background 沒有回覆');
+                ui.flash(t('screenshot.noReply'));
+                return;
+            }
             if (!('dataUrl' in capture)) {
                 console.warn('[KC-Monitor] 拍照失敗', capture.error);
                 ui.flash(t('screenshot.failed'));
@@ -430,15 +439,21 @@ export default defineContentScript({
             }
         };
 
-        browser.runtime.onMessage.addListener((msg: any) => {
+        // 回覆一律 sendResponse + return true（見 utils/runtime-reply.ts 檔頭）：舊寫法回傳
+        // promise，在尚未支援的瀏覽器上 popup 會收到 undefined，於是量不到矩形就誤報
+        // 「找不到遊戲畫面」。
+        browser.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
             if (msg?.type === MSG_THEATER_TOGGLE) {
                 if (msg.mode === 'on') {
                     if (!active) void waitForFrame(locate, 20000).then(() => enter());
                 } else toggle();
-                return Promise.resolve(true);
+                sendResponse(true);
+                return;
             }
             if (msg?.type === MSG_MUTE_SET) { muted = !!msg.muted; ui.render(); }
-            if (msg?.type === MSG_SCREENSHOT_RECT) return measureScreenshotRect();
+            if (msg?.type === MSG_SCREENSHOT_RECT) {
+                return replyWhenSettled(measureScreenshotRect(), sendResponse);
+            }
         });
 
         // ── UI（Shadow DOM，與 DMM 的樣式完全隔離）────

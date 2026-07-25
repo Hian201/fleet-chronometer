@@ -70,6 +70,15 @@ function isLogbookHeader(header: string[]): boolean {
 
 const emptyUsed = () => [0, 0, 0, 0, 0, 0, 0, 0];
 
+/** 有限非負整數；空字串視為 0（匯出寫 0）。拒絕負數／小數／非數字，勿 Number||0 靜默改寫。 */
+function parseNonNegInt(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (trimmed === '') return 0;
+    if (!/^\d+$/.test(trimmed)) return null;
+    const n = Number(trimmed);
+    return Number.isSafeInteger(n) && n >= 0 ? n : null;
+}
+
 /**
  * 解析 CSV／TSV。`resolveShipMst` 用目前 master 反查艦名（見 reverseShipLookup），
  * 查不到不算錯誤——那一列仍會匯入，只是 shipMst 缺席、改存 shipName 供顯示。
@@ -90,9 +99,19 @@ export function parseBuildLogCsv(text: string, resolveShipMst?: (name: string) =
             const kind = get('kind').trim();
             if (kind !== 'build' && kind !== 'speedup') { skipped.push({ line, reason: `kind 欄位「${kind}」必須是 build 或 speedup。` }); return; }
             const used = emptyUsed();
-            (['fuel', 'ammo', 'steel', 'bauxite'] as const).forEach((name, idx) => { used[idx] = Number(get(name)) || 0; });
-            used[4] = Number(get('torch')) || 0;
-            used[6] = Number(get('devmat')) || 0;
+            const materialFields: { name: string; index: number }[] = [
+                { name: 'fuel', index: 0 }, { name: 'ammo', index: 1 },
+                { name: 'steel', index: 2 }, { name: 'bauxite', index: 3 },
+                { name: 'torch', index: 4 }, { name: 'devmat', index: 6 },
+            ];
+            for (const { name, index } of materialFields) {
+                const value = parseNonNegInt(get(name));
+                if (value == null) {
+                    skipped.push({ line, reason: `${name} 欄位「${get(name).trim()}」不是有限非負整數。` });
+                    return;
+                }
+                used[index] = value;
+            }
             const shipMstRaw = Number(get('shipMst'));
             const secretaryRaw = Number(get('secretary'));
             const hqLvRaw = get('hqLv').trim();
