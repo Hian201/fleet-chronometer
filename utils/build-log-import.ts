@@ -15,6 +15,7 @@
 import type { FactoryLogRow, KcDb } from './db';
 import { parseDelimitedText, rowsToCsv } from './csv';
 import { reverseShipLookup } from './drop-log-import';
+import { borrowEventId } from './event-id-borrow';
 
 export { reverseShipLookup };
 
@@ -234,9 +235,7 @@ function isDuplicateBuild(a: ParsedBuildRow, b: FactoryLogRow): boolean {
     return (a.shipName ?? '') === (b.importedShipName ?? '');
 }
 
-function reservationProbe() {
-    return { ts: 0, path: '__kc_build_log_import_reservation__', api: null, req: {} };
-}
+const RESERVATION_DEBUG_PATH = '__kc_build_log_import_reservation__';
 
 export interface BuildLogImportResult { added: number; duplicates: number; }
 
@@ -247,9 +246,9 @@ export async function importBuildLogRows(database: KcDb, rows: ParsedBuildRow[])
         const existing = (await database.factory.toArray()).filter(r => r.kind === 'build' || r.kind === 'speedup');
         for (const row of rows) {
             if (existing.some(e => isDuplicateBuild(row, e))) { duplicates++; continue; }
-            const id = await database.events.add(reservationProbe());
-            if (!Number.isSafeInteger(id) || id < 1) throw new BuildLogImportError('events key generator 已超出安全整數範圍。');
-            await database.events.delete(id);
+            const id = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {
+                onOverflow: (message) => { throw new BuildLogImportError(message); },
+            });
             const inserted: FactoryLogRow = {
                 eventId: id, ts: row.ts, kind: row.kind, used: row.used,
                 secretary: row.secretary ?? 0, imported: true,

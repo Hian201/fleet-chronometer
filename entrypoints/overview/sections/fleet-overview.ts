@@ -34,7 +34,10 @@
 import type { OverviewSection } from './types';
 import type { GameState, FleetView, AirBaseView, ShipView, GearView, SquadronView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
-import { esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, type FleetMarkdownScope } from '../lib';
+import {
+    esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, loadJsonPrefs,
+    saveJsonPrefs, type FleetMarkdownScope,
+} from '../lib';
 import { buildDeckBuilder, imgBuilderUrl, airCalcUrl } from '@/utils/deckbuilder';
 
 const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];
@@ -47,22 +50,20 @@ interface Prefs { fleets: boolean[]; lbas: boolean[] }
 
 function loadPrefs(fleetCount: number): Prefs {
     const d: Prefs = { fleets: Array(fleetCount).fill(true), lbas: [true, true, true] };
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
+    return loadJsonPrefs(PREFS_KEY, d, raw => {
         if (!raw || typeof raw !== 'object') return d;
+        const r = raw as { fleets?: unknown; lbas?: unknown };
         return {
             // 儲存長度與目前艦隊數不符（例如遠征解鎖了新艦隊格）時整組回退全 true，
             // 不強行對齊索引猜測。
-            fleets: Array.isArray(raw.fleets) && raw.fleets.length === fleetCount
-                ? raw.fleets.map((v: unknown) => v !== false) : d.fleets,
-            lbas: Array.isArray(raw.lbas) && raw.lbas.length === 3
-                ? raw.lbas.map((v: unknown) => v !== false) : d.lbas,
+            fleets: Array.isArray(r.fleets) && r.fleets.length === fleetCount
+                ? r.fleets.map((v: unknown) => v !== false) : d.fleets,
+            lbas: Array.isArray(r.lbas) && r.lbas.length === 3
+                ? r.lbas.map((v: unknown) => v !== false) : d.lbas,
         };
-    } catch { return d; }
+    });
 }
-const savePrefs = (p: Prefs) => {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* 隱私模式等：靜默 */ }
-};
+const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 
 // ── 裝備清單（screen 渲染共用）──────────────────────────────
 // 縱向一格一行：圖示＋全名（ellipsis，title 補完整）＋改修/熟練/搭載數靠右。欄寬夠時

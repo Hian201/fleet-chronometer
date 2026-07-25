@@ -2,7 +2,9 @@
 import type { OverviewSection } from './types';
 import { db, type FactoryLogRow } from '@/utils/db';
 import { t } from '@/utils/ui-i18n';
-import { esc, fmtTs } from '../lib';
+import {
+    dateEnd, dateStart, esc, fmtTs, fuzzyMatch, loadJsonPrefs, paginate, saveJsonPrefs,
+} from '../lib';
 
 const PREFS_KEY = 'kc-dev-log-view';
 type ColumnId = 'time' | 'result' | 'fuel' | 'ammo' | 'steel' | 'bauxite' | 'devmat' | 'secretary';
@@ -41,33 +43,24 @@ const defaultPrefs = (): Prefs => ({ cols: COLUMNS.map(column => column.id), siz
 
 function loadPrefs(): Prefs {
     const fallback = defaultPrefs();
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
-        const cols = Array.isArray(raw?.cols) ? COLUMNS.filter(column => raw.cols.includes(column.id)).map(column => column.id) : fallback.cols;
-        return { cols: cols.length ? cols : fallback.cols, size: (PAGE_SIZES as readonly number[]).includes(raw?.size) ? raw.size : fallback.size };
-    } catch { return fallback; }
+    return loadJsonPrefs(PREFS_KEY, fallback, raw => {
+        const r = raw as { cols?: unknown; size?: unknown } | null;
+        const cols = Array.isArray(r?.cols)
+            ? COLUMNS.filter(column => (r!.cols as unknown[]).includes(column.id)).map(column => column.id)
+            : fallback.cols;
+        return {
+            cols: cols.length ? cols : fallback.cols,
+            size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : fallback.size,
+        };
+    });
 }
-function savePrefs(prefs: Prefs) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* 略過無法保存的偏好 */ } }
+function savePrefs(prefs: Prefs) { saveJsonPrefs(PREFS_KEY, prefs); }
 
 function tableHtml(rows: DevelopmentRow[], cols: Column[], ctx: Parameters<OverviewSection['render']>[1]) {
     return `<div class="vl-table-wrap"><table class="vl-table"><thead><tr>${cols.map(column =>
         `<th class="vl-c-${column.id}">${esc(t(column.labelKey))}</th>`).join('')}</tr></thead><tbody>${rows.map(row =>
         `<tr>${cols.map(column => `<td class="vl-c-${column.id}">${column.cell(row, ctx)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
-
-function dateStart(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T00:00:00`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
-
-function dateEnd(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T23:59:59.999`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
-
-const matches = (name: string, query: string) => name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
 
 export const devLogSection: OverviewSection = {
     id: 'dev-log', titleKey: 'ov.devLog',
@@ -96,16 +89,15 @@ export const devLogSection: OverviewSection = {
             const from = dateStart(fromFilter.value);
             const to = dateEnd(toFilter.value);
             const filtered = rows.filter(row =>
-                matches(ctx.state.shipName(row.secretary), secretaryFilter.value)
-                && matches(resultName(row, ctx), resultFilter.value)
+                fuzzyMatch(ctx.state.shipName(row.secretary), secretaryFilter.value)
+                && fuzzyMatch(resultName(row, ctx), resultFilter.value)
                 && (from == null || row.ts >= from) && (to == null || row.ts <= to));
-            const pageCount = prefs.size ? Math.max(1, Math.ceil(filtered.length / prefs.size)) : 1;
-            page = Math.min(Math.max(page, 1), pageCount);
-            const pageRows = prefs.size ? filtered.slice((page - 1) * prefs.size, page * prefs.size) : filtered;
+            const p = paginate(filtered, prefs.size, page);
+            page = p.page;
             count.textContent = t('ov.devCount', { n: filtered.length });
-            body.innerHTML = pageRows.length ? tableHtml(pageRows, cols, ctx) : `<div class="ov-empty">${esc(t('factory.none'))}</div>`;
-            pager.innerHTML = pageCount > 1 ? `<button type="button" class="ov-btn vl-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button><span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: pageCount }))}</span><button type="button" class="ov-btn vl-page" data-page="next" ${page >= pageCount ? 'disabled' : ''}>›</button>` : '';
-            pager.hidden = pageCount <= 1;
+            body.innerHTML = p.rows.length ? tableHtml(p.rows, cols, ctx) : `<div class="ov-empty">${esc(t('factory.none'))}</div>`;
+            pager.innerHTML = p.pageCount > 1 ? `<button type="button" class="ov-btn vl-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button><span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: p.pageCount }))}</span><button type="button" class="ov-btn vl-page" data-page="next" ${page >= p.pageCount ? 'disabled' : ''}>›</button>` : '';
+            pager.hidden = p.pageCount <= 1;
         };
         try {
             const rows = (await db.factory.orderBy('eventId').reverse().toArray())

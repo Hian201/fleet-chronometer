@@ -39,7 +39,11 @@ import { hasNodeLetters, nodeLabel as letterOf } from '@/utils/map-node-letters'
 import { nodeKindKey } from '@/utils/map-node-kind';
 import type { BattleInfoView, BattleShipView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
-import { esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml } from '../lib';
+import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
+import {
+    esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
+    loadJsonPrefs, saveJsonPrefs,
+} from '../lib';
 
 // KC3Kai 線上重播器（貼上 JSON 即可重播並可另存圖片）
 const BATTLEPLAYER_URL = 'https://kc3kai.github.io/kancolle-replay/battleplayer.html';
@@ -67,13 +71,15 @@ type Category = 'all' | 'normal' | 'event';
 interface Prefs { cat: Category }
 
 function loadPrefs(): Prefs {
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
-        const cat: Category = raw.cat === 'normal' || raw.cat === 'event' ? raw.cat : 'all';
+    const fallback: Prefs = { cat: 'all' };
+    return loadJsonPrefs(PREFS_KEY, fallback, raw => {
+        const cat = raw && typeof raw === 'object'
+            && ((raw as { cat?: unknown }).cat === 'normal' || (raw as { cat?: unknown }).cat === 'event')
+            ? (raw as { cat: Category }).cat : 'all';
         return { cat };
-    } catch { return { cat: 'all' }; }
+    });
 }
-const savePrefs = (p: Prefs) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* 隱私模式忽略 */ } };
+const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 
 /** 摺疊列用的輕量資料（不解析封包）。 */
 export interface Entry {
@@ -602,18 +608,12 @@ export function shellHtml(): string {
                 <span class="grow"></span>
                 <span class="sl-count"></span>
                 <button type="button" class="ov-btn sl-expand">${esc(t('ov.slExpandAll'))}</button>
-                <button type="button" class="ov-btn sl-import-toggle" aria-expanded="false">${esc(t('ov.slImport'))}</button>
+                ${importToggleHtml('sl', t('ov.slImport'))}
             </div>
-            <div class="sl-import" hidden>
-                <p class="sl-dim">${esc(t('ov.slImportHint'))}</p>
-                <div class="sl-import-row">
-                    <input type="file" class="sl-import-file" accept=".json,application/json">
-                    <button type="button" class="ov-btn sl-import-go">${esc(t('ov.slImportGo'))}</button>
-                    <span class="sl-import-status" role="status"></span>
-                </div>
-                <textarea class="ov-textarea small sl-import-text" placeholder="${esc(t('ov.slImportPaste'))}"></textarea>
-                <p class="sl-dim">${esc(t('ov.slImportNote'))}</p>
-            </div>
+            ${importPanelHtml('sl', '.json,application/json', {
+                hint: t('ov.slImportHint'), go: t('ov.slImportGo'),
+                paste: t('ov.slImportPaste'), note: t('ov.slImportNote'),
+            })}
             <div class="sl-body ov-list"></div>
         </div>`;
 }
@@ -644,12 +644,6 @@ export const sortieLogSection: OverviewSection = {
         const countEl = el.querySelector<HTMLSpanElement>('.sl-count')!;
         const body = el.querySelector<HTMLDivElement>('.sl-body')!;
         const expandBtn = el.querySelector<HTMLButtonElement>('.sl-expand')!;
-        const importToggle = el.querySelector<HTMLButtonElement>('.sl-import-toggle')!;
-        const importPanel = el.querySelector<HTMLDivElement>('.sl-import')!;
-        const importFile = el.querySelector<HTMLInputElement>('.sl-import-file')!;
-        const importText = el.querySelector<HTMLTextAreaElement>('.sl-import-text')!;
-        const importGo = el.querySelector<HTMLButtonElement>('.sl-import-go')!;
-        const importStatus = el.querySelector<HTMLSpanElement>('.sl-import-status')!;
 
         const byCategory = () => entries.filter(e =>
             prefs.cat === 'all' || (prefs.cat === 'event' ? e.event : !e.event));
@@ -714,59 +708,40 @@ export const sortieLogSection: OverviewSection = {
         });
 
         // ── 單場 JSON 匯入 ──────────────────────────────────────────────
-        // 解析／去重／落地都在 utils/sortie-import.ts（純函式＋一個 transaction），
-        // 這裡只負責取得文字、分流三種結果（成功／已存在／格式錯誤）與重繪。
-        importToggle.addEventListener('click', () => {
-            const show = importPanel.hidden;
-            importPanel.hidden = !show;
-            importToggle.setAttribute('aria-expanded', String(show));
-        });
-        const setStatus = (kind: 'ok' | 'dup' | 'bad' | '', message: string) => {
-            importStatus.className = `sl-import-status${kind ? ' ' + kind : ''}`;
-            importStatus.textContent = message;
-        };
-        // 連續選 A→B 時，較慢的 file.text() 不得覆寫較新選擇的內容。
-        let importFileGen = 0;
-        importFile.addEventListener('change', async () => {
-            const gen = ++importFileGen;
-            const file = importFile.files?.[0];
-            if (!file) return;
-            const text = await file.text();
-            if (gen !== importFileGen) return;
-            importText.value = text;
-            setStatus('', file.name);
-        });
-        importGo.addEventListener('click', async () => {
-            const text = importText.value.trim();
-            if (!text) { setStatus('bad', t('ov.slImportEmpty')); return; }
-            let parsed;
-            try {
-                // 掉落只有 master id（KC3Kai 匯出的形狀），艦名靠目前的 master 解析後一併存進去
-                parsed = parseSortieImport(JSON.parse(text), { shipName: mst => ctx.state.shipName(mst) });
-            } catch (error) {
-                const detail = error instanceof SortieImportError ? error.message : t('ov.slImportBadJson');
-                setStatus('bad', t('ov.slImportBad', { msg: detail }));
-                return;
-            }
-            try {
-                await importSortie(db, parsed);
-            } catch (error) {
-                if (error instanceof SortieImportDuplicateError) {
-                    // 「已存在」是預期結果不是錯誤：如實說是哪一場，讓使用者知道去哪裡看
-                    setStatus('dup', t('ov.slImportDup', {
-                        map: parsed.signature.map, time: fmtTs(parsed.signature.ts),
-                    }));
+        // 解析／去重／落地都在 utils/sortie-import.ts；面板 UI 走共用 import-panel。
+        let clearImportInputs = () => { /* 綁定後覆寫 */ };
+        clearImportInputs = bindImportPanel(el, 'sl', {
+            onFileLoaded: (name, setStatus) => setStatus('', name),
+            async onImport(text, setStatus) {
+                if (!text) { setStatus('bad', t('ov.slImportEmpty')); return; }
+                let parsed;
+                try {
+                    // 掉落只有 master id（KC3Kai 匯出的形狀），艦名靠目前的 master 解析後一併存進去
+                    parsed = parseSortieImport(JSON.parse(text), { shipName: mst => ctx.state.shipName(mst) });
+                } catch (error) {
+                    const detail = error instanceof SortieImportError ? error.message : t('ov.slImportBadJson');
+                    setStatus('bad', t('ov.slImportBad', { msg: detail }));
                     return;
                 }
-                setStatus('bad', t('ov.slImportBad', { msg: String((error as Error)?.message ?? error) }));
-                return;
-            }
-            setStatus('ok', t('ov.slImportOk', { map: parsed.signature.map, n: parsed.rows.length }));
-            importText.value = '';
-            importFile.value = '';
-            // 重繪整個分區才會把新紀錄排進清單（分類／海域下拉的選項也會跟著更新）
-            ctx.rerender();
-        });
+                try {
+                    await importSortie(db, parsed);
+                } catch (error) {
+                    if (error instanceof SortieImportDuplicateError) {
+                        // 「已存在」是預期結果不是錯誤：如實說是哪一場，讓使用者知道去哪裡看
+                        setStatus('dup', t('ov.slImportDup', {
+                            map: parsed.signature.map, time: fmtTs(parsed.signature.ts),
+                        }));
+                        return;
+                    }
+                    setStatus('bad', t('ov.slImportBad', { msg: String((error as Error)?.message ?? error) }));
+                    return;
+                }
+                setStatus('ok', t('ov.slImportOk', { map: parsed.signature.map, n: parsed.rows.length }));
+                clearImportInputs();
+                // 重繪整個分區才會把新紀錄排進清單（分類／海域下拉的選項也會跟著更新）
+                ctx.rerender();
+            },
+        }).clearInputs;
 
         // 結果區每次重繪都換掉子元素，故一律事件委派（見 design-guidelines §4.2）
         body.addEventListener('click', async ev => {

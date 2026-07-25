@@ -28,6 +28,7 @@ import type {
     KcDb, ReplayLbas, ReplayRow, ReplayShip, ReplaySupportShip, SortieLogRow,
 } from './db';
 import { analyzeBattle } from './battle';
+import { borrowEventId } from './event-id-borrow';
 
 /** JSON 結構不符（缺欄位、型別錯、空 battles…）。UI 需與「已存在」分流顯示。 */
 export class SortieImportError extends Error {
@@ -571,15 +572,7 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
 
 // ── 落地 ────────────────────────────────────────────────────────────────
 
-function reservationProbe(id?: number) {
-    return {
-        ...(id === undefined ? {} : { id }),
-        ts: 0,
-        path: '__kc_sortie_import_reservation__',
-        api: null,
-        req: {},
-    };
-}
+const RESERVATION_DEBUG_PATH = '__kc_sortie_import_reservation__';
 
 /** 既有紀錄的簽章（同 buildSortieDetail 的分組規則：連續同 sortieKey 為一次出擊）。 */
 export function signaturesOf(sorties: SortieLogRow[], replayTs: Map<number, number>, replayHash: Map<number, string | null>): Map<number, SortieSignature> {
@@ -630,11 +623,9 @@ export async function importSortie(database: KcDb, parsed: ParsedSortie): Promis
         // 2) 借 event ID：一個給重播（sortieKey），其餘給每筆節點摘要
         const ids: number[] = [];
         for (let i = 0; i < parsed.rows.length + 1; i++) {
-            const id = await database.events.add(reservationProbe());
-            if (!Number.isSafeInteger(id) || id < 1) {
-                throw new SortieImportError('events key generator 已超出安全整數範圍。');
-            }
-            await database.events.delete(id);
+            const id = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {
+                onOverflow: (message) => { throw new SortieImportError(message); },
+            });
             ids.push(id);
         }
 

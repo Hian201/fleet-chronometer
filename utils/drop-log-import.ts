@@ -34,6 +34,7 @@
 // 一律跳過並記錄原因，不猜出一個可能錯誤的值（同 map-node-kind.ts 的「沒有樣本佐證的一律不猜」）。
 import type { KcDb, SortieLogRow } from './db';
 import { parseDelimitedText, rowsToCsv } from './csv';
+import { borrowEventId } from './event-id-borrow';
 
 export class DropLogImportError extends Error {
     constructor(message: string) { super(message); this.name = 'DropLogImportError'; }
@@ -214,9 +215,7 @@ function isDuplicateDrop(a: ParsedDropRow, b: SortieLogRow): boolean {
     return a.drop === (b.drop ?? '');
 }
 
-function reservationProbe() {
-    return { ts: 0, path: '__kc_drop_log_import_reservation__', api: null, req: {} };
-}
+const RESERVATION_DEBUG_PATH = '__kc_drop_log_import_reservation__';
 
 export interface DropLogImportResult { added: number; duplicates: number; }
 
@@ -233,9 +232,9 @@ export async function importDropLogRows(database: KcDb, rows: ParsedDropRow[]): 
         const existing = (await database.sorties.toArray()).filter(r => r.kind === 'battle' && (r.drop || r.dropMst));
         for (const row of rows) {
             if (existing.some(e => isDuplicateDrop(row, e))) { duplicates++; continue; }
-            const id = await database.events.add(reservationProbe());
-            if (!Number.isSafeInteger(id) || id < 1) throw new DropLogImportError('events key generator 已超出安全整數範圍。');
-            await database.events.delete(id);
+            const id = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {
+                onOverflow: (message) => { throw new DropLogImportError(message); },
+            });
             const inserted: SortieLogRow = {
                 eventId: id, sortieKey: id, ts: row.ts, map: row.map, node: row.node, boss: row.boss,
                 kind: 'battle', rank: row.rank, seiku: null, enemyIds: [], enemyIdsEscort: [],

@@ -9,6 +9,7 @@ import {
     type AnchorageRepairPlan, type MoralePlan,
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
+import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 const $ = (id: string) => document.getElementById(id)!;
@@ -50,22 +51,7 @@ let cn = 1;
 let showLbas = false;
 let selectedLbasArea: number | null = null;
 const expandedQuests = new Set<number>();   // 使用者展開查看內容的任務編號
-// HTML 跳脫：文字節點與屬性值（title／alt／value）皆涵蓋 & < > " '。
-// **必須與 overview/lib.ts 的 esc 同一套規則**：兩邊都會把遊戲字串（艦名、裝備名、任務
-// 內文）塞進 title／alt，少跳脫引號就等於留一條屬性跳脫的洞，而遊戲字串裡出現引號
-// （如 "Iowa" 之類的暱稱或匯入紀錄的自由文字）並非不可能。
-const esc = (s: string) => s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-// 裝備／資源圖示：面板是 extension page，public/icons 會複製到擴充根，故 root-relative /icons/… 直接解析。
-// 圖示為本專案原創向量重繪（以遊戲原圖構圖概念為藍本，見 THIRD-PARTY-NOTICES）。
-// 裝備檔名即 api_type[3] id（1–60），無對照表；alt 帶短縮文字，圖示載入失敗時瀏覽器自動退回顯示 alt，
-// 兼作無障礙標籤。icon<=0（未配備／不明）直接用文字退路，不出 <img> 避免 404 破圖。
-const gearIconHtml = (icon: number, short: string) =>
-    icon > 0 ? `<img class="g-icon" src="/icons/equipment/${icon}.svg" alt="${esc(short)}" loading="lazy">` : esc(short);
+// 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
 // 熟練度以符號表示（對映遊戲內熟練度徽章階層：1-3 直線、4-6 斜線、7 為 ace 雙箭）。
 // 不吐數字（數字寬度隨值變動、破壞對齊），確切等級留在 chip 的 title 提示。'>' 需轉義。
 const alvMark = (alv: number) =>
@@ -73,16 +59,15 @@ const alvMark = (alv: number) =>
 // 改修：+1~+9 顯示數字，+10（滿改修）顯示五角星、不顯示數字；未改修回空字串。
 const impMark = (level: number) =>
     level >= 10 ? '★' : level > 0 ? String(level) : '';
-// 資源圖示：key 形如 'mat.fuel'，去掉 'mat.' 前綴即檔名（fuel/ammo/steel/bauxite/torch/drum/devmat/screw）。
-const matIconHtml = (key: string) =>
-    `<img class="m-icon" src="/icons/resource/${key.slice(4)}.svg" alt="${esc(t(key))}">`;
+// 資源圖示：面板慣用 i18n key（'mat.fuel'），轉成共用 matIconHtml 的檔名＋alt。
+const matIconHtml = (key: string) => matIconFile(key.slice(4), t(key));
 // 計時列標籤圖示（入渠＝修理施設吊臂・建造＝造船鎚・遠征＝羅盤）。alt 帶原本的漢字短標籤，
 // 圖示載入失敗時自動退回文字；title 由呼叫端的 .t-tag 帶（保留 hover 全名與無障礙）。
 const tagIconHtml = (kind: 'dock' | 'build' | 'exped') =>
     `<img class="t-icon" src="/icons/ui/${kind}.svg" alt="${esc(t('tag.' + kind))}">`;
 // 任務內容原文換行用字面 <br> 標籤（非 \n，已用 samples/Quest.json 真實封包驗證，見 api_no
 // 637/643/861 等）；先跳脫全文防 XSS，再把跳脫後的 &lt;br&gt; 還原成真正換行。
-// 不做任何翻譯，玩家自行用其他工具查照原文即可。
+// 不做任何翻譯，玩家自行用其他工具查照原文即可。escDetail 留在 panel（組合 esc）。
 const escDetail = (s: string) => esc(s).replace(/&lt;br\s*\/?&gt;/gi, '<br>');
 const fmt = (t: number) => {
     const s = Math.max(0, Math.floor((t - Date.now()) / 1000));

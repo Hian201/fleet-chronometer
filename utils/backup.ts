@@ -5,6 +5,7 @@ import type {
     ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow, ShipObtainedRow,
     SnapshotRow, SortieLogRow, WantedRow,
 } from './db';
+import { borrowEventId } from './event-id-borrow';
 
 // v4 在 restore envelope 新增 eventPlans（活動作戰板）。
 // v5 再新增 resources／resourceMarks（資源紀錄的時間序列與活動特殊時間點）——這兩張表
@@ -767,15 +768,7 @@ function restoreMarker(allMetaRows: DatabaseMetaRow[]): BackupRestoreMetaRow | u
     return marker;
 }
 
-function sequenceProbeRow(id?: number) {
-    return {
-        ...(id === undefined ? {} : { id }),
-        ts: 0,
-        path: '__kc_backup_sequence_reservation__',
-        api: null,
-        req: {},
-    };
-}
+const RESERVATION_DEBUG_PATH = '__kc_backup_sequence_reservation__';
 
 function existingTables(
     snapshot: SnapshotRow[],
@@ -870,15 +863,13 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         // fake-indexeddb 6.2.5 對 explicit numeric key 的 abort rollback 有缺口；先由真正
         // auto-increment 取得 guard，會登記 generator rollback。真實 IndexedDB 也遵守同一
         // transaction rollback 語意。guard 立刻刪除，不會成為 raw event 或觸發任何副作用。
-        const guardId = await database.events.add(sequenceProbeRow());
-        if (!Number.isSafeInteger(guardId) || guardId < 1) {
-            destinationInvalid('events key generator 已超出安全整數範圍。');
-        }
+        const guardId = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {
+            onOverflow: destinationInvalid,
+        });
         const expectedGuardId = marker?.nextEventId ?? 1;
         if (guardId !== expectedGuardId) {
             destinationInvalid('events key generator 顯示來源不明的既有 ingestion 歷史。');
         }
-        await database.events.delete(guardId);
 
         if (tables.snapshot?.length) await database.snapshot.bulkPut(tables.snapshot);
         if (tables.sorties?.length) await database.sorties.bulkPut(tables.sorties);
@@ -894,8 +885,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         }
 
         if (reservationKey > 0) {
-            await database.events.add(sequenceProbeRow(reservationKey));
-            await database.events.delete(reservationKey);
+            await borrowEventId(database.events, RESERVATION_DEBUG_PATH, { explicitId: reservationKey });
         }
         const nextEventId = Math.max(guardId + 1, reservationKey + 1);
         if (!Number.isSafeInteger(nextEventId) || nextEventId > Number.MAX_SAFE_INTEGER) {

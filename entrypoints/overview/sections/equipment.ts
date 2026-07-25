@@ -36,7 +36,7 @@ import {
     type ConsumableFilter, type GearFilter, type GearGroup, type GearSortKey, type ImproveFilter,
     type SortDir, type UsageFilter,
 } from '../../../utils/gear-inventory';
-import { copyWithFeedback, downloadText, esc, gearIconHtml } from '../lib';
+import { copyWithFeedback, downloadText, esc, gearIconHtml, loadJsonPrefs, saveJsonPrefs } from '../lib';
 
 // ── 共用小片段 ──────────────────────────────────────────────────────────
 
@@ -312,22 +312,20 @@ const defaultPrefs = (): Prefs => ({
 
 function loadPrefs(): Prefs {
     const d = defaultPrefs();
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
+    return loadJsonPrefs(PREFS_KEY, d, raw => {
         if (!raw || typeof raw !== 'object') return d;
+        const r = raw as Record<string, unknown>;
         const ids = new Set(COLUMNS.map(c => c.id));
         return {
-            mode: raw.mode === 'grid' ? 'grid' : 'table',
-            sort: COLUMNS.some(c => c.sort === raw.sort) || raw.sort === 'sortNo' ? raw.sort : d.sort,
-            dir: raw.dir === 'asc' || raw.dir === 'desc' ? raw.dir : d.dir,
-            cols: Array.isArray(raw.cols) ? raw.cols.filter((c: string) => ids.has(c)) : d.cols,
+            mode: r.mode === 'grid' ? 'grid' : 'table',
+            sort: COLUMNS.some(c => c.sort === r.sort) || r.sort === 'sortNo' ? r.sort as Prefs['sort'] : d.sort,
+            dir: r.dir === 'asc' || r.dir === 'desc' ? r.dir : d.dir,
+            cols: Array.isArray(r.cols) ? r.cols.filter((c: string) => ids.has(c)) : d.cols,
         };
-    } catch { return d; }
+    });
 }
 
-const savePrefs = (p: Prefs) => {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* 隱私模式等：靜默 */ }
-};
+const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 
 /** 排序下拉的選項：圖鑑順＋各欄位。表頭排序只在清單模式有，圖磚模式靠這個下拉。 */
 const SORT_OPTIONS: { key: GearSortKey; labelKey: string }[] = [

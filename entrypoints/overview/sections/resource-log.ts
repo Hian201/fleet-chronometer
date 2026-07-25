@@ -15,7 +15,10 @@
 import type { OverviewSection } from './types';
 import { db, type ResourceMarkRow, type ResourceRow } from '@/utils/db';
 import { t } from '@/utils/ui-i18n';
-import { copyWithFeedback, downloadText, esc, fmtShortTs, fmtTs, matIconHtml } from '../lib';
+import {
+    copyWithFeedback, downloadText, esc, fmtShortTs, fmtTs, loadJsonPrefs, matIconHtml,
+    paginate, saveJsonPrefs,
+} from '../lib';
 import { multiChartGeometry, nearestIndex, type ChartBox, type MultiChartGeometry } from '@/utils/line-chart';
 import {
     MAT_FILES, MAT_KEYS, bucketSamples, buildEventPeriods, delta, downsample, normalizeSamples,
@@ -61,27 +64,25 @@ const defaultPrefs = (): Prefs => ({
 
 function loadPrefs(): Prefs {
     const d = defaultPrefs();
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
+    return loadJsonPrefs(PREFS_KEY, d, raw => {
         if (!raw || typeof raw !== 'object') return d;
+        const r = raw as Record<string, unknown>;
         return {
-            range: RANGES.some(r => r.key === raw.range) ? raw.range : d.range,
-            gran: raw.gran === 'hour' || raw.gran === 'day' || raw.gran === 'raw' ? raw.gran : d.gran,
+            range: RANGES.some(range => range.key === r.range) ? r.range as string : d.range,
+            gran: r.gran === 'hour' || r.gran === 'day' || r.gran === 'raw' ? r.gran : d.gran,
             // 全部關掉會變成一張空白圖；壞值或空陣列一律退回全開
-            series: Array.isArray(raw.series) && raw.series.length
-                ? ALL_COLS.filter(i => raw.series.includes(i)) : d.series,
-            cols: Array.isArray(raw.cols) && raw.cols.length
-                ? ALL_COLS.filter(i => raw.cols.includes(i)) : d.cols,
-            showDelta: raw.showDelta !== false,
-            marks: raw.marks !== false,
-            size: (PAGE_SIZES as readonly number[]).includes(raw.size) ? raw.size : d.size,
+            series: Array.isArray(r.series) && r.series.length
+                ? ALL_COLS.filter(i => (r.series as unknown[]).includes(i)) : d.series,
+            cols: Array.isArray(r.cols) && r.cols.length
+                ? ALL_COLS.filter(i => (r.cols as unknown[]).includes(i)) : d.cols,
+            showDelta: r.showDelta !== false,
+            marks: r.marks !== false,
+            size: (PAGE_SIZES as readonly number[]).includes(r.size as number) ? r.size as PageSize : d.size,
         };
-    } catch { return d; }
+    });
 }
 
-const savePrefs = (p: Prefs) => {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* 隱私模式：靜默 */ }
-};
+const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 
 // ── 小工具 ───────────────────────────────────────────────────────────────
 
@@ -395,21 +396,19 @@ export const resourceLogSection: OverviewSection = {
             opts.showDelta = prefs.showDelta;
 
             const rows = detailRows();
-            const size = prefs.size || rows.length || 1;
-            const totalPages = Math.max(1, Math.ceil(rows.length / size));
-            page = Math.min(Math.max(1, page), totalPages);
-            const pageRows = prefs.size ? rows.slice((page - 1) * size, page * size) : rows;
+            const p = paginate(rows, prefs.size, page);
+            page = p.page;
 
             body.innerHTML =
                 summaryHtml(all[all.length - 1], delta(view[0] ?? null, view[view.length - 1] ?? null), view, !!custom)
                 + chartHtml(chartSamples, geo, prefs.series, all[all.length - 1])
                 + (prefs.marks ? eventsHtml(periods, opts) : '')
                 + colRackHtml(prefs.cols)
-                + `<div class="rl-table-wrap">${tableHtml(pageRows, opts)}</div>`
-                + (prefs.size && totalPages > 1 ? `<div class="rs-pager rl-pager">
+                + `<div class="rl-table-wrap">${tableHtml(p.rows, opts)}</div>`
+                + (prefs.size && p.pageCount > 1 ? `<div class="rs-pager rl-pager">
                     <button type="button" class="ov-btn rl-page" data-step="-1" ${page <= 1 ? 'disabled' : ''}>${esc(t('ov.rlPagePrev'))}</button>
-                    <span class="dim">${esc(t('ov.rlPageOf', { page, total: totalPages }))}</span>
-                    <button type="button" class="ov-btn rl-page" data-step="1" ${page >= totalPages ? 'disabled' : ''}>${esc(t('ov.rlPageNext'))}</button>
+                    <span class="dim">${esc(t('ov.rlPageOf', { page, total: p.pageCount }))}</span>
+                    <button type="button" class="ov-btn rl-page" data-step="1" ${page >= p.pageCount ? 'disabled' : ''}>${esc(t('ov.rlPageNext'))}</button>
                 </div>` : '');
 
             if (keepScroll) body.scrollTop = scroll;

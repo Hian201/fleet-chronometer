@@ -7,15 +7,13 @@ import { t, getLang, LANGS } from '@/utils/ui-i18n';
 import type { Lang } from '@/utils/gamedata-i18n';
 import { initLang, persistLang, getTheme, applyTheme, persistTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { GameState } from '@/utils/state';
+import { esc } from '@/utils/html-escape';
 import { loadGameState } from './lib';
 import { sections } from './sections';
 import type { SectionContext } from './sections/types';
 
 const $ = (id: string) => document.getElementById(id)!;
 const navEl = $('nav'), contentEl = $('content');
-// 與 lib.esc 對齊：導覽／錯誤訊息也可能含引號，屬性語境要跳脫。
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 // ── 側欄：釘選／收合／滑入 ────────────────────────────────────────────
 // 三個 body[data-nav] 狀態：

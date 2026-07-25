@@ -6,7 +6,11 @@ import {
     buildLogCsvText, BuildLogImportError, importBuildLogRows, parseBuildLogCsv, reverseShipLookup,
 } from '@/utils/build-log-import';
 import { t } from '@/utils/ui-i18n';
-import { esc, fmtTs, matIconHtml, downloadText, copyWithFeedback } from '../lib';
+import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
+import {
+    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtTs, fuzzyMatch,
+    loadJsonPrefs, matIconHtml, paginate, saveJsonPrefs,
+} from '../lib';
 
 const PREFS_KEY = 'kc-build-log-view';
 
@@ -71,38 +75,25 @@ const defaultPrefs = (): Prefs => ({ cols: COLUMNS.map(c => c.id), size: 20 });
 
 function loadPrefs(): Prefs {
     const d = defaultPrefs();
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
-        const cols = Array.isArray(raw?.cols) ? COLUMNS.filter(c => raw.cols.includes(c.id)).map(c => c.id) : d.cols;
+    return loadJsonPrefs(PREFS_KEY, d, raw => {
+        const r = raw as { cols?: unknown; size?: unknown } | null;
+        const cols = Array.isArray(r?.cols)
+            ? COLUMNS.filter(c => (r!.cols as unknown[]).includes(c.id)).map(c => c.id) : d.cols;
         return {
             cols: cols.length ? cols : d.cols,
-            size: (PAGE_SIZES as readonly number[]).includes(raw?.size) ? raw.size : d.size,
+            size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : d.size,
         };
-    } catch { return d; }
+    });
 }
 
 function savePrefs(prefs: Prefs) {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* 隱私模式：靜默 */ }
+    saveJsonPrefs(PREFS_KEY, prefs);
 }
 
 function tableHtml(rows: FactoryLogRow[], cols: Column[], ctx: Parameters<OverviewSection['render']>[1]) {
     return `<div class="bl-table-wrap"><table class="bl-table"><thead><tr>${cols.map(c =>
         `<th class="bl-c-${c.id}">${esc(t(c.labelKey))}</th>`).join('')}</tr></thead><tbody>${rows.map(row =>
         `<tr>${cols.map(c => `<td class="bl-c-${c.id}">${c.cell(row, ctx)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-}
-
-const matches = (name: string, query: string) => name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
-
-function dateStart(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T00:00:00`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
-
-function dateEnd(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T23:59:59.999`).getTime();
-    return Number.isFinite(ts) ? ts : null;
 }
 
 export const buildLogSection: OverviewSection = {
@@ -127,18 +118,12 @@ export const buildLogSection: OverviewSection = {
                 </details>
                 <button type="button" class="ov-btn bl-csv">${esc(t('ov.rsExportCsv'))}</button>
                 <button type="button" class="ov-btn bl-copy">${esc(t('ov.rsCopyCsv'))}</button>
-                <button type="button" class="ov-btn bl-import-toggle" aria-expanded="false">${esc(t('ov.buildImport'))}</button>
+                ${importToggleHtml('bl', t('ov.buildImport'))}
             </div>
-            <div class="bl-import" hidden>
-                <p class="bl-dim">${esc(t('ov.buildImportHint'))}</p>
-                <div class="bl-import-row">
-                    <input type="file" class="bl-import-file" accept=".csv,text/csv">
-                    <button type="button" class="ov-btn bl-import-go">${esc(t('ov.buildImportGo'))}</button>
-                    <span class="bl-import-status" role="status"></span>
-                </div>
-                <textarea class="ov-textarea small bl-import-text" placeholder="${esc(t('ov.buildImportPaste'))}"></textarea>
-                <p class="bl-dim">${esc(t('ov.buildImportNote'))}</p>
-            </div>
+            ${importPanelHtml('bl', '.csv,text/csv', {
+                hint: t('ov.buildImportHint'), go: t('ov.buildImportGo'),
+                paste: t('ov.buildImportPaste'), note: t('ov.buildImportNote'),
+            })}
             <div class="bl-body"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <div class="rs-pager bl-pager" hidden></div>
         </div>`;
@@ -155,23 +140,22 @@ export const buildLogSection: OverviewSection = {
             const from = dateStart(fromFilter.value);
             const to = dateEnd(toFilter.value);
             return rows.filter(row =>
-                matches(secretaryCell(row, ctx), secretaryFilter.value)
-                && matches(shipCell(row, ctx), shipFilter.value)
+                fuzzyMatch(secretaryCell(row, ctx), secretaryFilter.value)
+                && fuzzyMatch(shipCell(row, ctx), shipFilter.value)
                 && (from == null || row.ts >= from) && (to == null || row.ts <= to));
         };
         const draw = () => {
             const cols = COLUMNS.filter(c => prefs.cols.includes(c.id));
             const filtered = filteredRows();
-            const pageCount = prefs.size ? Math.max(1, Math.ceil(filtered.length / prefs.size)) : 1;
-            page = Math.min(Math.max(page, 1), pageCount);
-            const pageRows = prefs.size ? filtered.slice((page - 1) * prefs.size, page * prefs.size) : filtered;
+            const p = paginate(filtered, prefs.size, page);
+            page = p.page;
             count.textContent = t('ov.buildCount', { n: filtered.length });
-            body.innerHTML = pageRows.length ? tableHtml(pageRows, cols, ctx) : `<div class="ov-empty">${esc(t('factory.none'))}</div>`;
-            pager.innerHTML = pageCount > 1 ? `
+            body.innerHTML = p.rows.length ? tableHtml(p.rows, cols, ctx) : `<div class="ov-empty">${esc(t('factory.none'))}</div>`;
+            pager.innerHTML = p.pageCount > 1 ? `
                 <button type="button" class="ov-btn bl-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button>
-                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: pageCount }))}</span>
-                <button type="button" class="ov-btn bl-page" data-page="next" ${page >= pageCount ? 'disabled' : ''}>›</button>` : '';
-            pager.hidden = pageCount <= 1;
+                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: p.pageCount }))}</span>
+                <button type="button" class="ov-btn bl-page" data-page="next" ${page >= p.pageCount ? 'disabled' : ''}>›</button>` : '';
+            pager.hidden = p.pageCount <= 1;
         };
         const changed = () => { page = 1; draw(); };
 
@@ -219,56 +203,32 @@ export const buildLogSection: OverviewSection = {
                 copyWithFeedback(e.currentTarget as HTMLButtonElement, buildLogCsvText(filteredRows(), shipNameOf), t('ov.rsCopied')));
 
             // ── CSV 匯入 ──────────────────────────────────────────────
-            const importToggle = el.querySelector<HTMLButtonElement>('.bl-import-toggle')!;
-            const importPanel = el.querySelector<HTMLDivElement>('.bl-import')!;
-            const importFile = el.querySelector<HTMLInputElement>('.bl-import-file')!;
-            const importText = el.querySelector<HTMLTextAreaElement>('.bl-import-text')!;
-            const importGo = el.querySelector<HTMLButtonElement>('.bl-import-go')!;
-            const importStatus = el.querySelector<HTMLSpanElement>('.bl-import-status')!;
-            importToggle.addEventListener('click', () => {
-                const show = importPanel.hidden;
-                importPanel.hidden = !show;
-                importToggle.setAttribute('aria-expanded', String(show));
-            });
-            const setStatus = (kind: 'ok' | 'dup' | 'bad' | '', message: string) => {
-                importStatus.className = `bl-import-status${kind ? ' ' + kind : ''}`;
-                importStatus.textContent = message;
-            };
-            // 連續選 A→B 時，較慢的 file.text() 不得覆寫較新選擇的內容。
-            let importFileGen = 0;
-            importFile.addEventListener('change', async () => {
-                const gen = ++importFileGen;
-                const file = importFile.files?.[0];
-                if (!file) return;
-                const text = await file.text();
-                if (gen !== importFileGen) return;
-                importText.value = text;
-            });
-            importGo.addEventListener('click', async () => {
-                const text = importText.value.trim();
-                if (!text) { setStatus('bad', t('ov.buildImportEmpty')); return; }
-                let parsed;
-                try {
-                    parsed = parseBuildLogCsv(text, reverseShipLookup(ctx.state.master));
-                } catch (error) {
-                    const msg = error instanceof BuildLogImportError ? error.message : String((error as Error)?.message ?? error);
-                    setStatus('bad', t('ov.buildImportBad', { msg }));
-                    return;
-                }
-                if (!parsed.rows.length) {
-                    setStatus('bad', t('ov.buildImportNoRows', { n: parsed.skipped.length }));
-                    return;
-                }
-                try {
-                    const result = await importBuildLogRows(db, parsed.rows);
-                    setStatus(result.added ? 'ok' : 'dup', t('ov.buildImportOk', {
-                        added: result.added, dup: result.duplicates, skipped: parsed.skipped.length,
-                    }));
-                    await load();
-                    draw();
-                } catch (error) {
-                    setStatus('bad', t('ov.buildImportBad', { msg: String((error as Error)?.message ?? error) }));
-                }
+            bindImportPanel(el, 'bl', {
+                async onImport(text, setStatus) {
+                    if (!text) { setStatus('bad', t('ov.buildImportEmpty')); return; }
+                    let parsed;
+                    try {
+                        parsed = parseBuildLogCsv(text, reverseShipLookup(ctx.state.master));
+                    } catch (error) {
+                        const msg = error instanceof BuildLogImportError ? error.message : String((error as Error)?.message ?? error);
+                        setStatus('bad', t('ov.buildImportBad', { msg }));
+                        return;
+                    }
+                    if (!parsed.rows.length) {
+                        setStatus('bad', t('ov.buildImportNoRows', { n: parsed.skipped.length }));
+                        return;
+                    }
+                    try {
+                        const result = await importBuildLogRows(db, parsed.rows);
+                        setStatus(result.added ? 'ok' : 'dup', t('ov.buildImportOk', {
+                            added: result.added, dup: result.duplicates, skipped: parsed.skipped.length,
+                        }));
+                        await load();
+                        draw();
+                    } catch (error) {
+                        setStatus('bad', t('ov.buildImportBad', { msg: String((error as Error)?.message ?? error) }));
+                    }
+                },
             });
         } catch (error) {
             count.textContent = '';

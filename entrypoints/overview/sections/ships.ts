@@ -27,7 +27,7 @@ import {
     type PageSize, type RosterFilter, type RosterShip, type RosterSortKey, type SortDir,
 } from '../../../utils/ship-roster';
 import type { Nation } from '../../../utils/ship-nationality';
-import { copyWithFeedback, downloadText, esc, gearIconHtml } from '../lib';
+import { copyWithFeedback, downloadText, esc, gearIconHtml, loadJsonPrefs, saveJsonPrefs } from '../lib';
 
 export interface OwnedShipRow extends OwnedShipView {
     obtained?: ShipObtainedRow;
@@ -454,24 +454,22 @@ const defaultPrefs = (): Prefs => ({
 
 function loadPrefs(): Prefs {
     const d = defaultPrefs();
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
+    return loadJsonPrefs(PREFS_KEY, d, raw => {
         if (!raw || typeof raw !== 'object') return d;
+        const r = raw as Record<string, unknown>;
         const ids = new Set(COLUMNS.map(c => c.id));
         return {
-            cols: Array.isArray(raw.cols) ? raw.cols.filter((c: ColumnId) => ids.has(c)) : d.cols,
-            size: PAGE_SIZES.includes(raw.size) ? raw.size : d.size,
-            sort: COLUMNS.some(c => c.sort === raw.sort) ? raw.sort : d.sort,
-            dir: raw.dir === 'asc' || raw.dir === 'desc' ? raw.dir : d.dir,
-            bare: raw.bare === true,
-            open: raw.open === true,
+            cols: Array.isArray(r.cols) ? r.cols.filter((c: ColumnId) => ids.has(c)) : d.cols,
+            size: PAGE_SIZES.includes(r.size as PageSize) ? r.size as PageSize : d.size,
+            sort: COLUMNS.some(c => c.sort === r.sort) ? r.sort as Prefs['sort'] : d.sort,
+            dir: r.dir === 'asc' || r.dir === 'desc' ? r.dir : d.dir,
+            bare: r.bare === true,
+            open: r.open === true,
         };
-    } catch { return d; }
+    });
 }
 
-const savePrefs = (p: Prefs) => {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* 隱私模式等：靜默 */ }
-};
+const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 
 // ── section ─────────────────────────────────────────────────────────────
 

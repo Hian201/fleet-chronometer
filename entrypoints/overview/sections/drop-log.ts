@@ -8,7 +8,11 @@ import {
     dropLogCsvText, DropLogImportError, importDropLogRows, parseDropLogCsv, reverseShipLookup,
 } from '@/utils/drop-log-import';
 import { t } from '@/utils/ui-i18n';
-import { esc, fmtTs, downloadText, copyWithFeedback, rankClassSuffix } from '../lib';
+import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
+import {
+    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtTs, fuzzyMatch,
+    loadJsonPrefs, paginate, rankClassSuffix, saveJsonPrefs,
+} from '../lib';
 import type { OverviewSection, SectionContext } from './types';
 
 const PREFS_KEY = 'kc-drop-log-view';
@@ -64,19 +68,20 @@ const COLUMNS: Column[] = [
 
 function loadPrefs(): Prefs {
     const fallback: Prefs = { cat: 'normal', cols: COLUMNS.map(c => c.id), size: 20 };
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
-        const cat: Category = raw?.cat === 'event' ? 'event' : 'normal';
-        const cols = Array.isArray(raw?.cols)
-            ? COLUMNS.filter(c => raw.cols.includes(c.id)).map(c => c.id)
+    return loadJsonPrefs(PREFS_KEY, fallback, raw => {
+        const r = raw as { cat?: unknown; cols?: unknown; size?: unknown } | null;
+        const cat: Category = r?.cat === 'event' ? 'event' : 'normal';
+        const cols = Array.isArray(r?.cols)
+            ? COLUMNS.filter(c => (r!.cols as unknown[]).includes(c.id)).map(c => c.id)
             : fallback.cols;
-        const size = (PAGE_SIZES as readonly number[]).includes(raw?.size) ? raw.size : fallback.size;
+        const size = (PAGE_SIZES as readonly number[]).includes(r?.size as number)
+            ? r!.size as PageSize : fallback.size;
         return { cat, cols: cols.length ? cols : fallback.cols, size };
-    } catch { return fallback; }
+    });
 }
 
 function savePrefs(prefs: Prefs) {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* 隱私模式等：靜默 */ }
+    saveJsonPrefs(PREFS_KEY, prefs);
 }
 
 export function dropTableHtml(rows: SortieLogRow[], cols: Column[], ctx: SectionContext): string {
@@ -84,20 +89,6 @@ export function dropTableHtml(rows: SortieLogRow[], cols: Column[], ctx: Section
         `<th class="dl-c-${c.id}">${esc(t(c.labelKey))}</th>`).join('')}</tr></thead><tbody>${rows.map(row =>
         `<tr>${cols.map(c => `<td class="dl-c-${c.id}">${c.cell(row, ctx)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
-
-function dateStart(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T00:00:00`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
-
-function dateEnd(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T23:59:59.999`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
-
-const matches = (name: string, query: string) => name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
 
 export const dropLogSection: OverviewSection = {
     id: 'drop-log',
@@ -130,18 +121,12 @@ export const dropLogSection: OverviewSection = {
                 </details>
                 <button type="button" class="ov-btn dl-csv">${esc(t('ov.rsExportCsv'))}</button>
                 <button type="button" class="ov-btn dl-copy">${esc(t('ov.rsCopyCsv'))}</button>
-                <button type="button" class="ov-btn dl-import-toggle" aria-expanded="false">${esc(t('ov.dropImport'))}</button>
+                ${importToggleHtml('dl', t('ov.dropImport'))}
             </div>
-            <div class="dl-import" hidden>
-                <p class="dl-dim">${esc(t('ov.dropImportHint'))}</p>
-                <div class="dl-import-row">
-                    <input type="file" class="dl-import-file" accept=".csv,text/csv">
-                    <button type="button" class="ov-btn dl-import-go">${esc(t('ov.dropImportGo'))}</button>
-                    <span class="dl-import-status" role="status"></span>
-                </div>
-                <textarea class="ov-textarea small dl-import-text" placeholder="${esc(t('ov.dropImportPaste'))}"></textarea>
-                <p class="dl-dim">${esc(t('ov.dropImportNote'))}</p>
-            </div>
+            ${importPanelHtml('dl', '.csv,text/csv', {
+                hint: t('ov.dropImportHint'), go: t('ov.dropImportGo'),
+                paste: t('ov.dropImportPaste'), note: t('ov.dropImportNote'),
+            })}
             <div class="dl-body"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <div class="rs-pager dl-pager" hidden></div>
         </div>`;
@@ -164,22 +149,21 @@ export const dropLogSection: OverviewSection = {
             const from = dateStart(fromFilter.value);
             const to = dateEnd(toFilter.value);
             const filtered = rows.filter(row => isEvent(row) === (prefs.cat === 'event')
-                && matches(dropName(row, ctx) ?? '', keyword.value)
+                && fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
                 && (from == null || row.ts >= from) && (to == null || row.ts <= to)
                 && (newShip === 'all' || (newShipKeys.has(row.sortieKey) === (newShip === 'new'))));
             const cols = COLUMNS.filter(c => prefs.cols.includes(c.id));
-            const pageCount = prefs.size ? Math.max(1, Math.ceil(filtered.length / prefs.size)) : 1;
-            page = Math.min(Math.max(page, 1), pageCount);
-            const pageRows = prefs.size ? filtered.slice((page - 1) * prefs.size, page * prefs.size) : filtered;
+            const p = paginate(filtered, prefs.size, page);
+            page = p.page;
             count.textContent = t('ov.dropCount', { n: filtered.length, total: rows.length });
-            body.innerHTML = pageRows.length
-                ? dropTableHtml(pageRows, cols, ctx)
+            body.innerHTML = p.rows.length
+                ? dropTableHtml(p.rows, cols, ctx)
                 : `<div class="ov-empty">${esc(t('ov.dropNone'))}</div>`;
-            pager.innerHTML = pageCount > 1 ? `
+            pager.innerHTML = p.pageCount > 1 ? `
                 <button type="button" class="ov-btn dl-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button>
-                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: pageCount }))}</span>
-                <button type="button" class="ov-btn dl-page" data-page="next" ${page >= pageCount ? 'disabled' : ''}>›</button>` : '';
-            pager.hidden = pageCount <= 1;
+                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: p.pageCount }))}</span>
+                <button type="button" class="ov-btn dl-page" data-page="next" ${page >= p.pageCount ? 'disabled' : ''}>›</button>` : '';
+            pager.hidden = p.pageCount <= 1;
         };
         const changed = () => { page = 1; draw(); };
 
@@ -218,7 +202,7 @@ export const dropLogSection: OverviewSection = {
             const from = dateStart(fromFilter.value);
             const to = dateEnd(toFilter.value);
             return rows.filter(row => isEvent(row) === (prefs.cat === 'event')
-                && matches(dropName(row, ctx) ?? '', keyword.value)
+                && fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
                 && (from == null || row.ts >= from) && (to == null || row.ts <= to)
                 && (newShip === 'all' || (newShipKeys.has(row.sortieKey) === (newShip === 'new'))));
         };
@@ -228,58 +212,33 @@ export const dropLogSection: OverviewSection = {
             copyWithFeedback(e.currentTarget as HTMLButtonElement, dropLogCsvText(visibleRows()), t('ov.rsCopied')));
 
         // ── CSV 匯入 ──────────────────────────────────────────────────
-        // 解析／去重／落地都在 utils/drop-log-import.ts；這裡只負責 UI 狀態顯示，
-        // 同 sortie-log.ts 單場 JSON 匯入的互動模式（切換面板／選檔或貼上／狀態列三態）。
-        const importToggle = el.querySelector<HTMLButtonElement>('.dl-import-toggle')!;
-        const importPanel = el.querySelector<HTMLDivElement>('.dl-import')!;
-        const importFile = el.querySelector<HTMLInputElement>('.dl-import-file')!;
-        const importText = el.querySelector<HTMLTextAreaElement>('.dl-import-text')!;
-        const importGo = el.querySelector<HTMLButtonElement>('.dl-import-go')!;
-        const importStatus = el.querySelector<HTMLSpanElement>('.dl-import-status')!;
-        importToggle.addEventListener('click', () => {
-            const show = importPanel.hidden;
-            importPanel.hidden = !show;
-            importToggle.setAttribute('aria-expanded', String(show));
-        });
-        const setStatus = (kind: 'ok' | 'dup' | 'bad' | '', message: string) => {
-            importStatus.className = `dl-import-status${kind ? ' ' + kind : ''}`;
-            importStatus.textContent = message;
-        };
-        // 連續選 A→B 時，較慢的 file.text() 不得覆寫較新選擇的內容。
-        let importFileGen = 0;
-        importFile.addEventListener('change', async () => {
-            const gen = ++importFileGen;
-            const file = importFile.files?.[0];
-            if (!file) return;
-            const text = await file.text();
-            if (gen !== importFileGen) return;
-            importText.value = text;
-        });
-        importGo.addEventListener('click', async () => {
-            const text = importText.value.trim();
-            if (!text) { setStatus('bad', t('ov.dropImportEmpty')); return; }
-            let parsed;
-            try {
-                parsed = parseDropLogCsv(text, reverseShipLookup(ctx.state.master));
-            } catch (error) {
-                const msg = error instanceof DropLogImportError ? error.message : String((error as Error)?.message ?? error);
-                setStatus('bad', t('ov.dropImportBad', { msg }));
-                return;
-            }
-            if (!parsed.rows.length) {
-                setStatus('bad', t('ov.dropImportNoRows', { n: parsed.skipped.length }));
-                return;
-            }
-            try {
-                const result = await importDropLogRows(db, parsed.rows);
-                setStatus(result.added ? 'ok' : 'dup', t('ov.dropImportOk', {
-                    added: result.added, dup: result.duplicates, skipped: parsed.skipped.length,
-                }));
-                await load();
-                draw();
-            } catch (error) {
-                setStatus('bad', t('ov.dropImportBad', { msg: String((error as Error)?.message ?? error) }));
-            }
+        // 解析／去重／落地都在 utils/drop-log-import.ts；面板 UI 走共用 import-panel。
+        bindImportPanel(el, 'dl', {
+            async onImport(text, setStatus) {
+                if (!text) { setStatus('bad', t('ov.dropImportEmpty')); return; }
+                let parsed;
+                try {
+                    parsed = parseDropLogCsv(text, reverseShipLookup(ctx.state.master));
+                } catch (error) {
+                    const msg = error instanceof DropLogImportError ? error.message : String((error as Error)?.message ?? error);
+                    setStatus('bad', t('ov.dropImportBad', { msg }));
+                    return;
+                }
+                if (!parsed.rows.length) {
+                    setStatus('bad', t('ov.dropImportNoRows', { n: parsed.skipped.length }));
+                    return;
+                }
+                try {
+                    const result = await importDropLogRows(db, parsed.rows);
+                    setStatus(result.added ? 'ok' : 'dup', t('ov.dropImportOk', {
+                        added: result.added, dup: result.duplicates, skipped: parsed.skipped.length,
+                    }));
+                    await load();
+                    draw();
+                } catch (error) {
+                    setStatus('bad', t('ov.dropImportBad', { msg: String((error as Error)?.message ?? error) }));
+                }
+            },
         });
 
         // ── 資料載入 ──────────────────────────────────────────────────

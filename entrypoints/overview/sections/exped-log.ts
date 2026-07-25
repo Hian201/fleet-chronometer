@@ -19,7 +19,10 @@ import {
     EXPED_MAT_COUNT, filterByPeriod, groupByMission, sortStats, statsCsv, summarize,
     type ExpeditionStat, type ExpeditionTotals, type StatSortKey,
 } from '@/utils/expedition-stats';
-import { copyWithFeedback, downloadText, esc, fmtTs, matIconHtml } from '../lib';
+import {
+    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtTs, loadJsonPrefs,
+    matIconHtml, paginate, saveJsonPrefs,
+} from '../lib';
 import { rowsToCsv } from '@/utils/csv';
 
 const PREFS_KEY = 'kc-exped-log-view';
@@ -125,40 +128,32 @@ export const defaultPrefs = (): Prefs => ({
 
 function loadPrefs(): Prefs {
     const d = defaultPrefs();
-    try {
-        const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null');
+    return loadJsonPrefs(PREFS_KEY, d, raw => {
+        const r = raw as {
+            cols?: unknown; range?: unknown; size?: unknown; sort?: unknown; desc?: unknown;
+        } | null;
         const ids = new Set(COLUMNS.map(c => c.id));
-        const cols = Array.isArray(raw?.cols) ? COLUMNS.filter(c => raw.cols.includes(c.id) && ids.has(c.id)).map(c => c.id) : d.cols;
+        const cols = Array.isArray(r?.cols)
+            ? COLUMNS.filter(c => (r!.cols as unknown[]).includes(c.id) && ids.has(c.id)).map(c => c.id)
+            : d.cols;
         return {
             // 不能沒有可見欄位，否則表格失去內容與可恢復控制項。
             cols: cols.length ? cols : d.cols,
-            range: RANGES.some(r => r.key === raw?.range) ? raw.range : d.range,
-            size: (PAGE_SIZES as readonly number[]).includes(raw?.size) ? raw.size : d.size,
-            sort: STAT_COLUMNS.some(c => c.key === raw?.sort) ? raw.sort : d.sort,
-            desc: typeof raw?.desc === 'boolean' ? raw.desc : d.desc,
+            range: RANGES.some(range => range.key === r?.range) ? r!.range as Prefs['range'] : d.range,
+            size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : d.size,
+            sort: STAT_COLUMNS.some(c => c.key === r?.sort) ? r!.sort as Prefs['sort'] : d.sort,
+            desc: typeof r?.desc === 'boolean' ? r.desc : d.desc,
         };
-    } catch { return d; }
+    });
 }
 
 function savePrefs(prefs: Prefs) {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* 隱私模式等：靜默 */ }
+    saveJsonPrefs(PREFS_KEY, prefs);
 }
 
 // ── 日期輸入 ↔ 時間戳 ────────────────────────────────────────────────────
 // `ExpeditionRow.ts` 是絕對時間戳，日期輸入框給的是玩家心裡的本地日期，故兩端各自
-// 補到本地日的頭與尾（同 drop-log 分區）。
-
-function dateStart(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T00:00:00`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
-
-function dateEnd(value: string): number | null {
-    if (!value) return null;
-    const ts = new Date(`${value}T23:59:59.999`).getTime();
-    return Number.isFinite(ts) ? ts : null;
-}
+// 補到本地日的頭與尾（同 drop-log 分區）；dateStart／dateEnd 見 ../lib。
 
 /** 時間戳 → `<input type="date">` 的本地日期字串（不能用 toISOString，那是 UTC）。 */
 function dateInputValue(ts: number): string {
@@ -333,24 +328,23 @@ export const expedLogSection: OverviewSection = {
             const totals = summarize(rows);
             const stats = sortStats(groupByMission(rows), prefs.sort, prefs.desc);
 
-            const pageCount = prefs.size ? Math.max(1, Math.ceil(rows.length / prefs.size)) : 1;
-            page = Math.min(Math.max(page, 1), pageCount);
-            const pageRows = prefs.size ? rows.slice((page - 1) * prefs.size, page * prefs.size) : rows;
+            const p = paginate(rows, prefs.size, page);
+            page = p.page;
             const cols = COLUMNS.filter(c => prefs.cols.includes(c.id));
 
             count.textContent = t('ov.expedCountOf', { n: rows.length, total: all.length });
             body.innerHTML = all.length
                 ? summaryHtml(totals, from, to, rows)
                     + statsHtml(stats, prefs)
-                    + (pageRows.length
-                        ? `<section class="el-detail"><h3 class="el-h">${esc(t('ov.expedDetail'))}</h3>${tableHtml(pageRows, cols)}</section>`
+                    + (p.rows.length
+                        ? `<section class="el-detail"><h3 class="el-h">${esc(t('ov.expedDetail'))}</h3>${tableHtml(p.rows, cols)}</section>`
                         : `<div class="ov-empty">${esc(t('ov.expedNoneInRange'))}</div>`)
                 : `<div class="ov-empty">${esc(t('ov.expedNone'))}</div>`;
-            pager.innerHTML = pageCount > 1 ? `
+            pager.innerHTML = p.pageCount > 1 ? `
                 <button type="button" class="ov-btn el-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button>
-                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: pageCount }))}</span>
-                <button type="button" class="ov-btn el-page" data-page="next" ${page >= pageCount ? 'disabled' : ''}>›</button>` : '';
-            pager.hidden = pageCount <= 1;
+                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: p.pageCount }))}</span>
+                <button type="button" class="ov-btn el-page" data-page="next" ${page >= p.pageCount ? 'disabled' : ''}>›</button>` : '';
+            pager.hidden = p.pageCount <= 1;
         }
 
         const changed = () => { page = 1; draw(); };

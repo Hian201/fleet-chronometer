@@ -2,22 +2,77 @@
 // 需要「當前狀態」時就地重建一個 GameState（重播 db.snapshot 墊底＋db.events，同面板
 // 啟動流程）——讀取用途，不寫任何 DB（擷取/歸檔是面板的職責，見 panel/main.ts）。
 import { db } from '@/utils/db';
+import { esc, gearIconHtml, matIconHtml } from '@/utils/html-escape';
 import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
 import { t } from '@/utils/ui-i18n';
 
-/** HTML 跳脫：文字節點與屬性值（title／value／class 片段）皆涵蓋 & < > " '。 */
-export const esc = (s: string) => s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+export { esc, gearIconHtml, matIconHtml };
 
 /** rank → CSS class 後綴（s/a/b/c/d）；非 S/A/B/C/D 回空，避免匯入字串進 class。 */
 export function rankClassSuffix(rank: string): string {
     const r = rank.trim().toUpperCase();
     return r === 'S' || r === 'A' || r === 'B' || r === 'C' || r === 'D' ? r.toLowerCase() : '';
+}
+
+// ── 清單樣板（prefs／日期／關鍵字／分頁）────────────────────────────────
+// key 字串由各分區傳入，不可改（避免使用者偏好被重置）。篩選／DOM 仍留在分區。
+
+/** localStorage JSON 偏好：解析失敗或 parse 拋錯時回 fallback。 */
+export function loadJsonPrefs<T>(key: string, fallback: T, parse: (raw: unknown) => T): T {
+    try {
+        return parse(JSON.parse(localStorage.getItem(key) ?? 'null'));
+    } catch {
+        return fallback;
+    }
+}
+
+export function saveJsonPrefs(key: string, prefs: unknown): void {
+    try { localStorage.setItem(key, JSON.stringify(prefs)); } catch { /* 隱私模式等：靜默 */ }
+}
+
+/** `<input type="date">` → 本地日開始時間戳；空字串／無效回 null。 */
+export function dateStart(value: string): number | null {
+    if (!value) return null;
+    const ts = new Date(`${value}T00:00:00`).getTime();
+    return Number.isFinite(ts) ? ts : null;
+}
+
+/** `<input type="date">` → 本地日結束時間戳；空字串／無效回 null。 */
+export function dateEnd(value: string): number | null {
+    if (!value) return null;
+    const ts = new Date(`${value}T23:59:59.999`).getTime();
+    return Number.isFinite(ts) ? ts : null;
+}
+
+/** 不分大小寫的子字串比對（query 先 trim）；空 query 仍比對（空字串為任何字串的子字串）。 */
+export function fuzzyMatch(name: string, query: string): boolean {
+    return name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+}
+
+export interface Page<T> {
+    rows: T[];
+    /** 1-based；資料變少時會被夾回最後一頁，故呼叫端要用回傳值而非自己記的值。 */
+    page: number;
+    pageCount: number;
+    /** 這一頁在全體中的 1-based 起訖（0 筆時為 0）。 */
+    from: number;
+    to: number;
+    total: number;
+}
+
+/** 取某一頁。size===0 為全部；page 超出範圍時夾到有效範圍。對齊 ships 的 paginate 語意。 */
+export function paginate<T>(rows: T[], size: number, page: number): Page<T> {
+    const total = rows.length;
+    if (size === 0) return { rows, page: 1, pageCount: 1, from: total ? 1 : 0, to: total, total };
+    const pageCount = Math.max(1, Math.ceil(total / size));
+    const current = Math.min(Math.max(1, page), pageCount);
+    const start = (current - 1) * size;
+    const slice = rows.slice(start, start + size);
+    return {
+        rows: slice, page: current, pageCount,
+        from: slice.length ? start + 1 : 0, to: start + slice.length, total,
+    };
 }
 
 // 重建當前 GameState：共用規劃器會依 retained raw events 的第一筆 ID 選出安全 baseline。
@@ -31,12 +86,6 @@ export async function loadGameState(): Promise<GameState> {
     applyStateRecoveryPlan(gs, planStateRecovery(snapshots, events));
     return gs;
 }
-
-// 裝備圖示（extension 根 root-relative；同面板作法）。icon<=0 用文字退路避免破圖。
-export const gearIconHtml = (icon: number, short = '') =>
-    icon > 0 ? `<img class="g-icon" src="/icons/equipment/${icon}.svg" alt="${esc(short)}" loading="lazy">` : esc(short);
-export const matIconHtml = (file: string, alt = '') =>
-    `<img class="m-icon" src="/icons/resource/${file}.svg" alt="${esc(alt)}">`;
 
 // 檔案下載（Blob + 臨時 <a download>）；純前端、不需任何權限。
 export function downloadText(filename: string, text: string, mime = 'text/plain') {
