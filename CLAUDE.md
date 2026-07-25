@@ -101,10 +101,13 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 
 ### 反覆出現的設計慣例（跨分區適用，別在個別分區重新踩一次）
 
+- **面板出擊／編成版面釘死＋七船單行裝備**：見文末「慣例」同名硬約束；改
+  `#tabpanel`／`.s-battle-row`／`.chips`／`.chip` 前必讀，勿為「空白好看」拆釘或讓
+  裝備換行。
 - **有關鍵字／日期／數字輸入框的分區，一律不能全量重繪**：整塊重繪會讓輸入框失焦、
-  捲動位置與展開狀態被洗掉。適用：`ship-picker.ts`、`ships.ts`、`equipment.ts`、
-  `sortie-log.ts`、`resource-log.ts`、`exped-log.ts`。做法：控制項只建一次（事件綁定
-  一次），篩選/排序變更時只重繪結果區塊（`.xx-body` 之類的子容器）。
+ 捲動位置與展開狀態被洗掉。適用：`ship-picker.ts`、`ships.ts`、`equipment.ts`、
+ `sortie-log.ts`、`resource-log.ts`、`exped-log.ts`。做法：控制項只建一次（事件綁定
+ 一次），篩選/排序變更時只重繪結果區塊（`.xx-body` 之類的子容器）。
 - **overview 分區一律先畫殼、再 await 資料**：`render()` 第一件事是塞 shell HTML 並綁好
   事件，**之後**才讀 DB。先讀後畫會讓「讀取卡住」（例如 Dexie 版本升級被其他分頁擋住）
   變成整個分區空白、連工具列都按不到，且看不出原因。`overview/main.ts` 的
@@ -727,6 +730,19 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
   `THIRD-PARTY-NOTICES.md`。
 - 非平凡改動跑 `npx tsc --noEmit`；戰鬥/狀態邏輯改動用真實封包做執行期驗證。
 - 面板 UI：分頁自動切換後，使用者手動切過即暫停自動，直到情境變化（`autoSwitch`）。
+- **出擊資訊欄＋艦隊編成版面（硬約束，曾被改壞）**：
+  1. **釘死**：`#tabpanel` 固定 `height: 270px`（**禁止**改 `max-height` 讓不足時
+     收縮——編成會隨分頁內容上下跑）；戰鬥列第二列固定 `165px`；陣型／支援／対空CI／
+     夜戰／rank／友軍列釘在敵艦區下方，**不隨敵艦數量位移**。敵艦少於 6 時列內留白
+     是刻意的。
+  2. **七船**：窗高 835、單艘約 49.5px；要多露出七船只准收 `#tabpanel` 固定高度或
+     fleetnav／fleets／艦列 padding，**不准拆 165px 釘、不准讓陣型列跟著上移**。
+  3. **裝備列單行**：`.chips { flex-wrap: nowrap }`；一般格／打洞／燃彈鎖
+     min/max（現約 48／40／56），SVG 與「///」不可撐破預算；**禁止**
+     `display: contents`＋`margin-left: auto` 那條曾裁掉整列燃彈的路。
+  4. **不准裁字**：燃彈兩側「100」必須完整可見。
+  回歸參考：`samples/fleet_slot*.png`、`samples/info_sortie.png`。實作見
+  `panel/index.html`／`panel/main.ts` 註解 `#2`／`#4`。
 
 ---
 

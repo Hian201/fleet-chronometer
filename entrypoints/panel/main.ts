@@ -438,7 +438,7 @@ function shipRow(s: ShipView, maxSlots: number, marks?: { cls: string; mark: str
     // mat.ammo 圖示主色 #a8763e，見 tools/icons/gen_icons.py 的 ammo_crate）。兩側各是
     // 迷你量表：色塊寬度隨殘量縮短——燃料錨定左緣往左退、彈藥錨定右緣往右退，中間
     // 露出的底色即消耗量（linear-gradient 硬邊即色塊邊界，故百分比得走 inline style）。
-    // 放在 .sub-row 內、.chips 容器之外：與裝備 chip 同一行、由 .chips 的 flex:1 推到最右。
+    // 放在 .sub-row 內、.chips 之外：與裝備同一行，由 .chips 的 flex:1 推到最右。
     const supplyChip =
         `<span class="chip supply-combo" title="${esc(t('mat.fuel.full'))} ${fp}% ／ ${esc(t('mat.ammo.full'))} ${bp}%">` +
         `<span class="sup-fuel" style="background:linear-gradient(to right,#58a55c ${fp}%,transparent ${fp}%)">${fp}</span>` +

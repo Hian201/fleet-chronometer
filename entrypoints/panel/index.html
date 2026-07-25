@@ -242,12 +242,13 @@
             cursor: default;
         }
 
-        /* height（非 max-height）：分頁內容不足 300px 時（例如動態分頁資料不多）
-           過去會整個縮小，導致下方艦隊編成跟著往上擠、面板高度不穩定。固定高度後
-           分頁內容不足就留白，內容超過才捲動，艦隊列表位置永遠固定。 */
+        /* height（非 max-height）：固定高度讓艦隊編成不隨分頁內容上下跑。
+           270（原 300）：在釘死 165px 戰鬥列＋陣型列的前提下，縮掉資訊區底多餘留白，
+           編成上移約 30px，配合下方 padding 收斂後可露出七船；內容仍夠塞滿編出擊
+          （含大破警告）。**不准改回 max-height**（CLAUDE.md 出擊面板）。 */
         #tabpanel {
-            padding: 10px;
-            height: 300px;
+            padding: 6px 8px;
+            height: 270px;
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: var(--line) var(--panel);
@@ -485,7 +486,8 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 8px 10px;
+            /* 收垂直 padding：縮小「陣型列／分頁底」到編成之間的空隙，七船用 */
+            padding: 4px 10px;
             border-bottom: 1px solid var(--line);
         }
 
@@ -522,7 +524,7 @@
         }
 
         #fleets {
-            padding: 10px;
+            padding: 6px 10px 8px;
             display: flex;
             flex-wrap: wrap;
             gap: 14px;
@@ -802,7 +804,7 @@
             gap: 10px;
             font-size: 11px;
             color: var(--dim);
-            padding: 2px 6px 6px;
+            padding: 0 6px 4px;
             font-variant-numeric: tabular-nums;
         }
 
@@ -820,7 +822,7 @@
         }
 
         .ship {
-            padding: 3px 6px;
+            padding: 2px 6px;
             border-radius: 4px;
         }
 
@@ -884,6 +886,7 @@
            上限，靠這裡省 4px 保住不換行的餘裕。 */
         .sub-row {
             gap: 6px;
+            min-width: 0;
         }
 
         .ship-row {
@@ -943,25 +946,38 @@
             color: var(--dmg-major);
         }
 
+        /* 結構維持：.chips{flex:1} 裝一般槽，打洞＋燃彈在外側由剩餘空間推到列尾。
+           曾改 display:contents＋sub-row nowrap＋ex margin-left:auto，會讓
+           「跨艦 pad＋鎖寬＋燃彈 54」總寬超過視窗，右側燃彈整列被裁切
+           （samples/fleet_slot_{1,2,3}.png）——那條路已否決。
+           第五格換行的真因是 SVG／熟練字元把單格撐到 ~55px；下面鎖 min/max 即可。
+           ⚠️ 高度硬約束：窗高 835 是按「單艘列高 ≈49.5px × 7 艘」校準的
+           （background.ts openPanelWindow）。裝備列一旦 wrap 成兩行，單艘變高，
+           第 7 艘就會被視窗底裁掉——所以這裡用 nowrap，並把格寬收到預算內。 */
         .chips {
             flex: 1;
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 3px;
+            min-width: 0;
         }
 
-        /* 內距 3px／圖示 20px／熟練 12px／改修 10px 是算過的預算：一般格內容寬
-           20+gap1+(12+10+gap1)+內距6 = 50px、打洞格（無 r-col，單一置中改修槽 14px）
-           41px。5 一般格（250+gap12=262）＋打洞格 41＋燃彈 46＋.sub-row gap 12 ≈ 361px，
-           收進 420px 視窗（硬約束，不准加寬）的可用內寬（約 373px），不得換行。
-           加寬任何子槽前先重算總和。 */
+        /* 一般格 48px、打洞 40、燃彈 56（「100」不裁字）：5×48+gap12=252，
+           ＋40＋56＋sub-row gap12 ≈ 360，收進 420；.chips nowrap 禁止換行。
+           必須對 .chip／.g-icon 鎖 min/max，否則 SVG／「///」撐破→換行→七船被裁。 */
         .chip {
+            box-sizing: border-box;
             display: inline-flex;
             align-items: center;
             gap: 1px;
+            width: 48px;
+            min-width: 48px;
+            max-width: 48px;
+            flex: none;
+            overflow: hidden;
             font-size: 10px;
             line-height: 1;
-            padding: 2px 3px;
+            padding: 2px 2px;
             border-radius: 3px;
             background: var(--line);
             color: var(--text);
@@ -986,8 +1002,14 @@
            圖示放大只限艦隊裝備 chip（.chip 範圍），其餘處（sq-chip、資源列）維持 16px。 */
         .chip .g-icon,
         .chip .g-icon-slot {
+            box-sizing: border-box;
             width: 20px;
             height: 20px;
+            min-width: 20px;
+            max-width: 20px;
+            flex: none;
+            /* SVG filter 外擴不應撐開 flex 最小內容尺寸 */
+            overflow: hidden;
         }
 
         .r-col {
@@ -996,6 +1018,10 @@
             align-items: flex-start;
             gap: 1px;
             flex: none;
+            width: 23px; /* u12 + gap1 + b10：鎖死以免 .oc 兩位數把整格撐寬 */
+            min-width: 23px;
+            max-width: 23px;
+            overflow: hidden;
         }
 
         .r-top {
@@ -1060,7 +1086,11 @@
         .chip u {
             flex: none;
             display: inline-block;
+            box-sizing: border-box;
             width: 12px;
+            min-width: 12px;
+            max-width: 12px;
+            overflow: hidden;
             text-align: left;
             text-decoration: none;
             color: var(--sparkle);
@@ -1069,7 +1099,11 @@
         .chip b {
             flex: none;
             display: inline-block;
+            box-sizing: border-box;
             width: 10px;
+            min-width: 10px;
+            max-width: 10px;
+            overflow: hidden;
             text-align: left;
             color: #7fd0ff;
             font-weight: 600;
@@ -1077,6 +1111,9 @@
         }
 
         .chip.ex {
+            width: 40px;
+            min-width: 40px;
+            max-width: 40px;
             outline: 1px dashed var(--brass);
         }
 
@@ -1086,6 +1123,8 @@
            align-items:center，不必再寫。 */
         .chip.ex b {
             width: 14px;
+            min-width: 14px;
+            max-width: 14px;
             text-align: center;
         }
 
@@ -1110,20 +1149,20 @@
         .sq-chip.c-asw { border-left: 2px solid #5ac2a6; }
         .sq-chip.c-etc { border-left: 2px solid #6a7488; }
 
-        /* 燃彈合併 chip：與裝備 chip 同一 .sub-row，但位於 .chips 容器之外——由
-           .chips 的 flex:1 把它推到列尾靠右貼齊（總寬受面板寬度約束）。不用圖示，
-           改左右兩色塊＋斜線分開的百分比：燃料綠、彈藥棕（沿用 mat.ammo 圖示主色
-           #a8763e，見 tools/icons/gen_icons.py 的 ammo_crate）。內距歸零讓色塊延伸
-           到 chip 邊緣；flex:none 防被壓縮、align-self:center 因無文字基線可對齊。 */
+        /* 燃彈合併 chip：在 .chips 之外，靠 .chips{flex:1} 推到列尾。
+           56px＋9px 字：兩側「100」完整可見，不准 overflow 裁字。 */
         .chip.supply-combo {
             padding: 0;
             gap: 0;
             overflow: hidden;
-            min-width: 46px;
+            width: 56px;
+            min-width: 56px;
+            max-width: 56px;
             flex: none;
             align-self: center;
             font-variant-numeric: tabular-nums;
             font-weight: 600;
+            font-size: 9px;
         }
 
         /* 兩半各為迷你量表：色塊背景由 inline linear-gradient 給（寬度=殘量%，
@@ -1131,10 +1170,13 @@
            底色即消耗部分。文字用亮色＋暗描邊，色塊上與露底處都可讀。 */
         .chip.supply-combo .sup-fuel,
         .chip.supply-combo .sup-ammo {
-            flex: 1;
+            flex: 1 1 0;
+            min-width: 0;
             display: flex;
             justify-content: center;
-            padding: 2px 3px;
+            align-items: center;
+            padding: 2px 1px;
+            overflow: visible;
             color: var(--text);
             text-shadow: 0 0 2px #10151d, 0 0 2px #10151d;
         }
@@ -1389,13 +1431,13 @@
 
         /* ── 出擊 (Sortie) ── */
         .sortie-container {
-            padding: 6px 8px;
+            padding: 4px 6px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 4px;
             background: rgba(10, 20, 30, 0.4);
             border-radius: 6px;
-            margin: 2px;
+            margin: 0;
         }
 
         .s-header {
@@ -1585,7 +1627,8 @@
         /* 出擊戰鬥資訊：左側敵艦晶片（隨伴／主隊）、右側索敵與戰爆固定並排在同一個
            165px 高的 row（=6 艘晶片的高度），不論敵艦是 1 艘還是連合艦隊 12 艘，
            索敵/戰爆/下面的陣形支援列都不會跟著移動。s-eside 用 space-between，
-           上緣＝索敵區接晶片頂、下緣＝戰爆區接晶片底（不是跟「主隊/隨伴」文字對齊）。 */
+           上緣＝索敵區接晶片頂、下緣＝戰爆區接晶片底（不是跟「主隊/隨伴」文字對齊）。
+           **不准改成隨內容收縮**——陣型／支援／友軍列必須釘死（CLAUDE.md 出擊面板）。 */
         .s-battle-row {
             display: grid;
             grid-template-columns: 1.35fr 1fr;
