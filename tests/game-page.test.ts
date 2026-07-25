@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     GAME_PAGE_MATCHES, GAME_TAB_MATCHES, GAME_URL,
-    isGamePageUrl, isGameTabUrl, matchesUrlPattern,
+    isGameFrameOrigin, isGamePageUrl, isGameTabUrl, matchesUrlPattern,
 } from '../utils/game-page';
 
 describe('match pattern 比對', () => {
@@ -47,6 +47,18 @@ describe('遊戲分頁判定', () => {
         expect(isGameTabUrl(otherGame)).toBe(false);
         expect(isGameTabUrl(GAME_URL)).toBe(true);
         expect(isGameTabUrl('https://www.dmm.com/netgame/social/-/gadgets/=/app_id=854854/')).toBe(true);
+    });
+
+    // 劇場模式把 Alt+滾輪／Esc 的轉發訊息當成互動指令，RELAY_MARK 只是辨識碼不是憑證；
+    // DMM 頁面上的第三方框（廣告／追蹤）同樣送得出來，故一律驗 e.origin。
+    it('只有遊戲伺服器來源算合法轉發來源', () => {
+        expect(isGameFrameOrigin('http://w01.kancolle-server.com')).toBe(true);
+        expect(isGameFrameOrigin('https://kancolle-server.com')).toBe(true);
+        expect(isGameFrameOrigin('https://evil-kancolle-server.com')).toBe(false);
+        expect(isGameFrameOrigin('https://kancolle-server.com.attacker.example')).toBe(false);
+        expect(isGameFrameOrigin('https://play.games.dmm.com')).toBe(false);
+        expect(isGameFrameOrigin('null')).toBe(false);
+        expect(isGameFrameOrigin('')).toBe(false);
     });
 
     it('單例比對範圍是注入範圍的子集（不會去聚焦一個注入不到的分頁）', () => {

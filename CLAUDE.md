@@ -125,13 +125,13 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 |------|------|
 | `wxt.config.ts` | manifest（permissions: alarms, notifications, scripting, tabs, activeTab；`optional_host_permissions` 為 DMM 遊戲頁）＋剝除 WXT 自動加上的 `host_permissions` 的 build hook |
 | `entrypoints/interceptor.content.ts` | MAIN world 攔封包 + debug 擷取 ＋遊戲靜音 hook 安裝點（`installAudioMute`，須早於遊戲建立音訊圖，掛在 document_start） |
-| `entrypoints/bridge.content.ts` | 轉發到 background，去 token；靜音狀態長連線（`runtime.connect`）；劇場模式互動意圖轉發（Alt+滾輪／Esc，一律 passive、不 stopPropagation）；關閉分頁前警示（`beforeunload`，manifest 靜態注入、無需權限） |
-| `entrypoints/theater.content.ts` | 劇場模式（DMM 遊戲頁）：遊戲框放大到整個視窗、滾輪縮放、平移、隨時還原。動態註冊（`registration: 'runtime'`），不在 manifest 的 content_scripts 裡 |
-| `utils/theater.ts` | 劇場模式的純函式核心（遊戲框辨識／縮放平移幾何／注入用 CSS），無 chrome.*、無 DOM 依賴，node 可測 |
+| `entrypoints/bridge.content.ts` | 轉發到 background，去 token；靜音狀態長連線（`runtime.connect`）；視窗適應互動意圖轉發（僅 Esc，一律 passive、不 stopPropagation）；關閉分頁前警示（`beforeunload`，manifest 靜態注入、無需權限） |
+| `entrypoints/theater.content.ts` | 視窗適應（DMM 遊戲頁）：遊戲畫面等比填滿瀏覽器視窗、拉邊框自動 refit、隨時還原。動態註冊（`registration: 'runtime'`），不在 manifest 的 content_scripts 裡 |
+| `utils/theater.ts` | 視窗適應的純函式核心（遊戲框辨識／fit 幾何／注入用 CSS），無 chrome.*、無 DOM 依賴，node 可測 |
 | `utils/audio-mute.ts` | 遊戲框內音訊靜音的純安裝函式：把每個 `AudioContext` 的 `destination` 換成 master GainNode（＋media 元素路徑） |
 | `utils/game-page.ts` | 遊戲頁相關共用常數（新遊戲網址、注入範圍、訊息型別），theater／bridge／background／popup 共用 |
 | `entrypoints/background.ts` | `ingestEvent()`＝provider 合約唯一入口；以 `BackgroundIngestionLifecycle` 串行 recovery／ingestion，完成後才廣播、寫 snapshot、裁剪與排程通知；`MSG_CAPTURE_TAB` 經此轉手截圖 |
-| `entrypoints/popup/` | 擴充圖示點擊後的快捷選單：開面板／開遊戲（DMM）／劇場模式／遊戲分頁靜音／開鎮守府情報總括分頁／拍照。**不提供另開或替換遊戲視窗**，避免產生第二個遊戲執行個體——「開遊戲」以 `tabs.query(GAME_TAB_MATCHES)` 聚焦既有分頁，找不到才 `tabs.create`。劇場模式與靜音不關閉 popup（失敗時亦不關，見 `bind()`）。劇場／拍照**先同步判斷目前分頁是否為遊戲頁再 `permissions.request()`**：分頁資訊在 popup 開啟當下就查好（點擊後才 await 會失去手勢資格），查詢尚未回來時不擋 |
+| `entrypoints/popup/` | 擴充圖示點擊後的快捷選單：開面板／開遊戲（DMM）／視窗適應／遊戲分頁靜音／開鎮守府情報總括分頁／拍照。**不提供另開或替換遊戲視窗**，避免產生第二個遊戲執行個體——「開遊戲」以 `tabs.query(GAME_TAB_MATCHES)` 聚焦既有分頁，找不到才 `tabs.create`。視窗適應與靜音不關閉 popup（失敗時亦不關，見 `bind()`）。視窗適應／拍照**先同步判斷目前分頁是否為遊戲頁再 `permissions.request()`**：分頁資訊在 popup 開啟當下就查好（點擊後才 await 會失去手勢資格），查詢尚未回來時不擋 |
 | `entrypoints/overview/` | 「鎮守府情報總括」獨立分頁；艦隊、艦娘、裝備、活動作戰板、出擊、遠征、建造／開發／改修、資源、LLM、備份分區皆已實作（無 stub 分區） |
 | `entrypoints/overview/ship-picker.ts` | 鎮守府全船篩選清單的共用 UI 元件（見「反覆出現的設計慣例」全量重繪陷阱） |
 | `entrypoints/overview/sections/ships.ts` | 艦娘全覽：工具列＋篩選抽屜＋條件 chip 列＋詳細表格＋分頁。欄位開關／每頁筆數／排序／素質模式存 localStorage（`kc-ships-view`），不進 Dexie、不進備份 |
@@ -595,7 +595,10 @@ GameState 上下文，價值在連續，故與 `db.snapshot` 同層，在 `inges
 
 新增語意色 `--res-gain`／`--res-drain`，**刻意不挪用** `--dmg-*`／`--sally-*`。
 
-### 劇場模式與遊戲靜音（`entrypoints/theater.content.ts`＋`utils/theater.ts`＋`utils/audio-mute.ts`）
+### 視窗適應與遊戲靜音（`entrypoints/theater.content.ts`＋`utils/theater.ts`＋`utils/audio-mute.ts`）
+
+產品意圖是**讓遊戲畫面等比填滿瀏覽器視窗**（不是全螢幕、不是手動縮放劇場）。UI 文案為
+「視窗適應」／Fit to Window／ウィンドウ適応；程式碼／訊息型別仍沿用 `theater` 識別名。
 
 DMM 遊戲頁已改版為 SPA（`play.games.dmm.com/game/kancolle`），沒有固定 id/class，故遊戲框靠
 **src 主機名＋尺寸辨識**（`pickGameFrame()`），無命中一律回 null 不亂挑。標記屬性＋外部
@@ -606,39 +609,35 @@ DMM 遊戲頁已改版為 SPA（`play.games.dmm.com/game/kancolle`），沒有�
 `clip-path: inset()` 裁掉其餘部分並置中；**只信任「直接子框」的回覆**（`e.source ===
 frame.contentWindow`），量不到就退回整個框不裁切、不猜矩形。`transform-origin` 固定 `0 0`。
 
-**工具列固定佔底部一條，絕不覆蓋遊戲畫面**（浮動 UI 在此環境無法「自動閃避」——滑鼠移到
-iframe 上事件全被吃掉，父頁收不到 hover）。`[hidden]` 需 `!important` 蓋過 shadow CSS 的
-作者樣式。
+**工具列固定佔底部一條，絕不覆蓋遊戲畫面**（浮動 UI 在此環境無法「自動閃避」）。只留進入／
+離開／靜音／拍照——**不做 +/-、百分比、1:1、平移鈕**（那些會脫離 fit、弄出黑邊）。
 
-**視窗縮放自動 refit**：`fitMode` 預設開啟，只有使用者親手縮放過才脫離 fit。
+**永遠 contain／fit，拉邊框自動 refit**：`fitZoom()` 硬性維持 contain（`Math.min`），cover
+（`Math.max`）已被明確否決——**未經使用者再次明確指示不得改回 cover，也不得加回手動縮放
+UI**。`enter()` 直接呼叫 `fitWindow()` 一次到位。頁面縮放交給瀏覽器原生 Ctrl／⌘＋滾輪。
 
-**`fitZoom()` 硬性維持 contain（`Math.min`），cover（`Math.max`）已被明確否決——這是本檔
-目前唯一的黃金準則，未經使用者再次明確指示不得改回 cover**：畫面必須等比例完整呈現，
-裁掉畫面任何部分不可接受，優先度高於黑邊。`enter()` 直接呼叫 `fitWindow()`（內含
-`applyTransform()`）一次到位，不必使用者再點「適應」。
-
-**滑鼠鍵盤事件會被遊戲框吃掉**：Alt+滾輪（縮放）與 Esc（離開）由框內 bridge 轉發到
-`window.top`，**一律 passive、不 stopPropagation／preventDefault**——不改變遊戲行為。
+**Esc 離開**：焦點在遊戲框內時由 bridge 轉發到 `window.top`，**一律 passive、不
+stopPropagation／preventDefault**；並驗 `e.origin` 為 `kancolle-server.com`。
 
 **靜音**：`installAudioMute()` 在 MAIN world（document_start）把每個 `AudioContext` 的
 `destination` 換成 master GainNode；`<audio>`/`<video>` 同理。BGM 路徑不可考時背景用
 `tabs.update({muted:true})` 保底（新增 `tabs` 權限）。**「靜音沒反應」第一嫌疑是遊戲分頁
-沒 F5**：content script 改動須重新注入，劇場模式用 `executeScript` 立即注入才生效，
+沒 F5**：content script 改動須重新注入，視窗適應用 `executeScript` 立即注入才生效，
 interceptor／bridge 不會。⚠️ **未驗證**：艦これ用 WebAudio 還是 media 元素播音（兩條路徑
 都接了，無樣本佐證）；跨源框存在與否（若有會影響畫布量測，退回不裁切）。
 
 **狀態存放**：靜音開關與語言鏡像存 `db.meta['game-page']`——**這一列不參與投影、不引用
-任何 event id**，`backup.ts` 的 `restoreMarker()` 會略過它。縮放倍率存 DMM 頁自己的
+任何 event id**，`backup.ts` 的 `restoreMarker()` 會略過它。是否啟用存 DMM 頁自己的
 localStorage（`kc-theater`），不進 Dexie、不進備份。
 
-**授權流程**：popup「劇場模式」→ `permissions.request()`（**必須是點擊手勢的第一個呼叫**，
+**授權流程**：popup「視窗適應」→ `permissions.request()`（**必須是點擊手勢的第一個呼叫**，
 先 await 別的事情會失去手勢資格）→ `scripting.registerContentScripts`
 （`persistAcrossSessions`）→ 對當前分頁 `executeScript` 立即注入。
 
 ### 拍照（`utils/screenshot.ts`＋`MSG_CAPTURE_TAB`）
 
-只擷取遊戲畫面、不含 DMM 頁面其餘部分。**裁切矩形絕不重新推算**：兩個入口（popup／劇場
-工具列）都呼叫劇場模式已校準過的 `measureScreenshotRect()`；量不到畫布時回傳 `rect: null`，
+只擷取遊戲畫面、不含 DMM 頁面其餘部分。**裁切矩形絕不重新推算**：兩個入口（popup／視窗適應
+工具列）都呼叫已校準過的 `measureScreenshotRect()`；量不到畫布時回傳 `rect: null`，
 誠實回報找不到，不猜矩形。`tabs.captureVisibleTab()` 抓整分頁截圖，`cropRectPx()` 裁切。
 
 **權限：`activeTab`**（不是 `<all_urls>` 也不是既有的 optional host permission）——

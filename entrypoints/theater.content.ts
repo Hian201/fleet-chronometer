@@ -1,4 +1,5 @@
-// 劇場模式：把 DMM 遊戲頁裡的遊戲畫面放大到整個視窗，滑鼠滾輪縮放、隨時還原。
+// 視窗適應（程式碼／訊息型別仍沿用 theater 識別名，避免改動既有權限與儲存鍵）：
+// 讓 DMM 遊戲頁裡的遊戲畫面等比填滿瀏覽器視窗；大小靠使用者拉動視窗邊框，隨時還原。
 //
 // 三條硬約束（改這個檔前先讀，違反任何一條都會毀掉這個功能存在的理由）：
 //
@@ -14,23 +15,21 @@
 //    故：遊戲框靠 src／尺寸辨識（utils/theater.ts 的 pickGameFrame），並用 MutationObserver
 //    在每次重繪後重新貼標記。
 //
-// 三個第一版做錯、使用者實機回報後修正的點（別走回頭路）：
+// 產品意圖與別改回去的點：
 //   a. **顯示的是「遊戲畫布」不是「整個 iframe」**：框裡還有頁尾按鈕與大片白底，拿整個框
 //      去 fit 會讓遊戲縮得比視窗小、下面留一大條白。畫布位置只有框內的 bridge 量得到。
-//   b. **工具列不覆蓋遊戲畫面**：第一版浮在上緣正中央，正好蓋住司令部資源列。改成底部
-//      預留一條，fit 計算扣掉它。滑鼠在遊戲畫面上時事件不會傳到父頁，浮動工具列**無法**
-//      靠 hover 自動隱藏，「浮上去再閃避」這條路在這個環境走不通。
-//   c. **視窗縮放時跟著 refit**：使用者拉動瀏覽器大小後不該還要自己點一次「適應」。
-//      只有使用者親手縮放過才脫離 fit 模式。
+//   b. **工具列不覆蓋遊戲畫面**：底部預留一條，fit 計算扣掉它。
+//   c. **永遠 contain／fit**：拉瀏覽器邊框就自動 refit。不做手動 +/-／滾輪縮放／平移——
+//      那些會脫離 fit、弄出黑邊；縮放交給瀏覽器原生 Ctrl／⌘＋滾輪。
 import {
     ATTR_ACTIVE, ATTR_ANCESTOR, ATTR_FRAME, ATTR_HIDDEN, BAR_HEIGHT,
     CSS_CLIP, CSS_TX, CSS_TY, CSS_ZOOM,
-    ZOOM_STEP, clampPan, clampZoom, contentArea, fallbackGameArea, fitZoom, framePlacement, pickGameFrame, resizeZoom,
-    theaterCss, zoomByWheel, type Rect,
+    contentArea, fallbackGameArea, fitZoom, framePlacement, pickGameFrame,
+    theaterCss, type Rect,
 } from '@/utils/theater';
 import {
     MSG_CAPTURE_TAB, MSG_MUTE_GET, MSG_MUTE_SET, MSG_SCREENSHOT_RECT, MSG_THEATER_FIT_WINDOW,
-    MSG_THEATER_TOGGLE, MSG_UI_LANG, RELAY_MARK,
+    MSG_THEATER_TOGGLE, MSG_UI_LANG, RELAY_MARK, isGameFrameOrigin,
     type CaptureTabReply, type ScreenshotRectReply, type TheaterRelayMessage,
 } from '@/utils/game-page';
 import { downloadCroppedScreenshot } from '@/utils/screenshot';
@@ -45,7 +44,7 @@ const HOST_ATTR = 'data-kc-theater-host';
 // 刻意不進 Dexie／備份：這是「這台機器上這個頁面的顯示習慣」，與鎮守府資料無關。
 const STORE_KEY = 'kc-theater';
 
-interface Stored { zoom?: number; active?: boolean; fit?: boolean }
+interface Stored { active?: boolean }
 
 export default defineContentScript({
     matches: ['*://play.games.dmm.com/*', '*://www.dmm.com/netgame/*'],
@@ -57,7 +56,7 @@ export default defineContentScript({
     main() {
         // 只在最上層頁面跑：遊戲框內部另有 kancolle-server.com 的靜態注入負責擷取與靜音。
         if (window.top !== window) return;
-        // 重複注入防護：popup 的「劇場模式」會在必要時用 scripting.executeScript 立即注入
+        // 重複注入防護：popup 的「視窗適應」會在必要時用 scripting.executeScript 立即注入
         // （才不必等使用者重新整理），若該頁已由動態註冊注入過，第二份會長出第二條工具列。
         // ISOLATED world 的 window 由同一擴充的所有注入共用，故旗標放這裡即可。
         const INSTALLED = '__kcTheaterInstalled';
@@ -67,11 +66,7 @@ export default defineContentScript({
         let frame: HTMLIFrameElement | null = null;
         let active = false;
         let zoom = 1;
-        let fitMode = true;
-        // 手動縮放不是「永遠固定某個絕對倍率」。記住最近一次適應倍率後，視窗或畫布尺寸
-        // 改變時仍能保留使用者選的相對倍率（例如 125%），避免放大視窗後四周出現黑邊。
-        let lastFitZoom = 1;
-        let pan = { x: 0, y: 0 };
+        const pan = { x: 0, y: 0 };   // 永遠置中 fit，平移固定 0（保留物件形狀給 framePlacement）
         let muted = false;
         let gameRect: Rect | null = null;   // 遊戲畫布在框內的位置（量不到就是 null＝不裁切）
         let syncScheduled = false;
@@ -81,12 +76,11 @@ export default defineContentScript({
             try { return JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as Stored; }
             catch { return {}; }
         })();
-        zoom = clampZoom(Number(stored.zoom) || 1);
-        fitMode = stored.fit !== false;
 
         const save = () => {
             try {
-                localStorage.setItem(STORE_KEY, JSON.stringify({ zoom, active, fit: fitMode } satisfies Stored));
+                // 只記「是否啟用」；倍率永遠由 fit 當場算出，不持久化手動縮放（已移除）。
+                localStorage.setItem(STORE_KEY, JSON.stringify({ active } satisfies Stored));
             } catch { /* 頁面禁用儲存時只是不記住偏好，不影響功能 */ }
         };
 
@@ -155,20 +149,12 @@ export default defineContentScript({
          */
         const area = () => contentArea(frameSize(), gameRect ?? fallbackGameArea(frameSize()));
 
-        const applyTransform = (followViewport = false) => {
+        const applyTransform = () => {
             const view = viewport();
             const size = frameSize();
             const shown = area();
-            const fittedZoom = fitZoom(view, shown);
-            if (fitMode) {
-                zoom = fittedZoom;
-            } else if (followViewport && lastFitZoom > 0) {
-                // 手動放大 125% 後把視窗由 1000px 拉到 1200px，維持的是 125% 的相對
-                // 視圖倍率，而非舊的絕對 px 縮放。這樣仍可平移看放大的畫面，也不必再點適應。
-                zoom = resizeZoom(zoom, lastFitZoom, fittedZoom);
-            }
-            lastFitZoom = fittedZoom;
-            pan = clampPan(pan, view, shown, zoom);
+            // 永遠 contain／fit：拉視窗邊框就自動跟上，不做手動倍率。
+            zoom = fitZoom(view, shown);
             const placement = framePlacement(view, size, gameRect ?? fallbackGameArea(size), zoom, pan);
             const root = document.documentElement;
             root.style.setProperty(CSS_ZOOM, String(zoom));
@@ -178,22 +164,8 @@ export default defineContentScript({
             ui.render();
         };
 
-        const setZoom = (next: number) => {
-            zoom = clampZoom(next);
-            fitMode = false;   // 使用者親手縮放過就脫離 fit，之後 resize 不再自動改動
-            applyTransform();
-            save();
-        };
-
-        const setFit = () => {
-            fitMode = true;
-            pan = { x: 0, y: 0 };
-            applyTransform();
-            save();
-        };
-
         const fitWindow = () => {
-            setFit();
+            applyTransform();
             const shown = area();
             // 用目前視窗量到的 outer-inner 差保留各 OS 的標題列與邊框，不硬編平台常數。
             void browser.runtime.sendMessage({
@@ -282,8 +254,7 @@ export default defineContentScript({
             ensureStyle();
             document.documentElement.setAttribute(ATTR_ACTIVE, '1');
             mark();
-            // 進劇場就直接做「適應」的完整動作（CSS 縮放 + 調整瀏覽器外框尺寸），不必
-            // 使用者自己再點一次——使用者明確要求「一開始點劇場就必須給我適應」。
+            // 一進來就做完整適應（CSS 縮放 + 調整瀏覽器外框尺寸）。
             // `fitWindow()` 內部本來就會呼叫 `applyTransform()`，故不必另外呼叫。
             fitWindow();
             requestMeasure();
@@ -302,7 +273,6 @@ export default defineContentScript({
             const root = document.documentElement;
             for (const name of [CSS_ZOOM, CSS_TX, CSS_TY, CSS_CLIP]) root.style.removeProperty(name);
             unmark();
-            pan = { x: 0, y: 0 };
             ui.render();
             save();
         };
@@ -335,23 +305,13 @@ export default defineContentScript({
         // ── 互動 ──────────────────────────────────────
         window.addEventListener('resize', () => {
             if (!active) return;
-            // 不論是否手動調過倍率，都要跟著視窗變化；手動模式保留的是相對倍率，
-            // fit 模式則永遠等於剛好放得下。
-            applyTransform(true);
+            applyTransform();
             requestMeasure();
         });
 
-        window.addEventListener('wheel', (e) => {
-            if (!active) return;
-            // Ctrl+滾輪留給瀏覽器自身的頁面縮放，不搶。
-            if (e.ctrlKey) return;
-            if (uiRoot.contains(e.target as Node)) return;
-            e.preventDefault();
-            setZoom(zoomByWheel(zoom, normalizeDelta(e.deltaY, e.deltaMode)));
-        }, { passive: false });
-
-        // 滑鼠在遊戲框上時滾輪／鍵盤事件只送到框內文件，父頁收不到；框內的 bridge 會把
-        // Alt+滾輪與 Esc 轉發上來（只送互動意圖，不含任何遊戲資料），並回覆畫布量測。
+        // 滑鼠在遊戲框上時鍵盤事件只送到框內文件；框內的 bridge 會把 Esc 轉發上來
+        // （只送互動意圖，不含任何遊戲資料），並回覆畫布量測。滾輪縮放已移除——
+        // Ctrl／⌘＋滾輪留給瀏覽器原生頁面縮放，不要搶。
         window.addEventListener('message', (e) => {
             const data = e.data as TheaterRelayMessage | undefined;
             if (!data || (data as any)[RELAY_MARK] !== 1) return;
@@ -359,41 +319,24 @@ export default defineContentScript({
                 // 只信任「我們正在顯示的那個框」直接回覆的量測值
                 if (!frame?.contentWindow || e.source !== frame.contentWindow) return;
                 gameRect = data.rect && data.rect.width > 0 && data.rect.height > 0 ? data.rect : null;
-                // 遊戲載入完成後才量到畫布時，適應倍率會從「整個 iframe」切成真正遊戲區；
-                // 手動縮放也維持相對倍率，避免突然縮成小角落。
-                if (active) applyTransform(true);
+                // 遊戲載入完成後才量到畫布時，適應倍率會從「整個 iframe」切成真正遊戲區。
+                if (active) applyTransform();
                 return;
             }
             if (!active) return;
-            if (data.kind === 'wheel') {
-                setZoom(zoomByWheel(zoom, normalizeDelta(Number(data.deltaY), Number(data.deltaMode))));
-            } else if (data.kind === 'exit') {
-                exit();
-            }
+            // Esc 離開只接受遊戲伺服器來源（bridge 就注入在那裡）。RELAY_MARK 只是
+            // 訊息辨識碼，不是憑證——DMM 頁面上的廣告／追蹤框同樣送得出來。
+            // 刻意**不用** `e.source === frame.contentWindow`：中間隔著 DMM gadget 框時
+            // 轉發來自孫框，比對直接子框會把 Esc 離開修壞。
+            if (!isGameFrameOrigin(e.origin)) return;
+            if (data.kind === 'exit') exit();
         });
 
-        let drag: { x: number; y: number; panX: number; panY: number } | null = null;
-        window.addEventListener('pointerdown', (e) => {
-            if (!active || e.button !== 0) return;
-            if (uiRoot.contains(e.target as Node)) return;
-            drag = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-        });
-        window.addEventListener('pointermove', (e) => {
-            if (!drag) return;
-            pan = { x: drag.panX + (e.clientX - drag.x), y: drag.panY + (e.clientY - drag.y) };
-            applyTransform();
-        });
-        const endDrag = () => { drag = null; };
-        window.addEventListener('pointerup', endDrag);
-        window.addEventListener('pointercancel', endDrag);
-
+        // Esc：焦點在父頁時直接離開。焦點在遊戲框內時由 bridge 轉發（見下方 message）。
+        // Ctrl／⌘＋滾輪留給瀏覽器原生頁面縮放，本檔不攔截滾輪。
         window.addEventListener('keydown', (e) => {
             if (!active) return;
-            if (e.key === 'Escape') { exit(); return; }
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            if (e.key === '+' || e.key === '=') { setZoom(zoom * ZOOM_STEP); e.preventDefault(); }
-            else if (e.key === '-') { setZoom(zoom / ZOOM_STEP); e.preventDefault(); }
-            else if (e.key === '0') { setFit(); e.preventDefault(); }
+            if (e.key === 'Escape') exit();
         });
 
         // ── 靜音（狀態由 background 持有，遊戲框內的 hook 實際執行）──
@@ -462,38 +405,14 @@ export default defineContentScript({
         const shadow = uiRoot.attachShadow({ mode: 'open' });
         const ensureUi = () => { if (!uiRoot.isConnected) document.documentElement.append(uiRoot); };
 
-        // 平移一次移動視窗的 15%：夠明顯又不會一下衝到底。
-        const panStep = (dx: number, dy: number) => {
-            const view = viewport();
-            pan = { x: pan.x + dx * view.width * 0.15, y: pan.y + dy * view.height * 0.15 };
-            applyTransform();
-        };
-        /** 放大到超出視窗時才需要平移鈕——沒有溢出時平移量一律被夾成 0，畫出來只會是死鈕。 */
-        const overflows = () => {
-            const view = viewport();
-            const size = area();
-            return size.width * zoom > view.width + 1 || size.height * zoom > view.height + 1;
-        };
-
         const ui = buildUi(shadow, {
             isActive: () => active,
             isMuted: () => muted,
-            isFit: () => fitMode,
-            zoomPercent: () => Math.round(zoom * 100),
-            canPan: () => active && overflows(),
             onAction: (action) => {
                 if (action === 'enter') enter();
                 else if (action === 'exit') exit();
-                else if (action === 'in') setZoom(zoom * ZOOM_STEP);
-                else if (action === 'out') setZoom(zoom / ZOOM_STEP);
-                else if (action === 'fit') fitWindow();
-                else if (action === 'actual') { pan = { x: 0, y: 0 }; setZoom(1); }
                 else if (action === 'mute') void setMuted(!muted);
                 else if (action === 'screenshot') void doScreenshot();
-                else if (action === 'pan-left') panStep(1, 0);
-                else if (action === 'pan-right') panStep(-1, 0);
-                else if (action === 'pan-up') panStep(0, 1);
-                else if (action === 'pan-down') panStep(0, -1);
             },
         });
         ensureUi();
@@ -516,14 +435,6 @@ export default defineContentScript({
     },
 });
 
-/** 滾輪 delta 正規化：行／頁模式換算成約當像素，讓觸控板與滑鼠的手感一致。 */
-function normalizeDelta(deltaY: number, deltaMode: number): number {
-    if (!Number.isFinite(deltaY)) return 0;
-    if (deltaMode === 1) return deltaY * 16;   // DOM_DELTA_LINE
-    if (deltaMode === 2) return deltaY * 400;  // DOM_DELTA_PAGE
-    return deltaY;
-}
-
 function waitForFrame(locate: () => HTMLIFrameElement | null, timeoutMs: number): Promise<void> {
     return new Promise(resolve => {
         if (locate()) { resolve(); return; }
@@ -534,31 +445,24 @@ function waitForFrame(locate: () => HTMLIFrameElement | null, timeoutMs: number)
     });
 }
 
-type UiAction =
-    | 'enter' | 'exit' | 'in' | 'out' | 'fit' | 'actual' | 'mute' | 'screenshot'
-    | 'pan-left' | 'pan-right' | 'pan-up' | 'pan-down';
+type UiAction = 'enter' | 'exit' | 'mute' | 'screenshot';
 
 interface UiHooks {
     isActive(): boolean;
     isMuted(): boolean;
-    isFit(): boolean;
-    zoomPercent(): number;
-    canPan(): boolean;
     onAction(action: UiAction): void;
 }
 
 /**
- * 工具列。**劇場中固定佔住底部一條、絕不蓋在遊戲畫面上**——第一版做成上緣浮動列，實機
- * 正好蓋住司令部資源列；而且滑鼠移到遊戲畫面上時事件全被框吃掉，父頁根本收不到 hover，
- * 「浮上去再自動閃避」在這個環境不可能成立。未進劇場時才縮回右下角的小按鈕。
+ * 工具列。**適應中固定佔住底部一條、絕不蓋在遊戲畫面上**。未啟用時縮回右下角小按鈕。
+ * 不提供 +/-／平移——大小靠拉瀏覽器邊框；縮放交給瀏覽器原生 Ctrl／⌘＋滾輪。
  */
 function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
     shadow.innerHTML = `
 <style>
     :host { all: initial; }
-    /* [hidden] 必須明寫：底下的 button/span 規則是作者樣式，會蓋過瀏覽器對 [hidden]
-       的 display:none（作者樣式恆勝 UA 樣式，與 specificity 無關）。第一版就是因為
-       少了這條，劇場中「劇場」進入鈕仍然顯示在工具列上。 */
+    /* [hidden] 必須明寫：底下的 button 規則是作者樣式，會蓋過瀏覽器對 [hidden]
+       的 display:none（作者樣式恆勝 UA 樣式，與 specificity 無關）。 */
     [hidden] { display: none !important; }
     .bar {
         position: fixed; z-index: 2147483647;
@@ -566,7 +470,6 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
         font: 12px/1.2 system-ui, -apple-system, "Noto Sans TC", sans-serif;
         color: #cfd6e4;
     }
-    /* 未進劇場：右下角一顆小按鈕，半透明不打擾 */
     .bar[data-mode="idle"] {
         right: 12px; bottom: 12px;
         padding: 4px; border-radius: 10px;
@@ -575,7 +478,6 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
         opacity: .35; transition: opacity .15s ease;
     }
     .bar[data-mode="idle"]:hover, .bar[data-mode="idle"]:focus-within { opacity: 1; }
-    /* 劇場中：底部整條，遊戲畫面已在 fit 計算中扣掉這個高度，不會互相遮蓋 */
     .bar[data-mode="on"] {
         left: 0; right: 0; bottom: 0; height: ${BAR_HEIGHT}px;
         justify-content: center;
@@ -593,10 +495,8 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
     button:active { background: #2c3d5c; }
     button:focus-visible { outline: 2px solid #e6c35c; outline-offset: 1px; }
     button[data-on="1"] { color: #e6c35c; }
-    .pct { min-width: 44px; text-align: center; color: #7d8aa0; font-variant-numeric: tabular-nums; }
     .sep { width: 1px; height: 14px; background: #2a3548; margin: 0 4px; }
-    /* 離開鈕故意跟其他按鈕拉開一大段距離（不是裝飾用的 .sep 間距）——它是唯一「按下去
-       整個劇場就沒了」的按鈕，緊鄰拍照／靜音很容易手滑點錯，見使用者實機回報。 */
+    /* 離開鈕跟其他按鈕拉開距離——唯一「按下去整個適應就沒了」的鈕，避免手滑。 */
     .exit-gap { margin: 0 22px; }
     .flash {
         position: fixed; z-index: 2147483647; left: 50%; bottom: 34px; transform: translateX(-50%);
@@ -609,20 +509,6 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
 </style>
 <div class="bar" part="bar">
     <button data-act="enter" class="enter"></button>
-    <span class="zoomgroup" hidden>
-        <button data-act="out">−</button>
-        <span class="pct"></span>
-        <button data-act="in">＋</button>
-        <button data-act="fit" class="fit"></button>
-        <button data-act="actual">1:1</button>
-    </span>
-    <span class="pangroup" hidden>
-        <span class="sep"></span>
-        <button data-act="pan-left">◀</button>
-        <button data-act="pan-up">▲</button>
-        <button data-act="pan-down">▼</button>
-        <button data-act="pan-right">▶</button>
-    </span>
     <span class="sep"></span>
     <button data-act="mute" class="mute"></button>
     <button data-act="screenshot" class="screenshot">📷</button>
@@ -637,10 +523,6 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
     const exitGap = shadow.querySelector('.exit-gap') as HTMLElement;
     const muteBtn = shadow.querySelector('.mute') as HTMLButtonElement;
     const screenshotBtn = shadow.querySelector('.screenshot') as HTMLButtonElement;
-    const zoomGroup = shadow.querySelector('.zoomgroup') as HTMLElement;
-    const panGroup = shadow.querySelector('.pangroup') as HTMLElement;
-    const pct = shadow.querySelector('.pct') as HTMLElement;
-    const fitBtn = shadow.querySelector('.fit') as HTMLButtonElement;
     const flash = shadow.querySelector('.flash') as HTMLElement;
 
     bar.addEventListener('click', (e) => {
@@ -657,18 +539,6 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
         exitBtn.hidden = !on;
         exitGap.hidden = !on;
         exitBtn.title = `${t('theater.exit')}（Esc）`;
-        zoomGroup.hidden = !on;
-        // 平移鈕只在放大到超出視窗時出現。這不是裝飾——遊戲框一旦蓋滿視窗，滑鼠與鍵盤
-        // 事件全部落進框內，父頁收不到拖曳，工具列是唯一還能平移的手段（已實測確認）。
-        panGroup.hidden = !hooks.canPan();
-        pct.textContent = `${hooks.zoomPercent()}%`;
-        fitBtn.textContent = t('theater.fitShort');
-        fitBtn.title = t('theater.fit');
-        // 目前是否處於「跟著視窗自動縮放」：使用者才知道拉動視窗會不會自己跟上
-        fitBtn.dataset.on = hooks.isFit() ? '1' : '0';
-        (shadow.querySelector('[data-act="out"]') as HTMLElement).title = t('theater.zoomOut');
-        (shadow.querySelector('[data-act="in"]') as HTMLElement).title = t('theater.zoomIn');
-        (shadow.querySelector('[data-act="actual"]') as HTMLElement).title = t('theater.actual');
         const isMuted = hooks.isMuted();
         muteBtn.textContent = isMuted ? '🔇' : '🔊';
         muteBtn.dataset.on = isMuted ? '1' : '0';

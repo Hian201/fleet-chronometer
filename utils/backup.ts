@@ -2,7 +2,8 @@
 // 可用 fake-indexeddb 獨立測試；overview 的 backup 分區只負責檔案與畫面互動。
 import type {
     BackupRestoreMetaRow, DatabaseMetaRow, EventPlanRow, ExpeditionRow, FactoryLogRow, KcDb,
-    ReplayRow, ResourceMarkRow, ResourceRow, ShipObtainedRow, SnapshotRow, SortieLogRow, WantedRow,
+    ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow, ShipObtainedRow,
+    SnapshotRow, SortieLogRow, WantedRow,
 } from './db';
 
 // v4 在 restore envelope 新增 eventPlans（活動作戰板）。
@@ -94,6 +95,11 @@ function nonEmptyString(value: unknown, where: string): string {
     return value;
 }
 
+function stringValue(value: unknown, where: string): string {
+    if (typeof value !== 'string') invalid(`${where} 必須是字串。`);
+    return value;
+}
+
 function integer(value: unknown, where: string, minimum = 0): number {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum) {
         invalid(`${where} 必須是 ${minimum} 以上的安全整數。`);
@@ -173,17 +179,23 @@ function assertNoApiToken(value: unknown, visited = new WeakSet<object>()): void
     }
 }
 
+// ── 逐列驗證 ────────────────────────────────────────────────────────────────
+// **每個 validateXxx 一律逐欄組出新物件，絕不 `...row` 把未列舉的鍵放行**：備份檔是
+// 使用者可以任意編輯的外部輸入，spread 等於讓任何鍵原封不動寫進 IndexedDB，之後被
+// 各分區當成自家欄位讀取（例如 UI 對字串欄位呼叫 esc() 會因為拿到物件而整區掛掉）。
+// 多餘鍵一律丟棄；已列舉欄位型別不符則整列拒絕（丟 BackupValidationError，整批 rollback）。
+// 新增 DB 欄位時**必須同步加進這裡**，否則往返會靜默掉欄位。
 function validateSnapshot(value: unknown, index: number): SnapshotRow {
     const where = `tables.snapshot[${index}]`;
     const row = objectAt(value, where);
     return {
-        ...row,
         path: nonEmptyString(row.path, `${where}.path`),
         ts: timestamp(row.ts, `${where}.ts`),
+        // api 是不解讀的原始封包內容，維持 opaque（token 已由 assertNoApiToken 全域擋下）。
         api: row.api,
         ...(row.req === undefined ? {} : { req: safeRequest(row.req, `${where}.req`) }),
         ...(row.eventId === undefined ? {} : { eventId: integer(row.eventId, `${where}.eventId`, 1) }),
-    } as SnapshotRow;
+    };
 }
 
 function validateSortie(value: unknown, index: number): SortieLogRow {
@@ -193,7 +205,6 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
     const drop = row.drop === null ? null : nonEmptyString(row.drop, `${where}.drop`);
     if (row.kind !== 'battle' && row.kind !== 'raid') invalid(`${where}.kind 必須是 battle 或 raid。`);
     return {
-        ...row,
         eventId: integer(row.eventId, `${where}.eventId`, 1),
         sortieKey: integer(row.sortieKey, `${where}.sortieKey`, 1),
         ts: timestamp(row.ts, `${where}.ts`),
@@ -201,7 +212,7 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         node: integer(row.node, `${where}.node`),
         boss: booleanValue(row.boss, `${where}.boss`),
         kind: row.kind,
-        rank: typeof row.rank === 'string' ? row.rank : invalid(`${where}.rank 必須是字串。`),
+        rank: stringValue(row.rank, `${where}.rank`),
         seiku,
         enemyIds: numberArray(row.enemyIds, `${where}.enemyIds`, 0),
         enemyIdsEscort: numberArray(row.enemyIdsEscort, `${where}.enemyIdsEscort`, 0),
@@ -218,28 +229,31 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         ...(row.baseExp === undefined ? {} : { baseExp: integer(row.baseExp, `${where}.baseExp`, 0) }),
         ...(row.nodeEventId === undefined ? {} : { nodeEventId: integer(row.nodeEventId, `${where}.nodeEventId`, 0) }),
         ...(row.nodeEventKind === undefined ? {} : { nodeEventKind: integer(row.nodeEventKind, `${where}.nodeEventKind`, 0) }),
-    } as SortieLogRow;
+        // CSV 匯入的來源標記（utils/drop-log-import.ts）。本機擷取的列一律缺席，不是 false。
+        ...(row.imported === undefined ? {} : { imported: booleanValue(row.imported, `${where}.imported`) }),
+    };
 }
 
 function validateFactory(value: unknown, index: number): FactoryLogRow {
     const where = `tables.factory[${index}]`;
     const row = objectAt(value, where);
-    if (!['develop', 'build', 'improve', 'speedup'].includes(String(row.kind))) {
-        invalid(`${where}.kind 不支援。`);
-    }
+    const kinds: FactoryLogRow['kind'][] = ['develop', 'build', 'improve', 'speedup'];
+    const kind = kinds.find(name => name === row.kind);
+    if (!kind) invalid(`${where}.kind 不支援。`);
     const resultRows = row.results === undefined ? undefined : arrayAt(row.results, `${where}.results`).map((entry, resultIndex) => {
         const result = objectAt(entry, `${where}.results[${resultIndex}]`);
         return { mst: integer(result.mst, `${where}.results[${resultIndex}].mst`, -1) };
     });
     return {
-        ...row,
         // 多渠同時建造時現行 projector 會以 eventId + kdockId / 1000 區分同一 raw event，
         // 因此 factory 的主鍵必須接受正的有限小數，不能誤限為整數。
         eventId: finiteNumber(row.eventId, `${where}.eventId`, 1),
         ts: timestamp(row.ts, `${where}.ts`),
-        kind: row.kind as FactoryLogRow['kind'],
+        kind,
         used: numberArray(row.used, `${where}.used`, 0),
         secretary: integer(row.secretary, `${where}.secretary`, 0),
+        // CSV 匯入可能只給到 0（來源沒有司令部等級欄），故下限是 0 而非 1。
+        ...(row.hqLv === undefined ? {} : { hqLv: integer(row.hqLv, `${where}.hqLv`, 0) }),
         ...(resultRows === undefined ? {} : { results: resultRows }),
         ...(optionalPositiveInteger(row, 'shipMst', where) === undefined ? {} : { shipMst: optionalPositiveInteger(row, 'shipMst', where) }),
         ...(optionalPositiveInteger(row, 'kdockId', where) === undefined ? {} : { kdockId: optionalPositiveInteger(row, 'kdockId', where) }),
@@ -248,10 +262,23 @@ function validateFactory(value: unknown, index: number): FactoryLogRow {
         ...(row.levelAfter === undefined ? {} : { levelAfter: integer(row.levelAfter, `${where}.levelAfter`) }),
         ...(optionalBoolean(row, 'success', where) === undefined ? {} : { success: optionalBoolean(row, 'success', where) }),
         ...(optionalBoolean(row, 'certain', where) === undefined ? {} : { certain: optionalBoolean(row, 'certain', where) }),
-    } as FactoryLogRow;
+        // CSV 匯入標記與備援顯示名。**這三欄一定要驗型別**：建造紀錄分區把兩個名字直接
+        // 當字串餵給 esc()，放行物件／數字會讓整個分區在渲染時炸掉。
+        ...(row.imported === undefined ? {} : { imported: booleanValue(row.imported, `${where}.imported`) }),
+        ...(row.importedShipName === undefined ? {} : {
+            importedShipName: stringValue(row.importedShipName, `${where}.importedShipName`),
+        }),
+        ...(row.importedSecretaryName === undefined ? {} : {
+            importedSecretaryName: stringValue(row.importedSecretaryName, `${where}.importedSecretaryName`),
+        }),
+    };
 }
 
-function validateReplayShip(value: unknown, where: string, support = false) {
+// 主隊／隨伴一定有 HP；支援艦隊（KC3Kai logger 的第 3／4 艦隊快照）本來就沒有，
+// 故以 overload 表達兩種回傳型別，缺席不得用 0 假裝（見 ReplaySupportShip 註解）。
+function validateReplayShip(value: unknown, where: string): ReplayShip;
+function validateReplayShip(value: unknown, where: string, support: true): ReplaySupportShip;
+function validateReplayShip(value: unknown, where: string, support = false): ReplaySupportShip {
     const ship = objectAt(value, where);
     const nowhp = support && ship.nowhp === undefined
         ? undefined : finiteNumber(ship.nowhp, `${where}.nowhp`, 0);
@@ -264,7 +291,6 @@ function validateReplayShip(value: unknown, where: string, support = false) {
         invalid(`${where}.nowhp 不得大於 maxhp。`);
     }
     return {
-        ...ship,
         mst_id: integer(ship.mst_id, `${where}.mst_id`, 1),
         lv: integer(ship.lv, `${where}.lv`, 1),
         equip: numberArray(ship.equip, `${where}.equip`, -1),
@@ -287,16 +313,21 @@ function validateReplay(value: unknown, index: number): ReplayRow {
         const battleWhere = `${where}.battles[${battleIndex}]`;
         const battle = objectAt(entry, battleWhere);
         return {
-            ...battle,
             node: integer(battle.node, `${battleWhere}.node`),
             // data/yasen 是已驗證格式外的原始內容，維持 opaque，不嘗試解讀或改寫。
             data: battle.data,
             ...(battle.yasen === undefined ? {} : { yasen: battle.yasen }),
-            ...(battle.rank === undefined ? {} : { rank: typeof battle.rank === 'string' ? battle.rank : invalid(`${battleWhere}.rank 必須是字串。`) }),
+            ...(battle.rank === undefined ? {} : { rank: stringValue(battle.rank, `${battleWhere}.rank`) }),
+            // 單場 JSON 匯入（KC3Kai logger）帶的逐節點結算欄位，見 ReplayNode 註解。
+            ...(battle.dropMst === undefined ? {} : { dropMst: integer(battle.dropMst, `${battleWhere}.dropMst`, 1) }),
+            ...(battle.mvp === undefined ? {} : { mvp: integer(battle.mvp, `${battleWhere}.mvp`, 1) }),
+            ...(battle.mvpEscort === undefined ? {} : { mvpEscort: integer(battle.mvpEscort, `${battleWhere}.mvpEscort`, 1) }),
+            ...(battle.getExp === undefined ? {} : { getExp: integer(battle.getExp, `${battleWhere}.getExp`, 0) }),
+            ...(battle.baseExp === undefined ? {} : { baseExp: integer(battle.baseExp, `${battleWhere}.baseExp`, 0) }),
+            ...(battle.boss === undefined ? {} : { boss: booleanValue(battle.boss, `${battleWhere}.boss`) }),
         };
     });
     return {
-        ...row,
         sortieKey: integer(row.sortieKey, `${where}.sortieKey`, 1),
         ts: timestamp(row.ts, `${where}.ts`),
         world: integer(row.world, `${where}.world`),
@@ -318,7 +349,6 @@ function validateReplay(value: unknown, index: number): ReplayRow {
                 const baseWhere = `${where}.lbas[${i}]`;
                 const base = objectAt(entry, baseWhere);
                 return {
-                    ...base,
                     areaId: integer(base.areaId, `${baseWhere}.areaId`, 0),
                     rid: integer(base.rid, `${baseWhere}.rid`, 1),
                     action: integer(base.action, `${baseWhere}.action`, 0),
@@ -327,7 +357,6 @@ function validateReplay(value: unknown, index: number): ReplayRow {
                         const sqWhere = `${baseWhere}.squadrons[${j}]`;
                         const squadron = objectAt(sq, sqWhere);
                         return {
-                            ...squadron,
                             mst: integer(squadron.mst, `${sqWhere}.mst`, 0),
                             count: integer(squadron.count, `${sqWhere}.count`, 0),
                             maxCount: integer(squadron.maxCount, `${sqWhere}.maxCount`, 0),
@@ -345,7 +374,7 @@ function validateReplay(value: unknown, index: number): ReplayRow {
         ...(row.nickname === undefined ? {} : { nickname: nonEmptyString(row.nickname, `${where}.nickname`) }),
         ...(row.pinned === undefined ? {} : { pinned: booleanValue(row.pinned, `${where}.pinned`) }),
         ...(row.imported === undefined ? {} : { imported: booleanValue(row.imported, `${where}.imported`) }),
-    } as ReplayRow;
+    };
 }
 
 function validateExpedition(value: unknown, index: number): ExpeditionRow {
@@ -366,46 +395,44 @@ function validateExpedition(value: unknown, index: number): ExpeditionRow {
         };
     });
     return {
-        ...row,
         eventId: integer(row.eventId, `${where}.eventId`, 1),
         ts: timestamp(row.ts, `${where}.ts`),
         deckId: integer(row.deckId, `${where}.deckId`, 0),
         missionId: integer(row.missionId, `${where}.missionId`, 0),
-        name: typeof row.name === 'string' ? row.name : invalid(`${where}.name 必須是字串。`),
+        name: stringValue(row.name, `${where}.name`),
         result: integer(row.result, `${where}.result`, 0),
         resources: numberArray(row.resources, `${where}.resources`, 0),
         items,
         ...(fleet === undefined ? {} : { fleet }),
-    } as ExpeditionRow;
+    };
 }
 
 function validateWanted(value: unknown, index: number): WantedRow {
     const where = `tables.wanted[${index}]`;
     const row = objectAt(value, where);
     return {
-        ...row,
         ...(row.id === undefined ? {} : { id: integer(row.id, `${where}.id`, 1) }),
         eventId: integer(row.eventId, `${where}.eventId`, 1),
         tag: nonEmptyString(row.tag, `${where}.tag`),
         ts: timestamp(row.ts, `${where}.ts`),
         path: nonEmptyString(row.path, `${where}.path`),
-    } as WantedRow;
+    };
 }
 
 function validateShipObtained(value: unknown, index: number): ShipObtainedRow {
     const where = `tables.shipObtained[${index}]`;
     const row = objectAt(value, where);
-    if (row.source !== 'auto' && row.source !== 'manual' && row.source !== null) {
+    const sources: ShipObtainedRow['source'][] = ['auto', 'manual', null];
+    if (!sources.includes(row.source as ShipObtainedRow['source'])) {
         invalid(`${where}.source 必須是 auto、manual 或 null。`);
     }
     return {
-        ...row,
         id: integer(row.id, `${where}.id`, 1),
         mst: integer(row.mst, `${where}.mst`, 1),
         obtainedTs: row.obtainedTs === null ? null : timestamp(row.obtainedTs, `${where}.obtainedTs`),
-        source: row.source,
+        source: row.source as ShipObtainedRow['source'],
         ...(row.observedEventId === undefined ? {} : { observedEventId: integer(row.observedEventId, `${where}.observedEventId`, 1) }),
-    } as ShipObtainedRow;
+    };
 }
 
 // 活動作戰板：**純使用者手輸資料**（標籤名、關卡的標籤約束、編成），不參照任何 event id，

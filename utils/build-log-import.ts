@@ -80,6 +80,18 @@ function parseNonNegInt(raw: string): number | null {
 }
 
 /**
+ * 司令部等級是可選欄位：空欄＝來源沒記（維持缺席，別補 0 假裝知道），有值就必須是
+ * 合法整數。`Number('あ')` 會得到 NaN，寫進 DB 之後 JSON 序列化成 null、UI 直接顯示
+ * 「NaN」，故非法值一律回 'invalid' 交由呼叫端 skip。
+ */
+function parseOptionalHqLv(raw: string): number | undefined | 'invalid' {
+    const trimmed = raw.trim();
+    if (trimmed === '') return undefined;
+    const parsed = parseNonNegInt(trimmed);
+    return parsed == null ? 'invalid' : parsed;
+}
+
+/**
  * 解析 CSV／TSV。`resolveShipMst` 用目前 master 反查艦名（見 reverseShipLookup），
  * 查不到不算錯誤——那一列仍會匯入，只是 shipMst 缺席、改存 shipName 供顯示。
  */
@@ -114,14 +126,18 @@ export function parseBuildLogCsv(text: string, resolveShipMst?: (name: string) =
             }
             const shipMstRaw = Number(get('shipMst'));
             const secretaryRaw = Number(get('secretary'));
-            const hqLvRaw = get('hqLv').trim();
+            const hqLv = parseOptionalHqLv(get('hqLv'));
+            if (hqLv === 'invalid') {
+                skipped.push({ line, reason: `hqLv 欄位「${get('hqLv').trim()}」不是有限非負整數。` });
+                return;
+            }
             rows.push({
                 ts, kind: kind as 'build' | 'speedup', used,
                 ...(Number.isSafeInteger(shipMstRaw) && shipMstRaw > 0 ? { shipMst: shipMstRaw } : {}),
                 ...(!Number.isSafeInteger(shipMstRaw) || shipMstRaw <= 0 ? { shipName: get('shipName').trim() || undefined } : {}),
                 ...(Number.isSafeInteger(secretaryRaw) && secretaryRaw > 0 ? { secretary: secretaryRaw } : {}),
                 ...(!Number.isSafeInteger(secretaryRaw) || secretaryRaw <= 0 ? { secretaryName: get('secretaryName').trim() || undefined } : {}),
-                ...(hqLvRaw ? { hqLv: Number(hqLvRaw) } : {}),
+                ...(hqLv === undefined ? {} : { hqLv }),
             });
         });
         return { format: 'own', rows, skipped };
@@ -138,20 +154,38 @@ export function parseBuildLogCsv(text: string, resolveShipMst?: (name: string) =
             const shipName = (cells[idx('名前')] ?? '').trim();
             if (!shipName) { skipped.push({ line, reason: '名前欄位是空的。' }); return; }
             const secretaryName = (cells[idx('秘書艦')] ?? '').trim();
+            // 這份報表沒有實機樣本佐證，欄位內容不合預期是常態；一律嚴格解析、不符就整列
+            // 跳過並記原因（`Number(x) || 0` 會把「あ」與「-5」靜默寫成 0／負值，那是把
+            // 無法解讀的來源資料偽裝成精確的投入資材，之後再也分不出來）。
             const used = emptyUsed();
-            used[0] = Number(cells[idx('燃料')]) || 0;
-            used[1] = Number(cells[idx('弾薬')]) || 0;
-            used[2] = Number(cells[idx('鋼材')]) || 0;
-            used[3] = Number(cells[idx('ボーキ')]) || 0;
-            used[6] = Number(cells[idx('開発資材')]) || 0;
-            const hqLvRaw = (cells[idx('司令部Lv')] ?? '').trim();
+            const materialFields: { label: string; index: number }[] = [
+                { label: '燃料', index: 0 }, { label: '弾薬', index: 1 },
+                { label: '鋼材', index: 2 }, { label: 'ボーキ', index: 3 },
+                { label: '開発資材', index: 6 },
+            ];
+            const badMaterial = materialFields.find(({ label, index }) => {
+                const value = parseNonNegInt(cells[idx(label)] ?? '');
+                if (value == null) return true;
+                used[index] = value;
+                return false;
+            });
+            if (badMaterial) {
+                const raw = (cells[idx(badMaterial.label)] ?? '').trim();
+                skipped.push({ line, reason: `${badMaterial.label}欄位「${raw}」不是有限非負整數。` });
+                return;
+            }
+            const hqLv = parseOptionalHqLv(cells[idx('司令部Lv')] ?? '');
+            if (hqLv === 'invalid') {
+                skipped.push({ line, reason: `司令部Lv欄位「${(cells[idx('司令部Lv')] ?? '').trim()}」不是有限非負整數。` });
+                return;
+            }
             const shipMst = resolveShipMst?.(shipName);
             const secretary = secretaryName ? resolveShipMst?.(secretaryName) : undefined;
             rows.push({
                 ts, kind: 'build', used,
                 ...(shipMst ? { shipMst } : { shipName }),
                 ...(secretary ? { secretary } : secretaryName ? { secretaryName } : {}),
-                ...(hqLvRaw && Number.isSafeInteger(Number(hqLvRaw)) ? { hqLv: Number(hqLvRaw) } : {}),
+                ...(hqLv === undefined ? {} : { hqLv }),
             });
         });
         return { format: 'logbook', rows, skipped };

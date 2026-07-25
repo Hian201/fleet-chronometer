@@ -33,6 +33,39 @@ describe('pickGameFrame：遊戲框辨識', () => {
         expect(picked?.src).toContain('player');
     });
 
+    // 舊版對整段 src 做子字串比對，惡意頁面只要在 query／路徑裡塞一段遊戲主機名，就能讓
+    // 自己的框被當成「確定證據」挑中——被放大到整個視窗，拍照裁切也會算到它身上。
+    it('src 裡冒充遊戲主機名的字串不算證據（只認解析後的主機名）', () => {
+        const spoofs = [
+            'https://attacker.example/ad?ref=kancolle-server.com',
+            'https://kancolle-server.com.attacker.example/index.php',
+            'https://evil-kancolle-server.com/kcs2/index.php',
+            'https://attacker.example/gadgets/ifr?url=x',
+            'https://attacker.example/osapi.dmm.com/game',
+        ];
+        for (const src of spoofs) {
+            // 小框：既不是主機名證據，也不夠大，故完全挑不中。
+            expect(pickGameFrame([{ src, width: 300, height: 250 }]), src).toBeNull();
+            // 大框：仍可能被尺寸啟發式挑中（那是既有行為），但不得升級成「確定證據」而
+            // 蓋過真正的遊戲框。
+            const picked = pickGameFrame([
+                { src, width: 1600, height: 1200 },
+                { src: 'http://w01.kancolle-server.com/kcs2/index.php', width: 1200, height: 720 },
+            ]);
+            expect(picked?.src, src).toContain('w01.kancolle-server.com');
+        }
+    });
+
+    it('子網域算數，解析不出來的 src 一律當不可用（不猜）', () => {
+        expect(pickGameFrame([
+            { src: 'https://osapi.dmm.com/gadgets/ifr?url=...', width: 1200, height: 720 },
+        ])?.src).toContain('osapi.dmm.com');
+        // 相對路徑、about:blank、空字串都不是可用候選，即使尺寸夠大也不挑。
+        for (const src of ['/game/iframe.html', 'about:blank', '']) {
+            expect(pickGameFrame([{ src, width: 1600, height: 1200 }]), src).toBeNull();
+        }
+    });
+
     it('追蹤／分析用框一律排除，即使尺寸被撐大', () => {
         const picked = pickGameFrame([
             { src: 'https://www.googletagmanager.com/ns.html?id=GTM-X', width: 1600, height: 900 },

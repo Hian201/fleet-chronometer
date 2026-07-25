@@ -71,20 +71,15 @@ export default defineContentScript({
         };
         connectMutePort();
 
-        // ── 劇場模式的互動意圖轉發（Alt+滾輪／Esc）────
-        // 滑鼠停在遊戲框上、或焦點落進框內（玩遊戲時的常態）時，滾輪與鍵盤事件只送到框內
-        // 文件，父頁的劇場模式收不到——實測確認放大到滿版後父頁再也收不到任何滾輪與 Esc。
-        // 故在這裡把「Alt+滾輪」與「Esc」轉發上去（**只送互動意圖，不含任何遊戲資料**）。
-        // 兩個 listener 都是 passive、都不 stopPropagation：遊戲照樣收到原本的事件，
-        // 我們沒有改變遊戲的任何行為（設計原則 1 的精神）。
+        // ── 視窗適應的互動意圖轉發（僅 Esc）────
+        // 焦點落進遊戲框內時，鍵盤事件只送到框內文件，父頁收不到 Esc。
+        // 故把 Esc 轉發上去（**只送互動意圖，不含任何遊戲資料**）。
+        // 不做滾輪轉發：視窗適應永遠 fit，縮放交給瀏覽器原生 Ctrl／⌘＋滾輪。
+        // listener 是 passive、不 stopPropagation：遊戲照樣收到原本的事件。
         const relay = (message: TheaterRelayMessage) => {
             if (window.top === window) return;
             try { window.top?.postMessage(message, '*'); } catch { /* 上層不可達時忽略 */ }
         };
-        window.addEventListener('wheel', (e) => {
-            if (!e.altKey) return;
-            relay({ [RELAY_MARK]: 1, kind: 'wheel', deltaY: e.deltaY, deltaMode: e.deltaMode });
-        }, { passive: true, capture: true });
         window.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
             relay({ [RELAY_MARK]: 1, kind: 'exit' });

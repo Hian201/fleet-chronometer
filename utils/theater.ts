@@ -1,6 +1,7 @@
-// 劇場模式（把 DMM 頁面裡的遊戲框放到整個視窗、可縮放平移）的**純函式核心**：
-// 遊戲框辨識、縮放／平移幾何、注入用 CSS 產生器。無 chrome.*、無 DOM 型別依賴
+// 視窗適應（把 DMM 頁面裡的遊戲框等比填滿瀏覽器視窗）的**純函式核心**：
+// 遊戲框辨識、fit 幾何、注入用 CSS 產生器。無 chrome.*、無 DOM 型別依賴
 // （只吃 `{src,width,height}` 這種最小形狀），故可用 node 直接測（CLAUDE.md 設計原則 4）。
+// UI 不再暴露手動縮放／平移；`zoomByWheel`／`clampPan` 等仍保留供幾何／測試使用。
 //
 // 為什麼需要這一層：DMM 遊戲頁已改版為 `play.games.dmm.com/game/kancolle`，是 Vite+React
 // 的 SPA（`<div id="root">` 由 JS 動態插入遊戲框），**DOM 結構沒有任何可依賴的固定 id
@@ -14,15 +15,60 @@ export interface FrameCandidate {
     height: number;
 }
 
+/**
+ * 辨識規則：`host` 比對**解析後的主機名**（精確或子網域後綴），`path` 比對 pathname 前綴。
+ *
+ * **絕不可改回對整段 src 做子字串／正規式比對**：`https://attacker.example/ad?ref=
+ * kancolle-server.com` 這種 URL 會直接命中「確定證據」那一層，讓惡意頁面把自己的框
+ * 冒充成遊戲框、被放大到整個視窗，連拍照裁切矩形都跟著算到它身上。
+ */
+interface FrameRule { host?: string; path?: string }
+
 // 已知會承載遊戲的主機／路徑。舊入口（www.dmm.com/netgame/social/…）走
 // `osapi.dmm.com/gadgets/ifr`，新入口（play.games.dmm.com）的中間層尚未實測，
 // 故一律以「kancolle-server 或 DMM gadget」為第一優先，其餘退回尺寸啟發式。
-const GAME_FRAME_HINTS = [/kancolle-server\.com/i, /osapi\.dmm\.com/i, /\/gadgets\/ifr/i];
+const GAME_FRAME_HINTS: FrameRule[] = [
+    { host: 'kancolle-server.com' },
+    { host: 'osapi.dmm.com' },
+    // gadget 路徑只在 DMM 自己的主機上才算證據，否則任何站台放個 /gadgets/ifr 就能冒充。
+    { host: 'dmm.com', path: '/gadgets/ifr' },
+];
 // 明確排除的追蹤／廣告框：它們常是 0×0 或隱藏，但尺寸啟發式仍可能誤中。
-const NEVER_GAME = [/googletagmanager\.com/i, /doubleclick\.net/i, /google-analytics\.com/i, /\/ns\.html/i];
+// `/ns.html` 是 GTM 的 noscript 框，不限主機——這裡多排除只會少挑一個候選，方向是安全的。
+const NEVER_GAME: FrameRule[] = [
+    { host: 'googletagmanager.com' },
+    { host: 'doubleclick.net' },
+    { host: 'google-analytics.com' },
+    { path: '/ns.html' },
+];
 // 尺寸啟發式的下限：遊戲框（Flight-IIA 為 1200×720 級距）遠大於任何裝飾用 iframe。
 const MIN_GAME_WIDTH = 400;
 const MIN_GAME_HEIGHT = 300;
+
+interface FrameLocation { hostname: string; pathname: string }
+
+/** 解析框的 src。**解析不出來（相對路徑、about:blank、空字串…）一律當不可用，不猜。** */
+function frameLocation(src: string): FrameLocation | null {
+    let url: URL;
+    try {
+        url = new URL(src);
+    } catch {
+        return null;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return { hostname: url.hostname.toLowerCase(), pathname: url.pathname.toLowerCase() };
+}
+
+/** 主機名比對：精確相同或其子網域；`evil-kancolle-server.com` 這種同尾綴別的網域不算。 */
+function hostMatches(hostname: string, host: string): boolean {
+    return hostname === host || hostname.endsWith(`.${host}`);
+}
+
+function ruleMatches(location: FrameLocation, rule: FrameRule): boolean {
+    if (rule.host !== undefined && !hostMatches(location.hostname, rule.host)) return false;
+    if (rule.path !== undefined && !location.pathname.startsWith(rule.path)) return false;
+    return rule.host !== undefined || rule.path !== undefined;
+}
 
 /**
  * 從頁面上的 iframe 候選裡挑出遊戲框。
@@ -30,12 +76,21 @@ const MIN_GAME_HEIGHT = 300;
  * **絕不亂挑一個**——挑錯框會把 DMM 的廣告框放大到整個視窗。
  */
 export function pickGameFrame<T extends FrameCandidate>(candidates: readonly T[]): T | null {
-    const usable = candidates.filter(c => !NEVER_GAME.some(re => re.test(c.src)));
-    const byArea = (a: T, b: T) => b.width * b.height - a.width * a.height;
-    const hinted = usable.filter(c => GAME_FRAME_HINTS.some(re => re.test(c.src)));
-    if (hinted.length) return [...hinted].sort(byArea)[0];
-    const big = usable.filter(c => c.width >= MIN_GAME_WIDTH && c.height >= MIN_GAME_HEIGHT);
-    return big.length ? [...big].sort(byArea)[0] : null;
+    const usable: { candidate: T; location: FrameLocation }[] = [];
+    for (const candidate of candidates) {
+        const location = frameLocation(candidate.src);
+        if (!location) continue;
+        if (NEVER_GAME.some(rule => ruleMatches(location, rule))) continue;
+        usable.push({ candidate, location });
+    }
+    type Entry = (typeof usable)[number];
+    const byArea = (a: Entry, b: Entry) =>
+        b.candidate.width * b.candidate.height - a.candidate.width * a.candidate.height;
+    const hinted = usable.filter(e => GAME_FRAME_HINTS.some(rule => ruleMatches(e.location, rule)));
+    if (hinted.length) return hinted.sort(byArea)[0].candidate;
+    const big = usable.filter(e =>
+        e.candidate.width >= MIN_GAME_WIDTH && e.candidate.height >= MIN_GAME_HEIGHT);
+    return big.length ? big.sort(byArea)[0].candidate : null;
 }
 
 // ── 縮放幾何 ──────────────────────────────────────────

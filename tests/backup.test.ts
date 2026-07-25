@@ -165,6 +165,80 @@ describe('備份 envelope runtime validation', () => {
         expect(() => parseBackupJson('{not json')).toThrow('備份檔不是有效的 JSON');
     });
 
+    // 備份檔是使用者可以任意編輯的外部輸入。以前 validateXxx 用 `...row` 把未列舉的鍵
+    // 原封放行，等於任何欄位都能寫進 IndexedDB，之後被各分區當成自家欄位讀。
+    it('未列舉的多餘欄位一律丟棄，不會進到還原結果', () => {
+        const input = v3Restore() as unknown as { tables: Record<string, Array<Record<string, unknown>>> };
+        input.tables.snapshot[0].evil = { nested: true };
+        input.tables.sorties[0].__proto__x = 'x';
+        input.tables.sorties[0].imported = true;
+        input.tables.expeditions[0].evil = 1;
+        input.tables.factory[0].evil = 'x';
+        input.tables.wanted[0].evil = [1];
+        input.tables.shipObtained[0].evil = 'x';
+
+        const tables = validateBackupEnvelope(input).tables;
+
+        const rows: object[] = [
+            tables.snapshot![0], tables.sorties![0], tables.expeditions![0],
+            tables.factory![0], tables.wanted![0], tables.shipObtained![0],
+        ];
+        for (const row of rows) {
+            expect(Object.keys(row)).not.toContain('evil');
+            expect(Object.keys(row)).not.toContain('__proto__x');
+        }
+        // 已列舉的可選欄位仍要留著（丟棄的只有未列舉的鍵）。
+        expect(tables.sorties![0].imported).toBe(true);
+    });
+
+    it('replays 的巢狀結構同樣只保留已驗證欄位', () => {
+        const input = v3Replays() as unknown as {
+            tables: { replays: Array<Record<string, any>> };
+        };
+        input.tables.replays[0].evil = 1;
+        input.tables.replays[0].fleet1[0].evil = 1;
+        input.tables.replays[0].battles[0].evil = 1;
+
+        const replay = validateBackupEnvelope(input).tables.replays![0];
+
+        expect(Object.keys(replay)).not.toContain('evil');
+        expect(Object.keys(replay.fleet1[0])).not.toContain('evil');
+        expect(Object.keys(replay.battles[0])).not.toContain('evil');
+        // 戰鬥封包本身是 opaque 原始內容，不得被逐欄過濾掉。
+        expect(replay.battles[0].data).toEqual({ opaque: ['do not', 'interpret'] });
+    });
+
+    // 建造紀錄分區直接把這兩個名字當字串餵給 esc()：放行物件會讓整個分區在渲染時炸掉。
+    it('factory 的匯入備援欄位型別不對時整列拒絕，不寫入', async () => {
+        const database = createDb();
+        const cases: Array<Record<string, unknown>> = [
+            { importedShipName: { toString: 'evil' } },
+            { importedSecretaryName: 42 },
+            { imported: 'yes' },
+            { hqLv: '120' },
+        ];
+
+        for (const patch of cases) {
+            const input = v3Restore() as unknown as { tables: { factory: Array<Record<string, unknown>> } };
+            Object.assign(input.tables.factory[0], patch);
+            expect(() => validateBackupEnvelope(input), JSON.stringify(patch)).toThrow(BackupValidationError);
+            await expect(restoreBackup(database, input)).rejects.toBeInstanceOf(BackupValidationError);
+        }
+
+        expect(await database.factory.count()).toBe(0);
+        expect(await database.events.count()).toBe(0);
+    });
+
+    it('factory 的匯入欄位型別正確時原樣往返', () => {
+        const input = v3Restore() as unknown as { tables: { factory: Array<Record<string, unknown>> } };
+        Object.assign(input.tables.factory[0], {
+            imported: true, importedShipName: '謎の艦', importedSecretaryName: '睦月', hqLv: 120,
+        });
+        expect(validateBackupEnvelope(input).tables.factory![0]).toMatchObject({
+            imported: true, importedShipName: '謎の艦', importedSecretaryName: '睦月', hqLv: 120,
+        });
+    });
+
     it('遠征編成快照可往返，格式不完整時拒絕而不靜默遺失', () => {
         const input = v3Restore();
         (input.tables.expeditions[0] as ExpeditionRow).fleet = [{ name: '睦月', level: 99 }];

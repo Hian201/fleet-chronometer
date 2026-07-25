@@ -31,7 +31,7 @@ belong to their respective owners.
 - **Local backups** — export/import to a folder you choose (e.g. a
   Google Drive Desktop sync folder), with an offline HTML viewer that needs
   no extension installed to read a replay back.
-- **Theater mode** — pop the game canvas out, zoom/pan, mute audio.
+- **Fit to Window** — fit the game canvas into the browser window; resize the window to change size; mute audio.
 
 ## Privacy & safety, by design
 
@@ -42,7 +42,7 @@ belong to their respective owners.
 - **Nothing is uploaded anywhere.** All data lives in your browser's local
   IndexedDB. There is no backend server.
 - **Minimal permissions**, requested only when a specific feature needs
-  them (e.g. theater mode asks for access to the DMM game page only when
+  them (e.g. Fit to Window asks for access to the DMM game page only when
   you click the button for it — never on install).
 
 See the project's internal documentation for the full design constraints

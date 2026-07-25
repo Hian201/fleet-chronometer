@@ -68,6 +68,32 @@ export const isGamePageUrl = (url: string | undefined): boolean =>
 export const isGameTabUrl = (url: string | undefined): boolean =>
     !!url && GAME_TAB_MATCHES.some(pattern => matchesUrlPattern(url, pattern));
 
+/**
+ * 遊戲框本身（承載 kcsapi 流量的 iframe）的主機。bridge 就注入在這裡
+ * （`*://*.kancolle-server.com/*`），故它也是劇場模式互動轉發的唯一合法來源。
+ */
+export const GAME_FRAME_HOST = 'kancolle-server.com';
+
+/**
+ * postMessage 的 `e.origin` 是不是遊戲框所在的伺服器。
+ *
+ * 為什麼不改用 `e.source === frame.contentWindow`：遊戲框中間可能還隔著 DMM 自己的
+ * gadget 框，那時 bridge 的轉發是從**孫框**上來的，比對直接子框會把功能修壞
+ * （Esc 離開整個失效）。origin 比對能擋掉「DMM 頁面上任何第三方框（廣告／追蹤）
+ * 冒充轉發訊息去關掉視窗適應」，又不預設框架層數。
+ */
+export function isGameFrameOrigin(origin: string): boolean {
+    let url: URL;
+    try {
+        url = new URL(origin);
+    } catch {
+        return false;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase();
+    return host === GAME_FRAME_HOST || host.endsWith(`.${GAME_FRAME_HOST}`);
+}
+
 /** 動態註冊時的 content script id（registerContentScripts／unregister 都用它）。 */
 export const THEATER_SCRIPT_ID = 'kc-theater';
 /**
@@ -124,16 +150,13 @@ export const PORT_MUTE = 'kc:mute';
 /**
  * 遊戲框 → 最上層 DMM 頁的 window.postMessage 轉發（跨源，只送互動意圖，不含遊戲資料）。
  *
- * 為什麼需要轉發：滑鼠一旦停在遊戲框上、或焦點落進框內（玩遊戲時的常態），滾輪與鍵盤
- * 事件就只送到框內文件，父頁的劇場模式完全收不到。實測（headless Chrome）確認：放大到
- * 超出視窗後，父頁再也收不到任何滾輪與 Esc。
+ * 為什麼需要轉發：焦點落進遊戲框內時，鍵盤事件只送到框內文件，父頁收不到 Esc。
+ * 目前只轉發 Esc 離開；滾輪縮放已移除（永遠 fit，縮放交給瀏覽器原生 Ctrl／⌘＋滾輪）。
  *
- * **一律 passive、絕不 stopPropagation／preventDefault**：遊戲仍會照常收到原本的事件，
- * 我們只是「順便看一眼」。修改遊戲收到的輸入等於改變遊戲行為，那是紅線。
+ * **一律 passive、絕不 stopPropagation／preventDefault**：遊戲仍會照常收到原本的事件。
  */
 export const RELAY_MARK = '__kc_theater__';
 export type TheaterRelayMessage =
-    | { [RELAY_MARK]: 1; kind: 'wheel'; deltaY: number; deltaMode: number }
     | { [RELAY_MARK]: 1; kind: 'exit' }
     // 父頁 → 遊戲框：請回報遊戲畫布的位置與大小
     | { [RELAY_MARK]: 1; kind: 'measure' }

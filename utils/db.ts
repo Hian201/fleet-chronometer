@@ -153,6 +153,16 @@ export interface ReplayNode {
     data: unknown;           // 晝戰原始 api_data（api_req_sortie/battle 等）
     yasen?: unknown;         // 夜戰原始 api_data（api_req_battle_midnight/* 等）
     rank?: string;           // battleresult 的 api_win_rank
+    // 以下逐節點結算欄位**只有單場 JSON 匯入（KC3Kai logger）才有**（見 utils/sortie-import.ts）：
+    // 那份來源的 wrapper 自帶這些摘要，本機擷取的重播一律缺席（原始封包裡沒有 baseEXP，
+    // 其餘則在 sorties 摘要列裡）。列在這裡是因為它們確實會落地到 db.replays，
+    // 備份的欄位白名單（utils/backup.ts）必須認得，否則往返會靜默掉資料。
+    dropMst?: number;
+    mvp?: number;            // 1-based
+    mvpEscort?: number;      // 1-based
+    getExp?: number;
+    baseExp?: number;
+    boss?: boolean;
 }
 // 出擊當下的基地航空隊快照（一支中隊一筆）。**戰鬥封包只帶「有出擊的那幾波」**
 // （api_air_base_attack），要知道「這次出擊時三個基地各自的編成與行動」只能在

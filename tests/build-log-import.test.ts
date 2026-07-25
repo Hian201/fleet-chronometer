@@ -70,6 +70,18 @@ describe('parseBuildLogCsv（自家格式，往返）', () => {
         expect(parsed.skipped[0].reason).toMatch(/fuel/);
         expect(parsed.skipped[1].reason).toMatch(/ammo/);
     });
+
+    // hqLv 走 Number() 時「あ」會變成 NaN 寫進 DB（JSON 序列化成 null、UI 顯示 NaN）。
+    it('hqLv 非合法整數時 skip；空欄維持缺席而不是補 0', () => {
+        const header = 'ts,kind,shipMst,shipName,fuel,ammo,steel,bauxite,devmat,torch,secretary,secretaryName,hqLv';
+        const bad = '2026-07-23T12:00:00.000Z,build,135,,1750,30,30,1750,0,0,1,,あ';
+        const blank = '2026-07-23T12:00:01.000Z,build,135,,1750,30,30,1750,0,0,1,,';
+        const parsed = parseBuildLogCsv(`${header}\r\n${bad}\r\n${blank}\r\n`);
+        expect(parsed.rows).toHaveLength(1);
+        expect(parsed.rows[0]).not.toHaveProperty('hqLv');
+        expect(parsed.skipped).toHaveLength(1);
+        expect(parsed.skipped[0].reason).toMatch(/hqLv/);
+    });
 });
 
 describe('parseBuildLogCsv（航海日誌拡張版相容）', () => {
@@ -101,6 +113,33 @@ describe('parseBuildLogCsv（航海日誌拡張版相容）', () => {
         const parsed = parseBuildLogCsv(`${HEADER}\r\n${line}\r\n`);
         expect(parsed.rows).toHaveLength(0);
         expect(parsed.skipped).toHaveLength(1);
+    });
+
+    // 這份格式沒有實機樣本佐證，不合預期的欄位是常態；`Number(x) || 0` 會把無法解讀的
+    // 來源值偽裝成精確的投入資材（「あ」→0、「-5」→-5），事後再也分不出來。
+    it('資材欄非有限非負整數時整列跳過並記原因，不 Number||0 靜默寫入', () => {
+        const bad = ['1', '2026-07-23 21:00:00', '建造', '長波', '駆逐艦', 'あ', '30', '30', '1750', '0', '3', '睦月', '120'].join('\t');
+        const neg = ['2', '2026-07-23 21:01:00', '建造', '長波', '駆逐艦', '1750', '-5', '30', '1750', '0', '3', '睦月', '120'].join('\t');
+        const frac = ['3', '2026-07-23 21:02:00', '建造', '長波', '駆逐艦', '1750', '30', '1.5', '1750', '0', '3', '睦月', '120'].join('\t');
+        const ok = ['4', '2026-07-23 21:03:00', '建造', '長波', '駆逐艦', '1750', '30', '30', '1750', '0', '3', '睦月', '120'].join('\t');
+        const parsed = parseBuildLogCsv([HEADER, bad, neg, frac, ok, ''].join('\r\n'));
+        expect(parsed.rows).toHaveLength(1);
+        expect(parsed.rows[0].used).toEqual([1750, 30, 30, 1750, 0, 0, 0, 0]);
+        expect(parsed.skipped.map(s => s.reason)).toEqual([
+            expect.stringContaining('燃料'),
+            expect.stringContaining('弾薬'),
+            expect.stringContaining('鋼材'),
+        ]);
+    });
+
+    it('司令部Lv 非合法整數時整列跳過，不寫 NaN；空欄則維持缺席', () => {
+        const bad = ['1', '2026-07-23 21:00:00', '建造', '長波', '駆逐艦', '1750', '30', '30', '1750', '0', '3', '睦月', 'あ'].join('\t');
+        const blank = ['2', '2026-07-23 21:01:00', '建造', '長波', '駆逐艦', '1750', '30', '30', '1750', '0', '3', '睦月', ''].join('\t');
+        const parsed = parseBuildLogCsv([HEADER, bad, blank, ''].join('\r\n'));
+        expect(parsed.rows).toHaveLength(1);
+        expect(parsed.rows[0]).not.toHaveProperty('hqLv');
+        expect(parsed.skipped).toHaveLength(1);
+        expect(parsed.skipped[0].reason).toMatch(/司令部Lv/);
     });
 });
 
