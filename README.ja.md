@@ -2,6 +2,12 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
+<p>
+  <a href="https://chromewebstore.google.com/detail/fleet-chronometer-kancoll/akinifhdgdafifijckbbahfeoikkknip">
+    <img src="https://developer.chrome.com/static/docs/webstore/branding/image/UV4C4ybeBTsZt43U4xis.png" alt="Chrome ウェブストアで入手" width="206" height="58">
+  </a>
+</p>
+
 **艦隊これくしょん -艦これ-** 向けの受動型 COP（共通作戦状況図）ブラウザ拡張です。
 艦隊・遠征・入渠・基地航空隊・海域進捗・戦闘予測・燃料弾薬の消費見積りを
 1つのパネルにまとめ、検索・グラフ表示・バックアップが可能なローカル履歴を
@@ -10,6 +16,10 @@
 本プロジェクトはファンによる非公式ツールであり、**DMM.com および角川ゲームスとは
 一切関係なく、公認・後援も受けていません**。「艦隊これくしょん -艦これ-」および
 ゲーム内の全素材の著作権は、それぞれの権利者に帰属します。
+
+> **公開テストのお知らせ：** 本プロジェクトは公開テストを開始したばかりです。
+> 表示や予測の誤差による不測の事態を避けるため、当面は他の補助ツールと併用し、
+> 重要な情報を相互確認することを推奨します。
 
 ## 経緯
 

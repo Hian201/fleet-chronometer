@@ -10,7 +10,7 @@
 >
 > **`samples/` 內的截圖與參考圖非本專案資產**：遊戲畫面截圖（如
 > `Fleet_formation.png`／`ships.png`／`equips.png`／`kanmusu_filter.png`／
-> `panel_20260718.png` 等）版權屬 DMM／Kadokawa Games（艦隊これくしょん
+> 其他開發參考圖等）版權屬 DMM／Kadokawa Games（艦隊これくしょん
 > -艦これ-）；`KC3kai_sortie_log.png` 為 KC3Kai 專案介面截圖（供設計對照）；
 > 這些僅作為開發期參照與文件說明使用，本專案不主張、也未曾主張其著作權。
 

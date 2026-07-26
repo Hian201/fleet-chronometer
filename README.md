@@ -2,6 +2,12 @@
 
 [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
+<p>
+  <a href="https://chromewebstore.google.com/detail/fleet-chronometer-kancoll/akinifhdgdafifijckbbahfeoikkknip">
+    <img src="https://developer.chrome.com/static/docs/webstore/branding/image/UV4C4ybeBTsZt43U4xis.png" alt="Available in the Chrome Web Store" width="206" height="58">
+  </a>
+</p>
+
 A passive Common Operational Picture (COP) browser extension for **KanColle
 (艦隊これくしょん -艦これ-)** — fleets, expeditions, docking, base air corps,
 sortie progress, battle prediction, and fuel/ammo estimation, all in one
@@ -10,6 +16,11 @@ panel, backed by a local history you can search, chart, and back up.
 This is a fan-made companion tool. It is not affiliated with, endorsed by,
 or sponsored by DMM.com or Kadokawa Games. "KanColle" and all game assets
 belong to their respective owners.
+
+> **Public testing notice:** This project has only recently entered public
+> testing. We recommend running it alongside another companion tool and
+> cross-checking important information to avoid surprises caused by display
+> or prediction errors.
 
 ## Why this exists
 

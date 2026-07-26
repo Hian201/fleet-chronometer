@@ -2,12 +2,21 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
+<p>
+  <a href="https://chromewebstore.google.com/detail/fleet-chronometer-kancoll/akinifhdgdafifijckbbahfeoikkknip">
+    <img src="https://developer.chrome.com/static/docs/webstore/branding/image/UV4C4ybeBTsZt43U4xis.png" alt="Chrome 線上應用程式商店提供" width="206" height="58">
+  </a>
+</p>
+
 一款**被動式**的艦隊これくしょん（KanColle）通用作戰圖像（COP）瀏覽器擴充——
 艦隊、遠征、入渠、基地航空隊、關卡進度、戰鬥預測、燃彈估算全部整合在一個面板，
 並有可查詢、可繪圖、可備份的本機歷史紀錄。
 
 本專案為玩家自製的同人工具，**與 DMM.com 或 Kadokawa Games 無任何關係、未經其
 認可或贊助**。「艦隊これくしょん -艦これ-」及遊戲內所有素材版權皆屬其原始權利人。
+
+> **公開測試提醒：** 本專案甫上線測試，建議現階段與其他輔助工具並行使用，並交叉
+> 確認重要資訊，避免因顯示或預測誤差造成意外。
 
 ## 緣起
 

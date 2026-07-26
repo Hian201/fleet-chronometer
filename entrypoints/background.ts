@@ -279,7 +279,7 @@ async function openPanelWindow() {
     url: browser.runtime.getURL('/panel.html'),
     // width 420 為硬約束（使用者要求不准加寬）。
     // height 905→835：先前 800→850→915→905 一路都是純算式估計，從未量過實機。
-    // 拿使用者提供的實機截圖（samples/panel_20260718.png，height=915 時只有 6 艘）
+    // 拿使用者提供的實機截圖（未保留於儲存庫，height=915 時只有 6 艘）
     // 逐像素量測：從視窗最頂（含 macOS 標題列）到最後一艘裝備列結束僅 775px，
     // 下方留白足足 140px；用 headless Chromium 載入真實 CSS＋7 艘樣板 render 交叉
     // 驗證，單艘列高確實是 49.5px（不是估計的 51.5px），tabpanel 固定高度也已生效

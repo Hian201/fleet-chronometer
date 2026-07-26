@@ -183,7 +183,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/expedition-stats.ts` | 遠征紀錄期間彙總核心（純函式）：`filterByPeriod()`／`summarize()`／`groupByMission()`／`statsCsv()`。收入是逐筆事件獲得量，不是餘額差分 |
 | `public/icons/**.svg` | 裝備／資源／UI 圖示（原創向量，**由 `tools/icons/` 產生，勿手改**）；裝備檔名即 `api_type[3]` |
 | `tools/icons/` | 圖示生成器＋設計約束，改圖示前先讀其 README |
-| `samples/` | 真實封包樣本（驗證 fixture）＋機體／UI 參照圖。**PII 已於 2026-07-24 清除**（`slot_to_port.json` 的 member_id/暱稱/時間戳/贅言已匿名化，5 個無引用截圖已刪除） |
+| `samples/` | 真實封包樣本（驗證 fixture）＋機體／UI 參照圖。**PII 已於 2026-07-27 清除**（`slot_to_port.json` 的 member_id/暱稱/時間戳/贅言已匿名化；5 個無引用截圖與 2 個含提督名稱的截圖已從 Git 歷史移除） |
 | `docs/architecture-v1.md` | 原始架構書（設計對照基準） |
 | `docs/design-guidelines.md` | UI／圖示設計綱要 |
 | `docs/engineering-log.md` | 本檔精簡前的完整內容，含每個功能的完整決策脈絡 |
@@ -741,7 +741,7 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
      min/max（現約 48／40／56），SVG 與「///」不可撐破預算；**禁止**
      `display: contents`＋`margin-left: auto` 那條曾裁掉整列燃彈的路。
   4. **不准裁字**：燃彈兩側「100」必須完整可見。
-  回歸參考：`samples/fleet_slot*.png`、`samples/info_sortie.png`。實作見
+  回歸參考：`samples/fleet_slot*.png`。實作見
   `panel/index.html`／`panel/main.ts` 註解 `#2`／`#4`。
 
 ---
