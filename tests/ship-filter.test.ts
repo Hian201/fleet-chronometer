@@ -114,7 +114,7 @@ describe('航速篩選（門檻比較，未來出現 15/20 不必改碼）', () 
     it('高速+含最速', () => expect(ids('fastPlus')).toEqual([3, 4]));
 });
 
-describe('艦種／出撃札／關鍵字／排序', () => {
+describe('艦種／出擊標籤／關鍵字／排序', () => {
     const roster = [
         ship({ id: 10, name: '大鷹', stypeId: 7, lv: 98, sallyArea: 1 }),
         ship({ id: 11, name: '五十鈴', stypeId: 3, lv: 99, sallyArea: 1 }),
@@ -124,7 +124,7 @@ describe('艦種／出撃札／關鍵字／排序', () => {
     const ids = (f: any) => filterShips(roster, { ...emptyFilter(), ...f }).map(s => s.id);
 
     it('艦種白名單', () => expect(ids({ stypeIds: [2] })).toEqual([12, 13]));
-    it('只看無札（自由身）', () => expect(ids({ sallyArea: 0 })).toEqual([12, 13]));
+    it('只看無標籤（自由身）', () => expect(ids({ sallyArea: 0 })).toEqual([12, 13]));
     it('sallyArea null＝不限', () => expect(ids({ sallyArea: null })).toHaveLength(4));
     it('關鍵字部分比對且去頭尾空白', () => {
         expect(ids({ search: '月' })).toEqual([12, 13]);

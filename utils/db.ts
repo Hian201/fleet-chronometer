@@ -306,9 +306,9 @@ export interface ShipObtainedRow {
 // **與其他表的性質不同**：這是使用者手輸的攻略意圖，不是從 events 投影出來的衍生資料，
 // 故由 overview 直接讀寫（同 shipObtained 的手填入手日），不經 EventProjector。
 //
-// 札的**成員名單刻意不存**——那是 api_sally_area 即時算得出來的權威事實（見
+// 標籤的**成員名單刻意不存**——那是 api_sally_area 即時算得出來的權威事實（見
 // utils/event-plan.ts groupBySally），存下來只會過期。本表只存 API 給不出的東西：
-// 札名、關卡的札約束（攻略情報）、計畫編成、解謎 checklist。
+// 標籤名、關卡的標籤約束（攻略情報）、計畫編成、解謎 checklist。
 export interface EventPlanRow {
     areaId: number;
     title: string;              // 使用者命名，例「2025 秋活」
@@ -320,9 +320,9 @@ export interface EventPlanRow {
     // 兩邊對不上。活動結束後由使用者明確按下「解除鎖定」才可再編輯（見 event-ops.ts）。
     unlocked?: boolean;
     // 活動結束後遊戲會把 api_sally_area 全部清 0，屆時 groupBySally 會算出空結果。
-    // 故在活動仍存在於目前 master、且即時名冊有非零札且內容改變時，才更新一份
-    // 「當時誰帶什麼札」的快照；活動結束或沒有可確認即時札時不覆寫，供事後回顧。
-    // key＝艦實例 id（api_id），value＝札 id。
+    // 故在活動仍存在於目前 master、且即時名冊有非零標籤且內容改變時，才更新一份
+    // 「當時誰帶什麼標籤」的快照；活動結束或沒有可確認即時標籤時不覆寫，供事後回顧。
+    // key＝艦實例 id（api_id），value＝標籤 id。
     sallySnapshot?: Record<number, number>;
 }
 

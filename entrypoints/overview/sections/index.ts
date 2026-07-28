@@ -15,7 +15,7 @@ import { backupSection } from './backup';
 
 export const sections: OverviewSection[] = [
     fleetOverviewSection,   // #4 艦隊四隊＋基地航空隊全覽（＋markdown/PNG 匯出）
-    eventOpsSection,        // 活動作戰板（關卡×出撃札的規劃與衝突檢查）
+    eventOpsSection,        // 活動作戰板（關卡×出擊標籤的規劃與衝突檢查）
     shipsSection,           // 艦娘全覽（詳細清單：篩選抽屜＋十八個排序欄＋分頁）
     equipmentSection,       // 裝備全覽（圖示篩選架＋圖磚／詳細清單雙模式）
     sortieLogSection,       // #5 出擊紀錄（＋#6 KC3Kai 重播匯出）

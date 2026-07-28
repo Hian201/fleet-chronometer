@@ -45,7 +45,7 @@ interface GearDisplay { icons: boolean; stars: boolean; exSlot: boolean; }
 
 export interface ShipPickerOptions {
     ships: OwnedShipView[];
-    /** 札的顯示名（0＝自由身時呼叫端可回傳「──」之類）。 */
+    /** 標籤的顯示名（0＝自由身時呼叫端可回傳「──」之類）。 */
     tagLabel(sallyArea: number): string;
     /** 點擊某艘艦。未提供則清單為純瀏覽。 */
     onPick?(ship: OwnedShipView): void;
@@ -54,20 +54,20 @@ export interface ShipPickerOptions {
     /** 沒有可加入的目標時顯示的提示（例：尚未選擇關卡）。 */
     pickHint?: string;
     /**
-     * 額外要列進「出撃札」下拉的札 id（即使目前沒有任何船帶著它）。
-     * 用於作戰板手動宣告、但遊戲裡還沒產生的札——否則使用者建了札卻在下拉找不到，
+     * 額外要列進「出擊標籤」下拉的標籤 id（即使目前沒有任何船帶著它）。
+     * 用於作戰板手動宣告、但遊戲裡還沒產生的標籤——否則使用者建了標籤卻在下拉找不到，
      * 會誤以為壞掉（實際回報過）。
      */
     extraSallyTags?: number[];
     /**
      * 已被排進計畫（任一關卡）的艦。提供時才會出現「計畫」篩選。
-     * 排表時最常問的其實是「還有誰沒排」，而那**不等於**「無札」——札要出擊才會貼上。
+     * 排表時最常問的其實是「還有誰沒排」，而那**不等於**「無標籤」——標籤要出擊才會貼上。
      */
     plannedIds?: Set<number>;
 }
 
 export interface ShipPickerHandle {
-    /** 外部資料變更後更新清單（札改名、編成增刪…）。不重建篩選器，故不影響輸入焦點。 */
+    /** 外部資料變更後更新清單（標籤改名、編成增刪…）。不重建篩選器，故不影響輸入焦點。 */
     refresh(patch?: Partial<Pick<ShipPickerOptions,
         'ships' | 'pickedIds' | 'pickHint' | 'extraSallyTags' | 'plannedIds'>>): void;
 }
@@ -190,7 +190,7 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
 
     function drawSallyOptions() {
         const prev = filter.sallyArea;
-        // 實際有船的札 ∪ 呼叫端宣告的札（後者可能 0 艘，仍要列出，見 extraSallyTags）
+        // 實際有船的標籤 ∪ 呼叫端宣告的標籤（後者可能 0 艘，仍要列出，見 extraSallyTags）
         const counts = new Map(sallyOptions(rows).map(o => [o.sallyArea, o.count]));
         for (const id of opts.extraSallyTags ?? []) if (!counts.has(id)) counts.set(id, 0);
         const entries = [...counts.entries()].sort((a, b) => a[0] - b[0]);

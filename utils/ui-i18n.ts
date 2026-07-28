@@ -373,7 +373,7 @@ const STRINGS: Record<Lang, Dict> = {
         'ov.rsColNightTip': '夜戰火力＝火力＋雷裝',
         'ov.rsColReleased': '實裝日', 'ov.rsColReleasedTip': '官方登場日：該艦（基礎形態）在遊戲實裝那天',
         'ov.rsColJoined': '上任日', 'ov.rsColJoinedTip': '打撈上任日：本鎮守府實際入手日',
-        'ov.rsColSally': '出撃札', 'ov.rsColGears': '裝備',
+        'ov.rsColSally': '出擊標籤', 'ov.rsColGears': '裝備',
         'ov.rsColNation': '國籍', 'ov.rsColNationTip': '建造國。遊戲 API 不提供國籍，本表以艦型（艦級）人工對照；戰後移交他國並改名的形態（Верный＝響改二、General Belgrano＝Phoenix、Leonardo da Vinci＝Dace）一律歸建造國。',
         'ov.rsNation': '國籍', 'ov.rsNationTip': '以建造國分類，可複選。只列出名冊裡實際有船的國家。',
         'nation.jp': '日本', 'nation.us': '美國', 'nation.gb': '英國', 'nation.de': '德國',

@@ -242,7 +242,7 @@
   <p>沒有真實封包佐證的欄位語意，一律：<strong>保留原始值</strong>、<strong>回 <code>null</code></strong>、
   或 UI 顯示「不可考」。<strong>不得</strong>以 0、最小值或推算值頂替。</p>
   <p class="meta">已被此原則救回的例子：節點字母（兩種推算法皆被真實資料否證 → 改查表）、
-  節點類型（改用查表，查不到回 <code>null</code>）、活動札語意（值全 0，標為未驗證）、
+  節點類型（改用查表，查不到回 <code>null</code>）、活動標籤語意（值全 0，標為未驗證）、
   資源餘額差分（無樣本 → 顯示「不可考」）。</p>
 </div>
 
@@ -1687,7 +1687,7 @@ FSA 目錄 handle 存在<strong>獨立的原生 IndexedDB <code>kc-fsa</code></s
     <li><b>折疊一律用原生 <code>&lt;details&gt;</code></b>。不要用 <code>transform: rotate</code> 做展開箭頭——
       <code>rotate</code> 在 <code>prefers-reduced-motion</code> 下要關掉，關掉後兩態長得一樣，狀態訊號就消失了。</li>
     <li><b>缺席值不是 0、不是最小值</b>（見 <a href="#s1">§1</a>）。</li>
-    <li><b>語意色不可跨功能挪用</b>：損傷色（<code>--dmg-*</code>）、札狀態色（<code>--sally-*</code>）、
+    <li><b>語意色不可跨功能挪用</b>：損傷色（<code>--dmg-*</code>）、標籤狀態色（<code>--sally-*</code>）、
       資源增減色（<code>--res-gain</code>／<code>--res-drain</code>）分屬不同語意，混用會互相稀釋視覺意義。</li>
     <li><b>沒有真封包佐證的欄位語意一律回 null／顯示原始值，不猜。</b></li>
   </ol>
@@ -1697,14 +1697,14 @@ FSA 目錄 handle 存在<strong>獨立的原生 IndexedDB <code>kc-fsa</code></s
 
 <h4>活動作戰板（<code>event-ops</code> ＋ <code>utils/event-plan.ts</code>）</h4>
 <ul>
-  <li><b>機制前提</b>：札是<strong>船身屬性</strong>非編成容器；一艘船同時只有一個札、貼上不可逆；
+  <li><b>機制前提</b>：標籤是<strong>船身屬性</strong>非編成容器；一艘船同時只有一個標籤、貼上不可逆；
       貼標時機是出擊，由「關卡＋路線」決定；<code>api_sally_area</code> 是唯一權威。
-      <code>allowedTags</code>（哪些札能走這條路線）與 <code>grantsTag</code>（無札船走這條路線會被貼上什麼札）
+      <code>allowedTags</code>（哪些標籤能走這條路線）與 <code>grantsTag</code>（無標籤船走這條路線會被貼上什麼標籤）
       <strong>是兩件不同的事</strong>。</li>
-  <li><b>三層</b>：Layer 1 札總帳（從 <code>api_sally_area</code> 即時分群，零輸入且權威）→
+  <li><b>三層</b>：Layer 1 標籤總帳（從 <code>api_sally_area</code> 即時分群，零輸入且權威）→
       Layer 2 計畫（手輸）→ Layer 3 檢查（純函式）。</li>
-  <li><b>燈號語意</b>：<code>ok</code>＝已持有本關允許的札；<code>blocked</code>＝持有別的札走不了；
-      <code>willStamp</code>＝<strong>無札船即將被不可逆消耗</strong>（<b>不是</b>「安全可調度」）；
+  <li><b>燈號語意</b>：<code>ok</code>＝已持有本關允許的標籤；<code>blocked</code>＝持有別的標籤走不了；
+      <code>willStamp</code>＝<strong>無標籤船即將被不可逆消耗</strong>（<b>不是</b>「安全可調度」）；
       <code>allowedTags</code> 未填一律 <code>unknown</code>，<strong>不可判紅</strong>。</li>
   <li><b>「計畫」與「現實」是兩個維度，必須並排顯示</b>（曾被使用者回報三次以為是 bug）。
       <code>plannedByTag()</code> <strong>刻意不去重</strong>（同艦排進兩個關卡要在兩邊都看得到）；
@@ -2255,8 +2255,8 @@ poi（遠征需求資料）、航海日誌拡張版（節點類型語意、CSV �
     <tr><td>燃彈</td><td>活動特殊點按普通處理；大漩渦電探減免待 <code>api_happening</code> 封包</td></tr>
     <tr><td>gaugeType 3（TP 輸送）</td><td>量表欄位缺真實封包；TP 表新變種裝備待補值</td></tr>
     <tr><td>斬殺偵測的即時性</td><td>欄位判定已定案；只剩「擊破當下是否即時推 mapinfo」待觀測</td></tr>
-    <tr><td>活動札三項</td>
-      <td>① 札 id 實際語意（樣本皆非活動期，值全 0）② 札名是否存在於任何封包
+    <tr><td>活動標籤三項</td>
+      <td>① 標籤 id 實際語意（樣本皆非活動期，值全 0）② 標籤名是否存在於任何封包
         （<code>nameSource</code> 的 <code>'auto'</code> 分支預留但目前不會被寫入）
         ③ <code>api_sally_flag</code> 是否為出擊制限旗標。驗證鉤子已埋在 <code>wantedTag</code></td></tr>
     <tr><td>友軍艦隊雷擊</td><td><code>processFriendlyRaigeki</code> 無真封包樣本，屬防禦性預留</td></tr>
@@ -2308,8 +2308,8 @@ poi（遠征需求資料）、航海日誌拡張版（節點類型語意、CSV �
     <tr><td><b>snapshot</b></td><td><code>db.snapshot</code>：不受裁剪影響的 GameState baseline。
       <b>不是 derived table，不可投影</b></td></tr>
     <tr><td><b>sortieKey</b></td><td>一次出擊的識別＝其 <code>api_req_map/start</code> 事件 id</td></tr>
-    <tr><td><b>札 / sally</b></td><td>活動海域的出撃制限標籤（<code>api_sally_area</code>）。
-      船身屬性，一船一札，貼上不可逆</td></tr>
+    <tr><td><b>標籤 / sally</b></td><td>活動海域的出撃制限標籤（<code>api_sally_area</code>）。
+      船身屬性，一船一標籤，貼上不可逆</td></tr>
     <tr><td><b>LBAS</b></td><td>基地航空隊（base air corps）</td></tr>
     <tr><td><b>seiku</b></td><td>制空狀態：0 互角／1 確保／2 優勢／3 劣勢／4 喪失</td></tr>
     <tr><td><b>taiha / 大破</b></td><td>艦艇 HP 降至危險區；本專案的核心警告之一</td></tr>

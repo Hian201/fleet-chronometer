@@ -81,7 +81,7 @@ async function savePlan(plan: EventPlanRow): Promise<void> {
     await db.eventPlans.put(plan);
 }
 
-/** 只在目前 master 仍存在的活動，以非空且變更過的即時札更新快照。 */
+/** 只在目前 master 仍存在的活動，以非空且變更過的即時標籤更新快照。 */
 async function saveSallySnapshotIfNeeded(
     plan: EventPlanRow, liveShips: SallyShip[], areaIsCurrentInMaster: boolean,
 ): Promise<void> {

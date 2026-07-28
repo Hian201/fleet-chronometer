@@ -118,9 +118,9 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
   （查詢範圍內沒有樣本）一律顯示「不可考」，不得以 0 或猜測值頂替。適用於資源紀錄的
   餘額差分、任務進度計數、艦娘全覽的排序等多處。
 - **沒有真封包佐證的欄位語意一律回 null／顯示原始值，不猜**：本專案已被 API 格式坑過
-  兩次（見「驗證原則」），節點字母、節點類型、活動札語意等多處因此改用查表或誠實
+  兩次（見「驗證原則」），節點字母、節點類型、活動標籤語意等多處因此改用查表或誠實
   顯示「不可考」而非算式推算。
-- **語意色變數不可跨功能挪用**：大破/中破/小破色、札狀態色、資源增減色分屬不同語意，
+- **語意色變數不可跨功能挪用**：大破/中破/小破色、標籤狀態色、資源增減色分屬不同語意，
   混用會互相稀釋視覺意義（design-guidelines §4.5）。
 
 ### 檔案職責
@@ -144,7 +144,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/sections/drop-log.ts` | 打撈紀錄：通常／活動分類＋新船／非新船篩選＋關鍵字／時間篩選＋分頁＋CSV 匯出入。CSV 邏輯全在 `utils/drop-log-import.ts` |
 | `entrypoints/overview/sections/exped-log.ts` | 遠征紀錄：期間彙總（期間捷徑／自訂起訖日／活動期間捷徑＋四資源小計＋各遠征次數與收穫）＋可選欄位詳細清單＋分頁＋彙總／明細兩份 CSV。彙總核心在 `utils/expedition-stats.ts` |
 | `entrypoints/overview/sections/build-log.ts` | 建造紀錄：可選欄位詳細清單＋分頁＋CSV 匯出入。匯入來源查不到 master id 時顯示 `FactoryLogRow.importedShipName`／`importedSecretaryName` |
-| `entrypoints/overview/sections/event-ops.ts` | 活動作戰板：札總帳（自動）＋計畫疊層＋關卡表。直接讀寫 `db.eventPlans`——使用者手輸的攻略意圖、非從 events 投影的衍生資料 |
+| `entrypoints/overview/sections/event-ops.ts` | 活動作戰板：標籤總帳（自動）＋計畫疊層＋關卡表。直接讀寫 `db.eventPlans`——使用者手輸的攻略意圖、非從 events 投影的衍生資料 |
 | `entrypoints/overview/sections/resource-log.ts` | 資源紀錄：最上方一張大折線圖（八項資材疊在同一張圖、圖例逐條開關、y 軸只依顯示中的序列縮放、十字準線）＋活動區段消耗＋詳細清單（表頭與欄位開關皆純圖示無文字）。控制項只建一次、只重繪 `.rl-body`；期間／粒度／欄位／分頁存 localStorage（`kc-resource-view`） |
 | `entrypoints/overview/main.ts` | 側欄導覽＋hash 路由＋語言/主題套用；側欄三態（釘選／收合／浮層滑入，`body[data-nav]`）與側欄左右側（`body[data-nav-side]`，與三態正交）。窄視窗（≤760px）強制不釘選 |
 | `entrypoints/overview/lib.ts` | `loadGameState()` 依 `planStateRecovery()` 選安全 snapshot baseline 再重播 raw events；overview 不投影、不寫 derived tables |
@@ -165,7 +165,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/line-chart.ts` | 折線圖幾何（純函式，無 DOM）：`multiChartGeometry()`／`niceTicks()`／`nearestIndex()`。y 值域只看傳進來的序列 |
 | `utils/retention.ts` | 重播保留規則引擎（純函式）：`planRetention()` 依保護規則＋裁剪窗決定 `db.replays` 去留、`firstOwnedDropKeys()` 算新船場 |
 | `utils/event-plan.ts` | 活動作戰板核心（純函式）：`groupBySally()`／`checkStage()`／`findPlanConflicts()`／`sallyBudget()` |
-| `utils/ship-filter.ts` | 鎮守府全船篩選（純函式）：航速／艦種／國籍／可裝備／出撃札／關鍵字。由活動作戰板與艦娘全覽共用 |
+| `utils/ship-filter.ts` | 鎮守府全船篩選（純函式）：航速／艦種／國籍／可裝備／出擊標籤／關鍵字。由活動作戰板與艦娘全覽共用 |
 | `utils/ship-nationality.ts` | 艦娘國籍（建造國）參照表，鍵＝艦型 `api_ctype`。遊戲 API 不提供國籍，人工維護；未列出的一律日本 |
 | `utils/ship-roster.ts` | 艦娘全覽詳細清單的篩選／排序／分頁核心（純函式）。先制對潛是全檔唯一的推算值（遊戲不送旗標） |
 | `utils/gear-inventory.ts` | 裝備全覽的彙總／篩選／排序核心（純函式）：`groupGears()` 把裝備實例依 master 彙總成種類。素質一律是 master 基礎值、**不含改修 ★ 加成** |
@@ -475,18 +475,18 @@ bug feature）。進母港時推進：出門中隊回港後重新起算，已跑
 
 ### 活動作戰板（`utils/event-plan.ts`＋`sections/event-ops.ts`）
 
-**機制前提**：札是船身屬性非編成容器，一艘船同時只有一個札、貼上不可逆；貼標時機是出擊，
-由「關卡＋路線」決定，`api_sally_area` 是唯一權威；`allowedTags`（哪些札能走這條路線）與
-`grantsTag`（無札船走這條路線會被貼上什麼札）是兩件不同的事；札 id 全活動唯一只增不減，
+**機制前提**：標籤是船身屬性非編成容器，一艘船同時只有一個標籤、貼上不可逆；貼標時機是出擊，
+由「關卡＋路線」決定，`api_sally_area` 是唯一權威；`allowedTags`（哪些標籤能走這條路線）與
+`grantsTag`（無標籤船走這條路線會被貼上什麼標籤）是兩件不同的事；標籤 id 全活動唯一只增不減，
 故一次活動一份計畫（`db.eventPlans` 主鍵 `areaId`）。
 
-三層結構：Layer 1 札總帳（從 `api_sally_area` 即時分群，零輸入且權威）→ Layer 2 計畫
-（手輸）→ Layer 3 檢查（純函式）。**燈號語意**：`ok`＝已持有本關允許的札；`blocked`＝持有
-別的札走不了；`willStamp`＝**無札船即將被不可逆消耗**（非「安全可調度」）；`allowedTags`
+三層結構：Layer 1 標籤總帳（從 `api_sally_area` 即時分群，零輸入且權威）→ Layer 2 計畫
+（手輸）→ Layer 3 檢查（純函式）。**燈號語意**：`ok`＝已持有本關允許的標籤；`blocked`＝持有
+別的標籤走不了；`willStamp`＝**無標籤船即將被不可逆消耗**（非「安全可調度」）；`allowedTags`
 未填一律 `unknown`，**不可判紅**。**計畫矛盾**分 `certain`（用 `grantsTag` 推定）與
-`possible`（允許札有交集）兩級。
+`possible`（允許標籤有交集）兩級。
 
-**「計畫」與「現實」是兩個維度必須並排顯示**（曾被使用者回報三次以為是 bug）：札總帳每列
+**「計畫」與「現實」是兩個維度必須並排顯示**（曾被使用者回報三次以為是 bug）：標籤總帳每列
 並排「實際」（`api_sally_area`）與「計畫」（`plannedByTag()`，只認 `grantsTag`）兩欄；計畫欄
 要列出已被實際貼標的艦並標警示（`pending`/`fulfilled`/`conflict`）。`plannedByTag()`
 **刻意不去重**（同艦排進兩個關卡要在兩邊都看得到）；計數用 `sallyBudget()`（那支有去重）。
@@ -503,7 +503,7 @@ bug feature）。進母港時推進：出門中隊回港後重新起算，已跑
 `reconcileStages()`（純函式）改版不得丟資料：有 mapNo 照 mapNo 對應、沒有的用
 `guessMapNo(label)` 反推、對應不上但填過東西的列保留在末尾。
 
-**未驗證**：札 id 實際語意（樣本皆非活動期，值全 0）；札名是否存在於任何封包（`nameSource`
+**未驗證**：標籤 id 實際語意（樣本皆非活動期，值全 0）；標籤名是否存在於任何封包（`nameSource`
 的 `'auto'` 分支預留但目前不會被寫入，UI 一律手動命名）；`api_sally_flag` 是否為出擊制限
 旗標。驗證鉤子已埋在 `wantedTag`，下次活動自動撈。
 
@@ -770,8 +770,8 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
 6b. 斬殺偵測只剩「即時性」待觀測（欄位判定已用真封包定案）。
 7. M4 殘項：side panel 選配、視窗位置記憶、Firefox 打包驗證。
 8. 亮色主題細部調校；遠征紀錄回航道具欄位未經真封包驗證。
-8b. 活動作戰板三項待驗（札 id 語意／札名是否存在於封包／`api_sally_flag` 是否為出擊制限
-   旗標）；「札 ← 哪次出擊」自動知識庫與貼錯札事後警示為第二版功能。
+8b. 活動作戰板三項待驗（標籤 id 語意／標籤名是否存在於封包／`api_sally_flag` 是否為出擊制限
+   旗標）；「標籤 ← 哪次出擊」自動知識庫與貼錯標籤事後警示為第二版功能。
 9. 友軍艦隊「強力友軍艦隊」支援消耗高速建造材（使用者提供之遊戲設定，非封包驗證）：
    需先取得相關封包，屬與現有 `api_friendly_battle` 不同層次（出擊前選項 vs 戰鬥中友軍）。
 10. 劇場模式／靜音實機待驗：跨源框是否存在、WebAudio vs media 元素、stacking context 偏移。

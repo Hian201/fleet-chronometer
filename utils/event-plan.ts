@@ -1,25 +1,25 @@
-// 活動作戰板：出撃札（api_sally_area）的分群、關卡札約束檢查與自由身消耗預告。
+// 活動作戰板：出擊標籤（api_sally_area）的分群、關卡標籤約束檢查與自由身消耗預告。
 //
 // 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵資料驗證（CLAUDE.md 設計原則 4）。
 //
 // ── 機制前提（使用者提供，2026-07-21）──────────────────────────────────
-// 1. 札是**船身上的屬性**，不是編成的容器。一艘船同時只能有一個札，貼上後不可逆。
+// 1. 標籤是**船身上的屬性**，不是編成的容器。一艘船同時只能有一個標籤，貼上後不可逆。
 // 2. 貼標時機是**出擊**，由「關卡＋路線」決定，事前無從指定——提督再怎麼安排，
 //    最終以出擊實際貼上的為準。故本模組一律以 api_sally_area 為權威，計畫只是意圖標註。
-// 3. 關卡按札限制路線：**特定的札組合才能走特定路線**（allowedTags）。
-// 4. 帶無札船出擊，該船會被貼上**該關卡會給的札**（grantsTag）——與 allowedTags 是
-//    兩件不同的事：E2 可能允許 A 札的船進入，但無札船走某路線會被貼上 B 札。
-// 5. 札 id 全活動唯一、只增不減；後段沿用前段的船時札 id 繼續沿用，故一次活動一份計畫。
+// 3. 關卡按標籤限制路線：**特定的標籤組合才能走特定路線**（allowedTags）。
+// 4. 帶無標籤船出擊，該船會被貼上**該關卡會給的標籤**（grantsTag）——與 allowedTags 是
+//    兩件不同的事：E2 可能允許 A 標籤的船進入，但無標籤船走某路線會被貼上 B 標籤。
+// 5. 標籤 id 全活動唯一、只增不減；後段沿用前段的船時標籤 id 繼續沿用，故一次活動一份計畫。
 //
 // ── 尚未實測（別當成已驗證）────────────────────────────────────────────
 // · api_sally_area 欄位名已用真封包確認（samples/slot_to_port.json），但所有樣本都取自
-//   非活動期、值全為 0——「id N 對應遊戲裡哪個札」的語意未實測。
-// · **札名不存在於任何已知封包**：start2 的 master 表清單沒有札表，上次活動的出擊紀錄
+//   非活動期、值全為 0——「id N 對應遊戲裡哪個標籤」的語意未實測。
+// · **標籤名不存在於任何已知封包**：start2 的 master 表清單沒有標籤表，上次活動的出擊紀錄
 //   （samples/61-5-jibun-rengou-node52.json，KC3Kai logger 匯出）遞迴掃過 189 個 key
 //   零命中——但該檔只含戰鬥封包、不含母港類封包，故**答不了這題**，只能算方向一致。
-//   第三方工具（KC3Kai／poi）都手維護札名表，通常也代表 API 給不出字串。
+//   第三方工具（KC3Kai／poi）都手維護標籤名表，通常也代表 API 給不出字串。
 //   因此 PlanTag.name 目前一律手動命名；auto 分支（nameSource='auto'）預留但**永遠不會
-//   被寫入**，直到 state.ts wantedTag 的札驗證鉤子在活動期間撈到真封包為止。
+//   被寫入**，直到 state.ts wantedTag 的標籤驗證鉤子在活動期間撈到真封包為止。
 // · allowedTags／grantsTag 是攻略情報，API 不提供，只能手輸。
 
 // ── 輸入 view ──────────────────────────────────────────────────────────
@@ -27,17 +27,17 @@
 export interface SallyShip {
     id: number;          // 艦實例 id（api_id）
     name: string;
-    sallyArea: number;   // 0＝無札
+    sallyArea: number;   // 0＝無標籤
 }
 
-/** 活動作戰板目前採用的札資料來源。 */
+/** 活動作戰板目前採用的標籤資料來源。 */
 export type SallyRosterSource = 'live' | 'snapshot' | 'none';
 
 export interface SallyRosterResolution {
     /**
      * live：目前選定的活動仍在 master，且名冊有非零 api_sally_area。
-     * snapshot：不能用即時札時，從該活動計畫的歷史快照還原。
-     * none：兩者皆不可用；仍回傳目前名冊，但所有札均為 0。
+     * snapshot：不能用即時標籤時，從該活動計畫的歷史快照還原。
+     * none：兩者皆不可用；仍回傳目前名冊，但所有標籤均為 0。
      */
     source: SallyRosterSource;
     ships: SallyShip[];
@@ -48,7 +48,7 @@ export interface SallyRosterResolution {
 const validSallyArea = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 
-/** 從目前名冊擷取可保存的非零札。沒有可確認資料時回傳空物件。 */
+/** 從目前名冊擷取可保存的非零標籤。沒有可確認資料時回傳空物件。 */
 export function sallySnapshotFrom(ships: SallyShip[]): Record<number, number> {
     const snapshot: Record<number, number> = {};
     for (const ship of ships) {
@@ -88,8 +88,8 @@ export function nextSallySnapshot(
 }
 
 /**
- * 選擇活動作戰板的完整札名冊。即時資料與歷史快照互斥，絕不混成一份看似即時的資料：
- * 只有「選定 area 仍在目前 master 且有非零札」才使用 live；其餘情況才回退該計畫快照。
+ * 選擇活動作戰板的完整標籤名冊。即時資料與歷史快照互斥，絕不混成一份看似即時的資料：
+ * 只有「選定 area 仍在目前 master 且有非零標籤」才使用 live；其餘情況才回退該計畫快照。
  */
 export function resolveSallyRoster(
     liveShips: SallyShip[],
@@ -120,7 +120,7 @@ export function resolveSallyRoster(
     };
 }
 
-/** 札。sallyArea 是權威 key（來自遊戲）；name 目前只能手填，見檔頭。 */
+/** 標籤。sallyArea 是權威 key（來自遊戲）；name 目前只能手填，見檔頭。 */
 export interface PlanTag {
     sallyArea: number;
     name: string;
@@ -139,8 +139,8 @@ export interface PlanSlot {
 export interface PlanStage {
     key: string;
     label: string;           // 「E4-3」「E5 解謎 3」
-    allowedTags: number[];   // 哪些札的船可以走這條路線
-    grantsTag: number | null; // 無札船出擊後會被貼上的札；null＝未填
+    allowedTags: number[];   // 哪些標籤的船可以走這條路線
+    grantsTag: number | null; // 無標籤船出擊後會被貼上的標籤；null＝未填
     slots: PlanSlot[];
     /**
      * 對應的**真實海域序號**（1＝E1…）。海域 key＝`areaId * 10 + mapNo`——使用者說明的
@@ -155,7 +155,7 @@ export interface PlanStage {
      * 這是某張圖底下的「階段」子列（E4-1／E4-2／E4 解謎 1…）而非該圖的主列。
      *
      * 為什麼需要：關卡列是從遊戲的海域清單自動產生的、一圖一列，但同一張圖的不同階段
-     * ／路線**可以有不同的札約束**（使用者的 E2 就同時存在兩個札）。主列表達「這張圖的
+     * ／路線**可以有不同的標籤約束**（使用者的 E2 就同時存在兩個標籤）。主列表達「這張圖的
      * 預設安排」，階段子列表達各階段的個別安排；兩者都是完整的 PlanStage，故所有檢查
      * （checkStage／plannedByTag／findPlanConflicts）不必特別處理階段，照舊逐列跑即可。
      */
@@ -164,9 +164,9 @@ export interface PlanStage {
 
 // ── 燈號 ───────────────────────────────────────────────────────────────
 export type SlotStatus =
-    | 'ok'         // 已持有本關卡允許的札
-    | 'blocked'    // 持有**別的**札 → 這隊走不了這條路線，得換人
-    | 'willStamp'  // 無札 → 出擊後會被貼上 grantsTag，**不可逆消耗**
+    | 'ok'         // 已持有本關卡允許的標籤
+    | 'blocked'    // 持有**別的**標籤 → 這隊走不了這條路線，得換人
+    | 'willStamp'  // 無標籤 → 出擊後會被貼上 grantsTag，**不可逆消耗**
     | 'unknown'    // 本關卡未填 allowedTags，無從判定（不判紅）
     | 'role'       // 只填了角色文字，還沒指定艦
     | 'gone';      // 指定的艦已不在（解體／改造前後 api_id 不變，故多半是解體）
@@ -175,15 +175,15 @@ export interface SlotCheck {
     status: SlotStatus;
     shipId: number | null;
     name: string;        // 具體艦＝艦名；role 格＝角色文字；gone＝空字串
-    sallyArea: number;   // 該艦目前的札；無艦時為 0
+    sallyArea: number;   // 該艦目前的標籤；無艦時為 0
 }
 
 export interface StageCheck {
     stageKey: string;
     slots: SlotCheck[];
-    /** 出擊後會被貼札的無札艦 id（不可逆消耗預告）。 */
+    /** 出擊後會被貼標籤的無標籤艦 id（不可逆消耗預告）。 */
     willStamp: number[];
-    /** 持有札不在 allowedTags 內、擋住這條路線的艦 id。 */
+    /** 持有標籤不在 allowedTags 內、擋住這條路線的艦 id。 */
     blocked: number[];
     /** 這一格能不能出：只要有任何 blocked 就不行。 */
     passable: boolean;
@@ -250,7 +250,7 @@ export function removeStageAt(stages: PlanStage[], index: number): PlanStage[] {
  * **這支的首要職責是不丟資料**——關卡列改成自動產生後，既有計畫必須能無損接上：
  *   · 有 mapNo 的照 mapNo 對應；沒有的用 `guessMapNo(label)` 反推。
  *   · 同一張圖出現第二個主列 → 轉成階段子列（舊版資料可能長這樣），不是丟掉。
- *   · 對應不上任何海域**但填過東西**的列（有編成／札約束）一律保留在末尾。
+ *   · 對應不上任何海域**但填過東西**的列（有編成／標籤約束）一律保留在末尾。
  *   · 對應不上又完全空白的才會消失——那本來就沒有資訊。
  *
  * maps 為空（活動已結束、master 沒有該區塊）時原樣返回：此時走手填模式，不該亂動。
@@ -289,9 +289,9 @@ export function reconcileStages(stages: PlanStage[], maps: { no: number }[]): Pl
 
 // ── 分群 ───────────────────────────────────────────────────────────────
 /**
- * 依 api_sally_area 分群。這是「札總帳」的資料來源，完全自動、零使用者輸入——
+ * 依 api_sally_area 分群。這是「標籤總帳」的資料來源，完全自動、零使用者輸入——
  * 一次回港（api_port/port 全量重建 this.ships）就是一次完整同步。
- * 回傳依札 id 升冪；無札艦不含在內（用 freeShips() 取）。
+ * 回傳依標籤 id 升冪；無標籤艦不含在內（用 freeShips() 取）。
  */
 export function groupBySally(ships: SallyShip[]): { sallyArea: number; ships: SallyShip[] }[] {
     const byTag = new Map<number, SallyShip[]>();
@@ -305,7 +305,7 @@ export function groupBySally(ships: SallyShip[]): { sallyArea: number; ships: Sa
         .map(([sallyArea, list]) => ({ sallyArea, ships: list }));
 }
 
-/** 自由身：尚未被貼任何札，可投入任一關卡（但投入即綁死）。 */
+/** 自由身：尚未被貼任何標籤，可投入任一關卡（但投入即綁死）。 */
 export function freeShips(ships: SallyShip[]): SallyShip[] {
     return ships.filter(s => s.sallyArea <= 0);
 }
@@ -349,21 +349,21 @@ export interface PlanConflict {
     /** 互相衝突的關卡 key（依 stages 出現順序）。 */
     stageKeys: string[];
     /**
-     * certain：先跑的關卡會蓋上一個後者不接受的札 → 必定衝突，事前就該改。
-     * possible：兩關卡的允許札有交集但無法確定會蓋上哪個 → 只提示，不判死。
+     * certain：先跑的關卡會蓋上一個後者不接受的標籤 → 必定衝突，事前就該改。
+     * possible：兩關卡的允許標籤有交集但無法確定會蓋上哪個 → 只提示，不判死。
      */
     severity: 'certain' | 'possible';
 }
 
 /**
- * 找出「同一艘**無札**艦被排進多個關卡，而先跑哪個會決定它從此進不了另一個」的矛盾。
+ * 找出「同一艘**無標籤**艦被排進多個關卡，而先跑哪個會決定它從此進不了另一個」的矛盾。
  * 這是出擊前唯一擋得住的錯誤——貼上就不可逆。
  *
- * 已持有札的艦重複出現在多關卡不算矛盾（它的札已定，各關卡各自用 checkStage 判 ok/blocked）。
+ * 已持有標籤的艦重複出現在多關卡不算矛盾（它的標籤已定，各關卡各自用 checkStage 判 ok/blocked）。
  *
- * certain 的判定用 grantsTag：A 關會蓋上札 X，而 B 關的 allowedTags 不含 X → 跑完 A 就進不了 B。
+ * certain 的判定用 grantsTag：A 關會蓋上標籤 X，而 B 關的 allowedTags 不含 X → 跑完 A 就進不了 B。
  * grantsTag 未填時退回看 allowedTags 是否相交——不相交必定衝突，相交則因為「無從得知會蓋上
- * 哪一個札」而只能報 possible。
+ * 哪一個標籤」而只能報 possible。
  */
 export function findPlanConflicts(stages: PlanStage[], ships: Map<number, SallyShip>): PlanConflict[] {
     const stagesByShip = new Map<number, PlanStage[]>();
@@ -371,7 +371,7 @@ export function findPlanConflicts(stages: PlanStage[], ships: Map<number, SallyS
         for (const slot of stage.slots) {
             if (slot.shipId == null) continue;
             const ship = ships.get(slot.shipId);
-            if (!ship || ship.sallyArea > 0) continue;   // 已有札者不在此檢查範圍
+            if (!ship || ship.sallyArea > 0) continue;   // 已有標籤者不在此檢查範圍
             const list = stagesByShip.get(slot.shipId);
             if (list) { if (!list.includes(stage)) list.push(stage); }
             else stagesByShip.set(slot.shipId, [stage]);
@@ -411,16 +411,16 @@ export function findPlanConflicts(stages: PlanStage[], ships: Map<number, SallyS
 // ── 計畫歸屬 ───────────────────────────────────────────────────────────
 /**
  * 計畫格相對於「實際貼標」的狀態。
- *   pending  ＝該艦仍無札，計畫尚未實現（出擊後會被貼上此札）
- *   fulfilled＝該艦已被貼上**此**札，計畫已實現，這筆計畫格是冗餘的
- *   conflict ＝該艦已被貼上**別的**札，這筆計畫格已失效，得換人
+ *   pending  ＝該艦仍無標籤，計畫尚未實現（出擊後會被貼上此標籤）
+ *   fulfilled＝該艦已被貼上**此**標籤，計畫已實現，這筆計畫格是冗餘的
+ *   conflict ＝該艦已被貼上**別的**標籤，這筆計畫格已失效，得換人
  */
 export type PlannedState = 'pending' | 'fulfilled' | 'conflict';
 
 export interface PlannedMember {
     shipId: number;
     name: string;
-    /** 該艦目前的實際札；0＝無札。 */
+    /** 該艦目前的實際標籤；0＝無標籤。 */
     sallyArea: number;
     state: PlannedState;
     /** 來源計畫格，供 UI 提供「從計畫移除」的動作。 */
@@ -429,18 +429,18 @@ export interface PlannedMember {
 }
 
 /**
- * 計畫把哪些艦指向哪個札。key＝札 id。
+ * 計畫把哪些艦指向哪個標籤。key＝標籤 id。
  *
- * 存在理由：札總帳若只顯示「遊戲實際貼標」，使用者把船排進計畫後會發現該札仍是 0 艘、
+ * 存在理由：標籤總帳若只顯示「遊戲實際貼標」，使用者把船排進計畫後會發現該標籤仍是 0 艘、
  * 排進去的船像人間蒸發——**實際回報過三次**。並排顯示「實際」與「計畫」兩欄才讀得懂。
  *
- * 歸屬只認 `grantsTag`（該關卡會蓋上哪個札）。`grantsTag` 未填時**不猜**：我們無從得知
- * 那條路線會蓋上哪個札，硬用 `allowedTags` 反推會在多札共用的關卡上給出錯誤歸屬。
+ * 歸屬只認 `grantsTag`（該關卡會蓋上哪個標籤）。`grantsTag` 未填時**不猜**：我們無從得知
+ * 那條路線會蓋上哪個標籤，硬用 `allowedTags` 反推會在多標籤共用的關卡上給出錯誤歸屬。
  *
- * **已持有札的艦也會列入**（標成 fulfilled／conflict）。這是刻意的：計畫會隨著實際出擊
+ * **已持有標籤的艦也會列入**（標成 fulfilled／conflict）。這是刻意的：計畫會隨著實際出擊
  * 逐漸過期，使用者需要看到「這筆已經實現了／這筆已經失效」才知道要清掉哪一格。
  *
- * **刻意不去重**：同一艘無札艦若被排進兩個 grantsTag 不同的關卡，會同時出現在兩個札底下
+ * **刻意不去重**：同一艘無標籤艦若被排進兩個 grantsTag 不同的關卡，會同時出現在兩個標籤底下
  * ——那本來就是個必定衝突（`findPlanConflicts` 會報 certain），在兩邊都看得到才有辦法
  * 就地刪掉錯的那一格。計數用途請改用 `sallyBudget()`，那支有去重。
  */
@@ -469,15 +469,15 @@ export function plannedByTag(
 }
 
 // ── 實際貼標觀測 ───────────────────────────────────────────────────────
-// 「出擊結果才是唯一依歸」，故計畫裡的 grantsTag（無札船會被貼上哪個札）必須能被實際
-// 觀測校正。推論方式：某艦出擊前無札、回港後帶著札 N ⇒ 該次出擊的海域貼出了 N。
+// 「出擊結果才是唯一依歸」，故計畫裡的 grantsTag（無標籤船會被貼上哪個標籤）必須能被實際
+// 觀測校正。推論方式：某艦出擊前無標籤、回港後帶著標籤 N ⇒ 該次出擊的海域貼出了 N。
 //
-// **只認 0 → N 的轉變**。N → M（換札）在遊戲機制上不會發生，若真的觀測到也不採信——
+// **只認 0 → N 的轉變**。N → M（換標籤）在遊戲機制上不會發生，若真的觀測到也不採信——
 // 那更可能是我們漏收了中間的封包，拿來當證據會污染判定。
 //
 // 已知限制（UI 必須如實呈現，別假裝這是完整答案）：
-//   · 粒度只到「海域」。札由**海域＋路線**決定，同一張圖不同路線可貼不同札（使用者的
-//     E2 就同時有兩個札），故觀測只能回答「這張圖貼出過哪些札」，無法指定是哪一階段。
+//   · 粒度只到「海域」。標籤由**海域＋路線**決定，同一張圖不同路線可貼不同標籤（使用者的
+//     E2 就同時有兩個標籤），故觀測只能回答「這張圖貼出過哪些標籤」，無法指定是哪一階段。
 //     **因此只做警示與一鍵套用，不自動覆寫**——多路線的圖會被改錯，而那是鎖定值。
 //   · 資料來源是 raw events，會被 M6 裁剪（約兩個登入世代），只涵蓋近期出擊。
 export type SallyObservationInput =
@@ -493,7 +493,7 @@ export interface GrantObservation {
 }
 
 /**
- * 依時序掃過出擊／母港封包，推論各海域實際貼出過哪些札。key＝mapKey。
+ * 依時序掃過出擊／母港封包，推論各海域實際貼出過哪些標籤。key＝mapKey。
  * inputs 必須已按事件順序排好；本函式不排序（呼叫端用 raw event id 排序即可）。
  */
 export function observeGrantedTags(
@@ -531,7 +531,7 @@ export function observeGrantedTags(
     return out;
 }
 
-/** 某海域實際貼出過的札 id（升冪、去重）。 */
+/** 某海域實際貼出過的標籤 id（升冪、去重）。 */
 export function grantedTagsOf(
     observations: Map<number, GrantObservation[]>, mapKey: number,
 ): number[] {
@@ -539,19 +539,19 @@ export function grantedTagsOf(
 }
 
 /**
- * 該札是否「已確立」＝遊戲裡實際已有船帶著它。
- * 已確立的札與其關卡約束應鎖定不可改（見 CLAUDE.md「活動作戰板」的鎖定規則）：
+ * 該標籤是否「已確立」＝遊戲裡實際已有船帶著它。
+ * 已確立的標籤與其關卡約束應鎖定不可改（見 CLAUDE.md「活動作戰板」的鎖定規則）：
  * 實際貼標是不可逆的事實，計畫端再去改名或改約束只會讓兩邊對不上。
  */
 export function establishedTags(ships: SallyShip[]): Set<number> {
     return new Set(ships.filter(s => s.sallyArea > 0).map(s => s.sallyArea));
 }
 
-// ── 札預算 ─────────────────────────────────────────────────────────────
+// ── 標籤預算 ─────────────────────────────────────────────────────────────
 export interface SallyBudget {
-    /** 目前尚無札的艦數。 */
+    /** 目前尚無標籤的艦數。 */
     free: number;
-    /** 各札目前實際鎖住的艦數（依札 id 升冪）。 */
+    /** 各標籤目前實際鎖住的艦數（依標籤 id 升冪）。 */
     locked: { sallyArea: number; count: number }[];
     /** 計畫中將被消耗的自由身：去重後的艦 id（同一艘被多關卡排到只算一次）。 */
     plannedStamp: number[];
@@ -560,7 +560,7 @@ export interface SallyBudget {
 }
 
 /**
- * 活動全域的札資源盤點。這本質是分配問題——無札船投入哪個關卡＝決定它被綁在哪，
+ * 活動全域的標籤資源盤點。這本質是分配問題——無標籤船投入哪個關卡＝決定它被綁在哪，
  * 所以總覽要能一眼看到「還剩幾艘自由身、計畫會吃掉幾艘」。
  */
 export function sallyBudget(stages: PlanStage[], ships: SallyShip[]): SallyBudget {

@@ -1,6 +1,6 @@
 // utils/event-plan.ts（活動作戰板核心）的純函式驗證。
 //
-// 情境資料照使用者提供的真實活動表格建：札 #1 第三十一戦隊(9艘)、#2 増強第三十一戦隊(8艘)、
+// 情境資料照使用者提供的真實活動表格建：標籤 #1 第三十一戦隊(9艘)、#2 増強第三十一戦隊(8艘)、
 // #5 仏地中海艦隊（尚未產生）。機制前提見該檔檔頭與 CLAUDE.md「活動作戰板」。
 import { describe, expect, it } from 'vitest';
 import {
@@ -27,8 +27,8 @@ const stage = (o: Partial<PlanStage> & { key: string }): PlanStage => ({
     label: o.key, allowedTags: [], grantsTag: null, slots: [], ...o,
 });
 
-describe('札分群（Layer 1：零輸入且權威）', () => {
-    it('依札 id 升冪分群，無札艦不混入', () => {
+describe('標籤分群（Layer 1：零輸入且權威）', () => {
+    it('依標籤 id 升冪分群，無標籤艦不混入', () => {
         const groups = groupBySally(ships);
         expect(groups.map(g => g.sallyArea)).toEqual([1, 2]);
         expect(groups.map(g => g.ships.length)).toEqual([9, 8]);
@@ -38,10 +38,10 @@ describe('札分群（Layer 1：零輸入且權威）', () => {
     it('空名冊', () => expect(groupBySally([])).toEqual([]));
 });
 
-describe('札快照：即時資料優先與安全更新', () => {
+describe('標籤快照：即時資料優先與安全更新', () => {
     const historical = { 101: 9, 208: 8, 999: 7 };
 
-    it('現行活動有非零札時，以完整即時名冊為準，不讓舊快照覆蓋', () => {
+    it('現行活動有非零標籤時，以完整即時名冊為準，不讓舊快照覆蓋', () => {
         const out = resolveSallyRoster(ships, historical, true);
         expect(out.source).toBe('live');
         expect(out.ships.find(ship => ship.id === 101)?.sallyArea).toBe(1);
@@ -65,7 +65,7 @@ describe('札快照：即時資料優先與安全更新', () => {
         expect([...establishedTags(out.ships)].sort()).toEqual([8, 9]);
     });
 
-    it('現行活動的札不會寫進另一個已不在 master 的歷史 area', () => {
+    it('現行活動的標籤不會寫進另一個已不在 master 的歷史 area', () => {
         expect(nextSallySnapshot(historical, ships, false)).toBeNull();
     });
 
@@ -86,7 +86,7 @@ describe('關卡燈號', () => {
         slots: [
             { shipId: 301 },       // 自由身 → willStamp
             { shipId: 302 },       // 自由身 → willStamp
-            { shipId: 208 },       // 帶著札 #2 → blocked
+            { shipId: 208 },       // 帶著標籤 #2 → blocked
             { role: '歐洲空母' },   // 只填角色 → role
             { shipId: 999 },       // 已解體 → gone
         ],
@@ -100,7 +100,7 @@ describe('關卡燈號', () => {
         expect(r.passable).toBe(false);
     });
 
-    it('全員持有允許札 → 全綠且不消耗自由身', () => {
+    it('全員持有允許標籤 → 全綠且不消耗自由身', () => {
         const r = checkStage(stage({
             key: 'E1-1', allowedTags: [1], grantsTag: 1,
             slots: [{ shipId: 101 }, { shipId: 102 }, { shipId: 103 }],
@@ -124,7 +124,7 @@ describe('關卡燈號', () => {
 describe('計畫矛盾（出擊前唯一擋得住的錯誤）', () => {
     const e43 = stage({ key: 'E4-3', allowedTags: [5], grantsTag: 5, slots: [{ shipId: 301 }] });
 
-    it('certain：grantsTag 會蓋上後者不接受的札', () => {
+    it('certain：grantsTag 會蓋上後者不接受的標籤', () => {
         const e51 = stage({ key: 'E5-1', allowedTags: [6], grantsTag: 6, slots: [{ shipId: 301 }] });
         const c = findPlanConflicts([e43, e51], byId);
         expect(c).toHaveLength(1);
@@ -133,14 +133,14 @@ describe('計畫矛盾（出擊前唯一擋得住的錯誤）', () => {
         expect(c[0].stageKeys).toEqual(['E4-3', 'E5-1']);
     });
 
-    // 它的札已定，各關卡各自判 ok/blocked，不是計畫矛盾。
-    it('已持有札的艦重複出現不算矛盾', () => {
+    // 它的標籤已定，各關卡各自判 ok/blocked，不是計畫矛盾。
+    it('已持有標籤的艦重複出現不算矛盾', () => {
         const a = stage({ key: 'A', allowedTags: [2], grantsTag: 2, slots: [{ shipId: 208 }] });
         const b = stage({ key: 'B', allowedTags: [9], grantsTag: 9, slots: [{ shipId: 208 }] });
         expect(findPlanConflicts([a, b], byId)).toEqual([]);
     });
 
-    it('possible：允許札有交集且 grantsTag 未填（無從得知會蓋上哪個）', () => {
+    it('possible：允許標籤有交集且 grantsTag 未填（無從得知會蓋上哪個）', () => {
         const p1 = stage({ key: 'P1', allowedTags: [7, 8], slots: [{ shipId: 304 }] });
         const p2 = stage({ key: 'P2', allowedTags: [8], slots: [{ shipId: 304 }] });
         expect(findPlanConflicts([p1, p2], byId).map(c => c.severity)).toEqual(['possible']);
@@ -155,7 +155,7 @@ describe('計畫矛盾（出擊前唯一擋得住的錯誤）', () => {
     it('空輸入', () => expect(findPlanConflicts([], byId)).toEqual([]));
 });
 
-describe('札預算', () => {
+describe('標籤預算', () => {
     it('自由身消耗跨關卡去重', () => {
         const e43 = stage({ key: 'E4-3', allowedTags: [5], grantsTag: 5, slots: [{ shipId: 301 }, { shipId: 302 }] });
         const e51 = stage({ key: 'E5-1', allowedTags: [6], grantsTag: 6, slots: [{ shipId: 301 }] });
@@ -169,7 +169,7 @@ describe('札預算', () => {
         .toEqual({ free: 0, locked: [], plannedStamp: [], freeAfterPlan: 0 }));
 });
 
-// 使用者實際回報三次：把船排進計畫後，札總帳仍顯示 0 艘、排進去的船像人間蒸發。
+// 使用者實際回報三次：把船排進計畫後，標籤總帳仍顯示 0 艘、排進去的船像人間蒸發。
 // 「計畫」與「現實」是兩個維度，必須並排顯示。
 describe('計畫歸屬（實際 vs 計畫兩個維度）', () => {
     const taiyou = S(401, '大鷹改二', 0);
@@ -190,11 +190,11 @@ describe('計畫歸屬（實際 vs 計畫兩個維度）', () => {
         const stale = stage({ key: 'E-9', allowedTags: [1], grantsTag: 1, slots: [{ shipId: 208 }] });
         const m = plannedByTag([stale], byId).get(1)![0];
         expect(m.state).toBe('conflict');
-        expect(m.sallyArea).toBe(2);                       // 實際貼的是別的札
+        expect(m.sallyArea).toBe(2);                       // 實際貼的是別的標籤
         expect([m.stageKey, m.slotIndex]).toEqual(['E-9', 0]);   // 供 UI 就地移除
     });
 
-    // 多札共用的關卡用 allowedTags 反推會給錯答案，故未填就不猜。
+    // 多標籤共用的關卡用 allowedTags 反推會給錯答案，故未填就不猜。
     it('grantsTag 未填時不猜歸屬；角色格不列入', () => {
         expect([...plannedByTag([{ ...e1, grantsTag: null }], rosterById).keys()]).toEqual([]);
         expect([...plannedByTag([{ ...e1, slots: [{ role: '對空驅逐' }] }], rosterById).keys()]).toEqual([]);
@@ -208,14 +208,14 @@ describe('計畫歸屬（實際 vs 計畫兩個維度）', () => {
         expect(sallyBudget(two, roster).plannedStamp).toEqual([401]);
     });
 
-    it('已確立的札＝實際有船帶著它', () => {
+    it('已確立的標籤＝實際有船帶著它', () => {
         expect([...establishedTags(roster)].sort()).toEqual([1, 2]);
         expect(establishedTags(roster).has(5)).toBe(false);   // 手動宣告但無船
         expect([...establishedTags([])]).toEqual([]);
     });
 });
 
-// 「出擊結果才是唯一依歸」：某艦出擊前無札、回港後帶著札 N ⇒ 該次出擊的海域貼出了 N。
+// 「出擊結果才是唯一依歸」：某艦出擊前無標籤、回港後帶著標籤 N ⇒ 該次出擊的海域貼出了 N。
 describe('實際貼標觀測', () => {
     const port = (ts: number, pairs: [number, number][]): SallyObservationInput =>
         ({ kind: 'port', ts, tags: new Map(pairs) });
@@ -232,8 +232,8 @@ describe('實際貼標觀測', () => {
         expect(grantedTagsOf(obs, 621)).toEqual([1]);
     });
 
-    // 札由海域＋路線決定，同一張圖不同路線可貼不同札（使用者的 E2 就有兩個）。
-    it('同圖多札與跨圖', () => {
+    // 標籤由海域＋路線決定，同一張圖不同路線可貼不同標籤（使用者的 E2 就有兩個）。
+    it('同圖多標籤與跨圖', () => {
         const obs = observeGrantedTags([
             port(1, [[401, 0], [402, 0], [403, 0]]),
             sortie(2, 621), port(3, [[401, 1], [402, 0], [403, 0]]),
@@ -245,7 +245,7 @@ describe('實際貼標觀測', () => {
         expect(grantedTagsOf(obs, 627)).toEqual([]);
     });
 
-    // N → M（換札）機制上不會發生，觀測到也不採信——那更可能是漏收封包。
+    // N → M（換標籤）機制上不會發生，觀測到也不採信——那更可能是漏收封包。
     it('只認 0 → N 的轉變', () => {
         expect([...observeGrantedTags([
             port(1, [[401, 2]]), sortie(2, 621), port(3, [[401, 7]]),

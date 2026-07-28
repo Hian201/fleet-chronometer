@@ -209,7 +209,7 @@ describe('篩選', () => {
         expect(ids({ duplicate: 'no' })).toEqual([3]);
     });
 
-    it('等級範圍與出撃札', () => {
+    it('等級範圍與出擊標籤', () => {
         expect(ids({ lvMin: 21 })).toEqual([1, 3]);
         expect(ids({ lvMax: 20 })).toEqual([2]);
         expect(ids({ sallyArea: 3 })).toEqual([1]);

@@ -133,7 +133,7 @@ describe('匯出與還原往返', () => {
         expect(rows[0].stages[1]).toMatchObject({ phase: true, mapNo: 1, allowedTags: [1, 2] });
         expect(rows[0].stages[0].slots[1]).toEqual({ role: '對空驅逐' });
         expect(rows[0].sallySnapshot).toEqual({ 101: 1, 102: 1, 201: 2 });
-        // 活動海域已不在 master 時，備份還原的快照仍可作為歷史札總帳來源。
+        // 活動海域已不在 master 時，備份還原的快照仍可作為歷史標籤總帳來源。
         const historical = resolveSallyRoster([
             { id: 101, name: '大鷹', sallyArea: 0 },
             { id: 102, name: '五十鈴', sallyArea: 0 },

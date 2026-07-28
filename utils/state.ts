@@ -136,10 +136,10 @@ export interface OwnedShipView {
     // 可裝備的裝備類別 id（見 GameState.equipTypesOf 的驗證說明）。用於「大發系／內火艇／
     // 司令部／水戰」這類篩選——這些的可裝備性是**逐艦**決定的，不能只看艦種。
     equipTypes: number[];
-    // 出撃札（api_sally_area）。0＝無札；>0＝已被貼上該 id 的札。欄位已用真封包確認
+    // 出擊標籤（api_sally_area）。0＝無標籤；>0＝已被貼上該 id 的標籤。欄位已用真封包確認
     // （samples/slot_to_port.json 每艘 api_ship 末三欄 api_locked/api_locked_equip/
-    // api_sally_area），但樣本取自非活動期故值全為 0——「id N 對應遊戲裡哪個札」的語意
-    // 尚未實測。只透出遊戲給的數字，札名 API 不提供，見 utils/event-plan.ts 檔頭。
+    // api_sally_area），但樣本取自非活動期故值全為 0——「id N 對應遊戲裡哪個標籤」的語意
+    // 尚未實測。只透出遊戲給的數字，標籤名 API 不提供，見 utils/event-plan.ts 檔頭。
     sallyArea: number;
     // 1–4 為所屬艦隊編號；null 表示目前未編成。僅提供編號，避免 view 攜帶未驗證語意。
     fleetNo: number | null;
@@ -528,8 +528,8 @@ export class GameState {
     masterMapInfo = new Map<number, { area: number; no: number; name: string; opetext: string }>();
     mapBossHp = new Map<number, number>();          // key 同上：boss旗艦最大HP（實戰擷取，估剩餘次數用）
     private mapinfoSampleCount = 0;   // EO api_sally_flag 樣本擷取次數上限（見 wantedTag）
-    private sallySampleCount = 0;     // 出撃札（api_sally_area>0）樣本擷取次數上限（見 wantedTag）
-    private sallyKeySampleCount = 0;  // 未知 sally 系欄位樣本擷取次數上限（札名驗證鉤子）
+    private sallySampleCount = 0;     // 出擊標籤（api_sally_area>0）樣本擷取次數上限（見 wantedTag）
+    private sallyKeySampleCount = 0;  // 未知 sally 系欄位樣本擷取次數上限（標籤名驗證鉤子）
     // 工廠分頁的「最新結果」看板（開發/改修/建造發起）。EventProjector 在對應事件到達時
     // 讀取這些 view 歸檔進 db.factory（消化後摘要，同 sorties 設計）。
     lastDevelop: DevelopView | null = null;
@@ -2291,12 +2291,12 @@ export class GameState {
                 return t('wanted.tagMapinfoSample', { kind, n: this.mapinfoSampleCount });
             }
         }
-        // ── 出撃札驗證鉤子（兩條，見 CLAUDE.md「活動作戰板」）─────────────────
+        // ── 出擊標籤驗證鉤子（兩條，見 CLAUDE.md「活動作戰板」）─────────────────
         // 現況：api_sally_area 欄位名已用真封包確認，但手上所有樣本都取自非活動期，
-        // 值全為 0——札 id 的實際語意、以及「札名是否存在於任何封包」皆未實測。
+        // 值全為 0——標籤 id 的實際語意、以及「標籤名是否存在於任何封包」皆未實測。
         // 下列兩條在活動期間會自動撈到真封包，拿到後即可定案，屆時回頭更新本註解。
         //
-        // (a) 首見「有船帶著札」的艦娘清單封包。api_port/port 是全量重建（見上方
+        // (a) 首見「有船帶著標籤」的艦娘清單封包。api_port/port 是全量重建（見上方
         //     reducer），ship2/ship3/ship_deck 是否仍在使用尚未實測，故一併納入條件——
         //     真的還在送就會自己浮出來，同時驗證它們帶不帶 api_sally_area。
         if (this.sallySampleCount < 2 && Array.isArray(api?.api_ship)
@@ -2306,10 +2306,10 @@ export class GameState {
             this.sallySampleCount++;
             return t('wanted.tagSallyArea', { path, n: this.sallySampleCount });
         }
-        // (b) 未知的 sally 系欄位。已知只有 api_sally_area（艦上的札 id）與 api_sally_flag
+        // (b) 未知的 sally 系欄位。已知只有 api_sally_area（艦上的標籤 id）與 api_sally_flag
         //     （mapinfo，語意未解）；若活動期間任何封包冒出第三個 sally 系 key，那就是
-        //     札名／札定義表最可能的所在，立刻擷取。查不到也是有效結論——可據以定案
-        //     「札名不在 API 裡，只能手動命名」，見 utils/event-plan.ts 檔頭。
+        //     標籤名／標籤定義表最可能的所在，立刻擷取。查不到也是有效結論——可據以定案
+        //     「標籤名不在 API 裡，只能手動命名」，見 utils/event-plan.ts 檔頭。
         if (this.sallyKeySampleCount < 3) {
             const key = findUnknownSallyKey(api);
             if (key) {
@@ -2321,7 +2321,7 @@ export class GameState {
     }
 }
 
-// 已知的 sally 系欄位。出現在這之外的 sally 系 key＝札名驗證鉤子的命中目標（見 wantedTag）。
+// 已知的 sally 系欄位。出現在這之外的 sally 系 key＝標籤名驗證鉤子的命中目標（見 wantedTag）。
 const KNOWN_SALLY_KEYS = new Set(['api_sally_area', 'api_sally_flag']);
 
 /**

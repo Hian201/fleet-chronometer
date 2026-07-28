@@ -5,7 +5,7 @@
 //
 // ── 與 utils/ship-filter.ts 的分工 ────────────────────────────────────────
 // ship-filter 是「鎮守府全船篩選」的**共用**核心（活動作戰板的右欄清單也吃它），
-// 只含跨分區都成立的維度：航速／艦種／可裝備／出撃札／關鍵字。本檔是艦娘全覽**專屬**的
+// 只含跨分區都成立的維度：航速／艦種／可裝備／出擊標籤／關鍵字。本檔是艦娘全覽**專屬**的
 // 超集，額外處理婚艦・改造・改修・射程・開幕・補強增設・多號機…這些只有收藏視角才問的
 // 問題，並負責排序與分頁。共用維度直接委派給 ship-filter，不重寫一份。
 //
@@ -15,7 +15,7 @@
 //   · 近代化改修上限＝master 的 (max − 初期)，與 api_kyouka 前四格完全吻合
 //   · 改造終點＝api_aftershipid === '0'；補強增設孔＝api_slot_ex 三態 0/-1/>0
 //   · 補強增設可裝的特殊類別＝api_mst_equip_exslot_ship（key 是**裝備 master id**）
-//   · 出撃札＝api_sally_area；航速＝api_soku；射程＝api_leng
+//   · 出擊標籤＝api_sally_area；航速＝api_soku；射程＝api_leng
 // 推算（**遊戲不送這個旗標**，依 wikiwiki.jp/kancolle 機制頁轉寫）：
 //   · 先制對潛 isOpeningAsw()。規則會隨遊戲改版變動，例外艦以**艦級 ctype** 表達以降低
 //     維護成本，但仍需人工跟進。UI 必須標示為推算值，不可呈現成確定事實。
@@ -181,7 +181,7 @@ export interface RosterFilter {
     equip: EquipFilter;
     namedEquip: NamedEquipFilter;
     exSlot: ExSlotFilter;
-    /** 出撃札：null＝不限、0＝只看無札、>0＝只看該札。 */
+    /** 出擊標籤：null＝不限、0＝只看無標籤、>0＝只看該標籤。 */
     sallyArea: number | null;
     /**
      * 國籍（建造國）白名單；空陣列＝不限。**多選**——「英美」「地中海組」這種組合是實際

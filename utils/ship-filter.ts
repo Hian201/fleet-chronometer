@@ -1,4 +1,4 @@
-// 鎮守府全船篩選：航速／艦種／可裝備／出撃札／關鍵字。
+// 鎮守府全船篩選：航速／艦種／可裝備／出擊標籤／關鍵字。
 //
 // 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵資料驗證（CLAUDE.md 設計原則 4）。
 // 由「活動作戰板」與「艦娘全覽」兩個分區共用（UI 殼在 overview/ship-picker.ts）。
@@ -56,7 +56,7 @@ export interface ShipFilterState {
     /** 艦種 id 白名單；空陣列＝不限。 */
     stypeIds: number[];
     equip: EquipFilter;
-    /** 出撃札篩選：null＝不限、0＝只看無札（自由身）、>0＝只看該札。 */
+    /** 出擊標籤篩選：null＝不限、0＝只看無標籤（自由身）、>0＝只看該標籤。 */
     sallyArea: number | null;
     /** 艦名關鍵字（大小寫不敏感、去頭尾空白）。 */
     search: string;
@@ -131,7 +131,7 @@ export function filterShips<T extends FilterableShip>(
     });
 }
 
-/** 目前有哪些札（含 0＝自由身），供篩選器列出選項。依札 id 升冪，0 恆在首。 */
+/** 目前有哪些標籤（含 0＝自由身），供篩選器列出選項。依標籤 id 升冪，0 恆在首。 */
 export function sallyOptions(ships: FilterableShip[]): { sallyArea: number; count: number }[] {
     const byTag = new Map<number, number>();
     for (const s of ships) byTag.set(s.sallyArea, (byTag.get(s.sallyArea) ?? 0) + 1);

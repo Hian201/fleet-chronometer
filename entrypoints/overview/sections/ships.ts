@@ -100,7 +100,7 @@ export type ColumnId =
 interface RenderCtx {
     /** 素質顯示：true＝裸值（扣掉裝備自身加成，估算），false＝遊戲畫面的含裝備值。 */
     bare: boolean;
-    /** 依 sallyArea 取顯示名（供出撃札欄）。 */
+    /** 依 sallyArea 取顯示名（供出擊標籤欄）。 */
     tagLabel(sallyArea: number): string;
 }
 
@@ -491,7 +491,7 @@ export const shipsSection: OverviewSection = {
         let rows: OwnedShipRow[] = [];
         let roster: ShipsRow[] = [];
         const stypeLabel = new Map<number, string>();
-        // 札名 API 不提供（見 utils/event-plan.ts 檔頭），故只顯示遊戲給的數字 id。
+        // 標籤名 API 不提供（見 utils/event-plan.ts 檔頭），故只顯示遊戲給的數字 id。
         const tagLabel = (id: number) => `#${id}`;
         const renderCtx: RenderCtx = { bare: prefs.bare, tagLabel };
 
@@ -823,7 +823,7 @@ export const shipsSection: OverviewSection = {
             roster = buildRoster(rows);
             stypeLabel.clear();
             for (const s of roster) if (!stypeLabel.has(s.stypeId)) stypeLabel.set(s.stypeId, s.stype);
-            // 艦種／國籍／札選項依名冊填充（殼上先留空容器，避免 await 前整區空白）。
+            // 艦種／國籍／標籤選項依名冊填充（殼上先留空容器，避免 await 前整區空白）。
             const stypeOps = stypeChipsEl.querySelector('.rs-stype-ops')!;
             for (const id of stypeOptions(roster)) {
                 stypeOps.insertAdjacentHTML('beforebegin',
