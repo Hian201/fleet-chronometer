@@ -12,7 +12,7 @@ const manifestPath = new URL('../.output/chrome-mv3/manifest.json', import.meta.
 const outputRoot = fileURLToPath(new URL('../.output/chrome-mv3/', import.meta.url));
 const product = {
     packageName: 'fleet-chronometer',
-    version: '1.1.0-beta.1',
+    version: '1.1.0.1',
     description: 'Passive KanColle monitor for fleets, expeditions, battles, history, replays, and local backups.',
 };
 
