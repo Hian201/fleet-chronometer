@@ -447,6 +447,12 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
         const source: 'auto' | 'manual' = tag.nameSource === 'auto' ? 'auto'
             : tag.nameSource === 'manual' ? 'manual'
                 : invalid(`${w}.nameSource 必須是 auto 或 manual。`);
+        // color／planByShip 皆 optional：舊備份無此欄仍有效；有則驗證範圍。
+        let color: number | undefined;
+        if (tag.color !== undefined) {
+            color = integer(tag.color, `${w}.color`, 1);
+            if (color > 13) invalid(`${w}.color 必須是 1–13。`);
+        }
         return {
             sallyArea: integer(tag.sallyArea, `${w}.sallyArea`, 1),
             name: typeof tag.name === 'string' ? tag.name : invalid(`${w}.name 必須是字串。`),
@@ -455,6 +461,7 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
                 manualName: typeof tag.manualName === 'string'
                     ? tag.manualName : invalid(`${w}.manualName 必須是字串。`),
             }),
+            ...(color === undefined ? {} : { color }),
         };
     });
     const stages = arrayAt(row.stages, `${where}.stages`).map((raw, i) => {
@@ -495,6 +502,18 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
             sallySnapshot[shipId] = integer(value, `${snapWhere}.${key}`, 1);
         }
     }
+    // planByShip：配船板計畫歸屬（optional）。值為標籤 id ≥1；不得存 0（自由池＝省略鍵）。
+    let planByShip: Record<number, number> | undefined;
+    if (row.planByShip !== undefined) {
+        const pbWhere = `${where}.planByShip`;
+        const raw = objectAt(row.planByShip, pbWhere);
+        planByShip = {};
+        for (const [key, value] of Object.entries(raw)) {
+            const shipId = Number(key);
+            if (!Number.isSafeInteger(shipId) || shipId < 1) invalid(`${pbWhere} 的鍵必須是艦實例 id。`);
+            planByShip[shipId] = integer(value, `${pbWhere}.${key}`, 1);
+        }
+    }
     return {
         areaId: integer(row.areaId, `${where}.areaId`, 1),
         title: typeof row.title === 'string' ? row.title : invalid(`${where}.title 必須是字串。`),
@@ -503,6 +522,7 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
         updatedTs: timestamp(row.updatedTs, `${where}.updatedTs`),
         ...(row.unlocked === undefined ? {} : { unlocked: booleanValue(row.unlocked, `${where}.unlocked`) }),
         ...(sallySnapshot === undefined ? {} : { sallySnapshot }),
+        ...(planByShip === undefined ? {} : { planByShip }),
     };
 }
 

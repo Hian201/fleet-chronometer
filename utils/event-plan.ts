@@ -127,6 +127,11 @@ export interface PlanTag {
     nameSource: 'auto' | 'manual';
     /** auto 覆蓋手填名時保留原值，供一鍵還原。 */
     manualName?: string;
+    /**
+     * 配船板欄色（1–13，對應 CSS `--tag-N`）。存起來才不會因標籤增減而重排配色。
+     * 缺省時 UI 用 `defaultColorForTag(sallyArea)`（見 utils/tag-board.ts）。
+     */
+    color?: number;
 }
 
 /** 編成一格：綁具體艦，或只填角色文字（「二線戰艦」「大發驅逐」）待日後指定。 */

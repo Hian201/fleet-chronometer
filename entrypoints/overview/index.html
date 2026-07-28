@@ -34,6 +34,13 @@
             --res-gain: #2f8fcf;
             --res-drain: #cf7526;
 
+            /* 配船板標籤色（獨立語意，禁止挪用 --dmg-*／--sally-*／--res-*） */
+            --tag-1: #9aa4b2; --tag-2: #63718a; --tag-3: #e0b25e; --tag-4: #5fa86e;
+            --tag-5: #8fb8e8; --tag-6: #3f7cc0; --tag-7: #e59aa4; --tag-8: #c2564f;
+            --tag-9: #5cc0c0; --tag-10: #b08968; --tag-11: #e08a4a; --tag-12: #a87fd0;
+            --tag-13: #9dbf4a;
+            --tb-pool-w: 280px;
+
             /* 字距（tracking）級距：與字級成反比——字愈小需要愈多字距才好讀，
                字愈大則要收緊。三種擴充頁面共用同一組值（沿用 panel/index.html）。 */
             --track-tag: .14em;
@@ -834,6 +841,260 @@
             font-size: 11px;
             letter-spacing: var(--track-tag);
             margin-right: 6px;
+        }
+
+        /* ── 活動配船板（tag-board）── */
+        .tb-root {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            min-height: calc(100vh - 80px);
+            position: relative;
+        }
+        .tb-toolbar { flex-wrap: wrap; gap: 8px 10px; }
+        .tb-title, .tb-area-name {
+            font-size: 14px; font-weight: 600; letter-spacing: var(--track-title);
+            color: var(--sparkle);
+        }
+        .tb-budget {
+            display: flex; gap: 10px; flex-wrap: wrap;
+            font-size: 12px; color: var(--dim);
+        }
+        .tb-budget b { color: var(--text); font-variant-numeric: tabular-nums; }
+        .tb-budget .tb-mis, .tb-bad { color: var(--sally-blocked); }
+        .tb-ok { color: var(--sally-ok); }
+        .tb-stamp { color: var(--sally-stamp); }
+        .tb-filters {
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+            padding: 6px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px;
+        }
+        .tb-filters label { font-size: 11px; color: var(--dim); letter-spacing: var(--track-label); }
+        .tb-filters input[type="search"], .tb-filters select, .tb-num, .tb-pool-tools input {
+            background: var(--panel); color: var(--text); border: 1px solid var(--line);
+            border-radius: 6px; padding: 4px 8px; min-width: 100px; font: inherit;
+        }
+        .tb-pill {
+            font-size: 10px; letter-spacing: var(--track-tag); color: var(--dim);
+            border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
+        }
+        .tb-hint { font-size: 11px; }
+        .tb-banner, .tb-migrate {
+            margin: 0 0 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px;
+        }
+        .tb-banner {
+            border: 1px solid color-mix(in srgb, var(--sally-stamp) 55%, var(--line));
+            background: color-mix(in srgb, var(--sally-stamp) 12%, var(--panel));
+        }
+        .tb-migrate {
+            border: 1px solid var(--line); background: var(--panel); color: var(--dim);
+        }
+        .tb-main {
+            flex: 1 1 auto; min-height: 420px;
+            display: grid; grid-template-columns: var(--tb-pool-w) 1fr; gap: 0;
+        }
+        .tb-pool-pane {
+            display: flex; flex-direction: column; min-height: 0; max-height: 70vh;
+            border: 1px solid var(--line); border-right: none;
+            border-radius: 8px 0 0 8px; background: var(--panel); overflow: hidden;
+            position: sticky; top: 8px;
+        }
+        .tb-pool-head { flex: 0 0 auto; padding: 8px 10px 6px; border-bottom: 1px solid var(--line); }
+        .tb-pool-title { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; }
+        .tb-pool-meta { font-size: 10px; color: var(--dim); letter-spacing: var(--track-tag); margin-top: 2px; }
+        .tb-pool-tools { display: flex; gap: 6px; margin-top: 6px; }
+        .tb-pool-tools input { flex: 1; min-width: 0; background: var(--bg); }
+        .tb-pool-body { flex: 1 1 auto; overflow: auto; padding: 6px 8px 10px; }
+        .tb-pool-group { margin-bottom: 8px; }
+        .tb-pool-group > summary {
+            cursor: pointer; font-size: 11px; color: var(--dim);
+            letter-spacing: var(--track-label); list-style: none;
+            display: flex; align-items: center; gap: 4px; padding: 2px 0;
+        }
+        .tb-pool-group > summary::-webkit-details-marker { display: none; }
+        .tb-pool-group > summary .tb-chev::before { content: '▾'; }
+        .tb-pool-group:not([open]) > summary .tb-chev::before { content: '▸'; }
+        .tb-pool-group .n { margin-left: auto; font-variant-numeric: tabular-nums; }
+        .tb-chips { display: flex; flex-wrap: wrap; gap: 3px; min-height: 20px; }
+        .tb-chip {
+            display: inline-flex; align-items: center; gap: 2px;
+            border: 1px solid var(--line); border-radius: 4px;
+            background: var(--bg); padding: 1px 5px; font-size: 11px; line-height: 1.35;
+            cursor: grab; user-select: none; max-width: 100%;
+        }
+        .tb-chip:active { cursor: grabbing; }
+        .tb-chip .tb-lv { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 9px; }
+        .tb-chip.selected {
+            border-color: var(--sparkle);
+            background: color-mix(in srgb, var(--sparkle) 14%, transparent);
+        }
+        .tb-chip.planned { border-style: dashed; }
+        .tb-chip.stamped {
+            border-color: color-mix(in srgb, var(--c) 80%, var(--line));
+            box-shadow: inset 3px 0 0 var(--c); cursor: default;
+        }
+        .tb-chip.mismatch {
+            border-color: var(--sally-blocked);
+            background: color-mix(in srgb, var(--sally-blocked) 12%, var(--bg));
+        }
+        .tb-badge {
+            font-size: 9px; letter-spacing: var(--track-tag); border-radius: 3px;
+            padding: 0 3px; border: 1px solid currentColor;
+        }
+        .tb-badge.stamp { color: var(--c); }
+        .tb-badge.bad { color: var(--sally-blocked); }
+        .tb-fix {
+            font-size: 9px; border: none; background: transparent; color: var(--sally-blocked);
+            cursor: pointer; padding: 0 2px; text-decoration: underline;
+        }
+        .tb-empty { font-size: 10px; color: var(--dim); padding: 4px 2px; }
+        .tb-board-pane {
+            min-width: 0; min-height: 0; max-height: 70vh;
+            border: 1px solid var(--line); border-radius: 0 8px 8px 0;
+            background: var(--panel); overflow: auto;
+        }
+        table.tb-board {
+            border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 12px;
+        }
+        table.tb-board th, table.tb-board td {
+            border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+            vertical-align: top; padding: 0;
+        }
+        table.tb-board th:last-child, table.tb-board td:last-child { border-right: none; }
+        table.tb-board thead th.map {
+            position: sticky; top: 0; z-index: 5; background: var(--panel);
+            text-align: center; padding: 5px 6px; font-size: 11px; font-weight: 600;
+            letter-spacing: var(--track-label); color: var(--sparkle);
+            box-shadow: 0 1px 0 var(--line);
+        }
+        table.tb-board thead th.map .op {
+            display: block; font-weight: 400; font-size: 9px; color: var(--dim);
+            letter-spacing: var(--track-tag);
+        }
+        table.tb-board thead th.map.shared { color: var(--dim); }
+        table.tb-board thead th.tagcol {
+            position: sticky; top: 28px; z-index: 4; background: var(--panel);
+            box-shadow: 0 1px 0 var(--line);
+        }
+        th.tb-stype-h, td.tb-stype {
+            position: sticky; left: 0; z-index: 3; background: var(--panel);
+            min-width: 64px; width: 64px;
+        }
+        thead th.tb-stype-h.map { z-index: 6; top: 0; }
+        thead th.tb-stype-h.tagcol { z-index: 6; top: 28px; }
+        td.tb-stype {
+            padding: 8px 5px; font-size: 11px; letter-spacing: var(--track-label);
+            color: var(--dim); font-weight: 600; white-space: nowrap;
+        }
+        td.tb-stype .cnt { display: block; font-weight: 400; font-size: 10px; margin-top: 2px; }
+        .tb-colhead {
+            min-width: 132px; max-width: 180px; padding: 6px 7px 5px; cursor: pointer;
+        }
+        .tb-colhead:hover { background: color-mix(in srgb, var(--sparkle) 8%, var(--panel)); }
+        .tb-colhead .tb-banner { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+        .tb-swatch {
+            width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto;
+            border: 1px solid color-mix(in srgb, var(--c) 70%, #000);
+            background: var(--c); cursor: pointer; padding: 0;
+        }
+        .tb-colhead .tb-name {
+            font-weight: 600; font-size: 11px; color: var(--text);
+            border: 1px solid transparent; background: transparent; width: 100%;
+            padding: 0 2px; border-radius: 4px; min-width: 0; font: inherit;
+        }
+        .tb-colhead .tb-name:hover, .tb-colhead .tb-name:focus {
+            border-color: var(--line); background: var(--bg);
+        }
+        .tb-colhead .tb-meta {
+            display: flex; gap: 6px; flex-wrap: wrap; font-size: 9px; color: var(--dim);
+            letter-spacing: var(--track-tag);
+        }
+        .tb-colhead .tb-meta b { color: var(--text); font-weight: 600; }
+        .tb-colhead.dimmed { opacity: .38; }
+        .tb-col-hint {
+            font-size: 9px; color: var(--sparkle); opacity: 0; letter-spacing: var(--track-tag);
+        }
+        .tb-root.has-sel .tb-col-hint { opacity: 1; }
+        .tb-cell {
+            min-height: 44px; padding: 5px; min-width: 132px;
+            background: color-mix(in srgb, var(--c, transparent) 8%, transparent);
+        }
+        .tb-cell.drop { outline: 2px dashed var(--sparkle); outline-offset: -3px; }
+        .tb-cell.dimmed { opacity: .35; pointer-events: none; }
+        .tb-dropdock {
+            display: none; gap: 6px; align-items: stretch; flex-wrap: wrap;
+            padding: 8px 0; border-top: 1px solid var(--sparkle); margin-top: 8px;
+            background: color-mix(in srgb, var(--sparkle) 10%, var(--panel));
+        }
+        .tb-root.dragging .tb-dropdock { display: flex; }
+        .tb-dock-lab {
+            font-size: 11px; color: var(--dim); letter-spacing: var(--track-label);
+            align-self: center; margin-right: 4px;
+        }
+        .tb-dropzone {
+            display: flex; align-items: center; gap: 5px;
+            border: 1px dashed var(--line); border-radius: 6px;
+            padding: 6px 10px; background: var(--bg); cursor: copy;
+            font-size: 11px; min-width: 88px;
+        }
+        .tb-dropzone .tb-sw {
+            width: 10px; height: 10px; border-radius: 2px; background: var(--c); flex: 0 0 auto;
+        }
+        .tb-dropzone.over {
+            border-color: var(--sparkle); border-style: solid;
+            background: color-mix(in srgb, var(--sparkle) 16%, var(--bg));
+        }
+        .tb-dock-map { font-size: 9px; color: var(--dim); letter-spacing: var(--track-tag); }
+        .tb-legend {
+            display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 0;
+            font-size: 11px; color: var(--dim); letter-spacing: var(--track-label);
+        }
+        .tb-leg { display: inline-flex; align-items: center; gap: 5px; }
+        .tb-rules {
+            margin-top: 10px; border: 1px solid var(--line); border-radius: 6px;
+            background: var(--panel); padding: 8px 12px;
+        }
+        .tb-rules > summary {
+            cursor: pointer; font-weight: 600; font-size: 12px; letter-spacing: var(--track-label);
+        }
+        .tb-rules-help { font-size: 11px; margin: 6px 0 10px; }
+        .tb-rule-row {
+            border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+            padding: 8px 0; display: flex; flex-direction: column; gap: 6px;
+        }
+        .tb-rule-name { font-weight: 600; font-size: 12px; }
+        .tb-rule-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+        .tb-rchip {
+            display: inline-flex; align-items: center; gap: 3px;
+            border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
+            margin: 2px; font-size: 11px; cursor: pointer;
+        }
+        .tb-rchip.on {
+            border-color: var(--sparkle);
+            background: color-mix(in srgb, var(--sparkle) 14%, transparent);
+        }
+        .tb-palette {
+            position: absolute; z-index: 30;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+            padding: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); max-width: 220px;
+        }
+        .tb-pal-title { font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+        .tb-palette-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .tb-palette-grid button {
+            width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line);
+            cursor: pointer; padding: 0;
+        }
+        .tb-palette-grid button.on { outline: 2px solid var(--sparkle); outline-offset: 1px; }
+        @media (max-width: 900px) {
+            :root { --tb-pool-w: 200px; }
+            .tb-main { grid-template-columns: 1fr; }
+            .tb-pool-pane {
+                max-height: 220px; border-right: 1px solid var(--line);
+                border-radius: 8px; margin-bottom: 8px; position: static;
+            }
+            .tb-board-pane { border-radius: 8px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .tb-chip, .tb-dropzone { transition: none !important; }
         }
 
         /* ── 鎮守府全船篩選清單（ship-picker，與艦娘全覽共用）── */

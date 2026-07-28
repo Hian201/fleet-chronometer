@@ -118,6 +118,31 @@ describe('欄位驗證', () => {
 });
 
 describe('匯出與還原往返', () => {
+    it('可接受 optional color／planByShip；舊檔缺欄仍有效', () => {
+        const withNew: EventPlanRow = {
+            ...samplePlan(),
+            tags: [
+                { sallyArea: 1, name: '第三十一戦隊', nameSource: 'manual', color: 4 },
+                { sallyArea: 2, name: '増強第三十一戦隊', nameSource: 'manual', color: 7 },
+            ],
+            planByShip: { 101: 1, 201: 2 },
+        };
+        expect(validateBackupEnvelope(v4Restore([withNew])).tables.eventPlans).toEqual([withNew]);
+        const minimal: EventPlanRow = { areaId: 63, title: '', tags: [], stages: [], updatedTs: TS };
+        expect(validateBackupEnvelope(v4Restore([minimal])).tables.eventPlans).toEqual([minimal]);
+    });
+
+    it('color 超出 1–13 或 planByShip 值為 0 必須拒絕', () => {
+        expect(() => validateBackupEnvelope(v4Restore([{
+            ...samplePlan(),
+            tags: [{ sallyArea: 1, name: 'x', nameSource: 'manual', color: 14 }],
+        }]))).toThrow(BackupValidationError);
+        expect(() => validateBackupEnvelope(v4Restore([{
+            ...samplePlan(),
+            planByShip: { 101: 0 } as any,
+        }]))).toThrow(BackupValidationError);
+    });
+
     it('匯出的 envelope 帶 eventPlans 且為目前版本', async () => {
         await database.eventPlans.bulkPut([samplePlan(62), samplePlan(63)]);
         const envelope = await buildRestoreEnvelope(database);

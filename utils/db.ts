@@ -317,13 +317,20 @@ export interface EventPlanRow {
     updatedTs: number;
     // 解除鎖定。預設 undefined／false＝鎖定生效：**已確立的標籤**（遊戲裡實際已有船帶著它）
     // 其名稱與相關關卡的標籤約束一律唯讀——實際貼標是不可逆的事實，計畫端再去改只會讓
-    // 兩邊對不上。活動結束後由使用者明確按下「解除鎖定」才可再編輯（見 event-ops.ts）。
+    // 兩邊對不上。活動結束後由使用者明確按下「解除鎖定」才可再編輯（見 tag-board 分區）。
     unlocked?: boolean;
     // 活動結束後遊戲會把 api_sally_area 全部清 0，屆時 groupBySally 會算出空結果。
     // 故在活動仍存在於目前 master、且即時名冊有非零標籤且內容改變時，才更新一份
     // 「當時誰帶什麼標籤」的快照；活動結束或沒有可確認即時標籤時不覆寫，供事後回顧。
     // key＝艦實例 id（api_id），value＝標籤 id。
     sallySnapshot?: Record<number, number>;
+    /**
+     * 配船板的計畫歸屬：艦實例 id → 計畫標籤 id（≥1）。
+     * **省略＝自由池**（不得存 0）。新 UI 以本欄為分配真相來源；stages[].slots 僅保留
+     * 相容舊資料，開啟時若本欄缺／空且 slots 有船，會一次性遷移（見 tag-board.ts）。
+     * 非索引 optional 欄位——不升 Dexie schema 版本。
+     */
+    planByShip?: Record<number, number>;
 }
 
 // 資源時間序列（「資源紀錄」分區）。**與 db.snapshot 的分工是「歷史 vs 現狀」**：
