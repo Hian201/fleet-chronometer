@@ -59,6 +59,15 @@ whatever else you already trust).
   no extension installed to read a replay back.
 - **Fit to Window** — fit the game canvas into the browser window; resize the window to change size; mute audio.
 
+## How it works
+
+![The game talks to its servers exactly as it always has. Fleet Chronometer only
+reads a read-only copy of responses the game has already received, deletes your
+login token, files each record through a single entry point, keeps everything in
+your browser's local database, and computes fleet state and battle predictions on
+your own machine. It never sends, alters or resends game traffic, never automates
+play, and never uploads anything.](docs/architecture-en.svg)
+
 ## Privacy & safety, by design
 
 - **Passive capture only.** The extension observes traffic the game already

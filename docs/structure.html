@@ -1,0 +1,2355 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet Chronometer — 架構規格（重建用）</title>
+<style>
+  :root {
+    --bg: #10151d; --panel: #182030; --panel2: #131a26; --line: #2a3548;
+    --text: #cfd6e4; --dim: #7d8aa0; --brass: #b8860b; --brass-soft: #d8a93a;
+    --ok: #5f9e6b; --no: #e05555; --warn: #e08b3d; --blue: #2f8fcf;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+            "Noto Sans CJK TC", "PingFang TC", "Hiragino Sans", "Microsoft JhengHei",
+            Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #eef0f4; --panel: #ffffff; --panel2: #f6f8fb; --line: #d3d8e2;
+      --text: #26303f; --dim: #6b7688; --brass: #9a6b0b; --brass-soft: #8a5f09;
+      --ok: #2f7d4f; --no: #c0392b; --warn: #b5701f; --blue: #1f6ea8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.72;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  .wrap { display: grid; grid-template-columns: 286px minmax(0, 1fr); gap: 0; }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    border-right: 1px solid var(--line); background: var(--panel2); padding: 22px 0 40px;
+  }
+  nav .brand { padding: 0 22px 14px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  nav .brand b { display: block; font-size: 15px; letter-spacing: -.01em; }
+  nav .brand span { display: block; font-size: 11.5px; color: var(--dim); letter-spacing: .06em; text-transform: uppercase; }
+  nav a {
+    display: block; padding: 5px 22px 5px 22px; color: var(--dim);
+    text-decoration: none; font-size: 13.2px; border-left: 2px solid transparent;
+  }
+  nav a:hover { color: var(--text); background: color-mix(in srgb, var(--brass) 8%, transparent); }
+  nav a.on { color: var(--brass-soft); border-left-color: var(--brass); background: color-mix(in srgb, var(--brass) 10%, transparent); }
+  nav a i { font-style: normal; color: var(--dim); font-family: var(--mono); font-size: 11.5px; margin-right: 8px; }
+
+  main { padding: 34px 46px 120px; max-width: 1180px; }
+  h1 { font-size: 30px; line-height: 1.25; letter-spacing: -.015em; margin: 0 0 6px; }
+  h2 {
+    font-size: 21px; letter-spacing: -.01em; margin: 54px 0 14px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--brass); scroll-margin-top: 12px;
+  }
+  h2 i { font-style: normal; font-family: var(--mono); font-size: 14px; color: var(--brass); margin-right: 10px; }
+  h3 { font-size: 16.5px; margin: 30px 0 8px; letter-spacing: -.005em; }
+  h4 { font-size: 14.5px; margin: 20px 0 6px; color: var(--brass-soft); letter-spacing: .02em; }
+  p, li { margin: 8px 0; }
+  ul, ol { padding-left: 22px; }
+  li > ul, li > ol { margin: 4px 0; }
+  a { color: var(--blue); }
+  code {
+    font-family: var(--mono); font-size: .875em; background: color-mix(in srgb, var(--brass) 12%, transparent);
+    border: 1px solid var(--line); border-radius: 4px; padding: .5px 4px;
+  }
+  pre {
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--brass);
+    border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 12.8px; line-height: 1.62;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.4px; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+  td code, th code { font-size: 12.4px; white-space: nowrap; }
+
+  .lede { color: var(--dim); font-size: 16px; margin: 0 0 22px; }
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 16px 0; background: var(--panel); }
+  .box > :first-child { margin-top: 0; } .box > :last-child { margin-bottom: 0; }
+  .box.hard { border-left: 4px solid var(--no); }
+  .box.warn { border-left: 4px solid var(--warn); }
+  .box.ok   { border-left: 4px solid var(--ok); }
+  .box.info { border-left: 4px solid var(--blue); }
+  .box .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 700; margin-bottom: 4px;
+  }
+  .hard .tag { color: var(--no); } .warn .tag { color: var(--warn); }
+  .ok .tag { color: var(--ok); } .info .tag { color: var(--blue); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .meta { font-size: 12.6px; color: var(--dim); }
+  .k { color: var(--brass-soft); font-weight: 600; }
+  figure { margin: 18px 0; }
+  figcaption { font-size: 12.6px; color: var(--dim); margin-top: 6px; }
+  svg.diagram { width: 100%; height: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .no { color: var(--no); } .ok { color: var(--ok); } .warn { color: var(--warn); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 34px 0; }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    main { padding: 24px 18px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav id="toc">
+  <div class="brand"><b>Fleet Chronometer</b><span>Architecture / rebuild spec</span></div>
+  <a href="#s0"><i>00</i>如何使用本文件</a>
+  <a href="#s1"><i>01</i>產品定義與硬約束</a>
+  <a href="#s2"><i>02</i>技術棧與專案佈局</a>
+  <a href="#s3"><i>03</i>執行期拓撲</a>
+  <a href="#s4"><i>04</i>擷取管線</a>
+  <a href="#s5"><i>05</i>Provider 合約</a>
+  <a href="#s6"><i>06</i>Ingestion 生命週期</a>
+  <a href="#s7"><i>07</i>Post-processing 副作用</a>
+  <a href="#s8"><i>08</i>IndexedDB schema v12</a>
+  <a href="#s9"><i>09</i>投影邊界</a>
+  <a href="#s10"><i>10</i>事件裁剪</a>
+  <a href="#s11"><i>11</i>狀態復原</a>
+  <a href="#s12"><i>12</i>GameState 核心</a>
+  <a href="#s13"><i>13</i>戰鬥預測子系統</a>
+  <a href="#s14"><i>14</i>即時面板</a>
+  <a href="#s15"><i>15</i>鎮守府情報總括</a>
+  <a href="#s16"><i>16</i>popup／遊戲頁功能</a>
+  <a href="#s17"><i>17</i>utils 模組目錄</a>
+  <a href="#s18"><i>18</i>備份、還原與保留</a>
+  <a href="#s19"><i>19</i>權限模型</a>
+  <a href="#s20"><i>20</i>國際化</a>
+  <a href="#s21"><i>21</i>測試矩陣</a>
+  <a href="#s22"><i>22</i>產生物與工具鏈</a>
+  <a href="#s23"><i>23</i>已知未驗證事項</a>
+  <a href="#s24"><i>24</i>詞彙表</a>
+</nav>
+
+<main>
+
+<h1>Fleet Chronometer — 架構規格</h1>
+<p class="lede">
+  MV3 瀏覽器擴充：被動觀察《艦隊これくしょん -艦これ-》自身的 <code>kcsapi</code> 流量，
+  於本機重建遊戲狀態、預測戰鬥、歸檔歷史。純前端、無後端、不上傳。
+  本文件的目標是<strong>讓一位沒看過原始碼的實作者（人或 AI）能據以重建等價的系統</strong>。
+</p>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s0"><i>00</i>如何使用本文件</h2>
+
+<h3>本文件是什麼</h3>
+<ul>
+  <li><strong>是</strong>：契約、不變量、狀態機、資料 schema、已用真實封包驗證的事實、
+      以及「曾經改壞過所以不准改回去」的 guardrail。</li>
+  <li><strong>不是</strong>：逐行程式碼、UI 像素稿、每個決策的完整敘事。
+      決策脈絡在 <code>docs/engineering-log.md</code>，UI 量表在 <code>docs/design-guidelines.md</code>。</li>
+</ul>
+
+<div class="box warn">
+  <span class="tag">權威順序</span>
+  <p>衝突時一律以下列順序為準：<br>
+  <span class="k">① 原始碼</span> → <span class="k">② <code>tests/</code></span> →
+  <span class="k">③ 本文件</span> → <span class="k">④ <code>CLAUDE.md</code> / <code>AGENTS.md</code></span> →
+  <span class="k">⑤ <code>docs/engineering-log.md</code></span>。</p>
+  <p class="meta">理由：測試是唯一會在 CI 上失敗的文件。本文件描述「應該長成什麼樣」，
+  測試證明「實際長成什麼樣」。</p>
+</div>
+
+<h3>重建順序（建議 checklist）</h3>
+<ol>
+  <li>建立 WXT 專案骨架、<code>wxt.config.ts</code>（含 <a href="#s19">§19</a> 的 manifest 與 build hook）與三語 <code>public/_locales</code>。</li>
+  <li>實作 <code>utils/db.ts</code>（<a href="#s8">§8</a> schema v12），先讓 <code>tests/db-schema-migration.test.ts</code> 等價測試通過。</li>
+  <li>實作 <code>utils/kcsapi.ts</code>、<code>utils/runtime-message.ts</code>、<code>utils/idle-capture-queue.ts</code>（<a href="#s4">§4</a>）。</li>
+  <li>實作兩支 content script（<a href="#s4">§4</a>）。此時應能在 SW console 看到 <code>kc:api</code> 訊息。</li>
+  <li>實作 <code>utils/ingestion-persistence.ts</code> ＋ <code>utils/background-ingestion-lifecycle.ts</code>（<a href="#s6">§6</a>），
+      再把 <code>background.ts</code> 的 <code>ingestEvent()</code> 接上去。</li>
+  <li>實作 <code>utils/state.ts</code> 的 <code>GameState</code>（<a href="#s12">§12</a>）。<strong>先只做 master／port／艦隊</strong>，
+      用 <code>samples/</code> 的真實封包在 node 上驗證。</li>
+  <li>實作 <code>utils/battle.ts</code>（<a href="#s13">§13</a>），用真實戰鬥封包對照 rank／MVP／終末 HP。</li>
+  <li>實作 <code>utils/event-projector.ts</code> ＋ <code>utils/projection-cursor.ts</code>（<a href="#s9">§9</a>）與
+      <code>utils/state-recovery.ts</code>（<a href="#s11">§11</a>）。</li>
+  <li>實作面板（<a href="#s14">§14</a>）。到此為止即 M1–M3 的最小可用系統。</li>
+  <li>實作 <code>utils/event-pruning.ts</code>（<a href="#s10">§10</a>）與 <code>postProcessEvent()</code> 其餘副作用（<a href="#s7">§7</a>）。</li>
+  <li>實作 popup、overview 殼與各分區（<a href="#s15">§15</a>、<a href="#s16">§16</a>）。</li>
+  <li>實作備份／還原／保留規則（<a href="#s18">§18</a>）。<strong>這一步最容易造成資料損失，務必先寫測試。</strong></li>
+</ol>
+
+<div class="box hard">
+  <span class="tag">重建時最容易做錯的四件事</span>
+  <ol>
+    <li><strong>把擷取寫成主動請求</strong>。任何 <code>fetch</code>／重放／改寫遊戲流量都是紅線（<a href="#s1">§1</a>）。</li>
+    <li><strong>繞過 <code>ingestEvent()</code> 直接寫 <code>db.events</code></strong>。去重、狀態機、recovery 全部會失效。</li>
+    <li><strong>把 <code>db.snapshot</code> 餵進 EventProjector</strong>。snapshot 只是 GameState baseline，投影會產生重複 derived rows。</li>
+    <li><strong>猜測未驗證的封包欄位語意</strong>。本專案已被 API 格式坑過兩次，見 <a href="#s23">§23</a>。</li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s1"><i>01</i>產品定義與硬約束</h2>
+
+<p><strong>一句話</strong>：攔截遊戲自身的 <code>kcsapi</code> 回應 → 於本機 reduce 成遊戲狀態 →
+面板即時顯示艦隊／遠征／入渠／基地航空隊／關卡進度與<strong>戰鬥預測</strong>（終末 HP、rank、MVP、
+大破警告）與燃彈估算 → 歷史歸檔成可查詢、可繪圖、可備份的本機資料庫。</p>
+
+<h3>五條設計原則（硬約束，不可協商）</h3>
+<table>
+  <thead><tr><th style="width:130px">原則</th><th>內容</th><th style="width:300px">實作落點</th></tr></thead>
+  <tbody>
+    <tr><td><b>1. 被動擷取</b></td>
+      <td>只攔截遊戲自身流量，<strong>絕不重放／修改／代發請求</strong>；不延遲、不重排、不改變遊戲行為。帳號安全紅線。</td>
+      <td><code>entrypoints/interceptor.content.ts</code>（clone response，永不 await 原始流程）</td></tr>
+    <tr><td><b>2. token 不落地</b></td>
+      <td><code>api_token</code> 在 bridge 層剔除，永不寫入 DB、不出境；不上傳任何資料。<code>api_verno</code> 同時剔除。</td>
+      <td><code>bridge.content.ts</code>（第一道）＋ <code>background.ts</code>（第二道）</td></tr>
+    <tr><td><b>3. 擷取與 UI 解耦</b></td>
+      <td>資料落地於 SW 寫入的 IndexedDB 事件日誌；面板只是訂閱者＋重放者，關閉期間不漏資料。
+        <strong>SW 視為隨時會死，不持跨事件狀態</strong>（任何跨事件狀態必須落地）。</td>
+      <td><code>db.notified</code>、<code>db.meta['game-page']</code>、<code>resourceMarks['gauge-seen']</code></td></tr>
+    <tr><td><b>4. 核心零瀏覽器依賴</b></td>
+      <td><code>utils/state.ts</code> ＋ <code>utils/battle.ts</code> 不含 <code>chrome.*</code>／DOM，
+        可獨立編譯、用 node 餵真實封包測試。</td>
+      <td>大多數 <code>utils/*.ts</code>（見 <a href="#s17">§17</a> 純度欄）</td></tr>
+    <tr><td><b>5. 權限精簡</b></td>
+      <td>安裝時權限只有 <code>alarms</code>、<code>notifications</code>、<code>scripting</code>、
+        <code>activeTab</code>、<code>tabs</code>，且 <strong>host permission 一律為空</strong>。</td>
+      <td><code>wxt.config.ts</code> ＋ <code>tests/manifest.test.ts</code> 常駐斷言</td></tr>
+  </tbody>
+</table>
+
+<h3>被動性的具體定義</h3>
+<p>擴充<strong>不得</strong>加入任何會做下列事情的程式碼：</p>
+<ul>
+  <li>變更送出的遊戲請求（method、URL、header、body 皆不可）</li>
+  <li>變更收到的遊戲回應（遊戲拿到的 <code>Response</code> 必須與沒有擴充時完全相同）</li>
+  <li>注入遊戲指令、自動化玩家操作</li>
+  <li>延遲、重排、重送遊戲請求</li>
+</ul>
+<p>唯一允許的介入是<strong>觀察</strong>：<code>Response.clone()</code> 取副本、<code>XMLHttpRequest</code> 的
+<code>load</code> 事件讀 <code>responseText</code>。連讀取大字串都刻意延到 idle slice，避免與遊戲 renderer 競爭
+（見 <a href="#s4">§4</a>）。</p>
+
+<h3>未驗證資料的處理原則</h3>
+<div class="box hard">
+  <span class="tag">不猜</span>
+  <p>沒有真實封包佐證的欄位語意，一律：<strong>保留原始值</strong>、<strong>回 <code>null</code></strong>、
+  或 UI 顯示「不可考」。<strong>不得</strong>以 0、最小值或推算值頂替。</p>
+  <p class="meta">已被此原則救回的例子：節點字母（兩種推算法皆被真實資料否證 → 改查表）、
+  節點類型（改用查表，查不到回 <code>null</code>）、活動札語意（值全 0，標為未驗證）、
+  資源餘額差分（無樣本 → 顯示「不可考」）。</p>
+</div>
+
+<h3>缺席值語意（跨功能一致）</h3>
+<ul>
+  <li>排序時缺值<strong>一律排最後</strong>，不論升冪或降冪。</li>
+  <li>統計算不出來（查詢範圍內沒有樣本）一律顯示「不可考」。</li>
+  <li>「本機擷取沒有這個欄位」與「值是 0」是兩件事，欄位一律 optional、缺席而非 <code>false</code>／<code>0</code>。</li>
+</ul>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s2"><i>02</i>技術棧與專案佈局</h2>
+
+<h3>依賴</h3>
+<pre><code>{
+  "name": "fleet-chronometer", "version": "1.0.0", "type": "module", "private": true,
+  "dependencies":    { "dexie": "^4.4.4" },
+  "devDependencies": { "wxt": "^0.20.27", "typescript": "^5.9.3",
+                       "vitest": "^4.1.10", "fake-indexeddb": "^6.2.5" }
+}</code></pre>
+<p>執行期只有 <strong>Dexie</strong> 一個依賴。沒有 UI 框架：所有畫面都是手寫
+<code>innerHTML</code> 字串 ＋ <code>addEventListener</code>。沒有 CSS 框架：樣式內聯於各
+<code>index.html</code>。沒有圖表庫：折線圖是自算幾何 ＋ 手寫 SVG。</p>
+
+<h3>指令</h3>
+<table>
+  <thead><tr><th style="width:280px">指令</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>npm run build</code></td><td>產出 <code>.output/chrome-mv3</code>（瀏覽器「載入未封裝項目」指向此資料夾）</td></tr>
+    <tr><td><code>npm run dev</code></td><td>開發模式，產出 <code>.output/chrome-mv3-dev</code>，改動自動 rebuild</td></tr>
+    <tr><td><code>npx tsc --noEmit</code></td><td>型別檢查（非平凡改動必跑）</td></tr>
+    <tr><td><code>npx wxt prepare</code></td><td>生成 <code>.wxt/</code> 型別（首次或型別報錯時）</td></tr>
+    <tr><td><code>npm test</code></td><td>vitest 套件</td></tr>
+    <tr><td><code>npm run zip</code> / <code>:firefox</code></td><td>打包上架用 zip</td></tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <span class="tag">MV3 開發流程限制</span>
+  <p>改完 source 後須 rebuild ＋ 到 <code>chrome://extensions</code> 按擴充的重新整理鈕；
+  <strong>已開著的遊戲分頁還要 F5</strong> 才會重新注入 content script。這是 MV3 通用限制，
+  已決定不解。「靜音沒反應」等症狀的第一嫌疑就是這個。</p>
+</div>
+
+<h3>目錄樹</h3>
+<pre><code>fleet-chronometer/
+├─ wxt.config.ts           manifest 定義 ＋ 剝除 host_permissions 的 build hook
+├─ vitest.config.ts        node 環境、alias '@' → 專案根、setupFiles: tests/setup.ts
+├─ tsconfig.json           extends ./.wxt/tsconfig.json（strict、Bundler resolution）
+├─ web-ext.config.ts       開發用瀏覽器二進位與固定 profile
+├─ entrypoints/
+│   ├─ interceptor.content.ts   MAIN world、document_start、allFrames
+│   ├─ bridge.content.ts        ISOLATED world、document_start、allFrames
+│   ├─ theater.content.ts       DMM 頁、動態註冊（registration: 'runtime'）
+│   ├─ background.ts            service worker
+│   ├─ popup/      index.html + main.ts        擴充圖示快捷選單
+│   ├─ panel/      index.html + main.ts        即時監控面板（420×835 彈出視窗）
+│   └─ overview/   index.html + main.ts        鎮守府情報總括（獨立分頁）
+│        ├─ lib.ts  fsa.ts  viewer-html.ts  ship-picker.ts  import-panel.ts
+│        └─ sections/  index.ts  types.ts  ＋ 12 個分區檔
+├─ utils/                  50 個模組，多數為純函式（見 §17）
+├─ tests/                  48 個 vitest 檔（見 §21）
+├─ tools/                  產生器：icons / map-edges / ship-debut / app-icon /
+│                          preview / architecture（見 §22）
+├─ public/                 _locales（en, ja, zh_TW）、icon（PNG×5）、icons（SVG×75）
+├─ samples/                真實封包樣本（驗證 fixture），PII 已清除
+└─ docs/                   architecture-v1.md / design-guidelines.md /
+                           engineering-log.md / icon-redraw-spec.md / structure.html</code></pre>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s3"><i>03</i>執行期拓撲</h2>
+
+<figure>
+<svg class="diagram" viewBox="0 0 1080 620" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="五個執行環境與其間的訊息通道">
+  <g font-family="-apple-system, 'Noto Sans CJK TC', 'PingFang TC', sans-serif" font-size="12.5">
+    <!-- game page -->
+    <rect x="24" y="24" width="420" height="250" rx="10" fill="none" stroke="#8a94a8" stroke-dasharray="5 4"/>
+    <text x="38" y="46" font-size="12" fill="#8a94a8" letter-spacing="1.4">遊戲分頁 *.kancolle-server.com</text>
+
+    <rect x="44" y="62" width="380" height="82" rx="8" fill="#2a3548" stroke="#4a5468"/>
+    <text x="58" y="84" fill="#e6ebf4" font-weight="700">interceptor.content.ts — MAIN world</text>
+    <text x="58" y="104" fill="#b7c0d0">hook fetch / XHR → res.clone() → IdleCaptureQueue</text>
+    <text x="58" y="122" fill="#b7c0d0">installAudioMute()（document_start，須早於遊戲建立音訊圖）</text>
+    <text x="58" y="138" fill="#8a94a8" font-size="11.5">[debug] __kcLastBattle / __kcLastResult / __kcAudio</text>
+
+    <rect x="44" y="176" width="380" height="82" rx="8" fill="#22304a" stroke="#4a5468"/>
+    <text x="58" y="198" fill="#e6ebf4" font-weight="700">bridge.content.ts — ISOLATED world</text>
+    <text x="58" y="218" fill="#b7c0d0">刪 api_token / api_verno → 建 envelope → sendMessage</text>
+    <text x="58" y="236" fill="#b7c0d0">beforeunload 警示、靜音長連線、Esc 轉發、畫布量測</text>
+    <text x="58" y="252" fill="#8a94a8" font-size="11.5">只信任 e.source === window &amp;&amp; e.origin === location.origin</text>
+
+    <path d="M234,144 L234,176" stroke="#d8a93a" stroke-width="2"/>
+    <polygon points="230,168 234,178 238,168" fill="#d8a93a"/>
+    <text x="244" y="166" fill="#d8a93a" font-size="11.5">window.postMessage（同源）</text>
+
+    <!-- service worker -->
+    <rect x="530" y="62" width="510" height="196" rx="10" fill="#2a3548" stroke="#b8860b" stroke-width="1.8"/>
+    <text x="548" y="86" fill="#e6ebf4" font-weight="700" font-size="14">background.ts — service worker（MV3，隨時會被回收）</text>
+    <text x="548" y="110" fill="#b7c0d0">ingestEvent() ＝ provider 合約的唯一持久化入口</text>
+    <text x="548" y="130" fill="#b7c0d0">BackgroundIngestionLifecycle：recovery ＋ ingestion 共用序列 queue</text>
+    <text x="548" y="150" fill="#b7c0d0">postProcessEvent()：廣播 / 快照 / 資源 / 裁剪 / alarms / 通知</text>
+    <text x="548" y="170" fill="#b7c0d0">alarms + notifications（遠征、入渠、疲勞回復）</text>
+    <text x="548" y="190" fill="#b7c0d0">開面板單例視窗、靜音狀態持有者、captureVisibleTab 轉手</text>
+    <text x="548" y="214" fill="#8a94a8" font-size="11.5">回覆一律 replyWhenSettled(sendResponse) + return true</text>
+    <text x="548" y="238" fill="#8a94a8" font-size="11.5">SW 不持跨事件記憶體狀態；一切落地 IndexedDB</text>
+
+    <path d="M424,206 L530,150" stroke="#d8a93a" stroke-width="2"/>
+    <polygon points="522,146 532,149 524,155" fill="#d8a93a"/>
+    <rect x="446" y="166" width="76" height="21" rx="10.5" fill="#3a3020" stroke="#d8a93a"/>
+    <text x="484" y="181" fill="#d8a93a" font-size="11.5" text-anchor="middle">kc:api</text>
+
+    <!-- db -->
+    <rect x="530" y="292" width="510" height="106" rx="10" fill="#1b2433" stroke="#5f9e6b" stroke-width="1.8"/>
+    <text x="548" y="316" fill="#e6ebf4" font-weight="700" font-size="14">IndexedDB「kc-monitor」— Dexie schema v12</text>
+    <text x="548" y="338" fill="#b7c0d0">events · snapshot · resources · resourceMarks · shipObtained · notified · meta</text>
+    <text x="548" y="358" fill="#b7c0d0">sorties · replays · factory · expeditions（derived，經 EventProjector）</text>
+    <text x="548" y="378" fill="#b7c0d0">wanted（開發用）· eventPlans（使用者手輸）</text>
+    <path d="M785,258 L785,292" stroke="#5f9e6b" stroke-width="2"/>
+    <polygon points="781,284 785,294 789,284" fill="#5f9e6b"/>
+
+    <!-- extension pages -->
+    <rect x="24" y="316" width="420" height="278" rx="10" fill="none" stroke="#8a94a8" stroke-dasharray="5 4"/>
+    <text x="38" y="338" font-size="12" fill="#8a94a8" letter-spacing="1.4">擴充頁面 chrome-extension://</text>
+
+    <rect x="44" y="354" width="380" height="86" rx="8" fill="#22304a" stroke="#4a5468"/>
+    <text x="58" y="376" fill="#e6ebf4" font-weight="700">panel/ — 即時監控面板</text>
+    <text x="58" y="396" fill="#b7c0d0">兩階段重播（state-only / persist）＋ EventProjector</text>
+    <text x="58" y="414" fill="#b7c0d0">tabs：general / sortie / exped / factory / activity(dev)</text>
+    <text x="58" y="432" fill="#b7c0d0">艦隊 ＋ 基地航空隊常駐於 tabpanel 之下</text>
+
+    <rect x="44" y="454" width="380" height="66" rx="8" fill="#22304a" stroke="#4a5468"/>
+    <text x="58" y="476" fill="#e6ebf4" font-weight="700">overview/ — 鎮守府情報總括</text>
+    <text x="58" y="496" fill="#b7c0d0">12 個分區；只讀 GameState ＋ Dexie，不投影</text>
+    <text x="58" y="513" fill="#b7c0d0">備份／還原、LLM 報告、離線 viewer.html 產生</text>
+
+    <rect x="44" y="534" width="380" height="46" rx="8" fill="#22304a" stroke="#4a5468"/>
+    <text x="58" y="556" fill="#e6ebf4" font-weight="700">popup/ — 快捷選單</text>
+    <text x="58" y="573" fill="#b7c0d0">開面板／開遊戲／視窗適應／靜音／總括／拍照</text>
+
+    <path d="M530,330 L444,380" stroke="#5f9e6b" stroke-width="2"/>
+    <polygon points="452,374 442,381 450,385" fill="#5f9e6b"/>
+    <rect x="454" y="344" width="64" height="21" rx="10.5" fill="#1e3326" stroke="#5f9e6b"/>
+    <text x="486" y="359" fill="#5f9e6b" font-size="11.5" text-anchor="middle">讀取</text>
+
+    <path d="M530,120 L448,392" stroke="#2f8fcf" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="452" y="424" fill="#2f8fcf" font-size="11.5">kc:live { id, ts, path }</text>
+
+    <!-- theater -->
+    <rect x="530" y="430" width="510" height="150" rx="10" fill="#1b2433" stroke="#4a5468" stroke-dasharray="5 4"/>
+    <text x="548" y="454" fill="#8a94a8" font-weight="700">DMM 遊戲頁 play.games.dmm.com（optional host permission）</text>
+    <text x="548" y="478" fill="#b7c0d0">theater.content.ts — 視窗適應：等比 fit、clip-path 裁切、底部工具列</text>
+    <text x="548" y="498" fill="#b7c0d0">動態註冊 scripting.registerContentScripts（persistAcrossSessions）</text>
+    <text x="548" y="518" fill="#b7c0d0">跨源畫布量測：只信任「直接子框」的回覆，量不到就不裁切</text>
+    <text x="548" y="542" fill="#8a94a8" font-size="11.5">使用者按下 popup 按鈕才 permissions.request()，安裝時不要求</text>
+    <text x="548" y="564" fill="#8a94a8" font-size="11.5">拍照走 MSG_CAPTURE_TAB → background → tabs.captureVisibleTab</text>
+  </g>
+</svg>
+<figcaption>五個執行環境。實線＝資料流，虛線＝控制／通知流。
+<code>kc:api</code>＝bridge 送往 SW 的擷取 envelope；<code>讀取</code>＝擴充頁面直接讀
+<code>db.events</code> ＋ <code>db.snapshot</code> 重建 GameState；<code>kc:live</code>＝SW 在
+ingestion 完成後的廣播。<strong>所有箭頭都是單向觀察或本機廣播，沒有任何一條指向遊戲伺服器。</strong></figcaption>
+</figure>
+
+<h3>Entrypoint 註冊表</h3>
+<table>
+  <thead><tr>
+    <th style="width:230px">檔案</th><th style="width:90px">World</th><th>matches</th>
+    <th style="width:120px">runAt</th><th style="width:120px">註冊方式</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><code>interceptor.content.ts</code></td><td><code>MAIN</code></td>
+      <td><code>*://*.kancolle-server.com/*</code>，<code>allFrames: true</code></td>
+      <td><code>document_start</code></td><td>manifest 靜態</td></tr>
+    <tr><td><code>bridge.content.ts</code></td><td><code>ISOLATED</code></td>
+      <td><code>*://*.kancolle-server.com/*</code>，<code>allFrames: true</code></td>
+      <td><code>document_start</code></td><td>manifest 靜態</td></tr>
+    <tr><td><code>theater.content.ts</code></td><td><code>ISOLATED</code></td>
+      <td><code>GAME_PAGE_MATCHES</code>（DMM），<code>allFrames: false</code></td>
+      <td><code>document_idle</code></td><td><b>執行期動態</b>（<code>registration: 'runtime'</code>）</td></tr>
+    <tr><td><code>background.ts</code></td><td>SW</td><td>—</td><td>—</td><td><code>defineBackground</code></td></tr>
+    <tr><td><code>popup/</code></td><td>擴充頁</td><td>—</td><td>—</td><td><code>action.default_popup</code>（WXT 依目錄自動註冊）</td></tr>
+    <tr><td><code>panel/</code></td><td>擴充頁</td><td>—</td><td>—</td><td><code>windows.create({type:'popup'})</code></td></tr>
+    <tr><td><code>overview/</code></td><td>擴充頁</td><td>—</td><td>—</td><td><code>tabs.create('/overview.html')</code></td></tr>
+  </tbody>
+</table>
+
+<div class="box hard">
+  <span class="tag">為什麼是兩支 content script</span>
+  <p>MAIN world 才能改寫 <code>window.fetch</code> 與 <code>XMLHttpRequest.prototype</code>（ISOLATED world
+  的改寫看不到遊戲的呼叫）；但 MAIN world <strong>沒有 <code>browser.*</code> API</strong>。
+  故必須拆成「MAIN 攔截 → 同源 <code>postMessage</code> → ISOLATED 轉 runtime message」兩段。
+  token 剝除刻意放在 ISOLATED 這一段，讓 MAIN world 那支完全不碰持久化語意。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s4"><i>04</i>擷取管線</h2>
+
+<h3>4.1 interceptor（MAIN world）</h3>
+
+<h4>fetch hook</h4>
+<pre><code>const origFetch = window.fetch;
+window.fetch = async function (...args) {
+    const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+    const p = getKcsapiPath(url);
+    // Request 必須在原始 fetch 消耗前 clone；只啟動非同步讀取，絕不 await，
+    // 因此不會延後或改變原始 fetch 的回應／錯誤傳遞。
+    const reqBody = p ? readFetchRequestBody(args[0], args[1]) : null;
+    const res = await origFetch.apply(this, args as Parameters&lt;typeof fetch&gt;);
+    if (p &amp;&amp; reqBody) {
+        try {
+            const responseCopy = res.clone();               // 必須在遊戲讀取前 clone
+            void reqBody.then(body =&gt;
+                captureQueue.enqueue(p, body, () =&gt; responseCopy.text()));  // .text() 留到 idle
+        } catch (error) {
+            console.warn('[KC-Monitor] 無法複製 fetch 回應，略過此筆', p, error);
+        }
+    }
+    return res;                                              // 原封不動回傳
+};</code></pre>
+
+<div class="box hard">
+  <span class="tag">不變量</span>
+  <ul>
+    <li>遊戲拿到的 <code>Response</code> 物件與沒有擴充時完全相同（回傳的是 <code>res</code>，不是 clone）。</li>
+    <li>擷取路徑上的任何例外都只 <code>console.warn</code> 並略過該筆，<strong>絕不可</strong>冒到遊戲的 <code>fetch</code>。</li>
+    <li><code>reqBody</code> 只啟動、不 await；<code>.text()</code> 延到 idle slice。</li>
+  </ul>
+</div>
+
+<h4>XHR hook</h4>
+<p>兩個實際踩過的陷阱，重建時必須複製：</p>
+<ol>
+  <li><strong><code>{ once: true }</code> 是必要的</strong>。若遊戲重用同一個 XHR 實例送出下一筆請求，
+    留著的舊 listener 會在下一次 <code>load</code> 時與新 listener 一起觸發，
+    此時 <code>this.responseText</code> 已是新請求的內容，卻會被標上舊的 <code>path</code> 重複入列。</li>
+  <li><strong><code>open()</code> 時要先 flush 上一筆未讀的 response</strong>。
+    正常情況每個 API 都是新 XHR、<code>responseText</code> 可留到 idle 才讀；
+    但遊戲若重用 XHR，<code>open()</code> 會清掉上一筆 response。故 <code>open()</code> 先呼叫
+    <code>this.__kcPendingResponse?.read()</code>（該 read 具快取）強制 materialize。</li>
+</ol>
+
+<h4>IdleCaptureQueue（<code>utils/idle-capture-queue.ts</code>）</h4>
+<p>存在理由：初始登入會連續回傳 <code>start2</code>／<code>port</code>／<code>require_info</code> 等多 MB 封包。
+<strong>不能只把 <code>postMessage</code> 包在 <code>setTimeout(0)</code></strong>——XHR 的 load callback 仍會同步
+materialize <code>responseText</code>，下一輪 task 又會一次送完所有待處理封包。</p>
+<ul>
+  <li>每個 idle slice <strong>只處理一筆</strong>，保序。</li>
+  <li>排程用 <code>requestIdleCallback(cb, { timeout: 1000 })</code>；不支援時 fallback 為
+      <code>setTimeout(cb, 50)</code>（仍維持單筆與順序）。</li>
+  <li><b>輸入靜默窗</b>：<code>INPUT_QUIET_MS = 750</code>。監看 <code>pointerdown</code>／<code>keydown</code>／
+      <code>wheel</code>（capture、除 keydown 外 passive），使用者操作後先留一段安靜時間再處理，
+      避免與遊戲的介面轉場繪製競爭。<code>nextEligibleDelayMs()</code> 回傳仍需等待的毫秒數。</li>
+  <li>刻意不在剩餘很短的同一個 idle slice 立即重排（<code>defer</code> 走 <code>setTimeout</code>），
+      避免載入海域等連續繪製期間反覆取得短 idle budget 而空轉。</li>
+</ul>
+
+<h4>傳出格式</h4>
+<pre><code>window.postMessage(
+  { __kc_monitor__: 1, path, req: reqBody, apiText: text },
+  location.origin,          // 明確指定 targetOrigin，不用 '*'
+);</code></pre>
+<p><strong>傳原始文字而非解析後的物件</strong>：structured clone 只需處理字串，不會在遊戲 renderer
+深拷貝 <code>start2</code> 這種多 MB 的巢狀物件。解析留給 service worker。</p>
+
+<h3>4.2 bridge（ISOLATED world）</h3>
+<p>這支腳本承擔五件不相干的事，全部是「必須零額外授權」的功能：</p>
+<table>
+  <thead><tr><th style="width:170px">職責</th><th>實作要點</th></tr></thead>
+  <tbody>
+    <tr><td>封包轉發</td>
+      <td>驗 <code>e.source === window &amp;&amp; e.origin === location.origin</code> →
+        <code>Object.fromEntries(new URLSearchParams(d.req))</code> →
+        <code>delete req.api_token; delete req.api_verno;</code> →
+        <code>createKcApiRuntimeMessage()</code> → <code>sendKcApiRuntimeMessageWithRetry()</code></td></tr>
+    <tr><td>關閉分頁前警示</td>
+      <td>標準 <code>beforeunload</code> ＋ <code>e.preventDefault()</code>。只在
+        <code>isOutermostGameFrame()</code> 為真時安裝（讀不到 <code>window.parent.location</code> ＝跨源＝最外層）。</td></tr>
+    <tr><td>靜音狀態下行</td>
+      <td><code>browser.runtime.connect({ name: PORT_MUTE })</code> 長連線。
+        <strong>斷線後延遲 250ms 重連一次</strong>（SW 被回收會斷線，不重連則靜音鈕對該分頁永久失效）；
+        <code>connect()</code> 本身丟例外才代表 extension context 已失效，不再重試。</td></tr>
+    <tr><td>Esc 轉發</td>
+      <td>只轉發 Escape，<code>{ passive: true, capture: true }</code>、
+        <strong>不 <code>stopPropagation</code>／<code>preventDefault</code></strong>，遊戲照樣收到原本的事件。</td></tr>
+    <tr><td>遊戲畫布量測</td>
+      <td>父頁問一次才答一次；驗 <code>e.source === window.parent</code>。
+        取所有 <code>&lt;canvas&gt;</code> 中 <code>width≥200 &amp;&amp; height≥150</code> 的最大者，
+        <strong>量不到回 <code>null</code></strong>（父頁退回不裁切，不猜矩形）。</td></tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <span class="tag">為什麼 beforeunload 掛在遊戲框而非 DMM 頂層頁</span>
+  <p>掛在頂層 DMM 頁需要 optional host permission，全新安裝、還沒授權過的使用者就完全沒有保護——
+  對「防止手滑關掉進行中的出擊」這種關鍵功能不可接受。掛在 <code>kancolle-server.com</code>
+  是 manifest 靜態注入，安裝當下即生效。</p>
+  <p><strong>已知代價，刻意接受</strong>：跨源 iframe 掛 <code>beforeunload</code> 在 Chromium 有已知的
+  「按取消後又跳一次」問題（crbug.com/1119438）。曾嘗試用 playwright-core 重現，
+  但 CDP 自動化關閉分頁本來就不觸發 <code>beforeunload</code>，故未能本機重現。
+  <strong>零權限、可能跳兩次</strong> 優於「單次跳窗但需要先授權」——沒有保護才是真正的風險。</p>
+</div>
+
+<h3>4.3 傳輸 envelope 與 retry</h3>
+<pre><code>export interface KcApiRuntimeMessage {
+    type: 'kc:api';
+    captureId: string;      // crypto.randomUUID()，一次擷取一個，retry 不重生
+    ts: number;
+    path: string;           // 已去 /kcsapi/ 前綴
+    req: Record&lt;string, string&gt;;   // 已去 api_token / api_verno
+    apiText: string;        // 原始 response text，未解析
+}
+
+// 只在第一次傳送失敗後等待並重試一次；同一個 message 物件直接重用。
+export async function sendKcApiRuntimeMessageWithRetry(
+    message: KcApiRuntimeMessage,
+    { send, retryDelay }: RuntimeMessageSender,
+): Promise&lt;void&gt; {
+    try { await send(message); }
+    catch { await retryDelay(); await send(message); }   // retryDelay = 300ms
+}</code></pre>
+<div class="box info">
+  <span class="tag">retry 的正確性來源</span>
+  <p>SW 若在寫入途中被回收，訊息通道會以錯誤關閉 → bridge 重試一次 → 因為 <code>captureId</code> 相同，
+  <code>db.events</code> 的 <code>&amp;captureId</code> unique index 會去重，<strong>不會產生第二筆 raw event</strong>。
+  這就是為什麼 retry 必須重用同一個 envelope、絕不可重新產生 UUID 或時間戳。</p>
+</div>
+
+<h3>4.4 background 接收端</h3>
+<ol>
+  <li>若 <code>msg.apiText</code> 是字串 → <code>parseKcsapiResponse()</code>；解析失敗只 warn 並略過該筆
+    （保留舊 bridge 的 <code>msg.api</code> 相容路徑，讓擴充重載後尚未 F5 的遊戲分頁不漏事件）。</li>
+  <li><strong>token 的第二道防線</strong>：淺拷貝 <code>req</code> 後再 <code>delete api_token / api_verno</code>。
+    不信任上游已經處理乾淨——這是 <code>ingestEvent()</code> 之前最後也是唯一的關卡。</li>
+  <li><code>replyWhenSettled(ingestEvent({...}), sendResponse, reportIngestFailure)</code>：
+    <strong>ingestion 完成後才回覆</strong>，讓通道開到寫入結束（見上面的 retry 正確性）。</li>
+</ol>
+
+<h4><code>utils/kcsapi.ts</code> 的 path 正規化</h4>
+<ul>
+  <li><code>getKcsapiPath(url)</code>：URL 含 <code>/kcsapi/</code> 才回傳其後的路徑（形如
+    <code>api_port/port</code>），否則回 <code>null</code>。</li>
+  <li><code>parseKcsapiResponse(text)</code>：剝除 <code>svdata=</code> 前綴 → <code>JSON.parse</code> →
+    取 <code>api_data</code>（無則整包）。</li>
+</ul>
+
+<div class="box hard">
+  <span class="tag">MV3 訊息回覆</span>
+  <p>所有 <code>onMessage</code> 回覆一律走 <code>utils/runtime-reply.ts</code> 的
+  <code>replyWhenSettled(work, sendResponse, onError?)</code>，該函式回傳 <code>true</code>。
+  <strong>不可回傳 Promise</strong>：那只有 Chrome 148 起才支援，舊版會讓 sender 立刻收到
+  <code>undefined</code> 而不是真正的回覆。<code>tests/runtime-reply.test.ts</code> 會掃描
+  <code>onMessage</code> 契約。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s5"><i>05</i>Provider 合約</h2>
+
+<p><code>ApiEventRow</code> 是「擷取來源」與「下游」之間的正式邊界。下游（GameState、面板、
+overview）對封包從哪裡來一無所知也能運作。</p>
+
+<pre><code>export interface ApiEventRow {
+    id?: number;
+    ts: number;
+    path: string;                    // 已去 `/kcsapi/` 前綴與 `svdata=`，形如 api_port/port
+    api: unknown;                    // 已 JSON.parse 且取出 api_data（無則整包）
+    req: Record&lt;string, string&gt;;     // 已剔除 api_token、api_verno
+    captureId?: string;              // bridge 傳輸識別碼；歷史事件沒有，故 optional
+    postProcessState?: 'pending' | 'processing' | 'done';
+    source?: 'main' | 'native' | 'proxy';   // 未標記者視為 'main'
+}</code></pre>
+
+<h3>不變量</h3>
+<ul>
+  <li><b>path 已正規化</b>、<b>api 已解析</b>、<b>req 無 token／verno</b>。</li>
+  <li>帶 <code>captureId</code> 的 events 以 unique index 去重；<strong>同 <code>captureId</code> 若 <code>path</code> 或
+    <code>ts</code> 不同即拒絕為 collision</strong>（不是覆寫、不是新增）。</li>
+  <li><strong>任何 provider 都不得繞過 <code>ingestEvent()</code> 直接寫 <code>db.events</code>。</strong></li>
+  <li>唯一例外：單場 JSON 匯入與兩種 CSV 匯入——它們<strong>借用 event ID 但不寫 raw event</strong>（見 <a href="#s9">§9.4</a>）。</li>
+</ul>
+
+<div class="box ok">
+  <span class="tag">擴充新來源的方法</span>
+  <p>未來要加 Native Companion（<code>runtime.onConnectNative</code>）或 Proxy 來源時：
+  在 <code>background.ts</code> 各自加一個 listener、構造同格式的 row、標上對應的 <code>source</code>，
+  同樣呼叫 <code>ingestEvent()</code>。<strong>下游一行都不用改</strong>——裁剪、通知、
+  <code>db.events</code> → GameState → 面板全部沿用。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s6"><i>06</i>Ingestion 生命週期</h2>
+
+<figure>
+<svg class="diagram" viewBox="0 0 1040 300" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="pending / processing / done 狀態機">
+  <g font-family="-apple-system, 'Noto Sans CJK TC', 'PingFang TC', sans-serif" font-size="13">
+    <rect x="40" y="110" width="180" height="64" rx="9" fill="#2a3548" stroke="#8a94a8"/>
+    <text x="130" y="138" fill="#e6ebf4" text-anchor="middle" font-weight="700">pending</text>
+    <text x="130" y="158" fill="#8a94a8" text-anchor="middle" font-size="11.5">raw row 已落地</text>
+
+    <rect x="400" y="110" width="200" height="64" rx="9" fill="#3a3020" stroke="#b8860b"/>
+    <text x="500" y="138" fill="#e6ebf4" text-anchor="middle" font-weight="700">processing</text>
+    <text x="500" y="158" fill="#c9a44a" text-anchor="middle" font-size="11.5">已取得 transactional claim</text>
+
+    <rect x="790" y="110" width="180" height="64" rx="9" fill="#1e3326" stroke="#5f9e6b"/>
+    <text x="880" y="138" fill="#e6ebf4" text-anchor="middle" font-weight="700">done</text>
+    <text x="880" y="158" fill="#7fb98c" text-anchor="middle" font-size="11.5">副作用已完成</text>
+
+    <path d="M224,142 L392,142" stroke="#b8860b" stroke-width="2"/>
+    <polygon points="384,137 398,142 384,147" fill="#b8860b"/>
+    <text x="308" y="132" fill="#c9a44a" text-anchor="middle" font-size="11.5">claim（transaction，只一個贏家）</text>
+
+    <path d="M604,142 L782,142" stroke="#5f9e6b" stroke-width="2"/>
+    <polygon points="774,137 788,142 774,147" fill="#5f9e6b"/>
+    <text x="694" y="132" fill="#7fb98c" text-anchor="middle" font-size="11.5">postProcess 成功</text>
+
+    <path d="M500,178 C500,236 130,236 130,180" fill="none" stroke="#e05555" stroke-width="2"/>
+    <polygon points="125,188 130,174 135,188" fill="#e05555"/>
+    <text x="315" y="252" fill="#e05555" text-anchor="middle" font-size="11.5">postProcess 失敗 → 歸還 pending（不標 done、不吞例外）</text>
+
+    <path d="M500,104 C500,52 130,52 130,106" fill="none" stroke="#2f8fcf" stroke-width="2" stroke-dasharray="6 5"/>
+    <polygon points="125,98 130,112 135,98" fill="#2f8fcf"/>
+    <text x="315" y="42" fill="#2f8fcf" text-anchor="middle" font-size="11.5">SW 啟動 recovery：遺留 processing（有 captureId）→ 歸還 pending</text>
+
+    <text x="880" y="212" fill="#8a94a8" text-anchor="middle" font-size="11.5">同 captureId 的 duplicate</text>
+    <text x="880" y="230" fill="#8a94a8" text-anchor="middle" font-size="11.5">不重複執行已完成副作用</text>
+  </g>
+</svg>
+<figcaption><code>utils/ingestion-persistence.ts</code> 的狀態機。「至多一個贏家」由 Dexie transaction 保證。</figcaption>
+</figure>
+
+<h3>API</h3>
+<pre><code>// utils/ingestion-persistence.ts
+export async function persistIngestedEvent(row, deps): Promise&lt;ApiEventRow &amp; { id: number }&gt;;
+export async function ingestWithPostProcessing(row, deps): Promise&lt;number&gt;;
+
+// utils/background-ingestion-lifecycle.ts
+export async function recoverPendingPostProcessing(deps): Promise&lt;void&gt;;
+export class BackgroundIngestionLifecycle {
+    readonly recoveryPromise: Promise&lt;void&gt;;
+    constructor(deps: { db: KcDb; postProcess: (e: ApiEventRow &amp; { id: number }) =&gt; Promise&lt;void&gt; });
+    ingest(row: ApiEventRow): Promise&lt;number&gt;;
+}</code></pre>
+
+<h3>規則</h3>
+<ol>
+  <li><b>先落地再處理</b>：新 event 必先以 <code>postProcessState: 'pending'</code> 保存。</li>
+  <li><b>captureId 去重</b>：同 <code>captureId</code> 只允許相同 <code>path</code> 與 <code>ts</code>；
+      不同即丟 collision error（可由 <code>createCollisionError</code> 客製）。</li>
+  <li><b>claim 才做副作用</b>：<code>pending → processing</code> 必須在 transaction 內完成；
+      取得 claim 者才執行廣播、snapshot、通知、裁剪。成功標 <code>done</code>，失敗<strong>歸還 <code>pending</code></strong>。</li>
+  <li><b>已 <code>done</code>／<code>processing</code> 的 duplicate 直接跳過</b>，不重複執行副作用。</li>
+  <li><b>SW 啟動 recovery</b>：先把<strong>帶 <code>captureId</code></strong> 的遺留 <code>processing</code> 歸還
+      <code>pending</code>，再依 event ID 順序重跑所有 <code>pending</code>。</li>
+  <li><b>單一序列 queue</b>：新 ingestion 與 recovery 共用同一條 promise chain；
+      新 <code>ingest()</code> 先 await <code>recoveryPromise</code>。recovery 失敗則新 ingestion 一律 reject。</li>
+  <li><b>listener 不等 recovery 才註冊</b>：<code>BackgroundIngestionLifecycle</code> 在
+      <code>defineBackground</code> 一開始就建構，但 <code>onMessage</code> listener 立即註冊，
+      避免 SW 剛被喚醒時漏接訊息；交進來的 ingestion 在 queue 中等待。</li>
+</ol>
+
+<div class="box warn">
+  <span class="tag">歷史事件不是待處理工作</span>
+  <p>v10 之前的 events 沒有 <code>captureId</code> 也沒有 <code>postProcessState</code>，
+  且<strong>刻意不回填</strong>。recovery 只處理帶 <code>captureId</code> 的列，
+  否則整個歷史都會被當成待重跑的工作。</p>
+</div>
+
+<h3>冪等性要求</h3>
+<p>因為 recovery 會重跑同一筆事件的 post-processing，所有副作用都必須冪等：</p>
+<ul>
+  <li>通知：使用<strong>固定 notification ID</strong>（<code>createEventNotificationId(eventId, purpose)</code>），
+      重跑只會覆寫同一則。</li>
+  <li>snapshot、derived rows、resources、shipObtained：一律 <code>put</code> 或 add-if-absent。</li>
+  <li>alarms：以穩定 key 命名（艦隊編號／渠號，<strong>不用玩家可改的 <code>api_name</code></strong>）。</li>
+</ul>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s7"><i>07</i>Post-processing 副作用</h2>
+
+<p><code>postProcessEvent(event)</code> 只在成功取得 claim 後被呼叫。順序如下（有序，不可任意調換）：</p>
+
+<table>
+  <thead><tr><th style="width:40px">#</th><th style="width:300px">條件</th><th>動作</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>無條件</td>
+      <td><code>runtime.sendMessage({ type:'kc:live', id, ts, path })</code>，best-effort
+        （面板沒開沒有 receiver 是正常情況，<code>.catch(() =&gt; {})</code>）</td></tr>
+    <tr><td>2</td><td><code>SNAPSHOT_PATHS.has(path)</code></td>
+      <td><code>db.snapshot.put({ path, ts, api, req, eventId: id })</code></td></tr>
+    <tr><td>3</td><td>無條件</td>
+      <td><code>captureResources(db, { id, ts, path, api })</code>（資源序列 ＋ 活動里程碑）</td></tr>
+    <tr><td>4</td><td><code>path === 'api_start2/getData'</code></td>
+      <td><code>pruneEvents(id)</code>：找「上一次 start2」當 cutoff（保留兩個登入世代）</td></tr>
+    <tr><td>5</td><td><code>id % 200 === 0</code></td>
+      <td><code>pruneIfOversized()</code>：超長單一 session 的保險裁剪</td></tr>
+    <tr><td>6</td><td><code>path === 'api_port/port'</code></td>
+      <td><code>scheduleAlarms(api, id)</code> ＋ <code>captureShipObtained(db.shipObtained, id, ts, api)</code></td></tr>
+    <tr><td>7</td><td><code>api_req_mission/start</code> 且有 <code>api_complatetime</code></td>
+      <td><code>scheduleOrNotify('第N艦隊 遠征帰投', completeAt, id)</code></td></tr>
+    <tr><td>8</td><td><code>api_req_mission/return_instruction</code> 且 <code>api_mission[2]</code></td>
+      <td>若剩餘 ≤ 1 分鐘先寫 <code>db.notified</code> 防重複，再 <code>scheduleOrNotify</code></td></tr>
+    <tr><td>9</td><td><code>api_req_nyukyo/start</code> 且 <code>req.api_highspeed !== '1'</code></td>
+      <td>取 <code>api_ndock_time</code>（回應不帶時回最近一筆 port 查該艦）→ 建 alarm</td></tr>
+  </tbody>
+</table>
+
+<h3><code>SNAPSHOT_PATHS</code></h3>
+<pre><code>const SNAPSHOT_PATHS = new Set([
+  'api_start2/getData',            // master 表唯一來源（艦種／裝備／海域／遠征）
+  'api_port/port',
+  'api_get_member/require_info',
+  'api_get_member/slot_item',
+  'api_get_member/base_air_corps',
+  'api_get_member/mapinfo',
+]);</code></pre>
+<p><strong>刻意不含 <code>api_get_member/questlist</code></strong>：任務清單靠多頁累積，
+「單一 path 只留最新一筆」的快照設計留不住完整分頁。</p>
+
+<h3>通知規則</h3>
+<ul>
+  <li><code>EARLY_MS = 60_000</code>：遠征剩餘 1 分鐘即自動結算，故提前 1 分鐘通知。</li>
+  <li><code>scheduleOrNotify(name, completeAt, notificationId?)</code>：目標時刻已過就立即通知，
+      否則建 <code>alarms.create(name, { when: completeAt - EARLY_MS })</code>。</li>
+  <li><code>alarms.onAlarm</code> 一律走 <code>notifyNow(a.name)</code>。</li>
+</ul>
+
+<h4><code>scheduleAlarms(api, eventId)</code> 的三段</h4>
+<ol>
+  <li><b>保留即將被誤刪的入渠 alarm</b>：先記下 <code>clearAll()</code> 前仍在未來的
+    <code>/^入渠ドック\d+ 修理完了$/</code> alarms；重建迴圈跑完後，快照沒涵蓋到的原樣續存。
+    <span class="meta">理由：這筆 port 之前才剛建立的入渠 alarm，其 <code>api_ndock</code> 狀態可能還沒同步反映，
+    <code>clearAll()</code> 會刪掉它而重建迴圈不會補回。殘留頂多誤發一次通知（Chrome 觸發後自動移除），
+    「不會靜默漏發」更安全。</span></li>
+  <li><b>遠征</b>：逐艦隊 <code>api_deck_port[i].api_mission</code>，
+    <code>[0] &gt; 0 &amp;&amp; [2] &gt; 0</code> 才排；若 <code>db.notified.get(i+1)</code> 的
+    <code>completeAt</code> 相同則跳過並刪除該筆（避免與 <code>return_instruction</code> 的立即通知重複）。
+    <strong>key 用艦隊編號而非 <code>api_name</code></strong>（玩家可改名，同名會互相覆蓋 alarm）。</li>
+  <li><b>疲勞回復</b>：自然回復每 3 分鐘 +3、上限 49。回復 tick 的相位未知（伺服器全域計時），
+    取上界 <code>ceil((49 - minCond) / 3) * 3</code> 分鐘——通知響起時保證全隊已回復到 49，不會提早誤報。</li>
+</ol>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s8"><i>08</i>IndexedDB schema v12</h2>
+
+<p>資料庫名 <code>kc-monitor</code>，Dexie 版本 12。所有版本必須保留在 <code>utils/db.ts</code> 中
+（Dexie 靠版本鏈做遷移）。</p>
+
+<pre><code>this.version(12).stores({
+    events:        '++id, ts, path, &amp;captureId, postProcessState',
+    wanted:        '++id, eventId, tag, ts',
+    sorties:       'eventId, sortieKey, ts',
+    notified:      'deckId',
+    factory:       'eventId, ts, kind',
+    replays:       'sortieKey, ts, world',
+    expeditions:   'eventId, ts, deckId',
+    snapshot:      'path, ts',
+    shipObtained:  'id, mst',
+    eventPlans:    'areaId',
+    resources:     'eventId, ts',
+    resourceMarks: 'key, mapKey, ts',
+    meta:          'key',
+});</code></pre>
+
+<h3>版本沿革</h3>
+<table>
+  <thead><tr><th style="width:70px">版本</th><th>變更</th></tr></thead>
+  <tbody>
+    <tr><td>v1</td><td><code>events</code></td></tr>
+    <tr><td>v2</td><td>＋ <code>wanted</code></td></tr>
+    <tr><td>v3</td><td>＋ <code>sorties</code></td></tr>
+    <tr><td>v4</td><td>＋ <code>notified</code>（原本是 SW module 級 <code>Set</code>，違反「SW 不持跨事件狀態」）</td></tr>
+    <tr><td>v5</td><td>＋ <code>factory</code></td></tr>
+    <tr><td>v6</td><td>＋ <code>replays</code>、<code>expeditions</code></td></tr>
+    <tr><td>v7</td><td>＋ <code>snapshot</code></td></tr>
+    <tr><td>v8</td><td>純文件化（<code>sorties.cleared</code>、<code>replays.pinned</code> 為非索引欄位，stores 不變）</td></tr>
+    <tr><td>v9</td><td>＋ <code>shipObtained</code></td></tr>
+    <tr><td>v10</td><td><code>events</code> 加 <code>&amp;captureId</code>、<code>postProcessState</code>；＋ <code>meta</code>。<b>不執行 upgrade 回填</b></td></tr>
+    <tr><td>v11</td><td>＋ <code>eventPlans</code>（純新增表，無遷移）</td></tr>
+    <tr><td>v12</td><td>＋ <code>resources</code>、<code>resourceMarks</code>（純新增表，<b>不回填歷史</b>）</td></tr>
+  </tbody>
+</table>
+
+<div class="box hard">
+  <span class="tag">不回填原則</span>
+  <p><strong>不回填歷史</strong> <code>captureId</code>／<code>postProcessState</code>／projection metadata／
+  資源餘額序列。歷史 events 因而不是「可恢復的 post-processing 工作」。
+  缺少／未知／損壞的 projection metadata 一律從 retained raw events 的 0 重投影，
+  <strong>不可</strong>用 snapshot 的 <code>eventId</code> 或未知版本的數值補造進度。</p>
+</div>
+
+<h3>表格總覽</h3>
+<table>
+  <thead><tr>
+    <th style="width:120px">表</th><th style="width:110px">主鍵</th>
+    <th style="width:110px">寫入者</th><th>性質與存在理由</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><code>events</code></td><td><code>++id</code></td><td>background</td>
+      <td>原始事件日誌。<b>會被裁剪</b>（約兩個登入世代）。<code>captureId</code> 為 unique index。</td></tr>
+    <tr><td><code>snapshot</code></td><td><code>path</code></td><td>background</td>
+      <td>母港快照。每個 path 只留最新一筆。<b>不受裁剪影響</b>，撐得過完全解除安裝再重裝。</td></tr>
+    <tr><td><code>resources</code></td><td><code>eventId</code></td><td>background</td>
+      <td>八項資材餘額時間序列。主鍵用來源 raw event id（非自增）以確保 recovery 冪等。</td></tr>
+    <tr><td><code>resourceMarks</code></td><td><code>key</code></td><td>background</td>
+      <td>活動特殊時間點（<code>stage-open</code>／<code>gauge-clear</code>／<code>gauge-seen</code>）。</td></tr>
+    <tr><td><code>shipObtained</code></td><td><code>id</code>（api_id）</td><td>background ＋ 使用者</td>
+      <td>打撈上任日。<code>source</code>：<code>auto</code>／<code>manual</code>／<code>null</code>(baseline)。</td></tr>
+    <tr><td><code>notified</code></td><td><code>deckId</code></td><td>background</td>
+      <td>防重複通知。同艦隊只需一筆，天然去重。</td></tr>
+    <tr><td><code>meta</code></td><td><code>key</code></td><td>多方</td>
+      <td>三種列：<code>projection</code>（投影 cursor）／<code>backup-restore</code>／<code>game-page</code>。</td></tr>
+    <tr><td><code>sorties</code></td><td><code>eventId</code></td><td><b>EventProjector</b></td>
+      <td>出擊摘要，每筆 &lt;1KB，永久保留。</td></tr>
+    <tr><td><code>replays</code></td><td><code>sortieKey</code></td><td><b>EventProjector</b></td>
+      <td>原始戰鬥封包 ＋ 出擊時快照（KC3Kai battleplayer 相容）。體積大，可獨立裁剪。</td></tr>
+    <tr><td><code>factory</code></td><td><code>eventId</code></td><td><b>EventProjector</b></td>
+      <td>建造／開發／改修／加速摘要。</td></tr>
+    <tr><td><code>expeditions</code></td><td><code>eventId</code></td><td><b>EventProjector</b></td>
+      <td>遠征結算摘要。</td></tr>
+    <tr><td><code>eventPlans</code></td><td><code>areaId</code></td><td><b>使用者（overview 直寫）</b></td>
+      <td>活動作戰板。手輸的攻略意圖，<b>不是從 events 投影的衍生資料</b>。</td></tr>
+    <tr><td><code>wanted</code></td><td><code>++id</code></td><td>面板（僅開發用 UI）</td>
+      <td>待驗證封包索引。<b>被引用的 raw event 受裁剪永久保護</b>。</td></tr>
+  </tbody>
+</table>
+
+<h3>關鍵 interface（節錄，語意註解為契約的一部分）</h3>
+
+<h4><code>SortieLogRow</code></h4>
+<pre><code>export interface SortieLogRow {
+    eventId: number;      // battleresult 或基地空襲 map/next 的 events.id（主鍵）
+    sortieKey: number;    // 本次出擊的 api_req_map/start 事件 id（分組用）
+    ts: number;
+    map: string;          // '6-5'
+    node: number;         // 當前節點 edge id
+    boss: boolean;
+    kind: 'battle' | 'raid';        // raid = 基地空襲（api_destruction_battle）
+    rank: string;                   // raid 時為空字串
+    seiku: number | null;           // 0互角/1確保/2優勢/3劣勢/4喪失；無航空戰 = null
+    enemyIds: number[]; enemyIdsEscort: number[];
+    drop: string | null;
+    dropMst?: number;               // 已驗證的 api_get_ship.api_ship_id；不得由名稱反推
+    taiha: boolean;
+    raidLostKind?: number;          // api_lost_kind，欄位未驗證 best-effort
+    cleared?: boolean;              // 斬殺旗標，由 detectClear() 轉變偵測寫入
+    getExp?: number;                // api_get_exp
+    mvp?: number;                   // api_mvp，**1-based**，確定值非預測值
+    mvpEscort?: number;             // api_mvp_combined
+    enemyName?: string;             // api_enemy_info.api_deck_name
+    baseExp?: number;               // **遊戲封包沒有這個欄位**，只有 KC3Kai 匯入才有
+    nodeEventId?: number;           // 存原始值，不存推導出的標籤
+    nodeEventKind?: number;
+    imported?: boolean;             // CSV／JSON 匯入產生的列；本機擷取一律缺席（不是 false）
+}</code></pre>
+
+<h4><code>ReplayRow</code>（KC3Kai battleplayer 相容）</h4>
+<pre><code>export interface ReplayRow {
+    sortieKey: number;    // api_req_map/start 事件 id（主鍵）
+    ts: number;
+    world: number; mapnum: number; diff: number;   // api_maparea_id / api_mapinfo_no / api_selected_rank
+    combined: number;     // 0=單艦隊 1=機動 2=水上 3=輸送（api_combined_flag）
+    fleetnum: number;     // 出擊艦隊編號（1-4；聯合時為 1）
+    fleet1: ReplayShip[];         // 主隊
+    fleet2: ReplayShip[];         // 隨伴隊（單艦隊為空）
+    fleet3?: ReplaySupportShip[]; // 支援艦隊候補（出擊當下快照；來源沒有 HP，故獨立型別）
+    fleet4?: ReplaySupportShip[];
+    lbas?: ReplayLbas[];          // 出擊當下同海域的全部基地航空隊
+    battles: ReplayNode[];        // 依節點順序
+    hqLv?: number; nickname?: string;
+    pinned?: boolean;             // 手動 ★ 釘選，永不被保留規則裁剪
+    imported?: boolean;
+}
+export interface ReplayNode {
+    node: number;      // api_no
+    data: unknown;     // 晝戰原始 api_data（**原封不動的封包**）
+    yasen?: unknown;   // 夜戰原始 api_data
+    rank?: string;
+    dropMst?: number; mvp?: number; mvpEscort?: number; getExp?: number; baseExp?: number; boss?: boolean;
+}</code></pre>
+<p class="meta"><code>ReplaySupportShip</code> 是 <code>Omit&lt;ReplayShip,'nowhp'|'maxhp'&gt;</code> 加上兩個 optional
+HP——支援艦隊 HP 在 KC3Kai logger 來源中本來就不可考，<strong>用獨立型別表達缺席，
+不可用 <code>maxhp: 0</code> 這種假值持久化</strong>（會通不過 backup validator，也會誤導 UI）。</p>
+
+<h4><code>ResourceRow</code> / <code>ResourceMarkRow</code></h4>
+<pre><code>export interface ResourceRow {
+    eventId: number;      // 主鍵＝來源 raw event id（recovery 重跑需冪等）
+    ts: number;
+    m: number[];          // 0燃料 1彈藥 2鋼材 3鋁土 4高速建造材 5高速修復材 6開發資材 7改修資材
+}
+export interface ResourceMarkRow {
+    key: string;          // `open:${mapKey}` / `seen:${mapKey}` / `clear:${mapKey}#${seq}`
+    kind: 'stage-open' | 'gauge-clear' | 'gauge-seen';
+    mapKey: number;       // mapArea * 10 + mapNo
+    ts: number;           // gauge-clear 的 ts 是**觀測到**歸零的時刻，非斬殺當下
+    eventId: number;
+    seq?: number;
+    gaugeNum?: number;    // 觀測當下的 api_gauge_num 原始值，**語意未驗證**，只存不推導
+}</code></pre>
+
+<h4><code>meta</code> 的三種列</h4>
+<pre><code>export interface ProjectionMetaRow {
+    key: 'projection'; version: number; throughEventId: number; updatedAt: number;
+}
+export interface BackupRestoreMetaRow {
+    key: 'backup-restore'; importedRestore: boolean; importedReplays: boolean;
+    highestSourceEventId: number; nextEventId: number; updatedAt: number;
+}
+export interface GamePageMetaRow {
+    key: 'game-page'; muted: boolean; lang?: string; updatedAt: number;
+}</code></pre>
+<div class="box info">
+  <span class="tag">game-page 這一列的特殊性</span>
+  <p>不參與投影、不引用任何 event id。備份還原的「乾淨環境」判定（<code>restoreMarker()</code>）
+  <strong>會略過它</strong>。放在 SW 側的理由：靜音狀態要在遊戲分頁重載後仍生效，而 SW 沒有
+  <code>localStorage</code>，<code>chrome.storage</code> 又要新增 <code>storage</code> 權限（違反權限精簡）。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s9"><i>09</i>投影邊界</h2>
+
+<h3>9.1 EventProjector</h3>
+<pre><code>export type EventProjectorMode = 'persist' | 'state-only';
+
+export class EventProjector {
+    readonly state: GameState;
+    readonly mode: EventProjectorMode;
+    readonly tables: EventProjectorTables;      // 通常就是 db
+    currentSortieKey: number;
+    currentReplay: ReplayRow | null;
+    readonly gaugeSeenUncleared: Set&lt;number&gt;;
+    readonly gaugeBroken: Set&lt;number&gt;;
+    project(event, afterStateApplied?): Promise&lt;void&gt;;
+    projectWithMode(event, mode, afterStateApplied?): Promise&lt;void&gt;;
+}</code></pre>
+
+<p><strong><code>EventProjector</code> 是四張 derived tables 的唯一入口。</strong></p>
+<table>
+  <thead><tr><th style="width:190px">方法</th><th style="width:130px">寫入表</th><th>觸發 path</th></tr></thead>
+  <tbody>
+    <tr><td><code>archiveSortie()</code></td><td><code>db.sorties</code></td>
+      <td><code>*battleresult</code>；<code>api_req_map/next</code> 帶 <code>api_destruction_battle</code>（raid）</td></tr>
+    <tr><td><code>archiveFactory()</code></td><td><code>db.factory</code></td>
+      <td><code>createitem</code>／<code>remodel_slot</code>／<code>createship_speedchange</code>／<code>kdock</code>（新建造）</td></tr>
+    <tr><td><code>captureReplay()</code></td><td><code>db.replays</code></td>
+      <td><code>api_req_map/start</code>、各戰鬥封包、<code>battleresult</code></td></tr>
+    <tr><td><code>archiveExpedition()</code></td><td><code>db.expeditions</code></td>
+      <td><code>api_req_mission/result</code></td></tr>
+    <tr><td><code>detectClear()</code></td><td>更新 <code>sorties.cleared</code></td>
+      <td><code>api_get_member/mapinfo</code>（量表轉變偵測）</td></tr>
+  </tbody>
+</table>
+<p>每次 <code>project()</code> 一律先跑 <code>state.applyEvent()</code>；
+<code>api_req_map/start</code> 時設 <code>currentSortieKey = event.id</code>。</p>
+
+<h4><code>state-only</code> 模式為何必要</h4>
+<p>面板重播 cursor 之前的事件時，<strong>仍需重建 projector 的上下文</strong>
+（<code>currentSortieKey</code>、<code>currentReplay</code>、量表 Set），
+否則 cursor 之後的第一筆戰鬥封包會找不到它所屬的出擊。
+但這些事件的 derived rows 早已寫過，<strong>不可再寫一次</strong>。
+故 <code>state-only</code> ＝ 跑 <code>applyEvent</code> ＋ 建上下文，<strong>跳過所有 <code>db.*.put()</code></strong>。</p>
+
+<h3>9.2 Projection cursor</h3>
+<pre><code>export const PROJECTION_META_KEY = 'projection';
+export const PROJECTION_META_VERSION = 3;
+
+export function validProjectionThroughEventId(metadata): number | undefined;
+export function projectionCursorValue(metadata): number;             // 預設 0
+export async function readProjectionCursor(db): Promise&lt;number&gt;;
+export async function advanceProjectionCursor(db, eventId, updatedAt?): Promise&lt;number&gt;;</code></pre>
+<ul>
+  <li>存於 <code>db.meta['projection']</code>，<code>version</code> 必須是 3；否則視為 <strong>0</strong>。</li>
+  <li>單調遞增，<strong>只在該事件的所有 derived writes 都成功後才推進</strong>。</li>
+</ul>
+
+<pre><code>export async function projectEventAndAdvance(
+    projector, event, throughEventId, advanceCursor, afterStateApplied?,
+): Promise&lt;number&gt; {
+    // event.id &lt;= throughEventId → mode 'state-only'，不推進 cursor
+    // event.id &gt;  throughEventId → mode 'persist'，成功後 advanceCursor(event.id)
+}</code></pre>
+
+<h3>9.3 snapshot 與 projector 的關係</h3>
+<div class="box hard">
+  <span class="tag">絕不可</span>
+  <p><code>db.snapshot</code> <strong>僅是 GameState baseline，絕不可送入 projector。</strong>
+  snapshot 沒有 event id 順序語意，投影它會產生重複／錯序的 derived rows。
+  正確作法：<code>applySnapshotBaseline(state, snapshots)</code> 只呼叫 <code>state.applyEvent()</code>。</p>
+</div>
+
+<h3>9.4 三條例外寫入路徑（借 event ID，不寫 raw event）</h3>
+<p><code>utils/event-id-borrow.ts</code> 的 <code>borrowEventId(events, debugPath, options?)</code>：
+在 transaction 內對 <code>events</code> 表 <code>add</code> 一個佔位 row 取得 auto-increment key，
+<strong>立即 <code>delete</code></strong>。key generator 只前進不回頭，故借出的 ID 永不與未來的真實 event 衝突。</p>
+<table>
+  <thead><tr><th style="width:200px">路徑</th><th style="width:170px">寫入表</th><th>去重規則</th></tr></thead>
+  <tbody>
+    <tr><td><code>utils/sortie-import.ts</code><br><span class="meta">單場 JSON 匯入（開發用 UI）</span></td>
+      <td><code>sorties</code> ＋ <code>replays</code></td>
+      <td>海域 ＋ 戰鬥節點序列完全相同 ＋ ±10 分鐘邊界；雙方都有封包時比對完整原始封包
+        （物件 key 排序後 FNV-1a），否則才用時間 fallback。
+        <b>判定在 transaction 內做，命中即整個 rollback</b>（丟 <code>SortieImportDuplicateError</code>）。</td></tr>
+    <tr><td><code>utils/drop-log-import.ts</code><br><span class="meta">打撈紀錄 CSV</span></td>
+      <td><code>sorties</code></td>
+      <td>同海域 ＋ 時間 ±10 分鐘 ＋ 有 master id 比對它否則比對名稱。
+        <b>逐列比對，不整批 rollback</b>。</td></tr>
+    <tr><td><code>utils/build-log-import.ts</code><br><span class="meta">建造紀錄 CSV</span></td>
+      <td><code>factory</code></td>
+      <td>時間 ±2 分鐘 <b>並要求投入資材完全相同</b>。逐列比對，不整批 rollback。</td></tr>
+  </tbody>
+</table>
+<p>三者都對寫入的列標 <code>imported: true</code>，UI 顯示徽章區分「本機擷取」與「外部謄寫」。</p>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s10"><i>10</i>事件裁剪</h2>
+
+<p><strong>原理</strong>：登入時遊戲重送全量狀態（<code>start2</code>＝圖鑑、<code>require_info</code>＝裝備庫、
+<code>port</code>＝艦隊），更早的事件重播後也會被這些覆蓋，刪除不影響重建結果。</p>
+
+<h3>兩個觸發點</h3>
+<table>
+  <thead><tr><th style="width:210px">觸發</th><th>cutoff</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td><code>api_start2/getData</code> 到達</td>
+      <td><b>上一次</b> start2 的 event id（不是本次）</td>
+      <td>保留一個登入世代的緩衝，確保 derived 投影在事件被刪前至少有一整個世代的機會完成</td></tr>
+    <tr><td><code>id % 200 === 0</code> 且 <code>count() &gt; 5000</code></td>
+      <td>倒數第 500 筆的 event id</td>
+      <td>超長單一 session（不重登，start2 裁剪永遠不觸發）的保險。
+        每 200 筆才檢查一次以避免每筆都 <code>count()</code></td></tr>
+  </tbody>
+</table>
+<pre><code>const SAFETY_THRESHOLD = 5000;   // events 超過此數才啟動保險裁剪
+const SAFETY_KEEP_RAW  = 500;    // 保險裁剪保留的最近筆數</code></pre>
+
+<h3>安全規則（<code>planRawEventPrune</code>）</h3>
+<ol>
+  <li><b>metadata 無效就完全不裁剪</b>：<code>validProjectionThroughEventId(metadata) === undefined</code>
+      → 回傳 <code>skippedForInvalidProjection: true</code>，一筆都不刪。</li>
+  <li>候選 ＝ <code>id &lt; cutoff</code>。</li>
+  <li>可刪 ＝ 候選 <b>且</b> <code>id &lt;= throughEventId</code>（已投影） <b>且</b> 不在保護名單。</li>
+  <li>保護名單 ＝ 全部 <code>db.wanted[].eventId</code> ＋ <code>KEEP_RECENT</code> 各 path 的最新 N 筆。</li>
+  <li>此函式<strong>只刪 <code>db.events</code></strong>；metadata 與所有 derived tables 只讀或完全不碰。</li>
+</ol>
+<pre><code>export const KEEP_RECENT: Record&lt;string, number&gt; = {
+    'api_start2/getData': 1,
+    'api_get_member/questlist': 10,    // 任務清單分頁式，跨登入累積
+    'api_get_member/base_air_corps': 1,
+    'api_get_member/mapinfo': 1,
+    'api_get_member/slot_item': 1,
+    'api_get_member/require_info': 1,
+    'api_port/port': 1,
+};</code></pre>
+<div class="box info">
+  <span class="tag">效能細節</span>
+  <p><code>pruneRawEventsBefore()</code> 先用純索引 <code>count()</code> 確認
+  <code>min(cutoff, throughEventId + 1)</code> 以下的範圍非空，才把候選讀進 SW。
+  cursor 為 0（面板從未開過）時這個範圍是空的——舊寫法仍會把數千筆帶完整封包的事件
+  全部讀進記憶體，算完才發現一筆都不能刪。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s11"><i>11</i>狀態復原</h2>
+
+<pre><code>// utils/state-recovery.ts
+export const SNAPSHOT_ORDER: readonly string[];
+export function planStateRecovery(snapshots, events): StateRecoveryPlan;
+export function applySnapshotBaseline(state, snapshots): void;
+export function applyStateRecoveryPlan(state, plan): void;   // overview 用，不經 projector</code></pre>
+
+<h3>baseline 選取規則</h3>
+<ol>
+  <li><code>rawEvents</code> ＝ 全部 retained <code>db.events</code>，依 <code>id</code> 排序。</li>
+  <li><b>raw events 為空</b> → 採用全部 snapshot（含沒有 <code>eventId</code> 的 legacy snapshot）當 baseline。</li>
+  <li><b>raw events 非空</b> → 只採用 <code>eventId</code> <strong>嚴格小於</strong>第一筆 retained raw event ID
+      的 snapshot。<span class="meta">否則 baseline 會蓋掉即將重播的事件所帶來的更新。</span></li>
+  <li>依 <code>SNAPSHOT_ORDER</code> 套用 baseline（<code>api_start2/getData</code> 必須最先，
+      否則 master 表還沒建好，後續封包的衍生欄位全錯）。</li>
+  <li>再依 event id 順序逐筆 <code>applyEvent</code>。</li>
+</ol>
+
+<div class="box hard">
+  <span class="tag">replay 必須帶原始 ts</span>
+  <p><code>applyEvent(path, api, req, ts = Date.now())</code> 的第四個參數是核心。
+  EventProjector 與 state recovery <strong>必須傳入原始 <code>event.ts</code></strong>；
+  只有 live 呼叫未傳時才使用預設的現在時間。傳錯會污染泊地修理／給糧的計時器錨點
+  （<code>repairAnchorByDeck</code>／<code>moraleAnchorByDeck</code>）。</p>
+</div>
+
+<h3>兩個消費者的差異</h3>
+<table>
+  <thead><tr><th style="width:130px">頁面</th><th>作法</th></tr></thead>
+  <tbody>
+    <tr><td>面板</td><td><code>applySnapshotBaseline()</code> → 逐筆 <code>projectEventAndAdvance()</code>
+      （會依 cursor 決定 state-only／persist）。<b>會寫 derived tables 並推進 cursor。</b></td></tr>
+    <tr><td>overview</td><td><code>loadGameState()</code> → <code>applyStateRecoveryPlan()</code>。
+      <b>完全不投影、不寫 derived tables、不動 cursor。</b></td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s12"><i>12</i>GameState 核心</h2>
+
+<p><code>utils/state.ts</code>（約 2340 行）是全專案最大的單檔。零瀏覽器依賴，可用 node 餵真實封包測試。</p>
+
+<h3>主要欄位</h3>
+<pre><code>export class GameState {
+    // 身分與上限
+    nickname: string; hqLv: number; maxChara: number; maxSlotitem: number;
+    materials: number[];
+
+    // master 表（來自 api_start2/getData）
+    master; upgradeOriginal; remodelPrev; stypeEquip; shipEquipOverride;
+    masterGears; masterEquipTypes; exSlotTypes; exSlotItemShips; exSlotLimit;
+    masterMapAreas; masterMissions; masterMapInfo; consumableGearIds;
+
+    // 即時狀態
+    ships: Map&lt;number, any&gt;;                       // key = api_id（艦實例）
+    slotItems: Map&lt;number, { mst, level, alv }&gt;;
+    decks: any[];  ndockData; kdockData; kdockCap;
+    quests: Map&lt;number, { name, detail, done }&gt;;
+    questProgress: Map&lt;number, QuestGoal &amp; { count: number }&gt;;
+    airBases: Map&lt;string, any&gt;;                    // key = `${area_id}_${rid}`
+    mapGauges: Map&lt;number, MapGaugeView&gt;;  mapBossHp: Map&lt;number, number&gt;;
+
+    // 出擊／戰鬥
+    battleInfo: BattleInfoView | null;  sortieInfo: SortieInfoView | null;
+    currentSortieFleetId: number;  combinedFlag: number;
+
+    // 工廠即時看板
+    lastDevelop; lastImprove; newBuilds; lastSpeedup; lastMissionByDeck;
+
+    // 計時器錨點（兩個機制週期不同，故各存一份）
+    repairAnchorByDeck: Map&lt;number, number | null&gt;;   // 20 分
+    moraleAnchorByDeck: Map&lt;number, number | null&gt;;   // 15 分
+
+    applyEvent(path: string, api: any, req?: Record&lt;string,string&gt;, ts = Date.now()): void;
+}</code></pre>
+<p class="meta">錨點三態：<code>number</code>＝錨點時間戳、<code>null</code>＝出門中、<code>undefined</code>＝未知。</p>
+
+<h3><code>applyEvent</code> 的 path 分組</h3>
+<table>
+  <thead><tr><th style="width:110px">群組</th><th style="width:280px">path</th><th>作用</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3">master／啟動</td><td><code>api_start2/getData</code></td>
+      <td>建立全部 master maps（艦、裝備、艦種、可裝備規則、補強增設表、海域、遠征）</td></tr>
+    <tr><td><code>api_get_member/require_info</code><br><code>api_get_member/slot_item</code></td>
+      <td>重載裝備庫；<code>require_info</code> 另可帶 kdock</td></tr>
+    <tr><td><code>api_get_member/kdock</code></td>
+      <td>更新建造渠；偵測新建造 → <code>newBuilds</code>；bump <code>build</code></td></tr>
+
+    <tr><td rowspan="4">工廠</td><td><code>api_req_kousyou/getship</code></td><td>刷新 kdock、加入艦與裝備</td></tr>
+    <tr><td><code>api_req_kousyou/createship_speedchange</code></td><td>標記該渠完工；<code>lastSpeedup</code></td></tr>
+    <tr><td><code>api_req_kousyou/createitem</code></td><td><code>lastDevelop</code>；bump <code>development</code></td></tr>
+    <tr><td><code>api_req_kousyou/remodel_slot</code></td>
+      <td>更新裝備；<code>lastImprove</code>；bump <code>remodelAttempt</code>／<code>remodel</code></td></tr>
+
+    <tr><td rowspan="2">任務</td><td><code>api_get_member/questlist</code></td>
+      <td>同步進行中任務；<b>只在本機第一次看到該編號時</b>初始化 <code>questProgress</code></td></tr>
+    <tr><td><code>api_req_quest/clearitemget</code>／<code>stop</code></td><td>移除任務與其進度追蹤</td></tr>
+
+    <tr><td rowspan="3">母港／出擊</td><td><code>api_port/port</code></td>
+      <td>全量刷新（艦、艦隊、資材、入渠、<code>combinedFlag</code>）；清空 sortie／battle；
+        推進修理／士氣錨點；清 <code>pendingConsumption</code></td></tr>
+    <tr><td><code>api_req_map/start</code></td>
+      <td>開始出擊；標記艦隊出門；初始化 <code>sortieInfo</code>；bump <code>sortie</code></td></tr>
+    <tr><td><code>api_req_map/next</code></td><td>追加節點</td></tr>
+
+    <tr><td rowspan="3">編成</td><td><code>api_req_hensei/change</code></td>
+      <td>換艦；<b>重置該隊修理錨點</b>（<code>api_ship_id === -2</code> 解除隨伴時<b>不</b>重置）</td></tr>
+    <tr><td><code>api_req_hensei/preset_select</code></td><td>載入編成預設；<b>刻意不重置錨點</b></td></tr>
+    <tr><td><code>api_req_hensei/combined</code></td><td>依 req 設 <code>combinedFlag</code></td></tr>
+
+    <tr><td rowspan="4">艦／裝備</td><td><code>api_req_kaisou/destroyship</code></td>
+      <td>解體；重置受影響艦隊錨點；bump <code>shipScrap</code>（逐艘計數）</td></tr>
+    <tr><td><code>api_req_kaisou/destroyitem2</code></td><td>廢棄裝備；bump <code>gearScrap</code>（逐個）</td></tr>
+    <tr><td><code>api_req_kaisou/powerup</code></td><td>近代化改修；bump <code>modernization</code></td></tr>
+    <tr><td><code>slotset</code>／<code>slotset_ex</code>／<code>unsetslot_all</code></td>
+      <td>裝備變更。<b><code>slotset_ex</code>（補強增設）是獨立端點，沒有 <code>api_slot_idx</code></b></td></tr>
+
+    <tr><td rowspan="4">遠征／入渠／補給</td><td><code>api_req_mission/start</code></td><td>起算遠征計時；標記艦隊出門</td></tr>
+    <tr><td><code>api_req_mission/return_instruction</code></td><td>更新回港時刻</td></tr>
+    <tr><td><code>api_req_mission/result</code></td><td><code>api_clear_result &gt;= 1</code> 才 bump <code>expedition</code></td></tr>
+    <tr><td><code>api_req_nyukyo/start</code>／<code>api_req_hokyu/charge</code></td>
+      <td>bump <code>dock</code>／<code>supply</code>；更新入渠計時與燃彈艦載機</td></tr>
+
+    <tr><td rowspan="2">基地航空隊</td><td><code>api_get_member/base_air_corps</code></td><td>整批取代</td></tr>
+    <tr><td><code>api_get_member/mapinfo</code></td><td>合併基地 ＋ 更新 <code>mapGauges</code></td></tr>
+
+    <tr><td rowspan="3">戰鬥</td>
+      <td>各戰鬥 path 且帶 <code>api_f_nowhps</code> 且 <code>!path.endsWith('result')</code></td>
+      <td><code>analyzeBattle()</code> → <code>battleInfo</code>；HP 寫回；燃彈費率排入
+        <code>pendingConsumption</code>；記錄 boss HP</td></tr>
+    <tr><td><code>api_req_sortie/battleresult</code><br><code>api_req_combined_battle/battleresult</code></td>
+      <td>敲定 rank／掉落；bump <code>battleEngage</code>／<code>battleWin</code>；<code>applyConsumption()</code></td></tr>
+    <tr><td><code>api_req_practice/battle_result</code></td>
+      <td>敲定 rank；bump <code>practiceWin</code>；清 pending consumption</td></tr>
+  </tbody>
+</table>
+
+<h3>View 型別（面板／overview 的唯一資料來源）</h3>
+<table>
+  <thead><tr><th style="width:280px">型別</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>GearView</code>／<code>ShipView</code>／<code>FleetView</code></td><td>面板艦隊列</td></tr>
+    <tr><td><code>MissionView</code>／<code>NdockView</code>／<code>KdockView</code>／<code>QuestView</code></td><td>一般分頁</td></tr>
+    <tr><td><code>SquadronView</code>／<code>AirBaseView</code></td><td>基地航空隊</td></tr>
+    <tr><td><code>BattleShipView</code>／<code>BattleFleetView</code>／<code>BattleInfoView</code></td><td>戰鬥預測</td></tr>
+    <tr><td><code>SortieNode</code>／<code>SortieInfoView</code>／<code>MapGaugeView</code></td><td>出擊分頁</td></tr>
+    <tr><td><code>DevelopView</code>／<code>ImproveView</code>／<code>BuildStartView</code>／<code>SpeedupView</code></td><td>工廠即時看板</td></tr>
+    <tr><td><code>ExpedCheckRow</code></td><td>遠征需求檢查</td></tr>
+    <tr><td><code>OwnedShipView</code>／<code>OwnedGearView</code>／<code>GearHolderView</code>／<code>ShipStats</code>／<code>GearStats</code></td>
+      <td>overview（艦娘全覽／裝備全覽），面板不用</td></tr>
+  </tbody>
+</table>
+
+<h3>關鍵機制</h3>
+
+<h4><code>hasEscortFleet(api)</code>（private static）</h4>
+<div class="box hard">
+  <span class="tag">封包事實，不可用推論代替</span>
+  <p>只有連合艦隊出擊的封包才帶 <code>api_f_nowhps_combined</code>，故以<strong>該欄位是否為非空陣列</strong>
+  為唯一證據。<strong><code>currentSortieFleetId === 0</code> 不能拿來判斷隨伴</strong>——
+  第 1 艦隊單獨出擊時同樣是 0。已用兩份真封包回歸驗證。</p>
+</div>
+
+<h4>任務本機進度</h4>
+<ul>
+  <li><b>核心限制</b>：<code>questlist</code> 只給 <code>api_state</code>／粗略 <code>api_progress_flag</code>，
+      不給精確完成次數。進度永遠是「自本機面板第一次看到這個任務起算」，可能低於遊戲內實際值
+      （UI 帶 title 提示）。</li>
+  <li><code>parseQuestGoal()</code> 只認得出「N回」字樣（正規化全形數字，找 <code>(\d+)回</code>）。
+      <strong>「近代化改修」必須排在「改修」關鍵字之前判斷</strong>，否則會被裝備改修搶先命中。</li>
+  <li>以「隻」為單位的批次條件原則不支援；<strong>唯一白名單例外是入渠任務「N隻」</strong>
+      （機制上是逐次入渠請求計數）。</li>
+  <li><b><code>QUEST_ID_OVERRIDES</code> 優先於文字解析</b>：任務 210「10回邀撃」內文同時含
+      「10回」與「出撃」，文字解析會誤判成 <code>sortie</code>。查不到 id 才退回文字解析。</li>
+  <li>十四種可累加動作：<code>sortie</code>／<code>expedition</code>／<code>build</code>／<code>development</code>／
+      <code>supply</code>／<code>dock</code>／<code>modernization</code>／<code>remodel</code>／
+      <code>remodelAttempt</code>／<code>practiceAttempt</code>／<code>practiceWin</code>／
+      <code>battleWin</code>（rank S/A/B）／<code>battleEngage</code>／<code>shipScrap</code>／<code>gearScrap</code>。</li>
+  <li>任務從清單消失即刪除追蹤；同編號重新出現則重新從 0 起算。進度<strong>不會被之後的
+      questlist 封包洗回 0</strong>。</li>
+</ul>
+
+<h4>泊地修理與母港給糧（<code>utils/repair.ts</code>）</h4>
+<div class="box warn">
+  <span class="tag">遊戲完全不送這兩個機制的封包</span>
+  <p>一律是預估，UI 必須標示。</p>
+</div>
+<table>
+  <thead><tr><th style="width:180px">常數</th><th>值（已用真封包驗證）</th></tr></thead>
+  <tbody>
+    <tr><td>艦艇修理施設</td><td>master id <code>86</code></td></tr>
+    <tr><td>明石／明石改</td><td><code>182</code>／<code>187</code>，基本涵蓋數 2</td></tr>
+    <tr><td>朝日／朝日改</td><td><code>953</code>（stype 21）／<code>958</code>（<b>stype 19</b>，改造前後 stype 會變），基本數 0</td></tr>
+    <tr><td>野埼／野埼改</td><td><code>996</code>／<code>1002</code>，cond 回復 +2／+3，上限 <b>54</b></td></tr>
+    <tr><td>週期</td><td>修理 20 分／給糧 15 分；倒數<b>向上取整再加 1 分鐘</b>（<code>TIMER_SAFETY_MS</code>）</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>涵蓋艦數</b> ＝（1、2 號位工作艦基本數合計）＋（該兩艦裝備的艦艇修理施設數合計）。</li>
+  <li><b>加速</b>：1、2 號位皆工作艦且 2 號位至少帶 1 個吊車，倍率約 5/6 ≈ 83.3%（估算）。</li>
+  <li><b>HP 預估</b>：每 1HP 時間 ＝ <code>api_ndock_time / 損傷HP</code>；<code>τ &lt; t</code> 時強制回復 1HP，
+      否則 <code>H = floor(τ/t)</code>。</li>
+  <li><b>中破以上不修，且被跳過的位置不由後面遞補。</b></li>
+  <li><b>錨點重置</b>＝<code>api_req_hensei/change</code>（非 -2）改動該隊成員、出擊/遠征後回港。
+      <b>刻意不重置</b>＝<code>preset_select</code>、<code>change</code> 的 <code>api_ship_id = -2</code>、
+      僅換裝備、其他艦隊操作（既知 bug feature）。</li>
+</ul>
+
+<h4>關卡量表與剩餘次數</h4>
+<ul>
+  <li>來源 <code>api_get_member/mapinfo</code> 的 <code>api_map_info[]</code>：
+      <code>api_cleared</code>、<code>api_gauge_type</code>（1＝擊破數式；2＝HP 量表式；3＝TP）。</li>
+  <li>面板一律顯示「剩餘」語意；<code>maxHp = 9999</code> 是「尚未選擇難度」的佔位，非真實滿血。</li>
+  <li><b>gaugeType 2</b>：量表每場依「對 boss 旗艦傷害」遞減；進入最終段後傷害會 floor 在 1，
+      <strong>唯有實際沉沒 boss 旗艦量表才真的變 0</strong>。故 <code>now_maphp === 0</code> 是精確的
+      「這場斬殺成功」判定，<code>=== 1</code> 正確留在「未通關」。
+      <b><code>api_first_clear</code> 不可當斬殺旗標</b>（語意與直覺相反：未通關時存在）。</li>
+  <li>剩餘次數：gaugeType 2 ＝ <code>ceil(殘HP / boss旗艦HP)</code>；
+      gaugeType 3 ＝ <code>ceil(殘量 / 艦隊基本TP)</code>，<code>fleetTP()</code> 依 wiki 表計算
+      （<span class="warn">gaugeType 3 的量表欄位缺真實封包</span>）。</li>
+</ul>
+
+<h4><code>wantedTag(path, api)</code></h4>
+<p>開發用封包擷取的判定：命中即由面板記一筆 <code>db.wanted</code>。
+<strong>僅 <code>npm run dev</code> 或本機 <code>localStorage.kc-debug-ui = '1'</code> 時顯示與擷取</strong>
+（<code>utils/debug-ui.ts</code> 的 <code>isDebugUiEnabled()</code>）。</p>
+<div class="box warn">
+  <span class="tag">上限是必要的</span>
+  <p>同一分類 5 筆、總數 50 筆。<code>db.wanted</code> 引用的 raw event 受裁剪<strong>永久保護</strong>，
+  達上限時清單必須明說並提供刪除——<strong>不可改成靜靜略過，也不可拿掉保護語意</strong>
+  （前者讓使用者以為擷取仍在運作，後者讓「複製 JSON」拿到空資料）。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s13"><i>13</i>戰鬥預測子系統</h2>
+
+<p>流程：戰鬥封包 → <code>state.ts</code> 呼叫 <code>analyzeBattle()</code> → <code>battleInfo</code> →
+<code>renderSortie()</code>；<code>battleresult</code> 補確定 rank 與掉落。</p>
+
+<div class="box info">
+  <span class="tag">這不是公式問題，是欄位問題</span>
+  <p><code>analyzeBattle</code> <strong>不計算傷害</strong>——傷害是伺服器算好包在封包裡的數字，
+  我們只負責<strong>歸屬與加總</strong>，與命中率／暴擊／裝甲穿透公式無關。
+  唯一風險是「某個特殊攻擊把傷害放進我們沒讀的欄位」。</p>
+</div>
+
+<h3>13.1 已驗證的封包格式（血淚換來的，別再猜）</h3>
+<table>
+  <thead><tr><th style="width:150px">項目</th><th>事實</th></tr></thead>
+  <tbody>
+    <tr><td><b>血量</b></td>
+      <td><code>api_f_nowhps</code>／<code>api_f_maxhps</code>（我方主隊）、
+        <code>api_e_nowhps</code>／<code>api_e_maxhps</code>（敵主隊）、<code>*_combined</code>（隨伴）。
+        <b>皆 0-indexed、無 leading -1</b>。舊版單一 <code>api_nowhps</code>=<code>[-1,我1..6,敵1..6]</code> 已不送。</td></tr>
+    <tr><td><b>砲擊／夜戰</b></td>
+      <td><code>api_hougeki1/2/3</code>、<code>api_hougeki</code>：<code>api_at_eflag[i]</code> 分攻擊方
+        （0＝我，1＝敵）；<code>api_at_list</code>／<code>api_df_list</code> 索引為<b>各方局部</b>
+        0-5（主）／6-11（隨伴）。</td></tr>
+    <tr><td><b>雷擊</b></td>
+      <td><code>api_raigeki</code>：<code>api_fdam</code>／<code>api_edam</code>＝受傷、
+        <code>api_fydam</code>／<code>api_eydam</code>＝造成傷害（MVP 用）。damage 可能帶小數，需 <code>floor</code>。</td></tr>
+    <tr><td class="no"><b>聯合開幕雷擊陷阱</b></td>
+      <td><code>api_opening_atack</code> 的<b>造成傷害欄改叫</b>
+        <code>api_fydam_list_items</code>／<code>api_eydam_list_items</code>（每格 null 或陣列），
+        <b>不是</b> flat 的 <code>api_fydam</code>／<code>api_eydam</code>。漏讀會少算開幕雷擊的 MVP 貢獻。</td></tr>
+    <tr><td><b>航空／基地／噴式</b></td>
+      <td><code>api_stage3</code>＝對主隊、<code>api_stage3_combined</code>＝對隨伴（索引 +6 對映）。
+        漏算隨伴會 rank 誤判（已用 6-5 封包實證：漏算→A、正確→S）。</td></tr>
+    <tr><td><b>敵艦 id</b></td>
+      <td><code>api_ship_ke</code>（主）、<code>api_ship_ke_combined</code>（隨伴）。0-indexed、無 -1。</td></tr>
+    <tr><td class="no"><b>字串前綴陷阱</b></td>
+      <td><code>'...battleresult'.startsWith('...battle')</code> 為 <b>true</b>——戰鬥分支必須加
+        <code>!path.endsWith('result')</code>，否則結算封包被誤吞、<code>battleInfo</code> 被洗空。</td></tr>
+    <tr><td><b>自軍聯合艦隊</b></td>
+      <td>已用真實 61-5 甲自軍水上部隊封包驗證：主隊／隨伴血量歸屬、局部 0-11 索引、MVP、rank
+        皆與 logger 記錄完全一致。</td></tr>
+    <tr><td><b>友軍艦隊</b></td>
+      <td><code>api_friendly_info</code> ＋ <code>api_friendly_battle</code> 為<b>夜戰封包 top-level 欄位</b>。
+        <code>processFriendlyHougeki</code> 只扣敵 HP（<code>eflag=0</code> 時 <code>df_list</code> 為敵方位置）；
+        <code>eflag=1</code>（敵方反擊友軍）不影響玩家艦。已用真封包逐筆核對，另用極端值驗證不會誤傷
+        玩家艦或誤觸大破警告。
+        <span class="warn"><code>processFriendlyRaigeki</code>（僅讀 <code>api_edam</code>）尚無真封包樣本，屬防禦性預留。</span></td></tr>
+  </tbody>
+</table>
+
+<h3>13.2 <code>analyzeBattle</code> 的相位順序</h3>
+<pre><code>export function analyzeBattle(
+    apiList: any[],                                             // 晝戰 ＋（可選）夜戰封包，依序
+    playerDamecons: { main: number[]; escort: number[] },       // 0=無 1=女神(20%) 2=修復要員
+): BattleInfoView;</code></pre>
+<ol>
+  <li>基地航空隊各波（<code>api_air_base_attack[]</code> → stage3 edam）</li>
+  <li><code>api_injection_kouku</code>（噴式）、<code>api_kouku</code>、<code>api_kouku2</code>
+      （stage3 ＋ stage3_combined 的 fdam／edam）</li>
+  <li>支援艦隊（<code>api_support_info</code> 的 air／hourai 兩條路徑）</li>
+  <li>開幕對潛 <code>api_opening_taisen</code>、開幕雷擊 <code>api_opening_atack</code></li>
+  <li>砲擊 <code>api_hougeki1/2/3</code></li>
+  <li>雷擊 <code>api_raigeki</code>（含上述 <code>*_list_items</code>）</li>
+  <li>友軍艦隊 <code>api_friendly_battle</code>（hougeki／raigeki）</li>
+  <li>夜戰砲擊 <code>api_hougeki</code></li>
+</ol>
+
+<h4>回傳 <code>BattleInfoView</code></h4>
+<pre><code>{
+  resultFleets: { playerMain, playerEscort, enemyMain, enemyEscort: BattleShipView[] },
+  rank: string,                    // predictRank 的預測值；battleresult 後改為確定值
+  mvp: [mainMvp, escortMvp],       // 1-based 位置
+  isTaiha: boolean,
+  enemyIds: number[], enemyIdsEscort: number[],
+  formation: [player, enemy, engagement],
+  seiku: number,                   // 0–4
+  touchPlane: [player, enemy],
+  planes: { playerFighter, playerBomber, enemyFighter, enemyBomber: { count, lost } },
+  drop: null,                      // 由 state.ts 在 battleresult 時補
+  supportFlag: number, aaci: number, midnightFlag: boolean,
+  friendlyFleetIds: number[] | null,
+  hasResult: false,                // battleresult 後為 true
+}
+// BattleShipView: { hp, maxHp, beginHp, damecon, sunk, dealtDamage }</code></pre>
+
+<h3>13.3 <code>predictRank</code>（clean-room 重寫，已用真實資料校準）</h3>
+<p>損害率 ＝ <code>(開戰殘HP合計 − 現在殘HP合計) / 開戰殘HP合計</code>。由上而下：</p>
+<ol>
+  <li>敵全滅 ＋ 我無轟沈 → <code>S</code>（<b>不吐 SS</b>）</li>
+  <li>敵全滅（我有轟沈）→ <code>A</code><span class="meta">（edge 未實測）</span></li>
+  <li>我無轟沈 ＋ 敵數 &gt; 1 ＋ 敵沉 ≥ <code>floor(敵數 × 0.7)</code> → <code>A</code>
+      <span class="no">（<b>floor 非 ceil</b>，1-1 boss 實證）</span></li>
+  <li>敵損害率 &gt; 我 × 2.5 → <code>B</code></li>
+  <li>敵損害率 &gt; 我 × 0.9 → <code>C</code></li>
+  <li>其餘 → <code>D</code></li>
+</ol>
+
+<h3>13.4 特殊攻擊的傷害歸屬涵蓋狀態</h3>
+<table>
+  <thead><tr><th style="width:280px">特殊攻擊</th><th>狀態</th></tr></thead>
+  <tbody>
+    <tr><td>對潛先制爆雷</td><td class="ok">✅ 已涵蓋（<code>api_opening_taisen</code> 走通用陣列）</td></tr>
+    <tr><td>彈著觀測射撃／空母戰爆連合CI／夜戰CI</td><td class="ok">✅ 已涵蓋（讀最終 <code>api_damage</code>，不管倍率怎麼來）</td></tr>
+    <tr><td>噴式強襲</td><td class="ok">✅ 已涵蓋（<code>api_injection_kouku</code>）</td></tr>
+    <tr><td>支援艦隊（對敵）</td><td class="ok">✅ 航空(61-5) ＋ 砲擊(61-3) 兩種欄位路徑皆已驗證</td></tr>
+    <tr><td>友軍艦隊</td><td class="warn">◐ <code>api_hougeki</code> 已驗證（61-3 甲 boss 夜戰）；<code>api_raigeki</code> 未經真封包驗證</td></tr>
+  </tbody>
+</table>
+
+<h3>13.5 出擊燃彈消耗費率</h3>
+<p>途中封包<strong>不帶燃彈實數</strong>，按節點類型估算，回港 <code>api_port/port</code> 以實數校正。
+每戰獨立、切捨、<strong>0 &lt; x &lt; 1 進位為 1</strong>。結婚艦 −15% 不影響途中油量計。</p>
+<div class="box hard">
+  <span class="tag">寫回時機</span>
+  <p>戰鬥封包<strong>只暫存費率</strong>（<code>pendingConsumption</code>），HP 照常即時寫回；
+  燃彈延到 <code>battleresult</code> 才一併扣（<code>applyConsumption</code>）。</p>
+</div>
+<table>
+  <thead><tr><th style="width:190px">節點</th><th>判斷</th><th style="width:80px">油</th><th style="width:170px">彈</th></tr></thead>
+  <tbody>
+    <tr><td>普通晝戰</td><td>其餘 <code>.../battle</code>、<code>ec_battle</code></td><td>20%</td><td>20%</td></tr>
+    <tr><td>夜戰接續</td><td><code>battle_midnight/battle</code></td><td>+0%</td><td>補到 <code>ceil(晝彈 × 1.5)</code></td></tr>
+    <tr><td>開幕夜戰</td><td><code>sp_midnight</code></td><td>10%</td><td>10%</td></tr>
+    <tr><td>航空戰（雙向）</td><td><code>airbattle</code>（非 <code>ld_</code>）</td><td>20%</td><td>20%</td></tr>
+    <tr><td>空襲戰（單向）</td><td><code>ld_airbattle</code> ＋ 6-4／6-5</td><td>4%</td><td>8%</td></tr>
+    <tr><td>空襲戰（單向）</td><td><code>ld_airbattle</code> 其他（5-2／7-2／活動）</td><td>6%</td><td>4%</td></tr>
+    <tr><td>反潛點</td><td>敵主隊全潛水（stype 13/14）；boss（<code>color=5</code>）與 4-1／4-3 例外仍 20/20</td><td>8%</td><td>0%</td></tr>
+  </tbody>
+</table>
+<p class="meta">未涵蓋：活動特殊點按普通處理；大漩渦電探減免待 <code>api_happening</code> 封包。</p>
+
+<h3>13.6 出擊重播格式（<code>utils/replay.ts</code>）</h3>
+<pre><code>// toKc3Replay() 輸出的頂層形狀
+{ fleet1, fleet2, fleetnum, combined, battles: [{ node, data, yasen }],
+  world, mapnum, diff, time }</code></pre>
+<ul>
+  <li><strong>每個 <code>battles[i].data</code> 是一則原封不動的原始 kcsapi 戰鬥封包。</strong></li>
+  <li>ship 欄位用 KC3Kai 命名；stats 由 battleplayer 自算，不帶。</li>
+  <li>擷取判別：夜戰＝path 含 <code>midnight</code> 但<strong>排除 <code>sp_midnight</code></strong>；
+      <code>battleresult</code> ＝補 rank 到最後節點。</li>
+  <li>面板中途才開啟（沒看到 <code>api_req_map/start</code>）則無從快照艦隊，<strong>該次出擊不留重播</strong>。</li>
+</ul>
+
+<h3>13.7 出擊紀錄展開檢視的封包事實</h3>
+<ul>
+  <li><b>道中支援／決戰支援</b>：以「該支援有沒有在 boss 節點出動」判定，<strong>不看 deck 編號</strong>。</li>
+  <li><b>連合艦隊編成類型</b>：<code>api_combined_flag</code> 1＝空母機動／2＝水上打撃／3＝輸送護衛；
+      <code>combined === 0</code> 但主隊 7 艘＝<b>遊撃部隊</b>（司令部才做得到，封包事實非猜測）。</li>
+  <li><b><code>api_air_base_attack</code> 是陣列</b>，一波一個元素
+      （<code>api_base_id</code>／<code>api_squadron_plane[]</code>／<code>api_stage1.api_disp_seiku</code>）。</li>
+  <li class="no"><b>⚠ 基地「防空」的 <code>api_destruction_battle.api_air_base_attack</code> 是物件不是陣列</b>——
+      兩者同名不同形，<code>lbasWaves()</code> 只認陣列。</li>
+  <li><code>api_support_info</code> 的 <code>api_support_airatack</code>／<code>api_support_hourai</code> 擇一非 null；
+      <code>api_ship_id</code> 是<b>艦實例 id 不是 master id</b>，查不到艦名顯示 <code>#id</code>。</li>
+  <li><b>「基礎經驗值」不在遊戲封包裡</b>（KC3Kai 靠自帶的海域資料庫算），只有匯入紀錄才有。</li>
+  <li><b>KC3Kai 對「沒有夜戰的節點」寫 <code>"yasen": {}</code></b>（空物件仍是 truthy）——
+      判準必須是「至少有一個 <code>api_</code> 開頭的欄位」（<code>hasPacket()</code>）。</li>
+  <li>KC3Kai 結算鍵名對照：<code>rating</code>→<code>rank</code>（SS 正規化為 S）、
+      <code>drop</code>→<code>dropMst</code>／<code>drop</code>、<code>mvp</code>→<code>[主隊,隨伴]</code>（1-based）、
+      <code>hqEXP</code>→<code>getExp</code>、<code>baseEXP</code>→<code>baseExp</code>。</li>
+</ul>
+
+<h3>13.8 節點字母</h3>
+<div class="box hard">
+  <span class="tag">絕不推算</span>
+  <p><code>utils/map-node-letters.ts</code> 的 <code>nodeLabel(map, edge)</code>：
+  有對照給字母、沒有給原始 edge 編號。<strong>兩種推算法皆已被真實資料否證，絕不可改回推算。</strong>
+  資料本體在 <code>utils/map-edge-letters.ts</code>（193 張海域、5904 條 edge，<b>產生物勿手改</b>）。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s14"><i>14</i>即時面板</h2>
+
+<p><code>entrypoints/panel/</code>。視窗以 <code>windows.create({ type:'popup', width: 420, height: 835 })</code> 開啟。</p>
+
+<h3>14.1 分頁</h3>
+<table>
+  <thead><tr><th style="width:150px">DOM id</th><th style="width:110px">內部 key</th><th style="width:120px">i18n</th><th>顯示時機</th></tr></thead>
+  <tbody>
+    <tr><td><code>#tab-general</code></td><td><code>general</code></td><td>一般</td><td>預設</td></tr>
+    <tr><td><code>#tab-sortie</code></td><td><code>sortie</code></td><td>出擊</td><td>出擊情境</td></tr>
+    <tr><td><code>#tab-exped</code></td><td><code>exped</code></td><td>遠征</td><td>遠征情境</td></tr>
+    <tr><td><code>#tab-factory</code></td><td><code>factory</code></td><td>工廠</td><td>工廠情境</td></tr>
+    <tr><td><code>#tab-activity</code></td><td><code>activity</code></td><td>動態</td><td><b>僅開發用 UI</b>（<code>isDebugUiEnabled()</code>）</td></tr>
+  </tbody>
+</table>
+<p>艦隊（<code>#fleets</code>）與基地航空隊（<code>#air-bases</code>）在 <code>#tabpanel</code> <strong>之外</strong>，永遠可見。</p>
+
+<h3>14.2 啟動的兩階段重播</h3>
+<pre><code>const state = new GameState();
+const projector = new EventProjector({ state, mode: 'persist', tables: db });
+
+// 1. 並行載入 snapshots、events、readProjectionCursor(db)
+// 2. planStateRecovery() → baselineSnapshots + rawEvents
+// 3. applySnapshotBaseline(state, baselineSnapshots)     ← 只動 GameState，不經 projector
+// 4. 逐筆 projectEventAndAdvance(projector, event, projectionThroughEventId, advance)
+//      · id &lt;= cursor → 'state-only'（重建上下文，不寫 DB）
+//      · id &gt;  cursor → 'persist'（投影 ＋ 推進 cursor）
+// 5. 重播期間 ready=false：不更新 DOM，log 進 replayLogBuffer（上限 200）
+// 6. 重播結束：一次 renderAll()，再 pump() 消化 live backlog</code></pre>
+
+<h3>14.3 live 訂閱</h3>
+<pre><code>browser.runtime.onMessage.addListener((msg) =&gt; {
+    if (msg?.type !== 'kc:live') return;
+    if (!Number.isSafeInteger(msg.id) || msg.id &lt;= 0) return;
+    if (projectionFailed) return;               // 投影失敗後停止消費，顯示 fatal notice
+    if (!pending.includes(msg.id)) { pending.push(msg.id); pending.sort((a, b) =&gt; a - b); }
+    void pump();                                 // 序列 db.events.get(id) → consume()
+});</code></pre>
+<p>另處理 <code>kc:panel-ping</code>：回報自己的 <code>windowId</code>，讓 background 做單例聚焦
+（<strong>不用 <code>tabs.query({url})</code></strong>，那需要 <code>tabs</code> 權限來過濾自家頁面）。</p>
+
+<h3>14.4 <code>autoSwitch</code></h3>
+<pre><code>function autoSwitch(desired: typeof tab, ctx: string) {
+    if (ctx !== currentContext) { currentContext = ctx; manualOverride = false; setTab(desired, false); }
+    else if (!manualOverride) { setTab(desired, false); }
+}</code></pre>
+<p>使用者手動切過分頁即 <code>manualOverride = true</code>，暫停自動切換<strong>直到情境變化</strong>。</p>
+<table>
+  <thead><tr><th style="width:420px">path</th><th style="width:110px">分頁</th><th>情境</th></tr></thead>
+  <tbody>
+    <tr><td><code>api_port/port</code></td><td>general</td><td><code>port</code></td></tr>
+    <tr><td><code>api_req_map/start</code>、各戰鬥 path</td><td>sortie</td><td><code>sortie</code></td></tr>
+    <tr><td><code>api_get_member/mission</code>、<code>api_req_mission/start</code></td><td>exped</td><td><code>exped</code></td></tr>
+    <tr><td><code>api_get_member/questlist</code></td><td>general</td><td><code>quest</code></td></tr>
+    <tr><td><code>api_get_member/preset_dev_items</code>、<code>api_req_kousyou/*</code></td><td>factory</td><td><code>factory</code></td></tr>
+  </tbody>
+</table>
+
+<h3>14.5 遊戲介面 ↔ kcsapi path 對照（實測）</h3>
+<table>
+  <thead><tr><th>介面</th><th>path</th><th>介面</th><th>path</th></tr></thead>
+  <tbody>
+    <tr><td>母港</td><td><code>api_port/port</code></td><td>工廠</td><td><code>api_get_member/preset_dev_items</code></td></tr>
+    <tr><td>遠征</td><td><code>api_get_member/mission</code></td><td>改修（明石）</td><td><code>api_req_kousyou/remodel_slotlist</code></td></tr>
+    <tr><td>入渠</td><td><code>api_get_member/ndock</code></td><td>item課金</td><td><code>api_get_member/payitem</code></td></tr>
+    <tr><td>編成</td><td><code>api_get_member/preset_deck</code></td><td>圖鑑</td><td><code>api_get_member/picture_book</code></td></tr>
+    <tr><td>改裝</td><td><code>api_req_kaisou/can_preset_slot_select</code></td><td>任務</td><td><code>api_get_member/questlist</code></td></tr>
+  </tbody>
+</table>
+
+<h3>14.6 版面硬約束（曾被改壞，不可回退）</h3>
+<div class="box hard">
+  <span class="tag">出擊資訊欄 ＋ 艦隊編成版面</span>
+  <ol>
+    <li><b>釘死</b>：<code>#tabpanel</code> 固定 <code>height: 270px</code>
+      （<b>禁止</b>改 <code>max-height</code> 讓不足時收縮——編成會隨分頁內容上下跑）；
+      戰鬥列第二列固定 <code>165px</code>；陣型／支援／対空CI／夜戰／rank／友軍列釘在敵艦區下方，
+      <b>不隨敵艦數量位移</b>。敵艦少於 6 時列內留白是刻意的。</li>
+    <li><b>七船</b>：窗高 835、單艘約 49.5px。要多露出七船只准收 <code>#tabpanel</code> 固定高度或
+      fleetnav／fleets／艦列 padding，<b>不准拆 165px 釘、不准讓陣型列跟著上移</b>。</li>
+    <li><b>裝備列單行</b>：<code>.chips { flex-wrap: nowrap }</code>；一般格／打洞／燃彈鎖
+      min/max（現約 48／40／56），SVG 與「///」不可撐破預算；
+      <b>禁止</b> <code>display: contents</code> ＋ <code>margin-left: auto</code> 那條曾裁掉整列燃彈的路。</li>
+    <li><b>不准裁字</b>：燃彈兩側「100」必須完整可見。</li>
+  </ol>
+  <p class="meta">回歸參考：<code>samples/fleet_slot*.png</code>。視窗高度 835 是逐像素量測的結果，
+  <b>此高度假設裝備列單行</b>——若 <code>.chips</code> wrap 成兩行，第 7 艘會被裁掉，
+  不可靠加高視窗掩蓋換行。</p>
+</div>
+
+<h3>14.7 渲染函式</h3>
+<table>
+  <thead><tr><th style="width:230px">函式</th><th>內容</th></tr></thead>
+  <tbody>
+    <tr><td><code>renderHeader()</code></td><td>暱稱、司令部等級、艦娘／裝備數與上限</td></tr>
+    <tr><td><code>renderGeneral()</code></td><td>八項資材、遠征倒數、入渠／建造渠、任務格</td></tr>
+    <tr><td><code>renderFleets()</code>／<code>renderCombinedFleets()</code></td>
+      <td>艦列（裝備 chip、補給、HP、cond）＋徽章（遠征中／損傷／未補給／泊地修理／給糧）</td></tr>
+    <tr><td><code>renderAirBases()</code></td><td>海域分頁、中隊 chip、行動種別、制空值</td></tr>
+    <tr><td><code>renderExped()</code></td><td>遠征下拉 ＋ 需求檢查清單</td></tr>
+    <tr><td><code>renderSortie()</code></td><td>海域、量表、節點軌跡、敵艦 chip、航空、陣型／支援／AACI／夜戰／rank／友軍／掉落</td></tr>
+    <tr><td><code>renderFactoryLive()</code></td><td>最新開發／改修結果 ＋ 建造渠倒數</td></tr>
+    <tr><td><code>renderWanted()</code></td><td>待驗證封包清單（<b>僅開發用 UI</b>）</td></tr>
+  </tbody>
+</table>
+<p>另有 1 秒 interval 只更新倒數 DOM（<code>.rcd</code> 等），<strong>不做全量重繪</strong>。</p>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s15"><i>15</i>鎮守府情報總括（overview）</h2>
+
+<h3>15.1 殼</h3>
+<ul>
+  <li><b>路由</b>：hash <code>#/&lt;sectionId&gt;</code>，無效時回 registry 第一項。<code>hashchange</code> → 重繪側欄 ＋ 分區。</li>
+  <li><b>側欄三態</b>：<code>body[data-nav]</code> ＝ <code>pinned</code>／<code>hidden</code>／<code>open</code>；
+      左右側 <code>body[data-nav-side]</code> 與三態<strong>正交</strong>。窄視窗（≤760px）強制不釘選。</li>
+  <li><b>共用 GameState</b>：先以空 <code>GameState</code> 佔位，<code>loadGameState()</code> 完成後重繪目前分區。
+      <code>SectionContext</code> 提供 <code>rerender()</code>／<code>state</code> getter／<code>reloadState()</code>。</li>
+  <li><b>世代控制</b>：每次 render 建立獨立 <code>.ov-section-host</code> 並遞增 <code>renderGeneration</code>，
+      過期的 async 結果不會污染畫面。</li>
+  <li><b>錯誤不留白</b>：<code>renderSection()</code> 頂層 try/catch，失敗顯示
+      <code>t('ov.loadFailed', { msg })</code>。</li>
+</ul>
+
+<h3>15.2 分區 registry（順序＝側欄順序）</h3>
+<table>
+  <thead><tr><th style="width:40px">#</th><th style="width:140px">id</th><th style="width:150px">標籤</th>
+    <th style="width:190px">localStorage</th><th>主要 Dexie／utils 依賴</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>fleet-overview</code></td><td>艦隊全覽</td><td><code>kc-fleet-overview-view</code></td>
+      <td>無 Dexie；<code>deckbuilder.ts</code>（DeckBuilder JSON、制空シミュレータ URL）</td></tr>
+    <tr><td>2</td><td><code>event-ops</code></td><td>活動作戰板</td><td>—</td>
+      <td><code>eventPlans</code>（讀寫）、<code>events</code>（觀測貼標）；<code>event-plan.ts</code>、<code>ship-picker.ts</code></td></tr>
+    <tr><td>3</td><td><code>ships</code></td><td>艦娘全覽</td><td><code>kc-ships-view</code></td>
+      <td><code>shipObtained</code>（讀寫）；<code>ship-roster.ts</code>、<code>ship-filter.ts</code>、
+        <code>ship-debut-data.ts</code>、<code>ship-nationality.ts</code></td></tr>
+    <tr><td>4</td><td><code>equipment</code></td><td>裝備全覽</td><td><code>kc-equip-view</code></td>
+      <td>無 Dexie；<code>gear-inventory.ts</code></td></tr>
+    <tr><td>5</td><td><code>sortie-log</code></td><td>出擊紀錄</td><td><code>kc-sortie-view</code></td>
+      <td><code>sorties</code>、<code>replays</code>；<code>sortie-detail.ts</code>、<code>replay.ts</code>、
+        <code>sortie-import.ts</code>、<code>map-node-letters.ts</code></td></tr>
+    <tr><td>6</td><td><code>drop-log</code></td><td>打撈紀錄</td><td><code>kc-drop-log-view</code></td>
+      <td><code>sorties</code>、<code>shipObtained</code>；<code>drop-log-import.ts</code>、<code>retention.ts</code></td></tr>
+    <tr><td>7</td><td><code>exped-log</code></td><td>遠征紀錄</td><td><code>kc-exped-log-view</code></td>
+      <td><code>expeditions</code>、<code>resourceMarks</code>；<code>expedition-stats.ts</code>、<code>csv.ts</code></td></tr>
+    <tr><td>8</td><td><code>build-log</code></td><td>建造紀錄</td><td><code>kc-build-log-view</code></td>
+      <td><code>factory</code>（<code>build</code>／<code>speedup</code>）；<code>build-log-import.ts</code></td></tr>
+    <tr><td>9</td><td><code>dev-log</code></td><td>開發紀錄</td><td><code>kc-dev-log-view</code></td>
+      <td><code>factory</code>（<code>develop</code>）</td></tr>
+    <tr><td>10</td><td><code>resource-log</code></td><td>資源紀錄</td><td><code>kc-resource-view</code></td>
+      <td><code>resources</code>、<code>resourceMarks</code>；<code>resource-log.ts</code>、<code>line-chart.ts</code></td></tr>
+    <tr><td>11</td><td><code>llm</code></td><td>LLM 分析</td><td>—</td>
+      <td><code>sorties</code>、<code>expeditions</code>；<code>gear-inventory.ts</code>、<code>prompt-api.d.ts</code></td></tr>
+    <tr><td>12</td><td><code>backup</code></td><td>資料備份與還原</td><td><code>kc-retention-cfg</code></td>
+      <td>幾乎全部表（經 <code>backup.ts</code>）；<code>retention.ts</code>、<code>fsa.ts</code>、<code>viewer-html.ts</code></td></tr>
+  </tbody>
+</table>
+<p class="meta">另有兩個全域鍵在 <code>utils/ui-prefs.ts</code>：<code>kc-panel-lang</code>、<code>kc-theme</code>；
+側欄狀態在 <code>main.ts</code>：<code>kc-overview-nav</code>、<code>kc-overview-nav-side</code>。
+FSA 目錄 handle 存在<strong>獨立的原生 IndexedDB <code>kc-fsa</code></strong>（store <code>handles</code>，key <code>backupDir</code>），
+不進 Dexie、不進備份。</p>
+
+<h3>15.3 跨分區慣例（硬約束）</h3>
+<div class="box hard">
+  <ol>
+    <li><b>有輸入框的分區一律不能全量重繪</b>。整塊重繪會讓輸入框失焦、捲動位置與展開狀態被洗掉。
+      作法：控制項只建一次（事件綁定一次），篩選／排序變更時只重繪結果子容器
+      （<code>.rs-body</code>／<code>.eq-body</code>／<code>.el-body</code>／<code>.rl-body</code>／<code>.sp-list</code> 之類）。
+      適用：<code>ship-picker</code>、<code>ships</code>、<code>equipment</code>、<code>sortie-log</code>、
+      <code>resource-log</code>、<code>exped-log</code>。</li>
+    <li><b>一律先畫殼、再 await 資料</b>。<code>render()</code> 第一件事是塞 shell HTML 並綁好事件，
+      <b>之後</b>才讀 DB。先讀後畫會讓「讀取卡住」（例如 Dexie 版本升級被其他分頁擋住）
+      變成整個分區空白、連工具列都按不到，且看不出原因。</li>
+    <li><b>折疊一律用原生 <code>&lt;details&gt;</code></b>。不要用 <code>transform: rotate</code> 做展開箭頭——
+      <code>rotate</code> 在 <code>prefers-reduced-motion</code> 下要關掉，關掉後兩態長得一樣，狀態訊號就消失了。</li>
+    <li><b>缺席值不是 0、不是最小值</b>（見 <a href="#s1">§1</a>）。</li>
+    <li><b>語意色不可跨功能挪用</b>：損傷色（<code>--dmg-*</code>）、札狀態色（<code>--sally-*</code>）、
+      資源增減色（<code>--res-gain</code>／<code>--res-drain</code>）分屬不同語意，混用會互相稀釋視覺意義。</li>
+    <li><b>沒有真封包佐證的欄位語意一律回 null／顯示原始值，不猜。</b></li>
+  </ol>
+</div>
+
+<h3>15.4 各分區的關鍵事實</h3>
+
+<h4>活動作戰板（<code>event-ops</code> ＋ <code>utils/event-plan.ts</code>）</h4>
+<ul>
+  <li><b>機制前提</b>：札是<strong>船身屬性</strong>非編成容器；一艘船同時只有一個札、貼上不可逆；
+      貼標時機是出擊，由「關卡＋路線」決定；<code>api_sally_area</code> 是唯一權威。
+      <code>allowedTags</code>（哪些札能走這條路線）與 <code>grantsTag</code>（無札船走這條路線會被貼上什麼札）
+      <strong>是兩件不同的事</strong>。</li>
+  <li><b>三層</b>：Layer 1 札總帳（從 <code>api_sally_area</code> 即時分群，零輸入且權威）→
+      Layer 2 計畫（手輸）→ Layer 3 檢查（純函式）。</li>
+  <li><b>燈號語意</b>：<code>ok</code>＝已持有本關允許的札；<code>blocked</code>＝持有別的札走不了；
+      <code>willStamp</code>＝<strong>無札船即將被不可逆消耗</strong>（<b>不是</b>「安全可調度」）；
+      <code>allowedTags</code> 未填一律 <code>unknown</code>，<strong>不可判紅</strong>。</li>
+  <li><b>「計畫」與「現實」是兩個維度，必須並排顯示</b>（曾被使用者回報三次以為是 bug）。
+      <code>plannedByTag()</code> <strong>刻意不去重</strong>（同艦排進兩個關卡要在兩邊都看得到）；
+      計數用 <code>sallyBudget()</code>（那支有去重）。</li>
+  <li><b>實際貼標觀測</b>（<code>observeGrantedTags()</code>）：只認 <code>0→N</code> 的轉變，
+      <code>N→M</code> 不採信（更可能是漏收封包）；只警示 ＋ 一鍵套用，<strong>絕不自動覆寫</strong>。</li>
+  <li><b>鎖定規則</b>：標籤一旦「已確立」（實際已有船帶著它），其名稱與相關關卡的
+      <code>allowedTags</code>／<code>grantsTag</code> 轉為唯讀，需明確按「解除鎖定」才可再編輯。</li>
+  <li><code>mapKey = areaId * 10 + mapNo</code>。<code>reconcileStages()</code> 改版不得丟資料：
+      有 mapNo 照 mapNo 對應、沒有的用 <code>guessMapNo(label)</code> 反推、對應不上但填過東西的列保留在末尾。</li>
+</ul>
+
+<h4>艦娘全覽（<code>ships</code> ＋ <code>utils/ship-roster.ts</code>）</h4>
+<ul>
+  <li>十九個排序欄位，缺值一律排最後。裝備欄一律畫滿真實槽數、空槽畫虛線空框；
+      補強增設無孔時整格不畫。</li>
+  <li><b>近代化改修上限 ＝ master 的（最大 − 初期）</b>，已用叢雲改二 420 逐項核對。
+      <code>api_kyouka</code> 後三格（運／耐久／對潛）無可比對上限，只能判斷「有沒有加過」。</li>
+  <li><b>補強增設特殊類別</b>：<code>api_mst_equip_exslot_ship</code> 的
+      <strong>key 是裝備 master id 而非類別 id</strong>，值以
+      <code>api_ship_ids</code>／<code>api_stypes</code>／<code>api_ctypes</code> 三種方式指定對象——
+      <strong>master 必須存 <code>ctype</code></strong>，否則艦級條件全部漏判。已對全 862 艘図鑑內艦驗算。</li>
+  <li><b>素質「不含裝備」是估算</b>：裸值＝顯示值減裝備 master 自身加成，
+      但裝備ボーナス（隱藏加成）已計入顯示值卻不在裝備資料裡，相減後會偏高，UI 已標示。</li>
+  <li><b>先制對潛是全功能唯一的推算值</b>（遊戲不送旗標）：依 wikiwiki 機制頁轉寫，
+      海防艦／輕空母／例外艦（Fletcher 級 <code>ctype 91</code>、John C. Butler 級 <code>ctype 87</code>）／
+      其餘四類規則。UI 提示須保留「推算」字樣。開幕雷擊則是事實：裝備特殊潜航艇（類別 22）即成立。</li>
+  <li><b>兩個日期</b>：date1 官方登場日（<code>ship-debut-data.ts</code>，唯讀，鍵＝基礎形態 master id）／
+      date2 打撈上任日（<code>db.shipObtained</code>）。<strong>遊戲 API 完全不提供這兩個日期。</strong>
+      手填一律 <code>source='manual'</code>、<strong>不補 <code>observedEventId</code></strong>
+      （那兩欄是 <code>retention.ts firstOwnedDropKeys</code> 的新船場證據，混入會污染判定）。</li>
+  <li><b>master 三個關鍵欄位</b>：<code>api_sortno</code>＝図鑑番号；
+      <code>api_aftershipid</code> <strong>是字串</strong>（<code>'0'</code> 代表無後續，當 number 比對會靜默失效）；
+      <code>api_mst_shipupgrade.api_original_ship_id</code> 才是改造→基礎形態的可靠解法
+      （純走 <code>api_aftershipid</code> 反向圖覆蓋率僅 94%）。
+      <strong>可逆轉換改裝會讓 <code>aftershipid</code> 形成環</strong>（如 Glorious 戦艦⇄正規空母），
+      反解必須用帶 visited 的圖搜尋，不能用單鏈。</li>
+</ul>
+
+<h4>鎮守府全船篩選（<code>utils/ship-filter.ts</code>）</h4>
+<ul>
+  <li><b>可裝備篩選已用真實完整 start2 驗證</b>：<code>api_mst_equip_ship</code> 是
+      <strong>「完整覆蓋」不是「追加」</strong>——有例外條目就用它，否則回退
+      <code>api_mst_stype[].api_equip_type</code>。</li>
+  <li class="no"><b>絕不能只看艦種</b>：<code>api_mst_stype[2].api_equip_type['24']</code> 是 0
+      （駆逐艦不能裝大發），但實際有 41 艘驅逐艦裝得了大發系（例外條目覆蓋）。</li>
+  <li>類別 id：24 上陸用舟艇（大發系）／34 司令部施設／45 水上戦闘機／46 特型内火艇。
+      type 24 值實測全部是 <code>null</code>（整個類別可裝）。</li>
+  <li><b>航速</b>：<code>api_soku</code> 只有 <code>{10:高速, 5:低速}</code> 兩檔已見樣本，
+      篩選用「&gt;= 門檻」不列舉。<b>「高速戦艦」不是艦種</b>：<code>api_mst_stype</code> 的 8/9 都叫「戦艦」，
+      高速／低速要靠 <code>api_soku</code> 合判。</li>
+  <li><b>補強增設</b>：<code>api_slot_ex</code> 三態 <code>0</code>＝無孔／<code>-1</code>＝有孔未裝／<code>&gt;0</code>＝已裝。</li>
+</ul>
+
+<h4>裝備全覽（<code>equipment</code> ＋ <code>utils/gear-inventory.ts</code>）</h4>
+<ul>
+  <li>母集合是實例、呈現是種類：<code>groupGears()</code> 依 master id 彙總成 <code>GearGroup</code>。
+      展開列用 <code>stackInstances()</code>：改修★＋熟練度＋持有者三者全同的實例合成一行並計數；
+      <strong>持有者要連 <code>ex</code>（補強增設）一起比</strong>。</li>
+  <li>十一項素質欄皆為封包事實，<strong>未含改修★加成</strong>（公式未經封包驗證，刻意不推導——
+      與艦娘全覽的裸素質估算方向相反：那邊減、這邊不算）。</li>
+  <li><b>持有者反查必須含基地航空隊</b>：<code>airBases</code> 的中隊吃的是同一批裝備實例，
+      漏掉會誤報成閒置；補強增設同理要算成裝備中。</li>
+</ul>
+
+<h4>資源紀錄（<code>resource-log</code>）</h4>
+<ul>
+  <li><b>兩個貫穿設計的事實</b>：(1) 封包只給餘額，任何「花了多少」都是兩個時刻的餘額相減，
+      算不出來一律「不可考」；(2) 歷史無法回填（v12 起才有序列）。</li>
+  <li><b>擷取落在 background 而非 EventProjector</b>（與其他四張 derived tables 相反）：
+      資源列不需要 GameState 上下文，價值在<strong>連續</strong>，故與 <code>db.snapshot</code> 同層。
+      取樣來源只認帶完整八項的 path（<code>api_port/port</code>、<code>api_get_member/material</code>）；
+      任一項不是有限非負數字則整筆放棄。</li>
+  <li><code>gauge-seen</code> 是<strong>守衛而非里程碑</strong>：必須先觀測「未歸零」才武裝，
+      之後的歸零才算數，<strong>不能是記憶體變數，只能落地</strong>（SW 隨時會死）。</li>
+  <li class="no"><b>趨勢圖是使用者指定的形狀，曾明確否決「八張小圖各自 y 軸」，不要改回去</b>：
+      最上方一張大圖、八條線、圖例即開關；<code>multiChartGeometry()</code> 的 y 值域
+      <strong>只由「顯示中」的序列決定</strong>；<strong>雙 y 軸不做</strong>（沒有共同基準）；
+      序列配色固定順序，資材 i 恆定拿第 i 個色位——開關序列絕不重新分配顏色。</li>
+  <li><b>抽稀是純減量不平滑</b>（<code>downsample()</code> 每桶取最後一筆）：
+      平滑會把「一次活動燒掉十萬燃料」的陡降磨圓。</li>
+  <li class="no"><b>兩個踩過的坑</b>：<code>hidden</code> 屬性對 SVG 元素無效
+      （要用 CSS <code>[hidden]{display:none}</code>）；不要用 <code>preserveAspectRatio="none"</code>
+      （非等比縮放會拉伸 y 軸文字，改用等比 ＋ <code>aspect-ratio</code>，線寬用
+      <code>vector-effect: non-scaling-stroke</code>）。</li>
+</ul>
+
+<h4>遠征紀錄（<code>exped-log</code> ＋ <code>utils/expedition-stats.ts</code>）</h4>
+<ul>
+  <li><b>為什麼期間彙總落在這裡而不是資源紀錄</b>：遠征收入是<strong>逐筆事件獲得量</strong>（精確可加總），
+      資源紀錄的消長是<strong>餘額差分</strong>——兩者語意不同，混在一起會被拿去互相對照卻對不起來，
+      缺席規則也相反。</li>
+  <li><b>母集合是「紀錄中的」遠征，不是遊戲的完整歷史</b>：面板長期沒開 ＋ raw event 已被裁剪的期間
+      會永久缺席。</li>
+  <li><b>期間捷徑錨點是最後一筆紀錄，不是現在</b>（同資源紀錄的 <code>rangeBounds</code>）。
+      自訂日期只要填任一端就蓋過捷徑窗。</li>
+  <li>分組鍵是 <code>missionId</code> 不是名稱（名稱隨語言變動）；<code>missionId</code> 為 0 的舊紀錄才以名稱分組。</li>
+  <li class="warn">回航道具欄位語意<strong>未經真封包驗證</strong>，一律以 <code>id × count</code> 原樣彙總，
+      不併入四資源小計。</li>
+</ul>
+
+<h4>CSV 匯出入的格式決策</h4>
+<div class="box info">
+  <p><b>打撈／建造紀錄</b>：匯出格式<strong>刻意不跟隨「畫面顯示什麼就匯出什麼」</strong>——
+  這是可重新匯入的<b>資料交換格式</b>，用固定英文欄位集合：<br>
+  <code>ts,map,node,boss,rank,drop,dropMst</code>／
+  <code>ts,kind,shipMst,shipName,fuel,ammo,steel,bauxite,devmat,torch,secretary,secretaryName,hqLv</code>。</p>
+  <p><b>遠征紀錄</b>：兩份 CSV（彙總／明細）的<strong>表頭用目前語言的欄名</strong>——
+  那是<b>唯讀報表匯出</b>，不是交換格式。</p>
+  <p><b>相容「航海日誌拡張版」</b>：實為 Tab 分隔 ＋ CRLF、不做欄位跳脫，
+  <code>parseDelimitedText()</code> 靠表頭 tab 數 vs 逗號數自動判斷分隔符。
+  逐欄語意依原始碼轉寫、<span class="warn">沒有實機樣本佐證</span>，任何不符預期的列一律跳過並記錄原因。
+  「マス」欄格式 <code>"マップ:{area}-{mapNo} セル:{cell}"</code> 是唯一能可靠取出 map 的欄位
+  （「海域」欄實際是作戰文字非數字編號）；<code>node</code> 一律當不可考。日期無時區資訊，只能當本地時間解析。</p>
+</div>
+
+<h4>LLM 分析（<code>llm</code>）</h4>
+<p>三條路徑<strong>皆避開新增網路權限</strong>：</p>
+<ol>
+  <li><b>通用備份檔</b>：<code>buildFullReport()</code> 產生 Markdown（複製／下載，零網路零權限）。
+      出擊依海域分組統計（非全域統計＋固定筆數列表）、裝備依種類彙總持有量＋改修分布（非逐顆列舉）。</li>
+  <li><b>MCP 掛載</b>：純文件提示，指引使用者把下載資料夾指給支援 MCP 的用戶端，整個流程在擴充之外。</li>
+  <li><b>Chrome 內建 AI</b>（Prompt API／Gemini Nano）：裝置端零網路零出境，
+      <code>prompt-api.d.ts</code> 特徵偵測。只餵 <code>buildQuickContext()</code> 精簡摘要避免超出 context window。</li>
+</ol>
+<div class="box hard">
+  <p><code>promptStreaming()</code> 分塊語意在不同版本不同，用
+  <code>chunk.startsWith(acc) ? chunk : acc + chunk</code> 的防禦寫法涵蓋兩種語意，
+  <strong>不要改回單純 <code>+=</code></strong>。已知限制：官方語言清單不含繁中。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s16"><i>16</i>popup 與遊戲頁功能</h2>
+
+<h3>16.1 popup 快捷選單</h3>
+<table>
+  <thead><tr><th style="width:150px">項目</th><th>行為</th></tr></thead>
+  <tbody>
+    <tr><td>開面板</td><td>送 <code>kc:open-panel</code> 後自關；<b>開窗邏輯留在 SW</b>（popup 關閉會中斷其非同步流程）</td></tr>
+    <tr><td>開遊戲</td><td><code>tabs.query(GAME_TAB_MATCHES)</code> <b>聚焦既有分頁</b>，找不到才 <code>tabs.create</code>。
+      <b>不提供另開或替換遊戲視窗</b>——遊戲是單一連線，第二個執行個體只會互相踢線</td></tr>
+    <tr><td>總括</td><td><code>tabs.create('/overview.html')</code></td></tr>
+    <tr><td>視窗適應</td><td>見下方授權流程。<b>不關閉 popup</b>（失敗時亦不關）</td></tr>
+    <tr><td>靜音</td><td><code>MSG_MUTE_SET</code> → background。<b>不關閉 popup</b></td></tr>
+    <tr><td>拍照</td><td><code>MSG_SCREENSHOT_RECT</code> → <code>MSG_CAPTURE_TAB</code> → <code>downloadCroppedScreenshot</code></td></tr>
+  </tbody>
+</table>
+
+<div class="box hard">
+  <span class="tag">手勢資格</span>
+  <p><code>permissions.request()</code> <strong>必須是點擊手勢的第一個呼叫</strong>——
+  點下去之後才 <code>await tabs.query()</code> 會失去手勢資格，授權對話框直接不跳。
+  故分頁資訊必須<strong>在 popup 開啟當下</strong>就查好，點擊當下只做同步判斷。
+  查詢尚未回來（<code>activeTab === undefined</code>）時<strong>不擋</strong>——寧可多跳一次授權，
+  也不要因為競態把功能鎖死。</p>
+</div>
+
+<h3>16.2 視窗適應（<code>theater.content.ts</code> ＋ <code>utils/theater.ts</code>）</h3>
+<p>產品意圖是<strong>讓遊戲畫面等比填滿瀏覽器視窗</strong>（不是全螢幕、不是手動縮放劇場）。
+UI 文案為「視窗適應」／Fit to Window／ウィンドウ適応；程式碼與訊息型別仍沿用 <code>theater</code> 識別名。</p>
+<ul>
+  <li><b>遊戲框辨識</b>：DMM 遊戲頁已改版為 SPA，沒有固定 id/class，故靠
+      <strong>src 主機名 ＋ 尺寸</strong>（<code>pickGameFrame()</code>）；<strong>無命中一律回 <code>null</code> 不亂挑</strong>。</li>
+  <li><b>顯示的是「遊戲畫布」不是「整個 iframe」</b>：畫布位置由框內 content script 跨源回報，
+      父頁 <code>clip-path: inset()</code> 裁掉其餘部分並置中。
+      <strong>只信任「直接子框」的回覆</strong>（<code>e.source === frame.contentWindow</code>），
+      量不到就退回整個框不裁切、<strong>不猜矩形</strong>。<code>transform-origin</code> 固定 <code>0 0</code>。</li>
+  <li>標記屬性 ＋ 外部樣式表，<strong>不寫 inline style</strong>；<strong>不用 <code>position: fixed</code></strong> 當主要手段
+      （祖先的 transform／filter／contain 會變成 containing block）。</li>
+  <li><b>工具列固定佔底部一條，絕不覆蓋遊戲畫面</b>。只留進入／離開／靜音／拍照——
+      <strong>不做 +/−、百分比、1:1、平移鈕</strong>（那些會脫離 fit、弄出黑邊）。</li>
+  <li class="no"><b>永遠 contain／fit</b>：<code>fitZoom()</code> 硬性維持 contain（<code>Math.min</code>）。
+      cover（<code>Math.max</code>）<strong>已被明確否決，未經使用者再次明確指示不得改回，也不得加回手動縮放 UI</strong>。
+      頁面縮放交給瀏覽器原生 Ctrl／⌘ ＋ 滾輪。</li>
+</ul>
+
+<h4>授權流程</h4>
+<pre><code>popup「視窗適應」
+  → permissions.request({ origins: GAME_PAGE_MATCHES })   ← 必須是手勢的第一個呼叫
+  → scripting.registerContentScripts([{ ..., persistAcrossSessions: true }])
+  → 對當前分頁 scripting.executeScript() 立即注入（否則要等使用者 F5 才生效）</code></pre>
+
+<h3>16.3 遊戲靜音</h3>
+<ul>
+  <li><code>installAudioMute()</code> 在 MAIN world（document_start）把每個 <code>AudioContext</code> 的
+      <code>destination</code> 換成 master GainNode；<code>&lt;audio&gt;</code>／<code>&lt;video&gt;</code> 同理。</li>
+  <li>BGM 路徑不可考時，background 用 <code>tabs.update({ muted: true })</code> 對整個遊戲分頁保底
+      （這是 <code>tabs</code> 權限存在的唯一理由，<strong>不讀取分頁內容</strong>）。</li>
+  <li><b>狀態持有者是 SW</b>（<code>db.meta['game-page']</code>），遊戲分頁重載後仍生效。</li>
+  <li>popup 顯示 <code>connected</code>＝目前連上的遊戲分頁數。
+      <strong>0 代表沒有任何分頁跑著新版 content script</strong>（擴充更新後未 F5），此時靜音一定無效——
+      這種「靜靜沒反應」最難查，故直接寫在選單上。<code>stateKnown</code> 區分「查不到狀態」與「確實是 0」。</li>
+</ul>
+
+<h3>16.4 拍照（<code>utils/screenshot.ts</code>）</h3>
+<ul>
+  <li>只擷取遊戲畫面、不含 DMM 頁面其餘部分。<b>裁切矩形絕不重新推算</b>：
+      兩個入口（popup／視窗適應工具列）都呼叫已校準過的 <code>measureScreenshotRect()</code>；
+      量不到畫布時回 <code>rect: null</code>，<strong>誠實回報找不到，不猜矩形</strong>。</li>
+  <li><b>權限是 <code>activeTab</code></b>（不是 <code>&lt;all_urls&gt;</code> 也不是既有的 optional host permission）——
+      <code>captureVisibleTab()</code> 只認 <code>&lt;all_urls&gt;</code> 或 <code>activeTab</code>，
+      <strong>不認一般 origin host permission</strong>（這正是第一版拍照「已授權仍失敗」的根因）。</li>
+  <li>「沒有回覆」與「量不到遊戲畫面」是兩件事，訊息不可混為一談：
+      <code>sendMessage</code> 收不到回覆時是 resolve 成 <code>undefined</code>（不是 reject）。</li>
+</ul>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s17"><i>17</i>utils 模組目錄</h2>
+
+<p>「純」＝無 <code>chrome.*</code>、無 DOM，可用 node/vitest 獨立測試。</p>
+
+<table>
+  <thead><tr><th style="width:250px">檔案</th><th style="width:50px">純</th><th>職責與主要匯出</th></tr></thead>
+  <tbody>
+    <tr><td><code>db.ts</code></td><td class="ok">✔</td><td>Dexie schema v12 ＋ 全部 row interface。<code>KcDb</code>、<code>db</code></td></tr>
+    <tr><td><code>state.ts</code></td><td class="ok">✔</td><td><code>GameState</code>：封包 reduce 成狀態（見 <a href="#s12">§12</a>）</td></tr>
+    <tr><td><code>battle.ts</code></td><td class="ok">✔</td><td><code>analyzeBattle()</code>、<code>predictRank()</code></td></tr>
+    <tr><td><code>kcsapi.ts</code></td><td class="ok">✔</td><td><code>parseKcsapiResponse</code>、<code>getKcsapiPath</code>、<code>readFetchRequestBody</code>…</td></tr>
+    <tr><td><code>runtime-message.ts</code></td><td class="ok">✔</td><td><code>createKcApiRuntimeMessage</code>、<code>sendKcApiRuntimeMessageWithRetry</code></td></tr>
+    <tr><td><code>runtime-reply.ts</code></td><td class="ok">✔</td><td><code>replyWhenSettled(work, sendResponse, onError?): true</code></td></tr>
+    <tr><td><code>idle-capture-queue.ts</code></td><td class="ok">✔</td><td><code>IdleCaptureQueue</code>（抽象 scheduler，可測）</td></tr>
+    <tr><td><code>ingestion-persistence.ts</code></td><td class="ok">✔</td><td><code>persistIngestedEvent</code>、<code>ingestWithPostProcessing</code></td></tr>
+    <tr><td><code>background-ingestion-lifecycle.ts</code></td><td class="ok">✔</td><td><code>BackgroundIngestionLifecycle</code>、<code>recoverPendingPostProcessing</code></td></tr>
+    <tr><td><code>event-projector.ts</code></td><td class="ok">✔</td><td><code>EventProjector</code>、<code>projectEventAndAdvance</code></td></tr>
+    <tr><td><code>projection-cursor.ts</code></td><td class="ok">✔</td><td>cursor v3 的讀寫與驗證</td></tr>
+    <tr><td><code>event-pruning.ts</code></td><td class="ok">✔</td><td><code>KEEP_RECENT</code>、<code>planRawEventPrune</code>、<code>pruneRawEventsBefore</code></td></tr>
+    <tr><td><code>state-recovery.ts</code></td><td class="ok">✔</td><td><code>SNAPSHOT_ORDER</code>、<code>planStateRecovery</code>、<code>applySnapshotBaseline</code></td></tr>
+    <tr><td><code>event-id-borrow.ts</code></td><td class="ok">✔</td><td><code>borrowEventId(events, debugPath, options?)</code></td></tr>
+    <tr><td><code>event-notification.ts</code></td><td class="ok">✔</td><td><code>createEventNotificationId(eventId, purpose)</code></td></tr>
+    <tr><td><code>resource-capture.ts</code></td><td class="ok">✔</td><td><code>readMaterials</code>、<code>readEventGauges</code>、<code>captureResources</code></td></tr>
+    <tr><td><code>resource-log.ts</code></td><td class="ok">✔</td><td><code>normalizeSamples</code>、<code>bucketSamples</code>、<code>downsample</code>、<code>buildEventPeriods</code>、<code>toCsv</code></td></tr>
+    <tr><td><code>line-chart.ts</code></td><td class="ok">✔</td><td><code>multiChartGeometry</code>、<code>niceTicks</code>、<code>nearestIndex</code></td></tr>
+    <tr><td><code>ship-obtained.ts</code></td><td class="ok">✔</td><td><code>captureShipObtained(table, observedEventId, ts, api)</code></td></tr>
+    <tr><td><code>retention.ts</code></td><td class="ok">✔</td><td><code>DEFAULT_RETENTION</code>、<code>firstOwnedDropKeys</code>、<code>planRetention</code></td></tr>
+    <tr><td><code>backup.ts</code></td><td class="ok">✔</td><td><code>BACKUP_SCHEMA_VERSION</code>、<code>validateBackupEnvelope</code>、<code>restoreBackup</code>…</td></tr>
+    <tr><td><code>replay.ts</code></td><td class="ok">✔</td><td><code>snapshotDeck</code>、<code>snapshotLbas</code>、<code>startReplay</code>、<code>appendBattle</code>、<code>toKc3Replay</code></td></tr>
+    <tr><td><code>sortie-detail.ts</code></td><td class="ok">✔</td><td><code>buildSortieDetail</code>、<code>lbasWaves</code>、<code>supportUse</code>、<code>groupSorties</code></td></tr>
+    <tr><td><code>sortie-import.ts</code></td><td class="ok">✔</td><td><code>parseSortieImport</code>、<code>importSortie</code>、<code>packetHash</code>、<code>hasPacket</code></td></tr>
+    <tr><td><code>drop-log-import.ts</code></td><td class="ok">✔</td><td>打撈 CSV 解析／匯出／匯入 ＋ <code>reverseShipLookup</code></td></tr>
+    <tr><td><code>build-log-import.ts</code></td><td class="ok">✔</td><td>建造 CSV 解析／匯出／匯入</td></tr>
+    <tr><td><code>csv.ts</code></td><td class="ok">✔</td><td><code>csvCell</code>、<code>rowsToCsv</code>、<code>parseDelimitedText</code></td></tr>
+    <tr><td><code>expedition-stats.ts</code></td><td class="ok">✔</td><td><code>filterByPeriod</code>、<code>summarize</code>、<code>groupByMission</code>、<code>statsCsv</code></td></tr>
+    <tr><td><code>expedition-data.ts</code></td><td class="ok">✔</td><td>poi 遠征需求資料（MIT，見 NOTICE）</td></tr>
+    <tr><td><code>quest-progress.ts</code></td><td class="ok">✔</td><td><code>parseQuestGoal</code>、<code>resolveQuestGoal</code>、<code>QUEST_ID_OVERRIDES</code></td></tr>
+    <tr><td><code>repair.ts</code></td><td class="ok">✔</td><td><code>planAnchorageRepair</code>、<code>planMoraleSupply</code>、<code>nextSettlementIn</code></td></tr>
+    <tr><td><code>event-plan.ts</code></td><td class="ok">✔</td><td><code>groupBySally</code>、<code>checkStage</code>、<code>findPlanConflicts</code>、<code>sallyBudget</code>、<code>observeGrantedTags</code></td></tr>
+    <tr><td><code>ship-filter.ts</code></td><td class="ok">✔</td><td><code>filterShips</code>、<code>sallyOptions</code>、<code>stypeOptions</code>、<code>EQUIP_TYPE</code></td></tr>
+    <tr><td><code>ship-roster.ts</code></td><td class="ok">✔</td><td><code>annotateRoster</code>、<code>filterRoster</code>、<code>sortRoster</code>、<code>isOpeningAsw</code>、<code>paginate</code></td></tr>
+    <tr><td><code>ship-nationality.ts</code></td><td class="ok">✔</td><td><code>NATION_BY_CTYPE</code>、<code>nationOf(ctype)</code>（<b>人工維護</b>，12 國，<b>沒有丹麥</b>）</td></tr>
+    <tr><td><code>ship-debut-data.ts</code></td><td class="ok">✔</td><td><code>SHIP_DEBUT</code>、<code>debutDateOf</code>（<b>產生物</b>）</td></tr>
+    <tr><td><code>gear-inventory.ts</code></td><td class="ok">✔</td><td><code>groupGears</code>、<code>stackInstances</code>、<code>filterGears</code>、<code>iconOptions</code></td></tr>
+    <tr><td><code>map-node-kind.ts</code></td><td class="ok">✔</td><td><code>nodeKindKey(eventId?, eventKind?)</code>（無樣本回 <code>null</code>）</td></tr>
+    <tr><td><code>map-node-letters.ts</code></td><td class="ok">✔</td><td><code>nodeLetter</code>、<code>nodeLabel</code>、<code>hasNodeLetters</code></td></tr>
+    <tr><td><code>map-edge-letters.ts</code></td><td class="ok">✔</td><td><code>EDGE_LETTERS</code>（<b>產生物，勿手改</b>）</td></tr>
+    <tr><td><code>deckbuilder.ts</code></td><td class="ok">✔</td><td><code>buildDeckBuilder</code>、<code>imgBuilderUrl</code>、<code>airCalcUrl</code></td></tr>
+    <tr><td><code>theater.ts</code></td><td class="ok">✔</td><td><code>pickGameFrame</code>、<code>fitZoom</code>、<code>framePlacement</code>、<code>theaterCss</code></td></tr>
+    <tr><td><code>game-page.ts</code></td><td class="ok">✔</td><td>URL match pattern ＋ 全部跨 context 訊息型別常數</td></tr>
+    <tr><td><code>html-escape.ts</code></td><td class="ok">✔</td><td><code>esc</code>、<code>gearIconHtml</code>、<code>matIconHtml</code></td></tr>
+    <tr><td><code>ui-i18n.ts</code></td><td class="ok">✔</td><td><code>LANGS</code>、<code>getLang</code>、<code>setLang</code>、<code>t(key, vars?)</code></td></tr>
+    <tr><td><code>gamedata-i18n.ts</code></td><td class="ok">✔</td><td><code>SHIP_NAMES</code>、<code>GEAR_NAMES</code>、<code>localizeShip</code>、<code>localizeGear</code></td></tr>
+    <tr><td><code>audio-mute.ts</code></td><td class="no">✘</td><td><code>installAudioMute(host, initialMuted?)</code>（Web Audio／media 元素）</td></tr>
+    <tr><td><code>ui-prefs.ts</code></td><td class="no">✘</td><td><code>initLang</code>、<code>persistLang</code>、<code>applyTheme</code>、<code>onPrefsChange</code>（localStorage ＋ <code>storage</code> 事件）</td></tr>
+    <tr><td><code>debug-ui.ts</code></td><td class="no">✘</td><td><code>isDebugUiEnabled()</code>（<code>import.meta.env.DEV</code> 或 <code>localStorage.kc-debug-ui</code>）</td></tr>
+    <tr><td><code>screenshot.ts</code></td><td class="warn">◐</td><td><code>cropRectPx</code>（純）、<code>downloadCroppedScreenshot</code>（canvas）</td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s18"><i>18</i>備份、還原與保留</h2>
+
+<h3>18.1 envelope 格式（v5）</h3>
+<pre><code>export const BACKUP_SCHEMA_VERSION = 5 as const;
+export type BackupKind = 'restore' | 'replays' | 'legacy-full';
+
+export interface BackupEnvelope {
+    schemaVersion: number;
+    kind?: 'restore' | 'replays' | 'full';   // v1 沒有 kind
+    exportedAt: number;
+    tables: BackupTables;                     // 見下表
+}</code></pre>
+
+<p><strong>備份拆兩檔</strong>（理由：重播層隨出擊數線性膨脹，需可獨立裁剪）：</p>
+<table>
+  <thead><tr><th style="width:220px">檔案</th><th>內容</th></tr></thead>
+  <tbody>
+    <tr><td><code>kanmusu-restore.json</code></td>
+      <td>重建現狀的最小子集，永遠很小：<code>snapshot</code>、<code>sorties</code>、<code>expeditions</code>、
+        <code>factory</code>、<code>wanted</code>、<code>shipObtained</code>、<code>eventPlans</code>、
+        <code>resources</code>、<code>resourceMarks</code></td></tr>
+    <tr><td><code>kanmusu-replays.json</code></td><td>只含 <code>replays</code></td></tr>
+    <tr><td><code>viewer.html</code></td><td>單檔離線檢視器（零擴充、零外連），內聯 <code>toKc3Replay</code></td></tr>
+  </tbody>
+</table>
+
+<h3>18.2 <code>determineKind()</code> 的版本表組合</h3>
+<p><strong>每個 schema 版本的 restore 表組合各自固定</strong>——舊檔不因缺少後來新增的表被拒，
+新檔也不得少帶或夾帶。</p>
+<table>
+  <thead><tr><th style="width:90px">版本</th><th>restore 必須且只能含的表</th></tr></thead>
+  <tbody>
+    <tr><td>v1</td><td><code>legacy-full</code>：<code>snapshot, sorties, expeditions, factory, replays, wanted</code>（六張全含）</td></tr>
+    <tr><td>v2</td><td><code>snapshot, sorties, expeditions, factory, wanted</code></td></tr>
+    <tr><td>v3</td><td>＋ <code>shipObtained</code></td></tr>
+    <tr><td>v4</td><td>＋ <code>eventPlans</code></td></tr>
+    <tr><td>v5</td><td>＋ <code>resources, resourceMarks</code></td></tr>
+    <tr><td>任何版本</td><td><code>replays</code> kind：<b>只能含 <code>replays</code></b></td></tr>
+  </tbody>
+</table>
+<p><code>schemaVersion &gt; BACKUP_SCHEMA_VERSION</code> 一律拒絕（不支援較新的備份版本）。</p>
+
+<h3>18.3 還原的前置條件</h3>
+<div class="box hard">
+  <span class="tag">匯入不是 merge，也不會警告後覆寫</span>
+  <ol>
+    <li><b>第一次匯入</b>只接受<strong>乾淨環境</strong>：沒有 raw events、沒有 <code>notified</code>、
+      沒有 projection metadata、目標 rows 為空。</li>
+    <li><b>後續</b>只有 <code>meta['backup-restore']</code> marker 證明的
+      <strong>complementary split file</strong> 可接續（restore 已匯入 → 可再匯入 replays，反之亦然）。</li>
+    <li>validation、destination preflight、所有 writes、event-ID sequence reservation／high-water
+      與 import marker <strong>全部在同一個 transaction</strong>，任一失敗完整 rollback。</li>
+    <li><code>BackupValidationError</code>（格式錯）與 <code>BackupDestinationError</code>（環境不符）
+      必須能由 UI 明確分流；被拒時 transaction 尚未寫入任何使用者資料，
+      既有資料與 event key generator 都保持原樣。</li>
+    <li><code>MAX_RESTORABLE_SOURCE_EVENT_ID = Number.MAX_SAFE_INTEGER - 2</code>：
+      兩個拆檔各用一個 auto-generated guard 驗證 generator rollback，
+      之後還要保留至少一個 safe integer 給真正的 ingestion。</li>
+    <li><code>meta['game-page']</code>（靜音／語言鏡像）<strong>不算「來源不明的既有資料」</strong>，preflight 略過。</li>
+  </ol>
+</div>
+
+<h3>18.4 為什麼是 File System Access API</h3>
+<p>Google Drive／WebDAV 的原生 API 需要 OAuth 或 <code>host_permissions</code>，違反權限精簡。
+FSA（<code>entrypoints/overview/fsa.ts</code>）<strong>零 manifest 權限</strong>：
+使用者選一個資料夾（可以是 Google Drive Desktop 的同步資料夾），
+handle 存在<strong>獨立的原生 IndexedDB <code>kc-fsa</code></strong>。
+API：<code>fsaSupported()</code>、<code>pickBackupDir()</code>、<code>savedBackupDir()</code>、
+<code>forgetBackupDir()</code>、<code>ensureRw()</code>、<code>writeFileTo()</code>。</p>
+
+<h3>18.5 重播保留規則（<code>utils/retention.ts</code>）</h3>
+<p><code>planRetention()</code> 的保護判定，<strong>由上而下</strong>：</p>
+<ol>
+  <li>手動 ★ 釘選（<code>replays.pinned</code>）</li>
+  <li>打撈到新船（<code>firstOwnedDropKeys()</code>，<strong>須 <code>source='auto'</code> ＋ <code>observedEventId</code></strong>）</li>
+  <li>斬殺（<code>sorties.cleared</code>）</li>
+  <li>活動 boss</li>
+  <li>所屬海域尚未通關</li>
+  <li>皆非 → 只留最近 <code>keepRecentDays</code>（預設 45）天，且保底最近 <code>keepRecentCount</code> 場</li>
+</ol>
+
+<h4>斬殺偵測（<code>detectClear()</code>）</h4>
+<p>在 mapinfo 更新後比對量表，觀測到「未擊破→擊破」就把該圖最近一場 boss 出擊標 <code>cleared</code>。
+<strong>只在「本次事件流曾看過該圖未擊破」時才判定轉變</strong>——
+「一裝上擴充就看到某圖已經是 cleared」不代表剛剛打通。
+<span class="warn">唯一未驗證：擊破當下遊戲是否即時推一筆 <code>now_maphp=0</code> 的 mapinfo
+（只影響觸發延遲，不影響判定正確性）。</span></p>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s19"><i>19</i>權限模型</h2>
+
+<pre><code>// wxt.config.ts
+manifest: {
+    default_locale: 'en',
+    name:        '__MSG_extName__',
+    short_name:  '__MSG_extShortName__',
+    description: '__MSG_extDescription__',
+    version: '1.0.0',
+    action: { default_title: '__MSG_extShortName__' },
+    icons: { '16': 'icon/16.png', '32': ..., '48': ..., '96': ..., '128': ... },
+    permissions: ['activeTab', 'alarms', 'notifications', 'scripting', 'tabs'],
+    optional_host_permissions: [...GAME_PAGE_MATCHES],     // DMM 遊戲頁
+}</code></pre>
+
+<table>
+  <thead><tr><th style="width:150px">權限</th><th>唯一用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>alarms</code></td><td>遠征／入渠／疲勞回復的定時通知</td></tr>
+    <tr><td><code>notifications</code></td><td>同上的桌面通知</td></tr>
+    <tr><td><code>scripting</code></td><td>視窗適應 content script 的動態註冊與立即注入。
+      <b>不授予任何網站存取權</b>，不顯示任何警告</td></tr>
+    <tr><td><code>activeTab</code></td><td>拍照。<code>captureVisibleTab()</code> 只認
+      <code>&lt;all_urls&gt;</code> 或 <code>activeTab</code>；前者違反權限精簡</td></tr>
+    <tr><td><code>tabs</code></td><td><b>僅</b> <code>tabs.update({ muted })</code> 遊戲分頁靜音保底，
+      以及 <code>tabs.query(GAME_TAB_MATCHES)</code> 的遊戲分頁單例化。<b>不讀取分頁內容</b></td></tr>
+    <tr><td><code>optional_host_permissions</code></td><td>DMM 遊戲頁。<b>使用者按下按鈕才跳一次原生授權</b></td></tr>
+  </tbody>
+</table>
+
+<div class="box hard">
+  <span class="tag">host_permissions 必須為空</span>
+  <p>WXT 對 <code>registration: 'runtime'</code> 的 content script <strong>會自動把 matches 塞進
+  <code>host_permissions</code></strong>——那等於安裝時就要求 dmm.com 權限。
+  故 <code>build:manifestGenerated</code> hook 負責剝掉：</p>
+<pre><code>'build:manifestGenerated'(wxt, manifest) {
+    const m = manifest as { host_permissions?: string[] };
+    if (wxt.config.command === 'serve') {
+        // 開發模式例外：擴充頁載入 Vite @vite/client 需要 localhost，否則 CORS 擋下、頁面全白
+        m.host_permissions = ['http://localhost/*', 'http://127.0.0.1/*'];
+    } else {
+        delete m.host_permissions;
+    }
+}</code></pre>
+  <p><code>tests/manifest.test.ts</code> 常駐斷言<strong>正式建置</strong>的 <code>host_permissions</code> 為空。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s20"><i>20</i>國際化</h2>
+
+<p>三層，各有不同的載體與時機：</p>
+<table>
+  <thead><tr><th style="width:220px">層</th><th style="width:260px">載體</th><th>內容</th></tr></thead>
+  <tbody>
+    <tr><td>manifest 品牌名</td><td><code>public/_locales/{en,ja,zh_TW}/messages.json</code></td>
+      <td><code>extName</code>／<code>extShortName</code>／<code>extDescription</code>。<code>default_locale: 'en'</code></td></tr>
+    <tr><td>UI 字串</td><td><code>utils/ui-i18n.ts</code>（<code>t(key, vars?)</code>）</td>
+      <td>面板／popup／overview 的全部介面文字。<code>STRINGS</code> 是
+        <code>Record&lt;Lang, {...}&gt;</code>，每語約 700 條、三語共約 2100 條</td></tr>
+    <tr><td>遊戲資料名稱</td><td><code>utils/gamedata-i18n.ts</code></td>
+      <td><code>SHIP_NAMES</code>／<code>GEAR_NAMES</code> 對照表；<code>localizeShip</code>／<code>localizeGear</code></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>頁面標題由 panel／popup／overview <strong>執行期</strong>以 <code>t('ov.brandShort')</code> 改寫
+      <code>document.title</code>。<strong>HTML 不做 <code>__MSG_</code> 代換</strong>（只有 manifest 與 CSS 會）。</li>
+  <li>manifest 與 <code>ui-i18n</code> 的品牌名<strong>必須逐語言一致</strong>，
+      <code>tests/manifest.test.ts</code> 常駐把關。</li>
+  <li>語言／主題偏好存 <code>localStorage</code>（<code>kc-panel-lang</code>／<code>kc-theme</code>），
+      跨頁即時同步靠 DOM <code>storage</code> 事件（<code>onPrefsChange()</code>）。
+      SW 不使用 <code>ui-prefs</code>；跑在 dmm.com 的視窗適應工具列讀 <code>db.meta['game-page'].lang</code> 鏡像
+      （跨 origin，讀不到擴充頁面的 localStorage）。</li>
+</ul>
+<div class="box hard">
+  <span class="tag">load-bearing 佔位字串</span>
+  <p><code>entrypoints/popup/index.html</code> 的 <code>&lt;title&gt;</code> <strong>不可改成實際名字</strong>：
+  WXT 會把它寫進 manifest 的 <code>action.default_title</code> 並蓋過 <code>wxt.config.ts</code> 的設定，
+  改成實際名字會鎖死 tooltip 語言。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s21"><i>21</i>測試矩陣</h2>
+
+<p><code>vitest.config.ts</code>：<code>environment: 'node'</code>、<code>setupFiles: ['./tests/setup.ts']</code>
+（載入 <code>fake-indexeddb/auto</code>）、<code>include: ['tests/**/*.test.ts']</code>、alias <code>@</code> → 專案根。</p>
+
+<table>
+  <thead><tr><th style="width:150px">分類</th><th>測試檔（斷言重點）</th></tr></thead>
+  <tbody>
+    <tr><td>擷取管線</td>
+      <td><code>kcsapi</code>（path 辨識／svdata 還原／fetch body）、
+        <code>runtime-message</code>（失敗後同 captureId 重試一次）、
+        <code>idle-capture-queue</code>（保序、每 slice 一筆）、
+        <code>runtime-reply</code>（回傳 true ＋ onMessage 契約掃描）</td></tr>
+    <tr><td>持久化</td>
+      <td><code>ingestion-persistence</code>（狀態機 ＋ captureId 去重）、
+        <code>background-ingestion-lifecycle</code>（串行 queue ＋ recovery）、
+        <code>db-schema-migration</code>（v9→現行遷移相容）</td></tr>
+    <tr><td>投影／裁剪</td>
+      <td><code>event-projector</code>（persist／state-only ＋ 失敗傳播）、
+        <code>projection-cursor</code>（單調更新）、
+        <code>event-pruning</code>（cursor 限制下的安全裁剪）、
+        <code>state-recovery</code>（baseline 選取）</td></tr>
+    <tr><td>戰鬥／出擊</td>
+      <td><code>sortie-detail</code>（基地各波／支援編組）、
+        <code>sortie-import</code>（格式拒絕／去重／落地）、
+        <code>replay-snapshot</code>、<code>replay-difficulty</code>、
+        <code>map-node-letters</code>（61-5 ground truth）、<code>map-node-kind</code>、<code>map-master</code></td></tr>
+    <tr><td>資料檢視</td>
+      <td><code>ship-roster</code>、<code>ships-overview</code>、<code>ship-filter</code>、
+        <code>ship-nationality</code>、<code>ship-obtained</code>、
+        <code>gear-inventory</code>、<code>equipment-overview</code>、
+        <code>sortie-log-overview</code>、<code>exped-log-overview</code>、<code>expedition-stats</code></td></tr>
+    <tr><td>資源／活動</td>
+      <td><code>resource-capture</code>、<code>resource-log</code>、<code>event-plan</code>、<code>quest-progress</code>、<code>repair</code></td></tr>
+    <tr><td>匯出入／備份</td>
+      <td><code>csv</code>、<code>drop-log-import</code>、<code>build-log-import</code>、
+        <code>backup</code>、<code>backup-v4-event-plans</code>、<code>backup-v5-resources</code>、
+        <code>backup-ui-i18n</code>、<code>retention</code>、<code>viewer-html</code></td></tr>
+    <tr><td>遊戲頁功能</td>
+      <td><code>theater</code>（框辨識／縮放／裁切／CSS）、<code>audio-mute</code>、
+        <code>screenshot</code>（DPR 換算）、<code>game-page</code>（match pattern）</td></tr>
+    <tr><td>建置契約</td>
+      <td><code>manifest</code>（<b>正式建置 host_permissions 為空</b>、權限集、i18n 佔位一致）、<code>debug-ui</code></td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s22"><i>22</i>產生物與工具鏈</h2>
+
+<div class="box hard">
+  <span class="tag">產生物勿手改</span>
+  <table>
+    <thead><tr><th style="width:290px">產生物</th><th>來源與產生器</th></tr></thead>
+    <tbody>
+      <tr><td><code>utils/map-edge-letters.ts</code></td>
+        <td><code>tools/map-edges/edges.json</code>（KC3Kai MIT 副本）→ <code>tools/map-edges/generate.py</code></td></tr>
+      <tr><td><code>utils/ship-debut-data.ts</code></td>
+        <td><code>samples/ship-debut-dates.json</code> ＋ <code>start2-master.json</code> → <code>tools/ship-debut/generate.py</code></td></tr>
+      <tr><td><code>public/icons/**.svg</code>（75 顆）</td>
+        <td><code>tools/icons/</code>：<code>gen_icons.py</code>（裝備 61 ＋ 資源 8）、<code>gen_planes.py</code>、
+          <code>gen_ui.py</code>（6）、<code>normalize.py</code>。<b>改圖示前先讀其 README</b></td></tr>
+      <tr><td><code>public/icon/*.png</code>（5）</td>
+        <td><code>tools/app-icon/chronometer.svg</code> → Chrome headless</td></tr>
+      <tr><td><code>docs/architecture-*.svg</code>（3）</td>
+        <td><code>tools/architecture/generate.py</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>其他工具</h3>
+<ul>
+  <li><code>tools/preview/</code>：離線 HTML 預覽產生器（<strong>不進 bundle</strong>），
+      共用各 section 的 <code>shellHtml()</code> 與同一份 CSS，餵真實封包資料、不連遊戲。
+      <code>npx vite-node --config vitest.config.ts tools/preview/sortie-log.ts</code>
+      → <code>.preview/sortie-log{,-light}.html</code>。目前有 <code>sortie-log</code>、
+      <code>resource-log</code>、<code>fleet-overview</code> 三支。</li>
+  <li><code>samples/</code>：真實封包樣本（驗證 fixture）＋ 機體／UI 參照圖。
+      <strong>PII 已於 2026-07-27 清除</strong>。</li>
+</ul>
+
+<h3>核心邏輯的獨立驗證</h3>
+<pre><code>npx tsc --skipLibCheck --target ES2020 --module ES2020 --moduleResolution bundler \
+    --outDir /tmp/out utils/state.ts
+# 編譯後需把 /tmp/out/state.js 的相對 import 補 .js 副檔名，再用 node 匯入測試</code></pre>
+
+<h3>第三方來源</h3>
+<p>第三方邏輯採 <strong>clean-room 重寫</strong>（標 <code>inspired by KC3Kai, MIT</code>），
+登錄 <code>THIRD-PARTY-NOTICES.md</code>。已引用：KC3Kai（節點 edge 資料、battleplayer 格式）、
+poi（遠征需求資料）、航海日誌拡張版（節點類型語意、CSV 相容格式）、wikiwiki（先制對潛、TP 表）。</p>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s23"><i>23</i>已知未驗證事項</h2>
+
+<div class="box hard">
+  <span class="tag">重建時不得「順手補完」</span>
+  <p>以下項目<strong>沒有真封包佐證</strong>。實作時必須保持現狀（回 <code>null</code>／顯示原始值／
+  標示為預估），<strong>不可</strong>因為「看起來應該是這樣」就寫死語意。</p>
+</div>
+
+<table>
+  <thead><tr><th style="width:230px">項目</th><th>現況</th></tr></thead>
+  <tbody>
+    <tr><td>基地空襲 <code>api_destruction_battle</code></td>
+      <td>頂層 key 名稱與 <code>api_lost_kind</code> 各值語意仍需原始封包確認。
+        已知 <code>api_air_base_attack</code> 在此處<b>是物件不是陣列</b></td></tr>
+    <tr><td><code>api_mst_slotitem</code> icon id</td>
+      <td>41「輸送機材」對應何物未證實；56–60 正式名稱仍為推定</td></tr>
+    <tr><td>節點字母新活動開圖</td>
+      <td>上游 <code>edges.json</code> 未更新前顯示原始 edge 編號（<b>正確行為</b>，不是 bug）</td></tr>
+    <tr><td>燃彈</td><td>活動特殊點按普通處理；大漩渦電探減免待 <code>api_happening</code> 封包</td></tr>
+    <tr><td>gaugeType 3（TP 輸送）</td><td>量表欄位缺真實封包；TP 表新變種裝備待補值</td></tr>
+    <tr><td>斬殺偵測的即時性</td><td>欄位判定已定案；只剩「擊破當下是否即時推 mapinfo」待觀測</td></tr>
+    <tr><td>活動札三項</td>
+      <td>① 札 id 實際語意（樣本皆非活動期，值全 0）② 札名是否存在於任何封包
+        （<code>nameSource</code> 的 <code>'auto'</code> 分支預留但目前不會被寫入）
+        ③ <code>api_sally_flag</code> 是否為出擊制限旗標。驗證鉤子已埋在 <code>wantedTag</code></td></tr>
+    <tr><td>友軍艦隊雷擊</td><td><code>processFriendlyRaigeki</code> 無真封包樣本，屬防禦性預留</td></tr>
+    <tr><td>演習結果端點</td>
+      <td><code>practiceAttempt</code>／<code>practiceWin</code> 的路徑與判定僅依社群慣例推定，
+        <b>不影響戰鬥預測主邏輯</b></td></tr>
+    <tr><td>遠征回航道具</td><td>欄位語意未驗證，一律 <code>id × count</code> 原樣彙總，不併入四資源小計</td></tr>
+    <tr><td>強力友軍艦隊</td>
+      <td>支援消耗高速建造材（使用者提供之遊戲設定，非封包驗證）。與現有
+        <code>api_friendly_battle</code> 是不同層次（出擊前選項 vs 戰鬥中友軍）</td></tr>
+    <tr><td>視窗適應／靜音實機</td>
+      <td>三項待驗：跨源框是否存在、艦これ用 WebAudio 還是 media 元素、stacking context 偏移。
+        可用 <code>__kcAudio.contextCount()</code> ＋ devtools 快速定案</td></tr>
+    <tr><td>拍照的相機鈕</td>
+      <td>視窗適應工具列的相機鈕是<b>頁面內容點擊</b>，不算「呼叫擴充」，
+        靠這次分頁生命週期裡稍早是否已開過 popup 讓 <code>activeTab</code> 生效。尚未實機遇過失敗</td></tr>
+    <tr><td>補強增設可裝備規則</td>
+      <td><code>api_mst_equip_exslot_ship</code> 等三張表尚未完全解讀應用</td></tr>
+  </tbody>
+</table>
+
+<h3>尚未實作（有意識的缺口，非遺漏）</h3>
+<ul>
+  <li>泊地修理／給糧的背景 alarms 提醒；緊急泊地修理（連合艦隊出擊中機制，封包未驗證）。</li>
+  <li>任務進度：敵艦種擊沉數計數（8 筆）、指名艦娘／艦型編成比對（日週月約 6 筆＋年常 55 筆）
+      ——這兩類需要全新偵測機制。其餘帶複合條件的任務只記錄不實作（<code>QUEST_SPECIAL_CONDITIONS</code>）。</li>
+  <li>掉落統計彙總（資料已在 <code>db.sorties.drop</code>，缺 UI 彙總視圖）。</li>
+  <li>M4 殘項：side panel 選配、視窗位置記憶、Firefox 打包驗證。</li>
+  <li>overview 分頁單例化（已開啟就聚焦既有分頁；無 <code>tabs</code> 權限時需仿面板的 ping 機制）。</li>
+</ul>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<h2 id="s24"><i>24</i>詞彙表</h2>
+
+<table>
+  <thead><tr><th style="width:210px">詞</th><th>意思</th></tr></thead>
+  <tbody>
+    <tr><td><b>kcsapi</b></td><td>遊戲的 HTTP API 端點前綴。本專案的 <code>path</code> 一律指去掉
+      <code>/kcsapi/</code> 之後的部分，形如 <code>api_port/port</code></td></tr>
+    <tr><td><b>svdata=</b></td><td>遊戲回應正文的前綴，剝掉之後才是 JSON</td></tr>
+    <tr><td><b>api_data</b></td><td>回應 JSON 的實際酬載欄位。本專案的 <code>api</code> 欄位存的是它</td></tr>
+    <tr><td><b>master / mst</b></td><td>來自 <code>api_start2/getData</code> 的靜態定義表（艦種、裝備、海域…）。
+      <b>master id</b> ＝ 種類編號；<b>api_id</b> ＝ 玩家持有的實例編號</td></tr>
+    <tr><td><b>raw event</b></td><td><code>db.events</code> 的一列，＝一則原始封包</td></tr>
+    <tr><td><b>derived table</b></td><td>由 EventProjector 投影出來的四張表：
+      <code>sorties</code>／<code>replays</code>／<code>factory</code>／<code>expeditions</code></td></tr>
+    <tr><td><b>projection cursor</b></td><td><code>meta['projection'].throughEventId</code>：
+      「已投影到哪一筆 raw event」。裁剪的安全上界</td></tr>
+    <tr><td><b>snapshot</b></td><td><code>db.snapshot</code>：不受裁剪影響的 GameState baseline。
+      <b>不是 derived table，不可投影</b></td></tr>
+    <tr><td><b>sortieKey</b></td><td>一次出擊的識別＝其 <code>api_req_map/start</code> 事件 id</td></tr>
+    <tr><td><b>札 / sally</b></td><td>活動海域的出撃制限標籤（<code>api_sally_area</code>）。
+      船身屬性，一船一札，貼上不可逆</td></tr>
+    <tr><td><b>LBAS</b></td><td>基地航空隊（base air corps）</td></tr>
+    <tr><td><b>seiku</b></td><td>制空狀態：0 互角／1 確保／2 優勢／3 劣勢／4 喪失</td></tr>
+    <tr><td><b>taiha / 大破</b></td><td>艦艇 HP 降至危險區；本專案的核心警告之一</td></tr>
+    <tr><td><b>TP</b></td><td>輸送作戰的輸送量（gaugeType 3）</td></tr>
+    <tr><td><b>ndock / kdock</b></td><td>入渠（修理）渠／建造渠</td></tr>
+    <tr><td><b>cond</b></td><td>士氣（疲勞）。49 ＝ 回復完成點，53+ ＝ キラキラ</td></tr>
+    <tr><td><b>MAIN / ISOLATED world</b></td><td>content script 的兩種執行環境：
+      前者與頁面共用 JS 環境（可 hook <code>fetch</code>）但沒有 <code>browser.*</code>；後者相反</td></tr>
+  </tbody>
+</table>
+
+<hr>
+<p class="meta">
+  本文件描述 <code>fleet-chronometer</code> v1.0.0（Dexie schema v12、備份 schema v5、
+  projection cursor v3）。與程式碼衝突時以程式碼與 <code>tests/</code> 為準。
+</p>
+
+</main>
+</div>
+
+<script>
+// scroll-spy：只標示目前所在章節，無其他行為。
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  var heads = Array.prototype.slice.call(document.querySelectorAll('main h2[id]'));
+  if (!heads.length || !('IntersectionObserver' in window)) return;
+  var visible = new Set();
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id);
+    });
+    var current = heads.filter(function (h) { return visible.has(h.id); })[0];
+    if (!current) return;
+    links.forEach(function (a) { a.classList.remove('on'); });
+    if (map[current.id]) map[current.id].classList.add('on');
+  }, { rootMargin: '0px 0px -70% 0px' });
+  heads.forEach(function (h) { observer.observe(h); });
+})();
+</script>
+</body>
+</html>

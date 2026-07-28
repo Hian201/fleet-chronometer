@@ -2,7 +2,7 @@
   "name": "fleet-chronometer",
   "description": "Passive KanColle monitor for fleets, expeditions, battles, history, replays, and local backups.",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0-beta.1",
   "type": "module",
   "scripts": {
     "dev": "wxt",
