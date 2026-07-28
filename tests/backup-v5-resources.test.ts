@@ -8,7 +8,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { KcDb, type ResourceMarkRow, type ResourceRow } from '../utils/db';
 import {
-    BACKUP_SCHEMA_VERSION, BackupValidationError, buildRestoreEnvelope,
+    BACKUP_SCHEMA_VERSION, BackupValidationError, buildFullEnvelope,
     highestReferencedEventId, restoreBackup, validateBackupEnvelope,
 } from '../utils/backup';
 
@@ -45,7 +45,7 @@ const v5Restore = (extra?: Partial<Record<string, unknown[]>>) => ({
 });
 
 describe('版本協商', () => {
-    it('目前版本為 5', () => expect(BACKUP_SCHEMA_VERSION).toBe(5));
+    it('目前版本為 6', () => expect(BACKUP_SCHEMA_VERSION).toBe(6));
 
     it('v5 restore 必須含 resources 與 resourceMarks', () => {
         for (const missing of ['resources', 'resourceMarks']) {
@@ -112,7 +112,7 @@ describe('匯出與還原往返', () => {
     it('匯出的 envelope 帶資源紀錄兩張表', async () => {
         await database.resources.bulkPut(RESOURCES);
         await database.resourceMarks.bulkPut(MARKS);
-        const envelope = await buildRestoreEnvelope(database);
+        const envelope = await buildFullEnvelope(database);
         expect(envelope.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
         expect(envelope.tables.resources?.map(r => r.eventId)).toEqual([101, 205]);
         expect(envelope.tables.resourceMarks?.map(r => r.key).sort())

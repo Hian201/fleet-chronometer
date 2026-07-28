@@ -23,7 +23,7 @@
 
 import type { OwnedShipView } from './state';
 import {
-    filterShips, nationOptions as sharedNationOptions,
+    filterShips,
     type EquipFilter, type ShipFilterState, type SpeedFilter,
 } from './ship-filter';
 import { NATIONS, nationOf, type Nation } from './ship-nationality';
@@ -379,19 +379,6 @@ export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir
         return r || a.id - b.id;
     });
 }
-
-/**
- * 名冊裡實際出現的國籍（依 NATIONS 顯示順序）＋各自艘數。
- * **只列有船的國家**——同艦種篩選的規則：把十二個國家全排出來，其中一半是 0 艘，
- * 會讓「我有哪些外國艦」這個第一眼問題淹沒在按不出結果的選項裡。
- * 不可考（nation 為 null）不列成選項，那不是一個可篩選的類別。
- */
-export function nationOptions(ships: RosterShip[]): { nation: Nation; count: number }[] {
-    // 實作在 ship-filter（國籍已是共用維度，活動作戰板的右欄清單也用）。
-    // 此處保留同名匯出，維持艦娘全覽既有呼叫端與測試不必改。
-    return sharedNationOptions(ships);
-}
-
 
 // ── 分頁 ────────────────────────────────────────────────────────────────
 

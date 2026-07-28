@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { KcDb, type EventPlanRow } from '../utils/db';
 import { resolveSallyRoster } from '../utils/event-plan';
 import {
-    BACKUP_SCHEMA_VERSION, BackupValidationError, buildRestoreEnvelope,
+    BACKUP_SCHEMA_VERSION, BackupValidationError, buildFullEnvelope,
     restoreBackup, validateBackupEnvelope,
 } from '../utils/backup';
 
@@ -145,7 +145,7 @@ describe('匯出與還原往返', () => {
 
     it('匯出的 envelope 帶 eventPlans 且為目前版本', async () => {
         await database.eventPlans.bulkPut([samplePlan(62), samplePlan(63)]);
-        const envelope = await buildRestoreEnvelope(database);
+        const envelope = await buildFullEnvelope(database);
         expect(envelope.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
         expect(envelope.tables.eventPlans?.map(p => p.areaId).sort()).toEqual([62, 63]);
     });
@@ -171,7 +171,7 @@ describe('匯出與還原往返', () => {
 
     it('自製匯出可直接還原（真正的往返）', async () => {
         await database.eventPlans.put(samplePlan());
-        const envelope = await buildRestoreEnvelope(database);
+        const envelope = await buildFullEnvelope(database);
 
         const fresh = new KcDb(`backup-v4-roundtrip-${dbIndex++}`);
         await fresh.open();

@@ -132,7 +132,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `entrypoints/overview/main.ts` | 側欄導覽＋hash 路由＋語言/主題套用（`renderSection()` 用 try/catch 接住分區例外並顯示原因，不留白）；另管**側欄三態**（釘選／收合／浮層滑入，`body[data-nav]`＋localStorage `kc-overview-nav`）與**側欄左右側**（`body[data-nav-side]`＋localStorage `kc-overview-nav-side`，與三態正交、純版面鏡射）。窄視窗（≤760px）強制不釘選，且按鈕改切浮層開合——此時去切釘選會毫無反應等於按鈕壞掉。**靠右時 hover 熱區整個關掉**（右緣是內容捲軸的地盤，hover 熱區在那裡會跟拖曳捲軸互搶而一直開合亂跳，任何寬度都會發生，不是窄視窗限定）；`#nav-toggle`／`#nav-side-toggle` 兩顆按鈕也用 CSS `order` 跟著側欄換邊，避免按鈕留在左上角、側欄卻彈在右邊的「按了沒反應」錯覺。**曾經真的讓靠右的側欄完全彈不出來**：靠右的收起規則帶了 `[data-nav-side="right"]`，specificity 比三態泛用的展開規則高，展開規則永遠打不贏，`#nav` 卡在 `translateX(100%)` 出不來——已用 `playwright-core`（`channel:"chrome"` 指向系統 Chrome）實際跑 `.output/chrome-mv3/overview.html` 量測 `#nav` 的 bounding rect 抓到並補上同 specificity 的靠右展開規則修好，見 design-guidelines §4.4 的 specificity 陷阱段落 |
 | `entrypoints/overview/lib.ts` | `loadGameState()` 依 `planStateRecovery()` 選安全 snapshot baseline 再重播 raw events；overview 不投影、不寫 derived tables |
 | `entrypoints/overview/fsa.ts` | File System Access API 封裝（**零 manifest 權限**的資料夾備份）：目錄選取（`showDirectoryPicker`）、讀寫權限請求、寫檔；目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，非 Dexie）。使用者選一次同步夾（Google Drive Desktop／WebDAV 掛載磁碟…），上雲交給桌面同步客戶端。**選它而非 Drive/WebDAV 原生 API 的理由見檔頭**（後者需 identity/host_permissions，違反權限精簡） |
-| `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-replays.json` 即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁。由 `backup` 分區寫進備份資料夾，讓存檔「沒有擴充也能提取單場」 |
+| `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-backup.json` 即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁，亦相容舊 `kanmusu-replays.json`。由 `backup` 分區寫進備份資料夾，讓存檔「沒有擴充也能提取單場」 |
 | `entrypoints/overview/prompt-api.d.ts` | Chrome 內建 AI「Prompt API」（`LanguageModel`）的最小環境型別宣告，供 `llm.ts` 特徵偵測使用；見「LLM 分析子系統」 |
 | `entrypoints/panel/index.html` | 面板結構與 CSS（深色艦これ風） |
 | `entrypoints/panel/main.ts` | 面板控制器：以 `EventProjector` state-only/persist 兩階段重播與 live 投影、只在成功後推進 cursor、渲染與 autoSwitch |
@@ -708,17 +708,17 @@ Google Drive／WebDAV 原生 API 需 `identity`(OAuth)＋`host_permissions`（go
 handle 仍在但需使用者手勢重新授權（`queryPermission`→`requestPermission`）。無 FSA 支援
 的瀏覽器（Firefox/Safari）退回純下載。
 
-**(B) 備份拆兩檔（`backup.ts`），並附離線提取器。** `kanmusu-restore.json`＝重建現狀所需
-的最小子集（snapshot＋sorties/expeditions/factory/wanted/shipObtained/**eventPlans**/**resources**/**resourceMarks**），永遠很小、覆寫同名滾動；
-`kanmusu-replays.json`＝重播層（`db.replays`，每場原始戰鬥封包，會隨出擊數線性膨脹——這正是
-KC3Kai 備份 300MB＋的同源資料），還原狀態不需要它、可獨立裁剪。資料夾備份會一併寫入
-`viewer.html`（`viewer-html.ts`）：單檔離線、內聯 `toKc3Replay`，任何人用瀏覽器開它、載入
-replays JSON 就能逐場複製 battleplayer 物件／開公開重播頁，**不需要擴充**——存檔因此是自描述、
-可單場提取的。現行 `BACKUP_SCHEMA_VERSION` 為 **5**（帶 `kind: restore|replays`）：v1 legacy-full、
-v2 split、v3／v4 restore 仍依各自固定表組合相容；v4 restore 必含 `eventPlans`，v5 再必含
-`resources`＋`resourceMarks`。restore 與 replays 是可依序
-接續的 split 檔，不是 merge：只接受乾淨 destination，或由 `backup-restore` marker 證明的 complementary
-檔；所有 preflight、寫入、event ID reservation／high-water 與 marker 都在同一 transaction，失敗完整 rollback。
+**(B) 備份改為單一完整檔（2026-07-28，取代原本拆兩檔的預設）。** `kanmusu-backup.json`
+同時帶 snapshot、所有永久紀錄與 `db.replays`。先前把出擊摘要與原始戰鬥封包拆開，並沒有壓縮
+總大小；少帶 replay 時雖能看到出擊卡，卻無法還原編成、逐節點戰鬥、支援與基地航空隊，故不再
+稱得上還原。空間管理仍由保留規則明確決定，裁剪後的詳情不會在後續完整備份中假裝存在。
+
+`viewer.html`（`viewer-html.ts`）隨資料夾備份一併寫入：單檔離線、內聯 `toKc3Replay`，任何人用
+瀏覽器開它、載入完整備份就能逐場複製 battleplayer 物件／開公開重播頁，**不需要擴充**。
+現行 `BACKUP_SCHEMA_VERSION` 為 **6**（`kind: full`）；v1 legacy-full 可單檔匯入，v2–v5 的
+restore/replays 拆分備份則可同次選取，或分兩次選取後由介面只在記憶體暫存、湊成一對；再正規化成完整 v6，並以
+一個 transaction 還原。所有 preflight、寫入、event ID reservation／high-water 與 marker 都在
+同一 transaction，任一失敗完整 rollback。
 
 **(C) 重播保留規則（`utils/retention.ts`＋backup 分區「重播層裁剪」UI＋sortie-log 釘選/刪除）。**
 玩家取捨＝「大部分週回/路過場是耗材、少數關鍵場是紀念品」，故先保護、剩下才進裁剪窗。

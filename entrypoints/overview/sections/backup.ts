@@ -1,25 +1,24 @@
 // 資料備份與還原：真正「可還原」的結構化 JSON 匯出/匯入，跟 llm.ts 的完整報告
 // （Markdown，設計給人/LLM 讀、近期紀錄節錄、不可逆解析）是完全不同性質的東西。
 //
-// 檔案分層（Phase 1 定案）：刻意拆成兩個檔案——
-//   · kanmusu-restore.json（輕量還原檔）：db.snapshot（母港快照，見 utils/db.ts
-//     SnapshotRow——全新安裝匯入後靠它立即重建艦娘/裝備/艦隊/基地航空隊，不必等重新登入）
-//     ＋ sorties/expeditions/factory（永久保留的消化後摘要，每筆 <1KB）＋ wanted。
-//     永遠很小、每次覆寫同檔名滾動，是「還原目前狀態」所需的最小必要子集。
-//   · kanmusu-replays.json（重播層）：db.replays（每次出擊原始戰鬥封包＋艦隊快照，
-//     每筆數 KB～數十 KB，會隨出擊數線性膨脹——這正是 KC3Kai 備份長到 300MB＋的同源
-//     資料）。獨立成檔，之後（Phase 2）依保留規則裁剪；還原狀態「不需要」它。
-// 刻意不含：db.events（原始封包日誌，本就設計成會被裁剪，db.snapshot 已是重建現狀的
-//   最小子集）與 localStorage 偏好（語言/主題）。
+// 現行備份是一個完整檔：snapshot／各種紀錄摘要／**replays 原始戰鬥封包**一起匯出。
+// sorties 只有摘要，沒有 replay 就無法重建出擊時編成、逐節點戰鬥、支援與基地航空隊；
+// 因此「只還原狀態、出擊詳情遺失」不再是預設還原路徑。檔案大小由明確的重播保留規則
+// 管理，而不是讓使用者在備份時少拿一個必要檔案。
 //
-// 資料夾備份（FSA）：把上述兩檔＋離線提取器 viewer.html 一次寫進使用者選定的資料夾
+// 仍可一次選取舊版 kanmusu-restore.json + kanmusu-replays.json 進行遷移；核心會先在
+// 記憶體驗證並合併，最後以一個 IndexedDB transaction 寫入，缺任一檔不會留下半套資料。
+// 刻意不含：db.events（原始封包日誌，本就設計成會被裁剪，db.snapshot 已是重建現狀的
+// 最小子集）與 localStorage 偏好（語言/主題）。
+//
+// 資料夾備份（FSA）：把完整備份檔＋離線提取器 viewer.html 一次寫進使用者選定的資料夾
 // （可指向 Google Drive Desktop／WebDAV 掛載磁碟等同步夾），上雲同步交給桌面同步客戶端，
 // 擴充零新權限（見 fsa.ts 開頭決策脈絡）。無 FSA 支援的瀏覽器退回純下載。
 import type { OverviewSection } from './types';
 import { db } from '@/utils/db';
 import {
-    BackupDestinationError, BackupValidationError, buildReplaysEnvelope, buildRestoreEnvelope,
-    countBackupRecords, parseBackupJson, restoreBackup,
+    BackupDestinationError, BackupValidationError, buildFullEnvelope, combineBackupEnvelopes,
+    countBackupRecords, parseBackupJson, restoreBackup, type ValidatedBackupEnvelope,
 } from '@/utils/backup';
 import { t } from '@/utils/ui-i18n';
 import { esc, downloadText, fmtTs } from '../lib';
@@ -54,8 +53,7 @@ function unclearedMapsOf(state: GameState): Set<string> {
     return s;
 }
 
-const RESTORE_FILE = 'kanmusu-restore.json';
-const REPLAYS_FILE = 'kanmusu-replays.json';
+const BACKUP_FILE = 'kanmusu-backup.json';
 const VIEWER_FILE = 'viewer.html';
 
 export const backupSection: OverviewSection = {
@@ -79,10 +77,9 @@ export const backupSection: OverviewSection = {
             <h3 class="ov-subhead">${esc(t('ov.backupFileTitle'))}</h3>
             <p class="ov-note dim">${esc(t('ov.backupFileIntro'))}</p>
             <div class="ov-toolbar">
-                <button class="ov-btn" id="backup-export-restore">${esc(t('ov.backupExportRestore'))}</button>
-                <button class="ov-btn" id="backup-export-replays">${esc(t('ov.backupExportReplays'))}</button>
+                <button class="ov-btn" id="backup-export">${esc(t('ov.backupExport'))}</button>
                 <button class="ov-btn" id="backup-import">${esc(t('ov.backupImport'))}</button>
-                <input type="file" id="backup-file" accept="application/json,.json" style="display:none">
+                <input type="file" id="backup-file" accept="application/json,.json" multiple style="display:none">
             </div>
             <p id="backup-status" class="ov-note dim"></p>
 
@@ -104,16 +101,13 @@ export const backupSection: OverviewSection = {
 
         const status = el.querySelector<HTMLElement>('#backup-status')!;
         const fileInput = el.querySelector<HTMLInputElement>('#backup-file')!;
+        // 舊版 split 備份可在兩次檔案選擇中配對；只留在本頁記憶體，湊齊前絕不碰 DB。
+        let pendingLegacySplit: ValidatedBackupEnvelope | undefined;
 
-        // ── 檔案匯出（fallback／個別下載）──
-        el.querySelector('#backup-export-restore')!.addEventListener('click', async () => {
-            const env = await buildRestoreEnvelope(db);
-            downloadText(RESTORE_FILE, JSON.stringify(env), 'application/json');
-            status.textContent = t('ov.backupExported', { n: countBackupRecords(env.tables) });
-        });
-        el.querySelector('#backup-export-replays')!.addEventListener('click', async () => {
-            const env = await buildReplaysEnvelope(db);
-            downloadText(REPLAYS_FILE, JSON.stringify(env), 'application/json');
+        // ── 檔案匯出（fallback／單檔下載）──
+        el.querySelector('#backup-export')!.addEventListener('click', async () => {
+            const env = await buildFullEnvelope(db);
+            downloadText(BACKUP_FILE, JSON.stringify(env), 'application/json');
             status.textContent = t('ov.backupExported', { n: countBackupRecords(env.tables) });
         });
 
@@ -146,11 +140,10 @@ export const backupSection: OverviewSection = {
                 if (!(await ensureRw(dir))) { folderStatus.textContent = t('ov.backupFolderDenied'); return; }
                 folderStatus.textContent = t('ov.backupWriting');
                 try {
-                    const [restore, replays] = await Promise.all([buildRestoreEnvelope(db), buildReplaysEnvelope(db)]);
-                    await writeFileTo(dir, RESTORE_FILE, JSON.stringify(restore));
-                    await writeFileTo(dir, REPLAYS_FILE, JSON.stringify(replays));
+                    const backup = await buildFullEnvelope(db);
+                    await writeFileTo(dir, BACKUP_FILE, JSON.stringify(backup));
                     await writeFileTo(dir, VIEWER_FILE, viewerHtml());
-                    const total = countBackupRecords(restore.tables) + countBackupRecords(replays.tables);
+                    const total = countBackupRecords(backup.tables);
                     folderStatus.textContent = t('ov.backupWrittenTo', { name: dirName(dir), n: total });
                 } catch (e) {
                     folderStatus.textContent = t('ov.backupWriteError', { msg: String(e) });
@@ -158,22 +151,65 @@ export const backupSection: OverviewSection = {
             });
         }
 
-        // ── 匯入（restore／replays／legacy-full 三種 envelope 皆吃）──
+        // ── 匯入（v6 full 單檔；v1 legacy-full；v2–v5 restore + replays 舊雙檔）──
         el.querySelector('#backup-import')!.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', async () => {
-            const file = fileInput.files?.[0];
+            const files = [...(fileInput.files ?? [])];
             fileInput.value = '';   // 允許使用者連續選同一個檔案也能再次觸發 change
-            if (!file) return;
+            if (!files.length) return;
 
-            let env;
+            let parsed: ValidatedBackupEnvelope[];
             try {
-                // 不可信的 JSON 只會在核心通過完整 runtime validation 後才取得可寫入的 env。
-                env = parseBackupJson(await file.text());
+                // 不可信的 JSON 先逐檔完整驗證；尚未配對的舊 split 檔只會留在記憶體。
+                parsed = await Promise.all(files.map(async file =>
+                    parseBackupJson(await file.text()),
+                ));
             } catch (e) {
                 status.textContent = e instanceof BackupValidationError
                     ? t('ov.backupBadFile')
                     : t('ov.backupImportError', { msg: e instanceof Error ? e.message : String(e) });
                 return;
+            }
+
+            let env: ValidatedBackupEnvelope;
+            const isLegacySplit = (candidate: ValidatedBackupEnvelope) =>
+                candidate.kind === 'restore' || candidate.kind === 'replays';
+
+            if (parsed.length === 1 && isLegacySplit(parsed[0])) {
+                if (!pendingLegacySplit) {
+                    pendingLegacySplit = parsed[0];
+                    status.textContent = t('ov.backupNeedComplement');
+                    return;
+                }
+
+                try {
+                    // 只有 restore + replays 的正確一對能通過；完成後才繼續確認與 transaction。
+                    env = combineBackupEnvelopes([pendingLegacySplit, parsed[0]]);
+                    pendingLegacySplit = undefined;
+                } catch (e) {
+                    // 同類型、跨備份或其他錯配不可讓舊暫存檔殘留，下一次從頭開始。
+                    pendingLegacySplit = undefined;
+                    status.textContent = e instanceof BackupValidationError
+                        ? t('ov.backupBadFile')
+                        : t('ov.backupImportError', { msg: e instanceof Error ? e.message : String(e) });
+                    return;
+                }
+            } else {
+                // 已暫存一份 split 檔時，下一次必須只選它的配對檔，避免把三份來源混在一起。
+                if (pendingLegacySplit) {
+                    pendingLegacySplit = undefined;
+                    status.textContent = t('ov.backupBadFile');
+                    return;
+                }
+                try {
+                    // 同次選到舊雙檔時同樣由核心合併為完整 v6 envelope；單獨 split 會被拒絕。
+                    env = combineBackupEnvelopes(parsed);
+                } catch (e) {
+                    status.textContent = e instanceof BackupValidationError
+                        ? t('ov.backupBadFile')
+                        : t('ov.backupImportError', { msg: e instanceof Error ? e.message : String(e) });
+                    return;
+                }
             }
 
             const total = countBackupRecords(env.tables);

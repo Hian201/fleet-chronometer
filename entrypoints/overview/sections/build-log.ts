@@ -3,8 +3,9 @@
 import type { OverviewSection } from './types';
 import { db, type FactoryLogRow } from '@/utils/db';
 import {
-    buildLogCsvText, BuildLogImportError, importBuildLogRows, parseBuildLogCsv, reverseShipLookup,
+    buildLogCsvText, BuildLogImportError, importBuildLogRows, parseBuildLogCsv,
 } from '@/utils/build-log-import';
+import { reverseShipLookup } from '@/utils/drop-log-import';
 import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import {

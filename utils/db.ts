@@ -257,8 +257,8 @@ export interface ProjectionMetaRow {
 }
 
 // 安全還原 session metadata。沿用 v10 已存在的 meta object store，不改 IndexedDB
-// schema/version；用途只是在 restore/replays 拆檔之間辨識「目前非空資料確實來自前一個
-// 已完成的安全匯入」，不能用來宣稱兩個拆檔必然來自同一份來源備份。
+// schema/version；v6 完整備份以一次 transaction 同時標兩項完成，v1–v5 舊拆檔才用它辨識
+// 「目前非空資料確實來自前一個已完成的安全匯入」。不能用它宣稱舊兩檔必然同源。
 export interface BackupRestoreMetaRow {
     key: 'backup-restore';
     importedRestore: boolean;
@@ -331,6 +331,12 @@ export interface EventPlanRow {
      * 非索引 optional 欄位——不升 Dexie schema 版本。
      */
     planByShip?: Record<number, number>;
+    /**
+     * 出擊觀測到的「mapKey → 貼出過的標籤 id[]」。
+     * raw events 會被 M6 裁剪、restore 也不含 events——若不把觀測寫進計畫，第二條路線貼出的
+     * 標籤會永遠停在「共用」。只增不減（標籤一旦觀測過就是事實）。非索引 optional。
+     */
+    observedGrants?: Record<number, number[]>;
 }
 
 // 資源時間序列（「資源紀錄」分區）。**與 db.snapshot 的分工是「歷史 vs 現狀」**：

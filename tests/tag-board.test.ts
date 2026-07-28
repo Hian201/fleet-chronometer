@@ -2,9 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanStage, SallyShip } from '../utils/event-plan';
 import {
-    TAG_COLOR_COUNT, assignPlanTag, boardBudget, cardState, checkRoute, columnGroups,
-    columnOf, defaultColorForTag, knownTagIds, mapsForTag, migrateSlotsToPlanByShip,
-    stypeGroupKey,
+    TAG_COLOR_COUNT, applyObservedTagBindings, assignPlanTag, boardBudget, bindUnboundEstablishedTags,
+    cardState, checkRoute, columnGroups, columnGroupsWithMaps, columnOf, defaultColorForTag,
+    deletePlanTag, grantTagsOnMap, knownTagIds, mapsForTag, mergeObservedGrants,
+    migrateSlotsToPlanByShip, setMapGrantTags, stypeGroupKey, syncPlanFromActual, unbindTagFromMap,
 } from '../utils/tag-board';
 
 const stage = (o: Partial<PlanStage> & { key: string }): PlanStage => ({
@@ -139,5 +140,109 @@ describe('columnGroups / knownTagIds / budget / color', () => {
         expect(stypeGroupKey(11)).toBe('CV');
         expect(stypeGroupKey(2)).toBe('DD');
         expect(stypeGroupKey(16)).toBe('AV');
+    });
+    it('columnGroupsWithMaps：master 空關也出現；無 master 退回 columnGroups', () => {
+        expect(columnGroupsWithMaps([1, 2, 3], [
+            { id: 10, maps: [1] },
+            { id: 11, maps: [] },
+        ])).toEqual([
+            { mapId: 'SHARED', tags: [11] },
+            { mapId: 1, tags: [10] },
+            { mapId: 2, tags: [] },
+            { mapId: 3, tags: [] },
+        ]);
+        expect(columnGroupsWithMaps([], [{ id: 1, maps: [5] }]))
+            .toEqual(columnGroups([{ id: 1, maps: [5] }]));
+    });
+    it('applyObservedTagBindings：觀測到的標籤自動綁關卡；第二標籤開新階段', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: null, allowedTags: [] }),
+            stage({ key: 'm2', mapNo: 2, grantsTag: 3, allowedTags: [3] }),
+        ];
+        const obs = new Map<number, { tagId: number }[]>([
+            [621, [{ tagId: 1 }, { tagId: 2 }]], // area 62 E1
+            [622, [{ tagId: 3 }]],
+        ]);
+        const out = applyObservedTagBindings(stages, [], 62, [1, 2], obs);
+        expect(out.changed).toBe(true);
+        expect(out.tags.map(t => t.sallyArea).sort()).toEqual([1, 2, 3]);
+        expect(out.stages.find(s => s.key === 'm1')?.grantsTag).toBe(1);
+        expect(out.stages.some(s => s.mapNo === 1 && s.phase && s.grantsTag === 2)).toBe(true);
+        expect(out.stages.find(s => s.key === 'm2')?.grantsTag).toBe(3); // 不覆寫
+        // 再跑一次不應再變
+        expect(applyObservedTagBindings(out.stages, out.tags, 62, [1, 2], obs).changed).toBe(false);
+    });
+    it('applyObservedTagBindings：有觀測時清掉誤綁到別關的 grants', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 2, allowedTags: [2] }), // 誤綁
+            stage({ key: 'm2', mapNo: 2, grantsTag: null, allowedTags: [] }),
+            stage({ key: 'p', mapNo: 1, phase: true, grantsTag: null, allowedTags: [], label: '' }),
+        ];
+        const obs = new Map([[622, [{ tagId: 2 }]]]); // 實際在 E2 貼出
+        const out = applyObservedTagBindings(stages, [
+            { sallyArea: 2, name: 'x', nameSource: 'manual' },
+        ], 62, [1, 2], obs);
+        expect(out.stages.find(s => s.key === 'm1')?.grantsTag).toBeNull();
+        expect(out.stages.find(s => s.mapNo === 2)?.grantsTag).toBe(2);
+        expect(out.stages.some(s => s.key === 'p')).toBe(false); // 空 phase 刪除
+    });
+    it('bindUnboundEstablishedTags：未觀測的已貼標籤掛到已有 grants 的最早關', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'm2', mapNo: 2, grantsTag: null, allowedTags: [] }),
+        ];
+        const tags = [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' as const },
+            { sallyArea: 2, name: 'b', nameSource: 'manual' as const },
+        ];
+        const out = bindUnboundEstablishedTags(stages, tags, [1, 2], [1, 2, 3], new Set());
+        expect(out.changed).toBe(true);
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1, 2]);
+        // 觀測已提到的不瞎猜
+        expect(bindUnboundEstablishedTags(stages, tags, [1, 2], [1], new Set([2])).changed).toBe(false);
+    });
+    it('setMapGrantTags：複選會貼標籤＝多階段', () => {
+        const stages = [stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] })];
+        const out = setMapGrantTags(stages, [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' },
+            { sallyArea: 2, name: 'b', nameSource: 'manual' },
+        ], 1, [1, 2]);
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1, 2]);
+        const cleared = setMapGrantTags(out.stages, out.tags, 1, [1]);
+        expect(grantTagsOnMap(cleared.stages, 1)).toEqual([1]);
+    });
+    it('unbindTagFromMap／deletePlanTag：取消誤加的標籤', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'p', mapNo: 1, phase: true, grantsTag: 3, allowedTags: [3], label: 'E1#1' }),
+        ];
+        const tags = [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' as const },
+            { sallyArea: 3, name: '', nameSource: 'manual' as const },
+        ];
+        const u = unbindTagFromMap(stages, tags, {}, [], 1, 3);
+        expect(grantTagsOnMap(u.stages, 1)).toEqual([1]);
+        expect(u.tags.map(t => t.sallyArea)).toEqual([1]); // 空名孤兒刪除
+        const blocked = deletePlanTag(stages, tags, {}, [{ sallyArea: 3 }], 3);
+        expect(blocked.blocked).toBe(true);
+    });
+    it('mergeObservedGrants：只增不減並可餵回 applyObserved', () => {
+        const live = new Map([[621, [{ tagId: 2 }]]]);
+        const m = mergeObservedGrants({ 621: [1] }, live);
+        expect(m.changed).toBe(true);
+        expect(m.stored[621]).toEqual([1, 2]);
+        expect(mergeObservedGrants(m.stored, live).changed).toBe(false);
+    });
+    it('syncPlanFromActual：已貼標強制覆寫計畫', () => {
+        const ships: SallyShip[] = [
+            { id: 1, name: 'a', sallyArea: 4 },
+            { id: 2, name: 'b', sallyArea: 0 },
+            { id: 3, name: 'c', sallyArea: 2 },
+        ];
+        expect(syncPlanFromActual({ 1: 9, 2: 1 }, ships)).toEqual({
+            planByShip: { 1: 4, 2: 1, 3: 2 },
+            changed: true,
+        });
+        expect(syncPlanFromActual({ 1: 4, 3: 2 }, ships).changed).toBe(false);
     });
 });

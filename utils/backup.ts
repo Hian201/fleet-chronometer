@@ -11,11 +11,13 @@ import { borrowEventId } from './event-id-borrow';
 // v5 再新增 resources／resourceMarks（資源紀錄的時間序列與活動特殊時間點）——這兩張表
 // **不可能重新產生**（餘額歷史只存在於當初收到的封包裡，events 早被裁剪），不進備份等於
 // 每次重裝就歸零，那份序列的價值正是長期連續，故必須帶。
-// v1 legacy-full／v2 split／v3／v4 仍可匯入——`determineKind()` 依 schemaVersion 決定
-// 該版的 restore 表組合，故舊檔不會因為缺少後來新增的表而被拒。
-export const BACKUP_SCHEMA_VERSION = 5 as const;
+//
+// v6 起預設只輸出一個 full envelope：出擊摘要和原始戰鬥封包必須一起回來，否則「還原」
+// 後出擊卡雖在、展開內容卻不在，對使用者不是完整還原。v1 legacy-full／v2–v5 split
+// 仍可匯入；只有 UI 不再產生拆分檔。
+export const BACKUP_SCHEMA_VERSION = 6 as const;
 
-export type BackupKind = 'restore' | 'replays' | 'legacy-full';
+export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
 
 export interface BackupTables {
@@ -34,7 +36,7 @@ export interface BackupTables {
 export interface BackupEnvelope {
     schemaVersion: number;
     // v1 沒有 kind；早期手動檔案若使用 full 也視為同一種 legacy-full。
-    kind?: ExportedKind | 'full';
+    kind?: ExportedKind;
     exportedAt: number;
     tables: BackupTables;
 }
@@ -59,8 +61,9 @@ export class BackupDestinationError extends Error {
     }
 }
 
-// 一個 restore/replays 拆檔最多各匯入一次，兩次 transaction 都會用一個 auto-generated
-// guard 驗證 generator rollback，之後還要保留至少一個 safe integer 給真正 ingestion。
+// v1–v5 的 restore/replays 舊拆檔最多各匯入一次；v6 完整檔只需一次 transaction。每次
+// transaction 都會用一個 auto-generated guard 驗證 generator rollback，之後還要保留至少
+// 一個 safe integer 給真正 ingestion。
 export const MAX_RESTORABLE_SOURCE_EVENT_ID = Number.MAX_SAFE_INTEGER - 2;
 const BACKUP_RESTORE_META_KEY = 'backup-restore' as const;
 // 純顯示偏好（遊戲頁靜音／語言鏡像），不影響還原語意，故不算「來源不明的既有資料」。
@@ -514,6 +517,19 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
             planByShip[shipId] = integer(value, `${pbWhere}.${key}`, 1);
         }
     }
+    // observedGrants：mapKey → 貼出過的標籤 id[]（optional，只增不減的觀測快取）。
+    let observedGrants: Record<number, number[]> | undefined;
+    if (row.observedGrants !== undefined) {
+        const ogWhere = `${where}.observedGrants`;
+        const raw = objectAt(row.observedGrants, ogWhere);
+        observedGrants = {};
+        for (const [key, value] of Object.entries(raw)) {
+            const mapKey = Number(key);
+            if (!Number.isSafeInteger(mapKey) || mapKey < 1) invalid(`${ogWhere} 的鍵必須是 mapKey。`);
+            observedGrants[mapKey] = arrayAt(value, `${ogWhere}.${key}`)
+                .map((v, j) => integer(v, `${ogWhere}.${key}[${j}]`, 1));
+        }
+    }
     return {
         areaId: integer(row.areaId, `${where}.areaId`, 1),
         title: typeof row.title === 'string' ? row.title : invalid(`${where}.title 必須是字串。`),
@@ -523,6 +539,7 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
         ...(row.unlocked === undefined ? {} : { unlocked: booleanValue(row.unlocked, `${where}.unlocked`) }),
         ...(sallySnapshot === undefined ? {} : { sallySnapshot }),
         ...(planByShip === undefined ? {} : { planByShip }),
+        ...(observedGrants === undefined ? {} : { observedGrants }),
     };
 }
 
@@ -573,6 +590,15 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
             invalid('schemaVersion 1 的 legacy-full 備份必須且只能包含完整的六張表。');
         }
         return 'legacy-full';
+    }
+    // v6 起一律是一份完整備份。拆分檔的「省空間」其實是讓使用者少帶重播資料，
+    // 造成出擊詳情無從重建；若真的要縮小檔案，應由保留規則或壓縮處理，不能犧牲還原語意。
+    if (schemaVersion >= 6) {
+        if (kind !== 'full') invalid(`schemaVersion ${schemaVersion} 的 kind 必須是 full。`);
+        if (!TABLE_NAMES.every(name => names.includes(name)) || !expected(TABLE_NAMES)) {
+            invalid(`full 備份的 tables 組合與 schemaVersion ${schemaVersion} 不相容。`);
+        }
+        return 'full';
     }
     if (kind !== 'restore' && kind !== 'replays') invalid(`schemaVersion ${schemaVersion} 的 kind 必須是 restore 或 replays。`);
     // 每個版本的 restore 表組合各自固定：舊檔不得因為缺少後來新增的表而被拒，
@@ -706,31 +732,71 @@ export function parseBackupJson(text: string): ValidatedBackupEnvelope {
     return validateBackupEnvelope(parsed);
 }
 
-export async function buildRestoreEnvelope(
-    database: Pick<KcDb, 'snapshot' | 'sorties' | 'expeditions' | 'factory' | 'wanted'
+/**
+ * 唯一的現行匯出格式。完整資訊與重播層同檔，使用者不會因少選一個檔案而得到半套出擊紀錄。
+ * 保留規則若已裁掉某場 replay，這裡如實匯出當下仍保留的資料，絕不在備份時額外刪資料。
+ */
+export async function buildFullEnvelope(
+    database: Pick<KcDb, 'snapshot' | 'sorties' | 'expeditions' | 'factory' | 'replays' | 'wanted'
         | 'shipObtained' | 'eventPlans' | 'resources' | 'resourceMarks'>,
 ): Promise<BackupEnvelope> {
     const [snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-        resources, resourceMarks] = await Promise.all([
+        resources, resourceMarks, replays] = await Promise.all([
         database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
         database.factory.toArray(), database.wanted.toArray(), database.shipObtained.toArray(),
         database.eventPlans.toArray(), database.resources.toArray(), database.resourceMarks.toArray(),
+        database.replays.toArray(),
     ]);
     return {
-        schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'restore', exportedAt: Date.now(),
+        schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'full', exportedAt: Date.now(),
         tables: {
             snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-            resources, resourceMarks,
+            resources, resourceMarks, replays,
         },
     };
 }
 
-export async function buildReplaysEnvelope(database: Pick<KcDb, 'replays'>): Promise<BackupEnvelope> {
+/**
+ * 把使用者一次選取的檔案正規化成一份可還原資料。
+ *
+ * 現行 v6 full 與 v1 legacy-full 各自可單檔匯入；v2–v5 的 restore/replays 則必須同時
+ * 選取，才不會重新引入「還原成功但出擊詳情消失」的半套狀態。這一步只組記憶體資料，真正
+ * 的 destination preflight 與所有 writes 仍由 restoreBackup() 的單一 transaction 負責。
+ */
+export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBackupEnvelope {
+    const envelopes = inputs.map(validateBackupEnvelope);
+    if (envelopes.length === 1) {
+        const only = envelopes[0];
+        if (only.kind === 'full' || only.kind === 'legacy-full') return only;
+        invalid('舊版拆分備份必須同時選取 restore 與 replays 兩個檔案。');
+    }
+    if (envelopes.length !== 2) invalid('請選取一個完整備份檔，或一組舊版 restore 與 replays 檔。');
+
+    const restore = envelopes.find(envelope => envelope.kind === 'restore');
+    const replays = envelopes.find(envelope => envelope.kind === 'replays');
+    if (!restore || !replays) {
+        invalid('舊版備份必須剛好包含一個 restore 檔與一個 replays 檔。');
+    }
+
+    // 舊版較早出現的表本來就不存在，遷移成 v6 full 時以空表表示「來源沒有歷史」，
+    // 不猜測、更不從 snapshot/raw event 回填。兩張來源表完全不重疊，故不存在 merge 覆寫。
+    const tables: BackupTables = {
+        snapshot: restore.tables.snapshot ?? [],
+        sorties: restore.tables.sorties ?? [],
+        expeditions: restore.tables.expeditions ?? [],
+        factory: restore.tables.factory ?? [],
+        wanted: restore.tables.wanted ?? [],
+        shipObtained: restore.tables.shipObtained ?? [],
+        eventPlans: restore.tables.eventPlans ?? [],
+        resources: restore.tables.resources ?? [],
+        resourceMarks: restore.tables.resourceMarks ?? [],
+        replays: replays.tables.replays ?? [],
+    };
     return {
         schemaVersion: BACKUP_SCHEMA_VERSION,
-        kind: 'replays',
-        exportedAt: Date.now(),
-        tables: { replays: await database.replays.toArray() },
+        kind: 'full',
+        exportedAt: Math.max(restore.exportedAt, replays.exportedAt),
+        tables,
     };
 }
 
@@ -855,8 +921,8 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             destinationInvalid('還原環境含有 import marker 無法解釋的資料。');
         }
 
-        const importsRestore = envelope.kind === 'restore' || envelope.kind === 'legacy-full';
-        const importsReplays = envelope.kind === 'replays' || envelope.kind === 'legacy-full';
+        const importsRestore = envelope.kind === 'restore' || envelope.kind === 'legacy-full' || envelope.kind === 'full';
+        const importsReplays = envelope.kind === 'replays' || envelope.kind === 'legacy-full' || envelope.kind === 'full';
         if (importsRestore && (restoreRowsExist || marker?.importedRestore)) {
             destinationInvalid('restore envelope 的目標 tables 已有資料或已完成匯入。');
         }

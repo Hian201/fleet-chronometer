@@ -900,6 +900,7 @@
         }
         .tb-pool-head { flex: 0 0 auto; padding: 8px 10px 6px; border-bottom: 1px solid var(--line); }
         .tb-pool-title { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; }
+        .tb-pool-collapse { margin-left: auto; padding: 1px 5px; border-radius: 4px; font-size: 10px; }
         .tb-pool-meta { font-size: 10px; color: var(--dim); letter-spacing: var(--track-tag); margin-top: 2px; }
         .tb-pool-tools { display: flex; gap: 6px; margin-top: 6px; }
         .tb-pool-tools input { flex: 1; min-width: 0; background: var(--bg); }
@@ -970,6 +971,8 @@
             display: block; font-weight: 400; font-size: 9px; color: var(--dim);
             letter-spacing: var(--track-tag);
         }
+        .tb-map-title { display: inline-flex; align-items: center; gap: 6px; }
+        .tb-map-add { padding: 1px 5px; border-radius: 4px; font-size: 10px; }
         table.tb-board thead th.map.shared { color: var(--dim); }
         table.tb-board thead th.tagcol {
             position: sticky; top: 28px; z-index: 4; background: var(--panel);
@@ -991,6 +994,12 @@
         }
         .tb-colhead:hover { background: color-mix(in srgb, var(--sparkle) 8%, var(--panel)); }
         .tb-colhead .tb-banner { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+        .tb-tag-x {
+            flex: 0 0 auto; width: 20px; height: 20px; padding: 0; border: none;
+            border-radius: 4px; background: transparent; color: var(--dim);
+            font-size: 14px; line-height: 1; cursor: pointer;
+        }
+        .tb-tag-x:hover { background: color-mix(in srgb, var(--danger, #c44) 18%, var(--panel)); color: var(--text); }
         .tb-swatch {
             width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto;
             border: 1px solid color-mix(in srgb, var(--c) 70%, #000);
@@ -1010,6 +1019,13 @@
         }
         .tb-colhead .tb-meta b { color: var(--text); font-weight: 600; }
         .tb-colhead.dimmed { opacity: .38; }
+        .tb-colhead.tb-placeholder {
+            text-align: center;
+            vertical-align: middle;
+            min-width: 110px;
+        }
+        .tb-colhead.tb-placeholder:hover { background: var(--panel); }
+        .tb-cell.tb-placeholder { background: transparent; }
         .tb-col-hint {
             font-size: 9px; color: var(--sparkle); opacity: 0; letter-spacing: var(--track-tag);
         }
@@ -1061,7 +1077,14 @@
             border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
             padding: 8px 0; display: flex; flex-direction: column; gap: 6px;
         }
-        .tb-rule-name { font-weight: 600; font-size: 12px; }
+        .tb-rule-name { font-weight: 600; font-size: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tb-add-phase-bar {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+        }
+        .tb-add-phase-bar select {
+            background: var(--bg); color: var(--text); border: 1px solid var(--line);
+            border-radius: 6px; padding: 4px 8px;
+        }
         .tb-rule-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
         .tb-rchip {
             display: inline-flex; align-items: center; gap: 3px;

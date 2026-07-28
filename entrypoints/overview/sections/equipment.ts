@@ -33,8 +33,8 @@ import { t } from '../../../utils/ui-i18n';
 import {
     emptyGearFilter, filterGears, groupGears, iconOptions, sortGears, stackInstances, totalCount,
     MAX_IMPROVE,
-    type ConsumableFilter, type GearFilter, type GearGroup, type GearSortKey, type ImproveFilter,
-    type SortDir, type UsageFilter,
+    type ConsumableFilter, type GearFilter, type GearGroup, type GearSortDir, type GearSortKey,
+    type ImproveFilter, type UsageFilter,
 } from '../../../utils/gear-inventory';
 import { copyWithFeedback, downloadText, esc, gearIconHtml, loadJsonPrefs, saveJsonPrefs } from '../lib';
 
@@ -171,7 +171,7 @@ function nameCell(group: GearGroup, open: boolean): string {
 
 export interface View {
     sort: GearSortKey;
-    dir: SortDir;
+    dir: GearSortDir;
     expanded: Set<number>;
     /** 目前顯示的欄位 id；表格欄位、圖磚素質 chip 與 CSV 匯出三者共用同一份。 */
     cols: Set<string>;
@@ -301,7 +301,7 @@ export function describeGearFilter(
 const PREFS_KEY = 'kc-equip-view';
 
 type Mode = 'grid' | 'table';
-interface Prefs { mode: Mode; sort: GearSortKey; dir: SortDir; cols: string[] }
+interface Prefs { mode: Mode; sort: GearSortKey; dir: GearSortDir; cols: string[] }
 
 // 預設是**詳細清單**：這個分區真正要回答的是「我有幾個、改修到哪、哪個素質最高」，
 // 那是逐欄比較的問題，表格一次看得到十幾種裝備；圖磚一次只看得到幾張卡，適合瀏覽而非比較。

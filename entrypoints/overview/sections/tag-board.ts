@@ -11,9 +11,11 @@ import {
     type GrantObservation, type PlanStage, type SallyObservationInput, type SallyShip,
 } from '@/utils/event-plan';
 import {
-    DEFAULT_STYPE_GROUPS, TAG_COLOR_COUNT, assignPlanTag, boardBudget, cardState, checkRoute,
-    columnGroups, columnOf, defaultColorForTag, isPlanByShipEmpty, knownTagIds, mapsForTag,
-    migrateSlotsToPlanByShip, resolveTagColor, stagesHaveShipSlots, stypeGroupKey,
+    DEFAULT_STYPE_GROUPS, TAG_COLOR_COUNT, applyObservedTagBindings, assignPlanTag, boardBudget,
+    bindUnboundEstablishedTags, cardState, checkRoute, columnGroupsWithMaps, columnOf,
+    defaultColorForTag, deletePlanTag, grantTagsOnMap, isPlanByShipEmpty, knownTagIds, mapsForTag,
+    mergeObservedGrants, migrateSlotsToPlanByShip, resolveTagColor, setMapGrantTags,
+    stagesHaveShipSlots, stypeGroupKey, syncPlanFromActual, unbindTagFromMap,
 } from '@/utils/tag-board';
 import { t } from '@/utils/ui-i18n';
 import { esc } from '../lib';
@@ -131,7 +133,10 @@ export const tagBoardSection: OverviewSection = {
                     <aside class="tb-pool-pane">
                         <div class="tb-pool-head">
                             <div class="tb-pool-title">${esc(t('ov.tbPool'))}
-                                <span class="tb-pill" id="tb-pool-n">0</span></div>
+                                <span class="tb-pill" id="tb-pool-n">0</span>
+                                <button type="button" class="ov-btn tb-pool-collapse" id="tb-collapse-pool">${
+                                    esc(t('ov.tbPoolCollapseAll'))}</button>
+                            </div>
                             <div class="tb-pool-meta">${esc(t('ov.tbPoolMeta'))}</div>
                             <div class="tb-pool-tools">
                                 <input type="search" id="tb-pool-q" placeholder="${esc(t('ov.tbPoolFilter'))}" autocomplete="off">
@@ -216,6 +221,7 @@ export const tagBoardSection: OverviewSection = {
         let selected = new Set<number>();
         let q = '';
         let poolQ = '';
+        let poolOpenGroups = new Set(DEFAULT_STYPE_GROUPS.map(g => g.key));
         let stypeFilter = '';
         let dragIds: number[] | null = null;
         let filtersBound = false;
@@ -235,6 +241,15 @@ export const tagBoardSection: OverviewSection = {
                     stypeId: o?.stypeId ?? 0, sallyArea: s.sallyArea,
                 };
             });
+        };
+
+        /** 已貼標的船強制同步計畫＝實際（不可逆，無「套用」選擇）。 */
+        const syncActualIntoPlan = async () => {
+            if (!plan.planByShip) plan.planByShip = {};
+            const out = syncPlanFromActual(plan.planByShip, ships);
+            if (!out.changed) return;
+            plan.planByShip = out.planByShip;
+            await savePlan(plan);
         };
 
         const planMap = () => plan.planByShip ?? {};
@@ -259,6 +274,43 @@ export const tagBoardSection: OverviewSection = {
             await savePlan(plan);
         };
 
+        /** 出擊觀測到的「關卡→標籤」自動寫入計畫（釘死事實；並持久化以免 events 裁剪後遺失）。 */
+        const applyObservations = async () => {
+            syncStages();
+            const masterNos = state.mapsOfArea(areaId).map(m => m.no);
+            const merged = mergeObservedGrants(plan.observedGrants, observations);
+            let dirty = false;
+            if (merged.changed) {
+                plan.observedGrants = merged.stored;
+                dirty = true;
+            }
+            const bound = applyObservedTagBindings(
+                plan.stages, plan.tags, areaId, masterNos, merged.observations,
+            );
+            if (bound.changed) {
+                plan.stages = bound.stages;
+                plan.tags = bound.tags;
+                dirty = true;
+            }
+            // restore／無 raw：船上已有卻未綁、觀測也沒提到的標籤 → 掛到已有 grants 的最早關當多階段
+            const observedTagIds = new Set<number>();
+            for (const list of merged.observations.values()) {
+                for (const o of list) observedTagIds.add(o.tagId);
+            }
+            const establishedIds = [...new Set(
+                ships.filter(s => s.sallyArea > 0).map(s => s.sallyArea),
+            )];
+            const unbound = bindUnboundEstablishedTags(
+                plan.stages, plan.tags, establishedIds, masterNos, observedTagIds,
+            );
+            if (unbound.changed) {
+                plan.stages = unbound.stages;
+                plan.tags = unbound.tags;
+                dirty = true;
+            }
+            if (dirty) await savePlan(plan);
+        };
+
         const uniquified = ensureUniqueStageKeys(plan.stages);
         if (uniquified.changed) {
             plan.stages = uniquified.stages;
@@ -266,8 +318,11 @@ export const tagBoardSection: OverviewSection = {
         }
         syncStages();
         await ensurePlanByShip();
+        refreshRoster();
+        await applyObservations();
         await saveSallySnapshotIfNeeded(plan, liveShips, areaIsCurrentInMaster());
         refreshRoster();
+        await syncActualIntoPlan();
 
         const isLocked = (tagId: number | null) =>
             tagId != null && established.has(tagId) && !plan.unlocked;
@@ -284,8 +339,17 @@ export const tagBoardSection: OverviewSection = {
             return stage.label || t('ov.eoStageUnnamed');
         };
 
-        const boardTitle = () =>
-            plan.title || state.mapAreaName(areaId) || t('ov.eoAreaN', { n: areaId });
+        /** 標題只顯示一次：有封包活動名就用它；自訂名與活動名相同時不重複。 */
+        const titleHtml = () => {
+            const gameName = state.mapAreaName(areaId);
+            const custom = plan.title.trim();
+            if (gameName) {
+                // 外文副標尚未見於封包；有遊戲名就只顯示這一條，不另開自訂欄造成重複。
+                return `<b class="tb-title">${esc(gameName)}</b>`;
+            }
+            if (custom) return `<b class="tb-title">${esc(custom)}</b>`;
+            return `<input id="tb-title" value="" placeholder="${esc(t('ov.eoTitlePlaceholder'))}">`;
+        };
 
         const tagIds = () => {
             const ids = knownTagIds(plan.tags, ships, plan.planByShip);
@@ -335,13 +399,6 @@ export const tagBoardSection: OverviewSection = {
             void commit();
         }
 
-        function applyActual(id: number) {
-            const ship = byId.get(id);
-            if (!ship || ship.sallyArea <= 0) return;
-            plan.planByShip = assignPlanTag(plan.planByShip ?? {}, id, ship.sallyArea);
-            void commit();
-        }
-
         // ── 殼：工具列／篩選（只建一次）──
         function drawShell() {
             filtersEl.hidden = false;
@@ -355,11 +412,8 @@ export const tagBoardSection: OverviewSection = {
                         const name = state.mapAreaName(a);
                         return `<option value="${a}" ${a === areaId ? 'selected' : ''}>${
                             esc(name || t('ov.eoAreaN', { n: a }))}</option>`;
-                    }).join('')}</select>` : `<b class="tb-area-name">${esc(boardTitle())}</b>`}
-                    ${areas.length > 1 || state.mapAreaName(areaId)
-                        ? `<b class="tb-title">${esc(boardTitle())}</b>`
-                        : `<input id="tb-title" value="${esc(plan.title)}"
-                               placeholder="${esc(t('ov.eoTitlePlaceholder'))}">`}
+                    }).join('')}</select>` : ''}
+                    ${titleHtml()}
                     <span class="tb-budget" id="tb-budget"></span>
                     <span class="grow"></span>
                     <button class="ov-btn" id="tb-check">${esc(t('ov.tbCheck'))}</button>
@@ -397,7 +451,6 @@ export const tagBoardSection: OverviewSection = {
                 <span class="tb-leg"><span class="tb-chip">${esc('…')}</span>${esc(t('ov.tbLegendPool'))}</span>
                 <span class="tb-leg"><span class="tb-chip planned">${esc('…')}</span>${esc(t('ov.tbLegendPlanned'))}</span>
                 <span class="tb-leg"><span class="tb-chip stamped" style="--c:var(--tag-4)">${esc('…')}</span>${esc(t('ov.tbLegendStamped'))}</span>
-                <span class="tb-leg"><span class="tb-chip mismatch">${esc('…')}</span>${esc(t('ov.tbLegendMismatch'))}</span>
                 <span class="tb-leg">${esc(t('ov.tbLegendMap'))}</span>
                 <span class="tb-leg">${esc(t('ov.tbLegendDock'))}</span>`;
 
@@ -434,8 +487,11 @@ export const tagBoardSection: OverviewSection = {
                 syncStages();
                 migrateNote = '';
                 await ensurePlanByShip();
+                refreshRoster();
+                await applyObservations();
                 await saveSallySnapshotIfNeeded(plan, liveShips, areaIsCurrentInMaster());
                 refreshRoster();
+                await syncActualIntoPlan();
                 selected.clear();
                 drawShell();
                 drawBoardVisual();
@@ -457,15 +513,42 @@ export const tagBoardSection: OverviewSection = {
                 void commit().then(() => { drawShell(); drawBoardVisual(); drawRules(); });
             });
             topEl.querySelector('#tb-add-tag')?.addEventListener('click', () => {
-                const used = new Set(tagIds());
-                let next = 1;
+                addTag(null);
+            });
+        }
+
+        /** 新增標籤；mapNo 有值時綁到該關。優先重用「已確立卻未綁 grants」的標籤 id（勿另開 #3）。 */
+        function addTag(mapNo: number | null) {
+            const used = new Set(tagIds());
+            const bound = new Set(
+                plan.stages.map(s => s.grantsTag).filter((x): x is number => x != null && x >= 1),
+            );
+            const unboundEstablished = [...new Set(
+                ships.filter(s => s.sallyArea > 0).map(s => s.sallyArea),
+            )].filter(id => !bound.has(id)).sort((a, b) => a - b);
+            let next = unboundEstablished[0];
+            if (next == null) {
+                next = 1;
                 while (used.has(next)) next++;
                 plan.tags.push({
                     sallyArea: next, name: '', nameSource: 'manual',
                     color: defaultColorForTag(next),
                 });
-                void commit();
-            });
+            } else if (!plan.tags.some(tg => tg.sallyArea === next)) {
+                plan.tags.push({
+                    sallyArea: next, name: '', nameSource: 'manual',
+                    color: defaultColorForTag(next),
+                });
+            }
+            if (mapNo != null && mapNo > 0) {
+                syncStages();
+                const out = setMapGrantTags(
+                    plan.stages, plan.tags, mapNo, [...grantTagsOnMap(plan.stages, mapNo), next],
+                );
+                plan.stages = out.stages;
+                plan.tags = out.tags;
+            }
+            void commit().then(() => { fillRoutes(); drawRules(); drawBoardVisual(); });
         }
 
         function bindFilters() {
@@ -475,6 +558,10 @@ export const tagBoardSection: OverviewSection = {
             });
             el.querySelector('#tb-pool-q')!.addEventListener('input', e => {
                 poolQ = (e.currentTarget as HTMLInputElement).value;
+                drawPoolOnly();
+            });
+            el.querySelector('#tb-collapse-pool')!.addEventListener('click', () => {
+                poolOpenGroups.clear();
                 drawPoolOnly();
             });
             filtersEl.querySelector('#tb-stype')!.addEventListener('change', e => {
@@ -516,14 +603,11 @@ export const tagBoardSection: OverviewSection = {
             const st = cardState(planTag, s.sallyArea);
             const col = columnOf(planTag, s.sallyArea);
             const c = col ? colorVar(plan, col) : 'transparent';
+            // 已貼＝鎖定；其餘可拖。偏差在 syncActualIntoPlan 後不應再出現。
             const draggable = st !== 'stamped';
             let badge = '';
             if (st === 'stamped') {
                 badge = `<span class="tb-badge stamp" style="--c:${c}">${esc(t('ov.tbBadgeStamp'))}</span>`;
-            }
-            if (st === 'mismatch') {
-                badge = `<span class="tb-badge bad">${esc(t('ov.tbBadgeActual'))}${s.sallyArea}</span>
-                    <button type="button" class="tb-fix" data-fix="${s.id}">${esc(t('ov.tbApplyActual'))}</button>`;
             }
             const sel = selected.has(s.id) ? ' selected' : '';
             const short = compact && s.name.length > 8 ? `${s.name.slice(0, 7)}…` : s.name;
@@ -542,13 +626,22 @@ export const tagBoardSection: OverviewSection = {
             for (const g of DEFAULT_STYPE_GROUPS) {
                 const list = free.filter(s => stypeGroupKey(s.stypeId) === g.key);
                 if (!list.length) continue;
-                html += `<details class="tb-pool-group" open>
+                html += `<details class="tb-pool-group" data-pool-group="${esc(g.key)}"${
+                    poolOpenGroups.has(g.key) ? ' open' : ''}>
                     <summary><span class="tb-chev"></span>${esc(t(g.labelKey))}
                         <span class="n">${list.length}</span></summary>
                     <div class="tb-chips">${list.map(s => chipHtml(s, true)).join('')}</div>
                 </details>`;
             }
             poolBody.innerHTML = html || `<div class="tb-empty">${esc(t('ov.tbPoolEmpty'))}</div>`;
+            poolBody.querySelectorAll<HTMLDetailsElement>('details[data-pool-group]').forEach(details => {
+                details.addEventListener('toggle', () => {
+                    const key = details.dataset.poolGroup;
+                    if (!key) return;
+                    if (details.open) poolOpenGroups.add(key);
+                    else poolOpenGroups.delete(key);
+                });
+            });
             el.querySelector('#tb-pool-n')!.textContent = String(
                 boardShips.filter(s => cardState(planMap()[s.id] ?? 0, s.sallyArea) === 'pool').length,
             );
@@ -596,7 +689,7 @@ export const tagBoardSection: OverviewSection = {
                 <span class="tb-stamp">${esc(tag)}：${esc(will)}（${r.willStamp.length}）</span>`;
         }
 
-        function drawDropdock(groups: ReturnType<typeof columnGroups>) {
+        function drawDropdock(groups: ReturnType<typeof columnGroupsWithMaps>) {
             let html = `<span class="tb-dock-lab">${esc(t('ov.tbDropdock'))}</span>`;
             html += `<div class="tb-dropzone pool" data-col="0">${esc(t('ov.tbPool'))}</div>`;
             for (const g of groups) {
@@ -636,32 +729,73 @@ export const tagBoardSection: OverviewSection = {
                             <input type="checkbox" data-stage="${esc(st.key)}" data-tag="${id}"
                                 ${st.allowedTags.includes(id) ? 'checked' : ''} ${locked ? 'disabled' : ''}>
                             ${esc(tagFull(plan, id))}</label>`).join('');
-                        const grants = [`<option value="">${esc(t('ov.eoGrantsNone'))}</option>`]
-                            .concat(ids.map(id => `<option value="${id}" ${st.grantsTag === id ? 'selected' : ''}>${
-                                esc(tagFull(plan, id))}</option>`)).join('');
+                        // 主列：此關「會貼哪些標籤」可複選（一標籤＝一路線／階段）；phase 列只顯示本階段的單一 grants
+                        const mapGrantHtml = st.mapNo != null && !st.phase
+                            ? `<div class="tb-rule-field"><span class="dim">${esc(t('ov.eoGrantsMap'))}</span>
+                                <div>${ids.map(id => {
+                                    const on = grantTagsOnMap(plan.stages, st.mapNo!).includes(id);
+                                    const chipLocked = isLocked(id);
+                                    return `<label class="tb-rchip ${on ? 'on' : ''}">
+                                        <input type="checkbox" data-map-grant="${st.mapNo}" data-tag="${id}"
+                                            ${on ? 'checked' : ''} ${chipLocked ? 'disabled' : ''}>
+                                        ${esc(tagFull(plan, id))}</label>`;
+                                }).join('') || `<span class="dim">${esc(t('ov.eoNoTags'))}</span>`}</div>
+                                <div class="dim">${esc(t('ov.eoGrantsMapHint'))}</div></div>`
+                            : `<div class="tb-rule-field"><span class="dim">${esc(t('ov.eoGrants'))}</span>
+                                <select data-grants="${esc(st.key)}" ${locked ? 'disabled' : ''}>${
+                                    [`<option value="">${esc(t('ov.eoGrantsNone'))}</option>`]
+                                        .concat(ids.map(id => `<option value="${id}" ${st.grantsTag === id ? 'selected' : ''}>${
+                                            esc(tagFull(plan, id))}</option>`)).join('')
+                                }</select></div>`;
                         const seen = st.mapNo == null ? []
                             : grantedTagsOf(observations, areaId * 10 + st.mapNo);
-                        const obs = seen.length
-                            ? `<div class="dim">${esc(t('ov.eoObservedList', {
-                                map: `E${st.mapNo}`, tags: seen.map(id => tagFull(plan, id)).join('、'),
-                            }))}${seen.map(id => st.grantsTag === id ? ''
-                                : ` <button type="button" class="ov-btn tb-apply-grant" data-stage="${esc(st.key)}" data-tag="${id}">${
-                                    esc(t('ov.eoApplyTag', { tag: tagFull(plan, id) }))}</button>`).join('')}</div>`
-                            : `<div class="dim">${esc(t('ov.eoObservedNone'))}</div>`;
+                        const obs = !st.phase && st.mapNo != null
+                            ? (seen.length
+                                ? `<div class="dim">${esc(t('ov.eoObservedList', {
+                                    map: `E${st.mapNo}`, tags: seen.map(id => tagFull(plan, id)).join('、'),
+                                }))}</div>`
+                                : `<div class="dim">${esc(t('ov.eoObservedNone'))}</div>`)
+                            : '';
                         return `<div class="tb-rule-row">
-                            <div class="tb-rule-name">${esc(stageTitle(st))}${locked ? ' 🔒' : ''}</div>
+                            <div class="tb-rule-name">${esc(stageTitle(st))}${locked ? ' 🔒' : ''}
+                                ${hasMaster && !st.phase && st.mapNo != null
+                                    ? `<button type="button" class="ov-btn tb-add-phase-for" data-map="${st.mapNo}"
+                                        title="${esc(t('ov.tbAddPhaseForMap', { n: st.mapNo }))}">＋ ${esc(t('ov.eoAddPhase'))}</button>`
+                                    : ''}
+                            </div>
                             <div class="tb-rule-field"><span class="dim">${esc(t('ov.eoAllowed'))}</span>
                                 <div>${chips || `<span class="dim">${esc(t('ov.eoNoTags'))}</span>`}</div></div>
-                            <div class="tb-rule-field"><span class="dim">${esc(t('ov.eoGrants'))}</span>
-                                <select data-grants="${esc(st.key)}" ${locked ? 'disabled' : ''}>${grants}</select></div>
+                            ${mapGrantHtml}
                             ${obs}
                             ${!hasMaster || st.phase ? `<button type="button" class="ov-btn danger tb-del-stage"
                                 data-idx="${i}">${esc(t('ov.eoDelete'))}</button>` : ''}
                         </div>`;
                     }).join('') || `<div class="ov-empty">${esc(t('ov.eoNoStages'))}</div>`}
                 </div>
-                ${hasMaster ? `<button type="button" class="ov-btn" id="tb-add-phase">＋ ${esc(t('ov.eoAddPhase'))}</button>`
+                ${hasMaster ? `<div class="tb-add-phase-bar">
+                    <label class="dim">${esc(t('ov.tbAddPhaseMap'))}
+                        <select id="tb-phase-map">${state.mapsOfArea(areaId).map(m =>
+                            `<option value="${m.no}">E${m.no}${m.opetext ? `　${esc(m.opetext)}` : ''}</option>`
+                        ).join('')}</select></label>
+                    <button type="button" class="ov-btn" id="tb-add-phase">＋ ${esc(t('ov.eoAddPhase'))}</button>
+                </div>`
                     : `<button type="button" class="ov-btn" id="tb-add-stage">＋ ${esc(t('ov.eoAddStage'))}</button>`}`;
+
+            const addPhaseForMap = (mapNo: number) => {
+                if (!Number.isInteger(mapNo) || mapNo < 1) return;
+                const existing = plan.stages.filter(s => s.mapNo === mapNo && s.phase).length;
+                const key = newStageKey(plan.stages.map(s => s.key));
+                plan.stages.push({
+                    key,
+                    label: t('ov.tbPhaseLabel', { n: mapNo, i: existing + 1 }),
+                    allowedTags: [],
+                    grantsTag: null,
+                    slots: [],
+                    mapNo,
+                    phase: true,
+                });
+                void commit().then(() => { fillRoutes(); drawRules(); });
+            };
 
             rulesBody.querySelectorAll<HTMLInputElement>('input[type=checkbox][data-stage]').forEach(cb => {
                 cb.addEventListener('change', () => {
@@ -676,21 +810,27 @@ export const tagBoardSection: OverviewSection = {
                     void commit();
                 });
             });
+            rulesBody.querySelectorAll<HTMLInputElement>('input[type=checkbox][data-map-grant]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const mapNo = Number(cb.dataset.mapGrant);
+                    const tag = Number(cb.dataset.tag);
+                    if (!Number.isInteger(mapNo) || mapNo < 1 || isLocked(tag)) return;
+                    const cur = grantTagsOnMap(plan.stages, mapNo);
+                    const next = cb.checked
+                        ? [...new Set([...cur, tag])]
+                        : cur.filter(x => x !== tag);
+                    const out = setMapGrantTags(plan.stages, plan.tags, mapNo, next);
+                    plan.stages = out.stages;
+                    plan.tags = out.tags;
+                    void commit().then(() => { fillRoutes(); drawRules(); drawBoardVisual(); });
+                });
+            });
             rulesBody.querySelectorAll<HTMLSelectElement>('select[data-grants]').forEach(sel => {
                 sel.addEventListener('change', () => {
                     const stage = plan.stages.find(s => s.key === sel.dataset.grants);
                     if (!stage || stageLocked(stage)) return;
                     stage.grantsTag = sel.value ? Number(sel.value) : null;
-                    void commit();
-                });
-            });
-            rulesBody.querySelectorAll<HTMLButtonElement>('.tb-apply-grant').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const stage = plan.stages.find(s => s.key === btn.dataset.stage);
-                    if (!stage) return;
-                    // 套用觀測不受鎖定限制（同舊 event-ops）
-                    stage.grantsTag = Number(btn.dataset.tag);
-                    void commit();
+                    void commit().then(() => { drawBoardVisual(); drawRules(); });
                 });
             });
             rulesBody.querySelector('#tb-add-stage')?.addEventListener('click', () => {
@@ -701,21 +841,21 @@ export const tagBoardSection: OverviewSection = {
                 void commit().then(() => { fillRoutes(); drawRules(); });
             });
             rulesBody.querySelector('#tb-add-phase')?.addEventListener('click', () => {
-                const maps = state.mapsOfArea(areaId);
-                const mapNo = maps[0]?.no ?? 1;
-                const key = newStageKey(plan.stages.map(s => s.key));
-                plan.stages.push({
-                    key, label: `E${mapNo}`, allowedTags: [], grantsTag: null, slots: [],
-                    mapNo, phase: true,
+                const sel = rulesBody.querySelector<HTMLSelectElement>('#tb-phase-map');
+                const mapNo = Number(sel?.value);
+                addPhaseForMap(mapNo);
+            });
+            rulesBody.querySelectorAll<HTMLButtonElement>('.tb-add-phase-for').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    addPhaseForMap(Number(btn.dataset.map));
                 });
-                void commit().then(() => { fillRoutes(); drawRules(); });
             });
             rulesBody.querySelectorAll<HTMLButtonElement>('.tb-del-stage').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const idx = Number(btn.dataset.idx);
                     if (!Number.isInteger(idx)) return;
                     plan.stages.splice(idx, 1);
-                    void commit().then(() => { fillRoutes(); drawRules(); });
+                    void commit().then(() => { fillRoutes(); drawRules(); drawBoardVisual(); });
                 });
             });
         }
@@ -723,25 +863,48 @@ export const tagBoardSection: OverviewSection = {
         function drawBoardVisual() {
             syncStages();
             const tags = layoutTags();
-            const groups = columnGroups(tags);
-            const flat = groups.flatMap(g => g.tags);
+            const masterNos = state.mapsOfArea(areaId).map(m => m.no);
+            const groups = columnGroupsWithMaps(masterNos, tags);
+            type Col = { kind: 'tag'; id: number } | { kind: 'placeholder'; mapNo: number };
+            const cols: Col[] = [];
+            for (const g of groups) {
+                for (const id of g.tags) cols.push({ kind: 'tag', id });
+                // 尚無標籤的關卡才保留整欄入口；已有欄位時改由關卡名稱旁的小入口新增。
+                if (typeof g.mapId === 'number' && !g.tags.length) {
+                    cols.push({ kind: 'placeholder', mapNo: g.mapId });
+                }
+            }
             const route = plan.stages.find(st => st.key === routeKey);
             const allowed = new Set(route?.allowedTags ?? []);
             const showDim = checkMode && !!route && route.allowedTags.length > 0;
 
             let mapRow = `<th class="tb-stype-h map"></th>`;
             for (const g of groups) {
+                // 關卡群組：空關卡留一個新增欄；已有標籤時不再多佔一欄。
+                const span = Math.max(1, g.tags.length);
                 const cls = g.mapId === 'SHARED' ? 'map shared' : 'map';
                 const label = g.mapId === 'SHARED' ? t('ov.tbShared') : `E${g.mapId}`;
                 const op = g.mapId === 'SHARED'
                     ? t('ov.tbSharedOp')
                     : (mapOf(g.mapId)?.opetext || '');
-                mapRow += `<th class="${cls}" colspan="${g.tags.length}">${esc(label)}${
+                const add = typeof g.mapId === 'number' && g.tags.length
+                    ? `<button type="button" class="ov-btn tb-add-map-tag tb-map-add" data-add-map="${g.mapId}">${
+                        esc(t('ov.tbAddTagInline'))}</button>`
+                    : '';
+                mapRow += `<th class="${cls}" colspan="${span}"><span class="tb-map-title">${esc(label)}${add}</span>${
                     op ? `<span class="op">${esc(op)}</span>` : ''}</th>`;
             }
 
             let tagRow = `<th class="tb-stype-h tagcol">${esc(t('ov.tbStypeCol'))}</th>`;
-            for (const id of flat) {
+            for (const col of cols) {
+                if (col.kind === 'placeholder') {
+                    tagRow += `<th class="tb-colhead tagcol tb-placeholder" data-add-map="${col.mapNo}">
+                        <button type="button" class="ov-btn tb-add-map-tag" data-add-map="${col.mapNo}">${
+                            esc(t('ov.tbAddTagForMap', { n: col.mapNo }))}</button>
+                    </th>`;
+                    continue;
+                }
+                const id = col.id;
                 const locked = isLocked(id);
                 const tg = plan.tags.find(x => x.sallyArea === id);
                 const dim = showDim && !allowed.has(id) ? ' dimmed' : '';
@@ -753,6 +916,10 @@ export const tagBoardSection: OverviewSection = {
                 }
                 const maps = mapsForTag(plan.stages, id);
                 const mapHint = maps.length > 1 ? maps.map(n => `E${n}`).join('·') : '';
+                const singleMap = maps.length === 1 ? maps[0]! : null;
+                const canUnbind = singleMap != null && !locked;
+                const onShip = ships.some(s => s.sallyArea === id);
+                const canDelete = !locked && !onShip;
                 tagRow += `<th class="tb-colhead tagcol${dim}" style="--c:${colorVar(plan, id)}" data-tag="${id}">
                     <div class="tb-banner">
                         <button type="button" class="tb-swatch" data-color="${id}" title="${esc(t('ov.tbColorPick'))}"
@@ -760,6 +927,10 @@ export const tagBoardSection: OverviewSection = {
                         <input class="tb-name" data-rename="${id}" value="${esc(tg?.name ?? '')}"
                             placeholder="${esc(t('ov.eoTagUnnamed', { n: id }))}" ${locked ? 'readonly' : ''}>
                         ${locked ? '<span title="locked">🔒</span>' : ''}
+                        ${canUnbind ? `<button type="button" class="tb-tag-x" data-unbind-tag="${id}" data-unbind-map="${singleMap}"
+                            title="${esc(t('ov.tbUnbindTag'))}">×</button>` : ''}
+                        ${!canUnbind && canDelete ? `<button type="button" class="tb-tag-x" data-delete-tag="${id}"
+                            title="${esc(t('ov.tbDeleteTag'))}">×</button>` : ''}
                     </div>
                     <div class="tb-meta">
                         <span>${esc(t('ov.tbColPlanned'))} <b>${plannedN}</b></span>
@@ -777,17 +948,25 @@ export const tagBoardSection: OverviewSection = {
                     stypeGroupKey(s.stypeId) === g.key
                     && cardState(planMap()[s.id] ?? 0, s.sallyArea) !== 'pool'
                     && matchShip(s, q));
-                const byCol = new Map(flat.map(id => [id, [] as BoardShip[]]));
+                const byCol = new Map<number, BoardShip[]>();
+                for (const col of cols) {
+                    if (col.kind === 'tag') byCol.set(col.id, []);
+                }
                 for (const s of list) {
                     const c = columnOf(planMap()[s.id] ?? 0, s.sallyArea);
                     byCol.get(c)?.push(s);
                 }
                 body += `<tr><td class="tb-stype">${esc(t(g.labelKey))}
                     <span class="cnt">${list.length}</span></td>`;
-                for (const id of flat) {
-                    const cell = byCol.get(id) ?? [];
-                    const dim = showDim && !allowed.has(id) ? ' dimmed' : '';
-                    body += `<td class="tb-cell${dim}" data-col="${id}" style="--c:${colorVar(plan, id)}">
+                for (const col of cols) {
+                    if (col.kind === 'placeholder') {
+                        body += `<td class="tb-cell tb-placeholder" data-add-map="${col.mapNo}">
+                            <span class="tb-empty dim">${esc(t('ov.tbEmptyMap'))}</span></td>`;
+                        continue;
+                    }
+                    const cell = byCol.get(col.id) ?? [];
+                    const dim = showDim && !allowed.has(col.id) ? ' dimmed' : '';
+                    body += `<td class="tb-cell${dim}" data-col="${col.id}" style="--c:${colorVar(plan, col.id)}">
                         <div class="tb-chips">${cell.length
                             ? cell.map(s => chipHtml(s)).join('')
                             : `<span class="tb-empty">${esc(t('ov.tbEmptyCell'))}</span>`}</div></td>`;
@@ -795,8 +974,8 @@ export const tagBoardSection: OverviewSection = {
                 body += '</tr>';
             }
 
-            if (!flat.length) {
-                boardEl.innerHTML = `<tbody><tr><td class="ov-empty">${esc(t('ov.eoNoTags'))}</td></tr></tbody>`;
+            if (!groups.length) {
+                boardEl.innerHTML = `<tbody><tr><td class="ov-empty">${esc(t('ov.eoNoEvent'))}</td></tr></tbody>`;
             } else {
                 boardEl.innerHTML = `<thead><tr>${mapRow}</tr><tr>${tagRow}</tr></thead><tbody>${body}</tbody>`;
             }
@@ -833,17 +1012,10 @@ export const tagBoardSection: OverviewSection = {
                     dragIds = null;
                 });
                 c.addEventListener('click', e => {
-                    if ((e.target as HTMLElement).closest('[data-fix]')) return;
                     const id = Number(c.dataset.id);
                     if (selected.has(id)) selected.delete(id); else selected.add(id);
                     c.classList.toggle('selected', selected.has(id));
                     updateSelUi();
-                });
-            });
-            rootEl.querySelectorAll<HTMLElement>('[data-fix]').forEach(b => {
-                b.addEventListener('click', e => {
-                    e.stopPropagation();
-                    applyActual(Number(b.dataset.fix));
                 });
             });
         }
@@ -865,11 +1037,55 @@ export const tagBoardSection: OverviewSection = {
                     moveShips(ids, Number(td.dataset.col));
                 });
             });
+            boardEl.querySelectorAll<HTMLButtonElement>('.tb-add-map-tag').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const mapNo = Number(btn.dataset.addMap);
+                    if (Number.isInteger(mapNo) && mapNo > 0) addTag(mapNo);
+                });
+            });
             boardEl.querySelectorAll<HTMLElement>('th.tb-colhead[data-tag]').forEach(th => {
                 th.addEventListener('click', e => {
-                    if ((e.target as HTMLElement).closest('[data-color], input, [data-rename]')) return;
+                    if ((e.target as HTMLElement).closest(
+                        '[data-color], input, [data-rename], [data-unbind-tag], [data-delete-tag]',
+                    )) return;
                     if (!selected.size) return;
                     moveShips([...selected], Number(th.dataset.tag));
+                });
+            });
+            boardEl.querySelectorAll<HTMLButtonElement>('[data-unbind-tag]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const tagId = Number(btn.dataset.unbindTag);
+                    const mapNo = Number(btn.dataset.unbindMap);
+                    if (isLocked(tagId) || !(mapNo > 0)) return;
+                    const out = unbindTagFromMap(
+                        plan.stages, plan.tags, plan.planByShip, ships, mapNo, tagId,
+                    );
+                    if (!out.changed) return;
+                    plan.stages = out.stages;
+                    plan.tags = out.tags;
+                    void commit().then(() => { fillRoutes(); drawBoardVisual(); drawRules(); });
+                });
+            });
+            boardEl.querySelectorAll<HTMLButtonElement>('[data-delete-tag]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const tagId = Number(btn.dataset.deleteTag);
+                    if (isLocked(tagId)) return;
+                    const out = deletePlanTag(
+                        plan.stages, plan.tags, plan.planByShip, ships, tagId,
+                    );
+                    if (out.blocked) {
+                        bannerEl.hidden = false;
+                        bannerEl.textContent = t('ov.tbDeleteTagBlocked');
+                        return;
+                    }
+                    if (!out.changed) return;
+                    plan.stages = out.stages;
+                    plan.tags = out.tags;
+                    plan.planByShip = out.planByShip;
+                    void commit().then(() => { fillRoutes(); drawBoardVisual(); drawRules(); });
                 });
             });
             boardEl.querySelectorAll<HTMLElement>('[data-color]').forEach(b => {

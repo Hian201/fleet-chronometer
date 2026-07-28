@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-    BackupDestinationError, BackupValidationError, highestReferencedEventId,
+    BackupDestinationError, BackupValidationError, combineBackupEnvelopes, highestReferencedEventId,
     MAX_RESTORABLE_SOURCE_EVENT_ID, parseBackupJson, restoreBackup, validateBackupEnvelope,
     type BackupTables,
 } from '../utils/backup';
@@ -75,6 +75,23 @@ function emptyV3Restore() {
     };
 }
 
+/** v6 現行完整檔：所有 restore tables 與 replays 必須一次具備。 */
+function v6Full() {
+    const restore = v3Restore().tables;
+    const replays = v3Replays().tables;
+    return {
+        schemaVersion: 6,
+        kind: 'full',
+        exportedAt: TS,
+        tables: {
+            ...restore,
+            replays: replays.replays,
+            // v3 時尚未存在的資料表，在遷移到 v6 完整格式時誠實表示為空歷史。
+            eventPlans: [], resources: [], resourceMarks: [],
+        },
+    };
+}
+
 function rawEvent(path = 'api_port/port') {
     return { ts: TS, path, api: { fixture: true }, req: {} };
 }
@@ -125,6 +142,58 @@ describe('備份 envelope runtime validation', () => {
         expect(validateBackupEnvelope(v2Restore).kind).toBe('restore');
         expect(validateBackupEnvelope(v2Replays).kind).toBe('replays');
         expect(validateBackupEnvelope(v3).tables.shipObtained).toHaveLength(2);
+    });
+
+    it('v6 只接受一份包含所有資料表的 full 備份', () => {
+        const full = validateBackupEnvelope(v6Full());
+        expect(full.kind).toBe('full');
+        expect(full.tables.sorties).toHaveLength(1);
+        expect(full.tables.replays).toHaveLength(1);
+
+        expect(() => validateBackupEnvelope({ ...v6Full(), kind: 'restore' }))
+            .toThrow(BackupValidationError);
+        const missing = v6Full();
+        delete (missing.tables as Record<string, unknown>).replays;
+        expect(() => validateBackupEnvelope(missing)).toThrow(BackupValidationError);
+    });
+
+    it('舊版 restore + replays 一次選取後正規化為完整 v6，順序不影響結果', () => {
+        const normal = combineBackupEnvelopes([v3Restore(), v3Replays()]);
+        const reverse = combineBackupEnvelopes([v3Replays(), v3Restore()]);
+
+        expect(normal).toMatchObject({ schemaVersion: 6, kind: 'full' });
+        expect(reverse.tables).toEqual(normal.tables);
+        expect(normal.tables.eventPlans).toEqual([]);
+        expect(normal.tables.resources).toEqual([]);
+        expect(normal.tables.replays).toHaveLength(1);
+    });
+
+    it('舊版 split 少一檔或多選不相容檔案時，在寫入前拒絕', () => {
+        expect(() => combineBackupEnvelopes([v3Restore()])).toThrow(BackupValidationError);
+        expect(() => combineBackupEnvelopes([v3Replays()])).toThrow(BackupValidationError);
+        expect(() => combineBackupEnvelopes([v3Restore(), v3Restore()])).toThrow(BackupValidationError);
+        expect(() => combineBackupEnvelopes([v6Full(), v3Replays()])).toThrow(BackupValidationError);
+    });
+
+    it('v6 full 以一次 transaction 還原摘要與重播，並標記兩層皆完成', async () => {
+        const database = createDb();
+        await restoreBackup(database, v6Full());
+
+        expect(await database.sorties.count()).toBe(1);
+        expect(await database.replays.count()).toBe(1);
+        expect(await database.meta.get('backup-restore')).toMatchObject({
+            importedRestore: true, importedReplays: true,
+        });
+        expect(await database.events.add(rawEvent('api_mock/v6_full'))).toBeGreaterThan(5);
+    });
+
+    it('舊雙檔先合併再還原，失敗前不會留下只有摘要的半套出擊', async () => {
+        const database = createDb();
+        await expect(restoreBackup(database, combineBackupEnvelopes([v3Restore(), v3Replays()])))
+            .resolves.toBeUndefined();
+
+        expect(await database.sorties.count()).toBe(1);
+        expect(await database.replays.count()).toBe(1);
     });
 
     it('拒絕未知或零/負版本、錯誤 kind、非陣列資料表、缺少主鍵與非有限數值', () => {

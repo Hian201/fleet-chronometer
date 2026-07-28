@@ -149,7 +149,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/main.ts` | 側欄導覽＋hash 路由＋語言/主題套用；側欄三態（釘選／收合／浮層滑入，`body[data-nav]`）與側欄左右側（`body[data-nav-side]`，與三態正交）。窄視窗（≤760px）強制不釘選 |
 | `entrypoints/overview/lib.ts` | `loadGameState()` 依 `planStateRecovery()` 選安全 snapshot baseline 再重播 raw events；overview 不投影、不寫 derived tables |
 | `entrypoints/overview/fsa.ts` | File System Access API 封裝（零 manifest 權限的資料夾備份）：目錄選取、讀寫權限請求、寫檔；目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，非 Dexie） |
-| `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-replays.json` 即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁 |
+| `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-backup.json` 即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁，亦相容舊 `kanmusu-replays.json` |
 | `entrypoints/panel/main.ts` | 面板控制器：以 `EventProjector` state-only/persist 兩階段重播與 live 投影、只在成功後推進 cursor、渲染與 autoSwitch |
 | `utils/ui-prefs.ts` | UI 偏好持久化（語言＋亮暗主題，localStorage）——panel/popup/overview 共用；SW 不使用。`onPrefsChange()` 用 DOM `storage` 事件做跨頁即時同步 |
 | `utils/replay.ts` | 出擊重播組裝（純函式，無 chrome.*）：`snapshotDeck`/`startReplay`/`appendBattle` 累積成 `ReplayRow`、`toKc3Replay()` 輸出 KC3Kai battleplayer 可貼上物件 |
@@ -399,23 +399,25 @@ API／Gemini Nano）——裝置端零網路零出境，`prompt-api.d.ts` 特徵
 `planStateRecovery()` 只在 raw events 為空時採用 legacy snapshot；raw events 存在時僅採用
 `eventId` 嚴格小於第一筆 retained raw event ID 的 snapshot 作 baseline。
 
-**現行備份契約 v5**：restore envelope 含 `snapshot`／`sorties`／`expeditions`／`factory`／
-`wanted`／`shipObtained`／`eventPlans`／`resources`／`resourceMarks`；replays envelope 只含
-`replays`。每個 schema 版本的 restore 表組合各自固定（`determineKind()`），舊檔不因缺少後來
-新增的表被拒，新檔也不得少帶或夾帶。**匯入不是 merge，也不會警告後覆寫**：第一次僅接受
-沒有 raw events、notified、projection metadata、目標 rows 的乾淨環境；後續只有
-`meta['backup-restore']` marker 證明的 complementary split file 可接續。validation、
-destination preflight、所有 writes、event-ID sequence reservation／high-water 與 import
-marker 在同一 transaction，任一失敗完整 rollback。
+**現行備份契約 v6**：只輸出 `kind:'full'` 的單一 `kanmusu-backup.json`，含
+`snapshot`／`sorties`／`expeditions`／`factory`／`replays`／`wanted`／`shipObtained`／
+`eventPlans`／`resources`／`resourceMarks`。`sorties` 只是摘要，沒有 `replays` 就不能重建
+出擊編成與逐節點內容，故完整還原絕不可拆開。v1 legacy-full 可單檔匯入；v2–v5 的舊
+restore/replays 可在同一次檔案選取中同時提供，或由介面在兩次選取間暫存一檔、湊成一對後，再由
+`combineBackupEnvelopes()` 先正規化成 v6 full；湊齊前絕不寫入資料庫。每個舊 schema 的表組合仍固定，舊檔不因缺少後來新增的表被拒。**匯入不是 merge，
+也不會警告後覆寫**：第一次僅接受沒有 raw events、notified、projection metadata、目標 rows
+的乾淨環境；validation、destination preflight、所有 writes、event-ID sequence reservation／
+high-water 與 import marker 都在同一 transaction，任一失敗完整 rollback。marker 只為相容
+舊拆檔的低層 restore 路徑保留，UI 不再逐檔匯入。
 
 **雲端備份走 File System Access API**（`entrypoints/overview/fsa.ts`），不碰新權限（Google
-Drive／WebDAV 原生 API 需 OAuth／host_permissions，違反權限精簡）。備份拆兩檔：
-`kanmusu-restore.json`（重建現狀最小子集，永遠很小）／`kanmusu-replays.json`（重播層，隨
-出擊數線性膨脹，可獨立裁剪）。資料夾備份一併寫入 `viewer.html`——單檔離線、不需要擴充。
+Drive／WebDAV 原生 API 需 OAuth／host_permissions，違反權限精簡）。資料夾備份寫入一個
+`kanmusu-backup.json` 完整檔與 `viewer.html`——後者單檔離線、不需要擴充。
 
 **重播保留規則**（`utils/retention.ts`）：保護判定由上而下——手動 ★ 釘選 → 打撈到新船
 （`firstOwnedDropKeys`，須 `source='auto'`＋`observedEventId`）→ 斬殺 → 活動 boss → 所屬海域
 尚未通關；皆非則只留最近 `keepRecentDays`（預設 45）天且保底最近 `keepRecentCount` 場。
+裁剪的是重播原始封包，之後的完整備份也無法帶回該場展開細節；出擊摘要仍會保留並如實顯示。
 
 **斬殺（cleared）偵測**：`detectClear()` 在 mapinfo 更新後比對量表，觀測到「未擊破→擊破」
 就把該圖最近一場 boss 出擊標 `cleared`；只在「本次事件流曾看過該圖未擊破」時才判定轉變。

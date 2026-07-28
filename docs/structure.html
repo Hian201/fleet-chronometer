@@ -1975,9 +1975,9 @@ UI 文案為「視窗適應」／Fit to Window／ウィンドウ適応；程式�
 <!-- ══════════════════════════════════════════════════════ -->
 <h2 id="s18"><i>18</i>備份、還原與保留</h2>
 
-<h3>18.1 envelope 格式（v5）</h3>
-<pre><code>export const BACKUP_SCHEMA_VERSION = 5 as const;
-export type BackupKind = 'restore' | 'replays' | 'legacy-full';
+<h3>18.1 envelope 格式（v6）</h3>
+<pre><code>export const BACKUP_SCHEMA_VERSION = 6 as const;
+export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 
 export interface BackupEnvelope {
     schemaVersion: number;
@@ -1986,16 +1986,15 @@ export interface BackupEnvelope {
     tables: BackupTables;                     // 見下表
 }</code></pre>
 
-<p><strong>備份拆兩檔</strong>（理由：重播層隨出擊數線性膨脹，需可獨立裁剪）：</p>
+<p><strong>現行備份是一個完整檔</strong>：摘要與原始戰鬥封包必須一起還原，否則出擊卡無法展開完整內容。</p>
 <table>
   <thead><tr><th style="width:220px">檔案</th><th>內容</th></tr></thead>
   <tbody>
-    <tr><td><code>kanmusu-restore.json</code></td>
-      <td>重建現狀的最小子集，永遠很小：<code>snapshot</code>、<code>sorties</code>、<code>expeditions</code>、
-        <code>factory</code>、<code>wanted</code>、<code>shipObtained</code>、<code>eventPlans</code>、
-        <code>resources</code>、<code>resourceMarks</code></td></tr>
-    <tr><td><code>kanmusu-replays.json</code></td><td>只含 <code>replays</code></td></tr>
-    <tr><td><code>viewer.html</code></td><td>單檔離線檢視器（零擴充、零外連），內聯 <code>toKc3Replay</code></td></tr>
+    <tr><td><code>kanmusu-backup.json</code></td>
+      <td>v6 <code>full</code>：<code>snapshot</code>、<code>sorties</code>、<code>expeditions</code>、
+        <code>factory</code>、<code>replays</code>、<code>wanted</code>、<code>shipObtained</code>、
+        <code>eventPlans</code>、<code>resources</code>、<code>resourceMarks</code></td></tr>
+    <tr><td><code>viewer.html</code></td><td>單檔離線檢視器（零擴充、零外連），讀取完整備份並內聯 <code>toKc3Replay</code></td></tr>
   </tbody>
 </table>
 
@@ -2003,14 +2002,15 @@ export interface BackupEnvelope {
 <p><strong>每個 schema 版本的 restore 表組合各自固定</strong>——舊檔不因缺少後來新增的表被拒，
 新檔也不得少帶或夾帶。</p>
 <table>
-  <thead><tr><th style="width:90px">版本</th><th>restore 必須且只能含的表</th></tr></thead>
+  <thead><tr><th style="width:90px">版本</th><th>必要表／kind</th></tr></thead>
   <tbody>
     <tr><td>v1</td><td><code>legacy-full</code>：<code>snapshot, sorties, expeditions, factory, replays, wanted</code>（六張全含）</td></tr>
     <tr><td>v2</td><td><code>snapshot, sorties, expeditions, factory, wanted</code></td></tr>
     <tr><td>v3</td><td>＋ <code>shipObtained</code></td></tr>
     <tr><td>v4</td><td>＋ <code>eventPlans</code></td></tr>
     <tr><td>v5</td><td>＋ <code>resources, resourceMarks</code></td></tr>
-    <tr><td>任何版本</td><td><code>replays</code> kind：<b>只能含 <code>replays</code></b></td></tr>
+    <tr><td>v6</td><td><code>full</code>：<b>全部十張表</b>，含 <code>replays</code></td></tr>
+    <tr><td>v2–v5</td><td>舊 <code>restore</code>＋<code>replays</code> 可同次或分兩次選取；湊成一對後才正規化為 v6 full 並一次還原</td></tr>
   </tbody>
 </table>
 <p><code>schemaVersion &gt; BACKUP_SCHEMA_VERSION</code> 一律拒絕（不支援較新的備份版本）。</p>
@@ -2021,15 +2021,14 @@ export interface BackupEnvelope {
   <ol>
     <li><b>第一次匯入</b>只接受<strong>乾淨環境</strong>：沒有 raw events、沒有 <code>notified</code>、
       沒有 projection metadata、目標 rows 為空。</li>
-    <li><b>後續</b>只有 <code>meta['backup-restore']</code> marker 證明的
-      <strong>complementary split file</strong> 可接續（restore 已匯入 → 可再匯入 replays，反之亦然）。</li>
+    <li><b>現行 v6</b>完整檔一次還原全部目標表；舊 v2–v5 拆檔可同次或分兩次選取，湊齊才合併為完整資料並開始 transaction。</li>
     <li>validation、destination preflight、所有 writes、event-ID sequence reservation／high-water
       與 import marker <strong>全部在同一個 transaction</strong>，任一失敗完整 rollback。</li>
     <li><code>BackupValidationError</code>（格式錯）與 <code>BackupDestinationError</code>（環境不符）
       必須能由 UI 明確分流；被拒時 transaction 尚未寫入任何使用者資料，
       既有資料與 event key generator 都保持原樣。</li>
     <li><code>MAX_RESTORABLE_SOURCE_EVENT_ID = Number.MAX_SAFE_INTEGER - 2</code>：
-      兩個拆檔各用一個 auto-generated guard 驗證 generator rollback，
+      每次匯入使用一個 auto-generated guard 驗證 generator rollback，
       之後還要保留至少一個 safe integer 給真正的 ingestion。</li>
     <li><code>meta['game-page']</code>（靜音／語言鏡像）<strong>不算「來源不明的既有資料」</strong>，preflight 略過。</li>
   </ol>
@@ -2053,6 +2052,7 @@ API：<code>fsaSupported()</code>、<code>pickBackupDir()</code>、<code>savedBa
   <li>所屬海域尚未通關</li>
   <li>皆非 → 只留最近 <code>keepRecentDays</code>（預設 45）天，且保底最近 <code>keepRecentCount</code> 場</li>
 </ol>
+<p>裁剪只刪 <code>replays</code>，摘要仍留在 <code>sorties</code>；因此後續完整備份也無法帶回被裁掉場次的展開細節。</p>
 
 <h4>斬殺偵測（<code>detectClear()</code>）</h4>
 <p>在 mapinfo 更新後比對量表，觀測到「未擊破→擊破」就把該圖最近一場 boss 出擊標 <code>cleared</code>。
@@ -2323,7 +2323,7 @@ poi（遠征需求資料）、航海日誌拡張版（節點類型語意、CSV �
 
 <hr>
 <p class="meta">
-  本文件描述 <code>fleet-chronometer</code> v1.0.0（Dexie schema v12、備份 schema v5、
+  本文件描述 <code>fleet-chronometer</code> v1.0.0（Dexie schema v12、備份 schema v6、
   projection cursor v3）。與程式碼衝突時以程式碼與 <code>tests/</code> 為準。
 </p>
 

@@ -14,10 +14,7 @@
 // 故 used[4] 一律為 0，匯入列 kind 固定為 'build'（航海日誌沒有另外記錄「高速完工」事件）。
 import type { FactoryLogRow, KcDb } from './db';
 import { parseDelimitedText, rowsToCsv } from './csv';
-import { reverseShipLookup } from './drop-log-import';
 import { borrowEventId } from './event-id-borrow';
-
-export { reverseShipLookup };
 
 export class BuildLogImportError extends Error {
     constructor(message: string) { super(message); this.name = 'BuildLogImportError'; }

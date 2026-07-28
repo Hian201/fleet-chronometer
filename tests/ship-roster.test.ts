@@ -6,8 +6,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { GameState, type OwnedShipView } from '../utils/state';
 import {
     GEAR_TYPE, MARRIED_LV, SPARKLE_COND, annotateRoster, emptyRosterFilter,
-    filterRoster, isOpeningAsw, isOpeningTorpedo, nationOptions, paginate, sortRoster,
+    filterRoster, isOpeningAsw, isOpeningTorpedo, paginate, sortRoster,
 } from '../utils/ship-roster';
+import { nationOptions } from '../utils/ship-filter';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 

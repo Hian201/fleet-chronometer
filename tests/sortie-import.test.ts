@@ -5,9 +5,7 @@ import Dexie from 'dexie';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { KcDb, type ReplayRow, type SortieLogRow } from '../utils/db';
-import {
-    buildReplaysEnvelope, buildRestoreEnvelope, restoreBackup, validateBackupEnvelope,
-} from '../utils/backup';
+import { buildFullEnvelope, restoreBackup, validateBackupEnvelope } from '../utils/backup';
 import { toKc3Replay } from '../utils/replay';
 import {
     importSortie, isSameSortie, packetHash, parseSortieImport, normalizeTime,
@@ -450,17 +448,14 @@ describe('落地', () => {
         expect(await database.replays.count()).toBe(2);
     });
 
-    it('成功匯入的 sorties／replay 可通過 backup 驗證並在新 DB 完成 split restore roundtrip', async () => {
+    it('成功匯入的 sorties／replay 可通過完整 backup 驗證並在新 DB 完成 roundtrip', async () => {
         const source = createDb();
         await importSortie(source, parseSortieImport(sample()));
-        const restoreEnvelope = await buildRestoreEnvelope(source);
-        const replayEnvelope = await buildReplaysEnvelope(source);
-        expect(() => validateBackupEnvelope(restoreEnvelope)).not.toThrow();
-        expect(() => validateBackupEnvelope(replayEnvelope)).not.toThrow();
+        const envelope = await buildFullEnvelope(source);
+        expect(() => validateBackupEnvelope(envelope)).not.toThrow();
 
         const target = createDb();
-        await restoreBackup(target, restoreEnvelope);
-        await restoreBackup(target, replayEnvelope);
+        await restoreBackup(target, envelope);
         expect(await target.sorties.toArray()).toEqual(await source.sorties.toArray());
         expect(await target.replays.toArray()).toEqual(await source.replays.toArray());
         expect(await target.events.count()).toBe(0);
