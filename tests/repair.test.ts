@@ -16,7 +16,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     return {
         name: '測試艦', stype: '', lv: 99, hp: 100, maxhp: 100, cond: 49,
         fuel: 100, maxFuel: 100, bull: 100, maxBull: 100,
-        id: 1, mst: 1, stypeId: 1, ndockTime: 2_000_000, inDock: false,
+        id: 1, mst: 1, stypeId: 1, ndockTime: 2_000_000, inDock: false, escaped: false,
         gears: [], exGear: null, exEmpty: false, slotCapacity: [],
         ...overrides,
     };

@@ -1,5 +1,8 @@
 // 輕量級戰鬥解析引擎 (純 TS)
-import { type BattleShipView, type BattleFleetView, type BattleInfoView } from './state';
+import {
+    type BattleShipView, type BattleFleetView, type BattleInfoView,
+    type BattleEnemyShipView, type BattleSupportView,
+} from './state';
 
 // ── 戰鬥評級預測 ──────────────────────────────────────────────
 // clean-room 重寫，依公開文件化的艦これ勝利判定規則（inspired by KC3Kai, MIT）。
@@ -15,6 +18,8 @@ import { type BattleShipView, type BattleFleetView, type BattleInfoView } from '
 // 註2：A 的撃沈門檻是 floor（截斷）非 ceil——已用真實 1-1 boss 封包驗證（敵3艦沉2=A）。
 //      floor(1×0.7)=0 會讓單艦誤判，故加「敵數>1」守衛。
 // 註3：敵全滅但我方有轟沈=A、以及敵旗艦撃沈加成，這兩個 edge 尚無實測資料，待驗證。
+// 註4：退避艦（艦隊司令部施設）已離開艦隊，不算在我方損害率與轟沈數內——呼叫端負責
+//      先濾掉（見 analyzeBattle 末段）。此排除是機制推論、無真封包佐證，見檔末說明。
 export function predictRank(player: BattleShipView[], enemy: BattleShipView[]): string {
     if (enemy.length === 0) return '?';
 
@@ -55,11 +60,56 @@ export function predictRank(player: BattleShipView[], enemy: BattleShipView[]): 
 //             為各方局部 0-5（主隊）/ 6-11（隨伴）。
 //   敵艦 master id：api_ship_ke 為 0-indexed、無 leading -1。
 // 支援連續傳入多個封包（例如 晝戰 + 夜戰），血量以第一包為初始、依序重放各階段傷害。
-export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], escort: number[] }): BattleInfoView {
+// escaped*：該位置的艦是否已由艦隊司令部施設退避（0-indexed，與各艦隊的「存在艦」同序）。
+// 退避艦仍佔封包的血量陣列位置（否則位置索引會整排錯位），但已不參戰，故不列入大破警告、
+// 也不列入 rank 的損害率——**此排除是機制推論，本專案尚無帶退避的真封包**（見 state.ts
+// escapedShipIds 的說明與 wantedTag 的擷取鉤子）。
+export interface BattleAnalyzeOptions {
+    escapedMain?: boolean[];
+    escapedEscort?: boolean[];
+}
+
+/**
+ * 由艦隊現況算出三個大破訊號。
+ *
+ * isTaiha ＝「進擊會有轟沈風險的艦」，三種艦刻意不列入：
+ *   · 主隊旗艦：遊戲本來就禁止旗艦大破進擊，不是「小心點」而是「不能去」，
+ *     另以 flagshipTaiha 回報（帶損管時可突破，見 flagshipDamecon）。
+ *   · 隨伴（第二艦隊）旗艦：機制上不會被擊沉，沒有轟沈風險。
+ *   · 已退避艦：已離開艦隊，不再參戰。
+ * damecon>0 的艦同樣不警告——下次致命傷會由損管接住（消耗後 damecon 歸 0，
+ * 屆時就會恢復警告；跨節點的消耗記錄見 state.ts damaconUsed）。
+ *
+ * **抽成獨立函式是因為退避之後要重算**：玩家在結算畫面按下退避（goback_port）之後
+ * 不會再有新的戰鬥封包，若不重跑這一段，已經退避的那艘船會繼續掛著大破警告——
+ * 而退避的重點正是「讓剩下的船能繼續進擊」。見 state.ts 的 goback_port 分支。
+ */
+export function taihaFlags(fleets: BattleFleetView): {
+    isTaiha: boolean; flagshipTaiha: boolean; flagshipDamecon: number;
+} {
+    let isTaiha = false;
+    const atRisk = (s: BattleShipView) =>
+        !s.escaped && !s.unsinkable && s.hp > 0 && s.hp * 4 <= s.maxHp && s.damecon === 0;
+    for (const ships of [fleets.playerMain, fleets.playerEscort])
+        for (let i = 1; i < ships.length; i++) if (atRisk(ships[i])) isTaiha = true;
+    // 主隊旗艦大破＝強制返航。**不看 damecon**：損管在此不是「會自動接住」而是
+    // 「結算後可選擇使用以突破進擊限制」，是否還有損管交給 flagshipDamecon 表達。
+    const flagship = fleets.playerMain[0];
+    const flagshipTaiha = !!flagship && !flagship.escaped && flagship.hp > 0 && flagship.hp * 4 <= flagship.maxHp;
+    // 旗艦身上尚未消耗的損管種類（0無／1応急修理要員／2応急修理女神）。損管必須裝在
+    // 大破的旗艦自己身上才有效，裝在其他隊員身上不保護旗艦，故只讀旗艦這一格。
+    const flagshipDamecon = flagshipTaiha ? flagship.damecon : 0;
+    return { isTaiha, flagshipTaiha, flagshipDamecon };
+}
+export function analyzeBattle(
+    apiList: any[],
+    playerDamecons: { main: number[], escort: number[] },
+    opts: BattleAnalyzeOptions = {},
+): BattleInfoView {
     const initialApi = apiList[0] ?? {};
 
     // 建立位置索引（含 null 佔位）的艦隊陣列
-    const mkFleet = (nowKey: string, maxKey: string, damecons: number[]): (BattleShipView | null)[] => {
+    const mkFleet = (nowKey: string, maxKey: string, damecons: number[], escaped: boolean[] = []): (BattleShipView | null)[] => {
         const now = initialApi[nowKey], max = initialApi[maxKey];
         const arr: (BattleShipView | null)[] = [];
         if (!Array.isArray(now) || !Array.isArray(max)) return arr;
@@ -68,15 +118,20 @@ export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], 
             arr.push({
                 hp: now[i], maxHp: max[i], beginHp: now[i],
                 damecon: damecons[i] ?? 0, sunk: false, dealtDamage: 0,
+                escaped: escaped[i] === true,
             });
         }
         return arr;
     };
 
-    const pMain = mkFleet('api_f_nowhps', 'api_f_maxhps', playerDamecons.main);
-    const pEsc = mkFleet('api_f_nowhps_combined', 'api_f_maxhps_combined', playerDamecons.escort);
+    const pMain = mkFleet('api_f_nowhps', 'api_f_maxhps', playerDamecons.main, opts.escapedMain);
+    const pEsc = mkFleet('api_f_nowhps_combined', 'api_f_maxhps_combined', playerDamecons.escort, opts.escapedEscort);
     const eMain = mkFleet('api_e_nowhps', 'api_e_maxhps', []);
     const eEsc = mkFleet('api_e_nowhps_combined', 'api_e_maxhps_combined', []);
+    // 連合艦隊的第二艦隊旗艦不會被擊沉（使用者提供之遊戲設定，非封包驗證）。
+    // 位置固定為隨伴艦隊的第一艘；單艦隊出擊時 pEsc 為空，此保護自然不成立。
+    const escortFlagship = pEsc.find(s => !!s) ?? null;
+    if (escortFlagship) escortFlagship.unsinkable = true;
 
     // (side, index) → 艦：index 0-5 主隊、6-11 隨伴
     const sideShip = (side: 'player' | 'enemy', idx: number): BattleShipView | null => {
@@ -89,9 +144,16 @@ export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], 
         if (!s || dmg <= 0) return;
         s.hp -= dmg;
         if (s.hp <= 0) {
-            if (isPlayer && s.damecon > 0) {
-                // 応急修理要員(0.2)／女神(全快)：發動並消耗
-                s.hp = s.damecon === 1 ? Math.floor(s.maxHp * 0.2) : s.maxHp;
+            if (isPlayer && s.unsinkable) {
+                // 連合艦隊第二艦隊旗艦不會被擊沉；不會沉就不需要損管，故損管也不發動、
+                // 留著給之後的節點。**殘 HP 值無真封包佐證**，取「存活的最低值 1」不猜
+                // 其他數字；重點是不誤報轟沈（rank 的 pSunk 與大破警告都會被牽動）。
+                s.hp = 1;
+            } else if (isPlayer && s.damecon > 0) {
+                // 応急修理要員＝修復至中破（最大HP的 50%）／女神＝全快（燃彈另在 state.ts
+                // 補回）。發動後即消耗消失。50% 為使用者提供之遊戲設定（非封包驗證），
+                // 先前沿用 KC3Kai 的 20%——那個值會讓修復後仍判定大破，與遊戲行為不符。
+                s.hp = s.damecon === 1 ? Math.floor(s.maxHp * 0.5) : s.maxHp;
                 s.damecon = 0;
             } else {
                 s.sunk = true; s.hp = 0;
@@ -130,6 +192,14 @@ export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], 
         if (!Array.isArray(arr)) return;
         for (let i = 0; i < arr.length; i++)
             takeDamage(sideShip(side, i + offset), Math.max(0, Math.floor(arr[i] ?? 0)), side === 'player');
+    };
+    // 傷害陣列的加總（不套用到任何艦，純統計）。與 applyDmg 同一套切捨規則——
+    // api_edam 實測會出現小數（6-5 ec_battle 樣本的 0.1），兩邊不同調就會對不起來。
+    const sumDamage = (arr: any): number => {
+        if (!Array.isArray(arr)) return 0;
+        let total = 0;
+        for (const v of arr) total += Math.max(0, Math.floor(v ?? 0));
+        return total;
     };
     const creditDmg = (arr: any, side: 'player' | 'enemy') => {
         if (!Array.isArray(arr)) return;
@@ -209,25 +279,53 @@ export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], 
     // 友軍艦隊編成：api_friendly_info 與 api_friendly_battle 同層出現在夜戰封包
     // （已用 samples/61-3.json node53 驗證）。api_ship_id 為 master id（非艦娘實例 id）。
     let friendlyFleetIds: number[] | null = null;
+    // 基地航空隊逐波戰果（見 BattleLbasView）。夜戰封包不帶 api_air_base_attack，
+    // 但 apiList 可能同時含晝夜兩則，故一律累積不覆寫。
+    const lbasWaves: { baseId: number; sent: number; lost: number; damage: number }[] = [];
+    // 支援艦隊戰果（見 BattleSupportView）。
+    let supportDamage = 0;
+    let supportSource: Omit<BattleSupportView, 'damage'> | null = null;
 
     // 依序走訪所有戰鬥封包與階段
     for (const api of apiList) {
         if (!api) continue;
-        // 基地航空隊（主隊 + 隨伴）
+        // 基地航空隊（主隊 + 隨伴）。順便彙總出擊／損失機數與對敵傷害（BattleLbasView）——
+        // 傷害本來就要逐格套用，這裡只是同一趟把數字加起來，不另外重掃封包。
         if (Array.isArray(api.api_air_base_attack))
             for (const ph of api.api_air_base_attack) {
                 applyDmg(ph?.api_stage3?.api_edam, 'enemy');
                 applyDmg(ph?.api_stage3_combined?.api_edam, 'enemy', 6);
+                lbasWaves.push({
+                    baseId: Number.isSafeInteger(ph?.api_base_id) ? ph.api_base_id : 0,
+                    sent: Math.max(0, Math.floor(ph?.api_stage1?.api_f_count ?? 0)),
+                    // 制空戰（stage1）＋對空砲火（stage2）兩段損失都要算。
+                    lost: Math.max(0, Math.floor(ph?.api_stage1?.api_f_lostcount ?? 0))
+                        + Math.max(0, Math.floor(ph?.api_stage2?.api_f_lostcount ?? 0)),
+                    damage: sumDamage(ph?.api_stage3?.api_edam) + sumDamage(ph?.api_stage3_combined?.api_edam),
+                });
             }
         // 噴式強襲（api_injection_kouku）→ 航空戰 → 二巡航空戰
         processKouku(api.api_injection_kouku);
         processKouku(api.api_kouku);
         processKouku(api.api_kouku2);
-        // 支援艦隊（對敵）
+        // 支援艦隊（對敵）。彙總與套用讀同一批欄位，數字不會兩套（見 BattleSupportView）。
         const sup = api.api_support_info;
         if (sup) {
-            applyDmg(sup.api_support_airatack?.api_stage3?.api_edam, 'enemy');
-            applyDmg(sup.api_support_hourai?.api_damage, 'enemy');
+            const air = sup.api_support_airatack;
+            const hourai = sup.api_support_hourai;
+            applyDmg(air?.api_stage3?.api_edam, 'enemy');
+            applyDmg(hourai?.api_damage, 'enemy');
+            const src = air ?? hourai;
+            if (src) {
+                supportDamage += sumDamage(air?.api_stage3?.api_edam) + sumDamage(hourai?.api_damage);
+                // 編組資訊取第一則帶支援的封包（同一節點的道中／決戰支援不會兩次出動）。
+                supportSource ??= {
+                    kind: air ? 'air' : 'shelling',
+                    deckId: Number.isSafeInteger(src.api_deck_id) ? src.api_deck_id : 0,
+                    shipIds: Array.isArray(src.api_ship_id)
+                        ? src.api_ship_id.filter((v: number) => Number.isSafeInteger(v) && v > 0) : [],
+                };
+            }
         }
         // 開幕
         processHougeki(api.api_opening_taisen);   // 開幕對潛
@@ -269,33 +367,56 @@ export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], 
     const mainMvp = mvpOf(fleets.playerMain);
     const escortMvp = fleets.playerEscort.length ? mvpOf(fleets.playerEscort) : 0;
 
-    // 評級預測（我方＝主隊+隨伴，敵方＝主隊+隨伴）
+    // 評級預測（我方＝主隊+隨伴，敵方＝主隊+隨伴）。退避艦已不在艦隊裡，不計入損害率。
     const rank = predictRank(
-        [...fleets.playerMain, ...fleets.playerEscort],
+        [...fleets.playerMain, ...fleets.playerEscort].filter(s => !s.escaped),
         [...fleets.enemyMain, ...fleets.enemyEscort],
     );
 
-    // 大破警告：只有主隊旗艦大破不算（無法進擊），隨伴旗艦大破仍警告
-    let isTaiha = false;
-    const checkTaiha = (ships: BattleShipView[], skipFlagship: boolean) => {
-        for (let i = 0; i < ships.length; i++) {
-            if (skipFlagship && i === 0) continue;
-            const s = ships[i];
-            if (s.hp > 0 && s.hp * 4 <= s.maxHp && s.damecon === 0) isTaiha = true;
-        }
-    };
-    checkTaiha(fleets.playerMain, true);
-    checkTaiha(fleets.playerEscort, false);
+    // ── 大破警告 ──
+    const { isTaiha, flagshipTaiha, flagshipDamecon } = taihaFlags(fleets);
 
     // ── 出擊 UI 附加資訊 ──
-    // 敵艦 master id：現行 api_ship_ke 為 0-indexed、無 leading -1，直接取存在者
-    const enemyIds: number[] = Array.isArray(initialApi.api_ship_ke)
-        ? initialApi.api_ship_ke.filter((id: number) => id > 0)
-        : [];
-    // 敵隨伴（敵聯合艦隊）。api_ship_ke_combined 尚無實測樣本，先 best-effort 讀取。
-    const enemyIdsEscort: number[] = Array.isArray(initialApi.api_ship_ke_combined)
-        ? initialApi.api_ship_ke_combined.filter((id: number) => id > 0)
-        : [];
+    // 敵艦 master id：現行 api_ship_ke 為 0-indexed、無 leading -1，直接取存在者。
+    // **保留原始位置索引**——等級／素質／裝備三個平行陣列都以原始位置對齊，
+    // 過濾後直接用新索引去查會在中間有空格時整排錯位。
+    const pickEnemies = (keKey: string): { ids: number[]; at: number[] } => {
+        const ke = initialApi[keKey];
+        const ids: number[] = [], at: number[] = [];
+        if (Array.isArray(ke)) ke.forEach((id: number, i: number) => {
+            if (id > 0) { ids.push(id); at.push(i); }
+        });
+        return { ids, at };
+    };
+    const mainPick = pickEnemies('api_ship_ke');
+    // 敵隨伴（敵聯合艦隊），已由 samples/61-3.json node53 實測存在。
+    const escortPick = pickEnemies('api_ship_ke_combined');
+    const enemyIds = mainPick.ids;
+    const enemyIdsEscort = escortPick.ids;
+    // 敵艦詳細（等級／素質／裝備），供面板 hover 顯示。皆為戰鬥封包欄位，已用真封包核對
+    // （samples/61-3.json、61-4.json、61-5-jibun-rengou-node52.json）：
+    //   · `api_ship_lv`／`api_eParam`／`api_eSlot` 對主隊，`*_combined` 對隨伴，
+    //     皆 0-indexed 且與 `api_ship_ke` 同序（長度一致，無 leading -1）。
+    //   · `api_eParam[i]`＝[火力, 雷裝, 對空, 裝甲]。順序轉寫自社群工具，並由同封包的
+    //     `api_fParam` 交叉佐證（戰艦格的第 2 項恆為 0＝雷裝，符合戰艦不能雷擊）。
+    //   · `api_eSlot[i]` 是裝備 master id，`-1` 為空格。
+    const readEnemyDetail = (
+        pick: { ids: number[]; at: number[] }, lvKey: string, paramKey: string, slotKey: string,
+    ): BattleEnemyShipView[] => {
+        const lvs = initialApi[lvKey], params = initialApi[paramKey], slots = initialApi[slotKey];
+        const at = (arr: any, i: number) => (Array.isArray(arr) ? arr[i] : undefined);
+        return pick.at.map(i => {
+            const lv = at(lvs, i);
+            const param = at(params, i);
+            const slot = at(slots, i);
+            return {
+                lv: Number.isSafeInteger(lv) && lv > 0 ? lv : 0,
+                param: Array.isArray(param) ? param.map((v: number) => Number(v) || 0) : null,
+                slots: Array.isArray(slot)
+                    ? slot.filter((v: number) => Number.isSafeInteger(v) && v > 0) : [],
+            };
+        });
+    };
 
     const formation = Array.isArray(initialApi.api_formation) ? initialApi.api_formation : [0, 0, 0];
     let seiku = 0;
@@ -327,17 +448,33 @@ export function analyzeBattle(apiList: any[], playerDamecons: { main: number[], 
         rank,
         mvp: [mainMvp, escortMvp],
         isTaiha,
+        flagshipTaiha,
+        flagshipDamecon,
         enemyIds,
         enemyIdsEscort,
+        enemyDetail: {
+            main: readEnemyDetail(mainPick, 'api_ship_lv', 'api_eParam', 'api_eSlot'),
+            escort: readEnemyDetail(escortPick, 'api_ship_lv_combined', 'api_eParam_combined', 'api_eSlot_combined'),
+        },
         formation,
         seiku,
         touchPlane,
         planes,
         drop: null,
+        dropIsNew: false,
         supportFlag,
         aaci,
         midnightFlag,
         friendlyFleetIds,
+        // 沒有任何一波＝這節點基地航空隊沒出動，回 null 讓面板整段不顯示
+        // （0/0/0 會被讀成「出擊了但毫無戰果」，那是另一回事）。
+        lbas: lbasWaves.length ? {
+            sent: lbasWaves.reduce((n, w) => n + w.sent, 0),
+            lost: lbasWaves.reduce((n, w) => n + w.lost, 0),
+            damage: lbasWaves.reduce((n, w) => n + w.damage, 0),
+            waves: lbasWaves,
+        } : null,
+        support: supportSource ? { ...supportSource, damage: supportDamage } : null,
         hasResult: false,
     };
 }

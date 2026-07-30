@@ -13,7 +13,7 @@
 import type { ExpeditionRow, ResourceMarkRow } from '@/utils/db';
 import type { OverviewSection, SectionContext } from './types';
 import { db } from '@/utils/db';
-import { t } from '@/utils/ui-i18n';
+import { expedDisplayName, t } from '@/utils/ui-i18n';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
 import {
     EXPED_MAT_COUNT, filterByPeriod, groupByMission, sortStats, statsCsv, summarize,
@@ -71,7 +71,10 @@ const COLUMNS: Column[] = [
     },
     {
         id: 'type', labelKey: 'ov.expedColType', on: true,
-        cell: r => `<div class="el-type"><b title="${esc(r.name)}">${esc(r.name || `#${r.missionId}`)}</b>`
+        // 活動限定的 S1／S2 支援遠征補「道中／王點」註記；CSV 的 text 刻意維持封包原名，
+        // 匯出的是資料不是解說。
+        cell: r => `<div class="el-type"><b title="${esc(expedDisplayName(r.missionId, r.name))}">${
+            esc(r.name ? expedDisplayName(r.missionId, r.name) : `#${r.missionId}`)}</b>`
             + `<span>${esc(t('ov.expedDeck', { n: r.deckId }))} · #${r.missionId || '–'}</span></div>`,
         text: r => `${r.name || ''} #${r.missionId || ''}`.trim(),
     },
@@ -214,7 +217,8 @@ export function statsHtml(stats: ExpeditionStat[], prefs: Prefs): string {
             + `<button type="button" class="el-sort" data-sort="${c.key}" data-numeric="${c.numeric ? 1 : 0}">`
             + `${esc(t(c.labelKey))}${on ? (prefs.desc ? ' ▾' : ' ▴') : ''}</button></th>`;
     }).join('')}</tr></thead><tbody>${stats.map(stat => `<tr>
-            <td class="el-s-mission"><div class="el-type"><b title="${esc(stat.name)}">${esc(stat.name || `#${stat.missionId}`)}</b>`
+            <td class="el-s-mission"><div class="el-type"><b title="${esc(expedDisplayName(stat.missionId, stat.name))}">${
+            esc(stat.name ? expedDisplayName(stat.missionId, stat.name) : `#${stat.missionId}`)}</b>`
         + `<span>#${stat.missionId || '–'}</span></div></td>
             <td class="el-s-count el-num"><b>${esc(fmtNum(stat.count))}</b></td>
             <td class="el-s-great el-num">${stat.great ? `<span class="el-result r2">${esc(fmtNum(stat.great))}</span>` : `<span class="el-none">–</span>`}</td>

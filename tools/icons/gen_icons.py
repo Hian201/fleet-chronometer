@@ -575,9 +575,36 @@ def personnel(main, accent, tool=''):
         f'<path fill="{d}" opacity="0.35" d="M13.4 14.6 L18.6 14.6 L18.6 29.4 L13.4 29.4 Z"/>',
         tool,
     ])
-ICONS[14] = svg(personnel("#ffffff", "#404040",                               # 応急修理要員
-    tool='<rect x="22.4" y="14.6" width="2.4" height="10.0" rx="1.2" fill="#c0392b" transform="rotate(24 23.6 19.6)"/>'
-         '<rect x="20.6" y="12.4" width="6.0" height="3.4" rx="1.2" fill="#c0392b" transform="rotate(24 23.6 14.1)"/>'))
+def damecon_hammer():                                                         # 14 応急修理要員／女神
+    """遊戲原圖是一把**白色釘鎚**（不是拿工具的人員），故 14 不走 personnel() 這一族。
+
+    與 UI 的造船鎚（`gen_ui.py` 的 build，黃銅色＋漏斗狀打擊面＋金銀鉚釘）刻意分開：
+    那顆代表「建造中」，這顆是裝備圖示（損管），同框出現時必須一眼分得出來——
+    此處為單色白／銀、平打擊面、直羊角，不放鉚釘。
+    """
+    head = "#ffffff"; hd = shade(head, 0.62)
+    grip = "#e6eaf0"; gd = shade(grip, 0.66)
+    p = ['<g transform="rotate(-20 16 16)">']
+    # 柄：等寬白木，末端微收並倒角（小尺寸下純矩形會跟鎚頭連成一塊）
+    p.append(f'<path fill="{grip}" d="M13.8 10.8 L18.2 10.8 L17.6 28.6 '
+             f'Q17.6 29.8 16.3 29.8 L15.3 29.8 Q14.0 29.8 14.0 28.6 Z"/>')
+    p.append(f'<path fill="{gd}" opacity="0.45" d="M16.5 10.8 L18.2 10.8 L17.6 28.6 '
+             f'Q17.6 29.8 16.3 29.8 L16.1 29.8 Z"/>')
+    # 鎚頭：左端平打擊面 → 頸 → 眼部 → 右端羊角（分叉凹口靠 normalize 的 r=0.85 描邊保留）
+    p.append(f'<path fill="{head}" d="'
+             'M3.6 5.0 Q3.6 3.4 5.2 3.4 L7.8 3.4 Q9.0 3.4 9.2 4.8 '     # 打擊面上緣
+             'L12.4 5.4 L12.4 3.0 L17.6 3.0 '                            # 頸→眼部上緣
+             'C22.8 2.8 26.6 6.0 28.4 11.4 '                             # 羊角外緣
+             'L25.3 12.4 '
+             'C24.1 8.8 22.0 7.0 19.2 7.2 '                              # 羊角內緣（回勾出凹口）
+             'L19.2 13.0 L12.4 13.0 L12.4 10.6 '                         # 眼部下緣→頸
+             'L9.2 11.2 Q9.0 12.6 7.8 12.6 L5.2 12.6 Q3.6 12.6 3.6 11.0 Z"/>')
+    # 眼部暗階（柄穿過鎚頭處）＋頸下緣陰影，讓白對白仍有層次
+    p.append(f'<rect x="13.2" y="4.2" width="5.4" height="8.0" rx="1.2" fill="{hd}" opacity="0.32"/>')
+    p.append(f'<path fill="{hd}" opacity="0.22" d="M9.2 10.2 L12.4 10.0 L12.4 13.0 L9.2 11.2 Z"/>')
+    p.append('</g>')
+    return svg(''.join(p))
+ICONS[14] = damecon_hammer()
 ICONS[29] = svg(personnel("#cc9966", "#7a5a3a",                               # 航空要員
     tool='<path fill="#5a7a3a" d="M22.0 16.0 L29.6 16.0 L29.6 18.0 L22.0 18.0 Z"/>'
          '<circle cx="21.6" cy="17.0" r="2.0" fill="#3a5a2a"/>'))

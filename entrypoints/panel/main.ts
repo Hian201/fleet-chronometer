@@ -1,8 +1,12 @@
 import { db, type ApiEventRow } from '@/utils/db';
 import { nodeLabel } from '@/utils/map-node-letters';
+import { diffLabel, isEventWorld, mapLabel } from '@/utils/sortie-detail';
 import { EventProjector, projectEventAndAdvance } from '@/utils/event-projector';
 import { advanceProjectionCursor, readProjectionCursor } from '@/utils/projection-cursor';
-import { GameState, type ShipView, type AirBaseView, type SquadronView, type GearView, type FleetView } from '@/utils/state';
+import {
+    GameState,
+    type ShipView, type GearView, type FleetView, type BattleEnemyShipView,
+} from '@/utils/state';
 import {
     planAnchorageRepair, planMoraleSupply, nextSettlementIn,
     REPAIR_INTERVAL_MS, MORALE_INTERVAL_MS,
@@ -11,7 +15,7 @@ import {
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
-import { getLang, t } from '@/utils/ui-i18n';
+import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
@@ -56,6 +60,10 @@ let cn = 1;
 let showLbas = false;
 let selectedLbasArea: number | null = null;
 const expandedQuests = new Set<number>();   // 使用者展開查看內容的任務編號
+// 大破警告的展開／收縮：null＝依情境的預設（一般節點展開遮蔽、boss 節點新發生的大破
+// 收成 banner），true/false＝使用者手動指定。**每收到新的戰鬥／出擊封包就回到 null**
+// （見 consume）——收起來一次就整場都不再示警的話，這個警告等於白做。
+let taihaOpenOverride: boolean | null = null;
 // 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
 // 熟練度以符號表示（對映遊戲內熟練度徽章階層：1-3 直線、4-6 斜線、7 為 ace 雙箭）。
 // 不吐數字（數字寬度隨值變動、破壞對齊），確切等級留在 chip 的 title 提示。'>' 需轉義。
@@ -184,6 +192,14 @@ tabsEl.addEventListener('click', e => {
     if (!b || !b.dataset.t) return;
     setTab(b.dataset.t as typeof tab, true);
 });
+// 大破警告的展開／收縮切換。事件委派綁在常駐容器上——renderSortie 每次都整塊重建
+// innerHTML，逐次綁在按鈕上會在下一次渲染後失效。
+document.getElementById('battle-content')!.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest('#taiha-toggle');
+    if (!btn) return;
+    taihaOpenOverride = btn.getAttribute('aria-expanded') !== 'true';
+    renderSortie();
+});
 function renderGeneral() {
     // 資源看板：8 項 2 欄×4 列（CSS grid-auto-flow: column），主資源左欄、消耗材右欄。
     // label 為單字佔位（之後預計換圖示），懸浮提示帶完整名稱；數值加千分位便於掃讀。
@@ -199,14 +215,19 @@ function renderGeneral() {
     // （row 上的 title＋.exped-name 本身 color:transparent，見 index.html），但仍撐開
     // .grow 把倒數推到最右——使用者手動拉寬 panel 超過 460px 時同一顆 .exped-name 改為
     // 顯示完整名稱（CSS 斷點見 index.html #quests 旁的 @media，同一組斷點）。
-    missionsEl.innerHTML = state.missions().map(mm => `
-      <div class="timer-row" title="${esc(mm.name)}">
+    // 活動限定的 S1／S2 支援遠征補「道中／王點」白話註記（見 expedDisplayName）——
+    // 名稱欄在窄面板時是透明的，故 title 也要帶，否則加註等於看不到。
+    missionsEl.innerHTML = state.missions().map(mm => {
+        const name = expedDisplayName(mm.missionId, mm.name);
+        return `
+      <div class="timer-row" title="${esc(name)}">
         <span class="t-tag" title="${esc(t('tag.exped'))}">${tagIconHtml('exped')}</span>
         <span class="fleet-box">${esc(mm.fleet)}</span>
         <span class="badge">${esc(mm.dispNo)}</span>
-        <span class="grow exped-name">${esc(mm.name)}</span>
+        <span class="grow exped-name">${esc(name)}</span>
         <span class="badge">${fmt(mm.completeAt)}</span>
-      </div>`).join('') || `
+      </div>`;
+    }).join('') || `
       <div class="timer-row">
         <span class="t-tag tt-exped" title="${esc(t('tag.exped'))}">${tagIconHtml('exped')}</span>
         <span class="grow dim-txt">${t('common.empty')}</span>
@@ -272,12 +293,27 @@ function isCombinedView() {
 // 該隊是否有大破或未補給的船——條件與 renderFleets/renderCombinedFleets 的
 // danger/warn badge 相同，供艦隊編號 tab 判斷是否加紅框提醒。
 function fleetNeedsAttention(f: FleetView) {
-    return f.ships.some(s => (s.maxhp && s.hp / s.maxhp <= 0.25) || s.fuel < s.maxFuel || s.bull < s.maxBull);
+    // 退避艦已離開艦隊，它的大破／未補給不該再讓編成編號亮紅框（回港後才需要處理）。
+    return f.ships.some(s => !s.escaped
+        && ((s.maxhp && s.hp / s.maxhp <= 0.25) || s.fuel < s.maxFuel || s.bull < s.maxBull));
 }
 // 基地航空隊沒有大破/燃彈概念，「未補給」對應的是已配備隊有機數耗損未補滿
 // （renderAirBases 的 sq.count < sq.maxCount，同一份 depleted 判斷）。
 function lbasNeedsAttention() {
     return state.airBases_().some(ab => ab.squadrons.some(sq => sq.state === 1 && sq.count < sq.maxCount));
+}
+/**
+ * 出擊當下把編成檢視切到「這次出擊的那一隊」（#10）。出擊前多半在看別隊編組，
+ * 一按出擊想看的必然是出擊中的隊；連合艦隊（旗艦隊為第1）自動切成 1+2 併看。
+ *
+ * 只在 `api_req_map/start` 觸發一次，同一次出擊之後使用者點哪隊就維持哪隊，
+ * 故不需要 autoSwitch 那套 manualOverride。`showLbas` 刻意不動——出擊中基地
+ * 航空隊同樣是要看的東西，把使用者從那裡拉走是搶操作。
+ */
+function switchFleetViewToSortie() {
+    const fleetId = state.currentSortieFleetId;
+    if (!Number.isSafeInteger(fleetId) || fleetId < 0 || fleetId > 3) return;
+    view = state.combinedFlag > 0 && fleetId === 0 ? [0, 1] : [fleetId];
 }
 function renderFleetNav() {
     const names = ['1', '2', '3', '4'];
@@ -285,10 +321,9 @@ function renderFleetNav() {
     fleetnavEl.innerHTML =
         names.map((n, i) => {
             const visible = !showLbas && view.includes(i);
-            // 目前正顯示的艦隊不用紅框——內容區塊（renderFleets/renderCombinedFleets）
-            // 已經有 danger/warn badge，tab 上再標一次是重複提醒。只在「沒被看到」時才需要
-            // 紅框把使用者引導過去（含 showLbas 開著、任何艦隊都不可見的情況）。
-            const cls = [visible ? 'on' : '', all[i] && !visible && fleetNeedsAttention(all[i]) ? 'attn' : ''].filter(Boolean).join(' ');
+            // 大破／未補給只以編成編號的紅框提醒，故目前正在顯示的艦隊也要保留紅框；
+            // 不再於艦隊資訊列重複塞「未補給」文字，避免七船編成多出一行而捲動。
+            const cls = [visible ? 'on' : '', all[i] && fleetNeedsAttention(all[i]) ? 'attn' : ''].filter(Boolean).join(' ');
             return `<button data-i="${i}" class="${cls}">${n}</button>`;
         }).join('') +
         // 聯合艦隊＝1+2 同時檢視的捷徑。遊戲當下若真的組了連合艦隊
@@ -414,6 +449,13 @@ function repairMarks(idx: number, rep: AnchorageRepairPlan, mor: MoralePlan) {
     }
     return { cls: cls.join(' '), mark: mark.join('') };
 }
+// 退避艦標記：單隊／聯合兩種艦列共用。退避是「這艘已經不在艦隊裡了」的狀態，
+// 不是傷害等級，故用中性的灰標＋整列淡出，不佔用大破/中破的語意色。
+function escapedTag(s: ShipView) {
+    return s.escaped
+        ? `<span class="esc-tag" title="${esc(t('fleet.escapedTitle'))}">${esc(t('fleet.escaped'))}</span>`
+        : '';
+}
 function shipRow(s: ShipView, maxSlots: number, marks?: { cls: string; mark: string }) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
@@ -445,9 +487,9 @@ function shipRow(s: ShipView, maxSlots: number, marks?: { cls: string; mark: str
         `<span class="sup-ammo" style="background:linear-gradient(to left,#a8763e ${bp}%,transparent ${bp}%)">${bp}</span></span>`;
     const padCount = maxSlots - s.gears.length;
     const chips = realChips + blankChip('chip-pad').repeat(Math.max(0, padCount));
-    return `<div class="ship ${st} ${marks?.cls ?? ''}">
+    return `<div class="ship ${st} ${s.escaped ? 'escaped' : ''} ${marks?.cls ?? ''}">
       <div class="ship-row">
-        <span class="grow">${s.stype ? `<span class="stype">${esc(s.stype)}</span>` : ''}${esc(s.name)}</span>${marks?.mark ?? ''}<span class="num">Lv${s.lv}</span>
+        <span class="grow">${s.stype ? `<span class="stype">${esc(s.stype)}</span>` : ''}${esc(s.name)}${escapedTag(s)}</span>${marks?.mark ?? ''}<span class="num">Lv${s.lv}</span>
         <span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span>
         <span class="num">${s.hp}/${s.maxhp}</span><span class="cond ${cond}">${s.cond}</span>
       </div>
@@ -471,7 +513,7 @@ function renderExped() {
                 area = m.maparea;
                 html += `<optgroup label="${esc(t('exped.area', { n: area }))}">`;
             }
-            html += `<option value="${m.id}">[${esc(m.dispNo)}] ${esc(m.name)}</option>`;
+            html += `<option value="${m.id}">[${esc(m.dispNo)}] ${esc(expedDisplayName(m.id, m.name))}</option>`;
         }
         expedSel.innerHTML = html + '</optgroup>';
         expedSelLang = getLang();
@@ -569,10 +611,10 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
         `<span class="c-sup" title="${esc(t('mat.fuel.full'))} ${fp}% ／ ${esc(t('mat.ammo.full'))} ${bp}%">` +
         `<i style="background-image:linear-gradient(to right,#58a55c ${fp}%,transparent ${fp}%)"></i>` +
         `<i style="background-image:linear-gradient(to left,#a8763e ${bp}%,transparent ${bp}%)"></i></span>`;
-    return `<div class="ship c ${st} ${marks?.cls ?? ''}">
+    return `<div class="ship c ${st} ${s.escaped ? 'escaped' : ''} ${marks?.cls ?? ''}">
       <div class="c-top">
         <span class="stype">${esc(s.stype)}</span>
-        <span class="grow" title="${esc(s.name)}">${esc(s.name)}</span>${marks?.mark ?? ''}
+        <span class="grow" title="${esc(s.name)}">${esc(s.name)}${escapedTag(s)}</span>${marks?.mark ?? ''}
         <span class="lv">Lv${s.lv}</span>
         <span class="cond ${cond}">${s.cond}</span>
       </div>
@@ -585,7 +627,7 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
 }
 // 聯合艦隊：頂部一列「兩隊合計」總覽（Lv／制空／索敵／速力／TP，見
 // GameState.combinedSummary），下方第一／第二艦隊左右各佔一欄（不換行堆疊）。
-// 每欄自己只留隊名＋大破/未補給警示，數字統計不重複顯示——都在頂部合計列看。
+// 每欄自己只留大破警示，數字統計不重複顯示——都在頂部合計列看；未補給只標在編成編號紅框。
 function renderCombinedFleets() {
     const all = state.fleets();
     const sum = state.combinedSummary(cn);
@@ -601,12 +643,11 @@ function renderCombinedFleets() {
     const cols = [0, 1].map(i => {
         const f = all[i];
         if (!f) return `<section class="fleet compact"><div class="empty">${t('common.empty')}</div></section>`;
-        // 左右位置本身就是第1/第2艦隊，不需要再標一次隊名；只留大破/未補給這類
-        // 需要提醒的警示（沒有警示時整列不佔版面）。
+        // 左右位置本身就是第1/第2艦隊，不需要再標一次隊名；只留大破等必須直接顯示的
+        // 警示（沒有警示時整列不佔版面）。未補給只用編成編號紅框提醒。
         const { rep, mor, badges: repairBadges } = repairPlansOf(f);
         const badges =
-            (f.ships.some(s => s.maxhp && s.hp / s.maxhp <= 0.25) ? `<span class="badge-tag danger">${t('fleet.heavyDamage')}</span>` : '') +
-            (f.ships.some(s => s.fuel < s.maxFuel || s.bull < s.maxBull) ? `<span class="badge-tag warn">${t('fleet.notResupplied')}</span>` : '') +
+            (f.ships.some(s => !s.escaped && s.maxhp && s.hp / s.maxhp <= 0.25) ? `<span class="badge-tag danger">${t('fleet.heavyDamage')}</span>` : '') +
             repairBadges;
         const head = badges ? `<div class="fsummary compact col">${badges}</div>` : '';
         return `<section class="fleet compact">${head}${f.ships.map((s, idx) => compactShipRow(s, repairMarks(idx, rep, mor))).join('')}</section>`;
@@ -625,12 +666,11 @@ function renderFleets() {
         if (!f) return '';
         const sum = state.fleetSummary(i, cn);
         // 秘書艦標記／編成命名已移除（不再顯示 h4 標題列，省下每個艦隊區塊一行高度）；
-        // 出擊/大破/未補給仍是有用的即時狀態，併入 fsummary 第一行。
+        // 出擊／大破等需直接顯示的即時狀態併入 fsummary 第一行；未補給只用編成編號紅框提醒。
         const { rep, mor, badges: repairBadges } = repairPlansOf(f);
         const badges =
             (f.mission ? `<span class="badge-tag mission">${t('fleet.onMission')}</span>` : '') +
-            (f.ships.some(s => s.maxhp && s.hp / s.maxhp <= 0.25) ? `<span class="badge-tag danger">${t('fleet.heavyDamage')}</span>` : '') +
-            (f.ships.some(s => s.fuel < s.maxFuel || s.bull < s.maxBull) ? `<span class="badge-tag warn">${t('fleet.notResupplied')}</span>` : '') +
+            (f.ships.some(s => !s.escaped && s.maxhp && s.hp / s.maxhp <= 0.25) ? `<span class="badge-tag danger">${t('fleet.heavyDamage')}</span>` : '') +
             repairBadges;
         const summary = sum ? `<div class="fsummary">
             ${badges}
@@ -664,7 +704,10 @@ function renderAirBases() {
     let html = `<div class="ab-tabs">` + areas.map(a =>
         `<button data-area="${a}" class="${a === selectedLbasArea ? 'on' : ''}">${esc(state.mapAreaName(a))}</button>`
     ).join('') + `</div>`;
-    html += `<h3 class="ab-area-label">${esc(state.mapAreaName(selectedLbasArea))}</h3>`;
+    const maintenanceLevel = state.airBaseMaintenanceLevel(selectedLbasArea);
+    const maintenance = maintenanceLevel == null ? '' :
+        `<span class="ab-maintenance" title="${esc(t('lbas.maintenanceTitle'))}">${esc(t('lbas.maintenance', { n: maintenanceLevel }))}</span>`;
+    html += `<h3 class="ab-area-label"><span>${esc(state.mapAreaName(selectedLbasArea))}</span>${maintenance}</h3>`;
     for (const ab of bases.filter(b => b.areaId === selectedLbasArea)) {
         const actCls = `act-${Math.min(ab.actionKind, 4)}`;
         const actLabel = state.actionLabel(ab.actionKind);
@@ -685,13 +728,14 @@ function renderAirBases() {
                 html += `<div class="ab-sq empty-sq"><span class="sq-name">${t('lbas.notDeployed')}</span></div>`;
                 continue;
             }
-            const condCls = `cond-${Math.min(sq.cond, 3)}`;
+            const condState = state.lbasCondState(sq.cond);
+            const condLabel = state.lbasCondLabel(sq.cond);
             const depleted = sq.count < sq.maxCount;
             html += `<div class="ab-sq">
               <span class="sq-chip ${sq.cat}" title="${esc(sq.name)}${sq.level ? ` ★${sq.level}` : ''}${sq.alv ? ` »${sq.alv}` : ''}">${gearIconHtml(sq.icon, sq.short)}${sq.alv ? `<u>${alvMark(sq.alv)}</u>` : ''}${sq.level ? `<b>${impMark(sq.level)}</b>` : ''}</span>
               <span class="sq-name" title="${esc(sq.name)}">${esc(sq.name)}</span>
               <span class="sq-count ${depleted ? 'depleted' : ''}">${sq.count}/${sq.maxCount}</span>
-              <span class="sq-cond ${condCls}">${state.condLabel(sq.cond)}</span>
+              ${condLabel ? `<span class="sq-cond cond-${condState}">${esc(condLabel)}</span>` : ''}
             </div>`;
         }
         html += '</div>';
@@ -728,7 +772,17 @@ function renderSortie() {
     const planeLost = (lost: number) => lost > 0 ? `<span class="s-air-lost">-${lost}</span>` : '';
     let html = '<div class="sortie-container">';
     // 標題列：海域編號 + 節點軌跡 + 狀態，合併為一行省高度（#4）
-    const mapStr = `${sortie.mapArea}-${sortie.mapNo}`;
+    // 關卡進度：已用真實 mapinfo 封包驗證兩種量表（見 state.ts MapGaugeView 註解）。
+    // 無資料（尚未開過海域選擇畫面）時不顯示，難度亦然。
+    const gauge = state.currentMapGauge();
+    // 海域代號：活動海域用遊戲介面與玩家的說法 E{n}＋難度徽章（甲乙丙丁），內部編號
+    // （62-1）只留在 tooltip；一般海域維持 6-5 這種寫法。**與出擊紀錄分區共用
+    // sortie-detail.ts 的 mapLabel/diffLabel**，兩邊寫法不會各自漂移。
+    // 難度取自 mapinfo 的 api_selected_rank，一般圖／尚未選難度恆為 0＝不顯示徽章。
+    const mapCode = `${sortie.mapArea}-${sortie.mapNo}`;
+    const isEvent = isEventWorld(sortie.mapArea);
+    const mapStr = mapLabel({ event: isEvent, mapnum: sortie.mapNo, map: mapCode });
+    const diff = isEvent ? diffLabel(gauge?.selectedRank ?? 0) : '';
     const lastNode = sortie.nodes[sortie.nodes.length - 1];
     const atBoss = !!lastNode && lastNode.color === 5;
     let nodeDots = '';
@@ -737,9 +791,6 @@ function renderSortie() {
         const isBoss = n.color === 5; // usually 5 is boss in KC
         nodeDots += `<div class="s-node visited ${isBoss ? 'boss' : ''}">${letter}</div>`;
     }
-    // 關卡進度：已用真實 mapinfo 封包驗證兩種量表（見 state.ts MapGaugeView 註解）。
-    // 無資料（尚未開過海域選擇畫面）時不顯示。
-    const gauge = state.currentMapGauge();
     let gaugeHtml = '';
     if (gauge?.cleared) {
         // 已攻略關卡回應不再帶量表欄位，一律顯示已攻略勾號
@@ -757,18 +808,21 @@ function renderSortie() {
             <span class="s-gauge-num">${zansatsu ? t('sortie.zansatsuLabel') : t('sortie.remainingShort', { n: remain })}</span>
         </div>`;
     } else if ((gauge?.gaugeType === 2 || gauge?.gaugeType === 3) && gauge.maxHp > 0 && gauge.maxHp !== 9999) {
-        // HP量表式(gaugeType 2, boss撃破)／TP輸送型(gaugeType 3)：可估剩餘次數
+        // HP量表式(gaugeType 2, boss撃破)估剩餘次數；TP輸送型(gaugeType 3)直接顯示封包的剩餘TP。
         const pct = Math.max(0, Math.min(100, Math.round(100 * gauge.nowHp / gauge.maxHp)));
-        const r = state.mapRemainingRuns();
-        const hint = r
-            ? t('sortie.hintEstRuns', { n: r.runs, kind: r.kind === 'tp' ? t('sortie.kindLanding') : t('sortie.kindDefeat') })
-            : gauge.gaugeType === 2 ? t('sortie.hintNeedBoss') : t('sortie.hintNoTP');
-        // boss撃破型剩最後 1 次 → 斬殺場提示；TP輸送型不適用（仍顯示剩餘揚陸次數）
-        const zansatsu = !!r && r.kind === 'boss' && r.runs === 1;
+        const isTpGauge = gauge.gaugeType === 3;
+        const r = isTpGauge ? null : state.mapRemainingRuns();
+        const hint = r != null
+            ? t('sortie.hintEstRuns', { n: r, kind: t('sortie.kindDefeat') })
+            : isTpGauge ? '' : t('sortie.hintNeedBoss');
+        // boss撃破型剩最後 1 次 → 斬殺場提示；TP輸送型不適用。
+        const zansatsu = r === 1;
         const title = t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint });
         gaugeHtml = `<div class="s-gauge${zansatsu ? ' zansatsu' : ''}" title="${esc(title)}">
             <span class="s-gauge-bar"><i style="width:${pct}%"></i></span>
-            ${r ? `<span class="s-gauge-num">${zansatsu ? t('sortie.zansatsuLabel') : t('sortie.remainingShort', { n: r.runs })}</span>` : ''}
+            ${isTpGauge
+                ? `<span class="s-gauge-num">${t('sortie.remainingTP', { n: gauge.nowHp })}</span>`
+                : r != null ? `<span class="s-gauge-num">${zansatsu ? t('sortie.zansatsuLabel') : t('sortie.remainingShort', { n: r })}</span>` : ''}
         </div>`;
     } else if (gauge?.gaugeType === 2 && gauge.maxHp === 9999) {
         // maxHp=9999：尚未選擇難度的佔位值（已用兩份真實封包比對驗證），非真實100%
@@ -778,34 +832,107 @@ function renderSortie() {
     }
     html += `
         <div class="s-header">
-            <div class="s-map-id">${mapStr}</div>
+            <div class="s-map-id" title="${esc(diff ? `${mapCode}・${diff}` : mapCode)}">${esc(mapStr)}${diff ? `<i>${esc(diff)}</i>` : ''}</div>
             ${gaugeHtml}
             <div class="s-nodes">${nodeDots}</div>
             <div class="s-phase${atBoss ? ' active' : ''}">${atBoss ? t('sortie.boss') : t('sortie.advancing')}</div>
         </div>
     `;
     if (info) {
-        if (info.isTaiha) {
-            html += `<div class="taiha-alert">${t('sortie.taihaWarning')}</div>`;
+        // ── 大破警告 ──
+        // 位置：**釘在右下航空戰欄，一律 absolute**（見 index.html 的 .s-taiha）。展開態
+        // 遮住敵我方機數，點一下收成「航空戰 ↔ 敵我方」之間的一條 banner。絕對定位是關鍵
+        // ——舊版把警告插在戰鬥列上方的一般流裡，一出現就把 165px 敵艦列與底下的陣型／
+        // rank／友軍列整排往下推，而那一列是釘死的（CLAUDE.md 出擊資訊欄硬約束）。
+        //
+        // 兩種大破訊號語意不同，必須分開講（合成一句會讓使用者不知道到底能不能進擊）：
+        //   · 旗艦大破＝遊戲禁止進擊、強制返航；旗艦自己身上還有損管才可突破。
+        //   · 其餘艦大破＝可以進擊但會被轟沈；旗艦帶司令部施設時可改成讓該艦退避。
+        // 兩者可能同時成立（旗艦與隊員都大破），故不是 else if。
+        const taihaLines: { text: string; title?: string; hint?: boolean }[] = [];
+        if (info.flagshipTaiha) {
+            const dameconMst = info.flagshipDamecon === 1 ? 42 : info.flagshipDamecon === 2 ? 43 : 0;
+            taihaLines.push(dameconMst
+                ? {
+                    text: t('sortie.taihaFlagshipDamecon', { item: state.gearName(dameconMst) }),
+                    title: t('sortie.taihaFlagshipDameconTitle'),
+                }
+                : { text: t('sortie.taihaFlagship') });
         }
+        if (info.isTaiha) {
+            // 退避提示分三態，且**文案要依成立的是哪一顆司令部而不同**：連合是「護衛退避」
+            // （大破艦＋一艘健康驅逐艦一起離場），遊撃部隊／水雷戦隊是「單艦退避」（只有
+            // 大破艦離場、不需要護衛艦）。共用一套說明會讓單艦隊玩家去找根本不存在的護衛艦。
+            // `noEscort` 一定要講出來——「沒出現護衛退避」不等於「沒有人大破」，把它當成
+            // 安全訊號就會大破進擊。
+            const retreat = state.retreatAvailability();
+            const soloKey = retreat.kind === 'striking'
+                ? 'sortie.taihaRetreatSoloStriking' : 'sortie.taihaRetreatSoloTorpedo';
+            const hint = retreat.state === 'noEscort' ? t('sortie.taihaRetreatNoEscort')
+                : retreat.state !== 'ready' ? ''
+                    : retreat.kind === 'combined' ? t('sortie.taihaRetreatHint') : t(soloKey);
+            const hintTitle = retreat.state === 'noEscort' ? t('sortie.taihaRetreatNoEscortTitle')
+                : retreat.kind === 'combined' ? t('sortie.taihaRetreatHintTitle')
+                    : t('sortie.taihaRetreatSoloTitle');
+            taihaLines.push({ text: t('sortie.taihaWarning') });
+            if (hint) taihaLines.push({ text: hint, hint: true, title: hintTitle });
+        }
+        // 展開／收縮的預設值。**這是版面決策，不是大破規則**——大破照樣是大破（大破進王
+        // 一樣會被轟沈），警告也照樣顯示，這裡只決定要不要用遮蔽式大框。
+        //
+        // 收成 banner 的唯一理由：boss 是路線最後一個節點，**之後沒有節點可以進擊**，
+        // 使用者沒有「要不要進擊」這個決策要做，不需要一個蓋住畫面的大框逼他看。
+        // 條件限定「進 boss 之前是安全的」（`bossEntryTaiha === false`）：帶著大破進 boss
+        // 是玩家自己冒的險，那種情況照舊展開。`null`（面板中途才開、沒看到抵達那一步）
+        // 不套用此例外——未知不等於安全。
+        const taihaAtLastNode = atBoss && state.bossEntryTaiha === false;
+        const taihaOpen = taihaOpenOverride ?? !taihaAtLastNode;
+        const taihaHtml = !taihaLines.length ? '' : `
+                    <button type="button" class="taiha-alert s-taiha${taihaOpen ? ' open' : ''}"
+                        id="taiha-toggle" aria-expanded="${taihaOpen}"
+                        title="${esc([
+            ...taihaLines.map(l => l.title ?? l.text),
+            taihaAtLastNode ? t('sortie.taihaBossLastNode') : '',
+            t(taihaOpen ? 'sortie.taihaCollapseHint' : 'sortie.taihaExpandHint'),
+        ].filter(Boolean).join('\n'))}">${taihaLines.map(l =>
+            `<span class="${l.hint ? 'taiha-hint' : 'taiha-head'}">${esc(l.text)}</span>`).join('')}</button>`;
         // 敵方編成：晶片式兩欄（隨伴在左、主隊在右，對齊遊戲排版）。
         // 單艦隊無隨伴時，僅顯示主隊單欄、橫向填滿（不留一半空白）。
         const eMain = info.resultFleets?.enemyMain || [];
         const eEsc = info.resultFleets?.enemyEscort || [];
-        const enemyChip = (s: typeof eMain[number], id: number) => {
+        // 敵艦 hover 的詳細資訊（#14）：等級、素質四項與裝備清單。
+        // 全部是戰鬥封包欄位（api_ship_lv／api_eParam／api_eSlot），封包沒帶就不寫那一行
+        // ——空著比填 0 誠實（0 火力與「不知道火力」是兩件事）。
+        const enemyTitle = (name: string, hp: number, maxHp: number, d?: BattleEnemyShipView) => {
+            const head = d?.lv ? `${name} Lv${d.lv}` : name;
+            const lines = [maxHp > 0 ? `${head}　HP ${Math.max(0, hp)}/${maxHp}` : head];
+            if (d?.param) {
+                lines.push([
+                    `${t('sortie.enemyFirepower')} ${d.param[0] ?? 0}`,
+                    `${t('sortie.enemyTorpedo')} ${d.param[1] ?? 0}`,
+                    `${t('sortie.enemyAa')} ${d.param[2] ?? 0}`,
+                    `${t('sortie.enemyArmor')} ${d.param[3] ?? 0}`,
+                ].join('／'));
+            }
+            if (d?.slots.length) {
+                lines.push(`${t('sortie.enemyGears')} ${d.slots.map((g: number) => state.gearName(g)).join('／')}`);
+            }
+            return lines.join('\n');
+        };
+        const enemyChip = (s: typeof eMain[number], id: number, detail?: BattleEnemyShipView) => {
             const r = s.maxHp > 0 ? Math.max(0, s.hp) / s.maxHp : 0;
             const pct = Math.round(r * 100);
             const col = r <= 0 ? 'transparent' : r <= 0.25 ? 'var(--dmg-major)'
                 : r <= 0.5 ? 'var(--dmg-mid)' : r <= 0.75 ? 'var(--dmg-minor)' : '#58a55c';
             const name = id > 0 ? state.shipName(id) : '?';
             const sunk = s.hp <= 0;
-            return `<div class="s-echip ${sunk ? 'sunk' : ''}" title="${esc(name)}">
+            return `<div class="s-echip ${sunk ? 'sunk' : ''}" title="${esc(enemyTitle(name, s.hp, s.maxHp, detail))}">
                 <span class="s-echip-name">${esc(name)}</span>
                 <span class="s-echip-hp"><i style="width:${pct}%;background:${col}"></i></span>
             </div>`;
         };
-        const colBody = (ships: typeof eMain, ids: number[]) =>
-            `<div class="s-ecol-body">${ships.map((s, i) => enemyChip(s, ids[i] || 0)).join('')}</div>`;
+        const colBody = (ships: typeof eMain, ids: number[], details: BattleEnemyShipView[]) =>
+            `<div class="s-ecol-body">${ships.map((s, i) => enemyChip(s, ids[i] || 0, details[i])).join('')}</div>`;
         const singleCls = eEsc.length ? '' : ' single';
         // 敵艦晶片區（左）與索敵/戰爆（右）固定並排在同一個 165px 高的 row，
         // 不論敵艦數量都不移動位置（#4）：上緣接晶片頂＝不是跟「主隊/隨伴」文字對齊，
@@ -816,39 +943,64 @@ function renderSortie() {
                 <div class="s-ecol-h">${t('sortie.mainFleet')}</div>
             </div>
             <div class="s-efleet-body${singleCls}">
-                ${eEsc.length ? colBody(eEsc, info.enemyIdsEscort) : ''}
-                ${colBody(eMain, info.enemyIds)}
+                ${eEsc.length ? colBody(eEsc, info.enemyIdsEscort, info.enemyDetail.escort) : ''}
+                ${colBody(eMain, info.enemyIds, info.enemyDetail.main)}
             </div>
             <div class="s-eside">`;
         const engKeys = ['eng.unknown', 'eng.parallel', 'eng.opposite', 'eng.tAdvantage', 'eng.tDisadvantage'];
         const seikuKeys = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
         const eng = t(engKeys[info.formation[2]] || 'eng.unknown');
-        const seikuStr = seikuKeys[info.seiku] ? t(seikuKeys[info.seiku]) : t('sortie.none');
         const p = info.planes;
+        // 制空狀態只在「真的有航空戰」時才有意義：雙方都沒出動艦載機時遊戲照樣送
+        // api_stage1 且 api_disp_seiku=1（真封包實證：samples/61-4.json 的 f_count=0／
+        // e_count=0／disp_seiku=1），直接照抄會在潛水艦點、水雷戰隊出擊等場合誤報
+        // 「確保」。判準與出擊紀錄分區（overview/sections/sortie-log.ts）一致：兩軍
+        // 艦戰機數合計為 0 就是沒有航空戰，顯示「無」而非猜一個制空狀態。
+        const hasAirBattle = p.playerFighter.count + p.enemyFighter.count > 0;
+        const seikuStr = hasAirBattle && seikuKeys[info.seiku] ? t(seikuKeys[info.seiku]) : t('sortie.none');
+        const seikuBad = hasAirBattle && (info.seiku === 3 || info.seiku === 4);
         html += `
                 <div class="s-stats-mini">
                     <div class="s-stat-row"><span class="lbl">${t('sortie.detection')}</span><span class="val">${t('sortie.detectionOk')}</span></div>
                     <div class="s-stat-row"><span class="lbl">${t('sortie.heading')}</span><span class="val ${info.formation[2] === 4 ? 'bad' : ''}">${eng}</span></div>
                     <div class="s-stat-row"><span class="lbl">${t('sortie.contact')}</span><span class="val">${info.touchPlane[0] > 0 ? t('sortie.yes') : t('sortie.no')} vs ${info.touchPlane[1] > 0 ? t('sortie.yes') : t('sortie.no')}</span></div>
-                    <div class="s-stat-row"><span class="lbl">${t('sortie.airBattle')}</span><span class="val ${info.seiku === 3 || info.seiku === 4 ? 'bad' : ''}">${seikuStr}</span></div>
+                    <div class="s-stat-row"><span class="lbl">${t('sortie.airBattle')}</span><span class="val ${seikuBad ? 'bad' : ''}">${seikuStr}</span></div>
                 </div>
-                <div class="s-air-mini">
-                    <span></span><span class="hd">${t('sortie.ourSide')}</span><span class="hd">${t('sortie.enemySide')}</span>
-                    <span class="rowlbl"><span class="s-air-icon" style="color:#51cf66;">${t('sortie.fighterAbbr')}</span></span>
-                    <span>${p.playerFighter.count - p.playerFighter.lost}/${p.playerFighter.count}${planeLost(p.playerFighter.lost)}</span>
-                    <span>${p.enemyFighter.count - p.enemyFighter.lost}/${p.enemyFighter.count}${planeLost(p.enemyFighter.lost)}</span>
-                    <span class="rowlbl"><span class="s-air-icon" style="color:#ff6b6b;">${t('sortie.bomberAbbr')}</span></span>
-                    <span>${p.playerBomber.count - p.playerBomber.lost}/${p.playerBomber.count}${planeLost(p.playerBomber.lost)}</span>
-                    <span>${p.enemyBomber.count - p.enemyBomber.lost}/${p.enemyBomber.count}${planeLost(p.enemyBomber.lost)}</span>
+                <div class="s-air-wrap${taihaHtml && taihaOpen ? ' covered' : ''}">
+                    <div class="s-air-mini">
+                        <span></span><span class="hd">${t('sortie.ourSide')}</span><span class="hd">${t('sortie.enemySide')}</span>
+                        <span class="rowlbl"><span class="s-air-icon" style="color:#51cf66;">${t('sortie.fighterAbbr')}</span></span>
+                        <span>${p.playerFighter.count - p.playerFighter.lost}/${p.playerFighter.count}${planeLost(p.playerFighter.lost)}</span>
+                        <span>${p.enemyFighter.count - p.enemyFighter.lost}/${p.enemyFighter.count}${planeLost(p.enemyFighter.lost)}</span>
+                        <span class="rowlbl"><span class="s-air-icon" style="color:#ff6b6b;">${t('sortie.bomberAbbr')}</span></span>
+                        <span>${p.playerBomber.count - p.playerBomber.lost}/${p.playerBomber.count}${planeLost(p.playerBomber.lost)}</span>
+                        <span>${p.enemyBomber.count - p.enemyBomber.lost}/${p.enemyBomber.count}${planeLost(p.enemyBomber.lost)}</span>
+                    </div>${taihaHtml}
                 </div>
             </div>
         </div>`;
-
         // 陣形/支援/AACI/夜戰/rank/友軍 一列＋Drop：固定在敵艦晶片區下方，
         // 位置不隨敵艦數量位移（#2, #4）。
         const formationKeys = ['form.unknown', 'form.single', 'form.double', 'form.ring', 'form.ladder', 'form.abreast', 'form.vigilant'];
         const enFormShort = t(formationKeys[info.formation[1]] || 'form.unknown');
         const supp = info.supportFlag > 0 ? t('sortie.support') : t('sortie.none');
+        // 支援艦隊：hover 顯示是哪一種支援、第幾艦隊、打了多少（#18）。
+        // api_ship_id 是**艦實例 id**，要經 state.ships 反查才拿得到 master id → 艦名。
+        const support = info.support;
+        const supportTitle = !support ? t('sortie.supportFleetTitle') : [
+            t('sortie.supportDamage', {
+                kind: t(support.kind === 'air' ? 'sortie.supportKindAir' : 'sortie.supportKindShelling'),
+                deck: support.deckId || '?',
+                damage: support.damage,
+            }),
+            support.shipIds.length
+                ? t('sortie.supportShips', {
+                    ships: support.shipIds
+                        .map(id => state.shipName(state.ships.get(id)?.api_ship_id) || `#${id}`)
+                        .join('／'),
+                })
+                : '',
+        ].filter(Boolean).join('\n');
         const aaci = info.aaci > 0 ? t('sortie.antiAirCutin') : t('sortie.none');
         const midn = info.midnightFlag ? t('sortie.midnight') : t('sortie.none');
         // rank：結算前顯示「預測值」（虛線框標示），結算後顯示遊戲回傳的「確定值」
@@ -862,19 +1014,36 @@ function renderSortie() {
         const friendlyTitle = friendlyActive
             ? t('sortie.friendlyFleetTitle', { ships: friendlyIds!.map(id => state.shipName(id)).join('／') })
             : t('sortie.friendlyFleetNone');
-        // drop 為隨機，無法預測，僅結算後顯示實際掉落；用完整艦名 chip（#5）
+        // 基地航空隊戰果（#4）：**只在這一節點真的有出擊時才多一顆圈**——沒有陸航的
+        // 一般海域維持原本六顆，版面完全不動（.s-icon-cluster 是固定一列，多塞常駐元素
+        // 會在窄面板把 Drop chip 擠掉，見 CLAUDE.md 出擊資訊欄硬約束）。
+        // 圈內兩行＝對敵傷害／損失機數，逐波明細留在 tooltip。
+        const lbas = info.lbas;
+        const lbasChip = !lbas ? '' : `<div class="s-icon lbas active" title="${esc([
+            t('sortie.lbasTitle', { sent: lbas.sent, lost: lbas.lost, damage: lbas.damage }),
+            ...lbas.waves.map((w, i) => w.baseId
+                ? t('sortie.lbasWave', { i: i + 1, base: w.baseId, lost: w.lost, damage: w.damage })
+                : t('sortie.lbasWaveNoBase', { i: i + 1, lost: w.lost, damage: w.damage })),
+        ].join('\n'))}"><span class="s-lbas-dmg">${lbas.damage}</span>${
+            lbas.lost > 0 ? `<span class="s-air-lost">-${lbas.lost}</span>` : ''}</div>`;
+        // drop 為隨機，無法預測，僅結算後顯示實際掉落；用完整艦名 chip（#5）。
+        // 新船才上金色（#8）：dropIsNew 在 battleresult 當下就判定好（回港後名冊會
+        // 含這艘船，那時再問一律是「已持有」），面板只負責上色。
         const dropChip = info.hasResult && info.drop
-            ? `<div class="s-drop" title="${esc(t('sortie.dropTitle'))}"><span class="s-drop-tag">Drop</span><span class="s-drop-name">${esc(info.drop)}</span></div>`
+            ? `<div class="s-drop${info.dropIsNew ? ' new' : ''}" title="${esc(
+                `${t('sortie.dropTitle')}：${info.drop}${info.dropIsNew ? `（${t('sortie.dropNew')}）` : `（${t('sortie.dropOwned')}）`}`)}"
+                ><span class="s-drop-tag">Drop</span><span class="s-drop-name">${esc(info.drop)}</span></div>`
             : '';
         html += `
             <div class="s-icons-full">
                 <div class="s-icon-cluster">
                     <div class="s-icon" title="${esc(t('sortie.enemyFormationTitle'))}">${enFormShort}</div>
-                    <div class="s-icon ${info.supportFlag > 0 ? 'active' : ''}" title="${esc(t('sortie.supportFleetTitle'))}">${supp}</div>
+                    <div class="s-icon ${info.supportFlag > 0 ? 'active' : ''}" title="${esc(supportTitle)}">${supp}</div>
                     <div class="s-icon ${info.aaci > 0 ? 'active' : ''}" title="${esc(t('sortie.aaciTitlePrefix'))}: ${info.aaci}">${aaci}</div>
                     <div class="s-icon ${info.midnightFlag ? 'active' : ''}" title="${esc(t('sortie.midnightTitle'))}">${midn}</div>
                     <div class="s-icon ${rnkClass}${rankPredCls}" title="${esc(rankTitle)}">${rankStr}</div>
                     <div class="s-icon ${friendlyActive ? 'active' : ''}" title="${esc(friendlyTitle)}">${t('sortie.friendlyFleet')}</div>
+                    ${lbasChip}
                 </div>
                 ${dropChip}
             </div>
@@ -1040,6 +1209,20 @@ function appendLogRow(ts: number, path: string) {
     log.prepend(row);
     while (log.children.length > 200) log.lastChild?.remove();
 }
+// 出擊中的戰鬥相關 path（與 utils/state.ts 戰鬥分支同一組判準，含單艦隊的航空戰／
+// 空襲節點 `api_req_sortie/(ld_)airbattle`——只寫 `startsWith('api_req_sortie/battle')`
+// 會漏掉它們）。這一組進「出擊」分頁，含同節點的結算與退避。
+const isSortieBattlePath = (path: string) =>
+    path.startsWith('api_req_sortie/battle')
+    || path.includes('airbattle')
+    || path.startsWith('api_req_combined_battle/')
+    || path.startsWith('api_req_battle_midnight/');
+// 「新的一場戰鬥」＝上面那組扣掉**同一個節點**的結算（battleresult，注意
+// `'...battleresult'.startsWith('...battle')` 為 true）與退避（goback_port）。
+// 大破警告的手動收縮只該被真正的新戰況重置：使用者為了看敵我機數而收起警告後，
+// 同節點的結算封包一到就把它重新展開、又蓋住機數，是使用者做完動作馬上被推翻。
+const isNewBattlePacket = (path: string) =>
+    isSortieBattlePath(path) && !path.endsWith('result') && !path.endsWith('/goback_port');
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
     // [debug] 效能量測：live 事件才量（重播期間量測沒意義，且會洗版）。
@@ -1061,9 +1244,13 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
     // 情境自動切換／待驗證封包擷取／log 列表同理，只在 live 事件時才需要即時反映。
     if (ready) {
         appendLogRow(ts, path);
+        // 大破警告的手動展開／收縮只在「同一則戰況」內有效：新的出擊、新的節點、新的戰鬥
+        // 都是新的判斷，一律回到情境預設。收起來一次就整場不再示警的話警告等於白做。
+        if (path === 'api_req_map/start' || path === 'api_req_map/next' || isNewBattlePacket(path))
+            taihaOpenOverride = null;
         if (path === 'api_port/port') autoSwitch('general', 'port');
-        else if (path === 'api_req_map/start') autoSwitch('sortie', 'sortie');
-        else if (path.startsWith('api_req_sortie/battle') || path.startsWith('api_req_combined_battle/') || path.startsWith('api_req_battle_midnight/')) autoSwitch('sortie', 'sortie');
+        else if (path === 'api_req_map/start') { autoSwitch('sortie', 'sortie'); switchFleetViewToSortie(); }
+        else if (isSortieBattlePath(path)) autoSwitch('sortie', 'sortie');
         // 進入遠征介面（api_get_member/mission）或發出遠征（mission/start）→ 遠征分頁
         else if (path === 'api_get_member/mission' || path === 'api_req_mission/start') autoSwitch('exped', 'exped');
         // 任務圖示為遊戲全域頭部列常駐圖示，任何畫面下點選都會送這個封包 → 切到一般
@@ -1080,7 +1267,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         // wanted 擷取只在開發用 UI 開啟時進行——正式建置沒有清除／複製介面，
         // 繼續寫入會永久釘住 raw events 卻無法由使用者管理（見 utils/debug-ui.ts）。
         if (isDebugUiEnabled()) {
-            const tag = state.wantedTag(path, api);
+            const tag = state.wantedTag(path, api, req);
             if (tag) void captureWanted(id, tag, ts, path);
         }
         const t2 = performance.now();
@@ -1182,7 +1369,6 @@ browser.runtime.onMessage.addListener((msg) => {
     }
     void pump();
 });
-
 // 面板視窗單例化：使用者點擴充圖示時 background 會 ping，回報自己的 windowId 供聚焦
 // （見 background.ts action.onClicked）。return true = 稍後非同步呼叫 sendResponse。
 browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

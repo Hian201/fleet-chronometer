@@ -7,13 +7,12 @@
 // 為何獨立成模組：本檔為純資料 + 純函式，不含 chrome.*，符合「核心零瀏覽器依賴」
 // （見 CLAUDE.md 設計原則4）——state.ts 可照常獨立編譯、用 node 餵封包測試。
 //
-// ── 如何填資料（給未來的你 / 外部工具）──
-// 直接編輯下方 SHIP_NAMES / GEAR_NAMES 兩張表，或（建議）改成從 JSON 匯入：
-//   import shipJson from './gamedata-ship-names.json';
-//   export const SHIP_NAMES = shipJson as NameTable;
-// JSON 形狀就是下面 NameTable：{ "<masterId>": { "zh-TW": "…", "en": "…" }, ... }
-// 日文欄不用填（回退用封包原名即可）；只填想覆蓋的語言。
-// 外部資料來源參考：KC3Kai translations（ships.json / items.json，皆以 master id 為 key）。
+// ── 譯名表從哪裡來 ──
+// SHIP_NAMES / GEAR_NAMES 由 utils/gamedata-names.ts 提供，該檔是 tools/gamedata-names/
+// generate.py 的產出物，來源是人工整理的 samples/i18n/*.csv（見 CLAUDE.md「翻譯對照
+// 表」）。**要補譯名一律改 CSV 後重跑產生器，不要手改 gamedata-names.ts**。
+// JSON 形狀即下面的 NameTable：{ "<masterId>": { "zh-TW": "…", "en": "…" }, ... }；
+// 日文欄不用填（回退用封包原名即可），缺譯的語言欄整個不出現（見該檔生成規則）。
 export type Lang = 'ja' | 'zh-TW' | 'en';
 // masterId → { 語言: 譯名 }。日文可省略（回退封包原名）。
 export type NameTable = Record<number, Partial<Record<Lang, string>>>;
@@ -22,10 +21,9 @@ export type NameTable = Record<number, Partial<Record<Lang, string>>>;
 let displayLang: Lang = 'ja';
 export function setDisplayLang(lang: Lang) { displayLang = lang; }
 export function getDisplayLang(): Lang { return displayLang; }
-// ── 譯名表（待填）────────────────────────────────────────────
-// 目前為空 → 全部回退日文原名，行為與加此模組前完全一致。
-export const SHIP_NAMES: NameTable = {};
-export const GEAR_NAMES: NameTable = {};
+// ── 譯名表 ──────────────────────────────────────────────────
+import { SHIP_NAMES, GEAR_NAMES } from './gamedata-names';
+export { SHIP_NAMES, GEAR_NAMES };
 // ── 解析入口（state.ts 唯一呼叫點）──────────────────────────
 // ja 為封包原始日文名（可能 undefined，如 master 尚未載入）。命中譯表用譯名，否則回退。
 export function localizeShip(masterId: number | undefined, ja: string | undefined): string {

@@ -29,6 +29,8 @@ import type { GameState } from '@/utils/state';
 import { db } from '@/utils/db';
 import { nodeLabel } from '@/utils/map-node-letters';
 import { groupGears } from '@/utils/gear-inventory';
+import { findUnknownGears, findUnknownShips, type CoverageGap } from '@/utils/gamedata-coverage';
+import { rowsToCsv } from '@/utils/csv';
 import { t } from '@/utils/ui-i18n';
 import { esc, fmtTs, downloadText, copyWithFeedback } from '../lib';
 
@@ -170,6 +172,21 @@ async function buildFullReport(state: GameState): Promise<string> {
     return lines.join('\n');
 }
 
+// ── 翻譯對照缺漏匯出：samples/i18n/*.csv 只是某次下載 wiki 當下的快照，遊戲更新後
+// 新增的艦娘/深海棲艦/裝備不會自動反映——用目前封包實際載入的 master id 跟快照做差集，
+// 匯出「wiki 對照表沒有」的清單，供之後重新整理 wiki 對照表時知道該補哪些。
+//
+// 差集在 render() 時算一次就好（overview 的 ctx.state 是一次性重播出來的快照，分區生命
+// 週期內不會變，不像面板會收 live 事件），狀態文字與 CSV 共用同一份結果。
+type CoverageGaps = { ships: CoverageGap[]; gears: CoverageGap[] };
+
+function coverageCsv(gaps: CoverageGaps): string {
+    const rows: string[][] = [['category', 'master_id', 'name_ja']];
+    for (const g of gaps.ships) rows.push(['ship', String(g.id), g.name]);
+    for (const g of gaps.gears) rows.push(['gear', String(g.id), g.name]);
+    return rowsToCsv(rows);
+}
+
 // ── A. Chrome 內建 AI 用的精簡摘要（非完整報告，裝置端 context window 較小）────
 async function buildQuickContext(state: GameState): Promise<string> {
     const c = state.counts();
@@ -274,6 +291,14 @@ export const llmSection: OverviewSection = {
             </div>
             <p class="ov-note dim">${esc(t('ov.mcpTip'))}</p>
 
+            <h3 class="ov-subhead">${esc(t('ov.coverageSectionTitle'))}</h3>
+            <p class="ov-note">${esc(t('ov.coverageIntro'))}</p>
+            <div class="ov-toolbar">
+                <button class="ov-btn" id="llm-coverage-dl">${esc(t('ov.downloadCoverage'))}</button>
+                <button class="ov-btn" id="llm-coverage-copy">${esc(t('ov.copyCoverage'))}</button>
+                <span id="llm-coverage-status" class="dim"></span>
+            </div>
+
             <h3 class="ov-subhead">${esc(t('ov.aiNanoTitle'))}</h3>
             <div id="ai-nano-root"></div>`;
 
@@ -282,6 +307,23 @@ export const llmSection: OverviewSection = {
         el.querySelector('#llm-report-copy')!.addEventListener('click', async e => {
             const text = await buildFullReport(ctx.state);
             copyWithFeedback(e.currentTarget as HTMLButtonElement, text, t('ov.copied'));
+        });
+
+        const coverageStatus = el.querySelector<HTMLElement>('#llm-coverage-status')!;
+        // master 還沒載入（沒看過 api_start2/getData）時「沒有缺漏」與「無從比對」是兩件
+        // 事，故分開講；差集只算這一次，按鈕事後不重算（狀態不會變）。
+        const gaps: CoverageGaps = {
+            ships: findUnknownShips(ctx.state.master),
+            gears: findUnknownGears(ctx.state.masterGears),
+        };
+        const gapCount = gaps.ships.length + gaps.gears.length;
+        coverageStatus.textContent = ctx.state.master.size === 0 ? t('ov.coverageNoMaster')
+            : gapCount > 0 ? t('ov.coverageFound', { n: gapCount }) : t('ov.coverageNone');
+        el.querySelector('#llm-coverage-dl')!.addEventListener('click', () => {
+            downloadText(`kanmusu-i18n-gaps-${Date.now()}.csv`, coverageCsv(gaps), 'text/csv');
+        });
+        el.querySelector('#llm-coverage-copy')!.addEventListener('click', e => {
+            copyWithFeedback(e.currentTarget as HTMLButtonElement, coverageCsv(gaps), t('ov.copied'));
         });
 
         renderAiNano(el.querySelector('#ai-nano-root')!, ctx.state);

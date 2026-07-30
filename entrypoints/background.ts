@@ -278,16 +278,16 @@ async function openPanelWindow() {
   await browser.windows.create({
     url: browser.runtime.getURL('/panel.html'),
     // width 420 為硬約束（使用者要求不准加寬）。
-    // height 905→835：先前 800→850→915→905 一路都是純算式估計，從未量過實機。
+    // height 905→850：先前 800→850→915→905 一路都是純算式估計，從未量過實機。
     // 拿使用者提供的實機截圖（未保留於儲存庫，height=915 時只有 6 艘）
     // 逐像素量測：從視窗最頂（含 macOS 標題列）到最後一艘裝備列結束僅 775px，
     // 下方留白足足 140px；用 headless Chromium 載入真實 CSS＋7 艘樣板 render 交叉
     // 驗證，單艘列高確實是 49.5px（不是估計的 51.5px），tabpanel 固定高度也已生效
     // （後調為 270px 收資訊區底留白、編成上移以露出七船；165px 戰鬥列釘死不變）。
-    // 775（6艘）+49.5（第7艘）+標題列已含在775內 ≈ 825，抓 835 留一點餘裕。
+    // 775（6艘）+49.5（第7艘）+標題列已含在775內 ≈ 825，850 再留 25px 餘裕。
     // ⚠️ 此高度假設裝備列單行。若 .chips wrap 成兩行，單艘變高，第 7 艘會被裁掉——
     // 見 panel/index.html .chips／.chip 寬度預算註解，勿靠加高視窗掩蓋換行。
-    type: 'popup', width: 420, height: 835,
+    type: 'popup', width: 420, height: 850,
   });
 }
 

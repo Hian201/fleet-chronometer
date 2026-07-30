@@ -1,0 +1,890 @@
+﻿master_id,type_abbr,name_ja,name_en,name_tw
+1501,DD,駆逐イ級,Destroyer I-Class,
+1502,DD,駆逐ロ級,Destroyer Ro-Class,
+1503,DD,駆逐ハ級,Destroyer Ha-Class,
+1504,DD,駆逐ニ級,Destroyer Ni-Class,
+1505,CL,軽巡ホ級,Light Cruiser Ho-Class,
+1506,CL,軽巡ヘ級,Light Cruiser He-Class,
+1507,CL,軽巡ト級,Light Cruiser To-Class,
+1508,CLT,雷巡チ級,Torpedo Cruiser Chi-Class,
+1509,CA,重巡リ級,Heavy Cruiser Ri-Class,
+1510,CVL,軽母ヌ級,Light Carrier Nu-Class,
+1511,BB,戦艦ル級,Battleship Ru-Class,
+1512,CV,空母ヲ級,Standard Carrier Wo-Class,
+1513,AP,輸送ワ級,Transport Ship Wa-Class,
+1514,DD,駆逐イ級,Destroyer I-Class Elite,
+1515,DD,駆逐ロ級,Destroyer Ro-Class Elite,
+1516,DD,駆逐ハ級,Destroyer Ha-Class Elite,
+1517,DD,駆逐ニ級,Destroyer Ni-Class Elite,
+1518,CL,軽巡ホ級,Light Cruiser Ho-Class Elite,
+1519,CL,軽巡ヘ級,Light Cruiser He-Class Elite,
+1520,CL,軽巡ト級,Light Cruiser To-Class Elite,
+1521,CLT,雷巡チ級,Torpedo Cruiser Chi-Class Elite,
+1522,CA,重巡リ級,Heavy Cruiser Ri-Class Elite,
+1523,CVL,軽母ヌ級,Light Carrier Nu-Class Elite,
+1524,BB,戦艦ル級,Battleship Ru-Class Elite,
+1525,CV,空母ヲ級,Standard Carrier Wo-Class Elite,
+1526,AP,輸送ワ級,Transport Ship Wa-Class Elite,
+1527,CA,重巡リ級,Heavy Cruiser Ri-Class Flagship,
+1528,CV,空母ヲ級,Standard Carrier Wo-Class Flagship,
+1529,BB,戦艦ル級,Battleship Ru-Class Flagship,
+1530,SS,潜水カ級,Submarine Ka-Class,
+1531,SS,潜水ヨ級,Submarine Yo-Class,
+1532,SS,潜水カ級,Submarine Ka-Class Elite,
+1533,SS,潜水ヨ級,Submarine Yo-Class Elite,
+1534,SS,潜水カ級,Submarine Ka-Class Flagship,
+1535,SS,潜水ヨ級,Submarine Yo-Class Flagship,
+1536,BBV,浮遊要塞,Floating Fortress,浮遊要塞
+1537,BBV,浮遊要塞,Floating Fortress II,浮遊要塞
+1538,BBV,浮遊要塞,Floating Fortress III,浮遊要塞
+1539,BBV,泊地棲鬼,Anchorage Demon,泊地棲鬼
+1540,BBV,泊地棲姫,Anchorage Princess,泊地棲姫
+1541,FBB,戦艦タ級,Battleship Ta-Class,
+1542,FBB,戦艦タ級,Battleship Ta-Class Elite,
+1543,FBB,戦艦タ級,Battleship Ta-Class Flagship,
+1544,BBV,装甲空母鬼,Armored Carrier Demon,裝甲空母鬼
+1545,BBV,装甲空母姫,Armored Carrier Princess,裝甲空母姫
+1546,BBV,南方棲鬼,Southern Demon,南方棲鬼
+1547,BBV,南方棲戦鬼,Southern War Demon,南方棲戰鬼
+1548,BBV,南方棲戦姫,Southern War Princess,南方棲戰姫
+1549,BBV,護衛要塞,Escort Fortress,護衞要塞
+1550,BBV,護衛要塞,Escort Fortress II,護衞要塞
+1551,BBV,護衛要塞,Escort Fortress III,護衞要塞
+1552,DD,駆逐ロ級,Destroyer Ro-Class Flagship,
+1553,DD,駆逐ハ級,Destroyer Ha-Class Flagship,
+1554,CL,軽巡ホ級,Light Cruiser Ho-Class Flagship,
+1555,CL,軽巡ヘ級,Light Cruiser He-Class Flagship,
+1556,BBV,飛行場姫,Airfield Princess,飛行場姫
+1557,BB,戦艦棲姫,Battleship Princess,戰艦棲姫
+1558,AP,輸送ワ級,Transport Ship Wa-Class Flagship,
+1559,CLT,雷巡チ級,Torpedo Cruiser Chi-Class Flagship,
+1560,CVL,軽母ヌ級,Light Carrier Nu-Class Flagship,
+1561,BBV,戦艦レ級,Battleship Re-Class,
+1562,BBV,戦艦レ級,Battleship Re-Class Elite,
+1564,DD,駆逐イ級,Destroyer I-Class Flagship,
+1565,CV,空母ヲ級改,Standard Carrier Wo-Class Kai Flagship,
+1566,CA,重巡リ級改,Heavy Cruiser Ri-Class Kai Flagship,
+1567,BB,戦艦ル級改,Battleship Ru-Class Kai Flagship,
+1570,SS,潜水ソ級,Submarine So-Class,
+1571,SS,潜水ソ級,Submarine So-Class Elite,
+1572,SS,潜水ソ級,Submarine So-Class Flagship,
+1573,BBV,港湾棲姫,Harbour Princess,港灣棲姫
+1574,BBV,離島棲鬼,Isolated Island Demon,離島棲鬼
+1575,DD,駆逐イ級後期型,Destroyer I-Class Late Model,
+1576,DD,駆逐ロ級後期型,Destroyer Ro-Class Late Model,
+1577,DD,駆逐ハ級後期型,Destroyer Ha-Class Late Model,
+1578,DD,駆逐ニ級後期型,Destroyer Ni-Class Late Model,
+1579,CV,空母ヲ級,Standard Carrier Wo-Class Flagship II,
+1581,BBV,北方棲姫,Northern Princess,北方棲姫
+1582,BBV,北方棲姫,Northern Princess II,北方棲姫
+1583,BBV,中間棲姫,Midway Princess,中間棲姫
+1584,BBV,中間棲姫,Midway Princess II,中間棲姫
+1585,CV,空母棲鬼,Aircraft Carrier Demon,空母棲鬼
+1586,CV,空母棲姫,Aircraft Carrier Princess,空母棲姫
+1587,BBV,北方棲姫,Northern Princess III,北方棲姫
+1588,BBV,北方棲姫,Northern Princess IV,北方棲姫
+1589,BBV,北方棲姫,Northern Princess V,北方棲姫
+1590,BBV,北方棲姫,Northern Princess VI,北方棲姫
+1591,CL,軽巡ツ級,Light Cruiser Tsu-Class,
+1592,CL,軽巡ツ級,Light Cruiser Tsu-Class Elite,
+1594,CA,重巡ネ級,Heavy Cruiser Ne-Class,
+1595,CA,重巡ネ級,Heavy Cruiser Ne-Class Elite,
+1597,DD,駆逐棲姫,Destroyer Princess,驅逐棲姫
+1598,DD,駆逐棲姫,Destroyer Princess II,驅逐棲姫
+1599,CV,空母水鬼,Aircraft Carrier Water Demon,空母水鬼
+1600,CV,空母水鬼,Aircraft Carrier Water Demon II,空母水鬼
+1601,CL,軽巡棲鬼,Light Cruiser Demon,輕巡棲鬼
+1602,CL,軽巡棲鬼,Light Cruiser Demon II,輕巡棲鬼
+1603,BB,戦艦水鬼,Battleship Water Demon,戰艦水鬼
+1604,BB,戦艦水鬼,Battleship Water Demon II,戰艦水鬼
+1605,BBV,港湾水鬼,Harbour Water Demon,港灣水鬼
+1606,BBV,港湾水鬼,Harbour Water Demon II,港灣水鬼
+1607,BBV,港湾水鬼,Harbour Water Demon III,港灣水鬼
+1608,BBV,港湾水鬼,Harbour Water Demon IV,港灣水鬼
+1609,BBV,泊地水鬼,Anchorage Water Demon,泊地水鬼
+1610,BBV,泊地水鬼,Anchorage Water Demon II,泊地水鬼
+1611,BBV,泊地水鬼,Anchorage Water Demon III,泊地水鬼
+1612,BBV,泊地水鬼,Anchorage Water Demon IV,泊地水鬼
+1613,BBV,港湾棲姫,Harbour Princess II,港灣棲姫
+1614,CV,空母ヲ級,Standard Carrier Wo-Class Flagship III,
+1615,CV,空母ヲ級,Standard Carrier Wo-Class Flagship IV,
+1616,CV,空母ヲ級改,Standard Carrier Wo-Class Kai Flagship II,
+1617,CV,空母ヲ級改,Standard Carrier Wo-Class Kai Flagship III,
+1618,CV,空母ヲ級改,Standard Carrier Wo-Class Kai Flagship IV,
+1619,CV,空母棲鬼,Aircraft Carrier Demon II,空母棲鬼
+1620,CV,空母棲姫,Aircraft Carrier Princess II,空母棲姫
+1621,DD,駆逐イ級後期型,Destroyer I-Class Late Model Elite,
+1622,DD,駆逐ロ級後期型,Destroyer Ro-Class Late Model Elite,
+1623,DD,駆逐ハ級後期型,Destroyer Ha-Class Late Model Elite,
+1624,DD,駆逐ニ級後期型,Destroyer Ni-Class Late Model Elite,
+1625,AV,水母棲姫,Seaplane Tender Princess,水母棲姫
+1626,AV,水母棲姫,Seaplane Tender Princess II,水母棲姫
+1627,AV,水母棲姫,Seaplane Tender Princess III,水母棲姫
+1628,DD,防空棲姫,Air Defense Princess,防空棲姫
+1629,DD,防空棲姫,Air Defense Princess II,防空棲姫
+1630,DD,防空棲姫,Air Defense Princess III,防空棲姫
+1631,BBV,飛行場姫,Airfield Princess II,飛行場姫
+1632,BBV,飛行場姫,Airfield Princess III,飛行場姫
+1633,BBV,飛行場姫,Airfield Princess IV,飛行場姫
+1634,BBV,離島棲鬼,Isolated Island Demon II,離島棲鬼
+1635,BBV,離島棲鬼,Isolated Island Demon III,離島棲鬼
+1636,BBV,離島棲鬼,Isolated Island Demon IV,離島棲鬼
+1637,DD,PT小鬼群,PT Imp Pack,PT小鬼群
+1638,DD,PT小鬼群,PT Imp Pack II,PT小鬼群
+1639,DD,PT小鬼群,PT Imp Pack III,PT小鬼群
+1640,DD,PT小鬼群,PT Imp Pack IV,PT小鬼群
+1641,CL,軽巡棲姫,Light Cruiser Princess,輕巡棲姫
+1642,CL,軽巡棲姫,Light Cruiser Princess II,輕巡棲姫
+1643,CL,軽巡棲姫,Light Cruiser Princess III,輕巡棲姫
+1644,SS,潜水棲姫,Submarine Princess,潛水棲姫
+1645,SS,潜水棲姫,Submarine Princess II,潛水棲姫
+1646,SS,潜水棲姫,Submarine Princess III,潛水棲姫
+1647,DD,駆逐水鬼,Destroyer Water Demon,驅逐水鬼
+1648,DD,駆逐水鬼,Destroyer Water Demon II,驅逐水鬼
+1649,DD,駆逐水鬼,Destroyer Water Demon III,驅逐水鬼
+1650,BBV,飛行場姫,Airfield Princess V,飛行場姫
+1651,BBV,飛行場姫,Airfield Princess VI,飛行場姫
+1652,BBV,飛行場姫,Airfield Princess VII,飛行場姫
+1653,BBV,集積地棲姫,Supply Depot Princess,集積地棲姫
+1654,BBV,集積地棲姫,Supply Depot Princess II,集積地棲姫
+1655,BBV,集積地棲姫,Supply Depot Princess III,集積地棲姫
+1656,BBV,集積地棲姫-壊,Supply Depot Princess Damaged,集積地棲姫-壞
+1657,BBV,集積地棲姫-壊,Supply Depot Princess Damaged II,集積地棲姫-壞
+1658,BBV,集積地棲姫-壊,Supply Depot Princess Damaged III,集積地棲姫-壞
+1659,CA,重巡棲姫,Heavy Cruiser Princess,重巡棲姫
+1660,CA,重巡棲姫,Heavy Cruiser Princess II,重巡棲姫
+1661,CA,重巡棲姫,Heavy Cruiser Princess III,重巡棲姫
+1662,CA,重巡棲姫,Heavy Cruiser Princess IV,重巡棲姫
+1663,CA,重巡棲姫,Heavy Cruiser Princess V,重巡棲姫
+1664,CA,重巡棲姫,Heavy Cruiser Princess VI,重巡棲姫
+1665,BB,砲台小鬼,Artillery Imp,砲臺小鬼
+1666,BB,砲台小鬼,Artillery Imp II,砲臺小鬼
+1667,BB,砲台小鬼,Artillery Imp III,砲臺小鬼
+1668,CV,離島棲姫,Isolated Island Princess,離島棲姫
+1669,CV,離島棲姫,Isolated Island Princess II,離島棲姫
+1670,CV,離島棲姫,Isolated Island Princess III,離島棲姫
+1671,BBV,離島棲姫,Isolated Island Princess IV,離島棲姫
+1672,BB,離島棲姫,Isolated Island Princess V,離島棲姫
+1673,DD,駆逐古鬼,Ancient Destroyer Demon,驅逐古鬼
+1674,DD,駆逐古鬼,Ancient Destroyer Demon II,驅逐古鬼
+1675,DD,駆逐古鬼,Ancient Destroyer Demon III,驅逐古鬼
+1676,DD,駆逐水鬼,Destroyer Water Demon IV,驅逐水鬼
+1677,DD,駆逐水鬼,Destroyer Water Demon V,驅逐水鬼
+1678,DD,駆逐水鬼,Destroyer Water Demon VI,驅逐水鬼
+1679,CV,リコリス棲姫,Lycoris Princess,
+1680,CV,リコリス棲姫,Lycoris Princess II,
+1681,CV,リコリス棲姫,Lycoris Princess III,
+1682,CV,リコリス棲姫,Lycoris Princess IV,
+1683,CV,リコリス棲姫,Lycoris Princess V,
+1684,BB,中枢棲姫,Central Princess,中樞棲姫
+1685,BB,中枢棲姫,Central Princess II,中樞棲姫
+1686,BB,中枢棲姫,Central Princess III,中樞棲姫
+1687,BB,中枢棲姫-壊,Central Princess Damaged,中樞棲姫-壞
+1688,BB,中枢棲姫-壊,Central Princess Damaged II,中樞棲姫-壞
+1689,BB,中枢棲姫-壊,Central Princess Damaged III,中樞棲姫-壞
+1690,DD,駆逐古姫,Ancient Destroyer Princess,驅逐古姫
+1691,DD,駆逐古姫,Ancient Destroyer Princess II,驅逐古姫
+1692,DD,駆逐古姫,Ancient Destroyer Princess III,驅逐古姫
+1693,SS,潜水夏姫,Submarine Summer Princess Flagship,潛水夏姫
+1694,SS,潜水夏姫,Submarine Summer Princess Flagship II,潛水夏姫
+1695,SS,潜水夏姫,Submarine Summer Princess Flagship III,潛水夏姫
+1696,BB,戦艦夏姫,Battleship Summer Princess,戰艦夏姫
+1697,BB,戦艦夏姫,Battleship Summer Princess II,戰艦夏姫
+1698,BB,戦艦夏姫,Battleship Summer Princess III,戰艦夏姫
+1699,BBV,港湾夏姫,Harbour Summer Princess,港灣夏姫
+1700,BBV,港湾夏姫,Harbour Summer Princess II,港灣夏姫
+1701,BBV,港湾夏姫,Harbour Summer Princess III,港灣夏姫
+1702,BBV,港湾夏姫-壊,Harbour Summer Princess Damaged,港灣夏姫-壞
+1703,BBV,港湾夏姫-壊,Harbour Summer Princess Damaged II,港灣夏姫-壞
+1704,BBV,港湾夏姫-壊,Harbour Summer Princess Damaged III,港灣夏姫-壞
+1705,CA,重巡夏姫,Heavy Cruiser Summer Princess,重巡夏姫
+1706,CA,重巡夏姫,Heavy Cruiser Summer Princess II,重巡夏姫
+1707,CA,重巡夏姫,Heavy Cruiser Summer Princess III,重巡夏姫
+1708,AV,水母水姫,Seaplane Tender Water Princess,水母水姫
+1709,AV,水母水姫,Seaplane Tender Water Princess II,水母水姫
+1710,AV,水母水姫,Seaplane Tender Water Princess III,水母水姫
+1711,CV,深海海月姫,Abyssal Jellyfish Princess,深海海月姫
+1712,CV,深海海月姫,Abyssal Jellyfish Princess II,深海海月姫
+1713,CV,深海海月姫,Abyssal Jellyfish Princess III,深海海月姫
+1714,CV,空母ヲ級改,Standard Carrier Wo-Class Kai Flagship V,
+1715,CV,空母ヲ級改,Standard Carrier Wo-Class Kai Flagship VI,
+1716,BBV,深海双子棲姫,Abyssal Twin Princesses,深海雙子棲姫
+1717,BBV,深海双子棲姫,Abyssal Twin Princesses II,深海雙子棲姫
+1718,BBV,深海双子棲姫,Abyssal Twin Princesses III,深海雙子棲姫
+1719,BBV,深海双子棲姫-壊,Abyssal Twin Princesses Damaged,深海雙子棲姫-壞
+1720,BBV,深海双子棲姫-壊,Abyssal Twin Princesses Damaged II,深海雙子棲姫-壞
+1721,BBV,深海双子棲姫-壊,Abyssal Twin Princesses Damaged III,深海雙子棲姫-壞
+1722,CVL,護衛棲姫,Escort Princess,護衞棲姫
+1723,CVL,護衛棲姫,Escort Princess II,護衞棲姫
+1724,CVL,護衛棲姫,Escort Princess III,護衞棲姫
+1725,BBV,北端上陸姫,Northernmost Landing Princess,北端上陸姫
+1726,BBV,北端上陸姫,Northernmost Landing Princess II,北端上陸姫
+1727,BBV,北端上陸姫,Northernmost Landing Princess III,北端上陸姫
+1728,BBV,北方水姫,Northern Water Princess,北方水姫
+1729,BBV,北方水姫,Northern Water Princess II,北方水姫
+1730,BBV,北方水姫,Northern Water Princess III,北方水姫
+1731,BBV,北方水姫-壊,Northern Water Princess Damaged,北方水姫-壞
+1732,BBV,北方水姫-壊,Northern Water Princess Damaged II,北方水姫-壞
+1733,BBV,北方水姫-壊,Northern Water Princess Damaged III,北方水姫-壞
+1734,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Elite,
+1735,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Flagship,
+1736,SS,潜水新棲姫,New Submarine Princess Flagship,潛水新棲姫
+1737,SS,潜水新棲姫,New Submarine Princess Flagship II,潛水新棲姫
+1738,SS,潜水新棲姫,New Submarine Princess Flagship III,潛水新棲姫
+1739,DD,駆逐ナ級,Destroyer Na-Class,
+1740,DD,駆逐ナ級,Destroyer Na-Class Elite,
+1741,DD,駆逐ナ級,Destroyer Na-Class Flagship,
+1742,DD,駆逐ナ級後期型,Destroyer Na-Class Late Model,
+1743,DD,駆逐ナ級後期型,Destroyer Na-Class Late Model Elite,
+1744,DD,駆逐ナ級後期型,Destroyer Na-Class Late Model Flagship,
+1745,BBV,戦艦仏棲姫,French Battleship Princess,戰艦佛棲姫
+1746,BBV,戦艦仏棲姫,French Battleship Princess II,戰艦佛棲姫
+1747,BBV,戦艦仏棲姫,French Battleship Princess III,戰艦佛棲姫
+1748,BBV,戦艦仏棲姫-壊,French Battleship Princess Damaged,戰艦佛棲姫-壞
+1749,BBV,戦艦仏棲姫-壊,French Battleship Princess Damaged II,戰艦佛棲姫-壞
+1750,BBV,戦艦仏棲姫-壊,French Battleship Princess Damaged III,戰艦佛棲姫-壞
+1751,CV,空母夏鬼,Aircraft Carrier Summer Demon,空母夏鬼
+1752,CV,空母夏姫,Aircraft Carrier Summer Princess,空母夏姫
+1753,BBV,集積地夏姫,Supply Depot Summer Princess,集積地夏姫
+1754,BBV,集積地夏姫,Supply Depot Summer Princess II,集積地夏姫
+1755,BBV,欧州棲姫,European Princess,歐洲棲姫
+1756,BBV,欧州棲姫,European Princess II,歐洲棲姫
+1757,BBV,欧州棲姫,European Princess III,歐洲棲姫
+1758,BBV,欧州棲姫-壊,European Princess Damaged,歐洲棲姫-壞
+1759,BBV,欧州棲姫-壊,European Princess Damaged II,歐洲棲姫-壞
+1760,BBV,欧州棲姫-壊,European Princess Damaged III,歐洲棲姫-壞
+1761,CAV,重巡ネ級,Heavy Cruiser Ne-Class Flagship,
+1762,CVL,軽母ヌ級,Light Carrier Nu-Class Elite II,
+1763,CVL,軽母ヌ級,Light Carrier Nu-Class Flagship II,
+1764,CVL,軽母ヌ級,Light Carrier Nu-Class Flagship III,
+1765,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Elite II,
+1766,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Flagship II,
+1767,BBV,海峡夜棲姫,Night Strait Princesses,海峽夜棲姫
+1768,BBV,海峡夜棲姫,Night Strait Princesses II,海峽夜棲姫
+1769,BBV,海峡夜棲姫,Night Strait Princesses III,海峽夜棲姫
+1770,BBV,海峡夜棲姫-壊,Night Strait Princesses Damaged,海峽夜棲姫-壞
+1771,BBV,海峡夜棲姫-壊,Night Strait Princesses Damaged II,海峽夜棲姫-壞
+1772,BBV,海峡夜棲姫-壊,Night Strait Princesses Damaged III,海峽夜棲姫-壞
+1773,BBV,防空埋護姫,Entombed Anti-Air Guardian Princess,防空埋護姫
+1774,BBV,防空埋護姫,Entombed Anti-Air Guardian Princess II,防空埋護姫
+1775,BBV,防空埋護姫,Entombed Anti-Air Guardian Princess III,防空埋護姫
+1776,CVL,軽母ヌ級,Light Carrier Nu-Class Elite III,
+1777,CVL,軽母ヌ級,Light Carrier Nu-Class Elite IV,
+1778,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Elite III,
+1779,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Flagship III,
+1780,CVL,軽母ヌ級改,Light Carrier Nu-Class Kai Flagship IV,
+1781,CV,空母棲姫,Aircraft Carrier Princess III,空母棲姫
+1782,CV,空母棲姫,Aircraft Carrier Princess IV,空母棲姫
+1783,CVL,護衛棲水姫,Escort Water Princess,護衞棲水姫
+1784,CVL,護衛棲水姫,Escort Water Princess II,護衞棲水姫
+1785,CVL,護衛棲水姫,Escort Water Princess III,護衞棲水姫
+1786,CVL,護衛棲水姫-壊,Escort Water Princess Damaged,護衞棲水姫-壞
+1787,CVL,護衛棲水姫-壊,Escort Water Princess Damaged II,護衞棲水姫-壞
+1788,CVL,護衛棲水姫-壊,Escort Water Princess Damaged III,護衞棲水姫-壞
+1789,SS,潜水新棲姫,New Submarine Princess Flagship IV,潛水新棲姫
+1790,BB,戦艦棲姫改,Battleship Princess Kai,戰艦棲姫改
+1791,BB,戦艦棲姫改,Battleship Princess Kai II,戰艦棲姫改
+1792,BB,戦艦棲姫改,Battleship Princess Kai III,戰艦棲姫改
+1793,BB,戦艦水鬼改,Battleship Water Demon Kai,戰艦水鬼改
+1794,BB,戦艦水鬼改,Battleship Water Demon Kai II,戰艦水鬼改
+1795,BB,戦艦水鬼改,Battleship Water Demon Kai III,戰艦水鬼改
+1796,BB,戦艦水鬼改-壊,Battleship Water Demon Kai Damaged,戰艦水鬼改-壞
+1797,BB,戦艦水鬼改-壊,Battleship Water Demon Kai Damaged II,戰艦水鬼改-壞
+1798,BB,戦艦水鬼改-壊,Battleship Water Demon Kai Damaged III,戰艦水鬼改-壞
+1799,CV,深海鶴棲姫,Abyssal Crane Princess,深海鶴棲姫
+1800,CV,深海鶴棲姫,Abyssal Crane Princess II,深海鶴棲姫
+1801,CV,深海鶴棲姫,Abyssal Crane Princess III,深海鶴棲姫
+1802,CV,深海鶴棲姫-壊,Abyssal Crane Princess Damaged,深海鶴棲姫-壞
+1803,CV,深海鶴棲姫-壊,Abyssal Crane Princess Damaged II,深海鶴棲姫-壞
+1804,CV,深海鶴棲姫-壊,Abyssal Crane Princess Damaged III,深海鶴棲姫-壞
+1805,SS,潜水新棲姫 バカンスmode,New Submarine Princess Vacation Mode Flagship,
+1806,SS,潜水新棲姫 バカンスmode,New Submarine Princess Vacation Mode Flagship II,
+1807,SS,潜水新棲姫 バカンスmode,New Submarine Princess Vacation Mode Flagship III,
+1808,SS,潜水新棲姫 バカンスmode,New Submarine Princess Vacation Mode Flagship IV,
+1809,BBV,集積地棲姫 バカンスmode,Supply Depot Princess Vacation Mode,
+1810,BBV,集積地棲姫 バカンスmode,Supply Depot Princess Vacation Mode II,
+1811,BBV,集積地棲姫 バカンスmode,Supply Depot Princess Vacation Mode III,
+1812,BB,集積地棲姫 バカンスmode-壊,Supply Depot Princess Vacation Mode Damaged,
+1813,BB,集積地棲姫 バカンスmode-壊,Supply Depot Princess Vacation Mode Damaged II,
+1814,BB,集積地棲姫 バカンスmode-壊,Supply Depot Princess Vacation Mode Damaged III,
+1815,BBV,泊地水鬼 バカンスmode,Anchorage Water Demon Vacation Mode,
+1816,BBV,泊地水鬼 バカンスmode,Anchorage Water Demon Vacation Mode II,
+1817,BBV,泊地水鬼 バカンスmode,Anchorage Water Demon Vacation Mode III,
+1818,BB,泊地水鬼 バカンスmode,Anchorage Water Demon Vacation Mode IV,
+1819,BB,泊地水鬼 バカンスmode,Anchorage Water Demon Vacation Mode V,
+1820,BB,泊地水鬼 バカンスmode,Anchorage Water Demon Vacation Mode VI,
+1821,CVL,護衛独還姫,German Escort Princess,護衞獨還姫
+1822,CVL,護衛独還姫,German Escort Princess II,護衞獨還姫
+1823,CVL,護衛独還姫,German Escort Princess III,護衞獨還姫
+1824,CVL,護衛独還姫-壊,German Escort Princess Damaged,護衞獨還姫-壞
+1825,CVL,護衛独還姫-壊,German Escort Princess Damaged II,護衞獨還姫-壞
+1826,CVL,護衛独還姫-壊,German Escort Princess Damaged III,護衞獨還姫-壞
+1827,DD,船渠棲姫,Dock Princess,船渠棲姫
+1828,DD,船渠棲姫,Dock Princess II,船渠棲姫
+1829,DD,船渠棲姫,Dock Princess III,船渠棲姫
+1830,DD,船渠棲姫-壊,Dock Princess Damaged,船渠棲姫-壞
+1831,DD,船渠棲姫-壊,Dock Princess Damaged II,船渠棲姫-壞
+1832,DD,船渠棲姫-壊,Dock Princess Damaged III,船渠棲姫-壞
+1834,BBV,戦艦仏棲姫 バカンスmode,French Battleship Princess Vacation Mode,
+1835,BBV,戦艦仏棲姫 バカンスmode,French Battleship Princess Vacation Mode II,
+1836,BBV,戦艦仏棲姫 バカンスmode,French Battleship Princess Vacation Mode III,
+1837,BBV,戦艦仏棲姫-壊 バカンスmode,French Battleship Princess Vacation Mode Damaged,
+1838,BBV,戦艦仏棲姫-壊 バカンスmode,French Battleship Princess Vacation Mode Damaged II,
+1839,BBV,戦艦仏棲姫-壊 バカンスmode,French Battleship Princess Vacation Mode Damaged III,
+1840,BBV,欧州水姫,European Water Princess,歐洲水姫
+1841,BBV,欧州水姫,European Water Princess II,歐洲水姫
+1842,BBV,欧州水姫,European Water Princess III,歐洲水姫
+1843,BBV,欧州水姫-壊,European Water Princess Damaged,歐洲水姫-壞
+1844,BBV,欧州水姫-壊,European Water Princess Damaged II,歐洲水姫-壞
+1845,BBV,欧州水姫-壊,European Water Princess Damaged III,歐洲水姫-壞
+1846,DD,深海雨雲姫,Abyssal Nimbus Princess,深海雨雲姫
+1847,DD,深海雨雲姫,Abyssal Nimbus Princess II,深海雨雲姫
+1848,DD,深海雨雲姫,Abyssal Nimbus Princess III,深海雨雲姫
+1849,DD,深海雨雲姫-壊,Abyssal Nimbus Princess Damaged,深海雨雲姫-壞
+1850,DD,深海雨雲姫-壊,Abyssal Nimbus Princess Damaged II,深海雨雲姫-壞
+1851,DD,深海雨雲姫-壊,Abyssal Nimbus Princess Damaged III,深海雨雲姫-壞
+1852,AV,深海日棲姫,Abyssal Sun Princess,深海日棲姫
+1853,AV,深海日棲姫,Abyssal Sun Princess II,深海日棲姫
+1854,AV,深海日棲姫,Abyssal Sun Princess III,深海日棲姫
+1855,AV,深海日棲姫-壊,Abyssal Sun Princess Damaged,深海日棲姫-壞
+1856,AV,深海日棲姫-壊,Abyssal Sun Princess Damaged II,深海日棲姫-壞
+1857,AV,深海日棲姫-壊,Abyssal Sun Princess Damaged III,深海日棲姫-壞
+1858,DD,駆逐ニ級改,Destroyer Ni-Class Kai,
+1859,DD,駆逐ニ級改後期型,Destroyer Ni-Class Kai Late Model,
+1860,DD,駆逐ニ級改後期型,Destroyer Ni-Class Kai Late Model Elite,
+1861,DD,駆逐ニ級改後期型,Destroyer Ni-Class Kai Late Model Flagship,
+1862,CL,軽巡ツ級,Light Cruiser Tsu-Class Flagship,
+1863,CA,重巡棲姫,Heavy Cruiser Princess VII,重巡棲姫
+1864,CA,重巡棲姫,Heavy Cruiser Princess VIII,重巡棲姫
+1865,BBV,北方棲妹,Northern Little Sister,北方棲妹
+1866,BBV,北方棲妹,Northern Little Sister II,北方棲妹
+1867,BBV,北方棲妹,Northern Little Sister III,北方棲妹
+1868,BBV,北方棲妹-壊,Northern Little Sister Damaged,北方棲妹-壞
+1869,BBV,北方棲妹-壊,Northern Little Sister Damaged II,北方棲妹-壞
+1870,BBV,北方棲妹-壊,Northern Little Sister Damaged III,北方棲妹-壞
+1871,BB,太平洋深海棲姫,Abyssal Pacific Princess,太平洋深海棲姫
+1872,BB,太平洋深海棲姫,Abyssal Pacific Princess II,太平洋深海棲姫
+1873,BB,太平洋深海棲姫,Abyssal Pacific Princess III,太平洋深海棲姫
+1874,BB,太平洋深海棲姫-壊,Abyssal Pacific Princess Damaged,太平洋深海棲姫-壞
+1875,BB,太平洋深海棲姫-壊,Abyssal Pacific Princess Damaged II,太平洋深海棲姫-壞
+1876,BB,太平洋深海棲姫-壊,Abyssal Pacific Princess Damaged III,太平洋深海棲姫-壞
+1877,CL,深海地中海棲姫,Abyssal Mediterranean Princess,深海地中海棲姫
+1878,CL,深海地中海棲姫,Abyssal Mediterranean Princess II,深海地中海棲姫
+1879,CL,深海地中海棲姫,Abyssal Mediterranean Princess III,深海地中海棲姫
+1880,CL,深海地中海棲姫-壊,Abyssal Mediterranean Princess Damaged,深海地中海棲姫-壞
+1881,CL,深海地中海棲姫-壊,Abyssal Mediterranean Princess Damaged II,深海地中海棲姫-壞
+1882,CL,深海地中海棲姫-壊,Abyssal Mediterranean Princess Damaged III,深海地中海棲姫-壞
+1883,DD,アンツィオ沖棲姫,Anzio Princess,
+1884,DD,アンツィオ沖棲姫,Anzio Princess II,
+1885,DD,アンツィオ沖棲姫,Anzio Princess III,
+1886,DD,アンツィオ沖棲姫-壊,Anzio Princess Damaged,
+1887,DD,アンツィオ沖棲姫-壊,Anzio Princess Damaged II,
+1888,DD,アンツィオ沖棲姫-壊,Anzio Princess Damaged III,
+1889,BBV,飛行場姫,Airfield Princess VIII,飛行場姫
+1890,BBV,飛行場姫,Airfield Princess IX,飛行場姫
+1891,BBV,飛行場姫,Airfield Princess X,飛行場姫
+1892,BBV,飛行場姫,Airfield Princess XI,飛行場姫
+1893,BBV,飛行場姫,Airfield Princess XII,飛行場姫
+1894,BBV,飛行場姫,Airfield Princess XIII,飛行場姫
+1895,CA,重巡ネ級改,Heavy Cruiser Ne-Class Kai,
+1896,CA,重巡ネ級改,Heavy Cruiser Ne-Class Kai II,
+1897,CA,重巡ネ級改,Heavy Cruiser Ne-Class Kai III,
+1898,FBB,バタビア沖棲姫,Batavia Princess,
+1899,FBB,バタビア沖棲姫,Batavia Princess II,
+1900,FBB,バタビア沖棲姫,Batavia Princess III,
+1901,FBB,バタビア沖棲姫-壊,Batavia Princess Damaged,
+1902,FBB,バタビア沖棲姫-壊,Batavia Princess Damaged II,
+1903,FBB,バタビア沖棲姫-壊,Batavia Princess Damaged III,
+1904,CL,軽巡ヘ級改,Light Cruiser He-Class Kai Flagship,
+1905,CL,軽巡ヘ級改,Light Cruiser He-Class Kai Flagship II,
+1906,CV,空母棲姫改,Aircraft Carrier Princess Kai,空母棲姫改
+1907,CV,空母棲姫改,Aircraft Carrier Princess Kai II,空母棲姫改
+1908,CV,空母棲姫改,Aircraft Carrier Princess Kai III,空母棲姫改
+1909,CL,防空巡棲姫,Anti-Air Cruiser Princess,防空巡棲姫
+1910,CL,防空巡棲姫,Anti-Air Cruiser Princess II,防空巡棲姫
+1911,CL,防空巡棲姫,Anti-Air Cruiser Princess III,防空巡棲姫
+1912,CL,防空巡棲姫-壊,Anti-Air Cruiser Princess Damaged,防空巡棲姫-壞
+1913,CL,防空巡棲姫-壊,Anti-Air Cruiser Princess Damaged II,防空巡棲姫-壞
+1914,CL,防空巡棲姫-壊,Anti-Air Cruiser Princess Damaged III,防空巡棲姫-壞
+1915,SS,潜水棲姫改,Submarine Princess Kai Flagship,潛水棲姫改
+1916,SS,潜水棲姫改,Submarine Princess Kai Flagship II,潛水棲姫改
+1917,SS,潜水棲姫改,Submarine Princess Kai Flagship III,潛水棲姫改
+1918,SS,潜水棲姫改-壊,Submarine Princess Kai Flagship Damaged,潛水棲姫改-壞
+1919,SS,潜水棲姫改-壊,Submarine Princess Kai Flagship Damaged II,潛水棲姫改-壞
+1920,SS,潜水棲姫改-壊,Submarine Princess Kai Flagship Damaged III,潛水棲姫改-壞
+1921,BBV,集積地棲姫II,Supply Depot Princess B,集積地棲姫II
+1922,BBV,集積地棲姫II,Supply Depot Princess B II,集積地棲姫II
+1923,BBV,集積地棲姫II,Supply Depot Princess B III,集積地棲姫II
+1924,BBV,集積地棲姫II-壊,Supply Depot Princess B Damaged,集積地棲姫II-壞
+1925,BBV,集積地棲姫II-壊,Supply Depot Princess B Damaged II,集積地棲姫II-壞
+1926,BBV,集積地棲姫II-壊,Supply Depot Princess B Damaged III,集積地棲姫II-壞
+1927,DD,深海千島棲姫,Abyssal Kuriles Princess,深海千島棲姫
+1928,DD,深海千島棲姫,Abyssal Kuriles Princess II,深海千島棲姫
+1929,DD,深海千島棲姫,Abyssal Kuriles Princess III,深海千島棲姫
+1930,DD,深海千島棲姫-壊,Abyssal Kuriles Princess Damaged,深海千島棲姫-壞
+1931,DD,深海千島棲姫-壊,Abyssal Kuriles Princess Damaged II,深海千島棲姫-壞
+1932,DD,深海千島棲姫-壊,Abyssal Kuriles Princess Damaged III,深海千島棲姫-壞
+1933,BBV,集積地棲姫II 夏季上陸mode,Supply Depot Princess B Summer Landing Mode,集積地棲姫II 夏季上陸mode
+1934,BBV,集積地棲姫II 夏季上陸mode,Supply Depot Princess B Summer Landing Mode II,集積地棲姫II 夏季上陸mode
+1935,BBV,集積地棲姫II 夏季上陸mode,Supply Depot Princess B Summer Landing Mode III,集積地棲姫II 夏季上陸mode
+1936,BB,集積地棲姫II 夏季上陸mode-壊,Supply Depot Princess B Summer Landing Mode Damaged,集積地棲姫II 夏季上陸mode-壞
+1937,BB,集積地棲姫II 夏季上陸mode-壊,Supply Depot Princess B Summer Landing Mode Damaged II,集積地棲姫II 夏季上陸mode-壞
+1938,BB,集積地棲姫II 夏季上陸mode-壊,Supply Depot Princess B Summer Landing Mode Damaged III,集積地棲姫II 夏季上陸mode-壞
+1939,SS,五島沖海底姫,Gotou Islands Seabed Princess,五島沖海底姫
+1940,SS,五島沖海底姫,Gotou Islands Seabed Princess II,五島沖海底姫
+1941,SS,五島沖海底姫,Gotou Islands Seabed Princess III,五島沖海底姫
+1942,SS,五島沖海底姫-壊,Gotou Islands Seabed Princess Damaged,五島沖海底姫-壞
+1943,SS,五島沖海底姫-壊,Gotou Islands Seabed Princess Damaged II,五島沖海底姫-壞
+1944,SS,五島沖海底姫-壊,Gotou Islands Seabed Princess Damaged III,五島沖海底姫-壞
+1945,DD,駆逐林棲姫,Destroyer Forest Princess,驅逐林棲姫
+1946,DD,駆逐林棲姫,Destroyer Forest Princess II,驅逐林棲姫
+1947,DD,駆逐林棲姫,Destroyer Forest Princess III,驅逐林棲姫
+1948,DD,駆逐林棲姫-壊,Destroyer Forest Princess Damaged,驅逐林棲姫-壞
+1949,DD,駆逐林棲姫-壊,Destroyer Forest Princess Damaged II,驅逐林棲姫-壞
+1950,DD,駆逐林棲姫-壊,Destroyer Forest Princess Damaged III,驅逐林棲姫-壞
+1951,DD,駆逐ナ級後期型II,Destroyer Na-Class Late Model II Elite,
+1952,DD,駆逐ナ級後期型II,Destroyer Na-Class Late Model II Flagship,
+1953,CA,重巡ネ級改 夏mode,Heavy Cruiser Ne-Class Kai Summer Mode,
+1954,CA,重巡ネ級改 夏mode,Heavy Cruiser Ne-Class Kai Summer Mode II,
+1955,CA,重巡ネ級改 夏mode,Heavy Cruiser Ne-Class Kai Summer Mode III,
+1956,CA,重巡ネ級改II 夏mode,Heavy Cruiser Ne-Class Kai B Summer Mode,
+1957,CL,軽巡棲姫II,Light Cruiser Princess B,輕巡棲姫II
+1958,CL,軽巡棲姫II,Light Cruiser Princess B II,輕巡棲姫II
+1959,CL,軽巡棲姫II,Light Cruiser Princess B III,輕巡棲姫II
+1960,CL,軽巡棲姫II,Light Cruiser Princess B IV,輕巡棲姫II
+1961,CV,空母夏姫,Aircraft Carrier Summer Princess II,空母夏姫
+1962,CV,空母夏姫,Aircraft Carrier Summer Princess III,空母夏姫
+1963,CV,空母夏姫,Aircraft Carrier Summer Princess IV,空母夏姫
+1964,CV,空母夏姫II,Aircraft Carrier Summer Princess B,空母夏姫II
+1965,FBB,南方戦艦新棲姫,New Southern Battleship Princess,南方戰艦新棲姫
+1966,FBB,南方戦艦新棲姫,New Southern Battleship Princess II,南方戰艦新棲姫
+1967,FBB,南方戦艦新棲姫,New Southern Battleship Princess III,南方戰艦新棲姫
+1968,FBB,南方戦艦新棲姫-壊,New Southern Battleship Princess Damaged,南方戰艦新棲姫-壞
+1969,FBB,南方戦艦新棲姫-壊,New Southern Battleship Princess Damaged II,南方戰艦新棲姫-壞
+1970,FBB,南方戦艦新棲姫-壊,New Southern Battleship Princess Damaged III,南方戰艦新棲姫-壞
+1971,CV,南太平洋空母棲姫,South Pacific Aircraft Carrier Princess,南太平洋空母棲姫
+1972,CV,南太平洋空母棲姫,South Pacific Aircraft Carrier Princess II,南太平洋空母棲姫
+1973,CV,南太平洋空母棲姫,South Pacific Aircraft Carrier Princess III,南太平洋空母棲姫
+1974,CV,南太平洋空母棲姫-壊,South Pacific Aircraft Carrier Princess Damaged,南太平洋空母棲姫-壞
+1975,CV,南太平洋空母棲姫-壊,South Pacific Aircraft Carrier Princess Damaged II,南太平洋空母棲姫-壞
+1976,CV,南太平洋空母棲姫-壊,South Pacific Aircraft Carrier Princess Damaged III,南太平洋空母棲姫-壞
+1977,SS,潜水夏姫II,Submarine Summer Princess B Flagship,潛水夏姫II
+1978,SS,潜水夏姫II,Submarine Summer Princess B Flagship II,潛水夏姫II
+1979,FBB,戦艦新棲姫,New Battleship Princess,戰艦新棲姫
+1980,FBB,戦艦新棲姫,New Battleship Princess II,戰艦新棲姫
+1981,FBB,戦艦新棲姫,New Battleship Princess III,戰艦新棲姫
+1982,FBB,戦艦新棲姫-壊,New Battleship Princess Damaged,戰艦新棲姫-壞
+1983,FBB,戦艦新棲姫-壊,New Battleship Princess Damaged II,戰艦新棲姫-壞
+1984,FBB,戦艦新棲姫-壊,New Battleship Princess Damaged III,戰艦新棲姫-壞
+1985,SS,潜水棲姫改II,Submarine Princess Kai B Flagship,潛水棲姫改II
+1986,SS,潜水棲姫改II,Submarine Princess Kai B Flagship II,潛水棲姫改II
+1987,SS,潜水棲姫改II,Submarine Princess Kai B Flagship III,潛水棲姫改II
+1988,DD,深海竹棲姫,Abyssal Bamboo Princess,深海竹棲姫
+1989,DD,深海竹棲姫,Abyssal Bamboo Princess II,深海竹棲姫
+1990,DD,深海竹棲姫,Abyssal Bamboo Princess III,深海竹棲姫
+1991,DD,深海竹棲姫-壊,Abyssal Bamboo Princess Damaged,深海竹棲姫-壞
+1992,DD,深海竹棲姫-壊,Abyssal Bamboo Princess Damaged II,深海竹棲姫-壞
+1993,DD,深海竹棲姫-壊,Abyssal Bamboo Princess Damaged III,深海竹棲姫-壞
+1994,BBV,集積地棲姫II,Supply Depot Princess B IV,集積地棲姫II
+1995,BBV,集積地棲姫II-壊,Supply Depot Princess B Damaged IV,集積地棲姫II-壞
+1996,SS,潜水棲姫改II,Submarine Princess Kai B Flagship IV,潛水棲姫改II
+1997,CV,空母棲姫改,Aircraft Carrier Princess Kai IV,空母棲姫改
+1998,CL,軽巡ト級,Light Cruiser To-Class Flagship,
+1999,CA,重巡リ級II,Heavy Cruiser Ri-Class B Flagship,
+2000,FBB,ルンガ沖重巡棲姫,Lunga Point Heavy Cruiser Princess,
+2001,FBB,ルンガ沖重巡棲姫,Lunga Point Heavy Cruiser Princess II,
+2002,FBB,ルンガ沖重巡棲姫,Lunga Point Heavy Cruiser Princess III,
+2003,FBB,ルンガ沖重巡棲姫-壊,Lunga Point Heavy Cruiser Princess Damaged,
+2004,FBB,ルンガ沖重巡棲姫-壊,Lunga Point Heavy Cruiser Princess Damaged II,
+2005,FBB,ルンガ沖重巡棲姫-壊,Lunga Point Heavy Cruiser Princess Damaged III,
+2006,CL,軽巡新棲姫,New Light Cruiser Princess,輕巡新棲姫
+2007,CL,軽巡新棲姫,New Light Cruiser Princess II,輕巡新棲姫
+2008,CL,軽巡新棲姫,New Light Cruiser Princess III,輕巡新棲姫
+2009,CL,軽巡新棲姫-壊,New Light Cruiser Princess Damaged,輕巡新棲姫-壞
+2010,CL,軽巡新棲姫-壊,New Light Cruiser Princess Damaged II,輕巡新棲姫-壞
+2011,CL,軽巡新棲姫-壊,New Light Cruiser Princess Damaged III,輕巡新棲姫-壞
+2012,CL,軽巡ト級,Light Cruiser To-Class Elite II,
+2013,AP,輸送ワ級II,Transport Ship Wa-Class B Elite,
+2014,AP,輸送ワ級II,Transport Ship Wa-Class B Flagship,
+2015,BBV,集積地棲姫II バカンスmode,Supply Depot Princess B Vacation Mode,
+2016,BBV,集積地棲姫II バカンスmode,Supply Depot Princess B Vacation Mode II,
+2017,BBV,集積地棲姫II バカンスmode,Supply Depot Princess B Vacation Mode III,
+2018,BBV,集積地棲姫II バカンスmode,Supply Depot Princess B Vacation Mode IV,
+2019,BB,集積地棲姫II バカンスmode-壊,Supply Depot Princess B Vacation Mode Damaged,
+2020,BB,集積地棲姫II バカンスmode-壊,Supply Depot Princess B Vacation Mode Damaged II,
+2021,BB,集積地棲姫II バカンスmode-壊,Supply Depot Princess B Vacation Mode Damaged III,
+2022,BB,集積地棲姫II バカンスmode-壊,Supply Depot Princess B Vacation Mode Damaged IV,
+2023,BBV,港湾夏姫II,Harbour Summer Princess B,港灣夏姫II
+2024,BBV,港湾夏姫II,Harbour Summer Princess B II,港灣夏姫II
+2025,BBV,港湾夏姫II,Harbour Summer Princess B III,港灣夏姫II
+2026,BBV,港湾夏姫II-壊,Harbour Summer Princess B Damaged,港灣夏姫II-壞
+2027,BBV,港湾夏姫II-壊,Harbour Summer Princess B Damaged II,港灣夏姫II-壞
+2028,BBV,港湾夏姫II-壊,Harbour Summer Princess B Damaged III,港灣夏姫II-壞
+2029,BB,地中海弩級水姫,Mediterranean Dreadnought Water Princess,地中海弩級水姫
+2030,BB,地中海弩級水姫,Mediterranean Dreadnought Water Princess II,地中海弩級水姫
+2031,BB,地中海弩級水姫,Mediterranean Dreadnought Water Princess III,地中海弩級水姫
+2032,BBV,地中海弩級水姫-壊,Mediterranean Dreadnought Water Princess Damaged,地中海弩級水姫-壞
+2033,BBV,地中海弩級水姫-壊,Mediterranean Dreadnought Water Princess Damaged II,地中海弩級水姫-壞
+2034,BBV,地中海弩級水姫-壊,Mediterranean Dreadnought Water Princess Damaged III,地中海弩級水姫-壞
+2035,CL,深海地中海棲姫 バカンスmode,Abyssal Mediterranean Princess Vacation Mode,
+2036,CL,深海地中海棲姫 バカンスmode,Abyssal Mediterranean Princess Vacation Mode II,
+2037,CL,深海地中海棲姫 バカンスmode,Abyssal Mediterranean Princess Vacation Mode III,
+2038,CL,深海地中海棲姫 バカンスmode-壊,Abyssal Mediterranean Princess Vacation Mode Damaged,
+2039,CL,深海地中海棲姫 バカンスmode-壊,Abyssal Mediterranean Princess Vacation Mode Damaged II,
+2040,CL,深海地中海棲姫 バカンスmode-壊,Abyssal Mediterranean Princess Vacation Mode Damaged III,
+2041,CVB,欧州装甲空母棲姫,European Armored Carrier Princess,歐洲裝甲空母棲姫
+2042,CVB,欧州装甲空母棲姫,European Armored Carrier Princess II,歐洲裝甲空母棲姫
+2043,CVB,欧州装甲空母棲姫,European Armored Carrier Princess III,歐洲裝甲空母棲姫
+2044,CVB,欧州装甲空母棲姫-壊,European Armored Carrier Princess Damaged,歐洲裝甲空母棲姫-壞
+2045,CVB,欧州装甲空母棲姫-壊,European Armored Carrier Princess Damaged II,歐洲裝甲空母棲姫-壞
+2046,CVB,欧州装甲空母棲姫-壊,European Armored Carrier Princess Damaged III,歐洲裝甲空母棲姫-壞
+2047,BBV,飛行場姫,Airfield Princess XIV,飛行場姫
+2048,BBV,飛行場姫,Airfield Princess XV,飛行場姫
+2049,SS,潜水新棲姫,New Submarine Princess Flagship V,潛水新棲姫
+2050,DD,駆逐ナ級IIe(量産型),Destroyer Na-Class Mass-Produced Model IIe,
+2051,DD,駆逐ナ級IIe(量産型),Destroyer Na-Class Mass-Produced Model IIe Elite,
+2052,DD,駆逐ナ級IIe(量産型),Destroyer Na-Class Mass-Produced Model IIe Flagship,
+2053,SS,潜水鮫水鬼,Submarine Shark Water Demon Flagship,潛水鮫水鬼
+2054,SS,潜水鮫水鬼,Submarine Shark Water Demon Flagship II,潛水鮫水鬼
+2055,SS,潜水鮫水鬼,Submarine Shark Water Demon Flagship III,潛水鮫水鬼
+2056,SS,潜水鮫水鬼-壊,Submarine Shark Water Demon Flagship Damaged,潛水鮫水鬼-壞
+2057,SS,潜水鮫水鬼-壊,Submarine Shark Water Demon Flagship Damaged II,潛水鮫水鬼-壞
+2058,SS,潜水鮫水鬼-壊,Submarine Shark Water Demon Flagship Damaged III,潛水鮫水鬼-壞
+2059,CVL,ヒ船団棲姫,Hi Convoy Princess,
+2060,CVL,ヒ船団棲姫,Hi Convoy Princess II,
+2061,CVL,ヒ船団棲姫-壊,Hi Convoy Princess Damaged,
+2062,CVL,ヒ船団棲姫-壊,Hi Convoy Princess Damaged II,
+2063,DD,深海梅棲姫,Abyssal Plum Princess,深海梅棲姫
+2064,DD,深海梅棲姫,Abyssal Plum Princess II,深海梅棲姫
+2065,DD,深海梅棲姫,Abyssal Plum Princess III,深海梅棲姫
+2066,DD,深海梅棲姫-壊,Abyssal Plum Princess Damaged,深海梅棲姫-壞
+2067,DD,深海梅棲姫-壊,Abyssal Plum Princess Damaged II,深海梅棲姫-壞
+2068,DD,深海梅棲姫-壊,Abyssal Plum Princess Damaged III,深海梅棲姫-壞
+2069,CVL,横浜岸壁棲姫,Yokohama Wharf Princess,橫濱岸壁棲姫
+2070,CVL,横浜岸壁棲姫,Yokohama Wharf Princess II,橫濱岸壁棲姫
+2071,CVL,横浜岸壁棲姫-壊,Yokohama Wharf Princess Damaged,橫濱岸壁棲姫-壞
+2072,CVL,横浜岸壁棲姫-壊,Yokohama Wharf Princess Damaged II,橫濱岸壁棲姫-壞
+2073,BBV,深海玉棲姫,Abyssal Jade Princess,深海玉棲姫
+2074,BBV,深海玉棲姫,Abyssal Jade Princess II,深海玉棲姫
+2075,DD,深海玉棲姫-壊,Abyssal Jade Princess Damaged,深海玉棲姫-壞
+2076,DD,深海玉棲姫-壊,Abyssal Jade Princess Damaged II,深海玉棲姫-壞
+2077,BBV,超重爆飛行場姫,Super Heavy Bomber Airfield Princess,超重爆飛行場姫
+2078,BBV,超重爆飛行場姫,Super Heavy Bomber Airfield Princess II,超重爆飛行場姫
+2079,BBV,超重爆飛行場姫,Super Heavy Bomber Airfield Princess III,超重爆飛行場姫
+2080,BBV,防空埋護冬姫,Entombed Anti-Air Guardian Winter Princess,防空埋護冬姫
+2081,BBV,防空埋護冬姫,Entombed Anti-Air Guardian Winter Princess II,防空埋護冬姫
+2082,BBV,防空埋護冬姫-壊,Entombed Anti-Air Guardian Winter Princess Damaged,防空埋護冬姫-壞
+2083,BBV,防空埋護冬姫-壊,Entombed Anti-Air Guardian Winter Princess Damaged II,防空埋護冬姫-壞
+2084,BBV,集積地棲姫III,Supply Depot Princess C,集積地棲姫III
+2085,BB,集積地棲姫III-壊,Supply Depot Princess C Damaged,集積地棲姫III-壞
+2086,BBV,集積地棲姫III,Supply Depot Princess C II,集積地棲姫III
+2087,BB,集積地棲姫III-壊,Supply Depot Princess C Damaged II,集積地棲姫III-壞
+2088,BBV,集積地棲姫III,Supply Depot Princess C III,集積地棲姫III
+2089,BB,集積地棲姫III-壊,Supply Depot Princess C Damaged III,集積地棲姫III-壞
+2090,CA,重巡ネ級改,Heavy Cruiser Ne-Class Kai IV,
+2091,BBV,飛行場姫(哨戒機配備),Airfield Princess Patrol Aircraft Deployment,飛行場姫(哨戒機配備)
+2092,BBV,飛行場姫(哨戒機配備),Airfield Princess Patrol Aircraft Deployment II,飛行場姫(哨戒機配備)
+2093,BBV,飛行場姫(哨戒機配備),Airfield Princess Patrol Aircraft Deployment III,飛行場姫(哨戒機配備)
+2094,BBV,飛行場姫,Airfield Princess XVI,飛行場姫
+2095,BBV,飛行場姫,Airfield Princess XVII,飛行場姫
+2096,BBV,飛行場姫,Airfield Princess XVIII,飛行場姫
+2097,BBV,外南洋駆逐棲姫,Outer Southern Sea Destroyer Princess,外南洋驅逐棲姫
+2098,BBV,外南洋駆逐棲姫,Outer Southern Sea Destroyer Princess II,外南洋驅逐棲姫
+2099,BBV,外南洋駆逐棲姫-壊,Outer Southern Sea Destroyer Princess Damaged,外南洋驅逐棲姫-壞
+2100,BBV,外南洋駆逐棲姫-壊,Outer Southern Sea Destroyer Princess Damaged II,外南洋驅逐棲姫-壞
+2101,CVL,軽母ヌ級II,Light Carrier Nu-Class B Elite,
+2102,CVL,軽母ヌ級II,Light Carrier Nu-Class B Elite II,
+2103,CVL,軽母ヌ級II,Light Carrier Nu-Class B Elite III,
+2104,CVL,軽母ヌ級II,Light Carrier Nu-Class B Flagship,
+2105,CV,空母棲姫II,Aircraft Carrier Princess B,空母棲姫II
+2106,CV,空母棲姫II,Aircraft Carrier Princess B II,空母棲姫II
+2107,CV,空母棲姫II,Aircraft Carrier Princess B III,空母棲姫II
+2108,CV,空母棲姫II,Aircraft Carrier Princess B IV,空母棲姫II
+2109,BBV,近代化戦艦棲姫,Modernized Battleship Princess,近代化戰艦棲姫
+2110,BBV,近代化戦艦棲姫,Modernized Battleship Princess II,近代化戰艦棲姫
+2111,BBV,近代化戦艦棲姫,Modernized Battleship Princess III,近代化戰艦棲姫
+2112,BBV,近代化戦艦棲姫-壊,Modernized Battleship Princess Damaged,近代化戰艦棲姫-壞
+2113,BBV,近代化戦艦棲姫-壊,Modernized Battleship Princess Damaged II,近代化戰艦棲姫-壞
+2114,BBV,近代化戦艦棲姫-壊,Modernized Battleship Princess Damaged III,近代化戰艦棲姫-壞
+2115,CV,空母ヲ級改II,Standard Carrier Wo-Class Kai B Flagship,
+2116,CV,空母ヲ級改II,Standard Carrier Wo-Class Kai B Flagship II,
+2117,CV,空母夏姫II,Aircraft Carrier Summer Princess B II,空母夏姫II
+2118,CV,空母夏姫II,Aircraft Carrier Summer Princess B III,空母夏姫II
+2119,CV,空母夏姫II,Aircraft Carrier Summer Princess B IV,空母夏姫II
+2120,CVL,高速軽空母水鬼,Fast Light Carrier Water Demon,高速輕空母水鬼
+2121,CVL,高速軽空母水鬼,Fast Light Carrier Water Demon II,高速輕空母水鬼
+2122,CVL,高速軽空母水鬼,Fast Light Carrier Water Demon III,高速輕空母水鬼
+2123,CVL,高速軽空母水鬼-壊,Fast Light Carrier Water Demon Damaged,高速輕空母水鬼-壞
+2124,CVL,高速軽空母水鬼-壊,Fast Light Carrier Water Demon Damaged II,高速輕空母水鬼-壞
+2125,CVL,高速軽空母水鬼-壊,Fast Light Carrier Water Demon Damaged III,高速輕空母水鬼-壞
+2126,CV,試作空母姫 バカンスmode,Prototype Carrier Princess Vacation Mode,
+2127,CV,試作空母姫 バカンスmode,Prototype Carrier Princess Vacation Mode II,
+2128,CV,試作空母姫 バカンスmode,Prototype Carrier Princess Vacation Mode III,
+2129,CV,試作空母姫 バカンスmode-壊,Prototype Carrier Princess Vacation Mode Damaged,
+2130,CV,試作空母姫 バカンスmode-壊,Prototype Carrier Princess Vacation Mode Damaged II,
+2131,CV,試作空母姫 バカンスmode-壊,Prototype Carrier Princess Vacation Mode Damaged III,
+2132,BBV,戦艦未完棲姫,Incomplete Battleship Princess,戰艦未完棲姫
+2133,BBV,戦艦未完棲姫,Incomplete Battleship Princess II,戰艦未完棲姫
+2134,BBV,戦艦未完棲姫,Incomplete Battleship Princess III,戰艦未完棲姫
+2135,BBV,戦艦未完棲姫-壊,Incomplete Battleship Princess Damaged,戰艦未完棲姫-壞
+2136,BBV,戦艦未完棲姫-壊,Incomplete Battleship Princess Damaged II,戰艦未完棲姫-壞
+2137,BBV,戦艦未完棲姫-壊,Incomplete Battleship Princess Damaged III,戰艦未完棲姫-壞
+2138,BBV,集積地棲姫III バカンスmode,Supply Depot Princess C Vacation Mode,
+2139,BB,集積地棲姫III バカンスmode-壊,Supply Depot Princess C Vacation Mode Damaged,
+2140,BBV,集積地棲姫III バカンスmode,Supply Depot Princess C Vacation Mode II,
+2141,BB,集積地棲姫III バカンスmode-壊,Supply Depot Princess C Vacation Mode Damaged II,
+2142,BBV,集積地棲姫III バカンスmode,Supply Depot Princess C Vacation Mode III,
+2143,BB,集積地棲姫III バカンスmode-壊,Supply Depot Princess C Vacation Mode Damaged III,
+2144,BBV,集積地棲姫III バカンスmode,Supply Depot Princess C Vacation Mode IV,
+2145,BB,集積地棲姫III バカンスmode-壊,Supply Depot Princess C Vacation Mode Damaged IV,
+2146,CVL,戦標船改装棲姫,Remodeled Wartime Cargo Princess,戰標船改裝棲姫
+2147,CVL,戦標船改装棲姫,Remodeled Wartime Cargo Princess II,戰標船改裝棲姫
+2148,CVL,戦標船改装棲姫,Remodeled Wartime Cargo Princess III,戰標船改裝棲姫
+2149,CVL,戦標船改装棲姫-壊,Remodeled Wartime Cargo Princess Damaged,戰標船改裝棲姫-壞
+2150,CVL,戦標船改装棲姫-壊,Remodeled Wartime Cargo Princess Damaged II,戰標船改裝棲姫-壞
+2151,CVL,戦標船改装棲姫-壊,Remodeled Wartime Cargo Princess Damaged III,戰標船改裝棲姫-壞
+2152,CAV,深海重巡水姫,Abyssal Heavy Cruiser Water Princess,深海重巡水姫
+2153,CAV,深海重巡水姫,Abyssal Heavy Cruiser Water Princess II,深海重巡水姫
+2154,CAV,深海重巡水姫,Abyssal Heavy Cruiser Water Princess III,深海重巡水姫
+2155,CAV,深海重巡水姫-壊,Abyssal Heavy Cruiser Water Princess Damaged,深海重巡水姫-壞
+2156,CAV,深海重巡水姫-壊,Abyssal Heavy Cruiser Water Princess Damaged II,深海重巡水姫-壞
+2157,CAV,深海重巡水姫-壊,Abyssal Heavy Cruiser Water Princess Damaged III,深海重巡水姫-壞
+2158,BBV,深海擱座揚陸姫,Abyssal Stranded Landing Princess,深海擱座揚陸姫
+2159,BBV,深海擱座揚陸姫,Abyssal Stranded Landing Princess II,深海擱座揚陸姫
+2160,BBV,深海擱座揚陸姫,Abyssal Stranded Landing Princess III,深海擱座揚陸姫
+2161,BBV,深海擱座揚陸姫-壊,Abyssal Stranded Landing Princess Damaged,深海擱座揚陸姫-壞
+2162,BBV,深海擱座揚陸姫-壊,Abyssal Stranded Landing Princess Damaged II,深海擱座揚陸姫-壞
+2163,BBV,深海擱座揚陸姫-壊,Abyssal Stranded Landing Princess Damaged III,深海擱座揚陸姫-壞
+2164,BBV,集積地棲姫IV,Supply Depot Princess D,集積地棲姫IV
+2165,BB,集積地棲姫IV-壊,Supply Depot Princess D Damaged,集積地棲姫IV-壞
+2166,BBV,集積地棲姫IV,Supply Depot Princess D II,集積地棲姫IV
+2167,BB,集積地棲姫IV-壊,Supply Depot Princess D Damaged II,集積地棲姫IV-壞
+2168,BBV,集積地棲姫IV,Supply Depot Princess D III,集積地棲姫IV
+2169,BB,集積地棲姫IV-壊,Supply Depot Princess D Damaged III,集積地棲姫IV-壞
+2170,BBV,集積地棲姫IV,Supply Depot Princess D IV,集積地棲姫IV
+2171,BB,集積地棲姫IV-壊,Supply Depot Princess D Damaged IV,集積地棲姫IV-壞
+2172,DD,深海釧路沖棲雲姫,Abyssal Kushiro Cloud Princess,深海釧路沖棲雲姫
+2173,DD,深海釧路沖棲雲姫,Abyssal Kushiro Cloud Princess II,深海釧路沖棲雲姫
+2174,DD,深海釧路沖棲雲姫,Abyssal Kushiro Cloud Princess III,深海釧路沖棲雲姫
+2175,DD,深海釧路沖棲雲姫-壊,Abyssal Kushiro Cloud Princess Damaged,深海釧路沖棲雲姫-壞
+2176,DD,深海釧路沖棲雲姫-壊,Abyssal Kushiro Cloud Princess Damaged II,深海釧路沖棲雲姫-壞
+2177,DD,深海釧路沖棲雲姫-壊,Abyssal Kushiro Cloud Princess Damaged III,深海釧路沖棲雲姫-壞
+2178,BB,トーチカ小鬼,Pillbox Imp,
+2179,BB,トーチカ小鬼,Pillbox Imp Elite,
+2180,CAV,対空小鬼,Anti-Air Guns Imp,對空小鬼
+2181,CAV,対空小鬼,Anti-Air Guns Imp Elite,對空小鬼
+2182,BBV,標準型戦艦棲姫,Standard Type Battleship Princess,標準型戰艦棲姫
+2183,BBV,標準型戦艦棲姫,Standard Type Battleship Princess II,標準型戰艦棲姫
+2184,BBV,標準型戦艦棲姫,Standard Type Battleship Princess III,標準型戰艦棲姫
+2185,BBV,標準型戦艦棲姫-壊,Standard Type Battleship Princess Damaged,標準型戰艦棲姫-壞
+2186,BBV,標準型戦艦棲姫-壊,Standard Type Battleship Princess Damaged II,標準型戰艦棲姫-壞
+2187,BBV,標準型戦艦棲姫-壊,Standard Type Battleship Princess Damaged III,標準型戰艦棲姫-壞
+2188,BB,トーチカ要塞棲姫,Fortified Pillbox Princess,
+2189,BB,トーチカ要塞棲姫,Fortified Pillbox Princess II,
+2190,BB,トーチカ要塞棲姫-壊,Fortified Pillbox Princess Damaged,
+2191,BB,トーチカ要塞棲姫-壊,Fortified Pillbox Princess Damaged II,
+2192,DD,Schnellboot小鬼群,Schnellboot Imp Pack,Schnellboot小鬼群
+2193,DD,Schnellboot小鬼群,Schnellboot Imp Pack II,Schnellboot小鬼群
+2194,DD,Schnellboot小鬼群,Schnellboot Imp Pack Elite,Schnellboot小鬼群
+2196,BB,トーチカ小鬼,Pillbox Imp II,
+2197,BB,トーチカ小鬼,Pillbox Imp Elite II,
+2198,BB,欧州妹姫,European Little Sister Princess,歐洲妹姫
+2199,BB,欧州妹姫,European Little Sister Princess II,歐洲妹姫
+2200,BB,欧州妹姫,European Little Sister Princess III,歐洲妹姫
+2201,BB,欧州妹姫-壊,European Little Sister Princess Damaged,歐洲妹姫-壞
+2202,BB,欧州妹姫-壊,European Little Sister Princess Damaged II,歐洲妹姫-壞
+2203,BB,欧州妹姫-壊,European Little Sister Princess Damaged III,歐洲妹姫-壞
+2204,DD,米駆逐棲姫,American Destroyer Princess,米驅逐棲姫
+2205,DD,米駆逐棲姫,American Destroyer Princess II,米驅逐棲姫
+2206,DD,米駆逐棲姫,American Destroyer Princess III,米驅逐棲姫
+2207,DD,米駆逐棲姫-壊,American Destroyer Princess Damaged,米驅逐棲姫-壞
+2208,DD,米駆逐棲姫-壊,American Destroyer Princess Damaged II,米驅逐棲姫-壞
+2209,DD,米駆逐棲姫-壊,American Destroyer Princess Damaged III,米驅逐棲姫-壞
+2210,CAV,環礁空母泊地棲姫,Atoll Aircraft Carrier Anchorage Princess,環礁空母泊地棲姫
+2211,CAV,環礁空母泊地棲姫,Atoll Aircraft Carrier Anchorage Princess II,環礁空母泊地棲姫
+2212,CAV,環礁空母泊地棲姫,Atoll Aircraft Carrier Anchorage Princess III,環礁空母泊地棲姫
+2213,CAV,環礁空母泊地棲姫-壊,Atoll Aircraft Carrier Anchorage Princess Damaged,環礁空母泊地棲姫-壞
+2214,CAV,環礁空母泊地棲姫-壊,Atoll Aircraft Carrier Anchorage Princess Damaged II,環礁空母泊地棲姫-壞
+2215,CAV,環礁空母泊地棲姫-壊,Atoll Aircraft Carrier Anchorage Princess Damaged III,環礁空母泊地棲姫-壞
+2216,DD,米駆逐棲姫(量産型),American Destroyer Princess Mass-Produced Model,米驅逐棲姫(量産型)
+2217,DD,米駆逐棲姫(量産型),American Destroyer Princess Mass-Produced Model II,米驅逐棲姫(量産型)
+2218,DD,米駆逐棲姫(量産型),American Destroyer Princess Mass-Produced Model III,米驅逐棲姫(量産型)
+2219,DD,米駆逐棲姫(量産型)-壊,American Destroyer Princess Mass-Produced Model Damaged,米驅逐棲姫(量産型)-壞
+2220,DD,米駆逐棲姫(量産型)-壊,American Destroyer Princess Mass-Produced Model Damaged II,米驅逐棲姫(量産型)-壞
+2221,DD,米駆逐棲姫(量産型)-壊,American Destroyer Princess Mass-Produced Model Damaged III,米驅逐棲姫(量産型)-壞
+2222,CV,新量産空母棲姫,New Mass-Produced Aircraft Carrier Princess,新量産空母棲姫
+2223,CV,新量産空母棲姫,New Mass-Produced Aircraft Carrier Princess II,新量産空母棲姫
+2224,CV,新量産空母棲姫,New Mass-Produced Aircraft Carrier Princess III,新量産空母棲姫
+2225,CV,新量産空母棲姫-壊,New Mass-Produced Aircraft Carrier Princess Damaged,新量産空母棲姫-壞
+2226,CV,新量産空母棲姫-壊,New Mass-Produced Aircraft Carrier Princess Damaged II,新量産空母棲姫-壞
+2227,CV,新量産空母棲姫-壊,New Mass-Produced Aircraft Carrier Princess Damaged III,新量産空母棲姫-壞
+2228,SS,深海伊号水姫,Abyssal I-go Water Princess Flagship,深海伊號水姫
+2229,SS,深海伊号水姫,Abyssal I-go Water Princess Flagship II,深海伊號水姫
+2230,SS,深海伊号水姫,Abyssal I-go Water Princess Flagship III,深海伊號水姫
+2231,SS,深海伊号水姫-壊,Abyssal I-go Water Princess Flagship Damaged,深海伊號水姫-壞
+2232,SS,深海伊号水姫-壊,Abyssal I-go Water Princess Flagship Damaged II,深海伊號水姫-壞
+2233,SS,深海伊号水姫-壊,Abyssal I-go Water Princess Flagship Damaged III,深海伊號水姫-壞
+2234,BBV,飛行場夏姫,Airfield Summer Princess,飛行場夏姫
+2235,BBV,飛行場夏姫,Airfield Summer Princess II,飛行場夏姫
+2236,BBV,飛行場夏姫,Airfield Summer Princess III,飛行場夏姫
+2237,CL,軽巡仏棲姫,French Light Cruiser Princess,輕巡佛棲姫
+2238,CL,軽巡仏棲姫,French Light Cruiser Princess II,輕巡佛棲姫
+2239,CL,軽巡仏棲姫,French Light Cruiser Princess III,輕巡佛棲姫
+2240,CL,軽巡仏棲姫-壊,French Light Cruiser Princess Damaged,輕巡佛棲姫-壞
+2241,CL,軽巡仏棲姫-壊,French Light Cruiser Princess Damaged II,輕巡佛棲姫-壞
+2242,CL,軽巡仏棲姫-壊,French Light Cruiser Princess Damaged III,輕巡佛棲姫-壞
+2243,BBV,港湾棲姫 休日mode,Harbour Princess Holiday Mode,港灣棲姫 休日mode
+2244,BBV,港湾棲姫 休日mode,Harbour Princess Holiday Mode II,港灣棲姫 休日mode
+2245,BBV,港湾棲姫 休日mode-壊,Harbour Princess Holiday Mode Damaged,港灣棲姫 休日mode-壞
+2246,BBV,港湾棲姫 休日mode-壊,Harbour Princess Holiday Mode Damaged II,港灣棲姫 休日mode-壞
+2247,BBV,太平洋飛行場姫,Pacific Airfield Princess,太平洋飛行場姫
+2248,BBV,太平洋飛行場姫,Pacific Airfield Princess II,太平洋飛行場姫
+2249,BBV,太平洋飛行場姫,Pacific Airfield Princess III,太平洋飛行場姫
+2250,BBV,集積地棲姫V バカンスmode,Supply Depot Princess E Vacation Mode,
+2251,BBV,集積地棲姫V バカンスmode-壊,Supply Depot Princess E Vacation Mode Damaged,
+2252,BBV,集積地棲姫V バカンスmode,Supply Depot Princess E Vacation Mode II,
+2253,BBV,集積地棲姫V バカンスmode-壊,Supply Depot Princess E Vacation Mode Damaged II,
+2254,BBV,集積地棲姫V バカンスmode,Supply Depot Princess E Vacation Mode III,
+2255,BBV,集積地棲姫V バカンスmode-壊,Supply Depot Princess E Vacation Mode Damaged III,
+2256,CV,深海珊瑚海水鬼,Abyssal Coral Sea Water Demon,深海珊瑚海水鬼
+2257,CV,深海珊瑚海水鬼,Abyssal Coral Sea Water Demon II,深海珊瑚海水鬼
+2258,CV,深海珊瑚海水鬼,Abyssal Coral Sea Water Demon III,深海珊瑚海水鬼
+2259,CV,深海珊瑚海水鬼-壊,Abyssal Coral Sea Water Demon Damaged,深海珊瑚海水鬼-壞
+2260,CV,深海珊瑚海水鬼-壊,Abyssal Coral Sea Water Demon Damaged II,深海珊瑚海水鬼-壞
+2261,CV,深海珊瑚海水鬼-壊,Abyssal Coral Sea Water Demon Damaged III,深海珊瑚海水鬼-壞
+2262,DD,駆逐ラ級(初期型),Destroyer Ra-Class Initial Model,
+2263,DD,駆逐ラ級,Destroyer Ra-Class,
+2264,DD,駆逐ラ級,Destroyer Ra-Class II,
+2265,DD,駆逐ラ級(初期型)-壊,Destroyer Ra-Class Initial Model Damaged,
+2266,DD,駆逐ラ級-壊,Destroyer Ra-Class Damaged,
+2267,DD,駆逐ラ級-壊,Destroyer Ra-Class Damaged II,
+2268,AP,輸送ワ級II(揚陸中),Transport Ship Wa-Class B (Landing) Elite,
+2269,AP,輸送ワ級II(揚陸中),Transport Ship Wa-Class B (Landing) Flagship,
+2270,DD,駆逐ラ級(初期型),Destroyer Ra-Class Initial Model II,
+2271,DD,駆逐ラ級,Destroyer Ra-Class III,
+2272,DD,駆逐ラ級,Destroyer Ra-Class IV,
+2273,DD,駆逐ラ級(初期型)-壊,Destroyer Ra-Class Initial Model Damaged II,
+2274,DD,駆逐ラ級-壊,Destroyer Ra-Class Damaged III,
+2275,DD,駆逐ラ級-壊,Destroyer Ra-Class Damaged IV,
+2276,SS,潜水鰆水鬼,Submarine Seerfish Water Demon,潛水鰆水鬼
+2277,SS,潜水鰆水鬼,Submarine Seerfish Water Demon II,潛水鰆水鬼
+2278,SS,潜水鰆水鬼,Submarine Seerfish Water Demon III,潛水鰆水鬼
+2279,SS,潜水鰆水鬼-壊,Submarine Seerfish Water Demon Damaged,潛水鰆水鬼-壞
+2280,SS,潜水鰆水鬼-壊,Submarine Seerfish Water Demon Damaged II,潛水鰆水鬼-壞
+2281,SS,潜水鰆水鬼-壊,Submarine Seerfish Water Demon Damaged III,潛水鰆水鬼-壞
+2282,CAV,条約外巡洋艦水姫,Non-Treaty Cruiser Water Princess,條約外巡洋艦水姫
+2283,CAV,条約外巡洋艦水姫,Non-Treaty Cruiser Water Princess II,條約外巡洋艦水姫
+2284,CAV,条約外巡洋艦水姫,Non-Treaty Cruiser Water Princess III,條約外巡洋艦水姫
+2285,CAV,条約外巡洋艦水姫-壊,Non-Treaty Cruiser Water Princess Damaged,條約外巡洋艦水姫-壞
+2286,CAV,条約外巡洋艦水姫-壊,Non-Treaty Cruiser Water Princess Damaged II,條約外巡洋艦水姫-壞
+2287,CAV,条約外巡洋艦水姫-壊,Non-Treaty Cruiser Water Princess Damaged III,條約外巡洋艦水姫-壞
+2288,DD,駆逐ラ級γ(初期型),Destroyer Ra-Class Gamma Initial Model,
+2289,DD,駆逐ラ級γ,Destroyer Ra-Class Gamma,
+2290,DD,駆逐ラ級γ,Destroyer Ra-Class Gamma II,
+2291,DD,駆逐ラ級δ(初期型),Destroyer Ra-Class Delta Initial Model,
+2292,DD,駆逐ラ級δ,Destroyer Ra-Class Delta,
+2293,DD,駆逐ラ級δ,Destroyer Ra-Class Delta II,
+2294,DD,駆逐ラ級ζ,Destroyer Ra-Class Zeta,
+2295,DD,駆逐ラ級ζ,Destroyer Ra-Class Zeta II,
+2296,DD,駆逐ラ級ζ,Destroyer Ra-Class Zeta III,
+2297,DD,駆逐ラ級ζ-壊,Destroyer Ra-Class Zeta Damaged,
+2298,DD,駆逐ラ級ζ-壊,Destroyer Ra-Class Zeta Damaged II,
+2299,DD,駆逐ラ級ζ-壊,Destroyer Ra-Class Zeta Damaged III,
+2300,CL,軽巡新棲姫,New Light Cruiser Princess IV,輕巡新棲姫
+2301,BB,集積地棲姫改,Supply Depot Princess Kai,集積地棲姫改
+2302,BB,集積地棲姫改,Supply Depot Princess Kai II,集積地棲姫改
+2303,BB,集積地棲姫改,Supply Depot Princess Kai III,集積地棲姫改
+2304,BB,集積地棲姫改-壊,Supply Depot Princess Kai Damaged,集積地棲姫改-壞
+2305,BB,集積地棲姫改-壊,Supply Depot Princess Kai Damaged II,集積地棲姫改-壞
+2306,BB,集積地棲姫改-壊,Supply Depot Princess Kai Damaged III,集積地棲姫改-壞
+2307,BBV,飛行場棲姫,Occupied Airfield Princess,飛行場棲姫
+2308,BBV,飛行場棲姫,Occupied Airfield Princess II,飛行場棲姫
+2309,BBV,飛行場棲姫,Occupied Airfield Princess III,飛行場棲姫
+2310,CVL,軽母ヌ級,Light Carrier Nu-Class Elite V,
+2311,CAV,重巡新棲姫,New Heavy Cruiser Princess,重巡新棲姫
+2312,CAV,重巡新棲姫,New Heavy Cruiser Princess II,重巡新棲姫
+2313,CAV,重巡新棲姫,New Heavy Cruiser Princess III,重巡新棲姫
+2314,CAV,重巡新棲姫-壊,New Heavy Cruiser Princess Damaged,重巡新棲姫-壞
+2315,CAV,重巡新棲姫-壊,New Heavy Cruiser Princess Damaged II,重巡新棲姫-壞
+2316,CAV,重巡新棲姫-壊,New Heavy Cruiser Princess Damaged III,重巡新棲姫-壞
+2317,CL,軽巡ム級,Light Cruiser Mu-Class,
+2318,CL,軽巡ム級,Light Cruiser Mu-Class II,
+2319,,軽巡ム級,,
+2320,CL,軽巡ム級-壊,Light Cruiser Mu-Class Damaged,
+2321,CL,軽巡ム級-壊,Light Cruiser Mu-Class Damaged II,
+2322,CL,軽巡ム級-壊,Light Cruiser Mu-Class Damaged III,
+2323,BB,フィヨルド棲姫,Fjord Princesses,
+2324,BB,フィヨルド棲姫,Fjord Princesses II,
+2325,BB,フィヨルド棲姫,Fjord Princesses III,
+2326,BBV,フィヨルド棲姫-壊,Fjord Princesses Damaged,
+2327,BBV,フィヨルド棲姫-壊,Fjord Princesses Damaged II,
+2328,BBV,フィヨルド棲姫-壊,Fjord Princesses Damaged III,
+2329,BB,深海上陸小鬼,Abyssal Landing Imp,深海上陸小鬼
+2330,BB,深海上陸小鬼,Abyssal Landing Imp Elite,深海上陸小鬼
+2331,BB,深海上陸小鬼,Abyssal Landing Imp Flagship,深海上陸小鬼
+2332,BB,フィヨルド単騎,Solitary Fjord Princess,
+2333,BB,フィヨルド単騎,Solitary Fjord Princess II,
+2334,BB,フィヨルド単騎,Solitary Fjord Princess III,
+2335,BBV,フィヨルド単騎-壊,Solitary Fjord Princess Damaged,
+2336,BBV,フィヨルド単騎-壊,Solitary Fjord Princess Damaged II,
+2337,BBV,フィヨルド単騎-壊,Solitary Fjord Princess Damaged III,
+2338,FBB,巡洋戦艦水姫,Battlecruiser Water Princess,巡洋戰艦水姫
+2339,FBB,巡洋戦艦水姫,Battlecruiser Water Princess II,巡洋戰艦水姫
+2340,FBB,巡洋戦艦水姫,Battlecruiser Water Princess III,巡洋戰艦水姫
+2341,BBV,巡洋戦艦水姫-壊,Battlecruiser Water Princess Damaged,巡洋戰艦水姫-壞
+2342,BBV,巡洋戦艦水姫-壊,Battlecruiser Water Princess Damaged II,巡洋戰艦水姫-壞
+2343,BBV,巡洋戦艦水姫-壊,Battlecruiser Water Princess Damaged III,巡洋戰艦水姫-壞
+2344,CV,深海空母蜂姫,Abyssal Aircraft Carrier Wasp Princess,深海空母蜂姫
+2345,CV,深海空母蜂姫,Abyssal Aircraft Carrier Wasp Princess II,深海空母蜂姫
+2346,CV,深海空母蜂姫,Abyssal Aircraft Carrier Wasp Princess III,深海空母蜂姫
+2347,CV,深海空母蜂姫-壊,Abyssal Aircraft Carrier Wasp Princess Damaged,深海空母蜂姫-壞
+2348,CV,深海空母蜂姫-壊,Abyssal Aircraft Carrier Wasp Princess Damaged II,深海空母蜂姫-壞
+2349,CV,深海空母蜂姫-壊,Abyssal Aircraft Carrier Wasp Princess Damaged III,深海空母蜂姫-壞
+2350,FBB,層間棲艦水鬼長女,Twilight Water Demon Eldest Daughter,層間棲艦水鬼長女
+2351,FBB,層間棲艦水鬼長女,Twilight Water Demon Eldest Daughter II,層間棲艦水鬼長女
+2352,FBB,層間棲艦水鬼長女,Twilight Water Demon Eldest Daughter III,層間棲艦水鬼長女
+2353,FBB,層間棲艦水鬼長女-壊,Twilight Water Demon Eldest Daughter Damaged,層間棲艦水鬼長女-壞
+2354,FBB,層間棲艦水鬼長女-壊,Twilight Water Demon Eldest Daughter Damaged II,層間棲艦水鬼長女-壞
+2355,FBB,層間棲艦水鬼長女-壊,Twilight Water Demon Eldest Daughter Damaged III,層間棲艦水鬼長女-壞
+2356,FBB,層間棲艦水鬼次女,Twilight Water Demon Second Daughter,層間棲艦水鬼次女
+2357,FBB,層間棲艦水鬼次女,Twilight Water Demon Second Daughter II,層間棲艦水鬼次女
+2358,FBB,層間棲艦水鬼次女,Twilight Water Demon Second Daughter III,層間棲艦水鬼次女
+2359,FBB,層間棲艦水鬼次女-壊,Twilight Water Demon Second Daughter Damaged,層間棲艦水鬼次女-壞
+2360,FBB,層間棲艦水鬼次女-壊,Twilight Water Demon Second Daughter Damaged II,層間棲艦水鬼次女-壞
+2361,FBB,層間棲艦水鬼次女-壊,Twilight Water Demon Second Daughter Damaged III,層間棲艦水鬼次女-壞
+2362,CL,防空巡新棲姫,New Anti-Air Cruiser Princess,防空巡新棲姫
+2363,CL,防空巡新棲姫,New Anti-Air Cruiser Princess II,防空巡新棲姫
+2364,CL,防空巡新棲姫,New Anti-Air Cruiser Princess III,防空巡新棲姫
+2365,CL,防空巡新棲姫-壊,New Anti-Air Cruiser Princess Damaged,防空巡新棲姫-壞
+2366,CL,防空巡新棲姫-壊,New Anti-Air Cruiser Princess Damaged II,防空巡新棲姫-壞
+2367,CL,防空巡新棲姫-壊,New Anti-Air Cruiser Princess Damaged III,防空巡新棲姫-壞
+2368,CVL,高速軽空母首鬼,Fast Light Carrier Head Demon,高速輕空母首鬼
+2369,CVL,高速軽空母首鬼,Fast Light Carrier Head Demon II,高速輕空母首鬼
+2370,CVL,高速軽空母首鬼,Fast Light Carrier Head Demon III,高速輕空母首鬼
+2371,CVL,高速軽空母首鬼-壊,Fast Light Carrier Head Demon Damaged,高速輕空母首鬼-壞
+2372,CVL,高速軽空母首鬼-壊,Fast Light Carrier Head Demon Damaged II,高速輕空母首鬼-壞
+2373,CVL,高速軽空母首鬼-壊,Fast Light Carrier Head Demon Damaged III,高速輕空母首鬼-壞
+2374,CL,軽巡ウ級,Light Cruiser U-Class,
+2375,CL,軽巡ウ級,Light Cruiser U-Class II,
+2376,CL,軽巡ウ級,Light Cruiser U-Class III,
+2377,CL,軽巡ウ級-壊,Light Cruiser U-Class Damaged,
+2378,CL,軽巡ウ級-壊,Light Cruiser U-Class Damaged II,
+2379,CL,軽巡ウ級-壊,Light Cruiser U-Class Damaged III,
+2380,CA,重巡ヰ級,Heavy Cruiser Wi-Class,
+2381,CA,重巡ヰ級,Heavy Cruiser Wi-Class II,
+2382,CA,重巡ヰ級,Heavy Cruiser Wi-Class III,
+2383,CA,重巡ヰ級-壊,Heavy Cruiser Wi-Class Damaged,
+2384,CA,重巡ヰ級-壊,Heavy Cruiser Wi-Class Damaged II,
+2385,CA,重巡ヰ級-壊,Heavy Cruiser Wi-Class Damaged III,
+2386,CA,仏蘭西哀重姫,Heavy Tragic French Princess,佛蘭西哀重姫
+2387,CA,仏蘭西哀重姫,Heavy Tragic French Princess II,佛蘭西哀重姫
+2388,CA,仏蘭西哀重姫,Heavy Tragic French Princess III,佛蘭西哀重姫
+2389,CAV,仏蘭西哀重姫-壊,Heavy Tragic French Princess Damaged,佛蘭西哀重姫-壞
+2390,CAV,仏蘭西哀重姫-壊,Heavy Tragic French Princess Damaged II,佛蘭西哀重姫-壞
+2391,CAV,仏蘭西哀重姫-壊,Heavy Tragic French Princess Damaged III,佛蘭西哀重姫-壞
+2392,CV,仏蘭西空母籠姫,Caged French Aircraft Carrier Princess,佛蘭西空母籠姫
+2393,CV,仏蘭西空母籠姫,Caged French Aircraft Carrier Princess II,佛蘭西空母籠姫
+2394,CV,仏蘭西空母籠姫,Caged French Aircraft Carrier Princess III,佛蘭西空母籠姫
+2395,CV,仏蘭西空母籠姫-壊,Caged French Aircraft Carrier Princess Damaged,佛蘭西空母籠姫-壞
+2396,CV,仏蘭西空母籠姫-壊,Caged French Aircraft Carrier Princess Damaged II,佛蘭西空母籠姫-壞
+2397,CV,仏蘭西空母籠姫-壊,Caged French Aircraft Carrier Princess Damaged III,佛蘭西空母籠姫-壞

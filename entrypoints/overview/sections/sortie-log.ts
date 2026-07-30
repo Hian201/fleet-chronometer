@@ -29,8 +29,8 @@ import type { OverviewSection, SectionContext } from './types';
 import { db, type ReplayRow, type SortieLogRow } from '@/utils/db';
 import { toKc3Replay } from '@/utils/replay';
 import {
-    buildSortieDetail, groupSorties, isEventWorld, numberSorties, parseMapCode, sortieTime,
-    type LbasWave, type NodeDetail, type SortieDetail, type SortieShip,
+    buildSortieDetail, diffLabel, groupSorties, isEventWorld, mapLabel, numberSorties, parseMapCode,
+    sortieTime, type LbasWave, type NodeDetail, type SortieDetail, type SortieShip,
 } from '@/utils/sortie-detail';
 import {
     importSortie, parseSortieImport, SortieImportDuplicateError, SortieImportError,
@@ -63,8 +63,6 @@ const LBAS_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lba
 // 連合艦隊編成（api_combined_flag）：1=空母機動部隊／2=水上打撃部隊／3=輸送護衛部隊。
 // 2 已用真封包確認（samples/61-5-jibun-rengou-node52.json combined=2，即使用者所述的「自軍水上部隊」）。
 const COMBINED_KEYS = ['', 'ov.slCombinedCarrier', 'ov.slCombinedSurface', 'ov.slCombinedTransport'];
-// api_selected_rank：1丁 2丙 3乙 4甲（樣本 61-3／61-4／61-5 皆為甲＝4，見 sortie-detail 測試）
-const DIFF_KEYS = ['', 'ov.slDiff1', 'ov.slDiff2', 'ov.slDiff3', 'ov.slDiff4'];
 
 const PREFS_KEY = 'kc-sortie-view';
 type Category = 'all' | 'normal' | 'event';
@@ -115,14 +113,6 @@ const rankClass = (rank: string) => {
     return (suf === 'S' || suf === 'A' || suf === 'B' || suf === 'C' || suf === 'D')
         ? `rank-${suf.toLowerCase()}` : '';
 };
-
-/** 海域代號：活動顯示 E{n}（玩家的說法），一般海域維持 6-5。完整編號放 title。 */
-function mapLabel(entry: { event: boolean; mapnum: number; map: string }): string {
-    return entry.event ? `E${entry.mapnum}` : entry.map;
-}
-
-/** 難度徽章（活動限定；0＝一般圖或尚未選難度時不顯示）。 */
-const diffLabel = (diff: number) => (DIFF_KEYS[diff] ? t(DIFF_KEYS[diff]) : '');
 
 // ── 摺疊列 ──────────────────────────────────────────────────────────────
 

@@ -81,7 +81,12 @@ export interface FilterableShip {
 
 export type ShipSortKey = 'level' | 'stype' | 'name';
 
-function matchSpeed(soku: number, f: SpeedFilter): boolean {
+/**
+ * 航速判定。**匯出**是因為活動配船板的自由池自己有一套艦種分組與關鍵字邏輯，只借
+ * 航速／可裝備兩項語意；讓它照抄一份門檻比較會讓兩邊日後不同步（高速+／最速的值域
+ * 尚未實測，見檔頭），故兩支斷言由本檔單一提供。
+ */
+export function matchSpeed(soku: number, f: SpeedFilter): boolean {
     if (f === 'all') return true;
     // 低速是「未達高速」而非「等於 5」——避免遊戲日後新增中間值時漏判。
     if (f === 'slow') return soku < SOKU.fast;
@@ -89,7 +94,8 @@ function matchSpeed(soku: number, f: SpeedFilter): boolean {
     return soku >= SOKU.fastPlus;
 }
 
-function matchEquip(types: number[], f: EquipFilter): boolean {
+/** 可裝備判定（匯出理由同 `matchSpeed`）。 */
+export function matchEquip(types: number[], f: EquipFilter): boolean {
     if (f === 'all') return true;
     const set = new Set(types);
     const landing = set.has(EQUIP_TYPE.landingCraft);

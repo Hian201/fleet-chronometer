@@ -35,7 +35,7 @@ import type { OverviewSection } from './types';
 import type { GameState, FleetView, AirBaseView, ShipView, GearView, SquadronView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
 import {
-    esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, loadJsonPrefs,
+    esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, gearMarkdown, loadJsonPrefs,
     saveJsonPrefs, type FleetMarkdownScope,
 } from '../lib';
 import { buildDeckBuilder, imgBuilderUrl, airCalcUrl } from '@/utils/deckbuilder';
@@ -144,11 +144,17 @@ export function baseHtml(b: AirBaseView, areaName: string): string {
 // ── Markdown 匯出 ─────────────────────────────────────
 // 艦隊＋基地航空隊本體共用 lib.ts 的 fleetMarkdown()（llm.ts 的完整報告匯出也靠它組裝，
 // 兩處輸出格式保證一致；那邊不傳 scope＝一律全含，不受這個分區的顯示開關影響）。
+//
+// **不放提督資訊**（暱稱／司令部 Lv）：這份輸出是拿去貼給別人看編成的，提督暱稱是
+// 個人識別資訊，貼出去就散出去了，而它對「這隊帶了什麼」毫無幫助。PNG 匯出仍保留
+// 標題列——那是自己留存的截圖用途，使用者要的是這一份純文字不帶身分。
 function buildMarkdown(state: GameState, scope: FleetMarkdownScope): string {
-    return `# ${state.nickname || '???'}　Lv${state.hqLv}\n\n` + fleetMarkdown(state, '##', scope);
+    return fleetMarkdown(state, '##', scope);
 }
 
 // ── PNG 匯出（內聯樣式、純文字，穩定點陣化）────────────────
+// 裝備寫法共用 lib.ts 的 gearMarkdown()（同 Markdown 匯出）：★10 只給星號、熟練度接
+// 符號。這裡曾自己內聯一份「name + ★level」，於是同一支艦隊兩種匯出寫法不一致。
 function buildExportHtml(state: GameState, scope: FleetMarkdownScope): { html: string; height: number } {
     const rows: string[] = [];
     const line = (txt: string, bold = false, indent = 0) =>
@@ -158,14 +164,14 @@ function buildExportHtml(state: GameState, scope: FleetMarkdownScope): { html: s
         if (!f.ships.length || !scope.fleets[i]) return;
         rows.push(line(`${t('ov.fleetN', { n: i + 1 })} — ${f.name}`, true));
         for (const s of f.ships) {
-            const gears = s.gears.filter(Boolean).map(g => `${g!.name}${g!.level > 0 ? `★${g!.level}` : ''}`).join(' / ');
+            const gears = s.gears.filter(Boolean).map(g => gearMarkdown(g!)).join(' / ');
             rows.push(line(`${s.stype} ${s.name}  Lv${s.lv}  HP${s.hp}/${s.maxhp}  ${gears}`, false, 12));
         }
     });
     for (const b of state.airBases_()) {
         if (scope.lbas[b.rid - 1] === false) continue;
         rows.push(line(`${b.name}（${state.mapAreaName(b.areaId)}）  ${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}`, true));
-        rows.push(line(b.squadrons.map(s => `${s.name}${s.level > 0 ? `★${s.level}` : ''}`).join(' / '), false, 12));
+        rows.push(line(b.squadrons.map(gearMarkdown).join(' / '), false, 12));
     }
     const height = 40 + rows.length * 20;
     const html = `<div xmlns="http://www.w3.org/1999/xhtml" style="width:760px;padding:16px;box-sizing:border-box;background:#10151d;font:13px/1.5 sans-serif">${rows.join('')}</div>`;

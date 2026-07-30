@@ -152,6 +152,10 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-backup.json` 即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁，亦相容舊 `kanmusu-replays.json` |
 | `entrypoints/panel/main.ts` | 面板控制器：以 `EventProjector` state-only/persist 兩階段重播與 live 投影、只在成功後推進 cursor、渲染與 autoSwitch |
 | `utils/ui-prefs.ts` | UI 偏好持久化（語言＋亮暗主題，localStorage）——panel/popup/overview 共用；SW 不使用。`onPrefsChange()` 用 DOM `storage` 事件做跨頁即時同步 |
+| `utils/ui-i18n.ts` | 面板／核心自產 UI 文字的三語字典＋`t()`。另有 `expedDisplayName()`：活動限定的支援遠征（真封包 start2 實測 id 301＝S1 前衛支援／302＝S2 艦隊決戦支援，`api_maparea_id` 為活動海域）補「道中／王點」白話註記——**以 mission master id 為鍵而非 `api_disp_no`**，一般海域的 33／34 不在此列 |
+| `utils/gamedata-i18n.ts` | 艦名／裝備名本地化唯一入口 `localizeShip()`/`localizeGear()`；`SHIP_NAMES`/`GEAR_NAMES` 從 `gamedata-names.ts` 匯入，缺譯回退封包日文原名 |
+| `utils/gamedata-names.ts` | **產生物、勿手改**——`tools/gamedata-names/generate.py` 由 `samples/i18n/*.csv` 產生的譯名表 |
+| `utils/gamedata-coverage.ts` / `utils/gamedata-known-ids.ts` | 翻譯缺漏偵測：純函式差集 `findUnknownShips`/`findUnknownGears` ＋ `tools/gamedata-coverage/generate.py` 產生的已知 id 集合，供 LLM 分區「匯出翻譯缺漏」使用 |
 | `utils/replay.ts` | 出擊重播組裝（純函式，無 chrome.*）：`snapshotDeck`/`startReplay`/`appendBattle` 累積成 `ReplayRow`、`toKc3Replay()` 輸出 KC3Kai battleplayer 可貼上物件 |
 | `utils/map-node-kind.ts` | 節點類型（`api_event_id`／`api_event_kind` → 資源／渦潮／能動分歧／空襲戰／敵連合…）。封包事實，語意轉寫自航海日誌拡張版（MIT） |
 | `utils/map-node-letters.ts` | 節點字母查表（純函式）：`nodeLabel(map, edge)` 有對照給字母、沒有給原始 edge 編號。**兩種推算法皆已被真實資料否證**（見存檔「節點字母」），絕不可改回推算 |
@@ -165,14 +169,14 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/line-chart.ts` | 折線圖幾何（純函式，無 DOM）：`multiChartGeometry()`／`niceTicks()`／`nearestIndex()`。y 值域只看傳進來的序列 |
 | `utils/retention.ts` | 重播保留規則引擎（純函式）：`planRetention()` 依保護規則＋裁剪窗決定 `db.replays` 去留、`firstOwnedDropKeys()` 算新船場 |
 | `utils/event-plan.ts` | 活動作戰板核心（純函式）：`groupBySally()`／`checkStage()`／`findPlanConflicts()`／`sallyBudget()` |
-| `utils/ship-filter.ts` | 鎮守府全船篩選（純函式）：航速／艦種／國籍／可裝備／出擊標籤／關鍵字。由活動作戰板與艦娘全覽共用 |
+| `utils/ship-filter.ts` | 鎮守府全船篩選（純函式）：航速／艦種／國籍／可裝備／出擊標籤／關鍵字。由活動作戰板與艦娘全覽共用；`matchSpeed`／`matchEquip` 另行匯出給活動配船板自由池借用（那邊有自己的艦種分組與關鍵字邏輯，只借這兩項語意，不得各自複製門檻） |
 | `utils/ship-nationality.ts` | 艦娘國籍（建造國）參照表，鍵＝艦型 `api_ctype`。遊戲 API 不提供國籍，人工維護；未列出的一律日本 |
 | `utils/ship-roster.ts` | 艦娘全覽詳細清單的篩選／排序／分頁核心（純函式）。先制對潛是全檔唯一的推算值（遊戲不送旗標） |
 | `utils/gear-inventory.ts` | 裝備全覽的彙總／篩選／排序核心（純函式）：`groupGears()` 把裝備實例依 master 彙總成種類。素質一律是 master 基礎值、**不含改修 ★ 加成** |
 | `utils/repair.ts` | 泊地修理（工作艦）＋母港給糧（補給艦野埼）的涵蓋範圍與結算預估（純函式）：`planAnchorageRepair()`／`planMoraleSupply()`／`nextSettlementIn()` |
 | `utils/quest-progress.ts` | 任務「本機進度」推算（純函式）：`parseQuestGoal()` 從任務標題反推目標次數與動作種類 |
 | `utils/state.ts` | `GameState`：封包 reduce 成狀態；遠征檢查、制空/索敵、戰鬥接線、血量寫回、燃彈估算、關卡量表、TP、`wantedTag`、泊地修理計時器錨點、任務進度計數 |
-| `utils/battle.ts` | `analyzeBattle`（傷害重放）+ `predictRank`（勝利判定） |
+| `utils/battle.ts` | `analyzeBattle`（傷害重放、損管發動、第二艦隊旗艦不沉、大破/旗艦大破判定）+ `predictRank`（勝利判定） |
 | `utils/screenshot.ts` | 拍照的純函式核心：`cropRectPx()`／`downloadCroppedScreenshot()` |
 | `tests/` | vitest 套件（`npm test`），檔名對應被測模組 |
 | `utils/db.ts` | Dexie schema **v12**：stores 為 events、wanted、sorties、notified、factory、replays、expeditions、snapshot、shipObtained、eventPlans、resources、resourceMarks、meta；events 的 `captureId` 為 unique index，並有 `postProcessState` |
@@ -264,8 +268,22 @@ tooltip 語言。
 - **航空/基地/噴式**：`api_stage3`=對主隊、`api_stage3_combined`=對隨伴（索引+6 對映）。
   漏算隨伴會 rank 誤判（已用 6-5 封包實證：漏算→A、正確→S）。
 - **敵艦 id**：`api_ship_ke`（主）、`api_ship_ke_combined`（隨伴），0-indexed、無 -1。
+- **敵艦等級／素質／裝備**：`api_ship_lv`／`api_eParam`／`api_eSlot`（＋各自的 `*_combined`）
+  與 `api_ship_ke` **同序、同長度、0-indexed**。`api_eParam[i]`＝[火力, 雷裝, 對空, 裝甲]
+  （順序轉寫自社群工具，並由同封包 `api_fParam` 的「戰艦格第 2 項恆為 0」交叉佐證）；
+  `api_eSlot[i]` 為裝備 master id、`-1`＝空格。⚠️ 過濾掉 `api_ship_ke` 的 0 之後，這三個
+  平行陣列**必須用原始位置索引**去查，用過濾後的新索引會在中間有空格時整排錯位。
 - **陷阱**：`'...battleresult'.startsWith('...battle')` 為 true——戰鬥分支必須
   `!path.endsWith('result')`，否則結算封包被誤吞、battleInfo 洗空。
+- **陷阱**：**雙方都沒出動艦載機時 `api_kouku.api_stage1` 照樣存在，且
+  `api_disp_seiku` 為 1（確保）**（真封包實證：samples/61-4.json 的 `api_f_count=0`／
+  `api_e_count=0`／`api_disp_seiku=1`）。直接照抄會在潛水艦點、水雷戰隊出擊誤報「確保」。
+  顯示端一律先判 `playerFighter.count + enemyFighter.count > 0`，否則顯示「無」
+  （面板 `renderSortie` 與 `sections/sortie-log.ts` 用同一條判準，別只改一邊）。
+- **支援艦隊的傷害陣列長度不固定**：`api_support_hourai.api_damage`／
+  `api_support_airatack.api_stage3.api_edam` 實測時而長度 7（敵單艦隊）、時而 12（敵聯合），
+  **索引基準尚未由真封包定案**。故 `BattleSupportView.damage` 只做加總、不逐位置歸屬；
+  血量歸屬仍走既有的 `applyDmg`，兩者讀同一批欄位，不另立第二套解讀。
 - **自軍聯合艦隊**：已用真實 61-5 甲自軍水上部隊封包驗證，主隊/隨伴血量歸屬、局部
   0-11 索引、MVP、rank 皆與 logger 記錄完全一致。
 - **友軍艦隊**（活動海域 boss 夜戰）：`api_friendly_info`＋`api_friendly_battle` 為夜戰
@@ -286,6 +304,91 @@ tooltip 語言。
 | 噴式強襲 | ✅ 已涵蓋（`api_injection_kouku`） |
 | 支援艦隊（對敵） | ✅ 航空(61-5)＋砲擊(61-3)支援兩種欄位路徑皆已驗證 |
 | 友軍艦隊 | ✅ `api_hougeki` 已驗證（61-3 甲 boss 夜戰）；`api_raigeki` 未經真封包驗證 |
+
+### 大破・損管・退避（`battle.ts` isTaiha／`state.ts` escapedShipIds）
+
+**三種大破訊號語意不同，面板必須分開講**（合成一句會讓人不知道到底能不能進擊）：
+
+| 情況 | 欄位 | 語意 |
+|------|------|------|
+| 主隊旗艦大破 | `flagshipTaiha` | 遊戲**禁止**進擊＝強制返航 |
+| 主隊旗艦帶著未消耗的損管 | `flagshipDamecon`（0/1/2） | 結算後同意使用即可突破「旗艦大破不能前進」 |
+| 其餘艦大破 | `isTaiha` | 可以進擊，但**會被轟沈** |
+
+`isTaiha` 刻意排除三種艦：主隊旗艦（改由 `flagshipTaiha` 表達）、隨伴（第二艦隊）旗艦
+（機制上不會被擊沉）、已退避艦。**損管必須裝在大破的旗艦自己身上才有效**，裝在其他隊員
+身上不保護旗艦，故 `flagshipDamecon` 只讀旗艦那一格。
+
+**boss 節點的展開例外**（`GameState.bossEntryTaiha`）：**純顯示層的版面決策，不改任何大破
+判定**。boss 是最後一個節點，之後沒有節點可以進擊，使用者沒有「要不要進擊」要決定，故面板
+預設只收成一條 banner、不展開遮蔽式大框（警告本身照樣顯示）。⚠️ **不展開不代表大破無害**
+——大破進王一樣會被轟沈，夜戰也照樣可能被打沉；不展開的理由只有「沒有下一個節點」這一條，
+別把它寫成「沒有轟沈風險」。
+成立條件是「**進 boss 之前沒有大破**」——帶著傷進 boss 是玩家自己冒的險，那種情況照舊展開。
+`bossEntryTaiha` 在**抵達 boss 節點的那一刻**（`api_req_map/start`／`next`，此時血量已是
+上一節點戰鬥寫回後的值）拍一次，同一次出擊不再更新；`null`＝沒看到那一步（面板中途才開），
+**一律不當「沒有大破」用**（未知不等於安全）。判定用最素的大破定義（殘 HP > 0 且 ≤ 25%、
+未退避，旗艦也算），刻意不比照 `isTaiha` 的排除規則——那支回答「進擊會不會被轟沈」，這支
+回答「進去之前身上有沒有傷」。契約鎖在 `tests/boss-entry-taiha.test.ts`。
+
+**損管的回復量**（使用者提供之遊戲設定，非封包驗證）：応急修理要員＝修復至**中破（最大HP
+的 50%）**；応急修理女神＝HP＋**燃料彈藥全快**。**別改回 KC3Kai 轉寫的 20%**——那個值會讓
+修復後仍判定大破，與遊戲行為不符。女神的燃彈補回排在 `battleresult` 套完
+`applyConsumption` 之後（`restoreGoddessSupply`），否則會被同一節點的消耗再扣一次。
+
+**連合艦隊第二艦隊旗艦不會被擊沉**（使用者提供之遊戲設定）：`BattleShipView.unsinkable`，
+致命傷時存活；不會沉就不需要損管，故該艦的損管**不發動、留給後面的節點**。殘 HP 取「存活
+的最低值 1」——**無真封包佐證**，重點在不誤報轟沈（`predictRank` 的 pSunk 與大破警告都會被
+牽動）。
+
+**退避（艦隊司令部施設）**：`GameState.escapedShipIds`（艦實例 id），`api_req_map/start`
+與 `api_port/port` 清空。退避艦離開艦隊 → 不再參戰、**不再消耗燃彈**、戰鬥封包若仍帶著它
+的血量位置也不寫回，且該隊的**等級／制空／索敵／TP 一律按剩下的船重算**（七艘退避一艘就
+是六艘繼續進擊，再大破一艘退避就剩五艘）。`fleetSummary`／`combinedSummary`／`airPower`／
+`f33`（連 `2×(6-n)` 的艦數修正一起變）／`fleetTP` 全部排除退避艦。**退避的代價**：大破艦
+與護衛艦皆燃料歸 0、cond 一律變 22（回港另有 −15＝合計 7，那段由 port 實數覆蓋不模擬）。
+
+**三顆司令部系裝備各自綁定一種編制，不可互換**（使用者提供之遊戲設定；`retreatAvailability()`
+回傳 `{ state, kind }`，`kind` 就是成立的編制種類）。**別再把 272／413 併成一個「單艦隊用
+司令部」清單**——那會讓一顆 272 在六艘一般編成裡也謊報「可以退避」：
+
+| 裝備 | 適用編制 | 退避形式 |
+|------|---------|---------|
+| 107 艦隊司令部施設 | 連合艦隊 | **護衛退避**：大破艦＋一艘健康驅逐艦一起離場 |
+| 272 遊撃部隊 艦隊司令部 | 遊撃部隊（單艦隊 7 艘） | **單艦退避**：只有大破艦離場，不需要護衛艦 |
+| 413 精鋭水雷戦隊 司令部 | 水雷戦隊（輕巡系旗艦帶驅逐艦等小型艦） | **單艦退避**（另有雷裝／命中加值，本專案未計入） |
+
+裝了不對應編制的那一顆＝沒有退避選項（連合帶 272／單艦隊帶 107 皆無效）。判定條件：272 看
+**艦數是否為 7**（第七格本身就是這顆開出來的，屬封包事實），413 看旗艦艦種為輕巡系
+（`stype` 3／4／21）且其餘皆小型艦（1／2／3／4／21）——**後者是使用者描述的轉寫、未經封包
+驗證**，取較寬的讀法（寧可提示成立、由玩家以遊戲畫面確認，也不要漏列艦種而謊報「不能退避」）。
+面板文案必須依 `kind` 分開講：把護衛退避的說明套到單艦隊，會讓玩家去找根本不存在的護衛艦。
+
+**連合艦隊的護衛退避規則**（使用者提供之遊戲設定，非封包驗證）：
+
+- 只有**第1艦隊旗艦**裝備 `艦隊司令部施設`(107) 才成立——裝在其他艦上完全無效。
+- 大破艦可以在第1或第2艦隊，但**兩隊的旗艦都不能退避**（第2艦隊旗艦大破也不能退避，
+  它靠的是轟沈保護）。**一場戰鬥只能退避一艘**，即使同時兩艘以上大破。
+- 護衛艦從**第2艦隊 2 號艦起、完全未損傷（連小破都沒有）的驅逐艦**自動挑選；**第1艦隊的
+  驅逐艦再健康也不能當護衛艦**。實際挑哪一艘由遊戲決定（順序有例外），故本專案只判
+  「有沒有人選」，不預測是哪一艘。
+- ⚠️ **「沒出現護衛退避」≠「沒有人大破」**：挑不到護衛艦時遊戲根本不給退避選項。面板
+  因此有 `'noEscort'` 這一態並明講出來——把它讀成安全訊號就會大破進擊。
+- 除第2艦隊旗艦外，**兩隊的僚艦都會正常轟沈**——別把旗艦保護誤讀成整隊保護。
+- 單艦退避（272／413）**沒有 `'noEscort'` 這一態**：不需要護衛艦，全隊都受損也照樣成立。
+- **退避之後要按剩下的船重算大破警告**：退避的意義就是「讓剩下的船繼續進擊」，退掉唯一
+  那艘大破艦後還掛著警告，等於叫玩家別做他剛做完的事。`goback_port` 之後**不會再有新的
+  戰鬥封包**觸發重算，故該分支自己把退避位置標到 `resultFleets` 上再跑一次
+  `battle.ts` 的 `taihaFlags()`（那段抽成獨立函式就是為了這裡與 `analyzeBattle` 共用一套
+  判定）。位置對映沿用 `shipAtSortiePos`，且只處理它解得出 id 的位置，兩邊不會各自漂移。
+
+> ⚠️ **退避的封包欄位尚無真封包樣本**：結算的 `api_escape.api_escape_idx`／`api_tow_idx`
+> （1-based；連合時 7-12 為隨伴，非連合含七艘遊撃部隊則整段落在出擊那一隊）與退避端點
+> `goback_port` 皆依社群工具慣例推定。解析一律防禦性：只收 1..12 的安全整數，**沒有
+> `api_escape` 就不猜是哪艘船退避**（維持原本的警告，保守方向）。`wantedTag` 已埋兩條擷取
+> 鉤子（結算帶 `api_escape`／`api_escape_flag`、任何 `/goback_port`），下次真的退避即自動
+> 撈樣本回來定案；屆時只需改 `shipAtSortiePos`。契約鎖在 `tests/taiha-escape.test.ts`。
+
 
 ### 勝利判定 `predictRank`（clean-room 重寫，已用真實資料校準）
 
@@ -326,8 +429,8 @@ tooltip 語言。
   boss 旗艦 HP）後傷害不會打到 0——會 floor 在 1；**唯有實際沉沒 boss 旗艦，量表才真的變
   0＝通關**。`now_maphp===0` 在機制上唯一等價於「這場斬殺成功」，是精確判定；`===1` 正確
   留在「未通關」。`api_first_clear` **不可當斬殺旗標**（語意與直覺相反：未通關時存在）。
-- 剩餘次數：gaugeType 2 = `ceil(殘HP/boss旗艦HP)`；gaugeType 3(TP) =
-  `ceil(殘量/艦隊基本TP)`，`fleetTP()` 依 wiki 表計算（**但 gaugeType 3 量表欄位缺真實封包**）。
+- 剩餘次數：gaugeType 2 = `ceil(殘HP/boss旗艦HP)`；gaugeType 3（TP）直接顯示封包的剩餘
+  TP，不以艦隊基本 TP 推估場數（**量表欄位仍缺真實封包驗證**）。
 
 ### 出擊重播（KC3Kai battleplayer 相容，`utils/replay.ts`＋`db.replays`）
 
@@ -361,6 +464,12 @@ ship 欄位用 KC3Kai 命名，stats 由 battleplayer 自算不帶。擷取判�
 `api_support_airatack`／`api_support_hourai` 擇一非 null；`api_ship_id` 是艦實例 id 不是
 master id，查不到艦名顯示 `#id`。
 
+陸航逐波戰果（`BattleLbasView`，面板出擊資訊的陸航圈）：出擊機數＝`api_stage1.api_f_count`；
+**損失＝`api_stage1.api_f_lostcount`（制空戰）＋`api_stage2.api_f_lostcount`（對空砲火）**，
+只讀 stage1 會少報；對敵傷害＝`api_stage3.api_edam`＋`api_stage3_combined.api_edam`，
+**可能帶小數**（6-5 ec_battle 樣本有 0.1），與其他傷害欄一致先切捨再加總。`api_base_id`
+在部分封包缺席（同一份 6-5 樣本），缺席記 0＝不可考，不猜是第幾基地。
+
 **單場 JSON 匯入**只接受 (a) 本專案 `toKc3Replay()` version:4 或 (b) KC3Kai logger fixture
 證實的格式，其他一律拒絕。重複判定：海域＋戰鬥節點序列完全相同＋±10 分鐘邊界；雙方都有
 封包時比對完整原始封包（物件 key 排序後 FNV-1a），否則才用時間 fallback；判定在 transaction
@@ -390,6 +499,39 @@ API／Gemini Nano）——裝置端零網路零出境，`prompt-api.d.ts` 特徵
 清單不含繁中；只餵 `buildQuickContext()` 精簡摘要避免超出 context window；
 `promptStreaming()` 分塊語意在不同版本不同，用
 `chunk.startsWith(acc) ? chunk : acc + chunk` 防禦寫法涵蓋兩種語意，**不要改回單純 `+=`**。
+
+### 艦名／裝備名譯名表（`utils/gamedata-i18n.ts`）
+
+`localizeShip()`/`localizeGear()` 是名稱本地化唯一入口：`SHIP_NAMES`/`GEAR_NAMES`（master id
+→ 各語言譯名，型別 `NameTable`）查表命中即回譯名，缺譯（id 不在表裡，或該語言欄未填）一律
+回退封包原始日文名——因此「未填 = 顯示日文」，任何時候都能上線、不會出現空白。
+
+**資料來源與產生流程**：`samples/i18n/*.csv` 是人工整理的來源（三份，玩家艦娘／深海棲艦／
+裝備），`master_id` 對到真實封包（`samples/start2-master.json`）。英文名取自 kancollewiki
+（Ship list／Enemy_Sortable／Equipment List 頁面，使用者另存 HTML 後用 `master_id` 精確比對，
+**原始 HTML 不進版控**，只有整理後的 CSV 進 `samples/i18n/`）。繁體中文分兩層：(1) 人工翻譯
+（沿用 `samples/ship-debut-dates.json` 既有的 `tw` 欄，332 艘艦娘基礎形態）；(2)
+`tools/gamedata-names/fill-mechanical-tw.py` 機械規則補完——**日文原名含假名（ひらがな／
+カタカナ）是唯一真例外**，其餘一律可機械處理：全漢字（含數字／半形全形括號／cm・mm 等
+單位字母／Mk.II 等型號）用 OpenCC `jp2t`（日文新字體→繁體）轉字形，非漢字部分原樣通過；
+改造形態沿用基礎形態的 `name_tw` 接同規律字尾：漢字字尾（改／改二丙…）比照上述轉字形；
+外語**序數詞**字尾（德文 zwei/drei、法文 Deux/Trois、義大利文 due/tre、瑞典文
+andra/tredje、俄文 два/три——這些在遊戲裡功能上就是該艦娘專屬的「改二／改三」）直接轉寫
+成「改二／改三」，不音譯不沿用外語；Mk.II/Mod.2/Flight II 等**型號 designation**（跟
+nuovo/amélioration 這類無法歸類的艦線自創字尾）不在此規則自動處理範圍，原樣沿用外語，跟
+wiki 英文名同慣例。目前玩家艦娘 862/862 全覆蓋，深海棲艦 617/889、裝備 683/741（其餘為
+片假名裝備名／深海棲艦片假名級別字母＋姫名，真正需要人工翻譯）。**新增列後（例如
+翻譯缺漏匯出抓到的新內容）先重跑 `fill-mechanical-tw.py` 補機械部分，人工只需處理含假名的
+殘餘**。**`utils/gamedata-names.ts` 為產生物、勿手改**——改 CSV 後重跑
+`tools/gamedata-names/generate.py`。只寫「有值」的語言欄，缺譯的 id 完全不出現在表裡，靠
+`localizeShip`/`localizeGear` 既有 fallback 顯示日文，產生器不補空字串、不猜值。
+
+**翻譯缺漏偵測**（鎮守府情報總括 LLM 分區「翻譯對照缺漏匯出」）：`samples/i18n/*.csv` 只是
+某次整理當下的快照，遊戲更新後的新艦娘/新深海棲艦/新裝備不會自動反映。`utils/
+gamedata-known-ids.ts`（`tools/gamedata-coverage/generate.py` 產生，同一份 CSV 來源，只存
+id 不存名稱）記錄該快照涵蓋的 id；`utils/gamedata-coverage.ts` 的 `findUnknownShips`/
+`findUnknownGears` 拿目前封包實際載入的 `GameState.master`/`masterGears` 跟它做差集，UI
+匯出「對照表沒有」的 id+日文名 CSV，供之後重新下載 wiki 頁面、重新整理對照表時知道該補哪些。
 
 ### 母港快照與資料備份還原
 
@@ -694,7 +836,13 @@ CSV 匯入沿用 `sortie-import.ts` 已建立的例外路徑：event ID 向 gene
 
 **母集合是「紀錄中的」遠征，不是遊戲的完整歷史**：`db.expeditions` 由面板 EventProjector
 投影，面板長期沒開＋raw event 已被 M6 裁剪的期間會永久缺席。**回航道具欄位語意未經真封包
-驗證**，一律以 `id×count` 原樣彙總，不併入四資源小計。
+驗證**，一律以 `id×count` 原樣彙總，不併入四資源小計。**`api_get_material` 並非永遠是陣列**
+（實機已驗證觸發情境：遠征中途取消／提前召回而失敗，`api_clear_result=0`）——`archiveExpedition`
+用 `Array.isArray` 防禦，非陣列一律視同無資源資料退回 `[]`；確切非陣列時的原始值仍缺真封包
+樣本佐證，不猜語意。**中途取消的遊戲機制**（使用者提供之遊戲設定，非封包驗證）：不獲得任何
+遠征物資與報酬（故退回 `[]` 語意上就是對的，非僅防禦性容錯）；出發時已扣的燃彈與已花費時間
+不退還；提督（司令部）經驗值降到原本 30%，艦娘自身經驗不受影響——後兩者本專案目前未追蹤
+遠征的經驗/燃彈扣還，這裡僅記錄機制供之後若要做相關功能時參考。
 
 **期間捷徑錨點是最後一筆紀錄，不是現在**（同資源紀錄的 `rangeBounds`）。自訂日期只要填任一
 端就蓋過捷徑窗。分組鍵是 `missionId` 不是名稱（名稱隨語言變動）；`missionId` 為 0 的舊紀錄
@@ -737,12 +885,31 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
      收縮——編成會隨分頁內容上下跑）；戰鬥列第二列固定 `165px`；陣型／支援／対空CI／
      夜戰／rank／友軍列釘在敵艦區下方，**不隨敵艦數量位移**。敵艦少於 6 時列內留白
      是刻意的。
-  2. **七船**：窗高 835、單艘約 49.5px；要多露出七船只准收 `#tabpanel` 固定高度或
-     fleetnav／fleets／艦列 padding，**不准拆 165px 釘、不准讓陣型列跟著上移**。
+  2. **七船**：窗高 850（`background.ts openPanelWindow`，實機截圖校準）、單艘約
+     49.5px；要多露出七船只准收 `#tabpanel` 固定高度或 fleetnav／fleets／艦列 padding，
+     **不准拆 165px 釘、不准讓陣型列跟著上移**。
   3. **裝備列單行**：`.chips { flex-wrap: nowrap }`；一般格／打洞／燃彈鎖
-     min/max（現約 48／40／56），SVG 與「///」不可撐破預算；**禁止**
+     min/max（現為 46／39／56，`.chips` gap 2、`.sub-row` gap 5——**動格寬前照這組
+     數字重算**：5×46＋gap 8＝238，＋39＋56＋sub-row gap 10 ≈ 343，收進 420 視窗寬），
+     SVG 與「///」不可撐破預算；**禁止**
      `display: contents`＋`margin-left: auto` 那條曾裁掉整列燃彈的路。
   4. **不准裁字**：燃彈兩側「100」必須完整可見。
+  5. **大破警告一律 absolute，不參與版面計算**（`.s-taiha`，釘在右下航空戰欄的
+     `.s-air-wrap` 上）：展開態貼齊容器底＋`min-height: 100%` 蓋住敵我方機數、收縮態浮在
+     `bottom: calc(100% + 3px)`＝「航空戰 ↔ 敵我方」之間那條縫。**不准改回插在戰鬥列上方
+     的一般流**——那會讓警告一出現就把 165px 敵艦列與底下釘死的陣型／rank／友軍列整排
+     往下推。驗收方式：量 `.s-battle-row` 高度與 `.s-icons-full` 相對位移，展開／收縮／
+     無大破三態必須完全相同。展開態**不設 `max-height`／`overflow: hidden`**（寧可往上長
+     一點也不能截掉警告文字），文字多時吃掉的是 `.s-eside` `space-between` 的空白。
+  6. **無障礙覆寫要連 `.s-taiha.open` 一起列**：它自帶不透明底色（要遮住機數），選擇器比
+     `.taiha-alert` specific，`prefers-contrast: more`／`prefers-reduced-transparency`
+     兩個 media block 只寫 `.taiha-alert` 會有一態吃不到覆寫。
+  7. **大破警告文案的 `\n` 是刻意斷行點，別當成可有可無的空白刪掉**：框只有約 180px 寬，
+     中日文沒有空格可斷，自動折行會把「大破艦」「強制返航」從中間切開；長度不固定的
+     `{item}`（裝備名）**必須單獨佔一行**。展開態靠 `.s-taiha.open .taiha-head/.taiha-hint`
+     的 `white-space: pre-line` 生效，收縮態由按鈕的 `nowrap` 把 `\n` 當空白吃掉壓成單行
+     （省略號要掛在 `.taiha-head` 上，掛外層按鈕會變成硬切）。英文靠空格自然折行、不加
+     硬斷點，但行內字串要夠短，否則框會長到蓋住上面的航空戰列。
   回歸參考：`samples/fleet_slot*.png`。實作見
   `panel/index.html`／`panel/main.ts` 註解 `#2`／`#4`。
 
@@ -770,6 +937,9 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
 5. gaugeType 3（TP輸送）量表欄位驗證；TP 表新變種裝備補值。
 6. 掉落統計彙總（資料已在 `db.sorties.drop`，缺 UI 彙總視圖）。
 6b. 斬殺偵測只剩「即時性」待觀測（欄位判定已用真封包定案）。
+6c. 退避（艦隊司令部施設）：`api_escape_idx`／`api_tow_idx` 的索引基準、遊撃部隊用哪個
+   `goback_port` path、退避艦是否仍佔戰鬥封包的血量陣列位置——三項皆待真封包（`wantedTag`
+   鉤子已埋）。連同第二艦隊旗艦不沉時的殘 HP 值一併驗證。
 7. M4 殘項：side panel 選配、視窗位置記憶、Firefox 打包驗證。
 8. 亮色主題細部調校；遠征紀錄回航道具欄位未經真封包驗證。
 8b. 活動作戰板三項待驗（標籤 id 語意／標籤名是否存在於封包／`api_sally_flag` 是否為出擊制限

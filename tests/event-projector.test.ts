@@ -96,8 +96,11 @@ function mockBattleInfo(): NonNullable<GameState['battleInfo']> {
         rank: 'S',
         mvp: [1, 0],
         isTaiha: false,
+        flagshipTaiha: false,
+        flagshipDamecon: 0,
         enemyIds: [1501],
         enemyIdsEscort: [],
+        enemyDetail: { main: [], escort: [] },
         formation: [1, 1, 1],
         seiku: 1,
         touchPlane: [-1, -1],
@@ -108,10 +111,13 @@ function mockBattleInfo(): NonNullable<GameState['battleInfo']> {
             enemyBomber: { count: 0, lost: 0 },
         },
         drop: null,
+        dropIsNew: false,
         supportFlag: 0,
         aaci: 0,
         midnightFlag: false,
         friendlyFleetIds: null,
+        lbas: null,
+        support: null,
         hasResult: false,
     };
 }
@@ -203,6 +209,21 @@ describe('EventProjector persist 模式', () => {
         expect(replay?.battles[0]).toMatchObject({ node: 42, rank: 'S' });
         expect(replay?.battles[0].data).toBeTruthy();
         expect(replay?.battles[0].yasen).toMatchObject({ marker: 'night' });
+    });
+
+    it('api_get_material 非陣列（實機觀測過）時不拋錯，resources 退回空陣列', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });
+
+        await expect(projector.project(row(1, 'api_req_mission/result', {
+            api_quest_name: 'fixture expedition',
+            api_clear_result: 0,
+            api_get_material: 0,
+        }, { api_deck_id: '1' }))).resolves.not.toThrow();
+
+        expect(await database.expeditions.toArray()).toEqual([
+            expect.objectContaining({ eventId: 1, result: 0, resources: [] }),
+        ]);
     });
 
     it('同一事件流以新的 projector 重播兩次時，四張表都以 put 保持 row count 不增加', async () => {

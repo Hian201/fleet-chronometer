@@ -17,10 +17,36 @@ import {
     mergeObservedGrants, migrateSlotsToPlanByShip, resolveTagColor, setMapGrantTags,
     stagesHaveShipSlots, stypeGroupKey, syncPlanFromActual, unbindTagFromMap,
 } from '@/utils/tag-board';
+import {
+    matchEquip, matchSpeed, type EquipFilter, type SpeedFilter,
+} from '@/utils/ship-filter';
 import { t } from '@/utils/ui-i18n';
 import { esc } from '../lib';
 
 const EVENT_AREA_MIN = 10;
+
+// 自由池的航速／可裝備篩選：語意與選項順序一律沿用 ship-picker.ts 的同名下拉
+// （斷言在 utils/ship-filter.ts），兩處不得各自定義，否則「僅大發」之類的組合會分歧。
+const SPEEDS: SpeedFilter[] = ['all', 'slow', 'fast', 'fastPlus'];
+const SPEED_KEYS: Record<SpeedFilter, string> = {
+    all: 'ov.spAll', slow: 'ov.spSlow', fast: 'ov.spFast', fastPlus: 'ov.spFastPlus',
+};
+const EQUIPS: EquipFilter[] = [
+    'all', 'landingCraft', 'landingOnly', 'naikatei', 'naikateiOnly',
+    'both', 'either', 'neither', 'commandFacility', 'seaplaneFighter',
+];
+const EQUIP_KEYS: Record<EquipFilter, string> = {
+    all: 'ov.spAll',
+    landingCraft: 'ov.spLandingCraft',
+    landingOnly: 'ov.spLandingOnly',
+    naikatei: 'ov.spNaikatei',
+    naikateiOnly: 'ov.spNaikateiOnly',
+    both: 'ov.spBoth',
+    either: 'ov.spEither',
+    neither: 'ov.spNeither',
+    commandFacility: 'ov.spCommandFacility',
+    seaplaneFighter: 'ov.spSeaplaneFighter',
+};
 
 interface BoardShip {
     id: number;
@@ -28,6 +54,10 @@ interface BoardShip {
     lv: number;
     stypeId: number;
     sallyArea: number;
+    /** 航速 `api_soku`。master 未載入時為 0＝低速側，篩「高速」時自然落榜（不猜）。 */
+    soku: number;
+    /** 可裝備類別 id（`GameState.equipTypesOf()`）。查不到一律空陣列。 */
+    equipTypes: number[];
 }
 
 const toSallyShips = (ships: OwnedShipView[]): SallyShip[] =>
@@ -223,6 +253,8 @@ export const tagBoardSection: OverviewSection = {
         let poolQ = '';
         let poolOpenGroups = new Set(DEFAULT_STYPE_GROUPS.map(g => g.key));
         let stypeFilter = '';
+        let speedFilter: SpeedFilter = 'all';
+        let equipFilter: EquipFilter = 'all';
         let dragIds: number[] | null = null;
         let filtersBound = false;
         let migrateNote = '';
@@ -239,6 +271,7 @@ export const tagBoardSection: OverviewSection = {
                 return {
                     id: s.id, name: s.name, lv: o?.lv ?? 0,
                     stypeId: o?.stypeId ?? 0, sallyArea: s.sallyArea,
+                    soku: o?.soku ?? 0, equipTypes: o?.equipTypes ?? [],
                 };
             });
         };
@@ -364,6 +397,8 @@ export const tagBoardSection: OverviewSection = {
 
         const matchShip = (s: BoardShip, query: string) => {
             if (stypeFilter && stypeGroupKey(s.stypeId) !== stypeFilter) return false;
+            if (!matchSpeed(s.soku, speedFilter)) return false;
+            if (!matchEquip(s.equipTypes, equipFilter)) return false;
             if (!query) return true;
             return s.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
         };
@@ -431,6 +466,16 @@ export const tagBoardSection: OverviewSection = {
                             <option value="">${esc(t('ov.tbAllStypes'))}</option>
                             ${DEFAULT_STYPE_GROUPS.map(g =>
                                 `<option value="${esc(g.key)}">${esc(t(g.labelKey))}</option>`).join('')}
+                        </select></label>
+                    <label>${esc(t('ov.spSpeed'))}
+                        <select id="tb-speed">
+                            ${SPEEDS.map(v =>
+                                `<option value="${esc(v)}">${esc(t(SPEED_KEYS[v]))}</option>`).join('')}
+                        </select></label>
+                    <label>${esc(t('ov.spEquip'))}
+                        <select id="tb-equip">
+                            ${EQUIPS.map(v =>
+                                `<option value="${esc(v)}">${esc(t(EQUIP_KEYS[v]))}</option>`).join('')}
                         </select></label>
                     <label id="tb-route-wrap" hidden>${esc(t('ov.tbCheckRoute'))}
                         <select id="tb-route"></select></label>
@@ -566,6 +611,14 @@ export const tagBoardSection: OverviewSection = {
             });
             filtersEl.querySelector('#tb-stype')!.addEventListener('change', e => {
                 stypeFilter = (e.currentTarget as HTMLSelectElement).value;
+                drawBoardVisual();
+            });
+            filtersEl.querySelector('#tb-speed')!.addEventListener('change', e => {
+                speedFilter = (e.currentTarget as HTMLSelectElement).value as SpeedFilter;
+                drawBoardVisual();
+            });
+            filtersEl.querySelector('#tb-equip')!.addEventListener('change', e => {
+                equipFilter = (e.currentTarget as HTMLSelectElement).value as EquipFilter;
                 drawBoardVisual();
             });
             filtersEl.querySelector('#tb-route')!.addEventListener('change', e => {

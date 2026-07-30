@@ -122,6 +122,23 @@ const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas
 // baseHtml() 的同一個註解）。
 export interface FleetMarkdownScope { fleets: boolean[]; lbas: boolean[] }
 
+// 熟練度符號：與面板 chip 同一套階層（1-3 直線、4-6 斜線、7 為 ace 雙箭）。
+// Markdown 是純文字，故 ace 用單一字元 '»'（面板用 HTML 實體 &gt;&gt;）。
+const ALV_MARKS = ['', '|', '||', '|||', '/', '//', '///', '»'];
+
+/**
+ * Markdown 的裝備寫法：`零式艦戦 53 型(岩本隊)★»`。
+ *
+ * 改修**滿階（★10）只給星號不給數字**——這是使用者指定的寫法，讀者看到光禿禿的
+ * ★ 就知道是滿的，不必去記上限是幾；1-9 才寫數字。熟練度接在後面，沒有就不寫。
+ *
+ * export：fleet-overview 的 PNG 匯出也是同一份純文字內容，共用這支才不會出現
+ * 「Markdown 寫 ★»、PNG 寫 ★10」這種同一隊兩種寫法。
+ */
+export const gearMarkdown = (g: { name: string; level: number; alv: number }) =>
+    `${g.name}${g.level >= 10 ? '★' : g.level > 0 ? `★${g.level}` : ''}`
+    + (ALV_MARKS[Math.min(7, Math.max(0, g.alv))] ?? '');
+
 export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownScope): string {
     const lines: string[] = [];
     state.fleets().forEach((f, i) => {
@@ -129,7 +146,7 @@ export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownS
         if (scope && scope.fleets[i] === false) return;
         lines.push(`${h} ${t('ov.fleetN', { n: i + 1 })} — ${f.name}${f.mission ? `（${t('ov.onMission')}）` : ''}`);
         for (const s of f.ships) {
-            const gears = s.gears.filter(Boolean).map(g => `${g!.name}${g!.level > 0 ? `★${g!.level}` : ''}`).join(' / ');
+            const gears = s.gears.filter(Boolean).map(g => gearMarkdown(g!)).join(' / ');
             lines.push(`- **${s.stype} ${s.name}** Lv${s.lv}　HP ${s.hp}/${s.maxhp}　cond ${s.cond}${gears ? `　│ ${gears}` : ''}`);
         }
         lines.push('');
@@ -138,7 +155,7 @@ export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownS
     if (bases.length) {
         lines.push(`${h} ${t('ov.airCorps')}`);
         for (const b of bases) {
-            const sq = b.squadrons.map(s => `${s.name}${s.level > 0 ? `★${s.level}` : ''}`).join(' / ');
+            const sq = b.squadrons.map(gearMarkdown).join(' / ');
             lines.push(`- **${b.name}**（${state.mapAreaName(b.areaId)}） ${t(AIR_ACTION_KEYS[b.actionKind] ?? 'lbas.standby')}　${t('ov.airRadius', { n: b.distance })}　${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}${sq ? `　│ ${sq}` : ''}`);
         }
     }

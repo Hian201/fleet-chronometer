@@ -559,12 +559,12 @@
             max-width: none;
         }
 
-        /* 聯合檢視是全新版面，窗高 835px 是照「單隊 4 分頁」版面實機量測校準的
+        /* 聯合檢視是全新版面，窗高 850px 是照「單隊 4 分頁」版面實機量測校準的
            （見 background.ts openPanelWindow 註解）。單隊版面有「遊撃部隊」最多 7 艘
            的特殊編成需要容納，聯合檢視兩隊組合則固定各 6 艘（一般艦隊上限，遊撃部隊
            不會出現在連合艦隊）——用無頭 Chrome 對真實 index.html+CSS 實測驗證：單隊
            7 艘滿編（沿用已知校準過的 ship-row/sub-row 版面）內容總高 779px，是這個
-           835px 視窗已知安全（無捲動）的配置；聯合檢視 6 艘全裝滿槽的最差情況只要
+           850px 視窗已知安全（無捲動）的配置；聯合檢視 6 艘全裝滿槽的最差情況只要
            727px，等於還有約 50px 沒用到。這裡把這筆餘裕吃下去、放寬行距與圖示尺寸，
            不用再逼到 1.2 這麼緊；每項調整後都重新量測，總高抓在 770px 左右、比 779px
            的已知安全值再留一點餘裕（沒有實機裝置能再驗證，保守一點比較安心）。 */
@@ -770,11 +770,6 @@
             border-color: var(--dmg-major);
         }
 
-        .badge-tag.warn {
-            color: var(--dmg-mid);
-            border-color: var(--dmg-mid);
-        }
-
         .badge-tag.secretary {
             color: var(--sparkle);
             border-color: var(--sparkle);
@@ -882,10 +877,10 @@
             align-items: baseline;
         }
 
-        /* gap 縮到 6px 是寬度預算的一部分（見 .chip 註解）：裝備列總寬貼著 420 視窗
-           上限，靠這裡省 4px 保住不換行的餘裕。 */
+        /* 三個直屬元件（一般槽組／增設槽／燃彈）各收 1px gap：五格一般槽＋增設槽的
+           最寬組合仍在 420px 視窗內，且不必裁到任何圖示或數字。 */
         .sub-row {
-            gap: 6px;
+            gap: 5px;
             min-width: 0;
         }
 
@@ -951,33 +946,35 @@
            「跨艦 pad＋鎖寬＋燃彈 54」總寬超過視窗，右側燃彈整列被裁切
            （samples/fleet_slot_{1,2,3}.png）——那條路已否決。
            第五格換行的真因是 SVG／熟練字元把單格撐到 ~55px；下面鎖 min/max 即可。
-           ⚠️ 高度硬約束：窗高 835 是按「單艘列高 ≈49.5px × 7 艘」校準的
+           五格一般槽＋增設槽時，將一般格縮至 46px（20px 圖示＋1px gap＋23px
+           資訊欄＋兩側各 1px 內距）且各 gap 收 1px，保證最後一格不會壓到增設槽。
+           ⚠️ 高度硬約束：窗高 850 是按「單艘列高 ≈49.5px × 7 艘」校準的
            （background.ts openPanelWindow）。裝備列一旦 wrap 成兩行，單艘變高，
            第 7 艘就會被視窗底裁掉——所以這裡用 nowrap，並把格寬收到預算內。 */
         .chips {
             flex: 1;
             display: flex;
             flex-wrap: nowrap;
-            gap: 3px;
+            gap: 2px;
             min-width: 0;
         }
 
-        /* 一般格 48px、打洞 40、燃彈 56（「100」不裁字）：5×48+gap12=252，
-           ＋40＋56＋sub-row gap12 ≈ 360，收進 420；.chips nowrap 禁止換行。
+        /* 一般格 46px、打洞 39、燃彈 56（「100」不裁字）：5×46+gap8=238，
+           ＋39＋56＋sub-row gap10 ≈ 343，收進 420；.chips nowrap 禁止換行。
            必須對 .chip／.g-icon 鎖 min/max，否則 SVG／「///」撐破→換行→七船被裁。 */
         .chip {
             box-sizing: border-box;
             display: inline-flex;
             align-items: center;
             gap: 1px;
-            width: 48px;
-            min-width: 48px;
-            max-width: 48px;
+            width: 46px;
+            min-width: 46px;
+            max-width: 46px;
             flex: none;
             overflow: hidden;
             font-size: 10px;
             line-height: 1;
-            padding: 2px 2px;
+            padding: 2px 1px;
             border-radius: 3px;
             background: var(--line);
             color: var(--text);
@@ -1111,9 +1108,9 @@
         }
 
         .chip.ex {
-            width: 40px;
-            min-width: 40px;
-            max-width: 40px;
+            width: 39px;
+            min-width: 39px;
+            max-width: 39px;
             outline: 1px dashed var(--brass);
         }
 
@@ -1266,6 +1263,10 @@
         }
 
         .ab-area-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             font-size: 11px;
             font-weight: 600;
             letter-spacing: var(--track-label);
@@ -1273,6 +1274,14 @@
             border-bottom: 1px solid var(--line);
             padding-bottom: 4px;
             margin: 0;
+        }
+
+        .ab-maintenance {
+            color: var(--dim);
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: normal;
+            white-space: nowrap;
         }
 
         .ab-card {
@@ -1408,20 +1417,21 @@
 
         .ab-sq .sq-cond {
             font-size: 10px;
-            width: 2.5em;
+            min-width: 2.5em;
             text-align: right;
+            white-space: nowrap;
         }
 
-        .ab-sq .sq-cond.cond-1 {
-            color: var(--dim);
-        }
-
-        .ab-sq .sq-cond.cond-2 {
+        .ab-sq .sq-cond.cond-tired {
             color: var(--dmg-mid);
         }
 
-        .ab-sq .sq-cond.cond-3 {
+        .ab-sq .sq-cond.cond-exhausted {
             color: var(--dmg-major);
+        }
+
+        .ab-sq .sq-cond.cond-unknown {
+            color: var(--stub);
         }
 
         .ab-sq.empty-sq {
@@ -1452,6 +1462,16 @@
             font-size: 13px;
             font-weight: 900;
             text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+        }
+
+        /* 活動難度徽章（甲乙丙丁）：貼在 E{n} 後面，字級小一階、不搶海域代號的視覺重量 */
+        .s-map-id > i {
+            margin-left: 3px;
+            font-style: normal;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--brass);
         }
 
         /* 關卡進度：緊湊量表（擊破數式／HP量表式），或已攻略/未攻略/鎖定小標記 */
@@ -1758,6 +1778,20 @@
             color: var(--dmg-major);
         }
 
+        /* 敵我方機數的定位容器：大破警告靠它做 absolute 定位（見 .s-taiha）。
+           容器本身不設任何尺寸，高度完全由 .s-air-mini 撐出——警告展開時要「剛好蓋住
+           機數表格」，靠的就是這個等高關係。 */
+        .s-air-wrap {
+            position: relative;
+        }
+
+        /* 警告展開時把機數藏起來（保留佔位，容器高度不變＝上方的索敵/航向列不會位移）。
+           光靠警告框的不透明底也遮得住，但 visibility 讓「被遮住」變成確定的事，
+           不受日後底色調整影響。 */
+        .s-air-wrap.covered .s-air-mini {
+            visibility: hidden;
+        }
+
         .s-air-mini {
             display: grid;
             grid-template-columns: auto 1fr 1fr;
@@ -1873,6 +1907,17 @@
             text-align: center;
         }
 
+        /* 基地航空隊戰果圈（#4）：上排對敵傷害、下排損失機數，兩行塞進同一顆 30px 圈
+           （line-height 1.05 × 兩行 ≈ 20px，放得下）。逐波明細在 title。 */
+        .s-icon.lbas {
+            flex-direction: column;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .s-icon.lbas .s-lbas-dmg {
+            font-weight: 700;
+        }
+
         .s-icon.active { color: #82ccdd; border-color: #82ccdd; }
         .s-icon.predicted { border-style: dashed; }
         .s-icon.rank-ss { color: #ffe066; border-color: #ffe066; font-size: 14px; font-weight: bold; text-shadow: 0 0 4px rgba(255,224,102,0.6); }
@@ -1882,14 +1927,22 @@
         .s-icon.rank-c { color: #95a5a6; border-color: #7f8c8d; font-size: 15px; font-weight: bold; }
         .s-icon.rank-d { color: #7f8c8d; border-color: #566060; font-size: 15px; font-weight: bold; }
 
+        /* 打撈晶片：**金色只留給「本鎮守府還沒有的船」**。每一場都上色的話，看到金色
+           的第一反應會是「又是同一批」，真正的新船就淹沒在裡面了；已持有的改用一般
+           文字色與中性框，資訊照給、不搶注意力。 */
         .s-drop {
             display: inline-flex;
             align-items: center;
             gap: 5px;
-            background: color-mix(in srgb, var(--sparkle) 12%, var(--panel));
-            border: 1px solid var(--sparkle);
+            background: color-mix(in srgb, var(--line) 30%, var(--panel));
+            border: 1px solid var(--line);
             border-radius: 12px;
             padding: 2px 8px 2px 4px;
+        }
+
+        .s-drop.new {
+            background: color-mix(in srgb, var(--sparkle) 12%, var(--panel));
+            border-color: var(--sparkle);
         }
 
         .s-drop-tag {
@@ -1897,17 +1950,25 @@
             font-weight: 700;
             letter-spacing: var(--track-tag);
             color: #10151d;
-            background: var(--sparkle);
+            background: var(--dim);
             border-radius: 8px;
             /* 右內距扣掉一個字距，理由同 .ship-row .stype */
             padding: 1px calc(5px - var(--track-tag)) 1px 5px;
         }
 
+        .s-drop.new .s-drop-tag {
+            background: var(--sparkle);
+        }
+
         .s-drop-name {
             font-size: 11px;
             font-weight: 600;
-            color: var(--sparkle);
+            color: var(--text);
             white-space: nowrap;
+        }
+
+        .s-drop.new .s-drop-name {
+            color: var(--sparkle);
         }
 
         /* ── 出擊紀錄（紀錄分頁）── */
@@ -2222,7 +2283,99 @@
             font-weight: bold;
             text-align: center;
             animation: pulse 2s infinite;
-            margin-bottom: 6px;
+        }
+
+        /* 大破警告的定位與兩態切換（釘在右下航空戰欄，見 main.ts renderSortie）。
+           **兩態都是 absolute**：警告一出現就把 165px 敵艦列與底下釘死的陣型／rank／
+           友軍列往下推是舊版的毛病（CLAUDE.md 出擊資訊欄硬約束），絕對定位讓它完全
+           不參與版面計算，有沒有大破的版面一模一樣。
+
+           · 收縮態＝浮在 .s-air-wrap 正上方，也就是「航空戰 ↔ 敵我方」之間那條縫
+             （.s-eside 是 space-between，那裡本來就有約 50px 空白，一條 banner 進得去）。
+           · 展開態＝貼齊容器底並 min-height:100%，剛好蓋住整張機數表；文字多時往上長，
+             用掉的是同一塊空白，不會壓到索敵/航向列。**不設 max-height／overflow:hidden**
+             ——寧可長一點也不能把警告文字截掉。 */
+        .s-taiha {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(100% + 3px);
+            display: block;
+            width: 100%;
+            margin: 0;
+            font-family: inherit;
+            line-height: 1.3;
+            cursor: pointer;
+        }
+
+        .s-taiha.open {
+            top: auto;
+            bottom: 0;
+            min-height: 100%;
+            /* 展開態要真的遮住底下的機數，故底色不透明（同 prefers-reduced-transparency
+               的處理手法：把同色相混進 --panel 而不是疊在透明上）。 */
+            background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
+        }
+
+        /* 收縮態只留一行：字級降一階、不換行、超出以 … 收尾（完整內容在 title）。
+           nowrap 順便把字典裡的 \n 當成一般空白吃掉，多行文案自然壓成單行。 */
+        .s-taiha:not(.open) {
+            font-size: 10.5px;
+            padding: 2px 4px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        /* 省略號要掛在**實際溢出的那個 block** 上：文字包在 .taiha-head 裡，
+           只設在外層按鈕會變成硬切（實測「強制返舠」被切一半、沒有 …）。 */
+        .s-taiha:not(.open) .taiha-head {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 收縮態只顯示第一行（主警告）；退避提示等補充留給展開態與 title。 */
+        .s-taiha:not(.open) .taiha-head~*,
+        .s-taiha:not(.open) .taiha-hint {
+            display: none;
+        }
+
+        .taiha-head {
+            display: block;
+        }
+
+        /* 展開態讓字典裡的 \n 成為實際斷行。警告框只有約 180px 寬，中日文沒有空格可斷，
+           全交給自動折行會把「大破艦」「強制返航」這種詞從中間切開，斷點必須由各語言
+           自己決定（見 ui-i18n.ts；英文靠空格自然折行，不需要硬斷點）。
+           **只掛在 .open 上**：收縮態的 banner 要維持單行，那邊由按鈕的 nowrap 把 \n
+           當一般空白吃掉。 */
+        .s-taiha.open .taiha-head,
+        .s-taiha.open .taiha-hint {
+            white-space: pre-line;
+        }
+
+        /* 退避提示（旗艦帶司令部施設時）：附在大破警告內的第二行，弱化成說明語氣——
+           警告本身講「有轟沈風險」，這行講「還有一條路可走」，不該搶同樣的視覺強度。 */
+        .taiha-hint {
+            display: block;
+            font-weight: normal;
+            font-size: 11px;
+            color: var(--dim);
+        }
+
+        /* 退避艦：整列淡出＋灰標。退避不是傷害等級，故刻意不用 --dmg-* 語意色
+           （design-guidelines §4.5：語意色不跨功能挪用）。 */
+        .ship.escaped {
+            opacity: 0.5;
+        }
+
+        .esc-tag {
+            margin-left: 4px;
+            padding: 0 4px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font-size: 9px;
+            color: var(--dim);
+            vertical-align: middle;
         }
 
         @keyframes pulse {
@@ -2266,10 +2419,17 @@
             }
 
             .s-drop {
+                background: color-mix(in srgb, var(--line) 30%, var(--panel));
+            }
+
+            .s-drop.new {
                 background: color-mix(in srgb, var(--sparkle) 12%, var(--panel));
             }
 
-            .taiha-alert {
+            /* `.s-taiha.open` 自己就用不透明底（要遮住機數），但選擇器比 .taiha-alert
+               specific，這裡若不一併列出，收縮／展開兩態會有一態吃不到覆寫。 */
+            .taiha-alert,
+            .s-taiha.open {
                 background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
             }
         }
@@ -2289,9 +2449,18 @@
                 --stub: #7a8291;
             }
 
-            .taiha-alert {
+            /* 實心紅底：`.s-taiha.open` 的自帶底色選擇器較 specific，必須一併列出。 */
+            .taiha-alert,
+            .s-taiha.open {
                 background: var(--dmg-major);
                 color: #10151d;
+            }
+
+            /* 補充行原本走 --dim（淺灰），落在實心紅底上對比不足；改為繼承主色再降透明度，
+               維持「弱化成說明語氣」的層次但不犧牲可讀性。 */
+            .taiha-alert .taiha-hint {
+                color: inherit;
+                opacity: 0.85;
             }
 
             #tabs button.on {

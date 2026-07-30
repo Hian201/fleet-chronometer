@@ -290,6 +290,14 @@ describe('格式辨識與嚴格驗證', () => {
         expect(() => parseSortieImport(raw)).toThrow(pattern);
     });
 
+    it('基地航空隊疲勞接受 api_cond 顯示狀態碼 0～3，拒絕範圍外數值', () => {
+        const raw = sample();
+        raw.lbas[0].planes[0].morale = 3;
+        expect(parseSortieImport(raw).replay.lbas?.[0].squadrons[0].cond).toBe(3);
+        raw.lbas[0].planes[0].morale = 4;
+        expect(() => parseSortieImport(raw)).toThrow(/lbas\[0\]\.planes\[0\]\.morale/);
+    });
+
     it('KC3Kai 支援艦隊缺少 HP 時保持缺席；Fleet 自身匯出缺 cond 時也不猜值', () => {
         const kc3 = parseSortieImport(sample());
         expect(kc3.replay.fleet3?.[0]).not.toHaveProperty('nowhp');

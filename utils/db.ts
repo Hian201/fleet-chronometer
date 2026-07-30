@@ -175,7 +175,7 @@ export interface ReplayLbasSquadron {
     stars: number;           // 改修 ★
     ace: number;             // 熟練度
     state: number;           // api_state：0未配置/1配置済/2配置転換中
-    cond: number;            // api_cond：疲勞（1正常/2橙/3赤）
+    cond: number;            // api_cond 顯示狀態碼（0/1無標記、2黃、3紅）
 }
 export interface ReplayLbas {
     areaId: number;          // api_area_id（＝出擊海域 world）

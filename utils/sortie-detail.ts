@@ -24,6 +24,7 @@
 import { analyzeBattle } from './battle';
 import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip, SortieLogRow } from './db';
 import type { BattleInfoView } from './state';
+import { t } from './ui-i18n';
 
 /** 応急修理要員／女神的裝備 master id（同 state.ts getDamecon 的判定值）。 */
 const DAMECON_MST = 42;
@@ -42,6 +43,26 @@ export function parseMapCode(map: string): { world: number; mapnum: number } {
     const m = /^(\d+)-(\d+)$/.exec(map ?? '');
     return m ? { world: Number(m[1]), mapnum: Number(m[2]) } : { world: 0, mapnum: 0 };
 }
+
+/**
+ * 海域代號的顯示寫法：活動用玩家的說法 `E{n}`，一般海域維持 `6-5`。完整編號（62-1）
+ * 留給 title。
+ *
+ * `map` 是原始字串，解析不出 world/mapnum 時原樣顯示它（不用 `${world}-${mapnum}`
+ * 反組，那樣會把不可考的紀錄顯示成「0-0」）。
+ *
+ * **面板與出擊紀錄分區共用同一支**：兩邊寫法必須一致，日後改活動海域的表記法也只有
+ * 一處要動。難度徽章（`diffLabel`）同理。
+ */
+export function mapLabel(entry: { event: boolean; mapnum: number; map: string }): string {
+    return entry.event ? `E${entry.mapnum}` : entry.map;
+}
+
+// 活動難度 api_selected_rank：1丁 2丙 3乙 4甲（0＝一般圖或尚未選難度）。
+const DIFF_KEYS = ['', 'ov.slDiff1', 'ov.slDiff2', 'ov.slDiff3', 'ov.slDiff4'];
+
+/** 難度徽章文字（活動限定；0＝一般圖或尚未選難度時回空字串＝不顯示）。 */
+export const diffLabel = (diff: number) => (DIFF_KEYS[diff] ? t(DIFF_KEYS[diff]) : '');
 
 /** 基地航空隊的一波出擊（api_air_base_attack 的一個元素）。 */
 export interface LbasWave {
