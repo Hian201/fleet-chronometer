@@ -139,6 +139,7 @@ describe('columnGroups / knownTagIds / budget / color', () => {
         expect(assignPlanTag({}, 5, 3)).toEqual({ 5: 3 });
         expect(stypeGroupKey(11)).toBe('CV');
         expect(stypeGroupKey(2)).toBe('DD');
+        expect(stypeGroupKey(18)).toBe('CVB');
         expect(stypeGroupKey(16)).toBe('AV');
     });
     it('columnGroupsWithMaps：master 空關也出現；無 master 退回 columnGroups', () => {

@@ -112,6 +112,13 @@ describe('航速篩選（門檻比較，未來出現 15/20 不必改碼）', () 
     it('低速＝未達高速', () => expect(ids('slow')).toEqual([1]));
     it('高速含高速+與最速', () => expect(ids('fast')).toEqual([2, 3, 4]));
     it('高速+含最速', () => expect(ids('fastPlus')).toEqual([3, 4]));
+    it('缺失或無效航速不冒充低速，但不限航速時仍保留', () => {
+        const unknown = [ship({ id: 5, soku: 0 }), ship({ id: 6, soku: Number.NaN })];
+        expect(filterShips(unknown, { ...emptyFilter(), speed: 'all' }).map(s => s.id)).toEqual([5, 6]);
+        for (const speed of ['slow', 'fast', 'fastPlus'] as const) {
+            expect(filterShips(unknown, { ...emptyFilter(), speed })).toEqual([]);
+        }
+    });
 });
 
 describe('艦種／出擊標籤／關鍵字／排序', () => {

@@ -123,6 +123,17 @@ describe('解析（KC3Kai 匯出）', () => {
         })).not.toThrow();
     });
 
+    it('61-4 單艦隊樣本：KC3Kai 的 fleet2 是母港快照，不誤當隨伴或拒絕匯入', () => {
+        const s614 = JSON.parse(readFileSync(new URL('../samples/61-4.json', import.meta.url), 'utf8'));
+        expect(s614.combined).toBe(0);
+        expect(s614.fleet2.length).toBeGreaterThan(0);
+        const parsed = parseSortieImport(s614);
+        expect(parsed.replay.combined).toBe(0);
+        expect(parsed.replay.fleet1).toHaveLength(6);
+        expect(parsed.replay.fleet2).toEqual([]);
+        expect(parsed.rows.every(row => row.mvpEscort === undefined)).toBe(true);
+    });
+
     it('節點類型（eventId／eventKind）一併帶進來，戰鬥與空襲列都要有', () => {
         const parsed = parseSortieImport(sample());
         const raid = parsed.rows.find(r => r.kind === 'raid')!;
@@ -149,6 +160,13 @@ describe('解析（KC3Kai 匯出）', () => {
         expect(parsed.replay.battles).toHaveLength(5);
         expect(parsed.replay.fleet1[0].maxhp).toBeGreaterThan(0);   // nowhps/maxhps 命名
         expect(parsed.signature.hash).toBe(source.signature.hash);  // 內容相同 ⇒ 指紋相同
+
+        // KC3Kai 只能從 fleet1 播單艦隊；外部格式改成 fleetnum=1 後，仍須還原真實出擊隊編號。
+        const deck3 = toKc3Replay({
+            ...source.replay, sortieKey: 2, combined: 0, fleetnum: 3, fleet2: [],
+        });
+        expect(deck3).toMatchObject({ fleetnum: 1, sourceFleetnum: 3 });
+        expect(parseSortieImport(deck3).replay.fleetnum).toBe(3);
     });
 
     it.each([
@@ -161,7 +179,7 @@ describe('解析（KC3Kai 匯出）', () => {
         expect(() => parseSortieImport(JSON.parse(json))).toThrow(SortieImportError);
     });
 
-    it('time 秒／毫秒都吃（KC3Kai 用秒、本專案匯出用毫秒）', () => {
+    it('time 秒／毫秒都吃（KC3Kai 與現行輸出用秒，舊版輸出可能是毫秒）', () => {
         expect(normalizeTime(1_700_000_000)).toBe(1_700_000_000_000);
         expect(normalizeTime(1_700_000_000_000)).toBe(1_700_000_000_000);
         expect(normalizeTime(0)).toBeNull();

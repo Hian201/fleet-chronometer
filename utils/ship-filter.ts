@@ -88,6 +88,9 @@ export type ShipSortKey = 'level' | 'stype' | 'name';
  */
 export function matchSpeed(soku: number, f: SpeedFilter): boolean {
     if (f === 'all') return true;
+    // 0／非有限值代表欄位缺席或無效，不是「比高速門檻低」的已知航速；任何具體航速
+    // 白名單都不可把未知值納入。
+    if (!Number.isFinite(soku) || soku <= 0) return false;
     // 低速是「未達高速」而非「等於 5」——避免遊戲日後新增中間值時漏判。
     if (f === 'slow') return soku < SOKU.fast;
     if (f === 'fast') return soku >= SOKU.fast;

@@ -1,0 +1,157 @@
+// 裝備圖示與改裝畫面同艦換位的回歸測試。
+//
+// SC 雷達的 master、圖示分類與名稱都來自真實 start2 fixture；不在測試內手捏裝備資料，
+// 以免把「資料缺失」誤測成「面板渲染正常」。
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { GameState } from '../utils/state';
+
+const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
+const scRadar = master.api_mst_slotitem.find((g: any) => g.api_name.includes('SCレーダー'));
+const e27Radar = master.api_mst_slotitem.find((g: any) => g.api_id === 517);
+const gunMst = master.api_mst_slotitem.find((g: any) => g.api_name === '41cm連装砲');
+
+function stateWithSlots(
+    slots: number[],
+    onslot: number[] = [4, 18, 0, 0],
+    masterIds: number[] = slots.filter(id => id > 0).map((_, i) => i === 0 ? scRadar.api_id : gunMst.api_id),
+) {
+    const state = new GameState();
+    state.applyEvent('api_start2/getData', master);
+    state.applyEvent('api_get_member/require_info', {
+        api_slot_item: slots.filter(id => id > 0).map((id, i) => ({
+            api_id: id, api_slotitem_id: masterIds[i] ?? gunMst.api_id,
+            api_level: 0, api_alv: 0,
+        })),
+    });
+    const akashi = master.api_mst_ship.find((m: any) => m.api_id === 182);
+    state.applyEvent('api_port/port', {
+        api_ship: [{
+            api_id: 100, api_ship_id: 182, api_lv: 1, api_exp: [0, 0, 0],
+            api_nowhp: akashi.api_taik[0], api_maxhp: akashi.api_taik[0], api_cond: 49,
+            api_soku: akashi.api_soku, api_leng: akashi.api_leng,
+            api_slot: slots, api_onslot: onslot, api_slot_ex: 0,
+            api_kyouka: [0, 0, 0, 0, 0, 0, 0], api_locked: 1, api_sally_area: 0,
+            api_karyoku: [0, 0], api_raisou: [0, 0], api_taiku: [0, 0], api_soukou: [0, 0],
+            api_taisen: [0, 0], api_kaihi: [0, 0], api_sakuteki: [0, 0], api_lucky: [0, 0],
+        }],
+        api_deck_port: [{ api_ship: [100, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
+        api_ndock: [], api_material: [], api_basic: {}, api_count_kdock: 0, api_combined_flag: 0,
+    });
+    return state;
+}
+
+describe('裝備位置與面板視圖', () => {
+    it('SC 雷達改（後期調整型）沿用通用裝備路徑顯示', () => {
+        expect(scRadar.api_id).toBe(574);
+        const state = stateWithSlots([9001, 9002, -1, -1]);
+        const gear = state.fleets()[0].ships[0].gears[0];
+        expect(gear).toMatchObject({
+            mst: scRadar.api_id,
+            name: scRadar.api_name,
+            icon: scRadar.api_type[3],
+            cat: 'c-radar',
+            type: scRadar.api_type[2],
+        });
+        expect(state.ownedGears().find(g => g.mst === scRadar.api_id)).toMatchObject({
+            name: scRadar.api_name, icon: scRadar.api_type[3], catId: scRadar.api_type[2],
+        });
+    });
+
+    it('517 與 574 都沿用小型電探的通用 master／圖示路徑', () => {
+        expect(e27Radar.api_id).toBe(517);
+        expect(e27Radar.api_type).toEqual(scRadar.api_type);
+        const state = stateWithSlots([9101, 9102, -1, -1], [4, 18, 0, 0], [e27Radar.api_id, scRadar.api_id]);
+        const gears = state.fleets()[0].ships[0].gears;
+
+        expect(gears[0]).toMatchObject({
+            mst: e27Radar.api_id,
+            name: e27Radar.api_name,
+            icon: e27Radar.api_type[3],
+            cat: 'c-radar',
+            type: e27Radar.api_type[2],
+        });
+        expect(gears[1]).toMatchObject({
+            mst: scRadar.api_id,
+            icon: scRadar.api_type[3],
+            cat: 'c-radar',
+            type: scRadar.api_type[2],
+        });
+        expect(state.ownedGears().map(g => g.mst)).toEqual([e27Radar.api_id, scRadar.api_id]);
+    });
+
+    it('未驗證的編成局部快照只刷新已知且 master 一致的裝備，不覆蓋完整艦資料', () => {
+        const state = stateWithSlots([9202, -1, -1, -1], [4, 0, 0, 0], [scRadar.api_id]);
+        const originalShip = state.ships.get(100);
+        state.applyEvent('api_get_member/ship_deck', {
+            // 只有 id 的局部物件不能覆蓋掉 HP／裝備欄等完整資料。
+            api_ship_data: [{ api_id: 100 }],
+            api_slot_data: [{
+                api_id: '9202', api_slotitem_id: String(scRadar.api_id),
+                api_level: '2', api_alv: '1',
+            }],
+        });
+        expect(state.ships.get(100)).toBe(originalShip);
+        expect(state.fleets()[0].ships[0].gears[0]).toMatchObject({
+            mst: scRadar.api_id, level: 2, alv: 1, cat: 'c-radar',
+        });
+
+        // 同一實例若 master 對不上，整筆忽略，不改裝備歸屬。
+        state.applyEvent('api_get_member/ship_deck', {
+            api_slot_data: [{ api_id: '9202', api_slotitem_id: String(e27Radar.api_id), api_level: 7 }],
+        });
+        expect(state.slotItems.get(9202)).toMatchObject({ mst: scRadar.api_id, level: 2 });
+    });
+
+    it('局部裝備資料缺少有效熟練度時不會誤稱已完成校正', () => {
+        const state = stateWithSlots([9202, -1, -1, -1], [4, 0, 0, 0], [scRadar.api_id]);
+        (state as any).alvStaleGears.add(9202);
+
+        state.applyEvent('api_get_member/ship_deck', {
+            api_slot_data: [{
+                api_id: '9202', api_slotitem_id: String(scRadar.api_id),
+                api_level: '3', api_alv: 'invalid',
+            }],
+        });
+        expect(state.slotItems.get(9202)).toMatchObject({ level: 3, alv: 0 });
+        expect(state.alvStale).toBe(true);
+
+        state.applyEvent('api_get_member/ship_deck', {
+            api_slot_data: [{
+                api_id: '9202', api_slotitem_id: String(scRadar.api_id), api_alv: '2',
+            }],
+        });
+        expect(state.slotItems.get(9202)).toMatchObject({ level: 3, alv: 2 });
+        expect(state.alvStale).toBe(false);
+    });
+
+    it('只有未確認語意的任務獎勵 api_bounus 不會被誤當裝備實例', () => {
+        const state = stateWithSlots([-1, -1, -1, -1]);
+        state.applyEvent('api_req_quest/clearitemget', {
+            api_bounus: [{ api_type: 12, api_id: e27Radar.api_id, api_count: 1 }],
+        }, { api_quest_id: '9999' });
+        expect(state.slotItems.size).toBe(0);
+    });
+
+    it('未驗證的 slot_exchange_index 不猜索引語意，等待後續完整快照校正', () => {
+        const state = stateWithSlots([9001, 9002, -1, -1]);
+        state.applyEvent('api_req_kaisou/slot_exchange_index', { api_result: 1 }, {
+            api_id: '100', api_slot_idx: '0', api_slot_idx2: '1',
+        });
+
+        const ship = state.ships.get(100);
+        expect(ship.api_slot).toEqual([9001, 9002, -1, -1]);
+        expect(ship.api_onslot).toEqual([4, 18, 0, 0]);
+        expect(state.fleets()[0].ships[0].gears.map(g => g?.mst ?? 0)).toEqual([
+            scRadar.api_id, gunMst.api_id, 0,
+        ]);
+    });
+
+    it('缺少第二個交換索引時不猜位置、不改動既有投影', () => {
+        const state = stateWithSlots([9001, 9002, -1, -1]);
+        state.applyEvent('api_req_kaisou/slot_exchange_index', { api_result: 1 }, {
+            api_id: '100', api_slot_idx: '0',
+        });
+        expect(state.ships.get(100).api_slot).toEqual([9001, 9002, -1, -1]);
+    });
+});

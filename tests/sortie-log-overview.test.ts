@@ -108,6 +108,8 @@ describe('展開內容', () => {
         expect(html.match(/class="sl-node[ "]/g)).toHaveLength(5);
         expect(html).toContain(t('sortie.escortFleet'));
         expect(html).toContain(t('ov.replayCopy'));
+        expect(html).toContain('data-replay-open="500"');
+        expect(html).toContain(t('ov.replayOpen'));
     });
 
     it('沒有重播時只給摘要，並明講原因（不假裝那些資訊不存在）', () => {

@@ -11,6 +11,14 @@ export default defineConfig({
             // 反射任意 Origin（含 chrome-extension://）；正式建置不走此路徑。
             cors: true,
         },
+        build: {
+            // 不產 `<link rel="modulepreload">`。Vite 一律替預載標籤加上 `crossorigin`，
+            // 但擴充頁載入自家 chrome-extension:// 資源時的 fetch 模式對不上，Chrome 會在
+            // 每個頁面吐一則「A preload ... is not used because it is a cross-world
+            // extension resource mismatch」並白抓一次檔案。擴充頁的 chunk 都是本機檔案、
+            // 零網路延遲，預載本來就沒有價值——關掉即可，模組仍由 <script type="module"> 載入。
+            modulePreload: false,
+        },
     }),
     manifest: {
         default_locale: 'en',

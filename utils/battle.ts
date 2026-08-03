@@ -1,7 +1,7 @@
 // 輕量級戰鬥解析引擎 (純 TS)
 import {
     type BattleShipView, type BattleFleetView, type BattleInfoView,
-    type BattleEnemyShipView, type BattleSupportView,
+    type BattleEnemyShipView, type BattleSupportView, type BattleLbasView,
 } from './state';
 
 // ── 戰鬥評級預測 ──────────────────────────────────────────────
@@ -281,7 +281,7 @@ export function analyzeBattle(
     let friendlyFleetIds: number[] | null = null;
     // 基地航空隊逐波戰果（見 BattleLbasView）。夜戰封包不帶 api_air_base_attack，
     // 但 apiList 可能同時含晝夜兩則，故一律累積不覆寫。
-    const lbasWaves: { baseId: number; sent: number; lost: number; damage: number }[] = [];
+    const lbasWaves: BattleLbasView['waves'] = [];
     // 支援艦隊戰果（見 BattleSupportView）。
     let supportDamage = 0;
     let supportSource: Omit<BattleSupportView, 'damage'> | null = null;
@@ -295,13 +295,19 @@ export function analyzeBattle(
             for (const ph of api.api_air_base_attack) {
                 applyDmg(ph?.api_stage3?.api_edam, 'enemy');
                 applyDmg(ph?.api_stage3_combined?.api_edam, 'enemy', 6);
+                const s1 = ph?.api_stage1;
+                // 制空狀態只在「這一波真的有制空戰」時才有意義：雙方都沒出動艦載機時
+                // 遊戲照樣送 api_disp_seiku=1（真封包實證 samples/61-4.json），照抄會誤報
+                // 「確保」。判準與主隊航空戰同一條——兩軍機數合計為 0 就是沒有制空戰。
+                const hasAir = (Number(s1?.api_f_count) || 0) + (Number(s1?.api_e_count) || 0) > 0;
                 lbasWaves.push({
                     baseId: Number.isSafeInteger(ph?.api_base_id) ? ph.api_base_id : 0,
-                    sent: Math.max(0, Math.floor(ph?.api_stage1?.api_f_count ?? 0)),
+                    sent: Math.max(0, Math.floor(s1?.api_f_count ?? 0)),
                     // 制空戰（stage1）＋對空砲火（stage2）兩段損失都要算。
-                    lost: Math.max(0, Math.floor(ph?.api_stage1?.api_f_lostcount ?? 0))
+                    lost: Math.max(0, Math.floor(s1?.api_f_lostcount ?? 0))
                         + Math.max(0, Math.floor(ph?.api_stage2?.api_f_lostcount ?? 0)),
                     damage: sumDamage(ph?.api_stage3?.api_edam) + sumDamage(ph?.api_stage3_combined?.api_edam),
+                    seiku: hasAir && Number.isSafeInteger(s1?.api_disp_seiku) ? s1.api_disp_seiku : null,
                 });
             }
         // 噴式強襲（api_injection_kouku）→ 航空戰 → 二巡航空戰

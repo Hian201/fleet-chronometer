@@ -89,16 +89,28 @@ var BATTLEPLAYER = "https://kc3kai.github.io/kancolle-replay/battleplayer.html";
 var DIFF = { 1: "甲", 2: "乙", 3: "丙", 4: "丁" };
 
 // utils/replay.ts toKc3Replay() 的內聯版（欄位命名對齊 KC3Kai）。
+function repairLegacyFleet(row) {
+  if (!(row.combined > 0) || row.fleetnum === 1) return row;
+  var fleet = row.fleetnum === 2 ? row.fleet2 : row.fleetnum === 3 ? row.fleet3 : row.fleetnum === 4 ? row.fleet4 : null;
+  if (!fleet || !fleet.length || !fleet.every(function (s) {
+    return Number.isFinite(s.nowhp) && Number.isFinite(s.maxhp) && s.nowhp >= 0 && s.maxhp > 0;
+  })) return row;
+  return Object.assign({}, row, { combined: 0, fleet1: fleet, fleet2: [] });
+}
 function toKc3(row) {
+  row = repairLegacyFleet(row);
+  var playerFleetnum = row.combined === 0 ? 1 : row.fleetnum;
   var ship = function (s) {
-    return { mst_id: s.mst_id, lv: s.lv, equip: s.equip, stars: s.stars, ace: s.ace,
+    return { mst_id: s.mst_id, lv: s.lv, level: s.lv, equip: s.equip, stars: s.stars, ace: s.ace,
              exequip: s.exequip, nowhps: s.nowhp, maxhps: s.maxhp };
   };
   return {
-    version: 4, combined: row.combined, fleetnum: row.fleetnum,
+    version: 4, combined: row.combined, fleetnum: playerFleetnum,
+    ...(playerFleetnum !== row.fleetnum ? { sourceFleetnum: row.fleetnum } : {}),
     fleet1: (row.fleet1 || []).map(ship), fleet2: (row.fleet2 || []).map(ship),
-    battles: (row.battles || []).map(function (b) { return { node: b.node, data: b.data, yasen: b.yasen || null }; }),
-    world: row.world, mapnum: row.mapnum, diff: row.diff, time: row.ts, hq: row.nickname
+    // KC3Kai 對沒有夜戰的節點仍要求空物件；null 會讓 player.js 的 Object.keys() 中止。
+    battles: (row.battles || []).map(function (b) { return { node: b.node, data: b.data, yasen: b.yasen || {} }; }),
+    world: row.world, mapnum: row.mapnum, diff: row.diff, time: Math.floor(row.ts / 1000), hq: row.nickname
   };
 }
 
@@ -155,13 +167,15 @@ function render() {
   out.querySelectorAll("button[data-open]").forEach(function (b) {
     b.addEventListener("click", function () {
       var obj = toKc3(rows[+b.getAttribute("data-open")]);
-      // battleplayer 支援以 URL hash 帶入重播資料；長度過大時退回「先複製、再開空白頁貼上」。
+      // battleplayer 原生支援以 URL hash 帶入重播資料；fragment 不會隨 HTTP request 上傳。
       var payload = encodeURIComponent(JSON.stringify(obj));
       var url = BATTLEPLAYER + "#" + payload;
-      if (url.length < 30000) { window.open(url, "_blank"); return; }
+      if (url.length < 30000) { window.open(url, "_blank", "noopener"); return; }
+      // 先在使用者手勢內開頁，避免等待剪貼簿後被 popup blocker 擋下。
+      window.open(BATTLEPLAYER, "_blank", "noopener");
       navigator.clipboard.writeText(JSON.stringify(obj)).then(function () {
-        window.open(BATTLEPLAYER, "_blank");
-        alert("此場資料較大，已複製 battleplayer 物件到剪貼簿——在開啟的重播頁貼上即可。");
+        var t = b.textContent; b.textContent = "已複製，請貼入重播器 ✓";
+        setTimeout(function () { b.textContent = t; }, 1800);
       });
     });
   });

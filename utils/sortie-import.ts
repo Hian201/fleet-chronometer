@@ -242,7 +242,7 @@ function validateBattlePacket(value: unknown, where: string): UnknownRecord {
     return packet;
 }
 
-/** `time` 可能是秒（KC3Kai）或毫秒（本專案匯出）。以 1e12 為界換算。 */
+/** `time` 可能是秒（KC3Kai／現行輸出）或毫秒（本專案舊輸出）。以 1e12 為界換算。 */
 export function normalizeTime(value: unknown): number | null {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) return null;
     const normalized = value < 1e12 ? value * 1000 : value;
@@ -256,7 +256,7 @@ export function normalizeTime(value: unknown): number | null {
 function normalizeShip(rawValue: unknown, where: string, format: ImportFormat, hp?: { now: number; max: number }): ReplayShip | ReplaySupportShip {
     const raw = objectAt(rawValue, where);
     const allowed = format === 'fleet-chronometer'
-        ? ['mst_id', 'lv', 'equip', 'stars', 'ace', 'exequip', 'nowhps', 'maxhps']
+        ? ['mst_id', 'lv', 'level', 'equip', 'stars', 'ace', 'exequip', 'nowhps', 'maxhps']
         : ['mst_id', 'level', 'morale', 'stats', 'kyouka', 'effect', 'equip', 'stars', 'ace', 'exequip'];
     assertOnlyKeys(raw, allowed, where);
     const equip = integerArrayAt(raw.equip, `${where}.equip`, -1);
@@ -267,6 +267,10 @@ function normalizeShip(rawValue: unknown, where: string, format: ImportFormat, h
     }
     const mst_id = integerAt(raw.mst_id, `${where}.mst_id`, 1);
     const lv = integerAt(raw[format === 'fleet-chronometer' ? 'lv' : 'level'], `${where}.${format === 'fleet-chronometer' ? 'lv' : 'level'}`, 1);
+    if (format === 'fleet-chronometer' && raw.level !== undefined
+        && integerAt(raw.level, `${where}.level`, 1) !== lv) {
+        fail(`${where}.level`, '必須與 lv 相同。');
+    }
     const exequip = raw.exequip === undefined && format === 'kc3kai'
         ? -1 : integerAt(raw.exequip, `${where}.exequip`, -1);
     const common = {
@@ -346,7 +350,7 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
     const format = detectFormat(raw);
     if (format === 'fleet-chronometer') {
         assertOnlyKeys(raw, [
-            'version', 'combined', 'fleetnum', 'fleet1', 'fleet2', 'battles',
+            'version', 'combined', 'fleetnum', 'sourceFleetnum', 'fleet1', 'fleet2', 'battles',
             'world', 'mapnum', 'diff', 'time', 'hq',
         ], 'JSON');
         integerAt(raw.version, 'version', 4, 4);
@@ -364,7 +368,13 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
     const mapnum = integerAt(raw.mapnum, 'mapnum', 1);
     const diff = integerAt(raw.diff, 'diff', 0, 4);
     const combinedFlag = integerAt(raw.combined, 'combined', 0, 3);
-    const fleetnum = integerAt(raw.fleetnum, 'fleetnum', 1, 4);
+    const playerFleetnum = integerAt(raw.fleetnum, 'fleetnum', 1, 4);
+    const fleetnum = format === 'fleet-chronometer' && raw.sourceFleetnum !== undefined
+        ? integerAt(raw.sourceFleetnum, 'sourceFleetnum', 2, 4)
+        : playerFleetnum;
+    if (raw.sourceFleetnum !== undefined && (playerFleetnum !== 1 || combinedFlag !== 0)) {
+        fail('fleetnum', '帶 sourceFleetnum 時必須是 KC3Kai 可播放的單一第1艦隊格式。');
+    }
     const ts = normalizeTime(raw.time) ?? fail('time', '必須是正的有限秒／毫秒時間戳。');
     const rawBattles = arrayAt(raw.battles, 'battles');
     if (rawBattles.length === 0) fail('battles', '至少要有一個戰鬥節點。');
@@ -387,8 +397,11 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
         const data = validateBattlePacket(entry.data, `${where}.data`);
         let yasen: UnknownRecord | undefined;
         if (format === 'fleet-chronometer') {
-            if (entry.yasen !== null && entry.yasen !== undefined) {
+            if (hasApiObject(entry.yasen)) {
                 yasen = validateBattlePacket(entry.yasen, `${where}.yasen`);
+            } else if (entry.yasen !== null && entry.yasen !== undefined
+                && (!isPlainObject(entry.yasen) || Object.keys(entry.yasen).length > 0)) {
+                fail(`${where}.yasen`, '必須是 null、空物件或戰鬥封包。');
             }
         } else if (hasApiObject(entry.yasen)) {
             yasen = validateBattlePacket(entry.yasen, `${where}.yasen`);
@@ -411,10 +424,17 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
             if (!['SS', 'S', 'A', 'B', 'C', 'D', 'E'].includes(rating)) fail(`${where}.rating`, '不是支援的 rank。');
             dropMst = integerAt(entry.drop, `${where}.drop`, 0);
             mvp = integerArrayAt(entry.mvp, `${where}.mvp`, 0, 7);
-            if (mvp.length !== 2) fail(`${where}.mvp`, '必須是 [主隊, 隨伴] 兩個位置。');
+            // KC3Kai 單艦隊真實匯出同時存在 [主隊] 與 [主隊, 預設值] 兩種形狀；連合艦隊
+            // 才要求第二個隨伴位置。單艦隊的第二值不視為參戰事實，寫入時會忽略。
+            if (mvp.length < 1 || mvp.length > 2 || (combinedFlag > 0 && mvp.length !== 2)) {
+                fail(`${where}.mvp`, combinedFlag > 0
+                    ? '連合艦隊必須是 [主隊, 隨伴] 兩個位置。'
+                    : '單艦隊必須是 [主隊] 或 [主隊, 預設值]。');
+            }
             hqExp = integerAt(entry.hqEXP, `${where}.hqEXP`, 0);
             baseExp = integerAt(entry.baseEXP, `${where}.baseEXP`, 0);
-            boss = entry.boss === undefined ? false : booleanAt(entry.boss, `${where}.boss`);
+            // KC3Kai 真實紀錄會以 null 表示未標 boss，語意等同 false。
+            boss = entry.boss == null ? false : booleanAt(entry.boss, `${where}.boss`);
         }
         return {
             node, data,
@@ -437,10 +457,16 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
 
     const fleet1 = normalizeFleet(raw.fleet1, 'fleet1', format,
         format === 'kc3kai' ? mainHps : undefined, 1) as ReplayShip[];
-    const fleet2 = normalizeFleet(raw.fleet2, 'fleet2', format,
+    const sourceFleet2 = normalizeFleet(raw.fleet2, 'fleet2', format,
         format === 'kc3kai' ? escortHps ?? undefined : undefined,
         combinedFlag > 0 ? 1 : 0) as ReplayShip[];
-    if (combinedFlag === 0 && fleet2.length > 0) fail('fleet2', '單艦隊格式必須是空陣列。');
+    if (format === 'fleet-chronometer' && combinedFlag === 0 && sourceFleet2.length > 0) {
+        fail('fleet2', '單艦隊格式必須是空陣列。');
+    }
+    // KC3Kai logger 即使是單艦隊出擊，也可能把母港的第2艦隊快照放在 fleet2（真實
+    // fixture samples/61-4.json 即為 combined=0、fleet2 有值）。那不是本次出擊的隨伴，
+    // 只做格式驗證後捨棄；不可拒絕整份真實紀錄，也不可誤存成參戰艦隊。
+    const fleet2 = combinedFlag > 0 ? sourceFleet2 : [];
 
     const replay: ReplayRow = {
         sortieKey: 0, ts,

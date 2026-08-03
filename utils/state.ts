@@ -27,9 +27,16 @@ const EXPEDITION_DATA = RAW_EXPED as ExpedEntry[];
 // type：裝備類別 id（api_type[2]，`api_mst_slotitem_equiptype` 的 id）。cat 是圖示退路用的
 // CSS class 字串、icon 是 api_type[3]，兩者都答不了「這顆是不是ソナー／甲標的」，
 // 而先制對潛與開幕雷擊的判定正需要類別 id，故獨立一欄。master 未載入時為 0。
-export interface GearView { mst: number; name: string; short: string; cat: string; type: number; asw: number; icon: number; level: number; alv: number; count?: number; countMax?: number }
+// countEst：`count`（搭載數）是出擊途中的**估算值**而非封包實數（見
+// GameState.queuePlaneLoss／spreadPlaneLoss）。UI 必須據此標示，回港後即恢復為 false。
+export interface GearView { mst: number; name: string; short: string; cat: string; type: number; asw: number; icon: number; level: number; alv: number; count?: number; countMax?: number; countEst?: boolean }
 export interface ShipView {
-    name: string; stype: string; lv: number; hp: number; maxhp: number; cond: number;
+    name: string;
+    // nameJa：封包原始日文艦名（api_mst_ship 的 api_name）。面板以譯名顯示，hover 才
+    // 給原名——譯名查得到的船在遊戲畫面上長的是原名，對照時需要看得到它。master 未載入
+    // 時退回 name（不留空字串，避免 tooltip 顯示成空白）。
+    nameJa: string;
+    stype: string; lv: number; hp: number; maxhp: number; cond: number;
     fuel: number; maxFuel: number; bull: number; maxBull: number;
     // mst／stypeId：艦 master id 與艦種 id。面板原本只有艦種縮寫字串，無法判定
     // 「這艘是不是明石／野埼」，泊地修理與給糧範圍計算需要，故補上原始 id。
@@ -294,8 +301,13 @@ export interface BattleLbasView {
     lost: number;
     /** 對敵造成的傷害合計。 */
     damage: number;
-    /** 逐波明細（順序即封包順序），供面板 tooltip 展開。 */
-    waves: { baseId: number; sent: number; lost: number; damage: number }[];
+    /**
+     * 逐波明細（順序即封包順序），供面板 tooltip 展開。
+     * `seiku`＝該波的制空狀態（`api_stage1.api_disp_seiku`，0互角/1確保/2優勢/3劣勢/4喪失）；
+     * `null`＝這一波沒有制空戰（雙方都沒出動艦載機時遊戲照樣送 `api_disp_seiku: 1`，
+     * 直接照抄會誤報「確保」，判準與主隊航空戰一致：兩軍機數合計為 0 就是沒有航空戰）。
+     */
+    waves: { baseId: number; sent: number; lost: number; damage: number; seiku: number | null }[];
 }
 export interface SortieNode {
     id: number;
@@ -413,6 +425,12 @@ export interface RetreatAvailability {
     /** 成立的是哪一顆司令部；`state === 'none'` 時為 null。 */
     kind: RetreatFacilityKind | null;
 }
+/**
+ * 退避位置（結算封包的 1-based 位置）解出來的「哪一艘、在哪一隊的第幾格」。
+ * escapedShipIds 與 battleInfo.resultFleets 兩邊都要標到同一格，故一起帶著走
+ * （見 GameState.shipAtSortiePos 的說明）。
+ */
+interface EscapeSlot { id: number; escort: boolean; index: number }
 export interface MissionView { fleet: string; missionId: number; dispNo: string; name: string; completeAt: number }
 export interface NdockView { ship: string; completeAt: number }
 // state：-1=未解鎖、0=空塢、2=建造中、3=建造完成待領取（已用真實 api_get_member/kdock 封包驗證）
@@ -479,6 +497,28 @@ function stypeName(id: number): string {
 // 顯示搭載機數」；比制空計算用的子集（僅戰/爆/攻）寬，因為搭載數對偵察機等
 // 也有意義。陸攻系（47-49）不會裝在艦上，不列。
 const AIRCRAFT_CATS = new Set([6, 7, 8, 9, 10, 11, 25, 26, 41, 45, 56, 57, 58, 59]);
+
+// 會在航空戰（制空戰 stage1 ／對空砲火 stage2）折損的艦載機類別，即實際出擊參戰的
+// 那幾類：6艦戰 7艦爆 8艦攻 11水爆 45水戰 56-58噴式機。偵察機系（9艦偵/10水偵/
+// 41大艇）與對潛機系（25回轉翼/26對潛哨戒）只做觸接／索敵／對潛，不編入航空戰的
+// 出擊機數，故不分攤損失。**這是機制轉寫（wikiwiki 航空戰頁），非封包欄位事實**，
+// 只用於 spreadPlaneLoss 的估算分攤（見該方法說明）。
+const AIR_COMBAT_CATS = new Set([6, 7, 8, 11, 45, 56, 57, 58]);
+
+// 制空値の「機種類型加成」對象（`BONUS_F`／`BONUS_SPB` 查表，依熟練度階級）。
+// 依日wiki「艦載機熟練度」：**艦戦・水戦・陸戦・局戦**吃戰鬥機表、**水爆**吃水爆表，
+// **艦攻・艦爆・噴式機・陸攻・全偵察機一律 0**。
+//
+// ⚠️ 這裡曾經錯得很嚴重，別改回去：舊碼寫成 `t===6||45||56||57` 並在註解標成
+// 「局戦(56), 陸戦(57)」——但 56／57 是**噴式戦闘機／噴式戦闘爆撃機**，真正的局地戦闘機
+// 是 **48**。後果有兩個方向：(a) 雷電・紫電改・隼・Spitfire 等 31 種局戦**整批沒有計入
+// 基地航空隊制空**（連本體対空都沒算，不只是熟練度加成）；(b) 噴式機反而被多給了最高
+// +22 的戰鬥機加成。
+const AIR_TB_FIGHTER = new Set([6, 45, 48]);   // 艦戦・水戦・局戦（＝陸戦）
+const AIR_TB_SEAPLANE_BOMBER = 11;             // 水爆
+// 制空値の改修★補正：艦戦・水戦・局戦 +0.2×★、艦爆 +0.25×★。噴式機的★補正**未經
+// 查證**，維持與修正前相同的 0.2×★（這次只動機種類型加成，不順手改動改修補正）。
+const AIR_IMP_FIGHTER = new Set([6, 45, 48, 56, 57]);
 
 // 艦種 id → 英文縮寫（艦名前綴用）
 const STYPE_ABBR: Record<number, string> = {
@@ -633,11 +673,14 @@ export class GameState {
     // 第三十一戦隊駆逐艦の出撃」。**活動期間 start2 就會帶當次活動的全部海域**，比 runtime
     // 的 api_get_member/mapinfo 更早可用（後者要玩家開過海域畫面才有）。
     masterMapInfo = new Map<number, { area: number; no: number; name: string; opetext: string }>();
-    mapBossHp = new Map<number, number>();          // key 同上：boss旗艦最大HP（實戰擷取，估剩餘次數用）
+    // 同一活動海域可能有多個 Boss 節點；保存已實戰觀測到的最高旗艦 HP，避免後打到的
+    // 較低 HP 旁支 Boss 把斬殺線覆蓋掉。面板重開時會由持久化 replays＋sorties 恢復。
+    mapBossHp = new Map<number, number>();          // key 同上：已觀測 Boss 旗艦最大HP
     private mapinfoSampleCount = 0;   // EO api_sally_flag 樣本擷取次數上限（見 wantedTag）
     private sallySampleCount = 0;     // 出擊標籤（api_sally_area>0）樣本擷取次數上限（見 wantedTag）
     private sallyKeySampleCount = 0;  // 未知 sally 系欄位樣本擷取次數上限（標籤名驗證鉤子）
     private hokyuSampleCount = 0;     // 七艘（遊撃部隊）艦隊全補給樣本擷取次數上限（見 wantedTag）
+    private slotDataSampleCount = 0;  // 編成／改裝端點帶 api_slot_data 的樣本擷取次數上限（熟練度驗證鉤子）
     // 工廠分頁的「最新結果」看板（開發/改修/建造發起）。EventProjector 在對應事件到達時
     // 讀取這些 view 歸檔進 db.factory（消化後摘要，同 sorties 設計）。
     lastDevelop: DevelopView | null = null;
@@ -655,6 +698,10 @@ export class GameState {
     // 本節點各戰待套用的燃彈消耗費率。出擊途中先不寫回（面板維持戰前油彈，與遊戲戰鬥畫面一致），
     // 直到 battleresult 結算畫面才一併套用（見 battle 分支說明）。
     private pendingConsumption: { fuelRate: number; bullRate: number; nightAmmoBoost: boolean; hasEscort: boolean }[] = [];
+    // 本節點各航空戰段待套用的艦載機損失架數（與 pendingConsumption 同一個 pattern，
+    // 生命週期也完全一致）。**交戰途中不寫回**：寫回會讓編成的制空在打到一半時往下掉，
+    // 但戰鬥中要看的正是「這一場交戰時的制空」。結算（battleresult）才逐段套用。
+    private pendingPlaneLoss: number[] = [];
     // 応急修理要員／女神本場出擊已觸發過的艦（key: 艦實例 id）。遊戲不會在節點之間重送裝備
     // 欄位，故 getDamecon() 單看目前裝備欄位無法分辨「還沒用過」與「已經用掉、封包只是還沒
     // 反映」——同一艘船在下個節點又被打到 0 血時會誤判成再次獲救（甚至連帶壓下大破警告，見
@@ -675,10 +722,50 @@ export class GameState {
     // api_tow_idx、退避端點 goback_port）依社群工具慣例轉寫，故解析一律防禦性——只收
     // 明確落在合理範圍的整數，缺欄位就什麼都不標（寧可少標而繼續示警，也不猜哪艘船
     // 退避了）。wantedTag 已埋擷取鉤子，下次真的退避時自動撈樣本回來定案。
+    // 索引基準（1-based、連合時 7-12 為隨伴）已由一次實機回報反推佐證，見 parseEscapeIdx。
     escapedShipIds = new Set<number>();
-    // 最近一次 battleresult 提供的退避候補位置（1-based），要等 goback_port 才算數：
-    // 遊戲會先在結算畫面「提供」退避選項，玩家按了才真的退避。
-    private pendingEscape: number[] | null = null;
+    // 最近一次 battleresult 提供的退避**候補**位置（1-based），要等 goback_port 才算數：
+    // 遊戲會先在結算畫面「提供」退避選項，玩家按了才真的退避。候補不等於實際退避的船，
+    // 收斂規則見 resolveEscape()。
+    private pendingEscape: { escape: number[]; tow: number[] } | null = null;
+
+    // ── 出擊途中的艦載機戰損（估算）──────────────────────────────────────
+    // 本次出擊已被 spreadPlaneLoss 估算調整過搭載數的艦（艦實例 id）。這批艦的
+    // api_onslot 已經不是封包實數而是估算值，UI 必須標示（見 ShipView.gears 的
+    // GearView.countEst）。api_req_map/start 與 api_port/port 清空——回港的
+    // api_port/port 會帶實數搭載，那一刻起又是封包事實。
+    private planeLossEstimated = new Set<number>();
+
+    // ── 熟練度（api_alv）過時旗標 ────────────────────────────────────────
+    // 艦載機被擊墜之後熟練度會下降，制空值跟著掉（`airPower()` 的 BONUS_F／EXP_LO/HI
+    // 三項都吃 alv）。但**沒有任何一個出擊中／回港的封包帶熟練度**：已逐一查證
+    // `api_port/port`（samples/slot_to_port.json：只有 api_ship，無 slotitem）與
+    // `battleresult`（samples/6-5-ec_result.json：只有 rank/掉落/經驗/MVP）皆不帶。
+    // `slotItems` 只有 `api_get_member/require_info`（登入）與
+    // `api_get_member/slot_item`（開裝備畫面等）會整批刷新。
+    //
+    // 也就是說：撈完回港之後，遊戲裡的熟練度已經掉了，本擴充卻還握著出擊前那份，
+    // **制空會顯示偏高的舊值，直到遊戲再送一次帶裝備資料的封包**。
+    //
+    // 這個集合記的是「熟練度可能已經不準」的**裝備實例 id**（逐格而非逐艦，也不是全域
+    // 旗標）：哪幾格真的被擊墜過就只標那幾格，refresh 回來一格就消一格，故
+    // `api_get_member/ship_deck` 這種**只回一隊**的部分刷新也能如實收斂——標成全域旗標的話，
+    // 開過編成畫面的那一隊會跟著沒開過的那一隊一起繼續掛著警示。
+    //
+    // ⚠️ 刻意**不推算掉了多少**：制空公式本身早就實作好了（見 airPower()，與遊戲公式逐項
+    // 對得上），缺的是**輸入值 alv**——熟練度下降是機率性的，本專案沒有可驗證的來源可以
+    // 轉寫（見 CLAUDE.md 驗證原則）。誠實標示「這個數字可能偏高、開一次編成畫面即校正」
+    // 比憑空掰一個下降量誠實。
+    private alvStaleGears = new Set<number>();
+    /** 任何一格的熟練度可能已過時（＝制空可能偏高）。 */
+    get alvStale(): boolean { return this.alvStaleGears.size > 0; }
+
+    // 出擊當下各艦載機格的搭載數（裝備實例 id → 架數）。**熟練度是在「回港那一刻」依
+    // 「出撃時の残数 vs 帰投時の残数」結算的**（日wiki 艦載機熟練度），不是每場戰鬥即時
+    // 掉——所以出擊途中我們手上的 alv 其實還是對的，回港才開始不準。兩端的搭載數都要
+    // 留著才比得出來：出擊時這一份是母港封包的實數（尚未被 spreadPlaneLoss 的估算動過），
+    // 回港那一份直接取母港封包。api_req_map/start 重建，回港結算完清空。
+    private sortieStartOnslot = new Map<number, number>();
 
     // ── 抵達 boss 節點當下的大破狀態 ────────────────────────────────────
     // `null`＝這次出擊還沒踏進 boss 節點（也包含面板中途才開、沒看到那一步的情況）。
@@ -724,6 +811,133 @@ export class GameState {
     private static hasEscortFleet(api: any) {
         return Array.isArray(api?.api_f_nowhps_combined) && api.api_f_nowhps_combined.length > 0;
     }
+
+    /** 只接受非負的整數槽位；未知欄位不應被轉成 0 而誤改狀態。 */
+    private static slotIndex(value: unknown): number | null {
+        if (value == null || String(value).trim() === '') return null;
+        const n = Number(value);
+        return Number.isSafeInteger(n) && n >= 0 ? n : null;
+    }
+
+    /** 同步交換裝備實例與對應搭載數，確保艦載機換位後制空資料仍跟著槽位走。 */
+    private swapShipSlots(ship: any, first: number, second: number): boolean {
+        const slots = ship?.api_slot;
+        if (!Array.isArray(slots) || first === second
+            || first < 0 || second < 0 || first >= slots.length || second >= slots.length) return false;
+        [slots[first], slots[second]] = [slots[second], slots[first]];
+
+        const onslot = ship.api_onslot;
+        if (Array.isArray(onslot) && first < onslot.length && second < onslot.length)
+            [onslot[first], onslot[second]] = [onslot[second], onslot[first]];
+        return true;
+    }
+
+    /** 裝備／艦／艦隊實例 id 一律正規化成正整數，避免封包字串鍵與 Map 數字鍵分裂。 */
+    private static positiveId(value: unknown): number | null {
+        if (value == null || typeof value === 'boolean'
+            || (typeof value === 'string' && value.trim() === '')) return null;
+        const n = Number(value);
+        return Number.isSafeInteger(n) && n > 0 ? n : null;
+    }
+
+    /** 僅接受明確的非負整數；缺席或格式不明都回 null。 */
+    private static nonNegativeIntOrNull(value: unknown): number | null {
+        if (value == null || typeof value === 'boolean'
+            || (typeof value === 'string' && value.trim() === '')) return null;
+        const n = Number(value);
+        return Number.isSafeInteger(n) && n >= 0 ? n : null;
+    }
+
+    /** 缺席欄位沿用既有值；有值但格式不明時也不以猜測值覆蓋。 */
+    private static nonNegativeInt(value: unknown, fallback: number): number {
+        return GameState.nonNegativeIntOrNull(value) ?? fallback;
+    }
+
+    /** 接受明確的陣列或單筆物件；不把未知物件的欄位順序當成資料語意。 */
+    private static recordList(value: unknown): any[] | null {
+        if (Array.isArray(value)) return value;
+        return value && typeof value === 'object' ? [value] : null;
+    }
+
+    /** 只寫入同一筆同時帶有裝備實例 id 與 master id 的資料。 */
+    private upsertSlotItem(record: any): number | null {
+        const id = GameState.positiveId(record?.api_id);
+        const mst = GameState.positiveId(record?.api_slotitem_id);
+        if (id == null || mst == null) return null;
+
+        const previous = this.slotItems.get(id);
+        const parsedLevel = GameState.nonNegativeIntOrNull(record.api_level);
+        const parsedAlv = GameState.nonNegativeIntOrNull(record.api_alv);
+        const level = parsedLevel ?? previous?.level ?? 0;
+        const alv = parsedAlv ?? previous?.alv ?? 0;
+        this.slotItems.set(id, { mst, level, alv });
+        // 只有封包明確送出有效熟練度時才算完成校正；僅有 id/master 或改修值的局部資料
+        // 不能證明既有熟練度仍正確。
+        if (parsedAlv != null) this.alvStaleGears.delete(id);
+        return id;
+    }
+
+    /**
+     * 裝備實例的唯一共用入口。整批資料才允許 replace；編成／改裝等局部資料只合併，
+     * 並且整批必須先通過「每筆都有正確 api_id＋api_slotitem_id」的檢查，避免半猜半寫。
+     */
+    private ingestSlotItems(value: unknown, replace = false): boolean {
+        const list = GameState.recordList(value);
+        if (!list || !list.every((it: any) => it && typeof it === 'object'
+            && GameState.positiveId(it.api_id) != null
+            && GameState.positiveId(it.api_slotitem_id) != null)) return false;
+
+        if (replace) {
+            this.slotItems.clear();
+            this.alvStaleGears.clear();
+        }
+        for (const it of list) this.upsertSlotItem(it);
+        return true;
+    }
+
+    /**
+     * 尚未取得真封包的局部 `api_slot_data` 只用來刷新**既有且 master id 一致**的裝備。
+     * 不新增實例、不改變 master 歸屬，避免把社群慣例欄位直接升格成權威裝備庫。
+     */
+    private refreshKnownSlotItems(value: unknown): boolean {
+        const list = GameState.recordList(value);
+        if (!list || !list.every((it: any) => it && typeof it === 'object'
+            && GameState.positiveId(it.api_id) != null
+            && GameState.positiveId(it.api_slotitem_id) != null)) return false;
+        let refreshed = false;
+        for (const record of list) {
+            const id = GameState.positiveId(record.api_id)!;
+            const mst = GameState.positiveId(record.api_slotitem_id)!;
+            const previous = this.slotItems.get(id);
+            if (!previous || previous.mst !== mst) continue;
+            const level = GameState.nonNegativeIntOrNull(record.api_level);
+            const alv = GameState.nonNegativeIntOrNull(record.api_alv);
+            if (level == null && alv == null) continue;
+            if (level != null) previous.level = level;
+            if (alv != null) {
+                previous.alv = alv;
+                this.alvStaleGears.delete(id);
+            }
+            refreshed = true;
+        }
+        return refreshed;
+    }
+
+    /** 只接受帶 api_id 的艦娘局部資料；Map key 正規化，payload 本身保留原始欄位。 */
+    private ingestShips(value: unknown): boolean {
+        const list = GameState.recordList(value);
+        if (!list || !list.every((s: any) => s && typeof s === 'object'
+            && GameState.positiveId(s.api_id) != null)) return false;
+        for (const s of list) {
+            const id = GameState.positiveId(s.api_id);
+            if (id != null) this.ships.set(id, s);
+        }
+        return true;
+    }
+
+    // 刻意**沒有** ingestDecks()：目前唯一會帶局部艦隊物件的端點（ship_deck／ship2／ship3）
+    // 還沒有真封包樣本，那些分支一律不動 decks（見該分支說明）。艦隊只由已驗證的
+    // api_port/port 整批覆蓋，別為了「以後也許用得到」先留一支沒人呼叫的寫入路徑。
 
     // ts：該封包的擷取時間戳。replay 時必須帶入原始 event.ts，否則泊地修理計時器會被
     // 重播當下的時間污染；live 事件未帶時退回 Date.now()。
@@ -864,14 +1078,28 @@ export class GameState {
                 });
         } else if (path === 'api_get_member/require_info' || path === 'api_get_member/slot_item') {
             const list = api.api_slot_item ?? api;
-            if (Array.isArray(list) && list.every((it: any) => 'api_slotitem_id' in it)) {
-                this.slotItems.clear();
-                for (const it of list)
-                    this.slotItems.set(it.api_id, { mst: it.api_slotitem_id, level: it.api_level ?? 0, alv: it.api_alv ?? 0 });
-            }
+            // 整批刷新＝所有格的熟練度都回到封包事實。**不可在 api_port/port 歸零**：
+            // 回港封包根本不帶裝備資料，歸在那裡等於謊稱已校正（見 alvStaleGears）。
+            // ingestSlotItems 只有整批形狀完整時才會清 map，並同時清掉整批過時標記。
+            this.ingestSlotItems(list, true);
             // 登入必送的 require_info 也帶 api_kdock（KC3/poi 一登入就能顯示建造渠的資料源）。
             // 防禦性讀取：欄位存在才覆蓋，避免 slot_item 端點（無此欄位）誤清空。
             if (Array.isArray(api.api_kdock)) this.kdockData = api.api_kdock;
+        } else if (path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
+            || path === 'api_get_member/ship2') {
+            // 開「編成」／「改裝」畫面時遊戲送的端點，回應帶 `api_slot_data`（裝備實例，
+            // **含 api_alv 熟練度**）。這是出擊之後**最早**能把真實熟練度拿回來的機會：
+            // 回港的 api_port/port 不帶裝備資料，而玩家撈完幾乎一定會去看一次編成，
+            // 不必等他碰巧開裝備庫（見 alvStaleGears）。
+            //
+            // ⚠️ **本專案尚無這三個端點的真封包樣本**（wantedTag 已埋鉤子），欄位名依社群
+            // 工具慣例推定，故一律防禦性：形狀對不上就整段不做事，不會弄壞既有狀態。
+            // 這幾個端點只回「這次要顯示的那些」裝備而非全量，故**逐筆合併、不 clear**，
+            // 也只消掉真的被刷新到的那幾格的過時標記。
+            // 船／艦隊欄位形狀尚未有真封包，不能用只有 api_id 的局部物件覆蓋完整狀態。
+            // 原始事件仍會保存，等後續已驗證的 port 等快照校正。
+            const list = GameState.recordList(api?.api_slot_data);
+            if (list?.length) this.refreshKnownSlotItems(list);
         } else if (path === 'api_get_member/kdock') {
             // 建造渠狀態：api_port/port 只帶解鎖數（api_count_kdock），不含每個渠的即時狀態。
             // 這個端點是「動作觸發」而非「進畫面觸發」——已實測：單純進工廠/點建造分頁不會送，
@@ -912,9 +1140,8 @@ export class GameState {
             // 建造完成領取：回應本身就帶更新後的 api_kdock（該渠回到 state 0）＋新船 api_ship＋
             // 隨船裝備 api_slotitem，面板可立即反映，不用等下次 api_port/port 才刷新。已用真實封包驗證。
             if (Array.isArray(api.api_kdock)) this.kdockData = api.api_kdock;
-            if (api.api_ship) this.ships.set(api.api_ship.api_id, api.api_ship);
-            for (const it of api.api_slotitem ?? [])
-                this.slotItems.set(it.api_id, { mst: it.api_slotitem_id, level: it.api_level ?? 0, alv: it.api_alv ?? 0 });
+            this.ingestShips(api.api_ship);
+            this.ingestSlotItems(api.api_slotitem);
         } else if (path === 'api_req_kousyou/createship_speedchange' && req) {
             // 高速建造材：response 不帶任何資料，只能靠 req.api_kdock_id（已用真實封包驗證）
             // 找到對應渠，直接標記為完成待領取（state 3, complete_time 0）。領取仍走 getship 分支。
@@ -938,8 +1165,7 @@ export class GameState {
             const results: { mst: number }[] = [];
             for (const it of items) {
                 const mst = Number(it?.api_slotitem_id ?? -1);
-                if (it?.api_id > 0 && mst > 0)
-                    this.slotItems.set(it.api_id, { mst, level: 0, alv: 0 });
+                this.upsertSlotItem(it);
                 results.push({ mst: mst > 0 ? mst : -1 });
             }
             const used = this.updateMaterials(api?.api_material);
@@ -957,16 +1183,18 @@ export class GameState {
             const before = this.slotItems.get(Number(req.api_slot_id ?? 0));
             const levelBefore = before?.level ?? 0;
             const after = api?.api_after_slot;
-            if (after?.api_id > 0)
-                this.slotItems.set(after.api_id, { mst: after.api_slotitem_id, level: after.api_level ?? 0, alv: after.api_alv ?? 0 });
-            for (const cid of api?.api_use_slot_id ?? [])
-                if (cid > 0) this.slotItems.delete(cid);
+            const afterId = this.upsertSlotItem(after);
+            const afterItem = afterId == null ? undefined : this.slotItems.get(afterId);
+            for (const cid of api?.api_use_slot_id ?? []) {
+                const id = GameState.positiveId(cid);
+                if (id != null) this.slotItems.delete(id);
+            }
             const used = this.updateMaterials(api?.api_after_material);
             const remodelSuccess = Number(api?.api_remodel_flag ?? 0) === 1;
             this.lastImprove = {
-                gearMst: after?.api_slotitem_id ?? before?.mst ?? 0,
+                gearMst: afterItem?.mst ?? before?.mst ?? 0,
                 levelBefore,
-                levelAfter: after?.api_level ?? levelBefore,
+                levelAfter: afterItem?.level ?? levelBefore,
                 success: remodelSuccess,
                 certain: req.api_certain_flag === '1',
                 secretary: this.secretaryMst(),
@@ -994,11 +1222,17 @@ export class GameState {
         } else if ((path === 'api_req_quest/clearitemget' || path === 'api_req_quest/stop') && req) {
             // 達成後領取獎勵（clearitemget）或放棄任務（stop）：該任務即從清單消失。
             // questlist 分頁只會刷新目前頁面，無法自動移除已完成的任務，故在此明確刪除。
+            // 獎勵欄只在它真的帶「實例 api_id＋master api_slotitem_id」時才寫入。舊格式／
+            // 未驗證的 api_bounus.api_id 可能只是 master id，不能拿它當裝備實例鍵；保留原始
+            // 事件，等待後續 slot_item 或局部快照補齊，避免把兩件後期裝備誤合併成假實例。
+            this.ingestSlotItems(api?.api_slot_data);
+            this.ingestSlotItems(api?.api_slotitem);
+            this.ingestSlotItems(api?.api_slot_item);
             this.quests.delete(Number(req.api_quest_id));
             this.questProgress.delete(Number(req.api_quest_id));
         } else if (path === 'api_port/port') {
             this.ships.clear();
-            for (const s of api.api_ship) this.ships.set(s.api_id, s);
+            this.ingestShips(api.api_ship);
             this.decks = api.api_deck_port;
             // 遠征中的艦隊：記錄其 mission id 為該艦隊「上次遠征」（回港後 api_mission 歸零，故在此捕捉）
             this.decks.forEach((d: any, i: number) => {
@@ -1006,6 +1240,7 @@ export class GameState {
                 if (mid > 0) this.lastMissionByDeck.set(i, mid);
             });
             this.pendingConsumption = [];
+            this.pendingPlaneLoss = [];
             this.ndockData = api.api_ndock;
             this.kdockCap = api.api_count_kdock ?? this.kdockCap;
             this.materials = (api.api_material ?? []).map((m: any) => m.api_value);
@@ -1023,6 +1258,12 @@ export class GameState {
             this.escapedShipIds.clear();
             this.pendingEscape = null;
             this.goddessRestored.clear();
+            // 母港封包帶的是搭載數實數（api_onslot，上面 api_ship 已整批覆蓋），
+            // 途中的估算到此校正完畢，估算標記隨之解除。
+            this.planeLossEstimated.clear();
+            // 熟練度也在「回港這一刻」結算（全滅→歸零／部分損耗→標過時）。必須排在
+            // api_ship 已寫入 this.ships 之後，比較的才是帰投時的實數。
+            this.settlePlaneProficiency();
             // 計時器在「進入母港畫面」這一刻推進，故兩件事都在這裡處理：
             // (1) 出門中（anchor=null）的艦隊回港 → 重新起算；仍在遠征的隊維持 null。
             // (2) 已跑滿一個週期 → 遊戲就是在此刻結算的，結算後重新起算下一輪。
@@ -1051,10 +1292,15 @@ export class GameState {
             this.lastDayBattle = null;
             this.lastDayDamecons = null;
             this.pendingConsumption = [];
+            this.pendingPlaneLoss = [];
             this.damaconUsed.clear();
             this.goddessRestored.clear();
             this.escapedShipIds.clear();
             this.pendingEscape = null;
+            this.planeLossEstimated.clear();
+            // 熟練度是回港時依「出撃時 vs 帰投時の残数」結算的，故出擊當下要先拍一份
+            // 搭載數實數留著比（見 settlePlaneProficiency）。
+            this.snapshotSortieOnslot();
             this.bossEntryTaiha = null;
             const startNode = sortieNodeOf(api);
             this.sortieInfo = {
@@ -1136,9 +1382,12 @@ export class GameState {
             // 廃棄装備任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務613「資源の再利用」）：
             // 一次請求可逗號分隔廢棄多個，逐個計數（非逐次請求計數）。
             if (gearIds.length > 0) this.bumpQuestProgress('gearScrap', gearIds.length);
+        } else if (path === 'api_req_kaisou/remodeling') {
+            // 現代真封包樣本仍缺席，回應欄位不可拿來覆蓋完整艦／艦隊／裝備狀態。
+            // 原始事件照常保存；後續已驗證的 port／require_info 快照會完成校正。
         } else if (path === 'api_req_kaisou/powerup' && req) {
             // 近代化改修：餌艦(api_id_items)消滅・強化先(api_ship)更新
-            if (api?.api_ship) this.ships.set(api.api_ship.api_id, api.api_ship);
+            this.ingestShips(api?.api_ship);
             const feeders = (req.api_id_items ?? '').split(',').map(Number).filter(n => n > 0);
             for (const sid of feeders) this.ships.delete(sid);
             // 餌艦被移出編成同等改動成員，比照 api_req_hensei/change 的規則重置該隊計時器錨點。
@@ -1149,24 +1398,39 @@ export class GameState {
             });
             // 近代化改修没有失敗判定（有餌就必定吃成功），故每次呼叫都算一次成功。
             this.bumpQuestProgress('modernization');
+        } else if (path === 'api_req_kaisou/slot_exchange_index' && req) {
+            // 請求索引欄位與回應形狀尚無真封包樣本，不能據此交換權威投影；保留原始事件，
+            // 等後續已驗證快照校正，這裡不猜欄位語意。
         } else if (path === 'api_req_kaisou/slotset' && req) {
             // 一般裝備欄（0-3 番）。已用真實封包排除補強增設走這條的假設——現行版本
             // 補強增設是獨立端點 api_req_kaisou/slotset_ex（見下），這裡恆定收到有效 idx。
             const s = this.ships.get(Number(req.api_id));
             if (s) {
-                const idx = Number(req.api_slot_idx);
+                const idx = GameState.slotIndex(req.api_slot_idx);
                 const itemId = Number(req.api_item_id);   // -1 = 卸下
-                // 裝備到「目前是空格」的槽位時，遊戲會自動塞進當下第一個空槽，
-                // req.api_slot_idx 只是使用者點擊當下的格位、不是最終落點——已用真封包
-                // 驗證（samples/equip_slot.json + slot_to_port.json：全空裝艦點第三格
-                // [idx=2]，回港快照證實實際落在 index 0）。換裝／替換既有裝備（目標格
-                // 本身已有東西，非空格）不涉及遞補，idx 才是真正目標格，維持直接寫入。
-                if (itemId > 0 && s.api_slot[idx] <= 0) {
-                    s.api_slot[s.api_slot.findIndex((v: number) => v <= 0)] = itemId;
-                } else {
-                    s.api_slot[idx] = itemId;
+                if (idx != null && Number.isSafeInteger(itemId) && Array.isArray(s.api_slot)
+                    && idx < s.api_slot.length) {
+                    // 裝備到「目前是空格」的槽位時，遊戲會自動塞進當下第一個空槽，
+                    // req.api_slot_idx 只是使用者點擊當下的格位、不是最終落點——已用真封包
+                    // 驗證（samples/equip_slot.json + slot_to_port.json：全空裝艦點第三格
+                    // [idx=2]，回港快照證實實際落在 index 0）。換裝／替換既有裝備（目標格
+                    // 本身已有東西，非空格）不涉及遞補，idx 才是真正目標格，維持直接寫入。
+                    // 若 itemId 已在同一艘艦的另一格，則是同艦換位／拖曳的另一種請求形態，
+                    // 必須把來源格清成目標格原值，不能只寫目標格造成同一顆裝備被重複引用。
+                    const sourceIdx = itemId > 0
+                        ? s.api_slot.findIndex((v: number) => Number(v) === itemId) : -1;
+                    if (sourceIdx >= 0 && sourceIdx !== idx) {
+                        this.swapShipSlots(s, sourceIdx, idx);
+                    } else if (itemId > 0 && Number(s.api_slot[idx]) <= 0) {
+                        const emptyIdx = s.api_slot.findIndex((v: number) => Number(v) <= 0);
+                        if (emptyIdx >= 0) s.api_slot[emptyIdx] = itemId;
+                    } else {
+                        s.api_slot[idx] = itemId;
+                    }
                 }
             }
+            // 現有真封包樣本的回應只有裸 api_result；請求投影已涵蓋已驗證的動作結果。
+            // 不讀取未驗證的假想回應欄位，避免局部物件覆蓋完整艦船或裝備狀態。
         } else if (path === 'api_req_kaisou/slotset_ex' && req) {
             // 補強增設（ex slot）：無 api_slot_idx，只有 api_id + api_item_id（-1=卸下）。
             // 已用真實封包驗證（req: api_id=215&api_item_id=71340，無 idx 欄位）。
@@ -1362,6 +1626,9 @@ export class GameState {
                     // 不會有副作用）。
                     this.markDameconConsumed(usedDamecons, this.battleInfo.resultFleets);
                 }
+                // 艦載機戰損（估算）：只累積、不當場寫回——戰鬥中要看的是這一場交戰時的
+                // 制空值，結算才一併扣（見 pendingPlaneLoss／queuePlaneLoss）。
+                this.queuePlaneLoss(api);
                 // ── 依節點類型套用燃彈消耗率（日wiki「資材」頁實測值，2024/03 版）──
                 // 每戰獨立計算、切捨（0<x<1 時進位為 1）；夜戰彈藥 = 晝彈×1.5 切り上げ。
                 // 活動特殊點（PT 4/8・雷達 4/0・對潛空襲 12/6）無法純靠 path 區分，按普通處理；回港校正。
@@ -1396,11 +1663,12 @@ export class GameState {
                 // 燃彈消耗延後到結算（battleresult）才寫回：出擊途中面板顯示的油彈維持戰前值，
                 // 與遊戲戰鬥畫面一致（油彈餘量會影響戰鬥傷害，過早顯示會誤導）。此處只記錄待套用費率。
                 this.pendingConsumption.push({ fuelRate, bullRate, nightAmmoBoost, hasEscort: GameState.hasEscortFleet(api) });
-                // Boss 節點（color=5）：記錄 boss 旗艦最大HP，供 HP量表式關卡（gaugeType 2）
-                // 估「剩餘攻略次數」= ceil(關卡殘HP / boss旗艦HP)。boss HP 需實戰擊破過一次才知。
+                // Boss 節點（color=5）：記錄已觀測到的最高 boss 旗艦 HP，供 HP量表式關卡
+                // （gaugeType 2）估剩餘次數與斬殺線。同一活動海域可能有多個 Boss 節點，
+                // 較低 HP 的旁支 Boss 不得覆蓋先前已知的較高門檻。
                 if (atBoss && map) {
                     const bossHp = this.battleInfo?.resultFleets?.enemyMain?.[0]?.maxHp ?? 0;
-                    if (bossHp > 0) this.mapBossHp.set(map.mapArea * 10 + map.mapNo, bossHp);
+                    this.observeMapBossHp(map.mapArea, map.mapNo, bossHp);
                 }
             } catch (e) {
                 console.error("BattlePrediction Error", e);
@@ -1433,6 +1701,10 @@ export class GameState {
             // 結算畫面（顯示 rank+掉落）才一併套用本節點各戰累積的燃彈消耗，寫回 this.ships。
             for (const c of this.pendingConsumption) this.applyConsumption(c.fuelRate, c.bullRate, c.nightAmmoBoost, c.hasEscort);
             this.pendingConsumption = [];
+            // 艦載機戰損同樣延到結算才寫回，理由與燃彈相同（見 pendingPlaneLoss）。
+            // 逐段套用：分攤按各格當下搭載數的比例算，一段一段來才與實際順序一致。
+            for (const lost of this.pendingPlaneLoss) this.spreadPlaneLoss(lost);
+            this.pendingPlaneLoss = [];
             // 応急修理女神：HP 全快（battle.ts 已寫回）＋燃彈全快。放在消耗之後才不會被
             // 這一節點的燃彈消耗再扣一次。
             this.restoreGoddessSupply();
@@ -1440,11 +1712,10 @@ export class GameState {
             // 才算數。欄位未經真封包驗證，故只收 1..12 的整數，其餘一律忽略（見 escapedShipIds）。
             this.pendingEscape = GameState.parseEscapeIdx(api?.api_escape);
         } else if (path.endsWith('/goback_port')) {
-            // 艦隊司令部施設的退避：把結算畫面提供的位置換成艦實例 id 記下來。
+            // 艦隊司令部施設的退避：把結算畫面提供的候補收斂成「實際退避的那一（兩）艘」
+            // 再換成艦實例 id 記下來（收斂規則見 resolveEscape）。
             // 沒有可用的退避候補時**不猜是哪艘船**——寧可維持原本的大破警告（保守方向）。
-            for (const pos of this.pendingEscape ?? []) {
-                const at = this.shipAtSortiePos(pos);
-                if (!at) continue;
+            for (const at of this.pendingEscape ? this.resolveEscape(this.pendingEscape) : []) {
                 this.escapedShipIds.add(at.id);
                 // 同步標記戰鬥檢視上的同一格，讓下面的大破警告重算看得到這艘已離隊。
                 // 隊別與隊內索引直接沿用 shipAtSortiePos 解出來的結果（不在這裡重推一次
@@ -1482,6 +1753,8 @@ export class GameState {
             // 就會在陣列裡留下不會被套用的殘留項——目前僅因 api_req_map/start 無條件重置才不
             // 會誤扣，但那個防護不屬於這段程式碼本身保證，故仍在此明確清空。
             this.pendingConsumption = [];
+            // 演習同樣不消耗艦載機，累積的損失一併丟棄（理由同上）。
+            this.pendingPlaneLoss = [];
         }
     }
 
@@ -1555,6 +1828,155 @@ export class GameState {
         if (this.currentSortieFleetId === 0 && this.decks[1]) write(this.decks[1], f.playerEscort);
     }
 
+    /**
+     * 出擊途中的艦載機戰損（**估算**，與燃彈估算同一個模式：途中封包不給實數 → 估算 →
+     * 回港 `api_port/port` 以實數校正）。
+     *
+     * 為什麼只能估算：戰鬥封包的航空戰段只給**整場合計**的損失機數
+     * （`api_stage1.api_f_lostcount` 制空戰＋`api_stage2.api_f_lostcount` 對空砲火），
+     * **沒有任何逐格殘量欄位**（已逐一檢查 samples/ 的 6-5 ec_battle 與 61-3／61-4／61-5
+     * 三份聯合艦隊封包，頂層與 api_kouku 底下都沒有）。合計損失是封包事實，「哪一格掉的」
+     * 不是——遊戲不送，就不猜成某一格全滅。
+     *
+     * 分攤規則：按各格**目前搭載數**的比例攤到參戰的艦載機格（AIR_COMBAT_CATS），大數
+     * 餘額法補足零頭，使**合計必定等於封包給的損失數**；單格不會扣成負數，扣不下的餘額
+     * 順延給其他格。偵察機／對潛機不參戰故不分攤。已退避艦不分攤（已離開艦隊）。
+     *
+     * `api_plane_from`（哪些艦放了飛機）刻意不使用：它的索引基準（連合艦隊時主隊／隨伴
+     * 怎麼編號）沒有真封包佐證，讀錯會把損失整批攤到錯的艦上——寧可攤得平一點，也不要
+     * 建立在沒驗證過的欄位語意上（見 CLAUDE.md 驗證原則）。
+     */
+    private queuePlaneLoss(api: any) {
+        // 噴式強襲／航空戰／二巡航空戰各自結算。夜戰封包沒有這些欄位，故夜戰接續把
+        // 晝戰重放給 analyzeBattle 時也不會重複扣（本方法只吃當下這一則封包）。
+        for (const key of ['api_injection_kouku', 'api_kouku', 'api_kouku2']) {
+            const ph = api?.[key];
+            if (!ph) continue;
+            const lost = Math.max(0, Math.floor(Number(ph.api_stage1?.api_f_lostcount) || 0))
+                + Math.max(0, Math.floor(Number(ph.api_stage2?.api_f_lostcount) || 0));
+            // **不當場扣**：扣了會讓編成的制空在交戰途中就往下掉，但戰鬥中要看的正是
+            // 「這一場打的時候制空是多少」。與燃彈同一個 pattern（見 pendingConsumption）
+            // ——戰鬥封包只累積，結算（battleresult）才一次寫回。逐段分開存而不先加總：
+            // 分攤是按各格當下的搭載數比例算的，一段一段套才與實際發生順序一致。
+            if (lost > 0) this.pendingPlaneLoss.push(lost);
+        }
+    }
+
+    /** queuePlaneLoss 的分攤本體：把 `total` 架損失攤到出擊艦隊的參戰艦載機格上。 */
+    private spreadPlaneLoss(total: number) {
+        // 出擊的那一隊（連合時加上隨伴第2艦隊，基準同 applyConsumption）。
+        const decks = [this.decks[this.currentSortieFleetId]];
+        if (this.combinedFlag > 0 && this.currentSortieFleetId === 0 && this.decks[1]) decks.push(this.decks[1]);
+        const slots: { ship: any; idx: number; gid: number; count: number }[] = [];
+        for (const deck of decks) {
+            for (const sid of deck?.api_ship ?? []) {
+                if (sid <= 0 || this.escapedShipIds.has(sid)) continue;
+                const s = this.ships.get(sid);
+                if (!s || !Array.isArray(s.api_onslot)) continue;
+                (s.api_slot ?? []).forEach((gid: number, idx: number) => {
+                    const count = Number(s.api_onslot[idx]) || 0;
+                    if (gid <= 0 || count <= 0) return;
+                    const cat = this.masterGears.get(this.slotItems.get(gid)?.mst ?? -1)?.cat ?? 0;
+                    if (AIR_COMBAT_CATS.has(cat)) slots.push({ ship: s, idx, gid, count });
+                });
+            }
+        }
+        const pool = slots.reduce((n, sl) => n + sl.count, 0);
+        if (!pool) {
+            console.warn('[KC-Monitor] 找不到可分攤艦載機損失的參戰搭載格', { total, pool });
+            return;
+        }
+        if (total > pool) {
+            // 物理上不可能從目前可辨識的參戰格扣掉更多飛機；這代表機種集合、裝備快照或
+            // 封包理解至少有一項不完整。最多只能歸零可辨識的格，必須明確留下診斷訊號，
+            // 不可靜默宣稱已完整分攤封包合計。
+            console.warn('[KC-Monitor] 艦載機損失超過可辨識的參戰搭載數', { total, pool });
+        }
+        // 大數餘額法：先按比例切捨分配，剩下的零頭依小數部分由大到小補一架。
+        const share = slots.map(sl => (sl.count * total) / pool);
+        const alloc = share.map(v => Math.floor(v));
+        const order = share
+            .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+            .sort((a, b) => b.frac - a.frac);
+        let rest = Math.min(total, pool) - alloc.reduce((n, v) => n + v, 0);
+        for (const { i } of order) {
+            if (rest <= 0) break;
+            alloc[i]++; rest--;
+        }
+        // 單格扣不下的部分順延給還有機的格子，確保合計仍等於封包的損失數。
+        let carry = 0;
+        slots.forEach((sl, i) => {
+            const take = Math.min(sl.count, alloc[i]);
+            carry += alloc[i] - take;
+            sl.count -= take;
+        });
+        for (const sl of slots) {
+            if (carry <= 0) break;
+            const take = Math.min(sl.count, carry);
+            sl.count -= take; carry -= take;
+        }
+        for (const sl of slots) {
+            sl.ship.api_onslot[sl.idx] = sl.count;
+            this.planeLossEstimated.add(sl.ship.api_id);
+            // ⚠️ 這裡**刻意不標熟練度過時**：熟練度是回港那一刻才依「出撃時 vs 帰投時的
+            // 残数」結算的（見 sortieStartOnslot），出擊途中手上的 alv 仍是對的。在這裡標
+            // 會讓整趟出擊都掛著一個當下並不成立的警示。標記時機在 settlePlaneProficiency()。
+        }
+    }
+
+    /**
+     * 回港時結算艦載機熟練度（日wiki「艦載機熟練度」）。**必須在母港封包已寫入
+     * `this.ships` 之後呼叫**——比的是同一格的「出撃時の残数 vs 帰投時の残数」。
+     *
+     * 兩種結果，語意完全不同：
+     *   ・**全滅（帰投時 0 架）→ 熟練度歸零（帯なし）**。wiki 明載的絕對規則，且兩端的
+     *     搭載數都是母港封包實數，故這是**確定值不是估算**：直接把 alv 寫成 0，並解除
+     *     該格的過時標記。
+     *   ・**部分損耗 → 依「残数比率」下降，但 wiki 沒給下降量的數字**（只說常時發生、
+     *     即使制空確保也約有 3.5% 損耗）。故只標過時、不推算，等遊戲下次送裝備資料校正。
+     * 沒損耗的格子完全不動——連標記都不加。
+     */
+    private settlePlaneProficiency() {
+        for (const [gid, before] of this.sortieStartOnslot) {
+            if (!(before > 0)) continue;
+            const after = this.onslotOfGear(gid);
+            if (after === null || after >= before) continue;   // 查不到或沒少 → 不動
+            if (after === 0) {
+                const it = this.slotItems.get(gid);
+                if (it) it.alv = 0;                 // 全滅＝帯なし（確定值）
+                this.alvStaleGears.delete(gid);
+            } else {
+                this.alvStaleGears.add(gid);        // 部分損耗：降了多少不可考
+            }
+        }
+        this.sortieStartOnslot.clear();
+    }
+
+    /** 這顆裝備實例現在裝在哪一格、還剩幾架；找不到（已卸下／解體）回 null，不猜 0。 */
+    private onslotOfGear(gid: number): number | null {
+        for (const s of this.ships.values()) {
+            const idx = (s.api_slot ?? []).indexOf(gid);
+            if (idx < 0) continue;
+            if (!Array.isArray(s.api_onslot) || idx >= s.api_onslot.length) return null;
+            const count = Number(s.api_onslot[idx]);
+            return Number.isSafeInteger(count) && count >= 0 ? count : null;
+        }
+        return null;
+    }
+
+    /** 出擊當下拍下各艦載機格的搭載數（母港封包實數，尚未被 spreadPlaneLoss 的估算動過）。 */
+    private snapshotSortieOnslot() {
+        this.sortieStartOnslot.clear();
+        for (const s of this.ships.values()) {
+            (s.api_slot ?? []).forEach((gid: number, idx: number) => {
+                if (gid <= 0) return;
+                const cat = this.masterGears.get(this.slotItems.get(gid)?.mst ?? -1)?.cat ?? 0;
+                if (!AIRCRAFT_CATS.has(cat)) return;
+                this.sortieStartOnslot.set(gid, Number(s.api_onslot?.[idx]) || 0);
+            });
+        }
+    }
+
     // 戰前 damecon>0、戰後 battle.ts 回報變 0 ⇒ 本場觸發並消耗（battle.ts 的 takeDamage 只在
     // 觸發時才把 s.damecon 歸零，未觸發則整場維持原值不變，故這個比對可靠）。記下後
     // getDamecon() 下個節點才不會誤把同一顆道具當成還沒用過（見欄位宣告處的說明）。
@@ -1611,17 +2033,91 @@ export class GameState {
         if (hasEscort && this.currentSortieFleetId === 0 && this.decks[1]) consumeDeck(this.decks[1]);
     }
 
-    // 結算封包的 api_escape → 退避候補位置（1-based）。api_escape_idx＝大破退避艦、
-    // api_tow_idx＝隨同退避的曳航艦（連合艦隊才有，單艦隊遊撃部隊只退避大破艦本身）。
-    // 兩者皆為陣列。**欄位未經真封包驗證**：只認 1..12 的安全整數，其餘一律丟棄，
-    // 解不出任何一個就回 null（＝不標任何船退避）。
-    private static parseEscapeIdx(escape: any): number[] | null {
+    // 結算封包的 api_escape → 退避「候補」位置（1-based）。api_escape_idx＝可退避的大破艦、
+    // api_tow_idx＝可隨同退避的曳航艦（連合艦隊才有，單艦隊遊撃部隊只退避大破艦本身）。
+    //
+    // ⚠️ **這兩個欄位是「可選的船」而不是「實際退避的船」**——這是實機回報反推出來的：
+    // 某次連合出擊只有朝霜曳航大井退避，面板卻把第2艦隊的三艘驅逐艦全標成退避。反推
+    // 當時的位置集合為 {8, 10, 11, 12}＝大破的大井（第2艦隊2號艦）＋**全部三艘未損傷
+    // 驅逐艦**，正好就是遊戲護衛退避的候補條件（第2艦隊2號艦起、完全未損傷的驅逐艦）。
+    // 同一份觀測也順帶確認了索引基準：位置 8 對到第2艦隊2號艦、9（大淀）沒被標到，
+    // **1-based、連合時 7-12 為隨伴**的推定正確（0-based 會標到大淀而漏掉大井）。
+    //
+    // 故此處只把兩個陣列各自解析成候補清單，**由呼叫端各挑一艘**（機制上一場戰鬥只退避
+    // 一艘大破艦、最多帶一艘護衛艦）。只認 1..12 的安全整數，其餘一律丟棄；兩邊都空
+    // 就回 null（＝不標任何船退避）。
+    private static parseEscapeIdx(escape: any): { escape: number[]; tow: number[] } | null {
         if (!escape || typeof escape !== 'object') return null;
-        const pick = (v: any) => (Array.isArray(v) ? v : [])
+        const pick = (v: any) => [...new Set((Array.isArray(v) ? v : [])
             .map(Number)
-            .filter(n => Number.isSafeInteger(n) && n >= 1 && n <= 12);
-        const idx = [...new Set([...pick(escape.api_escape_idx), ...pick(escape.api_tow_idx)])];
-        return idx.length ? idx : null;
+            .filter(n => Number.isSafeInteger(n) && n >= 1 && n <= 12))];
+        const parsed = { escape: pick(escape.api_escape_idx), tow: pick(escape.api_tow_idx) };
+        // 只有曳航候補、沒有大破艦候補時無法證明任何船真的退避；不得只標護衛艦。
+        return parsed.escape.length ? parsed : null;
+    }
+
+    /** 最素的大破判定（殘 HP > 0 且 ≤ 25%），供退避候補收斂用。 */
+    private isTaihaShip(id: number): boolean {
+        const s = this.ships.get(id);
+        if (!s) return false;
+        const hp = Number(s.api_nowhp), maxHp = Number(s.api_maxhp);
+        return hp > 0 && maxHp > 0 && hp * 4 <= maxHp;
+    }
+
+    /**
+     * 這艘能不能當護衛退避的曳航艦（使用者提供之遊戲設定）：駆逐艦、未退避、**損傷未達
+     * 小破**（殘 HP > 最大值的 75%）。⚠️ 門檻是「未達小破」不是「滿血」——かすり傷照樣
+     * 拖得動；用滿血判定會謊報「沒有退避選項」。呼叫端已負責排除第2艦隊旗艦（位置條件）。
+     */
+    private canTowEscort(id: number): boolean {
+        if (this.escapedShipIds.has(id)) return false;
+        const s = this.ships.get(id);
+        if (!s) return false;
+        if (this.master.get(s.api_ship_id)?.stype !== 2) return false;   // 駆逐艦
+        const hp = Number(s.api_nowhp), maxHp = Number(s.api_maxhp);
+        return hp > 0 && maxHp > 0 && hp * 4 > maxHp * 3;
+    }
+
+    /**
+     * 候補位置 → 這次實際退避的艦（最多兩艘：大破艦本身＋連合艦隊的曳航護衛艦）。
+     *
+     * 機制上一場戰鬥只能退避一艘大破艦，護衛艦也只會有一艘，故候補多筆時必須收斂
+     * ——**把候補整批標成退避正是被回報的那個 bug**（三艘健康驅逐艦一起被標退避，
+     * 燃料歸 0、cond 22，還被剔出制空／索敵／TP）。收斂規則：
+     *   ・大破艦：先以本機追蹤的血量篩出大破者，恰好一艘就是它；若封包只有一個可解析
+     *     候補也採用。多個候補又無唯一解時不猜。
+     *   ・護衛艦：只有連合艦隊有。挑選規則是**固定順位、由上到下**（使用者提供之遊戲
+     *     設定）：第2艦隊2號艦起往下，第一艘「損傷未達小破」的驅逐艦即是（旗艦拖不了，
+     *     由 shipAtSortiePos 的旗艦哨兵擋掉）。故此處把候補依位置排序後，取第一艘通過
+     *     canTowEscort() 的；本機血量追蹤落後而全部不通過時不猜。
+     */
+    private resolveEscape(pending: { escape: number[]; tow: number[] }): EscapeSlot[] {
+        const resolve = (positions: number[]): EscapeSlot[] | null => {
+            const slots = [...positions]
+                .sort((a, b) => a - b)      // 順位由上到下（封包給的候補順序不保證已排序）
+                .map(pos => this.shipAtSortiePos(pos));
+            // 只要其中一個位置無法解析（尤其解到不可退避的旗艦哨兵），代表索引基準或
+            // 本機艦隊快照不足以支持這筆判定；不可丟掉未知候補後把剩下的一艘冒充唯一解。
+            return slots.some(slot => slot === null) ? null : slots as EscapeSlot[];
+        };
+        const damaged = resolve(pending.escape);
+        if (!damaged) return [];
+        const taiha = damaged.filter(r => this.isTaihaShip(r.id));
+        // 本機血量只解出唯一大破者時採用；若只有一個封包候補，goback_port 本身足以證明
+        // 就是它。多個候補又無唯一大破者時，玩家實際選哪艘不可考，寧可維持警告不猜。
+        const escapee = taiha.length === 1 ? taiha[0] : damaged.length === 1 ? damaged[0] : undefined;
+        if (!escapee) return [];
+        // 單艦退避（遊撃部隊 272／水雷戦隊 413）沒有曳航艦，封包縱使帶了候補也不採信。
+        const combined = this.combinedFlag > 0 && this.currentSortieFleetId === 0;
+        let tow: EscapeSlot | undefined;
+        if (combined) {
+            const resolvedTow = resolve(pending.tow);
+            if (!resolvedTow) return [];
+            const cands = resolvedTow.filter(r => r.id !== escapee.id);
+            // 沒有任何候補符合已知護衛條件時不猜第一艘；少標比誤改健康艦的油量／士氣安全。
+            tow = cands.find(r => this.canTowEscort(r.id));
+        }
+        return [escapee, tow].filter((v): v is EscapeSlot => !!v);
     }
 
     // 退避位置（1-based）→ 艦實例 id。連合艦隊出擊時 1-6＝主隊、7-12＝隨伴（第2艦隊）；
@@ -1630,7 +2126,7 @@ export class GameState {
     // **連同解出的「哪一隊、隊內第幾格」一起回傳**：呼叫端（goback_port）還要拿同一個
     // 位置去標記戰鬥檢視上的那一格，若讓它自己再推一次連合／索引規則，日後這條規則一改
     // 就會有一邊沒跟上，變成 escapedShipIds 與 battleInfo 標到不同艘船。
-    private shipAtSortiePos(pos: number): { id: number; escort: boolean; index: number } | null {
+    private shipAtSortiePos(pos: number): EscapeSlot | null {
         const combined = this.combinedFlag > 0 && this.currentSortieFleetId === 0;
         // 兩隊的旗艦都不可能退避（大破艦、護衛艦皆然）。這同時是索引基準的哨兵：
         // 真的解到旗艦位置就代表我們對 api_escape_idx 的基準推定錯了，此時**寧可不標**
@@ -1816,6 +2312,11 @@ export class GameState {
     }
     gearName(mstId: number | undefined): string {
         return localizeGear(mstId, mstId == null ? undefined : this.masterGears.get(mstId)?.name);
+    }
+    // 封包原始日文艦名（不經譯表）。顯示一律走 shipName()，這支只給「hover 看原名」這種
+    // 對照用途；master 未載入時回退譯名解析結果，不回空字串。
+    shipNameJa(masterId: number | undefined): string {
+        return (masterId == null ? undefined : this.master.get(masterId)?.name) || this.shipName(masterId);
     }
 
     private gearOf(instId: number): GearView | null {
@@ -2024,18 +2525,37 @@ export class GameState {
                 const g = it && this.masterGears.get(it.mst);
                 if (!it || !g) return;
                 const t = g.cat;
-                const isF = t === 6 || t === 45 || t === 56 || t === 57;
-                const isDB = t === 7, isSPB = t === 11;
-                if (!(isF || isDB || t === 8 || isSPB)) return;
-                const aa = g.aa + (isF ? 0.2 * it.level : isDB ? 0.25 * it.level : 0);
+                // 艦上機（艦戦6／艦爆7／艦攻8）・水上機（水戦45／水爆11）・噴式機（56/57）
+                // 才參與制空。局戦(48) 併在 AIR_TB_FIGHTER 裡一起判——它裝不上艦，實務上
+                // 不會命中，但共用同一個集合可確保艦上／基地兩支的戰鬥機定義不會各自漂移。
+                const isDB = t === 7, isSPB = t === AIR_TB_SEAPLANE_BOMBER;
+                if (!(AIR_TB_FIGHTER.has(t) || isDB || t === 8 || isSPB || t === 56 || t === 57)) return;
+                const aa = g.aa + (AIR_IMP_FIGHTER.has(t) ? 0.2 * it.level : isDB ? 0.25 * it.level : 0);
                 const alv = Math.min(7, it.alv);
-                const tb = isF ? GameState.BONUS_F[alv] : isSPB ? GameState.BONUS_SPB[alv] : 0;
+                // 機種類型加成：戰鬥機系查 BONUS_F、水爆查 BONUS_SPB，其餘（含噴式機）為 0。
+                // 下面的 √(内部熟練度/10) 則是**所有機種都有**，故噴式機仍非全無加成。
+                const tb = AIR_TB_FIGHTER.has(t) ? GameState.BONUS_F[alv]
+                    : isSPB ? GameState.BONUS_SPB[alv] : 0;
                 const base = aa * Math.sqrt(onslot) + tb;
                 min += Math.floor(base + Math.sqrt(GameState.EXP_LO[alv] / 10));
                 max += Math.floor(base + Math.sqrt(GameState.EXP_HI[alv] / 10));
             });
         }
         return { min, max };
+    }
+
+    /**
+     * 這一隊有沒有「熟練度可能已過時」的艦載機格（見 alvStaleGears）。退避艦不算
+     * ——牠已經離隊，不計入這一隊的制空，過不過時都不影響顯示的數字。
+     */
+    private deckAlvStale(deckIdx: number): boolean {
+        if (this.alvStaleGears.size === 0) return false;
+        for (const sid of this.decks[deckIdx]?.api_ship ?? []) {
+            if (sid <= 0 || this.escapedShipIds.has(sid)) continue;
+            const s = this.ships.get(sid);
+            if (s?.api_slot?.some((gid: number) => this.alvStaleGears.has(gid))) return true;
+        }
+        return false;
     }
 
     f33(deckIdx: number, cn = 1): number {
@@ -2128,7 +2648,12 @@ export class GameState {
             minSoku = Math.min(minSoku, s.api_soku ?? 20);
         }
         const speed = minSoku >= 20 ? t('speed.fastest') : minSoku >= 15 ? t('speed.fastPlus') : minSoku >= 10 ? t('speed.fast') : t('speed.slow');
-        return { lvSum, speed, air: this.airPower(deckIdx), f33: this.f33(deckIdx, cn), tp: this.fleetTP(deckIdx) };
+        // airStale：這一隊制空的熟練度成分可能已經過時（見 alvStaleGears）。呼叫端必須
+        // 標示，不能讓偏高的舊值裝成封包事實。
+        return {
+            lvSum, speed, air: this.airPower(deckIdx), airStale: this.deckAlvStale(deckIdx),
+            f33: this.f33(deckIdx, cn), tp: this.fleetTP(deckIdx),
+        };
     }
 
     // 連合檢視（面板聯合艦隊鈕）頂部總覽列用：第1+第2艦隊合計。Lv／制空／TP 為
@@ -2157,7 +2682,11 @@ export class GameState {
             tpTotal += tp.total; tpGear += tp.gear;
         }
         const speed = minSoku >= 20 ? t('speed.fastest') : minSoku >= 15 ? t('speed.fastPlus') : minSoku >= 10 ? t('speed.fast') : t('speed.slow');
-        return { lvSum, speed, air: { min: airMin, max: airMax }, f33, tp: { total: tpTotal, gear: tpGear } };
+        return {
+            lvSum, speed, air: { min: airMin, max: airMax },
+            airStale: this.deckAlvStale(0) || this.deckAlvStale(1),
+            f33, tp: { total: tpTotal, gear: tpGear },
+        };
     }
 
     // ── 退避可用性（面板提示用；使用者提供之遊戲設定，非封包驗證）─────────────────
@@ -2220,10 +2749,12 @@ export class GameState {
      * ＋一艘健康驅逐艦一起離場），遊撃部隊／水雷戦隊是「單艦退避」（只有大破艦離場、
      * 不需要護衛艦）**，兩者的條件與後果都不同，不能共用一套說明。
      *
-     * 護衛艦規則（連合限定，使用者提供之遊戲設定）：從**第2艦隊**的 2 號艦起、未損傷
-     * （滿血、連小破都沒有）的驅逐艦自動挑選；第1艦隊的驅逐艦再健康也不能當護衛艦，
-     * 第2艦隊旗艦同樣不行。實際挑哪一艘由遊戲決定（順序有例外），故此處只判「有沒有
-     * 人選」，不預測是哪一艘。
+     * 護衛艦規則（連合限定，使用者提供之遊戲設定）：從**第2艦隊**的 2 號艦起，**依隊內
+     * 順位由上到下**挑第一艘「損傷未達小破」的驅逐艦；第1艦隊的驅逐艦再健康也不能當護衛
+     * 艦，第2艦隊旗艦同樣不行。⚠️ **門檻是「未達小破」不是「滿血」**——かすり傷（殘 HP
+     * 高於 75%）照樣拖得動，用滿血判定會把它謊報成 `'noEscort'`（＝「沒有退避選項」），
+     * 那正是最危險的誤讀方向。判定集中在 canTowEscort()，與 resolveEscape() 實際挑人的
+     * 那支共用同一條門檻。
      */
     retreatAvailability(): RetreatAvailability {
         const none: RetreatAvailability = { state: 'none', kind: null };
@@ -2237,13 +2768,7 @@ export class GameState {
             const escortable = (this.decks[1]?.api_ship ?? [])
                 .filter((id: number) => id > 0)
                 .slice(1)                                   // 第2艦隊旗艦不能當護衛艦
-                .some((id: number) => {
-                    if (this.escapedShipIds.has(id)) return false;
-                    const s = this.ships.get(id);
-                    if (!s) return false;
-                    return this.master.get(s.api_ship_id)?.stype === 2   // 駆逐艦
-                        && s.api_nowhp >= s.api_maxhp;                    // 未損傷
-                });
+                .some((id: number) => this.canTowEscort(id));
             return { state: escortable ? 'ready' : 'noEscort', kind: 'combined' };
         }
 
@@ -2283,6 +2808,7 @@ export class GameState {
                     return [{
                         id,
                         name: this.shipName(s.api_ship_id),
+                        nameJa: this.shipNameJa(s.api_ship_id),
                         stype: STYPE_ABBR[mst?.stype ?? 0] ?? '',
                         mst: s.api_ship_id, stypeId: mst?.stype ?? 0,
                         ndockTime: Number(s.api_ndock_time ?? 0),
@@ -2293,14 +2819,16 @@ export class GameState {
                         bull: s.api_bull ?? 0, maxBull: mst?.bullMax ?? 0,
                         gears: slots.map((gid: number, idx: number) => {
                             const gv = this.gearOf(gid);
-                            // 裝備為飛機的槽才附搭載數（api_onslot 即時反映戰損）；滿載數
-                            // 取 master 的 maxeq（可能 undefined，見上方註解）。
+                            // 裝備為飛機的槽才附搭載數；滿載數取 master 的 maxeq
+                            // （可能 undefined，見上方註解）。出擊途中的 api_onslot 已由
+                            // spreadPlaneLoss 依封包的合計損失估算調整過，故一併標 countEst。
                             if (gv) {
                                 const it = this.slotItems.get(gid);
                                 const mg = it && this.masterGears.get(it.mst);
                                 if (mg && AIRCRAFT_CATS.has(mg.cat)) {
                                     gv.count = s.api_onslot?.[idx] ?? 0;
                                     gv.countMax = mst?.maxeq?.[idx];
+                                    if (this.planeLossEstimated.has(id) && AIR_COMBAT_CATS.has(mg.cat)) gv.countEst = true;
                                 }
                             }
                             return gv;
@@ -2591,18 +3119,22 @@ export class GameState {
             const g = it && this.masterGears.get(it.mst);
             if (!it || !g) continue;
             const t = g.cat;
-            // 制空參與機種: 艦戦(6), 水戦(45), 局戦(56), 陸戦(57), 艦爆(7), 艦攻(8),
-            //              水爆(11), 陸攻(47), 噴式戦闘爆撃機(39), 陸偵(49)
-            const isF = t === 6 || t === 45 || t === 56 || t === 57;
+            // 制空參與機種：艦戦(6)・水戦(45)・**局戦/陸戦(48)**・艦爆(7)・艦攻(8)・
+            //              水爆(11)・陸攻(47)・陸偵(49)・噴式機(56/57)。
+            // ⚠️ 48 曾經整個漏掉（舊註解把 56/57 誤標成「局戦/陸戦」），雷電・紫電改・隼・
+            //    Spitfire 等 31 種局戦因而**連本體対空都沒被計入基地航空隊制空**。見
+            //    AIR_TB_FIGHTER 的說明，別改回去。
             const isDB = t === 7;
-            const isSPB = t === 11;
+            const isSPB = t === AIR_TB_SEAPLANE_BOMBER;
             const isLBA = t === 47;   // 陸攻
             const isLBR = t === 49;   // 陸偵
-            if (!(isF || isDB || t === 8 || isSPB || isLBA || isLBR)) continue;
-            // 改修補正：陸戦/局戦 +0.2★, 艦爆 +0.25★
-            const aa = g.aa + (isF ? 0.2 * it.level : isDB ? 0.25 * it.level : 0);
+            if (!(AIR_TB_FIGHTER.has(t) || isDB || t === 8 || isSPB || isLBA || isLBR
+                || t === 56 || t === 57)) continue;
+            // 改修補正：艦戦/水戦/局戦 +0.2★, 艦爆 +0.25★
+            const aa = g.aa + (AIR_IMP_FIGHTER.has(t) ? 0.2 * it.level : isDB ? 0.25 * it.level : 0);
             const alv = Math.min(7, it.alv);
-            const tb = isF ? GameState.BONUS_F[alv] : isSPB ? GameState.BONUS_SPB[alv] : 0;
+            const tb = AIR_TB_FIGHTER.has(t) ? GameState.BONUS_F[alv]
+                : isSPB ? GameState.BONUS_SPB[alv] : 0;
             const base = aa * Math.sqrt(onslot) + tb;
             min += Math.floor(base + Math.sqrt(GameState.EXP_LO[alv] / 10));
             max += Math.floor(base + Math.sqrt(GameState.EXP_HI[alv] / 10));
@@ -2703,19 +3235,66 @@ export class GameState {
         return this.mapGauges.get(id) ?? null;
     }
 
+    /** 累積某海域已實戰觀測到的最高 Boss 旗艦 HP。 */
+    observeMapBossHp(mapArea: number, mapNo: number, bossHp: number): void {
+        if (!Number.isFinite(bossHp) || bossHp <= 0) return;
+        const mapId = mapArea * 10 + mapNo;
+        const known = this.mapBossHp.get(mapId) ?? 0;
+        if (bossHp > known) this.mapBossHp.set(mapId, bossHp);
+    }
+
+    // 目前出擊海域的 mapId；沒在出擊時為 null。下面兩支的預設對象。
+    private currentMapId(): number | null {
+        return this.sortieInfo ? this.sortieInfo.mapArea * 10 + this.sortieInfo.mapNo : null;
+    }
+
+    // 「尚未攻略的 boss 撃破型量表」清單（mapId 由小到大）。**不需要正在出擊**——量表值
+    // 來自 api_get_member/mapinfo（點開出擊海域選單就送來），斬殺線來自本機出擊紀錄，
+    // 兩者在母港都已到齊。面板據此在未出擊時也能顯示各活動海域的攻略進度。
+    // maxHp=9999＝尚未選擇難度的佔位值，不是真實滿血，一律排除。
+    unclearedHpGaugeMaps(): { mapId: number; mapArea: number; mapNo: number; gauge: MapGaugeView }[] {
+        const out: { mapId: number; mapArea: number; mapNo: number; gauge: MapGaugeView }[] = [];
+        for (const [mapId, gauge] of this.mapGauges) {
+            if (gauge.cleared || gauge.gaugeType !== 2) continue;
+            if (gauge.maxHp <= 0 || gauge.maxHp === 9999 || gauge.nowHp <= 0) continue;
+            out.push({ mapId, mapArea: Math.floor(mapId / 10), mapNo: mapId % 10, gauge });
+        }
+        return out.sort((a, b) => a.mapId - b.mapId);
+    }
+
     // boss擊破型量表的剩餘攻略次數估算。boss HP 需先實戰擊破一次才知。
     // TP輸送型不以艦隊TP反推場數：面板直接顯示封包的剩餘TP，避免把不同勝利
     // 評價、退避與裝備變動造成的推測值誤當成確定次數。
-    mapRemainingRuns(): number | null {
-        const g = this.currentMapGauge();
+    // mapId 省略＝目前出擊海域（沿用舊呼叫端語意）；帶入即可查任一海域，不必正在出擊。
+    mapRemainingRuns(mapId?: number): number | null {
+        const id = mapId ?? this.currentMapId();
+        if (id == null) return null;
+        const g = this.mapGauges.get(id);
         if (!g || g.maxHp <= 0 || g.maxHp === 9999) return null;
-        const mapId = this.sortieInfo!.mapArea * 10 + this.sortieInfo!.mapNo;
         if (g.gaugeType === 2) {
-            const bossHp = this.mapBossHp.get(mapId);
+            const bossHp = this.mapBossHp.get(id);
             if (!bossHp || bossHp <= 0) return null;
             return Math.max(0, Math.ceil(g.nowHp / bossHp));
         }
         return null;
+    }
+
+    // boss 撃破型量表是否已進入斬殺期。遊戲機制的門檻是「殘量嚴格小於 boss 旗艦 HP」；
+    // 兩者相等時 ceil(殘量 / boss HP) 雖然也是 1，仍不可提早標成斬殺期。
+    // 同上：mapId 省略＝目前出擊海域，帶入即可在母港查任一海域。
+    mapInFinalPhase(mapId?: number): boolean {
+        const id = mapId ?? this.currentMapId();
+        if (id == null) return false;
+        const g = this.mapGauges.get(id);
+        if (!g || g.cleared || g.gaugeType !== 2 || g.nowHp <= 0
+            || g.maxHp <= 1 || g.maxHp === 9999) return false;
+        // **唯一不需要 Boss HP 的判定**：量表進入最終段後，對 boss 旗艦的傷害不會把它打到
+        // 0，而是 floor 在 1（唯有實際沉沒 boss 旗艦才變 0＝通關，見「關卡進度」一節）。
+        // 所以 nowHp===1 這個值本身就是「已在最終段」的封包事實——只要 boss 旗艦 HP > 1
+        // 就必然成立，不必知道它到底是多少。零紀錄的新環境在最後一場也能標出斬殺期。
+        if (g.nowHp === 1) return true;
+        const bossHp = this.mapBossHp.get(id);
+        return bossHp != null && bossHp > 0 && g.nowHp < bossHp;
     }
 
     // ── 待驗證封包自動偵測 ──────────────────────────────
@@ -2787,6 +3366,17 @@ export class GameState {
                 const kind = hasClear ? t('wanted.tagKindClear') : hasTP ? t('wanted.tagKindTP') : t('wanted.tagKindSally');
                 return t('wanted.tagMapinfoSample', { kind, n: this.mapinfoSampleCount });
             }
+        }
+        // ── 熟練度（api_alv）驗證鉤子 ──────────────────────────────────────────
+        // 出擊／回港的封包都不帶熟練度，只有登入的 require_info、裝備庫的 slot_item，以及
+        // **編成／改裝端點的 api_slot_data** 會送。最後這一組是撈完之後最早能拿回真實熟練度
+        // 的機會（見 applyEvent 的 ship_deck 分支），但本專案尚無它的真封包樣本——欄位名依
+        // 社群工具慣例推定。撈一份回來即可定案（順便確認熟練度在戰損後降了多少）。
+        if (this.slotDataSampleCount < 2 && Array.isArray(api?.api_slot_data)
+            && (path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
+                || path === 'api_get_member/ship2')) {
+            this.slotDataSampleCount++;
+            return t('wanted.tagSlotData', { path, n: this.slotDataSampleCount });
         }
         // ── 出擊標籤驗證鉤子（兩條，見 CLAUDE.md「活動作戰板」）─────────────────
         // 現況：api_sally_area 欄位名已用真封包確認，但手上所有樣本都取自非活動期，

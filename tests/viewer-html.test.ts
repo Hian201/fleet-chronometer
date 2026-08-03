@@ -69,4 +69,17 @@ describe('viewerHtml 內嵌腳本與 helper 對齊', () => {
         expect(src).toContain('kanmusu-replays.json');
         expect(src).toContain('env.tables && env.tables.replays');
     });
+
+    it('內聯輸出以空物件表示無夜戰，短資料直接播放、長資料保留複製 fallback', () => {
+        const src = viewerHtml();
+        expect(src).toContain('yasen: b.yasen || {}');
+        expect(src).toContain('lv: s.lv, level: s.lv');
+        expect(src).toContain('sourceFleetnum: row.fleetnum');
+        expect(src).toContain('time: Math.floor(row.ts / 1000)');
+        expect(src).toContain('var url = BATTLEPLAYER + "#" + payload');
+        expect(src).toContain('window.open(url, "_blank", "noopener")');
+        expect(src).toContain('url.length < 30000');
+        expect(src).toContain('window.open(BATTLEPLAYER, "_blank", "noopener")');
+        expect(src).toContain('navigator.clipboard.writeText(JSON.stringify(obj))');
+    });
 });

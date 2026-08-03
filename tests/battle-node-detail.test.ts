@@ -37,6 +37,26 @@ describe('基地航空隊戰果彙總', () => {
         expect(lbas.damage).toBe(2556);
     });
 
+    it('逐波帶各自的制空狀態（api_stage1.api_disp_seiku）', () => {
+        // 面板的陸航 hover 要逐波講「這一波是優勢還是劣勢」，故制空狀態必須逐波留著，
+        // 不能只留整場合計。61-4 節點55：前兩波劣勢(3)、後兩波喪失(4)。
+        expect(analyze(lbasBattle.data).lbas!.waves.map(w => w.seiku)).toEqual([3, 3, 4, 4]);
+    });
+
+    it('雙方都沒出動艦載機的波次不報制空狀態（回 null，不照抄 api_disp_seiku）', () => {
+        // 判準與主隊航空戰一致：兩軍機數合計為 0 就是沒有制空戰。這裡用手捏封包
+        // ——真封包樣本的陸航波次都有敵機，湊不出這個邊界。
+        const noAir = {
+            api_f_nowhps: [40], api_f_maxhps: [40],
+            api_e_nowhps: [90], api_e_maxhps: [90], api_ship_ke: [1501],
+            api_air_base_attack: [{
+                api_base_id: 1,
+                api_stage1: { api_f_count: 0, api_f_lostcount: 0, api_e_count: 0, api_e_lostcount: 0, api_disp_seiku: 1 },
+            }],
+        };
+        expect(analyze(noAir).lbas!.waves.map(w => w.seiku)).toEqual([null]);
+    });
+
     it('沒有 api_air_base_attack 的節點回 null（不是 0/0/0）', () => {
         const plain = sample.battles.find((b: any) => !b.data?.api_air_base_attack);
         expect(analyze(plain.data).lbas).toBeNull();

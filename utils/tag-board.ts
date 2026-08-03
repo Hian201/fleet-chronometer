@@ -264,6 +264,10 @@ export interface StypeGroupDef {
 
 export const DEFAULT_STYPE_GROUPS: readonly StypeGroupDef[] = [
     { key: 'CV', stypeIds: [11], labelKey: 'ov.tbStypeCV' },
+    // 裝甲空母（stype 18）機能上是可上艦載機出擊的空母，獨立一組放在正規／輕空母之間，
+    // 別再併回 AV——曾經跟水母/工作艦等輔助艦混在一起，讓翔鶴改二乙／瑞鶴改二乙這類艦
+    // 被藏進「水母・補助」找不到。
+    { key: 'CVB', stypeIds: [18], labelKey: 'ov.tbStypeCVB' },
     { key: 'CVL', stypeIds: [7], labelKey: 'ov.tbStypeCVL' },
     { key: 'BB', stypeIds: [8, 9], labelKey: 'ov.tbStypeBB' },
     { key: 'BBV', stypeIds: [10], labelKey: 'ov.tbStypeBBV' },
@@ -274,7 +278,7 @@ export const DEFAULT_STYPE_GROUPS: readonly StypeGroupDef[] = [
     { key: 'DD', stypeIds: [2], labelKey: 'ov.tbStypeDD' },
     { key: 'DE', stypeIds: [1], labelKey: 'ov.tbStypeDE' },
     { key: 'SS', stypeIds: [13, 14], labelKey: 'ov.tbStypeSS' },
-    // 其餘（裝甲空母／水母／揚陸／工作／潛母／補給…）一律 AV／補助
+    // 其餘（水母／揚陸／工作／潛母／補給…）一律 AV／補助
     { key: 'AV', stypeIds: [], labelKey: 'ov.tbStypeAV' },
 ] as const;
 

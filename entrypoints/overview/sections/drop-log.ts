@@ -3,7 +3,7 @@
 import type { SortieLogRow } from '@/utils/db';
 import { db } from '@/utils/db';
 import { nodeLabel } from '@/utils/map-node-letters';
-import { firstOwnedDropKeys } from '@/utils/retention';
+import { newShipDropKeys } from '@/utils/drop-new-ship';
 import {
     dropLogCsvText, DropLogImportError, importDropLogRows, parseDropLogCsv, reverseShipLookup,
 } from '@/utils/drop-log-import';
@@ -250,7 +250,10 @@ export const dropLogSection: OverviewSection = {
                     db.shipObtained.toArray(),
                 ]);
                 rows = sorties.filter(row => row.kind === 'battle' && !!dropName(row, ctx));
-                newShipKeys = firstOwnedDropKeys(rows, shipObtained);
+                // 新船判準與面板出擊資訊的 Drop 晶片同一條：比對鎮守府全艦娘（以基礎形態
+                // 比對）後，這一撈才讓它第一次成為成員才算新船。**不要改用 retention.ts 的
+                // firstOwnedDropKeys**——那支是重播裁剪的保護判定，刻意更嚴格（見該檔說明）。
+                newShipKeys = newShipDropKeys(rows, shipObtained, mst => ctx.state.baseShipId(mst));
                 const drops = [...new Set(rows.map(row => dropName(row, ctx)).filter((n): n is string => !!n))];
                 el.querySelector('#dl-drops')?.remove();
                 el.querySelector('.dl-keyword')!.insertAdjacentHTML('afterend',

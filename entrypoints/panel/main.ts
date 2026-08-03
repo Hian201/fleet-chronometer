@@ -6,6 +6,7 @@ import { advanceProjectionCursor, readProjectionCursor } from '@/utils/projectio
 import {
     GameState,
     type ShipView, type GearView, type FleetView, type BattleEnemyShipView,
+    type BattleLbasView,
 } from '@/utils/state';
 import {
     planAnchorageRepair, planMoraleSupply, nextSettlementIn,
@@ -17,6 +18,8 @@ import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
+import { sortieGaugeBarHtml } from './sortie-gauge';
+import { maxObservedBossHp } from '@/utils/boss-hp';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     resline = $('resline'), missionsEl = $('missions'), ndocksEl = $('ndocks'), kdocksEl = $('kdocks'), questsEl = $('quests'),
@@ -387,13 +390,20 @@ const blankChip = (cls: string, ex = false, capacity?: number) =>
 // 打洞格（ex=true）先天裝不了有熟練度的裝備、也裝不了飛機（無搭載數可言），故
 // 只留改修槽、不建 r-col 兩行結構——單一個 <b> 靠 .chip 既有的 align-items:center
 // 直接垂直置中，不用另外湊一個永遠空的搭載數行去撐版面。
+// 搭載數的 hover 後綴。出擊途中的搭載數是**估算值**（遊戲只送整場合計損失機數，
+// 不送逐格殘量，見 GameState.queuePlaneLoss／spreadPlaneLoss），必須標示，回港由母港封包實數校正。
+function slotCountTitle(g: GearView) {
+    if (g.count == null) return '';
+    const est = g.countEst ? `（${t('fleet.slotCountEst')}）` : '';
+    return ` [${g.count}${g.countMax != null ? `/${g.countMax}` : ''}]${est}`;
+}
 function gearChip(g: NonNullable<ShipView['exGear']>, ex = false) {
-    const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${g.count != null ? ` [${g.count}${g.countMax != null ? `/${g.countMax}` : ''}]` : ''}`;
+    const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${esc(slotCountTitle(g))}`;
     if (ex) return `<span class="chip ${g.cat} ex" title="${title}">${gearIconHtml(g.icon, g.short)}<b>${impMark(g.level)}</b></span>`;
     const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
     return `<span class="chip ${g.cat}" title="${title}">` +
         `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top"><u>${alvMark(g.alv)}</u><b>${impMark(g.level)}</b></span>` +
-        `<em class="oc ${ocCls}">${g.count ?? ''}</em></span></span>`;
+        `<em class="oc ${ocCls}">${g.countEst ? '≈' : ''}${g.count ?? ''}</em></span></span>`;
 }
 // 泊地修理／給糧：算出該艦隊的兩份計畫＋摘要 badge。
 // 倒數一律標為估算（遊戲不送這兩個機制的封包，計時器靠觀察編成封包推算）；
@@ -456,6 +466,12 @@ function escapedTag(s: ShipView) {
         ? `<span class="esc-tag" title="${esc(t('fleet.escapedTitle'))}">${esc(t('fleet.escaped'))}</span>`
         : '';
 }
+// 艦名 hover：一律顯示**封包原始日文艦名**（不是譯名）。譯名對不上遊戲畫面時這是唯一的
+// 對照途徑；聯合檢視原本掛的是譯名，等於把列面已經看得到的字再說一次。原名同時也把
+// 聯合檢視省略號截掉的部分補回來（原名是完整的），故不做「相同就省略」的最佳化。
+function shipNameTitle(s: ShipView) {
+    return ` title="${esc(s.nameJa || s.name)}"`;
+}
 function shipRow(s: ShipView, maxSlots: number, marks?: { cls: string; mark: string }) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
@@ -489,7 +505,7 @@ function shipRow(s: ShipView, maxSlots: number, marks?: { cls: string; mark: str
     const chips = realChips + blankChip('chip-pad').repeat(Math.max(0, padCount));
     return `<div class="ship ${st} ${s.escaped ? 'escaped' : ''} ${marks?.cls ?? ''}">
       <div class="ship-row">
-        <span class="grow">${s.stype ? `<span class="stype">${esc(s.stype)}</span>` : ''}${esc(s.name)}${escapedTag(s)}</span>${marks?.mark ?? ''}<span class="num">Lv${s.lv}</span>
+        <span class="grow"${shipNameTitle(s)}>${s.stype ? `<span class="stype">${esc(s.stype)}</span>` : ''}${esc(s.name)}${escapedTag(s)}</span>${marks?.mark ?? ''}<span class="num">Lv${s.lv}</span>
         <span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span>
         <span class="num">${s.hp}/${s.maxhp}</span><span class="cond ${cond}">${s.cond}</span>
       </div>
@@ -580,9 +596,9 @@ expedSel.addEventListener('change', () => { expedId = Number(expedSel.value); re
 // 只列出已裝備者——使用者要一眼看出「這艘還有空格能塞裝備」，不必切回單隊檢視確認。
 function compactGearRow(s: ShipView) {
     const cgItem = (g: GearView, ex = false) => {
-        const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${g.count != null ? ` [${g.count}${g.countMax != null ? `/${g.countMax}` : ''}]` : ''}`;
+        const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${esc(slotCountTitle(g))}`;
         const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
-        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${g.count != null ? `<em class="${ocCls}">${g.count}</em>` : ''}</span>`;
+        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${g.count != null ? `<em class="${ocCls}">${g.countEst ? '≈' : ''}${g.count}</em>` : ''}</span>`;
     };
     // class 用 cg-empty（非裸 empty）：裸 .empty 撞到面板另一個全域樣式
     // （「尚無資料」占位文字的 .empty,.dim{padding:2px 6px}，見 index.html），曾經讓
@@ -614,7 +630,7 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
     return `<div class="ship c ${st} ${s.escaped ? 'escaped' : ''} ${marks?.cls ?? ''}">
       <div class="c-top">
         <span class="stype">${esc(s.stype)}</span>
-        <span class="grow" title="${esc(s.name)}">${esc(s.name)}${escapedTag(s)}</span>${marks?.mark ?? ''}
+        <span class="grow"${shipNameTitle(s)}>${esc(s.name)}${escapedTag(s)}</span>${marks?.mark ?? ''}
         <span class="lv">Lv${s.lv}</span>
         <span class="cond ${cond}">${s.cond}</span>
       </div>
@@ -628,12 +644,19 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
 // 聯合艦隊：頂部一列「兩隊合計」總覽（Lv／制空／索敵／速力／TP，見
 // GameState.combinedSummary），下方第一／第二艦隊左右各佔一欄（不換行堆疊）。
 // 每欄自己只留大破警示，數字統計不重複顯示——都在頂部合計列看；未補給只標在編成編號紅框。
+// 制空值。熟練度過時（艦載機被擊墜過、但遊戲還沒送過新的裝備資料）時標成估算：
+// 值本身照算，只是**可能偏高**——熟練度掉了我們看不到，掉多少也不推算（見
+// GameState.alvStale）。虛線底線沿用面板既有的估算視覺語彙（.badge-tag.est）。
+function airPowerHtml(air: { min: number; max: number }, stale: boolean) {
+    const v = air.min === air.max ? `${air.min}` : `${air.min}~${air.max}`;
+    return `<span>${t('fleet.airPower')} <b${stale ? ` class="est" title="${esc(t('fleet.airPowerStaleTitle'))}"` : ''}>${v}</b></span>`;
+}
 function renderCombinedFleets() {
     const all = state.fleets();
     const sum = state.combinedSummary(cn);
     const totalHead = `<div class="fsummary combined-total">
         <span>${t('fleet.lvTotal')} <b>${sum.lvSum}</b></span>
-        <span>${t('fleet.airPower')} <b>${sum.air.min === sum.air.max ? sum.air.min : `${sum.air.min}~${sum.air.max}`}</b></span>
+        ${airPowerHtml(sum.air, sum.airStale)}
         <span>${t('fleet.scouting33')} <b>${sum.f33.toFixed(2)}</b>
           <select class="cn">${[1, 2, 3, 4].map(x =>
         `<option value="${x}" ${x === cn ? 'selected' : ''}>×${x}</option>`).join('')}</select></span>
@@ -643,13 +666,15 @@ function renderCombinedFleets() {
     const cols = [0, 1].map(i => {
         const f = all[i];
         if (!f) return `<section class="fleet compact"><div class="empty">${t('common.empty')}</div></section>`;
-        // 左右位置本身就是第1/第2艦隊，不需要再標一次隊名；只留大破等必須直接顯示的
-        // 警示（沒有警示時整列不佔版面）。未補給只用編成編號紅框提醒。
+        // 左右位置本身就是第1/第2艦隊，不需要再標一次隊名（沒有警示時整列不佔版面）。
+        // 未補給只用編成編號紅框提醒。
+        //
+        // **大破刻意不在這裡掛徽章**：這一列是「有東西才出現」的條件列，大破一發生就憑空
+        // 多長一列、把整排艦往下推，正在盯的那一艘突然換位置。改比照單隊檢視，把警示長在
+        // 大破艦自己身上（艦名轉紅，見 index.html 的 .ship.c.st-major .c-top .grow），
+        // 不佔版面。出擊中的完整大破警告本來就在出擊分頁，不靠這顆徽章。
         const { rep, mor, badges: repairBadges } = repairPlansOf(f);
-        const badges =
-            (f.ships.some(s => !s.escaped && s.maxhp && s.hp / s.maxhp <= 0.25) ? `<span class="badge-tag danger">${t('fleet.heavyDamage')}</span>` : '') +
-            repairBadges;
-        const head = badges ? `<div class="fsummary compact col">${badges}</div>` : '';
+        const head = repairBadges ? `<div class="fsummary compact col">${repairBadges}</div>` : '';
         return `<section class="fleet compact">${head}${f.ships.map((s, idx) => compactShipRow(s, repairMarks(idx, rep, mor))).join('')}</section>`;
     }).join('');
     fleetsEl.innerHTML = `<div class="combined-wrap">${totalHead}<div class="c-fleet-row">${cols}</div></div>`;
@@ -675,7 +700,7 @@ function renderFleets() {
         const summary = sum ? `<div class="fsummary">
             ${badges}
             <span>${t('fleet.lvTotal')} <b>${sum.lvSum}</b></span>
-            <span>${t('fleet.airPower')} <b>${sum.air.min === sum.air.max ? sum.air.min : `${sum.air.min}~${sum.air.max}`}</b></span>
+            ${airPowerHtml(sum.air, sum.airStale)}
             <span>${t('fleet.scouting33')} <b>${sum.f33.toFixed(2)}</b>
               <select class="cn">${[1, 2, 3, 4].map(x =>
             `<option value="${x}" ${x === cn ? 'selected' : ''}>×${x}</option>`).join('')}</select></span>
@@ -759,17 +784,64 @@ function getEdgeLetter(mapArea: number, mapNo: number, edgeId: number) {
     // 既非 ASCII 推算也非編號排序），故查不到就顯示遊戲的 cell 編號，不再推算。
     return nodeLabel(`${mapArea}-${mapNo}`, edgeId);
 }
+// 未出擊時的關卡量表列。**刻意共用 sortieGaugeBarHtml 與出擊中完全同一組 title／斬殺期
+// 判定**——兩處各寫一份遲早會漂移成「出擊中說斬殺期、母港說還要兩次」。沒有任何未攻略的
+// HP 量表海域（例如平時只打一般圖）時整塊不出現，不佔版面。
+function mapGaugeListHtml(): string {
+    const maps = state.unclearedHpGaugeMaps();
+    if (maps.length === 0) return '';
+    const rows = maps.map(({ mapId, mapArea, mapNo, gauge }) => {
+        const mapCode = `${mapArea}-${mapNo}`;
+        const isEvent = isEventWorld(mapArea);
+        const mapStr = mapLabel({ event: isEvent, mapnum: mapNo, map: mapCode });
+        const diff = isEvent ? diffLabel(gauge.selectedRank ?? 0) : '';
+        const r = state.mapRemainingRuns(mapId);
+        const hint = r != null
+            ? t('sortie.hintEstRuns', { n: r, kind: t('sortie.kindDefeat') })
+            : t('sortie.hintNeedBoss');
+        const zansatsu = state.mapInFinalPhase(mapId);
+        const title = [
+            t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint }),
+            zansatsu ? t('sortie.zansatsuLabel') : '',
+        ].filter(Boolean).join('\n');
+        return `<div class="s-standby-map">
+            <div class="s-map-id" title="${esc(diff ? `${mapCode}・${diff}` : mapCode)}">${esc(mapStr)}${diff ? `<i>${esc(diff)}</i>` : ''}</div>
+            ${sortieGaugeBarHtml({
+                now: gauge.nowHp, max: gauge.maxHp, finalPhase: zansatsu,
+                title, finalLabel: t('sortie.zansatsuLabel'),
+            })}
+        </div>`;
+    }).join('');
+    return `<div class="s-standby-maps">${rows}</div>`;
+}
 function renderSortie() {
     if (tab !== 'sortie') return;
     const info = state.battleInfo;
     const sortie = state.sortieInfo;
     const sortieEl = document.getElementById('battle-content')!;
     if (!sortie) {
-        sortieEl.innerHTML = `<div style="color:var(--dim); padding:10px;">${t('sortie.notEntered')}</div>`;
+        // 未出擊時：列出尚未攻略的 HP 量表海域，含斬殺期標示。**這一格刻意不等出擊**——
+        // 「還剩多少、是不是斬殺線內」正是決定要不要出擊、帶什麼編成的依據，出擊一次的
+        // 資源成本很高，把答案鎖在出擊後才顯示等於在使用者最需要它的時候藏起來。
+        // 量表值來自 mapinfo（點開出擊海域選單就送來），斬殺線來自本機出擊紀錄。
+        sortieEl.innerHTML = `<div class="s-standby">
+            <div class="s-standby-hint">${t('sortie.notEntered')}</div>
+            ${mapGaugeListHtml()}
+        </div>`;
         return;
     }
     // 損失機數：>0 時以紅色 -N 顯示（例：-23）
     const planeLost = (lost: number) => lost > 0 ? `<span class="s-air-lost">-${lost}</span>` : '';
+    // 敵我方機數格。**這一節點打完之前顯示「出擊機數 -損失」（238 -23），結算後只留
+    // 殘存機數（215）**。
+    //   ・交戰中：要看的是這一場投入了多少、掉了多少。夜戰接續沒有航空戰，機數不會再變，
+    //     故整個節點期間都維持同一組數字，不中途改口。
+    //   ・結算後：`-損失` 已是打完的舊帳，殘存機數才是接下來要帶進下一個節點的東西，
+    //     再掛著損失只是雜訊。
+    // 舊寫法固定顯示 `殘存/出擊 -損失`（215/238 -23）：三個數字擠在一格，而且交戰中就先
+    // 把殘存數當成定局顯示出來。
+    const planeCell = (v: { count: number; lost: number }) =>
+        info?.hasResult ? `${v.count - v.lost}` : `${v.count}${planeLost(v.lost)}`;
     let html = '<div class="sortie-container">';
     // 標題列：海域編號 + 節點軌跡 + 狀態，合併為一行省高度（#4）
     // 關卡進度：已用真實 mapinfo 封包驗證兩種量表（見 state.ts MapGaugeView 註解）。
@@ -792,38 +864,42 @@ function renderSortie() {
         nodeDots += `<div class="s-node visited ${isBoss ? 'boss' : ''}">${letter}</div>`;
     }
     let gaugeHtml = '';
+    // 量表本體：一顆圓矩 pill，殘量條當背景、**剩餘實數直接寫在條子裡**。
+    // 使用者要求（活動海域）一眼看到 2760/4600 這種攻略血量，而不是由 HP 推估的
+    // 「剩 N 次」——推估值不是封包事實，改留在 tooltip 裡當補充說明。
+    const gaugeBar = (now: number, max: number, zansatsu: boolean, title: string) => sortieGaugeBarHtml({
+        now, max, finalPhase: zansatsu, title, finalLabel: t('sortie.zansatsuLabel'),
+    });
     if (gauge?.cleared) {
         // 已攻略關卡回應不再帶量表欄位，一律顯示已攻略勾號
         gaugeHtml = `<div class="s-gauge cleared" title="${esc(t('sortie.cleared'))}">✓</div>`;
     } else if (gauge?.gaugeType === 1 && gauge.requiredDefeatCount > 0) {
-        // 擊破數式（一般圖5番/EO）：量表隨擊破遞減，顯示「剩餘擊破次數」
-        // （與 gaugeType 2 boss型一致；先前顯示「已擊破數」會被誤讀為剩餘數）
+        // 擊破數式（一般圖5番/EO）：量表隨擊破遞減，條子裡寫「剩餘擊破次數／需求次數」
+        // （與 gaugeType 2 一致採剩餘語意；先前顯示「已擊破數」會被誤讀為剩餘數）
         const remain = Math.max(0, gauge.requiredDefeatCount - gauge.defeatCount);
-        const pct = Math.max(0, Math.min(100, Math.round(100 * remain / gauge.requiredDefeatCount)));
         // 剩最後 1 次 → 斬殺場提示（該次擊破即攻略）
         const zansatsu = remain === 1;
-        const title = t('sortie.remainingHits', { n: remain, done: gauge.defeatCount, total: gauge.requiredDefeatCount });
-        gaugeHtml = `<div class="s-gauge${zansatsu ? ' zansatsu' : ''}" title="${esc(title)}">
-            <span class="s-gauge-bar"><i style="width:${pct}%"></i></span>
-            <span class="s-gauge-num">${zansatsu ? t('sortie.zansatsuLabel') : t('sortie.remainingShort', { n: remain })}</span>
-        </div>`;
+        const title = [
+            t('sortie.remainingHits', { n: remain, done: gauge.defeatCount, total: gauge.requiredDefeatCount }),
+            zansatsu ? t('sortie.zansatsuLabel') : '',
+        ].filter(Boolean).join('\n');
+        gaugeHtml = gaugeBar(remain, gauge.requiredDefeatCount, zansatsu, title);
     } else if ((gauge?.gaugeType === 2 || gauge?.gaugeType === 3) && gauge.maxHp > 0 && gauge.maxHp !== 9999) {
-        // HP量表式(gaugeType 2, boss撃破)估剩餘次數；TP輸送型(gaugeType 3)直接顯示封包的剩餘TP。
-        const pct = Math.max(0, Math.min(100, Math.round(100 * gauge.nowHp / gauge.maxHp)));
+        // HP量表式(gaugeType 2, boss撃破)／TP輸送型(gaugeType 3)：條子裡一律寫封包實數
+        // 「剩餘/最大」。剩餘次數是由 boss 旗艦 HP 推估的衍生值，改放 tooltip。
         const isTpGauge = gauge.gaugeType === 3;
         const r = isTpGauge ? null : state.mapRemainingRuns();
         const hint = r != null
             ? t('sortie.hintEstRuns', { n: r, kind: t('sortie.kindDefeat') })
             : isTpGauge ? '' : t('sortie.hintNeedBoss');
-        // boss撃破型剩最後 1 次 → 斬殺場提示；TP輸送型不適用。
-        const zansatsu = r === 1;
-        const title = t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint });
-        gaugeHtml = `<div class="s-gauge${zansatsu ? ' zansatsu' : ''}" title="${esc(title)}">
-            <span class="s-gauge-bar"><i style="width:${pct}%"></i></span>
-            ${isTpGauge
-                ? `<span class="s-gauge-num">${t('sortie.remainingTP', { n: gauge.nowHp })}</span>`
-                : r != null ? `<span class="s-gauge-num">${zansatsu ? t('sortie.zansatsuLabel') : t('sortie.remainingShort', { n: r })}</span>` : ''}
-        </div>`;
+        // boss 撃破型殘量嚴格小於 boss HP → 進入斬殺期；TP 輸送型不適用。
+        // 不用 `r === 1`：ceil(殘量 / boss HP) 在兩者相等時也是 1，但那還沒進斬殺線。
+        const zansatsu = !isTpGauge && state.mapInFinalPhase();
+        const title = [
+            t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint }),
+            zansatsu ? t('sortie.zansatsuLabel') : '',
+        ].filter(Boolean).join('\n');
+        gaugeHtml = gaugeBar(gauge.nowHp, gauge.maxHp, zansatsu, title);
     } else if (gauge?.gaugeType === 2 && gauge.maxHp === 9999) {
         // maxHp=9999：尚未選擇難度的佔位值（已用兩份真實封包比對驗證），非真實100%
         gaugeHtml = `<div class="s-gauge locked" title="${esc(t('sortie.notChosenDifficulty'))}">🔒</div>`;
@@ -903,19 +979,22 @@ function renderSortie() {
         // 敵艦 hover 的詳細資訊（#14）：等級、素質四項與裝備清單。
         // 全部是戰鬥封包欄位（api_ship_lv／api_eParam／api_eSlot），封包沒帶就不寫那一行
         // ——空著比填 0 誠實（0 火力與「不知道火力」是兩件事）。
+        // 逐項一行（素質四項、裝備逐顆）。原本用「／」串成兩長行，敵艦名一長／裝備一多
+        // 就被 tooltip 自動折行折在任意位置，反而讀不出哪個數字配哪個標籤。
         const enemyTitle = (name: string, hp: number, maxHp: number, d?: BattleEnemyShipView) => {
             const head = d?.lv ? `${name} Lv${d.lv}` : name;
-            const lines = [maxHp > 0 ? `${head}　HP ${Math.max(0, hp)}/${maxHp}` : head];
+            const lines = [head];
+            if (maxHp > 0) lines.push(`HP ${Math.max(0, hp)}/${maxHp}`);
             if (d?.param) {
-                lines.push([
+                lines.push(
                     `${t('sortie.enemyFirepower')} ${d.param[0] ?? 0}`,
                     `${t('sortie.enemyTorpedo')} ${d.param[1] ?? 0}`,
                     `${t('sortie.enemyAa')} ${d.param[2] ?? 0}`,
                     `${t('sortie.enemyArmor')} ${d.param[3] ?? 0}`,
-                ].join('／'));
+                );
             }
             if (d?.slots.length) {
-                lines.push(`${t('sortie.enemyGears')} ${d.slots.map((g: number) => state.gearName(g)).join('／')}`);
+                lines.push(t('sortie.enemyGears'), ...d.slots.map((g: number) => `　${state.gearName(g)}`));
             }
             return lines.join('\n');
         };
@@ -970,11 +1049,11 @@ function renderSortie() {
                     <div class="s-air-mini">
                         <span></span><span class="hd">${t('sortie.ourSide')}</span><span class="hd">${t('sortie.enemySide')}</span>
                         <span class="rowlbl"><span class="s-air-icon" style="color:#51cf66;">${t('sortie.fighterAbbr')}</span></span>
-                        <span>${p.playerFighter.count - p.playerFighter.lost}/${p.playerFighter.count}${planeLost(p.playerFighter.lost)}</span>
-                        <span>${p.enemyFighter.count - p.enemyFighter.lost}/${p.enemyFighter.count}${planeLost(p.enemyFighter.lost)}</span>
+                        <span>${planeCell(p.playerFighter)}</span>
+                        <span>${planeCell(p.enemyFighter)}</span>
                         <span class="rowlbl"><span class="s-air-icon" style="color:#ff6b6b;">${t('sortie.bomberAbbr')}</span></span>
-                        <span>${p.playerBomber.count - p.playerBomber.lost}/${p.playerBomber.count}${planeLost(p.playerBomber.lost)}</span>
-                        <span>${p.enemyBomber.count - p.enemyBomber.lost}/${p.enemyBomber.count}${planeLost(p.enemyBomber.lost)}</span>
+                        <span>${planeCell(p.playerBomber)}</span>
+                        <span>${planeCell(p.enemyBomber)}</span>
                     </div>${taihaHtml}
                 </div>
             </div>
@@ -1019,11 +1098,18 @@ function renderSortie() {
         // 會在窄面板把 Drop chip 擠掉，見 CLAUDE.md 出擊資訊欄硬約束）。
         // 圈內兩行＝對敵傷害／損失機數，逐波明細留在 tooltip。
         const lbas = info.lbas;
+        // 逐波明細一波一段、段內逐項換行（基地／制空／損失／傷害各一行）：一波五、六個
+        // 數字擠在同一行用「／」隔開時，波數一多就分不出哪個數字屬於哪一波。
+        const lbasWaveLines = (w: BattleLbasView['waves'][number], i: number) => [
+            w.baseId ? t('sortie.lbasWaveHead', { i: i + 1, base: w.baseId })
+                : t('sortie.lbasWaveHeadNoBase', { i: i + 1 }),
+            `　${t('sortie.airBattle')} ${w.seiku != null && seikuKeys[w.seiku] ? t(seikuKeys[w.seiku]) : t('sortie.none')}`,
+            `　${t('sortie.lbasWaveLost', { sent: w.sent, lost: w.lost })}`,
+            `　${t('sortie.lbasWaveDamage', { damage: w.damage })}`,
+        ].join('\n');
         const lbasChip = !lbas ? '' : `<div class="s-icon lbas active" title="${esc([
             t('sortie.lbasTitle', { sent: lbas.sent, lost: lbas.lost, damage: lbas.damage }),
-            ...lbas.waves.map((w, i) => w.baseId
-                ? t('sortie.lbasWave', { i: i + 1, base: w.baseId, lost: w.lost, damage: w.damage })
-                : t('sortie.lbasWaveNoBase', { i: i + 1, lost: w.lost, damage: w.damage })),
+            ...lbas.waves.map(lbasWaveLines),
         ].join('\n'))}"><span class="s-lbas-dmg">${lbas.damage}</span>${
             lbas.lost > 0 ? `<span class="s-air-lost">-${lbas.lost}</span>` : ''}</div>`;
         // drop 為隨機，無法預測，僅結算後顯示實際掉落；用完整艦名 chip（#5）。
@@ -1223,6 +1309,143 @@ const isSortieBattlePath = (path: string) =>
 // 同節點的結算封包一到就把它重新展開、又蓋住機數，是使用者做完動作馬上被推翻。
 const isNewBattlePacket = (path: string) =>
     isSortieBattlePath(path) && !path.endsWith('result') && !path.endsWith('/goback_port');
+
+// ── [debug] 艦載機戰損的封包驗證擷取 ──────────────────────────────────────
+// 遊戲的航空戰段只送**整場合計**損失機數，不送逐格殘量，故 GameState.spreadPlaneLoss
+// 的逐格分攤目前是估算（見 CLAUDE.md「出擊途中的艦載機戰損」）。要把分攤規則定案，需要
+// 這一組對照：
+//   出擊前逐格搭載 → 各節點航空戰的合計損失 → 回港後逐格搭載
+// 前後兩份搭載數的差就是**實際**逐格損失；只要出擊中只經過一個航空戰節點，就能直接
+// 反推遊戲真正的分攤規則。故此處在「節點戰鬥結束（battleresult）」印出當下已累積的
+// 內容，並在**回港**時印出補上 after／diff 的完整版——完整版才是驗證需要的那一份。
+// 面板視窗按右鍵「檢查」開 DevTools，對印出的物件按右鍵「Copy object」即可複製；
+// 也可在 console 執行 `copy(__kcPlaneLoss)`。**分攤規則定案後這整段可移除。**
+// alv（熟練度）也一起拍：擊墜會讓熟練度下降、制空跟著掉，但**沒有任何出擊／回港封包
+// 帶熟練度**（已查證 api_port/port 與 battleresult 都不帶），只有登入的 require_info 與
+// 開裝備畫面的 slot_item 會整批刷新。故要拿到熟練度的實際變化，**回港後必須再開一次
+// 遊戲的裝備／改修畫面**，probe 才收得到 after 的 alv——`alvPending` 就是在等這一步。
+interface PlaneSlotSnap {
+    ship: string; shipId: number; slot: number; gear: string; cat: number;
+    count: number; max: number | null; level: number; alv: number;
+}
+interface PlaneLossProbe {
+    note: string;
+    map: string | null;
+    /** 本次實際出擊的艦隊索引；回港後 currentSortieFleetId 會被 port 重設，不能再現查。 */
+    fleetIndexes: number[];
+    before: PlaneSlotSnap[];
+    nodes: { node: number; path: string; phases: unknown[] }[];
+    after?: PlaneSlotSnap[];
+    diff?: {
+        ship: string; slot: number; gear: string; cat: number;
+        before: number; after: number; lost: number;
+        alvBefore: number; alvAfter: number; alvDrop: number;
+    }[];
+    totals?: { packetLost: number; actualLost: number };
+    /** true＝after 的熟練度還是出擊前那份，請開一次遊戲的裝備畫面再複製一次。 */
+    alvPending?: boolean;
+}
+let planeProbe: PlaneLossProbe | null = null;
+// 出擊中兩隊（連合時含隨伴）的逐格搭載快照。GameState 已解析好裝備與 master，
+// 故這份快照自帶機種名與類別 id，不必再回頭對照 start2。
+function planeSnapshot(fleetIndexes: readonly number[]): PlaneSlotSnap[] {
+    const out: PlaneSlotSnap[] = [];
+    const fleets = state.fleets();
+    fleetIndexes.map(i => fleets[i]).filter((f): f is NonNullable<typeof f> => !!f).forEach(f => f.ships.forEach(s => {
+        s.gears.forEach((g, i) => {
+            if (g?.count == null) return;
+            out.push({
+                ship: s.nameJa, shipId: s.id, slot: i, gear: g.name, cat: g.type,
+                count: g.count, max: g.countMax ?? null, level: g.level, alv: g.alv,
+            });
+        });
+    }));
+    return out;
+}
+// 一則戰鬥封包裡各航空戰段的原始欄位（不加工，保留原名以便直接對照）。
+function planePhases(api: any): unknown[] {
+    const out: unknown[] = [];
+    for (const key of ['api_injection_kouku', 'api_kouku', 'api_kouku2']) {
+        const ph = api?.[key];
+        if (!ph) continue;
+        out.push({ phase: key, api_stage1: ph.api_stage1, api_stage2: ph.api_stage2, api_plane_from: ph.api_plane_from });
+    }
+    return out;
+}
+function collectPlaneProbe(path: string, api: any) {
+    if (path === 'api_req_map/start') {
+        // 出擊當下的搭載數還是母港實數（此時尚未有任何戰鬥），正是需要的 before。
+        const map = state.sortieInfo;
+        const mainFleet = state.currentSortieFleetId;
+        const fleetIndexes = state.combinedFlag > 0 && mainFleet === 0 ? [0, 1] : [mainFleet];
+        planeProbe = {
+            note: '艦載機戰損驗證：before＝出擊前逐格搭載與熟練度、nodes＝各節點航空戰的封包欄位、'
+                + 'after／diff＝回港後的實數與實際逐格損失（含 alvDrop 熟練度下降量）。'
+                + '熟練度是回港時依「出擊時殘數 vs 回港時殘數」結算的，全滅那一格必定歸零（帯なし），'
+                + '部分損耗的下降量才是待驗證的部分。'
+                + '⚠️ 熟練度只有「登入」「開編成／改裝畫面」或「開裝備庫」才會送，故回港後**再開一次'
+                + '編成畫面**（且在下次出擊之前），alvPending 轉 false 的那一版才是完整的。',
+            map: map ? `${map.mapArea}-${map.mapNo}` : null,
+            fleetIndexes,
+            before: planeSnapshot(fleetIndexes), nodes: [],
+        };
+        return;
+    }
+    if (!planeProbe) return;
+    if (isNewBattlePacket(path)) {
+        const phases = planePhases(api);
+        if (phases.length) {
+            planeProbe.nodes.push({ node: state.sortieInfo?.nodes.length ?? 0, path, phases });
+        }
+        return;
+    }
+    if (path.endsWith('battleresult')) {
+        (window as any).__kcPlaneLoss = planeProbe;
+        console.log('[KC-Monitor] 艦載機戰損（節點戰鬥結束・尚缺回港實數）↓ 右鍵此物件可 Copy object：', planeProbe);
+        return;
+    }
+    // 回港：母港封包已把 api_onslot 覆蓋成實數（consume 在 applyEvent 之後才呼叫本函式），
+    // 故此刻的快照就是搭載數的 after。但**熟練度還是出擊前那份**——母港封包不帶裝備資料，
+    // 要等玩家開一次遊戲的裝備／改修畫面（slot_item）才會刷新，故那時再補算一次。
+    if (path === 'api_port/port' || path === 'api_get_member/require_info' || path === 'api_get_member/slot_item'
+        || path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
+        || path === 'api_get_member/ship2') {
+        // 裝備資料刷新只在「已經回過港」之後才有意義（還沒回港＝出擊還沒結束）。
+        if (path !== 'api_port/port' && !planeProbe.after) return;
+        const after = planeSnapshot(planeProbe.fleetIndexes);
+        const key = (s: { shipId: number; slot: number }) => `${s.shipId}:${s.slot}`;
+        const afterBy = new Map(after.map(s => [key(s), s]));
+        planeProbe.after = after;
+        planeProbe.diff = planeProbe.before
+            .map(b => {
+                const a = afterBy.get(key(b));
+                // 回港後查不到同一格（換裝備／解隊）就跳過，不猜損失。
+                return a ? {
+                    ship: b.ship, slot: b.slot, gear: b.gear, cat: b.cat,
+                    before: b.count, after: a.count, lost: b.count - a.count,
+                    alvBefore: b.alv, alvAfter: a.alv, alvDrop: b.alv - a.alv,
+                } : null;
+            })
+            .filter((v): v is NonNullable<typeof v> => v !== null && (v.lost !== 0 || v.alvDrop !== 0));
+        const diff = planeProbe.diff;
+        planeProbe.totals = {
+            packetLost: planeProbe.nodes.reduce((n, node) => n + node.phases.reduce((m: number, p: any) =>
+                m + (Number(p?.api_stage1?.api_f_lostcount) || 0) + (Number(p?.api_stage2?.api_f_lostcount) || 0), 0), 0),
+            actualLost: diff.reduce((n, d) => n + d.lost, 0),
+        };
+        // alvStale 仍為 true＝這趟有擊墜、但遊戲還沒送過新的裝備資料，after 的熟練度
+        // 還是出擊前那份，熟練度那半邊還不能用。
+        planeProbe.alvPending = planeProbe.fleetIndexes.some(i => state.fleetSummary(i)?.airStale);
+        (window as any).__kcPlaneLoss = planeProbe;
+        console.log(planeProbe.alvPending
+            ? '[KC-Monitor] 艦載機戰損（含回港搭載實數・熟練度尚未刷新）↓ 請在遊戲開一次「裝備」或「改修」畫面，本物件會自動補上熟練度變化並再印一次：'
+            : '[KC-Monitor] 艦載機戰損（完整・含搭載與熟練度實數）↓ 右鍵此物件可 Copy object，或 console 執行 copy(__kcPlaneLoss)：',
+            planeProbe);
+        // 熟練度還沒到手就留著 probe 等下一次裝備資料刷新；**下次出擊會重置**，故要在
+        // 再次出擊前先去開一次裝備畫面。
+        if (!planeProbe.alvPending) planeProbe = null;
+    }
+}
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
     // [debug] 效能量測：live 事件才量（重播期間量測沒意義，且會洗版）。
@@ -1248,6 +1471,12 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         // 都是新的判斷，一律回到情境預設。收起來一次就整場不再示警的話警告等於白做。
         if (path === 'api_req_map/start' || path === 'api_req_map/next' || isNewBattlePacket(path))
             taihaOpenOverride = null;
+        // 斬殺線補撈：**mapinfo 一到就跑**（＝點開出擊海域選單的那一刻，此時量表值剛更新），
+        // 不必等到真的出擊。map/start 也跑一次，涵蓋沒經過選單直接再戰的情況；一張圖只掃
+        // 一次 DB，重複呼叫是免費的（見 restoreGaugeBossHp）。非同步，補到新值才重畫。
+        if (path === 'api_get_member/mapinfo' || path === 'api_req_map/start') {
+            void restoreGaugeBossHp().then(changed => { if (changed) renderSortie(); });
+        }
         if (path === 'api_port/port') autoSwitch('general', 'port');
         else if (path === 'api_req_map/start') { autoSwitch('sortie', 'sortie'); switchFleetViewToSortie(); }
         else if (isSortieBattlePath(path)) autoSwitch('sortie', 'sortie');
@@ -1269,6 +1498,12 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         if (isDebugUiEnabled()) {
             const tag = state.wantedTag(path, api, req);
             if (tag) void captureWanted(id, tag, ts, path);
+        }
+        // [debug] 艦載機戰損的封包驗證擷取（只在 live 事件；重播歷史事件不印，否則面板
+        // 一開就洗版，且重播時的 before/after 早已被後來的封包蓋過、對照不成立）。
+        if (isDebugUiEnabled()) {
+            try { collectPlaneProbe(path, api); }
+            catch (e) { console.warn('[KC-Monitor] 艦載機戰損擷取失敗', e); }
         }
         const t2 = performance.now();
         renderAll();
@@ -1381,6 +1616,68 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // 面板會是一片空白，連「為什麼」都看不到。
 renderTabs();
 setNotice('loading', t('panel.loading'));
+
+// 原始 events 會定期裁剪，但 replays（戰鬥封包）與 sorties（Boss 節點事實）另有持久
+// 保留規則。面板重開後由兩者恢復 Boss HP，否則 mapBossHp 只存在記憶體，載入正式版
+// 擴充後就會失去斬殺線。只查目前出擊海域，避免把整座重播資料庫搬進記憶體。
+//
+// **時機是「出擊開始」不是「面板啟動」**：sortieInfo 在 api_port/port 會被清空，面板
+// 幾乎都是在母港開的，只在啟動時查等於永遠查不到，斬殺線要等這次 session 自己再打一次
+// Boss 才會出現——那正是這支要修的問題。故啟動與每次 api_req_map/start 都跑一次。
+// 也刻意不用「已知就略過」當快門：同一活動海域可能有多個 Boss 節點，本次 session 先
+// 觀測到的可能是 HP 較低的旁支 Boss，紀錄裡的較高門檻仍必須併進來（observeMapBossHp
+// 取最大值）。頻率是每次出擊一次，成本可接受。
+//
+// **不以 sortieInfo 為前提**：斬殺線的兩個材料在母港就到齊了——量表值來自 mapinfo（點開
+// 出擊海域選單即送來），Boss HP 來自本機出擊紀錄。把補撈綁在「正在出擊中」會逼使用者
+// 花一次出擊的資源才看得到結果，而那次出擊本身正是要靠這條線去決定要不要打的。
+//
+// 一張圖只掃一次 DB（bossHpScanned）。**不可改用「mapBossHp 已有值就跳過」當快門**：
+// 本次 session live 觀測到的可能是 HP 較低的旁支 Boss，紀錄裡的較高門檻仍必須併進來。
+const bossHpScanned = new Set<number>();
+
+async function restoreMapBossHp(mapArea: number, mapNo: number): Promise<boolean> {
+    const mapId = mapArea * 10 + mapNo;
+    const before = state.mapBossHp.get(mapId);
+    const map = `${mapArea}-${mapNo}`;
+    // sorties 是每筆 <1KB 的摘要，整表過濾成本可忽略；replays 才是帶原始封包的大列。
+    const bossRows = await db.sorties
+        .filter(row => row.map === map && !!row.boss && !row.imported)
+        .toArray();
+    let scanned = 0;
+    if (bossRows.length > 0) {
+        // 逐列串流而不是 toArray()：一張活動海域的重播可能有數十場、每場數則原始戰鬥封包，
+        // 整批載入會把幾十 MB 搬進面板記憶體。每次只留一列，交給同一支純函式算。
+        await db.replays.where('world').equals(mapArea).each(row => {
+            if (row.mapnum !== mapNo || row.imported) return;
+            scanned++;
+            const hp = maxObservedBossHp([row], bossRows, mapArea, mapNo);
+            if (hp != null) state.observeMapBossHp(mapArea, mapNo, hp);
+        });
+    }
+    const after = state.mapBossHp.get(mapId);
+    console.log(`[KC-Monitor] bossHp ${map}: 重播=${scanned} Boss紀錄=${bossRows.length} `
+        + `記憶體=${before ?? '無'}→${after ?? '無'}`);
+    return after !== before;
+}
+
+// 對所有「尚未攻略的 boss 撃破型量表」補撈斬殺線。mapinfo 一到就跑（點開出擊海域選單
+// 那一刻），面板啟動時也跑一次。回傳是否有任一張圖的斬殺線改變，供呼叫端決定要不要重畫。
+async function restoreGaugeBossHp(): Promise<boolean> {
+    let changed = false;
+    for (const { mapId, mapArea, mapNo } of state.unclearedHpGaugeMaps()) {
+        if (bossHpScanned.has(mapId)) continue;
+        bossHpScanned.add(mapId);
+        try {
+            if (await restoreMapBossHp(mapArea, mapNo)) changed = true;
+        } catch (e) {
+            bossHpScanned.delete(mapId);   // 失敗不算掃過，下次 mapinfo 再試
+            console.warn('[KC-Monitor] Boss HP 恢復失敗', mapId, e);
+        }
+    }
+    return changed;
+}
+
 (async () => {
     try {
         const [snapshots, events, storedProjectionCursor] = await Promise.all([
@@ -1395,6 +1692,9 @@ setNotice('loading', t('panel.loading'));
         for (const row of plan.rawEvents) {
             await consume(row.id!, row.ts, row.path, row.api, row.req);
         }
+        // 重播完 events 後，mapGauges 已是最新一次 mapinfo 的內容，這裡把各未攻略海域的
+        // 斬殺線一次補齊——面板一開（不論在母港或出擊中）就該看得到，不必等下一則封包。
+        await restoreGaugeBossHp();
         ready = true;
         setNotice('none');
         // 重播期間累積的 log 一次性補上（陣列已依時間順序，逐筆 prepend 使最新的在最上面）

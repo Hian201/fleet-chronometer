@@ -54,7 +54,7 @@ interface BoardShip {
     lv: number;
     stypeId: number;
     sallyArea: number;
-    /** 航速 `api_soku`。master 未載入時為 0＝低速側，篩「高速」時自然落榜（不猜）。 */
+    /** 航速 `api_soku`。master 未載入時為 0＝不可考，不落入任何具體航速篩選。 */
     soku: number;
     /** 可裝備類別 id（`GameState.equipTypesOf()`）。查不到一律空陣列。 */
     equipTypes: number[];

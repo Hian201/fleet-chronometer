@@ -1,4 +1,6 @@
-// 面板打撈晶片的「新船／已持有」判定（`GameState.ownsShip()` ＋ `battleInfo.dropIsNew`）。
+// 「新船／已持有」判定：面板打撈晶片（`GameState.ownsShip()` ＋ `battleInfo.dropIsNew`）
+// 與打撈紀錄分區的新船篩選（`newShipDropKeys()`）。兩者**必須是同一條判準**，故鎖在同一
+// 個檔案裡：比對鎮守府全艦娘（以基礎形態比對）之後，這一撈才讓它第一次成為成員才算新船。
 //
 // 兩件事要鎖住：
 //   1. **比對用基礎形態**：手上是改二時打撈到本體算已持有（同 baseShipId 的圖鑑視角）。
@@ -6,6 +8,8 @@
 //      若改成事後從名冊回推，回港之後永遠會答「已持有」——這條測試就是為了擋那個回歸。
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
+import { newShipDropKeys } from '../utils/drop-new-ship';
+import type { ShipObtainedRow, SortieLogRow } from '../utils/db';
 
 /** 最小 master：吹雪(1) → 吹雪改(2) → 吹雪改二(3)；另有一艘無關的睦月(10)。 */
 function master() {
@@ -118,5 +122,100 @@ describe('battleInfo.dropIsNew', () => {
         ]), undefined, 1_726_000_000_030);
         expect(s.ownsShip(1)).toBe(true);
         expect(info.dropIsNew).toBe(true);
+    });
+});
+
+// 打撈紀錄分區（鎮守府情報總括）的新船篩選。**判準要與上面的 dropIsNew 同一條**：
+// 比對鎮守府全艦娘（以基礎形態比對）後，這一撈才讓它第一次成為成員才算新船。
+describe('newShipDropKeys（打撈紀錄的新船篩選）', () => {
+    const T = 1_726_000_000_000;
+    // 測試用的基礎形態解析：吹雪線（1/2/3）→ 1，其餘原樣（同 GameState.baseShipId 的行為）。
+    const baseOf = (mst: number | undefined) =>
+        mst == null || mst <= 0 ? null : [1, 2, 3].includes(mst) ? 1 : mst;
+
+    const drop = (over: Partial<SortieLogRow> & { sortieKey: number; ts: number; dropMst: number }): SortieLogRow => ({
+        eventId: over.sortieKey, map: '1-1', node: 1, boss: true, kind: 'battle',
+        rank: 'S', seiku: null, enemyIds: [], enemyIdsEscort: [], drop: '吹雪', taiha: false,
+        ...over,
+    });
+    const owned = (over: Partial<ShipObtainedRow> & { id: number; mst: number }): ShipObtainedRow => ({
+        obtainedTs: T + 100, source: 'auto', ...over,
+    });
+
+    it('自動觀測到入手的那一撈＝新船，同艦線後續的打撈都不是', () => {
+        const rows = [
+            drop({ sortieKey: 1, ts: T + 10, dropMst: 1 }),
+            drop({ sortieKey: 2, ts: T + 200, dropMst: 1 }),
+        ];
+        const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1 })], baseOf);
+        expect([...keys]).toEqual([1]);
+    });
+
+    it('以基礎形態比對：名冊那筆已是改二形態也對得上本體的打撈', () => {
+        const rows = [drop({ sortieKey: 1, ts: T + 10, dropMst: 1 })];
+        // 首次觀測後改造成吹雪改二，shipObtained.mst 停在觀測當下的形態
+        const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 3 })], baseOf);
+        expect([...keys]).toEqual([1]);
+    });
+
+    it('擴充安裝前就有的船（基準線 source=null）→ 所有打撈都不是新船', () => {
+        const rows = [drop({ sortieKey: 1, ts: T + 10, dropMst: 1 })];
+        const owned0: ShipObtainedRow = { id: 500, mst: 1, obtainedTs: null, source: null };
+        expect(newShipDropKeys(rows, [owned0], baseOf).size).toBe(0);
+    });
+
+    it('手填入手日（manual）同樣不猜是哪一撈帶進來的', () => {
+        const rows = [drop({ sortieKey: 1, ts: T + 10, dropMst: 1 })];
+        const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1, source: 'manual' })], baseOf);
+        expect(keys.size).toBe(0);
+    });
+
+    it('入手觀測之後才發生的打撈不算（那時它已經是成員了）', () => {
+        const rows = [drop({ sortieKey: 1, ts: T + 500, dropMst: 1 })];
+        const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1, obtainedTs: T + 100 })], baseOf);
+        expect(keys.size).toBe(0);
+    });
+
+    it('同艦線有多筆名冊紀錄時以 api_id 最小的那筆為準（＝第一位成員）', () => {
+        const rows = [drop({ sortieKey: 1, ts: T + 10, dropMst: 1 })];
+        const keys = newShipDropKeys(rows, [
+            owned({ id: 900, mst: 2, obtainedTs: T + 900 }),
+            owned({ id: 500, mst: 1, obtainedTs: T + 100 }),
+        ], baseOf);
+        expect([...keys]).toEqual([1]);
+    });
+
+    it('匯入的歷史紀錄以時間為錨點（borrow 來的 event ID 不參與比較）', () => {
+        // 匯入列的 eventId 是匯入當下借的（很大），但 ts 是真實的歷史時間。
+        const rows = [drop({ sortieKey: 1, eventId: 99999, ts: T + 10, dropMst: 1, imported: true })];
+        const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1, obtainedTs: T + 100 })], baseOf);
+        expect([...keys]).toEqual([1]);
+    });
+
+    it('同毫秒混合本機與匯入列時不拿借來的 event ID 猜入手來源', () => {
+        const local = drop({ sortieKey: 1, eventId: 10, ts: T + 10, dropMst: 1 });
+        const imported = drop({
+            sortieKey: 2, eventId: 99999, ts: T + 10, dropMst: 1, imported: true,
+        });
+        const obtained = [owned({ id: 500, mst: 1, obtainedTs: T + 100 })];
+        expect(newShipDropKeys([local, imported], obtained, baseOf).size).toBe(0);
+        expect(newShipDropKeys([imported, local], obtained, baseOf).size).toBe(0);
+    });
+
+    it('同毫秒且都是本機擷取時才以 raw event ID 收斂', () => {
+        const rows = [
+            drop({ sortieKey: 1, eventId: 10, ts: T + 10, dropMst: 1 }),
+            drop({ sortieKey: 2, eventId: 11, ts: T + 10, dropMst: 1 }),
+        ];
+        const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1, obtainedTs: T + 100 })], baseOf);
+        expect([...keys]).toEqual([2]);
+    });
+
+    it('沒有 dropMst 的舊資料一律跳過，不由艦名反推', () => {
+        const rows: SortieLogRow[] = [{
+            eventId: 1, sortieKey: 1, ts: T + 10, map: '1-1', node: 1, boss: true, kind: 'battle',
+            rank: 'S', seiku: null, enemyIds: [], enemyIdsEscort: [], drop: '吹雪', taiha: false,
+        }];
+        expect(newShipDropKeys(rows, [owned({ id: 500, mst: 1 })], baseOf).size).toBe(0);
     });
 });

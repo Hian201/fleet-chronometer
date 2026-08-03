@@ -23,6 +23,7 @@
 //     （呼叫端負責；本模組只如實回傳原始 id）。
 import { analyzeBattle } from './battle';
 import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip, SortieLogRow } from './db';
+import { repairLegacyReplayFleet } from './replay';
 import type { BattleInfoView } from './state';
 import { t } from './ui-i18n';
 
@@ -68,7 +69,11 @@ export const diffLabel = (diff: number) => (DIFF_KEYS[diff] ? t(DIFF_KEYS[diff])
 export interface LbasWave {
     baseId: number;
     planes: { mst: number; count: number }[];
-    /** 該波制空（0互角/1確保/2優勢/3劣勢/4喪失）；stage1 缺席時為 null。 */
+    /**
+     * 該波制空（0互角/1確保/2優勢/3劣勢/4喪失）；stage1 缺席**或這一波沒有制空戰**時
+     * 為 null。後者是必要的：雙方都沒出動艦載機時遊戲照樣送 `api_disp_seiku: 1`，
+     * 照抄會誤報「確保」（判準與面板同一條，見 CLAUDE.md「別只改一邊」）。
+     */
     seiku: number | null;
     fCount: number; fLost: number;
     eCount: number; eLost: number;
@@ -236,10 +241,12 @@ export function lbasWaves(api: any): LbasWave[] {
                 .map((p: any) => ({ mst: Number(p.api_mst_id), count: Number(p.api_count) || 0 }))
             : [];
         const s1 = wave.api_stage1;
+        // 兩軍機數合計為 0 ＝這一波沒有制空戰，不報制空狀態（見 LbasWave.seiku）。
+        const hasAir = (Number(s1?.api_f_count) || 0) + (Number(s1?.api_e_count) || 0) > 0;
         out.push({
             baseId: Number(wave.api_base_id) || 0,
             planes,
-            seiku: Number.isSafeInteger(s1?.api_disp_seiku) ? s1.api_disp_seiku : null,
+            seiku: hasAir && Number.isSafeInteger(s1?.api_disp_seiku) ? s1.api_disp_seiku : null,
             fCount: s1?.api_f_count ?? 0, fLost: s1?.api_f_lostcount ?? 0,
             eCount: s1?.api_e_count ?? 0, eLost: s1?.api_e_lostcount ?? 0,
         });
@@ -305,6 +312,7 @@ function analyzeNode(entry: ReplayNode, replay: ReplayRow): BattleInfoView | nul
  * rank 留空——**不臆測結果**。
  */
 export function buildSortieDetail(rows: SortieLogRow[], replay?: ReplayRow): SortieDetail {
+    if (replay) replay = repairLegacyReplayFleet(replay);
     const ordered = [...rows].sort((a, b) => a.eventId - b.eventId);
     const first = ordered[0];
     const map = first?.map ?? '';

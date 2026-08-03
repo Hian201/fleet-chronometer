@@ -283,6 +283,23 @@ describe('艦隊司令部退避', () => {
         expect(state.escapedShipIds.size).toBe(0);
     });
 
+    it('候補混有不可解析的主隊旗艦哨兵時整筆不猜', () => {
+        const state = stateWithFleets([[{ mst: 1 }, { mst: 1 }]]);
+        sortie(state);
+        retreat(state, [1, 2]);
+        expect([...state.escapedShipIds]).toEqual([]);
+    });
+
+    it('連合候補混有第二艦隊旗艦哨兵時整筆不猜', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            [{ mst: 1 }, { mst: 1 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [7, 8]);
+        expect([...state.escapedShipIds]).toEqual([]);
+    });
+
     it('沒有 api_escape 就不猜是哪艘船退避（維持原本的警告）', () => {
         const state = stateWithFleets([[{ mst: 1 }, { mst: 1 }]]);
         sortie(state);
@@ -314,6 +331,98 @@ describe('艦隊司令部退避', () => {
         expect(state.escapedShipIds.size).toBe(1);
         sortie(state);
         expect(state.escapedShipIds.size).toBe(0);
+    });
+});
+
+// api_escape_idx／api_tow_idx 是結算畫面「可以退避的船」，不是「實際退避的船」。
+// 實機回報：連合出擊只有朝霜曳航大井退避，面板卻把第2艦隊三艘驅逐艦全標成退避
+// ——反推當時的位置集合正是「大破艦＋全部未損傷驅逐艦」。整批標記會讓三艘健康的船
+// 燃料歸 0、cond 22，還被剔出制空／索敵／TP，故必須收斂成最多兩艘。
+describe('退避候補要收斂成實際退避的那一（兩）艘', () => {
+    it('曳航艦依隊內順位由上到下挑，跳過小破以上的候補', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            // 第2艦隊：旗艦／大破的2號艦／小破的3號艦／健康的4號艦
+            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1, hp: 25 }, { mst: 1 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [8], [9, 10]);
+        // 位置 9（小破）跳過 → 位置 10（id 6）才是曳航艦
+        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 6]);
+    });
+
+    it('候補順序未排序時仍依位置由上到下挑', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1 }, { mst: 1 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [8], [10, 9]);
+        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
+    });
+
+    it('曳航候補有多艘時只退避一艘，不整批標記', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            // 第2艦隊：旗艦＋大破的 2 號艦＋三艘健康驅逐艦（＝遊戲會列出的曳航候補）
+            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1 }, { mst: 1 }, { mst: 1 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [8], [9, 10, 11]);
+        // 大破的第2艦隊2號艦（id 4）＋候補第一艘（id 5）；6、7 不受影響
+        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
+        expect(state.fleets()[1].ships.map(s => s.escaped)).toEqual([false, true, true, false, false]);
+    });
+
+    it('大破候補有多筆時以本機追蹤的血量收斂出唯一那艘', () => {
+        const state = stateWithFleets([[{ mst: 1 }, { mst: 1 }, { mst: 1, hp: 4 }]]);
+        sortie(state);
+        retreat(state, [2, 3]);
+        expect([...state.escapedShipIds]).toEqual([3]);
+    });
+
+    it('只有曳航候補、沒有大破艦候補時不猜任何退避艦', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            [{ mst: 1 }, { mst: 1 }, { mst: 1 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [], [8, 9]);
+        expect([...state.escapedShipIds]).toEqual([]);
+    });
+
+    it('多個大破候補都符合本機血量時不猜玩家實際選了哪一艘', () => {
+        const state = stateWithFleets([[{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1, hp: 4 }]]);
+        sortie(state);
+        retreat(state, [2, 3]);
+        expect([...state.escapedShipIds]).toEqual([]);
+    });
+
+    it('沒有候補符合已知護衛條件時只標大破艦，不猜第一艘護衛候補', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1, hp: 25 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [8], [9]);
+        expect([...state.escapedShipIds]).toEqual([4]);
+    });
+
+    it('單艦隊（遊撃部隊／水雷戦隊）沒有曳航艦：封包帶了曳航候補也不採信', () => {
+        const state = stateWithFleets([Array.from({ length: 7 }, () => ({ mst: 1 }))]);
+        sortie(state);
+        retreat(state, [3], [4, 5]);
+        expect([...state.escapedShipIds]).toEqual([3]);
+    });
+
+    it('曳航候補與大破艦重複時不會重複佔用名額', () => {
+        const state = stateWithFleets([
+            [{ mst: 1 }, { mst: 1 }],
+            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1 }],
+        ], 1);
+        sortie(state);
+        retreat(state, [8], [8, 9]);
+        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
     });
 });
 
@@ -461,9 +570,21 @@ describe('護衛退避的可用性判定（連合艦隊・107）', () => {
             .toEqual({ state: 'ready', kind: 'combined' });
     });
 
-    it('第2艦隊的驅逐艦全部受損 → 不會出現退避選項（但大破仍然是真的）', () => {
-        expect(combinedWith([dd(), dd(38)]).retreatAvailability())
+    it('第2艦隊的驅逐艦全部小破以上 → 不會出現退避選項（但大破仍然是真的）', () => {
+        expect(combinedWith([dd(), dd(25)]).retreatAvailability())   // 25/40＝62.5%＝小破
             .toEqual({ state: 'noEscort', kind: 'combined' });
+    });
+
+    // 門檻是「損傷未達小破」而不是「滿血」（使用者提供之遊戲設定）。用滿血判定會把
+    // かすり傷的驅逐艦謊報成沒人可當護衛艦＝「沒有退避選項」，那是最危險的誤讀方向。
+    it('かすり傷（殘 HP 高於 75%）照樣拖得動，不是只有滿血才行', () => {
+        expect(combinedWith([dd(), dd(38)]).retreatAvailability())   // 38/40＝95%
+            .toEqual({ state: 'ready', kind: 'combined' });
+    });
+
+    it('小破的門檻在 75%：恰好 75% 算小破，拖不了', () => {
+        expect(combinedWith([dd(), dd(30)]).retreatAvailability().state).toBe('noEscort');
+        expect(combinedWith([dd(), dd(31)]).retreatAvailability().state).toBe('ready');
     });
 
     it('第2艦隊旗艦不能當護衛艦', () => {

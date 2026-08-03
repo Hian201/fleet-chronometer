@@ -20,6 +20,9 @@
             /* 索敵/航向/觸接/航空戰數值色。刻意獨立於 --dmg-mid（傷害語意），
                避免兩種無關語意共用同一色而互相稀釋（design-guidelines §4.5）。 */
             --stat-mini: #e0954d;
+            /* 關卡量表 pill 的軌道色。獨立變數而非沿用 --line：條子裡是白字的剩餘實數，
+               軌道必須在兩個主題下都夠深才讀得到（亮色主題只調深、不轉淺，見 .s-gauge-bar）。 */
+            --gauge-track: #2a3548;
 
             /* 字距（tracking）級距：與字級成反比——字愈小需要愈多字距才好讀，字愈大
                則要收緊。原本各處硬寫死的值彼此不成比例（9px 的 .04em 比 11px 的 .12em
@@ -45,6 +48,7 @@
             --brass: #9a6b0b;
             --stub: #aab3c2;
             --sparkle: #8a6d1a;
+            --gauge-track: #4a5568;
         }
 
         * {
@@ -803,6 +807,13 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* 估算值（目前只有熟練度過時的制空）：沿用面板既有的估算視覺語彙——虛線。
+           數字照常顯示，只是提示它可能不是封包事實（見 GameState.alvStale）。 */
+        .fsummary b.est {
+            border-bottom: 1px dashed var(--dim);
+            cursor: help;
+        }
+
         .fsummary b {
             color: var(--text);
             font-weight: 600;
@@ -917,7 +928,11 @@
             background: var(--dmg-major);
         }
 
-        .st-major .ship-row .grow {
+        /* 大破艦：艦名轉紅。單隊與聯合（.ship.c）兩種艦列同一條——**聯合檢視刻意不另外
+           掛「大破」徽章**：徽章會在大破出現的瞬間憑空多長一列，把整排艦往下推，正在盯的
+           那一艘會突然換位置，比沒有警示更難用。紅字長在該艘船自己身上，不佔版面。 */
+        .st-major .ship-row .grow,
+        .ship.c.st-major .c-top .grow {
             color: var(--dmg-major);
             font-weight: 600;
         }
@@ -1474,6 +1489,34 @@
             color: var(--brass);
         }
 
+        /* 未出擊時的關卡量表列（見 main.ts mapGaugeListHtml）。出擊資訊欄的釘死版面只在
+           真的進入出擊後才成立，這一態是空畫面，可自由用一般流排版。 */
+        .s-standby {
+            padding: 10px;
+        }
+
+        .s-standby-hint {
+            color: var(--dim);
+        }
+
+        .s-standby-maps {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .s-standby-map {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 海域代號欄寬對齊，量表左緣才不會隨 E1／E2 長度參差 */
+        .s-standby-map > .s-map-id {
+            min-width: 44px;
+        }
+
         /* 關卡進度：緊湊量表（擊破數式／HP量表式），或已攻略/未攻略/鎖定小標記 */
         .s-gauge {
             display: flex;
@@ -1481,12 +1524,20 @@
             gap: 4px;
         }
 
+        /* 圓矩 pill：殘量條當背景，剩餘實數（2760/4600）直接寫在條子裡。
+           軌道色刻意固定為深色調（亮色主題也不轉淺）——條子裡是白字，軌道一淺
+           就會有一半數字讀不到；這是可讀性需求，不是配色偏好。 */
         .s-gauge-bar {
             position: relative;
-            width: 36px;
-            height: 6px;
-            background: var(--line);
-            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-width: 56px;
+            height: 13px;
+            padding: 0 5px;
+            background: var(--gauge-track);
+            border-radius: 7px;
             overflow: hidden;
             flex: none;
         }
@@ -1499,22 +1550,47 @@
         }
 
         .s-gauge-num {
-            font-size: 10px;
-            color: var(--dim);
+            position: relative;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 1;
+            color: #fff;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
         }
 
-        /* 斬殺場：剩最後一次擊破的醒目提示 */
-        .s-gauge.zansatsu .s-gauge-num {
-            color: #ff6b6b;
+        /* 斬殺期：不能只換量表顏色（新版曾因此讓狀態訊號消失），但標籤也**不可以是外掛的
+           第二顆徽章**——兩顆並排會把標題列撐寬，`.s-header` 是 flex-wrap，撐過去就換行，
+           換行就多一整列、把下面釘死的出擊資訊往下推到要捲動（出擊資訊欄硬約束）。
+           故標籤併進量表本體，成為條子裡「斬殺期 840/4840」的一段。
+
+           **高度與一般狀態完全相同（13px）**：狀態一變高度就變，量表所在的標題列會跟著
+           長高、整個編成往下位移，而斬殺期正是最需要盯著版面不動的時候。輪廓因此改用
+           inset box-shadow（不佔版面、不吃 border-box），不再改 height 或加 border。 */
+        .s-gauge-final {
+            position: relative;
+            font-size: 9px;
             font-weight: 700;
-            font-size: 11px;
-            text-shadow: 0 0 4px rgba(224, 85, 85, 0.5);
+            line-height: 1;
+            letter-spacing: 0;
+            white-space: nowrap;
+            /* 不用純白＋800 粗：那組在深軌道上會糊成一團，亮度也壓過旁邊真正要讀的數值。
+               改為偏暖的淡金，與斬殺斜紋同色源，維持辨識度又讓數值回到視覺主位。 */
+            color: color-mix(in srgb, var(--sparkle) 55%, #fff);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+        }
+
+        .s-gauge.zansatsu .s-gauge-bar {
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sparkle) 72%, transparent);
         }
 
         .s-gauge.zansatsu .s-gauge-bar > i {
-            background: var(--dmg-major);
+            background: repeating-linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--sparkle) 76%, var(--gauge-track)) 0 5px,
+                color-mix(in srgb, var(--sparkle) 52%, var(--gauge-track)) 5px 10px
+            );
         }
 
         .s-gauge.cleared,
@@ -2466,6 +2542,16 @@
             #tabs button.on {
                 color: var(--text);
                 border-bottom-width: 3px;
+            }
+
+            /* 高對比模式：輪廓加粗、標籤回到純白。仍用 inset box-shadow，維持零版面影響
+               ——這裡改 border-width 會讓量表在高對比下比一般模式高，狀態一切換就位移。 */
+            .s-gauge.zansatsu .s-gauge-bar {
+                box-shadow: inset 0 0 0 2px var(--sparkle);
+            }
+
+            .s-gauge.zansatsu .s-gauge-final {
+                color: #fff;
             }
         }
 

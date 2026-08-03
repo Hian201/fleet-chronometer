@@ -27,7 +27,10 @@
 // 不碰封包解析——否則一進分區就要把整個重播層跑一遍。
 import type { OverviewSection, SectionContext } from './types';
 import { db, type ReplayRow, type SortieLogRow } from '@/utils/db';
-import { toKc3Replay } from '@/utils/replay';
+import {
+    KC3_REPLAY_DIRECT_URL_LIMIT, KC3_REPLAY_PLAYER_URL,
+    repairLegacyReplayFleet, toKc3Replay, toKc3ReplayUrl,
+} from '@/utils/replay';
 import {
     buildSortieDetail, diffLabel, groupSorties, isEventWorld, mapLabel, numberSorties, parseMapCode,
     sortieTime, type LbasWave, type NodeDetail, type SortieDetail, type SortieShip,
@@ -45,9 +48,6 @@ import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
     loadJsonPrefs, saveJsonPrefs,
 } from '../lib';
-
-// KC3Kai 線上重播器（貼上 JSON 即可重播並可另存圖片）
-const BATTLEPLAYER_URL = 'https://kc3kai.github.io/kancolle-replay/battleplayer.html';
 
 const SEIKU_KEYS = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
 // 陣形 api_formation[0]/[1]：1–6 一般陣形；連合艦隊為 11–14（警戒航行序列，真封包實測
@@ -496,7 +496,7 @@ export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, 
     const actions = replay
         ? `<button type="button" class="ov-btn" data-replay-copy="${detail.sortieKey}">${esc(t('ov.replayCopy'))}</button>
            <button type="button" class="ov-btn" data-replay-dl="${detail.sortieKey}">${esc(t('ov.replayDownload'))}</button>
-           <a class="ov-btn" href="${BATTLEPLAYER_URL}" target="_blank" rel="noopener">${esc(t('ov.replayOpen'))} ↗</a>
+           <button type="button" class="ov-btn" data-replay-open="${detail.sortieKey}">${esc(t('ov.replayOpen'))} ↗</button>
            <button type="button" class="ov-btn danger" data-replay-del="${detail.sortieKey}" title="${esc(t('ov.replayDeleteTip'))}">🗑</button>`
         : `<span class="sl-dim">${esc(t('ov.slNoPacket'))}</span>`;
     // 掉落：有就列艦名；沒有掉落但**有結算過**才顯示「無掉落」。Fleet Chronometer 自身匯出
@@ -786,6 +786,21 @@ export const sortieLogSection: OverviewSection = {
                 if (r) downloadText(`replay-${r.world}-${r.mapnum}-${r.sortieKey}.json`, JSON.stringify(toKc3Replay(r)), 'application/json');
                 return;
             }
+            const replayOpen = target.closest<HTMLButtonElement>('button[data-replay-open]');
+            if (replayOpen) {
+                const r = replayCache.get(Number(replayOpen.dataset.replayOpen));
+                if (r) {
+                    const url = toKc3ReplayUrl(r);
+                    if (url.length < KC3_REPLAY_DIRECT_URL_LIMIT) {
+                        window.open(url, '_blank', 'noopener');
+                    } else {
+                        // 先在使用者手勢內開頁，避免 await clipboard 後被 popup blocker 擋下。
+                        window.open(KC3_REPLAY_PLAYER_URL, '_blank', 'noopener');
+                        await copyWithFeedback(replayOpen, JSON.stringify(toKc3Replay(r)), t('ov.replayCopied'));
+                    }
+                }
+                return;
+            }
             // ★ 釘選：保留規則永不裁剪釘選場（見 utils/retention.ts）
             const pin = target.closest<HTMLButtonElement>('button[data-replay-pin]');
             if (pin) {
@@ -815,7 +830,12 @@ export const sortieLogSection: OverviewSection = {
                 db.sorties.orderBy('eventId').toArray(),      // 升冪＝時序，「第幾次」據此計數
                 db.replays.toArray(),
             ]);
-            const replayByKey = new Map(replays.map(r => [r.sortieKey, r]));
+            // 舊版曾把第3艦隊獨立出擊誤存成第1/2艦隊連合出擊；只在對應艦隊完整快照仍在時
+            // 於讀取層修復，不覆寫 IndexedDB，也不對證據不足的舊匯入資料猜編成。
+            const replayByKey = new Map(replays.map(raw => {
+                const replay = repairLegacyReplayFleet(raw);
+                return [replay.sortieKey, replay] as const;
+            }));
             const nth = numberSorties(groupSorties(rows));
             entries = groupSorties(rows).map(g => {
                 const first = g.rows[0];

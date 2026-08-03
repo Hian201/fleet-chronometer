@@ -3,7 +3,7 @@
 // 故這兩份資訊只有在 api_req_map/start 當下拿得到——這支測試把那條界線釘住。
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
-import { snapshotLbas, startReplay } from '../utils/replay';
+import { repairLegacyReplayFleet, snapshotLbas, startReplay, toKc3Replay } from '../utils/replay';
 
 /** 造一個最小 GameState：四支艦隊 + 兩個海域的基地航空隊。 */
 function buildState(): GameState {
@@ -89,6 +89,47 @@ describe('出擊快照', () => {
         const replay = startReplay(state, 11, 1_726_000_000_000, mapStart);
         expect(replay.fleet2.map(s => s.mst_id)).toEqual([200]);
         expect(replay.fleet3?.map(s => s.mst_id)).toEqual([300]);
+    });
+
+    it('第一／第二艦隊維持水上打擊編成時，第3艦隊仍記為獨立出擊', () => {
+        const state = buildState();
+        state.combinedFlag = 2;
+        // 實際出擊艦隊以 map/start request 的 api_deck_id 為準（1-based）。
+        state.applyEvent('api_req_map/start', mapStart, { api_deck_id: '3' });
+
+        const replay = startReplay(state, 12, 1_726_000_000_000, mapStart);
+
+        expect(replay).toMatchObject({ combined: 0, fleetnum: 3 });
+        expect(replay.fleet1.map(s => s.mst_id)).toEqual([300]);
+        expect(replay.fleet2).toEqual([]);
+    });
+
+    it('既有的錯誤第3艦隊紀錄有完整快照時，在讀取與匯出時安全修復', () => {
+        const state = buildState();
+        state.combinedFlag = 2;
+        // 模擬舊版結果：fleetnum 記得是 3，卻把 combined/fleet1/fleet2 留成水上打擊部隊。
+        const legacy = { ...startReplay(state, 13, 1_726_000_000_000, mapStart), fleetnum: 3 };
+
+        const repaired = repairLegacyReplayFleet(legacy);
+
+        expect(repaired).not.toBe(legacy);
+        expect(repaired).toMatchObject({ combined: 0, fleetnum: 3 });
+        expect(repaired.fleet1.map(s => s.mst_id)).toEqual([300]);
+        expect(repaired.fleet2).toEqual([]);
+        expect(legacy.combined).toBe(2);                 // 不改動原始資料
+        expect(toKc3Replay(legacy)).toMatchObject({ combined: 0, fleetnum: 1, sourceFleetnum: 3 });
+    });
+
+    it('舊紀錄缺少第3艦隊完整快照時維持原樣，不猜編成', () => {
+        const state = buildState();
+        state.combinedFlag = 2;
+        const legacy = {
+            ...startReplay(state, 14, 1_726_000_000_000, mapStart),
+            fleetnum: 3,
+            fleet3: undefined,
+        };
+
+        expect(repairLegacyReplayFleet(legacy)).toBe(legacy);
     });
 
     it('沒有第3/4艦隊或基地航空隊時不寫空欄位（缺席＝不可考，不是空陣列）', () => {
