@@ -43,7 +43,11 @@ describe('基地航空隊的唯一鍵', () => {
         expect(bases).toHaveLength(2);
         const keys = bases.map(airBaseKey);
         expect(new Set(keys).size).toBe(2);
-        expect(keys).toEqual(['6-1', '62-1']);
+        // 分隔符必須與 GameState.airBases 的 map key 完全一致——airBaseKey() 就是那把鍵
+        // 本身，拿去 airBases.get() 要查得到（曾經一邊 `_` 一邊 `-`，查不到又不報錯）。
+        expect(keys).toEqual(['6_1', '62_1']);
+        const state = stateWithTwoAreas();
+        for (const key of keys) expect(state.airBases.get(key)).toBeTruthy();
     });
 
     it('海域標籤：通常海域標編號（6-x 的 6），活動海域用活動名', () => {

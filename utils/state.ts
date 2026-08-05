@@ -488,8 +488,9 @@ export interface AirBaseView {
 }
 
 /**
- * 基地航空隊的唯一鍵＝**海域(maparea) id ＋ rid**，與 `GameState.airBases` 的 map key
- * 同一條規則。
+ * 基地航空隊的唯一鍵＝**海域(maparea) id ＋ rid**，就是 `GameState.airBases` 的 map key
+ * 本身——所有組鍵處一律呼叫這一支，**不要再各自寫字串樣板**（分隔符曾經一邊 `_`、
+ * 一邊 `-`，照註解拿去 `airBases.get()` 會永遠 undefined 又不報錯）。
  *
  * ⚠️ **rid 單獨不是唯一鍵**：rid 是「該海域的第幾個基地」，中部海域與活動海域各自都有
  * 第一/第二/第三基地航空隊。實機回報過的災情就是拿 rid 當鍵：顯示範圍的開關、海域名稱
@@ -498,7 +499,8 @@ export interface AirBaseView {
  * 這支的複合鍵，要嘛以「海域」為單位（顯示範圍開關就是走後者，見
  * entrypoints/overview/lib.ts 的 FleetMarkdownScope）。
  */
-export const airBaseKey = (b: { areaId: number; rid: number }): string => `${b.areaId}-${b.rid}`;
+export const airBaseKey = (b: { areaId: number | string; rid: number | string }): string =>
+    `${b.areaId}_${b.rid}`;
 
 const GEAR_ICON: Record<number, { s: string; c: string }> = {
     1: { s: '砲', c: 'c-gun' }, 2: { s: '砲', c: 'c-gun' }, 3: { s: '砲', c: 'c-gun' },
@@ -1566,7 +1568,7 @@ export class GameState {
             this.airBaseCondMinRate.clear();
             if (Array.isArray(api)) {
                 for (const ab of api) {
-                    const key = `${ab.api_area_id}_${ab.api_rid}`;
+                    const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
                     this.airBases.set(key, ab);
                     this.markAirBaseCondObserved(key, ts);
                 }
@@ -1574,7 +1576,7 @@ export class GameState {
         } else if (path === 'api_get_member/mapinfo') {
             if (api?.api_air_base && Array.isArray(api.api_air_base)) {
                 for (const ab of api.api_air_base) {
-                    const key = `${ab.api_area_id}_${ab.api_rid}`;
+                    const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
                     this.airBases.set(key, ab);
                     this.markAirBaseCondObserved(key, ts);
                 }
@@ -1612,7 +1614,8 @@ export class GameState {
             }
         } else if (path === 'api_req_air_corps/set_plane' && req) {
             // api 回應包含更新後的 api_plane_info + api_distance
-            const key = this.resolveAirBaseKeys(req)[0]?.key;
+            const keys = this.resolveAirBaseKeys(req);
+            const key = keys.length === 1 ? keys[0]!.key : undefined;
             const ab = key ? this.airBases.get(key) : undefined;
             if (ab && key && api) {
                 if (api.api_plane_info) {
@@ -1620,6 +1623,13 @@ export class GameState {
                     this.markAirBaseCondObserved(key, ts);
                 }
                 if (api.api_distance) ab.api_distance = api.api_distance;
+            } else {
+                // 同 supply 分支：解不出唯一基地（api_base_id 逗號分隔、或 api_area_id 缺席
+                // 且 rid 撞號）時**不猜**，但一定要留下痕跡——靜默 no-op 正是 2026-08-04
+                // 「面板一直顯示補給前機數」那個 bug 難查的原因，這條路徑會讓中隊配置
+                // 停在變更前而 console 一片乾淨。
+                console.warn('[KC-Monitor] 基地航空隊配置變更無法套用，面板中隊可能停在變更前',
+                    { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
             }
         } else if (path === 'api_req_air_corps/set_action' && req) {
             // set_action 可同時設定多個航空隊 (api_base_id=1,2 / api_action_kind=1,2)
@@ -1659,9 +1669,13 @@ export class GameState {
                     { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
             }
         } else if (path === 'api_req_air_corps/change_name' && req) {
-            const key = `${req.api_area_id}_${req.api_base_id}`;
-            const ab = this.airBases.get(key);
+            // 同 set_plane／supply：一律經 resolveAirBaseKeys，別自己組鍵（api_base_id
+            // 可能逗號分隔、api_area_id 可能缺席）。改名只影響顯示，故解不出來時
+            // 降級成 debug 級別的紀錄即可，但仍不靜默。
+            const keys = this.resolveAirBaseKeys(req);
+            const ab = keys.length === 1 ? this.airBases.get(keys[0]!.key) : undefined;
             if (ab) ab.api_name = req.api_name ?? ab.api_name;
+            else console.warn('[KC-Monitor] 基地航空隊改名無法套用，面板仍顯示舊名', { req, bases: keys });
         } else if (
             (path.startsWith('api_req_sortie/battle')
                 || path.includes('airbattle')   // api_req_sortie/(ld_)airbattle・api_req_combined_battle/(ld_)airbattle 航空戰/空襲節點
@@ -3212,8 +3226,7 @@ export class GameState {
     // ── 基地航空隊 ──────────────────────────────
 
     lbasAirPower(areaId: number, rid: number): { min: number; max: number } {
-        const key = `${areaId}_${rid}`;
-        const ab = this.airBases.get(key);
+        const ab = this.airBases.get(airBaseKey({ areaId, rid }));
         let min = 0, max = 0;
         if (!ab) return { min, max };
         for (const sq of ab.api_plane_info ?? []) {
@@ -3276,7 +3289,7 @@ export class GameState {
             const dist = ab.api_distance;
             const distance = (dist?.api_base ?? 0) + (dist?.api_bonus ?? 0);
             const airPower = this.lbasAirPower(ab.api_area_id, ab.api_rid);
-            const key = `${ab.api_area_id}_${ab.api_rid}`;
+            const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
             result.push({
                 areaId: ab.api_area_id, rid: ab.api_rid,
                 name: ab.api_name ?? `第${ab.api_rid}航空隊`,
@@ -3317,7 +3330,7 @@ export class GameState {
         String(req.api_base_id ?? '').split(',').forEach((raw, index) => {
             const rid = raw.trim();
             if (!rid) return;
-            const key = `${area}_${rid}`;
+            const key = airBaseKey({ areaId: area, rid });
             if (this.airBases.has(key)) { out.push({ key, index }); return; }
             // area 對不上（或沒送）時的唯一解退路
             const sameRid = [...this.airBases.keys()].filter(k => k.endsWith(`_${rid}`));
