@@ -21,9 +21,10 @@
 // 兩者吃同一種 schema（f1~f4 艦隊、a1~a3 基地航空隊），故只需一份轉換器共用。
 import type { GameState } from './state';
 
-// lbas：依基地 rid（1-3）決定去留，見 entrypoints/overview/lib.ts 的 FleetMarkdownScope
-// 同一份註解——rid 才是穩定的「第幾個基地」，不能用陣列索引。
-export interface DeckBuilderScope { fleets: boolean[]; lbas: boolean[] }
+// lbas：以**海域（maparea id）**為鍵的開關表（`String(areaId)`），缺席＝送出，見
+// entrypoints/overview/lib.ts 的 FleetMarkdownScope 同一份註解——**不可用 rid 當鍵**
+// （各海域都有自己的第一/第二/第三基地航空隊，會撞號）。
+export interface DeckBuilderScope { fleets: boolean[]; lbas: Record<string, boolean> }
 
 interface DeckBuilderItem { id: number; rf: number; mas: number }
 type DeckBuilderItems = Record<string, DeckBuilderItem>;
@@ -63,15 +64,19 @@ export function buildDeckBuilder(state: GameState, scope: DeckBuilderScope): obj
         deck[`f${i + 1}`] = fleetObj;
     });
 
+    // a1~a3：DeckBuilder 格式只有三個基地欄位，但鎮守府可以同時擁有**多個海域**的基地
+    // （中部海域三個＋活動海域三個），故不能拿 rid 當 key——兩個海域的第一基地航空隊會
+    // 互相覆蓋，使用者選了六個卻只送出三個、還不知道被吃掉哪幾個（見 utils/state.ts
+    // airBaseKey）。改成**依選取順序**填 a1、a2、a3，滿三個就停：外部工具的欄位數就是
+    // 三個，多的沒有地方可放，寧可少送也不要靜靜覆蓋。
+    let slot = 0;
     state.airBases_().forEach(b => {
-        if (scope.lbas[b.rid - 1] === false) return;
+        if (scope.lbas[String(b.areaId)] === false || slot >= 3) return;
         const items: DeckBuilderItems = {};
         b.squadrons.forEach((sq, si) => {
             if (sq.state === 1 && sq.mst > 0) items[`i${si + 1}`] = { id: sq.mst, rf: sq.level, mas: sq.alv };
         });
-        // a1~a3 的鍵用 rid（第幾個基地）而非陣列索引——airBases_() 先依 areaId 排序，
-        // 索引順序不保證等於 rid 順序（rid=2 的基地若指派到較小 areaId 會排在 rid=1 前面）。
-        if (Object.keys(items).length) deck[`a${b.rid}`] = { mode: b.actionKind, items };
+        if (Object.keys(items).length) deck[`a${++slot}`] = { mode: b.actionKind, items };
     });
 
     return deck;

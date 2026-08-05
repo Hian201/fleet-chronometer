@@ -22,6 +22,24 @@
 - **來源**：poi-plugin-expedition — https://github.com/poooi/plugin-expedition
 - **授權**：MIT License
 - **版權**：Copyright (c) 2015 Yudachi
+- **補充來源（2026-08-03）**：id 41–46／103–105／112–115／131–133／141–142（poi 資料自
+  2018 年後未再更新、缺這批遠征）的出擊條件，轉寫自 ElectronicObserver 的
+  `MissionClearCondition.cs`——https://github.com/andanteyk/ElectronicObserver ，
+  MIT License，Copyright (c) 2014 Andante。這批項目的實際收益數字
+  （`reward_fuel/bullet/steel/alum`）取自 wikiwiki.jp/kancolle/遠征（日文「艦隊これくしょん
+  -艦これ- 攻略 Wiki*」）的詳細一覧表，事實性數值（遊戲內建機制數字，非著作權標的），
+  與 `samples/start2-master.json` 的 `api_win_item1/2`／`api_win_mat_level`（封包事實）
+  逐筆交叉比對一致；`reward_items` 的道具種類同樣直接取自封包 `api_win_item1/2`。
+  id 301／302（活動支援遠征）之出擊條件與零收益皆為封包事實，未使用外部資料。
+
+## 1b. 遠征資源加成（大発動艇系裝備）機制數值
+
+- **用途**：`utils/expedition-bonus.ts` 的裝備加成率表與公式（`遠征資源加成`功能，
+  2026-08-03 新增）。
+- **來源**：wikiwiki.jp/kancolle/遠征（`#daihatsu` 節）與 wikiwiki.jp/kancolle/特大発動艇
+  （`#bonus` 節），直接讀取原始 HTML 逐字核對，非摘要轉述。
+- **性質**：遊戲機制數值（裝備加成百分比、公式），屬事實性資訊非著作權標的，記錄來源供
+  日後校對，非授權義務。
 
 ## 2. 戰鬥預測邏輯 (Battle prediction logic)
 

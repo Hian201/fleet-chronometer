@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { GameState } from '../../utils/state';
 import { fleetHtml, baseHtml } from '../../entrypoints/overview/sections/fleet-overview';
+import { airBaseAreaLabel } from '../../entrypoints/overview/lib';
 import { setLang, t } from '../../utils/ui-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -89,10 +90,14 @@ state.applyEvent('api_get_member/slot_item', {
 
 const fleetsAll = state.fleets();
 const basesAll = state.airBases_();
-const areaNames = new Map(basesAll.map(b => [b.rid, state.mapAreaName(b.areaId)]));
+// 顯示範圍以**海域**為單位（見 fleet-overview.ts 檔頭修正記錄 10），故海域名與
+// 基地數都以 areaId 為鍵。
+const areaIds = [...new Set(basesAll.map(b => b.areaId))].sort((a, b) => a - b);
+const areaLabels = new Map(areaIds.map(id => [id, airBaseAreaLabel(state, id)]));
+const areaCounts = new Map(areaIds.map(id => [id, basesAll.filter(b => b.areaId === id).length]));
 
-const fleetsHtml = fleetsAll.map((f, i) => fleetHtml(f, i)).join('');
-const lbasHtml = basesAll.map(b => baseHtml(b, areaNames.get(b.rid) ?? '')).join('');
+const fleetsHtml = fleetsAll.map((f, i) => fleetHtml(f, i, state.fleetSummary(i, 1))).join('');
+const lbasHtml = basesAll.map(b => baseHtml(b, areaLabels.get(b.areaId) ?? '')).join('');
 
 // 顯示範圍摺疊區塊：markup 與 render() 手寫的那份一致，僅供預覽外觀比對用
 // （這塊本身不是本次要驗的重點，重點是艦卡/裝備清單，故不透過額外 export 共用）。
@@ -100,7 +105,7 @@ const scopeBody = `
     ${fleetsAll.map((f, i) => f.ships.length
         ? `<label class="eo-chip on" data-fleet="${i}"><input type="checkbox" checked>${t('ov.fleetN', { n: i + 1 })}</label>`
         : '').join('')}
-    ${basesAll.map(b => `<label class="eo-chip on" data-lbas-rid="${b.rid}"><input type="checkbox" checked>${b.name}　${areaNames.get(b.rid) ?? ''}</label>`).join('')}`;
+    ${areaIds.map(id => `<label class="eo-chip on" data-lbas-area="${id}"><input type="checkbox" checked>${areaLabels.get(id) ?? ''}<span class="fo-area">×${areaCounts.get(id) ?? 0}</span></label>`).join('')}`;
 
 const shell = `
     <div class="ov-toolbar">

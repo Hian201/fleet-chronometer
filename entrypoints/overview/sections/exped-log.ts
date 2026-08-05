@@ -63,7 +63,7 @@ const materialCell = (index: number) => (row: ExpeditionRow) => {
 const itemsText = (row: ExpeditionRow) =>
     (row.items ?? []).map(item => `#${item.id}x${item.count}`).join(' ');
 
-const COLUMNS: Column[] = [
+export const COLUMNS: Column[] = [
     {
         id: 'time', labelKey: 'ov.expedColTime', on: true,
         cell: r => `<time>${esc(fmtTs(r.ts))}</time>`,
@@ -79,9 +79,13 @@ const COLUMNS: Column[] = [
         text: r => `${r.name || ''} #${r.missionId || ''}`.trim(),
     },
     {
+        // 編成**預設收合**（使用者要求）：六艘 chip 攤開會讓每一列高出好幾倍，而逐筆
+        // 瀏覽時要看的是「這趟拿了什麼」，編成是想確認時才點開的細節。折疊一律用原生
+        // `<details>`（design-guidelines §4.3），caret 走 ::before 字元不用 rotate。
         id: 'fleet', labelKey: 'ov.expedColFleet', on: true,
         cell: r => r.fleet?.length
-            ? `<div class="el-fleet">${r.fleet.map(ship => `<span class="el-ship" title="${esc(`${ship.name} Lv${ship.level}`)}">${esc(ship.name)}<i>Lv${ship.level}</i></span>`).join('')}</div>`
+            ? `<details class="el-fleet-d"><summary>${esc(t('unit.ships', { n: r.fleet.length }))}</summary>`
+            + `<div class="el-fleet">${r.fleet.map(ship => `<span class="el-ship" title="${esc(`${ship.name} Lv${ship.level}`)}">${esc(ship.name)}<i>Lv${ship.level}</i></span>`).join('')}</div></details>`
             : `<span class="el-unknown" title="${esc(t('ov.expedFleetUnknownTip'))}">${esc(t('ov.expedUnknown'))}</span>`,
         text: r => r.fleet?.length ? r.fleet.map(s => `${s.name} Lv${s.level}`).join(' / ') : t('ov.expedUnknown'),
     },
@@ -122,11 +126,14 @@ export interface Prefs {
     size: PageSize;
     sort: StatSortKey;
     desc: boolean;
+    /** 「各遠征次數與收穫」是否展開。**必須持久化**：表頭排序會觸發整塊重繪，
+     *  不記狀態的話每點一次排序就自己收合起來。 */
+    statsOpen: boolean;
 }
 
 export const defaultPrefs = (): Prefs => ({
     cols: COLUMNS.filter(c => c.on).map(c => c.id),
-    range: '30', size: 50, sort: 'count', desc: true,
+    range: '30', size: 50, sort: 'count', desc: true, statsOpen: false,
 });
 
 function loadPrefs(): Prefs {
@@ -134,6 +141,7 @@ function loadPrefs(): Prefs {
     return loadJsonPrefs(PREFS_KEY, d, raw => {
         const r = raw as {
             cols?: unknown; range?: unknown; size?: unknown; sort?: unknown; desc?: unknown;
+            statsOpen?: unknown;
         } | null;
         const ids = new Set(COLUMNS.map(c => c.id));
         const cols = Array.isArray(r?.cols)
@@ -146,6 +154,7 @@ function loadPrefs(): Prefs {
             size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : d.size,
             sort: STAT_COLUMNS.some(c => c.key === r?.sort) ? r!.sort as Prefs['sort'] : d.sort,
             desc: typeof r?.desc === 'boolean' ? r.desc : d.desc,
+            statsOpen: typeof r?.statsOpen === 'boolean' ? r.statsOpen : d.statsOpen,
         };
     });
 }
@@ -206,11 +215,15 @@ export function summaryHtml(totals: ExpeditionTotals, from: number | null, to: n
     </div>`;
 }
 
-/** 各遠征的次數與收穫（本功能的主表）。 */
+/**
+ * 各遠征的次數與收穫。**這是次要的查詢工具、不是主表**：本分區的主體是逐筆明細
+ * （一趟遠征回來拿了什麼、多少、成功還是失敗），依遠征種類加總的統計是想回答
+ * 「哪個遠征跑最多／最賺」時才展開的另一個問題，故收進 `<details>` 放在明細下方。
+ */
 export function statsHtml(stats: ExpeditionStat[], prefs: Prefs): string {
     if (!stats.length) return '';
-    return `<section class="el-stats">
-        <h3 class="el-h">${esc(t('ov.expedByMission'))}</h3>
+    return `<details class="el-stats"${prefs.statsOpen ? ' open' : ''}>
+        <summary class="el-h">${esc(t('ov.expedByMission'))}</summary>
         <div class="el-table-wrap"><table class="el-table el-sum-table"><thead><tr>${STAT_COLUMNS.map(c => {
         const on = prefs.sort === c.key;
         return `<th class="el-s-${c.key}${c.numeric ? ' el-num' : ''}${on ? ' on' : ''}">`
@@ -228,7 +241,7 @@ export function statsHtml(stats: ExpeditionStat[], prefs: Prefs): string {
             : `<span class="el-none">–</span>`}</td>`).join('')}
             <td class="el-s-last el-c-time">${esc(fmtTs(stat.lastTs))}</td>
         </tr>`).join('')}</tbody></table></div>
-    </section>`;
+    </details>`;
 }
 
 export function tableHtml(rows: ExpeditionRow[], cols: Column[]) {
@@ -273,9 +286,9 @@ export const expedLogSection: OverviewSection = {
                     <div class="rs-colbox">${COLUMNS.map(c =>
                     `<label class="eo-chip"><input type="checkbox" class="el-col" value="${c.id}" ${prefs.cols.includes(c.id) ? 'checked' : ''}>${esc(t(c.labelKey))}</label>`).join('')}</div>
                 </details>
-                <button type="button" class="ov-btn el-sum-csv">${esc(t('ov.expedSumCsv'))}</button>
                 <button type="button" class="ov-btn el-csv">${esc(t('ov.rsExportCsv'))}</button>
                 <button type="button" class="ov-btn el-copy">${esc(t('ov.rsCopyCsv'))}</button>
+                <button type="button" class="ov-btn el-sum-csv">${esc(t('ov.expedSumCsv'))}</button>
             </div>
             <div class="el-body"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <div class="rs-pager el-pager" hidden></div>
@@ -337,13 +350,21 @@ export const expedLogSection: OverviewSection = {
             const cols = COLUMNS.filter(c => prefs.cols.includes(c.id));
 
             count.textContent = t('ov.expedCountOf', { n: rows.length, total: all.length });
+            // 順序＝這一區在回答的問題的優先序：期間總計（脈絡，一行）→ **逐筆明細（主體）**
+            // → 各遠征彙總（收合，想查「哪個遠征跑最多」時才展開）。
             body.innerHTML = all.length
                 ? summaryHtml(totals, from, to, rows)
-                    + statsHtml(stats, prefs)
                     + (p.rows.length
-                        ? `<section class="el-detail"><h3 class="el-h">${esc(t('ov.expedDetail'))}</h3>${tableHtml(p.rows, cols)}</section>`
+                        ? `<section class="el-detail">${tableHtml(p.rows, cols)}</section>`
                         : `<div class="ov-empty">${esc(t('ov.expedNoneInRange'))}</div>`)
+                    + statsHtml(stats, prefs)
                 : `<div class="ov-empty">${esc(t('ov.expedNone'))}</div>`;
+            // `toggle` 不會冒泡，無法用 body 委派；每次重繪都是新節點，就地重綁即可
+            // （舊監聽器隨舊節點一起消失）。
+            body.querySelector<HTMLDetailsElement>('.el-stats')?.addEventListener('toggle', event => {
+                prefs.statsOpen = (event.currentTarget as HTMLDetailsElement).open;
+                savePrefs(prefs);
+            });
             pager.innerHTML = p.pageCount > 1 ? `
                 <button type="button" class="ov-btn el-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button>
                 <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: p.pageCount }))}</span>

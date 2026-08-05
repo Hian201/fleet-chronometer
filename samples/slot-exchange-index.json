@@ -1,0 +1,65 @@
+[
+  {
+    "req": { "api_id": "69", "api_src_idx": "3", "api_dst_idx": "0" },
+    "api": {
+      "api_ship_data": {
+        "api_id": 69, "api_sortno": 122, "api_ship_id": 297, "api_lv": 98,
+        "api_exp": [923482, 76518, 48],
+        "api_nowhp": 1, "api_maxhp": 58, "api_soku": 10, "api_leng": 1,
+        "api_slot": [116473, 98825, 86404, 69693, -1],
+        "api_onslot": [24, 16, 11, 8, 0],
+        "api_slot_ex": 1151,
+        "api_kyouka": [34, 0, 42, 33, 0, 0, 0],
+        "api_backs": 6, "api_fuel": 45, "api_bull": 40, "api_slotnum": 4,
+        "api_ndock_time": 53895000, "api_ndock_item": [82, 153],
+        "api_srate": 4, "api_cond": 80,
+        "api_karyoku": [37, 34], "api_raisou": [23, 0], "api_taiku": [121, 72],
+        "api_soukou": [66, 65], "api_kaihi": [74, 69], "api_taisen": [11, 0],
+        "api_sakuteki": [86, 79], "api_lucky": [13, 59],
+        "api_locked": 1, "api_locked_equip": 1, "api_sally_area": 4
+      }
+    }
+  },
+  {
+    "req": { "api_id": "69", "api_src_idx": "0", "api_dst_idx": "3" },
+    "api": {
+      "api_ship_data": {
+        "api_id": 69, "api_sortno": 122, "api_ship_id": 297, "api_lv": 98,
+        "api_exp": [923482, 76518, 48],
+        "api_nowhp": 1, "api_maxhp": 58, "api_soku": 10, "api_leng": 1,
+        "api_slot": [69693, 98825, 86404, 116473, -1],
+        "api_onslot": [24, 16, 11, 8, 0],
+        "api_slot_ex": 1151,
+        "api_kyouka": [34, 0, 42, 33, 0, 0, 0],
+        "api_backs": 6, "api_fuel": 45, "api_bull": 40, "api_slotnum": 4,
+        "api_ndock_time": 53895000, "api_ndock_item": [82, 153],
+        "api_srate": 4, "api_cond": 80,
+        "api_karyoku": [37, 34], "api_raisou": [23, 0], "api_taiku": [121, 72],
+        "api_soukou": [66, 65], "api_kaihi": [74, 69], "api_taisen": [11, 0],
+        "api_sakuteki": [86, 79], "api_lucky": [13, 59],
+        "api_locked": 1, "api_locked_equip": 1, "api_sally_area": 4
+      }
+    }
+  },
+  {
+    "req": { "api_id": "2459", "api_src_idx": "2", "api_dst_idx": "1" },
+    "api": {
+      "api_ship_data": {
+        "api_id": 2459, "api_sortno": 266, "api_ship_id": 466, "api_lv": 99,
+        "api_exp": [1000000, 0, 0],
+        "api_nowhp": 16, "api_maxhp": 78, "api_soku": 10, "api_leng": 3,
+        "api_slot": [23285, 23420, 83113, 105923, -1],
+        "api_onslot": [34, 21, 12, 9, 0],
+        "api_slot_ex": 2286,
+        "api_kyouka": [70, 0, 40, 34, 0, 0, 0],
+        "api_backs": 8, "api_fuel": 100, "api_bull": 85, "api_slotnum": 4,
+        "api_ndock_time": 78770000, "api_ndock_item": [198, 372],
+        "api_srate": 4, "api_cond": 71,
+        "api_karyoku": [70, 70], "api_raisou": [0, 0], "api_taiku": [141, 88],
+        "api_soukou": [84, 83], "api_kaihi": [86, 81], "api_taisen": [0, 0],
+        "api_sakuteki": [93, 90], "api_lucky": [20, 97],
+        "api_locked": 1, "api_locked_equip": 1, "api_sally_area": 4
+      }
+    }
+  }
+]

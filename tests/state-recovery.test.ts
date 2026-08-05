@@ -131,6 +131,60 @@ describe('state recovery replay planning', () => {
         ]);
     });
 
+    // 實機回報 2026-08-04：每次進遊戲，面板的基地航空隊都顯示補給前的機數。
+    // 根因是 baseline 依固定 path 順序重播——mapinfo 與 base_air_corps 都會寫
+    // GameState.airBases，而玩家的操作順序讓 base_air_corps 比 mapinfo 新，
+    // 固定順序卻把較舊的 mapinfo 排在後面覆蓋回去。順序必須依觀測時間。
+    it('較舊的 mapinfo 快照不得覆蓋較新的 base_air_corps（基地航空隊機數）', () => {
+        const planeInfo = (count: number) => [
+            { api_squadron_id: 1, api_state: 1, api_slotid: 101, api_count: count, api_max_count: 18, api_cond: 1 },
+        ];
+        const airBase = (count: number) => ({
+            api_area_id: 6, api_rid: 1, api_name: '第一航空隊',
+            api_distance: { api_base: 5, api_bonus: 0 }, api_action_kind: 1,
+            api_plane_info: planeInfo(count),
+        });
+        // 先開海域選擇（mapinfo，補給前 9/18），再開基地航空隊並補給（base_air_corps，18/18）
+        const snapshots: SnapshotRow[] = [
+            { path: 'api_get_member/mapinfo', ts: 1_726_000_000_000, eventId: 1, req: {}, api: { api_air_base: [airBase(9)] } },
+            { path: 'api_get_member/base_air_corps', ts: 1_726_000_060_000, eventId: 2, req: {}, api: [airBase(18)] },
+        ];
+        const state = new GameState();
+
+        applyStateRecoveryPlan(state, planStateRecovery(snapshots, []));
+
+        expect(state.airBases_()[0]!.squadrons[0]!.count).toBe(18);
+    });
+
+    it('反向（mapinfo 較新）時同樣以較新的為準', () => {
+        const airBase = (count: number) => ({
+            api_area_id: 6, api_rid: 1, api_name: '第一航空隊',
+            api_distance: { api_base: 5, api_bonus: 0 }, api_action_kind: 1,
+            api_plane_info: [
+                { api_squadron_id: 1, api_state: 1, api_slotid: 101, api_count: count, api_max_count: 18, api_cond: 1 },
+            ],
+        });
+        const snapshots: SnapshotRow[] = [
+            { path: 'api_get_member/base_air_corps', ts: 1_726_000_000_000, eventId: 1, req: {}, api: [airBase(18)] },
+            { path: 'api_get_member/mapinfo', ts: 1_726_000_060_000, eventId: 2, req: {}, api: { api_air_base: [airBase(4)] } },
+        ];
+        const state = new GameState();
+
+        applyStateRecoveryPlan(state, planStateRecovery(snapshots, []));
+
+        expect(state.airBases_()[0]!.squadrons[0]!.count).toBe(4);
+    });
+
+    it('master 表（start2）永遠先套用，不受時間順序影響', () => {
+        const plan = planStateRecovery([
+            { path: 'api_port/port', ts: 1_726_000_000_000, eventId: 1, req: {}, api: {} },
+            { path: 'api_start2/getData', ts: 1_726_000_900_000, eventId: 9, req: {}, api: {} },
+        ], []);
+
+        expect(plan.baselineSnapshots.map(row => row.path))
+            .toEqual(['api_start2/getData', 'api_port/port']);
+    });
+
     it('專用本機 extension DB 的 snapshot-only 情境可恢復目前狀態，且不建立 derived rows', async () => {
         const tables = mockTables();
         const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables });

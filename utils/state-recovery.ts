@@ -1,6 +1,7 @@
 import type { ApiEventRow, SnapshotRow } from './db';
 
-// 快照套用順序：start2 提供艦種／裝備 master 表，必須優先於其餘母港狀態。
+// 快照套用順序的**平手時**依據（實際順序見 orderSnapshots：一律以觀測時間為主）。
+// start2 提供艦種／裝備 master 表，必須優先於其餘母港狀態。
 // background.ts 的 SNAPSHOT_PATHS 定義寫入集合；這裡是 panel／overview 共用的恢復順序。
 export const SNAPSHOT_ORDER = [
     'api_start2/getData',
@@ -10,6 +11,40 @@ export const SNAPSHOT_ORDER = [
     'api_get_member/base_air_corps',
     'api_get_member/mapinfo',
 ] as const;
+
+// master 表要先進來，之後的 reducer 才有 stype／裝備資料可用；它是唯讀參照資料，
+// 不會被其他 path 覆寫，故永遠排最前面不受時間順序影響。
+const MASTER_PATH = 'api_start2/getData';
+
+/**
+ * 快照的重播順序＝**觀測時間順序**，不是固定的 path 順序。
+ *
+ * ⚠️ 曾經是固定順序，那是個真 bug（實機回報 2026-08-04：每次進遊戲，面板的基地航空隊
+ * 都顯示補給前的機數）：每個 path 只留最新一筆快照，但**不同 path 的新舊互不相干**。
+ * `api_get_member/mapinfo` 與 `api_get_member/base_air_corps` 都會寫 `GameState.airBases`，
+ * 玩家的實際操作順序是「開海域選擇（mapinfo）→ 開基地航空隊（base_air_corps）→ 補給」，
+ * 於是 base_air_corps 比 mapinfo 新；固定順序卻把 mapinfo 排在後面，重播時用**較舊的**
+ * mapinfo 覆蓋掉較新的 base_air_corps，補給後的機數每次啟動都被洗回去。
+ *
+ * 以 `ts`（該筆快照來源事件的觀測時間）為主鍵、`eventId` 為次鍵，兩者皆缺才退回
+ * SNAPSHOT_ORDER 的既定位置。
+ */
+export function orderSnapshots(snapshots: readonly SnapshotRow[]): SnapshotRow[] {
+    const rank = (path: string) => {
+        const i = (SNAPSHOT_ORDER as readonly string[]).indexOf(path);
+        return i < 0 ? SNAPSHOT_ORDER.length : i;
+    };
+    return [...snapshots].sort((left, right) => {
+        if (left.path === MASTER_PATH || right.path === MASTER_PATH) {
+            if (left.path !== right.path) return left.path === MASTER_PATH ? -1 : 1;
+        }
+        const ts = (left.ts ?? 0) - (right.ts ?? 0);
+        if (ts !== 0) return ts;
+        const id = (left.eventId ?? 0) - (right.eventId ?? 0);
+        if (id !== 0) return id;
+        return rank(left.path) - rank(right.path);
+    });
+}
 
 export type RetainedRawEvent = ApiEventRow & { id: number };
 
@@ -37,8 +72,12 @@ export function planStateRecovery(
     const firstRawEventId = rawEvents[0]?.id;
     const snapshotsByPath = new Map(snapshots.map(snapshot => [snapshot.path, snapshot]));
 
-    const baselineSnapshots = SNAPSHOT_ORDER
+    // 白名單維持 SNAPSHOT_ORDER（＝background 會寫入的 path 集合），只有「順序」改成
+    // 依觀測時間；匯入的舊備份若帶了名單外的 path，仍不當 baseline。
+    const known = SNAPSHOT_ORDER
         .map(path => snapshotsByPath.get(path))
+        .filter((row): row is SnapshotRow => !!row);
+    const baselineSnapshots = orderSnapshots(known)
         .filter((snapshot): snapshot is SnapshotRow => {
             if (!snapshot) return false;
             // raw event 為空時，legacy snapshot（沒有 eventId）仍可完整恢復目前狀態。

@@ -439,3 +439,41 @@ describe('EventProjector 寫入失敗傳播', () => {
         expect(maxId).toBe(40);
     });
 });
+
+// ── 基地空襲的真封包（samples/base-air-raid.json，2026-08-04 實機擷取） ──────────
+// CLAUDE.md 待辦 #1 的樣本。這一筆確認了三件先前只能 best-effort 讀的事：
+//   ✅ 頂層 key 是 `api_destruction_battle`（掛在 api_req_map/next 上）
+//   ✅ `api_lost_kind` 確實存在（本樣本值＝4；各值語意仍未知，只有這一個樣本）
+//   ✅ 空襲的 `api_air_base_attack` 是**物件**（出擊時的陸航波次是陣列）——
+//      故 sortie-detail 的 lbasWaves() 只認陣列是對的，不可為了「相容」而放寬。
+// 節點類型 api_event_id=4／api_event_kind=6 亦與 map-node-kind 的 airRaid 對得上，
+// 且這是第一次由「封包本身帶 destruction_battle」獨立佐證那條對照（先前只有 KC3Kai desc）。
+describe('基地空襲的真封包歸檔', () => {
+    it('projector 讀得出 seiku／lost_kind／節點類型，且標記為 raid', async () => {
+        const raid = fixture<{ api: any }>('base-air-raid.json').api;
+        const tables = mockTables();
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables });
+
+        await projector.project(row(1, 'api_req_map/start',
+            { api_maparea_id: 62, api_mapinfo_no: 1, api_no: 1, api_color_no: 4 }, { api_deck_id: '1' }));
+        await projector.project(row(2, 'api_req_map/next', raid, { api_recovery_type: '0' }));
+
+        const saved = tables.sorties.put.mock.calls.at(-1)![0] as SortieLogRow;
+        expect(saved.kind).toBe('raid');
+        expect(saved.map).toBe('62-1');
+        expect(saved.node).toBe(11);
+        expect(saved.seiku).toBe(4);            // api_air_base_attack.api_stage1.api_disp_seiku
+        expect(saved.raidLostKind).toBe(4);     // api_lost_kind
+        expect(saved.nodeEventId).toBe(4);
+        expect(saved.nodeEventKind).toBe(6);
+        expect(saved.rank).toBe('');
+        expect(saved.boss).toBe(false);
+    });
+
+    it('空襲的 api_air_base_attack 是物件，不得被當成出擊波次陣列', () => {
+        const raid = fixture<{ api: any }>('base-air-raid.json').api;
+        const attack = raid.api_destruction_battle.api_air_base_attack;
+        expect(Array.isArray(attack)).toBe(false);
+        expect(attack.api_stage1.api_disp_seiku).toBe(4);
+    });
+});

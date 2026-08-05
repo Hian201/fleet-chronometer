@@ -117,10 +117,30 @@ export const fmtShortTs = (ts: number) => {
 // 只差外層要嵌在哪一級標題底下，故用 h 參數控制標題層級（fleet-overview 獨立成文件時
 // 用 '##'；嵌進完整報告的某個章節底下時用 '###'）。
 const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];
-// lbas：依基地 rid（1-3，穩定的「第幾個基地」）決定去留，不用陣列索引——sort 過的
-// airBases_() 順序會先依 areaId 分組，rid 不一定對得上索引位置（見 fleet-overview.ts
-// baseHtml() 的同一個註解）。
-export interface FleetMarkdownScope { fleets: boolean[]; lbas: boolean[] }
+// lbas：**以海域（maparea id）為單位**的開關表，鍵是 `String(areaId)`，缺席＝顯示。
+// 使用者指定「每個海域一個 checkbox 就好」——一個海域最多三個基地、平常整組一起看，
+// 逐基地開關只是讓那排 chip 長得更長。⚠️ **絕不可改回以 rid 為鍵**：rid 是「該海域的
+// 第幾個基地」，中部海域與活動海域各有自己的第一基地航空隊，用 rid 當鍵會兩個海域連動
+// （見 utils/state.ts airBaseKey 的災情註解）。
+export interface FleetMarkdownScope { fleets: boolean[]; lbas: Record<string, boolean> }
+
+/**
+ * 基地航空隊的「所屬海域」標籤。
+ *
+ * 封包只給**海域（maparea）層級**的 `api_area_id`，**沒有「是 6-4 還是 6-5 的基地」
+ * 這種單張地圖資訊**——同一個海域的基地本來就三張圖共用，這不是漏讀欄位。故通常海域
+ * 標成「6 中部海域」：那個 6 就是玩家熟悉的「6-x」的 6，讓兩個海域的第一基地航空隊
+ * 一眼分得出來。
+ *
+ * 活動海域的 maparea id（62 之類）對玩家沒有意義故不標；但**名稱回退成通用字串**
+ * （master 查無此 id，例如活動已結束、基地資料還留著）時反而要補上 id，否則兩個舊活動
+ * 的基地會同樣顯示「活動海域」而分不出誰是誰。
+ */
+export function airBaseAreaLabel(state: GameState, areaId: number): string {
+    const name = state.mapAreaName(areaId);
+    if (areaId <= 10) return `${areaId} ${name}`;
+    return state.masterMapAreas.has(areaId) ? name : `${name} #${areaId}`;
+}
 
 // 熟練度符號：與面板 chip 同一套階層（1-3 直線、4-6 斜線、7 為 ace 雙箭）。
 // Markdown 是純文字，故 ace 用單一字元 '»'（面板用 HTML 實體 &gt;&gt;）。
@@ -151,12 +171,12 @@ export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownS
         }
         lines.push('');
     });
-    const bases = state.airBases_().filter(b => !scope || scope.lbas[b.rid - 1] !== false);
+    const bases = state.airBases_().filter(b => !scope || scope.lbas[String(b.areaId)] !== false);
     if (bases.length) {
         lines.push(`${h} ${t('ov.airCorps')}`);
         for (const b of bases) {
             const sq = b.squadrons.map(gearMarkdown).join(' / ');
-            lines.push(`- **${b.name}**（${state.mapAreaName(b.areaId)}） ${t(AIR_ACTION_KEYS[b.actionKind] ?? 'lbas.standby')}　${t('ov.airRadius', { n: b.distance })}　${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}${sq ? `　│ ${sq}` : ''}`);
+            lines.push(`- **${b.name}**（${airBaseAreaLabel(state, b.areaId)}）${t(AIR_ACTION_KEYS[b.actionKind] ?? 'lbas.standby')}　${t('ov.airRadius', { n: b.distance })}　${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}${sq ? `　│ ${sq}` : ''}`);
         }
     }
     return lines.join('\n');

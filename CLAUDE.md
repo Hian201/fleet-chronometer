@@ -143,7 +143,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄：通常／活動兩大分類＋海域下拉＋單場 JSON 匯入，一次出擊一張卡（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板 markup 由 `shellHtml()` 提供，離線預覽共用 |
 | `entrypoints/overview/sections/drop-log.ts` | 打撈紀錄：通常／活動分類＋新船／非新船篩選＋關鍵字／時間篩選＋分頁＋CSV 匯出入。CSV 邏輯全在 `utils/drop-log-import.ts`；新船判定走 `utils/drop-new-ship.ts`（**不是** retention 那支） |
 | `utils/drop-new-ship.ts` | 打撈紀錄「新船」判定（純函式）：`newShipDropKeys()`。判準與面板 Drop 晶片同一條——比對鎮守府全艦娘（**以基礎形態**）後這一撈才讓它第一次成為成員才算。**與 `retention.ts` 的 `firstOwnedDropKeys()` 是兩支，別合併**（見該檔說明） |
-| `entrypoints/overview/sections/exped-log.ts` | 遠征紀錄：期間彙總（期間捷徑／自訂起訖日／活動期間捷徑＋四資源小計＋各遠征次數與收穫）＋可選欄位詳細清單＋分頁＋彙總／明細兩份 CSV。彙總核心在 `utils/expedition-stats.ts` |
+| `entrypoints/overview/sections/exped-log.ts` | 遠征紀錄：**主體是逐筆明細**（一趟回來拿了什麼／多少／成功還是失敗，可選欄位＋分頁，編成欄預設收合）；上方一行期間總計，下方收合的「各遠征次數與收穫」為次要查詢工具。期間捷徑／自訂起訖日／活動期間捷徑＋明細／彙總兩份 CSV。彙總核心在 `utils/expedition-stats.ts` |
 | `entrypoints/overview/sections/build-log.ts` | 建造紀錄：可選欄位詳細清單＋分頁＋CSV 匯出入。匯入來源查不到 master id 時顯示 `FactoryLogRow.importedShipName`／`importedSecretaryName` |
 | `entrypoints/overview/sections/event-ops.ts` | 活動作戰板：標籤總帳（自動）＋計畫疊層＋關卡表。直接讀寫 `db.eventPlans`——使用者手輸的攻略意圖、非從 events 投影的衍生資料 |
 | `entrypoints/overview/sections/resource-log.ts` | 資源紀錄：最上方一張大折線圖（八項資材疊在同一張圖、圖例逐條開關、y 軸只依顯示中的序列縮放、十字準線）＋活動區段消耗＋詳細清單（表頭與欄位開關皆純圖示無文字）。控制項只建一次、只重繪 `.rl-body`；期間／粒度／欄位／分頁存 localStorage（`kc-resource-view`） |
@@ -175,6 +175,8 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/ship-roster.ts` | 艦娘全覽詳細清單的篩選／排序／分頁核心（純函式）。先制對潛是全檔唯一的推算值（遊戲不送旗標） |
 | `utils/gear-inventory.ts` | 裝備全覽的彙總／篩選／排序核心（純函式）：`groupGears()` 把裝備實例依 master 彙總成種類。素質一律是 master 基礎值、**不含改修 ★ 加成** |
 | `utils/repair.ts` | 泊地修理（工作艦）＋母港給糧（補給艦野埼）的涵蓋範圍與結算預估（純函式）：`planAnchorageRepair()`／`planMoraleSupply()`／`nextSettlementIn()` |
+| `utils/expedition-bonus.ts` | 遠征資源加成（大発動艇系裝備）試算（純函式）：`computeExpeditionBonus()`／`applyExpeditionBonus()`／`collectLandingCraftGears()`。遊戲不送任何加成封包，公式為社群機制轉寫 |
+| `utils/lbas-cond.ts` | 基地航空隊中隊疲勞的「經過時間修正」（純函式）：`lbasRecoveryRate()`／`lbasCondClearsInMs()`／`lbasCondCertainlyClear()`。疲勞回復在伺服器端每 3 分鐘一次且**不推封包**，故 `api_cond` 永遠是觀測當下的快照 |
 | `utils/quest-progress.ts` | 任務「本機進度」推算（純函式）：`parseQuestGoal()` 從任務標題反推目標次數與動作種類 |
 | `utils/state.ts` | `GameState`：封包 reduce 成狀態；遠征檢查、制空/索敵、戰鬥接線、血量寫回、燃彈估算、關卡量表、TP、`wantedTag`、泊地修理計時器錨點、任務進度計數 |
 | `utils/battle.ts` | `analyzeBattle`（傷害重放、損管發動、第二艦隊旗艦不沉、大破/旗艦大破判定）+ `predictRank`（勝利判定） |
@@ -184,7 +186,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/ingestion-persistence.ts`／`utils/background-ingestion-lifecycle.ts` | raw event 持久化、captureId 去重與 collision 拒絕、pending/processing/done 狀態機，SW recovery 的單一順序 queue |
 | `utils/event-projector.ts`／`utils/projection-cursor.ts`／`utils/event-pruning.ts` | derived-table 投影、`meta['projection']` version 3 cursor，只刪已投影 raw event 的安全裁剪 |
 | `utils/ship-debut-data.ts` | 艦娘「官方登場日」參照資料，鍵＝基礎形態 master id。**產生物、勿手改**——改 `samples/ship-debut-dates.json` 後重跑 `tools/ship-debut/generate.py` |
-| `utils/expedition-data.ts` | poi 遠征需求資料（MIT，見 NOTICE） |
+| `utils/expedition-data.ts` | poi 遠征需求資料（MIT，見 NOTICE）＋ 2026-08-03 補上 poi 未收錄的 20 個遠征條件（轉寫自 ElectronicObserver，見 NOTICE）＋ id 301/302（活動支援遠征，封包事實） |
 | `utils/expedition-stats.ts` | 遠征紀錄期間彙總核心（純函式）：`filterByPeriod()`／`summarize()`／`groupByMission()`／`statsCsv()`。收入是逐筆事件獲得量，不是餘額差分 |
 | `public/icons/**.svg` | 裝備／資源／UI 圖示（原創向量，**由 `tools/icons/` 產生，勿手改**）；裝備檔名即 `api_type[3]` |
 | `tools/icons/` | 圖示生成器＋設計約束，改圖示前先讀其 README |
@@ -246,6 +248,20 @@ tooltip 語言。
 `api_get_member/mission`/`api_req_mission/start`→遠征、`api_get_member/questlist`→一般、
 `api_get_member/preset_dev_items`/`api_req_kousyou/remodel_slotlist`/工廠操作→工廠。
 補強增設裝備是獨立端點 `api_req_kaisou/slotset_ex`（無 `api_slot_idx`，已實測）。
+
+**拖曳交換同艦兩個已裝備槽位**（母港編成畫面把裝備直接拖到另一個已裝備的槽位上，非
+點擊式的 `slotset`）走獨立端點 `api_req_kaisou/slot_exchange_index`。**已用真封包驗證**
+（`samples/slot-exchange-index.json`，三筆，含互為逆操作的一組 `src_idx`/`dst_idx`
+`3`↔`0`）：請求為 `api_id`/`api_src_idx`/`api_dst_idx`（0-based，與 `slotset` 的
+`api_slot_idx` 同慣例），回應的 `api_ship_data` 是**完整艦快照**（與 `api_port/port`
+單艦記錄同形，含 HP／燃彈／cond／各項素質／`api_sally_area` 等，不是只帶 `api_slot`／
+`api_onslot` 的局部物件）。`applyEvent` 因此直接 `ingestShips([api_ship_data])` 整艦
+覆蓋，不手動挑欄位、不用 src/dst idx 自行猜 swap——回應本身已是交換完的最終結果。
+`api_id` 需與請求一致才採信，避免格式異常時誤植出一艘幽靈艦。這條路徑先前是唯讀
+no-op，導致艦載機拖曳交換後制空（`airPower()`）沒有跟著換位重算（實機回報，連合艦隊／
+單艦隊皆受影響）；`swapShipSlots()` 只處理點擊式 `slotset` 的同艦互換，管不到這條路徑。
+契約鎖在 `tests/equipment-position.test.ts`（含直接餵樣本檔的解析測試）與
+`tests/plane-loss.test.ts`「拖曳交換槽位後制空重新計算」。
 
 ---
 
@@ -519,9 +535,13 @@ wiki 例題（對空10、24 搭載、熟練 >>）→ 74 已鎖進 `tests/plane-l
 出擊時拍 before（此刻搭載數仍是母港實數）、各節點收航空戰的原始欄位、回港拍 after 並算出
 逐格實際損失與 `totals`（封包合計 vs 實際合計）。`battleresult` 印一次尚缺回港實數的版本、
 回港印一次含搭載實數的版本、**再開一次遊戲的裝備／改修畫面**（讓遊戲送 `slot_item`）才補上
-`alvDrop` 熟練度變化並印出完整版（`alvPending: false` 那一版）。面板視窗右鍵「檢查」開
-DevTools，對物件右鍵「Copy object」或執行 `copy(__kcPlaneLoss)`。**只經過一個航空戰節點的
-出擊**最容易反推真正的分攤規則；probe 會在下次出擊時重置，故要在再次出擊前先取回。
+`alvDrop` 熟練度變化，`alvPending: false` 那一版才算完整——**完整版會自動觸發下載**
+（`downloadJson()`，Blob＋`<a download>`，落地到瀏覽器預設下載資料夾，一般是
+`~/Downloads/kc-planeloss_{ts}.json`，不需要 `downloads` 權限）；中繼（尚缺回港實數／熟練度）
+版本只印 console 供即時查看，不落地存檔，避免每個 battleresult 都各存一份半成品洗版下載
+資料夾。仍可在面板視窗右鍵「檢查」開 DevTools，對物件右鍵「Copy object」或執行
+`copy(__kcPlaneLoss)` 取用當下版本。**只經過一個航空戰節點的出擊**最容易反推真正的分攤
+規則；probe 會在下次出擊時重置，故要在再次出擊前先取回。
 
 ### 關卡進度與剩餘次數（`api_get_member/mapinfo`，已實測驗證）
 
@@ -681,6 +701,15 @@ id 不存名稱）記錄該快照涵蓋的 id；`utils/gamedata-coverage.ts` 的
 `planStateRecovery()` 只在 raw events 為空時採用 legacy snapshot；raw events 存在時僅採用
 `eventId` 嚴格小於第一筆 retained raw event ID 的 snapshot 作 baseline。
 
+**baseline 的重播順序是「觀測時間」不是固定 path 順序**（`orderSnapshots()`，2026-08-04
+修正）：每個 path 只留最新一筆，但**不同 path 的新舊互不相干**。`mapinfo` 與
+`base_air_corps` 都會寫 `GameState.airBases`，而玩家的實際操作順序是「開海域選擇
+（mapinfo）→ 開基地航空隊（base_air_corps）→ 補給」，固定順序把 mapinfo 排在後面，
+於是每次啟動都用**較舊的** mapinfo 覆蓋掉較新的 base_air_corps，補給後的機數被洗回去
+（實機回報：每次進遊戲面板都顯示沒補給）。`api_start2/getData` 是唯讀 master 參照，
+**永遠排最前**、不參與時間排序；`SNAPSHOT_ORDER` 退為白名單與平手時的次序。
+契約鎖在 `tests/state-recovery.test.ts`。
+
 **現行備份契約 v6**：只輸出 `kind:'full'` 的單一 `kanmusu-backup.json`，含
 `snapshot`／`sorties`／`expeditions`／`factory`／`replays`／`wanted`／`shipObtained`／
 `eventPlans`／`resources`／`resourceMarks`。`sorties` 只是摘要，沒有 `replays` 就不能重建
@@ -705,6 +734,82 @@ Drive／WebDAV 原生 API 需 OAuth／host_permissions，違反權限精簡）�
 就把該圖最近一場 boss 出擊標 `cleared`；只在「本次事件流曾看過該圖未擊破」時才判定轉變。
 唯一未驗證：擊破當下遊戲是否即時推一筆 `now_maphp=0` 的 mapinfo（只影響觸發延遲不影響判定）。
 
+### 基地航空隊中隊疲勞（`utils/lbas-cond.ts`）
+
+**疲勞回復完全在伺服器端進行，回復時遊戲不推任何封包**（wikiwiki §疲労：`コンディション値は
+3分ごとに増加`）。本擴充被動擷取、不主動發請求，故手上的 `api_cond` **永遠是「上次收到基地
+航空隊資料那一刻」的快照**——玩家出擊完關掉基地畫面，面板就會一直掛著遊戲裡早就消失的疲勞
+標記，且 `db.snapshot` 會讓它撐過重開（實機回報 2026-08-04：遊戲顯示無疲勞、面板顯示橙）。
+
+機制數字（wikiwiki 原始 HTML 逐字，該頁自標 cond 值為**推測值**）：cond 0–46，**30–46 無標記
+／20–29 橙／0–19 赤**；每 3 分鐘回復一次，札別基本量＝出撃 +1／防空 +2／退避 +3／待機 +4／
+休息 +8，**基地整備Lv 會再提升**（加成量未查證，一律不計入＝保守側）；札回復上限 40。
+
+**推論方向只有一個**：`lbasCondCertainlyClear()` 只在「連最慢的回復速度都足以回到 30」時才
+把標記拿掉（長度 L 的時間窗必定含 `floor(L/3分)` 個 tick，屬下限推論不是估算）。**不得反過來
+用最快速度提早抹掉疲勞**——那會把仍疲勞的中隊謊報成正常。札被中途改掉時取
+「`condAsOf` 之後看過的最慢速度」（`GameState.airBaseCondMinRate`），用改完後的快札回算會提早
+清除。面板一律走 `GameState.lbasCondStateNow()`，**不要直接用 `lbasCondState()`**（含編成列的
+基地航空隊鈕染色）；標記還在只代表「還不能斷定已回復」，title 會寫明資料年齡。
+
+**機數（補給）走另一條路，別跟疲勞混為一談**：`api_count` 只有 `base_air_corps`／`mapinfo`／
+`set_plane`／`supply` 四條路徑會更新（戰鬥封包不帶），**補給後的即時更新只有 `supply` 那一條**。
+`supply` 的真封包形狀已定案（`samples/air-corps-supply.json`）：請求為 `api_area_id` ＋
+**單一** `api_base_id` ＋ `api_squadron_id`（**逐中隊補給**），回應的 `api_plane_info`
+只帶被補給的那一個中隊（故 `mergeSquadrons` 是必要的，不是邊角防禦），另附
+`api_after_fuel`／`api_after_bauxite` 兩項餘額（只就地更新 materials 的這兩格）。
+`api_req_air_corps/*` 這一族的其餘請求參數仍無樣本，故一律經 `resolveAirBaseKeys()` 解析：
+`api_base_id` 可能逗號分隔（`set_action` 實測如此）、`api_area_id` 可能缺席（rid 唯一時才退路
+推定）。**解不出來時要 `console.warn` 不得靜默** ——舊寫法把整串當 rid 組 key，查不到就什麼
+都不做，面板於是一直顯示補給前的機數（實機回報 2026-08-04）。多基地一次補給時無法確定
+`api_plane_info` 各屬哪個基地（squadron id 在各基地內都是 1–4），維持原狀不猜。
+
+**標記的把握程度分三級，面板不得把「不能斷定」畫成「確定」**（`lbasCondCertainty()`，
+2026-08-04 實機回報：遊戲的黃臉已退、面板還畫實心黃臉）：封包只給三段顯示碼，收到當下
+只知道值落在一個區間（橙＝20–29、赤＝0–19），時間一過整段往上平移 `rate × tick 數`——
+區間**下**限達 30＝`clear`（標記必定已退）、**上**限達 30＝`possiblyRecovered`
+（可能已退但無法斷定，面板淡化 `.unsure` 並在 title 說明）、皆未達＝`certain`。
+出撃札的橙：3 分鐘就進入存疑區、30 分鐘才 clear。**存疑時只能淡化不能隱藏**——
+「不能斷定」不等於「已回復」，拿掉是把仍疲勞的中隊謊報成正常。
+
+**降級是逐段的**（`lbasCondDowngrade()`）：赤 →（確定回到 20 以上）→ 橙 →（確定回到 30 以上）
+→ `mild`。出撃札的赤要 90 分才確定回到無標記帶，但 60 分就確定已經只是橙了——舊版整整 90
+分鐘畫紅臉，中間那 30 分鐘是過度斷言。⚠️ **回到無標記帶時降為 `mild` 而不是 `normal`**：
+剛跨過 30 的值顯然不是「全滿」，而 0 與 1 的分界沒有任何佐證，不能猜；要變 `normal`
+只能靠新封包。
+
+**對齊的主要路徑是 `mapinfo`，不是時間推算**：點「出擊→海域選擇」時遊戲會送
+`api_get_member/mapinfo`，那一筆帶著完整的 `api_air_base`（含每個中隊的 `api_cond`），
+面板收到就整批覆蓋並重設 `condAsOf`。正常遊玩流程下每次出擊前都會對齊一次，
+時間推算（`lbasCondStateNow`）只是「兩次封包之間」的退路——別把它當成主要機制。
+契約鎖在 `tests/lbas-cond.test.ts`「連續 mapinfo 會把疲勞狀態對齊到最新」。
+
+回復沒有任何封包可以觸發重繪，故面板每秒算一次疲勞狀態簽章、變了才重畫
+（`tickLbasCond`，非無條件重繪）。
+
+**`api_cond` 是顯示碼、不是 0–46 原始值，四段對照為 `0`=全滿／`1`=輕度疲勞（**遊戲不顯示
+標記**）／`2`=橙／`3`=赤**（2026-08-04 以四份真封包定案：同一隊 62_2 在一晚內隨連續出撃
+走完 0→1→2→3，逐筆有實機畫面回報）：
+
+| 值 | 語意 | 遊戲畫面 | 樣本 |
+|----|------|----------|------|
+| `0` | 全滿／完全休息 | 無標記 | `samples/mapinfo-air-base.json`（六隊 24 中隊全 0） |
+| `1` | **輕度疲勞** | **無標記** | `samples/mapinfo-air-base-tired.json`、`samples/air-corps-supply.json`（剛出撃回來） |
+| `2` | 橙（中度疲勞） | 黃臉 | `samples/mapinfo-air-base-exhausted.json`（檔名是命名當下的誤判） |
+| `3` | 赤（重度疲勞） | 紅臉 | `samples/mapinfo-air-base-red.json` |
+| 其他 | `unknown` | — | 顯示原始值不猜 |
+
+`0` 與 `1` 遊戲都不顯示標記，差別只在「全滿」與「已經有點累」——**KC3Kai 也把這兩種畫成
+不同表情**，本專案同樣分開：`1` 只給一顆 `--dim` 空心點（`.sq-cond.mild`），不給臉、不染
+編成列的按鈕（遊戲本身都沒標記，染了比遊戲還吵）。
+
+⚠️ **這組對照 2026-08-04 曾被改錯一次，別重蹈**：當時只看到 0/1/2 三個值，又依單一次實機
+回報把 1 讀成橙，於是改成 0=無／1=橙／2=赤；直到撈到 `cond: 3` 才發現整組錯位——面板對 3
+回 `unknown`，連符號都畫不出來。**四段一起看才對得起來**，這也正是本專案最初沿用的社群
+工具（KC3Kai）慣例。`wantedTag` 的鉤子是「遊戲改版偵測」，門檻 `api_cond >= 4`。
+`utils/lbas-cond.ts` 的 `bandMin()`／`bandMax()` 用同一組碼（2→20–29、3→0–19），
+改一邊就要改兩邊。
+
 ### 泊地修理與母港給糧（`utils/repair.ts`）
 
 **遊戲完全不送這兩個機制的封包**——一律是預估，UI 必須標示。master 常數（已用真封包驗證）：
@@ -728,6 +833,104 @@ bug feature）。進母港時推進：出門中隊回港後重新起算，已跑
 
 **尚未實作**：背景 alarms/notifications 提醒；緊急泊地修理（連合艦隊出擊中機制，相關封包
 欄位未經真封包驗證）。
+
+### 遠征資源加成（`utils/expedition-bonus.ts`）
+
+**遊戲完全不送這個機制的封包**——與 `repair.ts` 同類：公式是社群機制轉寫（非封包驗證），
+面板必須標示為估算。來源：**直接讀取** wikiwiki.jp/kancolle/遠征（`#daihatsu` 節，裝備
+基礎加成率表）與 wikiwiki.jp/kancolle/特大発動艇（`#bonus` 節，完整公式＋特大発超頂 2D
+表）的**原始 HTML**，2026-08-03 逐字核對。**別用 WebFetch 對這類數字表格做摘要**——同一份
+資料先後兩次用 WebFetch 摘要，兩次結果互相矛盾（且其中一版還混進了一段整段捏造、原頁面
+根本不存在的「改修補正公式」），唯有 `curl` 原始 HTML 自己讀表格才收斂到一致且經五個算例
+交叉驗證過的版本；日後任何缺資料，同一批 wikiwiki.jp 頁面應優先查，且一律読原始 HTML。
+
+**master id 與基礎加成率**（id 已用 `samples/start2-master.json` 核對，非猜測；百分比為
+wikiwiki.jp 原始表格數值）：大発動艇(68) 5%／大発動艇(八九式中戦車＆陸戦隊)(166) 2%／
+特大発動艇(193) 5%（另有超頂加成）／武装大発(409) 3%／特二式内火艇(167) 1%／
+装甲艇(AB艇)(408) 2%／特四式内火艇(525) 4%／特四式内火艇改(526) 5%。**大発動艇是子字串
+會誤中大量改造/合體型裝備**（193/230/449/482/494/495/514/436/576等），比對務必用完整
+master id 相等，不可用名稱 `includes`。
+
+**公式**（wikiwiki.jp 原文逐字）：`獲得資源量 ＝ floor(基本量 × 大成功 × {1 ＋
+min(基本補正之和,0.2) ＋ (0.2%×艦隊全體大発系★平均值)}) ＋ floor(基本量 × 大成功 ×
+特大発補正)`。「基本補正之和」是艦隊全體（六艘）計入裝備的基礎加成率加總（特大発動艇的
+基礎5%也算在內），封頂20%；**改修★項是平坦的 `0.2%×平均★`（★0–10，故最高+2%），
+與基本補正是否已達20%上限無關**——別誤植成「乘以 min(基本補正,0.2)」，來源公式沒有這層
+乘積，兩者是各自獨立的加法項。特大発補正是另一段獨立相加、**不受20%上限**，且**同時吃
+「特大発個數」與「同時裝備的一般大発動艇(68)個數」兩個維度**（`TOKU_BONUS_TABLE`，2D
+表，特大発+1／+2兩列對大発個數不敏感，+3／4以上兩列才隨大発個數變動 5.0~6.0%）——
+**只看特大発個數的 1D 表是錯的**（曾經這樣實作過，第一版上線時只用 1D 表，已修正）；
+`大発動艇(八九式中戦車＆陸戦隊)`等其他上陸用舟艇裝備**不計入這個「大発個數」維度**（wiki
+腳注明載，只有大発動艇本體才算）。兩段各自 `floor` 後相加，不可先加總再取一次整。
+大成功倍率沿用面板既有的 `×1.5` 慣例（`applyExpeditionBonus` 的 `successMultiplier`
+參數），無加成時退化成原本的 `mul15` 行為。公式與 2D 表已用 wiki 原文五個算例（22%／28%／
+20%／27.4%／27.8%）鎖進 `tests/expedition-bonus.test.ts`「wiki 原文算例」區塊。
+
+**顯示**：`panel/main.ts` 的 `renderExped()`——直接把加成後數字取代原本的 `reward_*`
+顯示值（不並排顯示兩個數字），**只有裝了計入加成的裝備時才變色**（`rewards.bonusActive`）。
+變色用 `--sparkle`（金色）＝「有加成」語意色，**不可挪用 `--res-gain`／`--res-drain`**——
+那組是資源紀錄的餘額消長語意（見該分區「刻意不共用」的既有注記），混用會稀釋兩邊各自的
+視覺意義。**大成功那行不再標示 `(×1.5)` 徽章**——`rewards.great.*` 已經是套用完大成功
+倍率後的最終數字，並排一個「×1.5」字樣容易被誤讀成「這數字還要再乘1.5」。
+
+**掃描範圍**：只掃 `expedCheck()` 正在檢查的那個艦隊（`deck.api_ship`），與既有的 drum
+缶掃描（`DRUM_MST_ID` 同段邏輯）同一顆迴圈風格；不掃補強增設（大発系裝備不會裝在
+ex-slot）。
+
+### 遠征資料完整性（`utils/expedition-data.ts`）
+
+**2026-08-03 盤點**：拿 `EXPEDITION_DATA` 收錄的 id 集合對照真實 `api_mst_mission`
+（`samples/start2-master.json`，2026-07-21 匯出）差集後發現：poi-plugin-expedition 的
+`assets/expedition.json` 自 2018-12-10 起未再更新，遊戲後續新增的 20 個遠征（id
+41–46／103–105／112–115／131–133／141–142，涵蓋 maparea 1/2/4/5/7）完全沒有條件資料，
+`expedCheck()` 只能顯示「此遠征的詳細需求尚未收錄」。已用 ElectronicObserver（另一持續
+維護的第三方工具，MIT）的 `Data/MissionClearCondition.cs` 補齊這 20 筆的出擊條件，翻譯
+規則見下；另外 id 301／302（活動支援遠征，`expedDisplayName()` 已知的 S1/S2）原本也不在
+`EXPEDITION_DATA`，已用封包 `api_win_item1/2`／`api_win_mat_level` 皆為 0 確認零收益後
+比照既有 id 33/34（同為「駆逐2隻」支援任務）補上。
+
+**條件資料的翻譯規則**（把 EO 的 C# 判定式轉成本專案 `required_shiptypes` 陣列）：
+- `CheckShipCountByType(type, n)` → `{shiptype:[id], count:n}`；`CheckSmallShipCount(n)`
+  （駆逐+海防）→ `{shiptype:[1,2], count:n}`（沿用既有 id100 等的既定寫法）。
+- `CheckEscortFleet()`／`CheckEscortFleetDD3()`／`CheckEscortFleetDD4()` 是 OR 條件
+  （軽巡+駆逐/海防N ‖ 護衛空母+... ‖ 駆逐+海防3 ‖ 練巡+海防2），本專案 schema 只能
+  表達 AND，**沿用既有 id4/5/9（DD2）、id102（DD3）已經在用的簡化寫法**：只取最常見的
+  「軽巡1 +（駆逐+海防）N」分支，即 `[{shiptype:[1,2],count:N},{shiptype:[3],count:1}]`。
+  這是既有資料就已經接受的簡化，不是這次新增才放寬標準。
+- `CheckFlagshipType(x)` → `flagship_shiptype`；`CheckEquippedShipCount`／
+  `CheckEquipmentCount`（TransportContainer＝輸送用ドラム缶）→ `drum_ship_count`／
+  `drum_count`（與既有 id21/37/38 的既定對應逐筆核對一致）。
+- id44（航空装備輸送任務）的 EO 條件含 `OrCondition`（水上機母艦2 ‖ 水上機母艦1+空母1），
+  取第一分支簡化（與封包 `api_details`「水上機母艦2」的文字描述一致），會漏掉另一分支
+  合法但更少見的編成——**這點是本次新增才出現的簡化**，其餘 19 筆皆為單純 AND。
+
+**收益數字已補上（2026-08-03 同日追加）**：EO 只驗證出擊「條件」，不含
+`reward_fuel/bullet/steel/alum` 這類實際收益數字（該工具本身也不維護這份表）；嘗試從
+master 的 `api_win_mat_level`（0–4 的收益「級距」欄位）反推實際數字失敗——同級距在不同
+遠征對應的實際數字差異很大（如 level=1 在不同遠征分別對應 45/50/70/120/240/300 燃料，
+無法從級距單獨換算），故沒有嘗試用公式推算。改讀 wikiwiki.jp/kancolle/遠征 的「詳細一覧表」
+（原始 HTML，非摘要）逐筆取得這 20 筆的真實 `reward_fuel/bullet/steel/alum`／道具，並與
+`api_win_mat_level` 的 0/非0 pattern 逐筆交叉比對**全數一致**（見 `utils/expedition-data.ts`
+檔頭註記），信心度高。`ExpedEntry.rewardAmountsUnverified` 欄位因此**已從這 20 筆移除**——
+現在跟其餘 47 筆一樣正常顯示燃彈鋼鋁數字；`state.ts`／`panel/main.ts` 的
+`amountsVerified` 分支邏輯予以保留（供之後若又出現條件已知但收益不明的新遠征使用），
+只是目前沒有任何一筆會走到那個分支。
+
+**itemtype 對照表順帶抓到一個既有 bug**：交叉比對 `api_win_item1/2` 與 wiki 道具名稱時
+發現 `rewardNames`（`state.ts` 的 `expedCheck()` 內）**原本把 1／2 兩個編號的名稱寫反**
+（1 誤植為「応急修理要員」、2 誤植為「高速修復材」），正確應為 1＝高速修復材、2＝高速建造材
+——這兩個編號恰好與封包 `api_win_item` 的原始值相同（1/2/3 至今沒變過），已直接修正。
+但 4／5／6（家具箱小/中/大）**這三個編號在封包裡已改用 10/11/12**（poi 的 2015–2018
+快照仍是舊編號 4/5/6，兩者同時存在、不可合併，故新增的 20 筆遠征改修資材撞上舊編號4，
+改配一個沒人用過的新編號 7，避免與舊資料的「家具箱(小)」衝突），完整對照與各編號來源
+已寫在 `rewardNames` 旁的註解，别再把 4 跟 7 搞混。
+
+**id 165／166 是可疑的既有資料，本次未處理**：這兩筆存在於 poi 資料裡（`reward_*` 全 0、
+`required_shiptypes` 為駆逐2，與 33/34/301/302 同一種「支援任務」樣板），但**不存在於
+目前的 `api_mst_mission` 快照**——可能是遊戲已停用/重新編號的舊 id。因為 `expedCheck()`
+只在 `masterMissions.get(expedId)` 查得到時才會用到 `EXPEDITION_DATA`，若遊戲從未送出
+這兩個 id，這兩筆資料就是死資料、不會造成錯誤顯示，故未動它；但也未移除，留待之後有人
+確認這是「已停用 id」還是「這份 master 快照剛好沒收錄到」再決定去留。
 
 ### 任務本機進度追蹤（`utils/quest-progress.ts`）
 
@@ -787,9 +990,11 @@ bug feature）。進母港時推進：出門中隊回港後重新起算，已跑
 `reconcileStages()`（純函式）改版不得丟資料：有 mapNo 照 mapNo 對應、沒有的用
 `guessMapNo(label)` 反推、對應不上但填過東西的列保留在末尾。
 
-**未驗證**：標籤 id 實際語意（樣本皆非活動期，值全 0）；標籤名是否存在於任何封包（`nameSource`
-的 `'auto'` 分支預留但目前不會被寫入，UI 一律手動命名）；`api_sally_flag` 是否為出擊制限
-旗標。驗證鉤子已埋在 `wantedTag`，下次活動自動撈。
+**未驗證**：標籤 id 實際語意（2026-08-04 已用真封包確認 `api_port/port` 會帶非零
+`api_sally_area`，同一鎮守府多艘船同時掛 1/2/3/4 四種不同 id——但 id 對應遊戲裡哪個
+標籤仍不知道，`wantedTag` 對應這條已收斂，見該函式註解）；標籤名是否存在於任何封包
+（`nameSource` 的 `'auto'` 分支預留但目前不會被寫入，UI 一律手動命名）；`api_sally_flag`
+是否為出擊制限旗標。剩餘驗證鉤子已埋在 `wantedTag`，下次活動自動撈。
 
 ### 鎮守府全船篩選（`utils/ship-filter.ts`）
 
@@ -976,7 +1181,19 @@ CSV 匯入沿用 `sortie-import.ts` 已建立的例外路徑：event ID 向 gene
 `importedShipName`／`importedSecretaryName`，不假裝是哪個 master id。日期無時區資訊，只能
 當本地時間解析。
 
-### 遠征紀錄的期間彙總（`utils/expedition-stats.ts`＋`sections/exped-log.ts`）
+### 遠征紀錄（`sections/exped-log.ts`＋`utils/expedition-stats.ts`）
+
+**這一區的主體是「逐筆明細」，不是統計**（2026-08-03 依使用者回報調整，別改回去）：一趟遠征
+回來拿了什麼資源、多少、成功還是失敗——這是使用者要的東西。依遠征種類加總的「各遠征次數與
+收穫」回答的是另一個問題（哪個遠征跑最多／最賺），**是次要的查詢工具**，故收進 `<details>`
+放在明細**下方**且預設收合。先前把彙總表當主表擺在最上面、明細壓在下面叫「明細」，被回報
+「完全錯誤」。版面順序固定為：期間總計（一行脈絡）→ 逐筆明細（主體）→ 收合的彙總。
+- 彙總的展開狀態**必須持久化**（`Prefs.statsOpen`）：表頭排序會觸發整塊重繪，不記狀態的話
+  每點一次排序就自己收合。`toggle` 事件不冒泡、無法用 body 委派，每次重繪後就地重綁。
+- 明細的**編成欄預設收合**（`<details class="el-fleet-d">`，summary 顯示「N艘」）：六艘 chip
+  攤開會讓每一列高好幾倍。折疊一律用原生 `<details>`＋`::before` 字元 caret，不用
+  `transform: rotate`（design-guidelines §4.3）。CSV 仍匯出完整編成——收合只是顯示層的事。
+- 契約鎖在 `tests/exped-log-overview.test.ts`。
 
 **為什麼落在遠征紀錄而不是資源紀錄**：遠征收入是逐筆事件獲得量（精確可加總），資源紀錄的
 消長是餘額差分（封包只給餘額）——兩者語意不同，混在一起會被拿去互相對照卻對不起來，
@@ -1009,11 +1226,34 @@ vs 明細），**表頭用目前語言的欄名**——與 drop-log/build-log �
 **自動擷取（開發用 UI）**：面板「動態」分頁的「待驗證封包」清單——**僅
 `npm run dev` 或本機 `localStorage.kc-debug-ui='1'` 時顯示與擷取**（`utils/debug-ui.ts`）。
 上架／`npm run build` 預設關閉（營運對玩家檢視封包敏感；且無 UI 時繼續寫 wanted 會永久
-釘住 raw events）。開啟時：`GameState.wantedTag(path,api)` 命中即記入 `db.wanted`，附
-「複製 JSON」。**有上限**：同一分類 5 筆、總數 50 筆——`db.wanted` 引用的 raw event 受裁剪
+釘住 raw events）。開啟時：`GameState.wantedTag(path,api)` 命中即記入 `db.wanted`，
+**同時自動觸發下載**（`downloadJson()`，`entrypoints/panel/main.ts`）把
+`{tag,path,ts,req,api}` 存成 `kc-wanted_{tag}_{path}_{ts}.json`，落地到瀏覽器預設下載
+資料夾（一般是 `~/Downloads/`）——用 Blob＋`<a download>`，不需要新增 `downloads` 權限
+（見設計原則 5 權限精簡）。清單仍保留「複製 JSON」／刪除／清空供事後管理與補救重存。
+**有上限**：同一分類 5 筆、總數 50 筆——`db.wanted` 引用的 raw event 受裁剪
 永久保護，達上限時清單明說並提供刪除，**不可改成靜靜略過，也不可拿掉保護語意**。
 出擊紀錄的「單場 JSON 匯入」同屬開發用 UI，正式建置不顯示（`utils/sortie-import.ts` 與
 測試仍保留）。
+
+`wantedTag()` 已移除三條**已解決**的鉤子：`api_req_air_corps/supply`（2026-08-04，
+`samples/air-corps-supply.json` 已定案，見「基地航空隊中隊疲勞」節）、自軍聯合艦隊戰鬥
+偵測（2026-08-04，已用真實 61-5 甲封包驗證，見「現行遊戲 API 格式」節「自軍聯合艦隊」）、
+**支援艦隊攻擊**（2026-08-05；欄位路徑本身早已✅驗證，剩下的「傷害陣列索引基準」是
+已接受的永久限制——`BattleSupportView` 只加總不逐位置歸屬，血量歸屬另走 `applyDmg`
+讀同一批欄位不需要索引基準，繼續抓樣本對這題沒有幫助，純粹洗 `db.wanted` 額度）。
+**友軍艦隊**鉤子同日縮小條件（原本任何 `api_friendly_battle` 都觸發，但 `api_hougeki`
+早已✅驗證、只有 `api_raigeki` 分支仍缺樣本，故改成只在後者出現時才擷取，不再對每場
+已驗證的 hougeki-only 友軍戰鬥重複觸發）。**基地航空隊疲勞改版偵測**鉤子門檻同日修正
+（`>=3` 誤留成能被赤/cond=3 命中——3 早已定案，赤是 LBAS 出撃後的常態，每次紅臉都在
+觸發下載正是「一直抓取很煩」的主因；已改回文件原意的 `>=4`，見「基地航空隊中隊疲勞」節）。
+**mapinfo 的 `api_sally_flag` 分支**同日移除（見「活動作戰板」節待辦 8b：欄位存在即觸發、
+活動海域開著時幾乎每次進出擊畫面都命中，且連續 3 份樣本數值飽和不再變化，是另一個
+「每次點出擊海域都在下載」的來源）。
+其餘鉤子（艦隊全補給、基地空襲、大漩渦、退避、mapinfo TP/斬殺樣本、熟練度
+slot_data、出擊標籤×2）仍對應「里程碑」表下方「待辦」中明列的未定案項目，予以保留；
+這些鉤子的標籤文字固定不含變動內容，靠 `db.wanted` 的同標籤 5 筆／總數 50 筆上限自然
+收斂，不會無限成長。
 
 **手動擷取（備用）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
 Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 篩選。
@@ -1083,7 +1323,16 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
 
 ### 待辦（依優先序）
 
-1. 基地空襲 `api_destruction_battle` 頂層 key 名稱與 `api_lost_kind` 各值語意仍需原始封包確認。
+1. 基地空襲：**頂層 key 名稱與結構已由真封包確認**（`samples/base-air-raid.json`，2026-08-04：
+   `api_req_map/next` 帶 `api_destruction_battle`，內含 `api_lost_kind`、`api_air_base_attack`
+   為**物件**、`api_stage1.api_disp_seiku`；EventProjector 既有的 best-effort 讀法逐欄對得上）。
+   **仍未定案：`api_lost_kind` 各值的語意**——現有兩個值（`base-air-raid.json`／
+   `base-air-raid-3.json` 值＝4，`base-air-raid-2.json` 值＝2，2026-08-05 補，其中值＝4
+   已重複觀測到 2 次、皆是 `api_stage3.api_fdam` 全 0 的情況，值＝2 那次則 fdam 有數值——
+   傾向支持「4＝這波沒損失、2＝有損失」，但只有各一組獨立觀測仍不足以定案，且缺 0/1/3
+   等其他值，**不猜語意**）。**wantedTag 鉤子已收斂**：只在出現不屬於 `{2, 4}` 的新值時
+   才擷取——同一個常打的海域每次過空襲節點都會命中，抓到的幾乎都是重複的已知值，繼續照
+   舊條件抓只會一直跳下載（2026-08-05 實機回報），只有真正沒見過的值才有用。
 2. `api_mst_slotitem` 反查 icon id 41「輸送機材」對應何物仍未證實，56–60 正式名稱仍為推定。
 3. 節點字母新活動開圖：上游 `edges.json` 未更新前顯示原始 edge 編號，重新下載後重跑產生器即可。
 4. 燃彈：活動特殊點與大漩渦電探減免（待 `api_happening` 封包）。
@@ -1100,8 +1349,18 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
 7. M4 殘項：side panel 選配、視窗位置記憶、Firefox 打包驗證。
 8. 亮色主題細部調校；遠征紀錄回航道具欄位未經真封包驗證。
 8b. 活動作戰板三項待驗（標籤 id 語意／標籤名是否存在於封包／`api_sally_flag` 是否為出擊制限
-   旗標）；「標籤 ← 哪次出擊」自動知識庫與貼錯標籤事後警示為第二版功能。
+   旗標）；「標籤 ← 哪次出擊」自動知識庫與貼錯標籤事後警示為第二版功能。**`api_sally_flag`
+   觀察與 wantedTag 鉤子已移除**（`samples/mapinfo-sally-flag-{1,2}.json`，2026-08-05）：
+   同一鎮守府相隔約 14.5 分鐘、中間有基地航空隊出擊（`api_air_base` 各中隊 `api_count`
+   明顯下降），兩張圖的 `api_sally_flag` 完全沒變——**不像會隨出擊/戰鬥遞減的「剩餘挑戰
+   次數」**，語意仍未定案。但這個鉤子只要活動海域還開著，出擊畫面每次載入 mapinfo
+   幾乎都會命中，且 621/622 這組數值已經連續 3 份樣本完全不變（飽和、沒有新資訊），
+   同一組海域再抓下去只會重複同一個結論，還會讓「每次點出擊海域都跳下載」——已移除
+   （`wantedTag()` 的 mapinfo 分支不再檢查 `api_sally_flag`）。往後若有其他活動海域、
+   其他數值出現才有必要重新埋鉤子，且應鎖定「值真的變化」而非「欄位存在」才觸發。
 9. 友軍艦隊「強力友軍艦隊」支援消耗高速建造材（使用者提供之遊戲設定，非封包驗證）：
    需先取得相關封包，屬與現有 `api_friendly_battle` 不同層次（出擊前選項 vs 戰鬥中友軍）。
 10. 劇場模式／靜音實機待驗：跨源框是否存在、WebAudio vs media 元素、stacking context 偏移。
     三者可在下次登入遊戲分頁時用 `__kcAudio.contextCount()` 與 devtools 快速定案。
+11. id 165/166（poi 舊資料，現行 master 快照查無此 id）性質待確認，暫留不動（見「遠征資料
+    完整性」節）。

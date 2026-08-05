@@ -1,0 +1,86 @@
+{
+  "_note": "api_req_map/next 帶 api_destruction_battle（基地空襲）第二份真實封包（2026-08-05 實機擷取 wanted 自動下載）。與 samples/base-air-raid.json（api_lost_kind=4，event_kind=6，api_stage3.api_fdam=[0,0]，f_nowhps 200/200 全滿）互為對照：這一筆 api_lost_kind=2、event_id=5／event_kind=5、api_stage3.api_fdam=[122,152]（兩基地本波皆有損失）、但 api_f_nowhps 仍是 200/200（與 fdam 有損失並存，可見 f_nowhps/f_maxhps 是另一組計量，不隨 fdam 直接掉血——兩者關係仍待更多樣本厘清）。**api_lost_kind 現有兩個值（2、4），語意仍未定案**：樣本數不足以判讀對應規則，繼續保留 wantedTag 鉤子擷取。無 PII。",
+  "req": {
+    "api_recovery_type": "0"
+  },
+  "api": {
+    "api_rashin_flg": 0,
+    "api_rashin_id": 0,
+    "api_maparea_id": 62,
+    "api_mapinfo_no": 2,
+    "api_no": 55,
+    "api_color_no": 5,
+    "api_event_id": 5,
+    "api_event_kind": 5,
+    "api_next": 0,
+    "api_bosscell_no": 32,
+    "api_bosscomp": 0,
+    "api_comment_kind": 0,
+    "api_production_kind": 0,
+    "api_airsearch": {
+      "api_plane_type": 0,
+      "api_result": 0
+    },
+    "api_eventmap": {
+      "api_max_maphp": 4840,
+      "api_now_maphp": 840,
+      "api_dmg": 1
+    },
+    "api_e_deck_info": [
+      {
+        "api_kind": 2,
+        "api_ship_ids": [2367, 2119, 2352]
+      },
+      {
+        "api_kind": 2,
+        "api_ship_ids": [1555, 1527, 1527]
+      }
+    ],
+    "api_limit_state": 0,
+    "api_ration_flag": 0,
+    "api_destruction_battle": {
+      "api_formation": [1, 3, 1],
+      "api_ship_ke": [2119, 2361, 1956, 1956, 1592, 1555],
+      "api_ship_lv": [1, 1, 1, 1, 1, 1],
+      "api_e_nowhps": [900, 1100, 470, 470, 66, 57],
+      "api_e_maxhps": [900, 1100, 470, 470, 66, 57],
+      "api_eSlot": [
+        [1581, 1582, 1583, 1574, 1608],
+        [1609, 1609, 1559, 1611, 1634],
+        [1600, 1600, 1541, 1603, -1],
+        [1600, 1600, 1541, 1603, -1],
+        [1550, 1550, 1545, 1525, -1],
+        [1506, 1525, 1542, 1543, -1]
+      ],
+      "api_f_nowhps": [200, 200],
+      "api_f_maxhps": [200, 200],
+      "api_air_base_attack": {
+        "api_stage_flag": [1, 0, 1],
+        "api_plane_from": [null, [1, 2, 5, 6]],
+        "api_map_squadron_plane": null,
+        "api_stage1": {
+          "api_f_count": 0,
+          "api_f_lostcount": 0,
+          "api_e_count": 303,
+          "api_e_lostcount": 18,
+          "api_disp_seiku": 4,
+          "api_touch_plane": [-1, 1611]
+        },
+        "api_stage2": null,
+        "api_stage3": {
+          "api_frai_flag": [1, 0],
+          "api_erai_flag": [0, 0, 0, 0, 0, 0],
+          "api_fbak_flag": [1, 1],
+          "api_ebak_flag": [0, 0, 0, 0, 0, 0],
+          "api_fcl_flag": [0, 0],
+          "api_ecl_flag": [0, 0, 0, 0, 0, 0],
+          "api_fdam": [122, 152],
+          "api_edam": [0, 0, 0, 0, 0, 0],
+          "api_f_sp_list": [null, null],
+          "api_e_sp_list": [null, null, null, null, null, null]
+        }
+      },
+      "api_lost_kind": 2
+    }
+  }
+}

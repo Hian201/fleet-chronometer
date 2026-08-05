@@ -47,3 +47,14 @@ describe('節點類型', () => {
         expect(nodes.some(n => n.eventKind === 5)).toBe(true);
     });
 });
+
+// eventKind 6 = 空襲 的獨立佐證升級：先前只有 KC3Kai 匯出的 desc 文字，
+// 現在有一筆封包**自己帶著 api_destruction_battle**（基地空襲）且 eventId/Kind = 4/6。
+describe('空襲節點的真封包佐證', () => {
+    const raid = sample('base-air-raid.json').api;
+
+    it('帶 api_destruction_battle 的節點，其 4/6 對到 airRaid', () => {
+        expect(raid.api_destruction_battle).toBeTruthy();
+        expect(nodeKindKey(raid.api_event_id, raid.api_event_kind)).toBe(NODE_KIND_KEYS.airRaid);
+    });
+});

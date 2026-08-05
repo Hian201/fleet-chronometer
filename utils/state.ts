@@ -3,6 +3,11 @@ import { analyzeBattle, taihaFlags } from './battle';
 import { localizeShip, localizeGear } from './gamedata-i18n';
 import { t } from './ui-i18n';
 import { resolveQuestGoal, meetsRank, type QuestActionKind, type QuestGoal } from './quest-progress';
+import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
+import {
+    LBAS_COND_EXHAUSTED, LBAS_COND_MILD, LBAS_COND_TIRED,
+    lbasCondCertainty, lbasCondDowngrade, lbasRecoveryRate,
+} from './lbas-cond';
 
 // ── 遠征需求表的型別(poi-plugin-expedition, MIT)──
 interface ExpedEntry {
@@ -16,6 +21,10 @@ interface ExpedEntry {
     required_shiptypes: { shiptype: number[]; count: number }[];
     required_extra?: { asw?: number; aa?: number; los?: number; firepower?: number };
     big_success?: string | null;
+    /** true＝出擊條件已核對（ElectronicObserver `MissionClearCondition.cs`），但
+     * `reward_fuel/bullet/steel/alum` 尚無可信來源、僅為佔位 0。`reward_items` 不受影響
+     * （直接來自封包 `api_win_item1/2`，即使條件未收錄的遠征也一樣是封包事實）。 */
+    rewardAmountsUnverified?: boolean;
     [k: string]: any;
 }
 const EXPEDITION_DATA = RAW_EXPED as ExpedEntry[];
@@ -38,6 +47,11 @@ export interface ShipView {
     nameJa: string;
     stype: string; lv: number; hp: number; maxhp: number; cond: number;
     fuel: number; maxFuel: number; bull: number; maxBull: number;
+    // 火力／運＝艦實例的顯示素質（api_karyoku[0]／api_lucky[0]，**已含裝備加成**，
+    // 與 ownedShips() 的 stats 同一份封包事實）。艦隊全覽的艦卡要顯示運、艦隊列要顯示
+    // 火力合計，故一併帶進 view，不讓顯示層自己去 ownedShips() 反查 id（那會為了兩個
+    // 數字重算全鎮守府的裸素質與可裝備表）。缺欄位一律 0＝不可考，不猜。
+    firepower: number; luck: number;
     // mst／stypeId：艦 master id 與艦種 id。面板原本只有艦種縮寫字串，無法判定
     // 「這艘是不是明石／野埼」，泊地修理與給糧範圍計算需要，故補上原始 id。
     mst: number; stypeId: number;
@@ -466,7 +480,25 @@ export interface AirBaseView {
     distance: number;       // 作戰半徑 (base + bonus)
     squadrons: SquadronView[];
     airPower: { min: number; max: number };
+    // 疲勞（`SquadronView.cond`）是這個時刻的觀測值，不是「現在」的值——遊戲的疲勞回復
+    // 不推封包（見 utils/lbas-cond.ts）。null＝沒看過任何帶 plane_info 的封包。
+    condAsOf: number | null;
+    // 自 `condAsOf` 起看過的最慢回復速度（每 3 分鐘 tick 的回復量）
+    condRate: number;
 }
+
+/**
+ * 基地航空隊的唯一鍵＝**海域(maparea) id ＋ rid**，與 `GameState.airBases` 的 map key
+ * 同一條規則。
+ *
+ * ⚠️ **rid 單獨不是唯一鍵**：rid 是「該海域的第幾個基地」，中部海域與活動海域各自都有
+ * 第一/第二/第三基地航空隊。實機回報過的災情就是拿 rid 當鍵：顯示範圍的開關、海域名稱
+ * 對照表全部撞號，結果每個基地都掛上同一個海域名（活動名），一整排長得一模一樣、分不出
+ * 誰是誰，開關也變成連動。**別再把任何以基地為單位的資料結構改回 rid 索引**——要嘛用
+ * 這支的複合鍵，要嘛以「海域」為單位（顯示範圍開關就是走後者，見
+ * entrypoints/overview/lib.ts 的 FleetMarkdownScope）。
+ */
+export const airBaseKey = (b: { areaId: number; rid: number }): string => `${b.areaId}-${b.rid}`;
 
 const GEAR_ICON: Record<number, { s: string; c: string }> = {
     1: { s: '砲', c: 'c-gun' }, 2: { s: '砲', c: 'c-gun' }, 3: { s: '砲', c: 'c-gun' },
@@ -655,6 +687,13 @@ export class GameState {
     // 本專案尚未有原始封包樣本，欄位與範圍以公開檢視器的封包處理及遊戲 UI 機制交叉確認；
     // 因此只保存封包明示的原始整數，缺席維持不可考，絕不以 0 補值。
     airBaseMaintenanceLevels = new Map<number, number>();
+    // 中隊疲勞（api_cond）是**觀測時刻的快照**：遊戲的疲勞回復在伺服器端每 3 分鐘進行一次，
+    // 且回復時不推任何封包（見 utils/lbas-cond.ts）。故必須記住「這份 cond 是什麼時候的」，
+    // 否則面板會一直掛著遊戲裡早就消失的疲勞標記。key 同 airBases。
+    airBaseCondAsOf = new Map<string, number>();
+    // 自上述時刻起、該基地出現過的**最慢**回復速度（札會被玩家中途改掉；取最慢＝保守，
+    // 只會晚一點才判定回復完成，不會提早）。key 同 airBases。
+    airBaseCondMinRate = new Map<string, number>();
     lastDayBattle: any = null;
     // `lastDayBattle` 當下（＝晝戰開打前）的損管狀態。夜戰接續會把晝戰封包整場重放一次，
     // 損管必須用**那一刻**的值：晝戰觸發過損管的艦已被記進 damaconUsed，若在夜戰重算
@@ -680,6 +719,7 @@ export class GameState {
     private sallySampleCount = 0;     // 出擊標籤（api_sally_area>0）樣本擷取次數上限（見 wantedTag）
     private sallyKeySampleCount = 0;  // 未知 sally 系欄位樣本擷取次數上限（標籤名驗證鉤子）
     private hokyuSampleCount = 0;     // 七艘（遊撃部隊）艦隊全補給樣本擷取次數上限（見 wantedTag）
+    private lbasCondSampleCount = 0;  // 基地航空隊疲勞（api_cond≠1）樣本擷取次數上限（見 wantedTag）
     private slotDataSampleCount = 0;  // 編成／改裝端點帶 api_slot_data 的樣本擷取次數上限（熟練度驗證鉤子）
     // 工廠分頁的「最新結果」看板（開發/改修/建造發起）。EventProjector 在對應事件到達時
     // 讀取這些 view 歸檔進 db.factory（消化後摘要，同 sorties 設計）。
@@ -1399,8 +1439,19 @@ export class GameState {
             // 近代化改修没有失敗判定（有餌就必定吃成功），故每次呼叫都算一次成功。
             this.bumpQuestProgress('modernization');
         } else if (path === 'api_req_kaisou/slot_exchange_index' && req) {
-            // 請求索引欄位與回應形狀尚無真封包樣本，不能據此交換權威投影；保留原始事件，
-            // 等後續已驗證快照校正，這裡不猜欄位語意。
+            // 拖曳交換同艦兩個已裝備槽位（制空／艦載機換位的主要觸發路徑）。**已用真封包
+            // 驗證**（samples/slot-exchange-index.json，三筆，含互為逆操作的一組
+            // src/dst_idx=3/0 與 0/3）：請求為 api_id/api_src_idx/api_dst_idx（0-based，
+            // 與 slotset 的 api_slot_idx 同慣例），回應的 api_ship_data 是**完整艦快照**
+            // （與 api_port/port 單艦記錄同形，含 api_slot／api_onslot／hp／燃彈／cond／
+            // 各項素質／api_sally_area 等），不是局部物件，故直接整艦 ingestShips 覆蓋，
+            // 不必也不該手動拼湊挑選欄位。api_id 需與請求一致才採信，避免格式異常時
+            // 誤植出一艘幽靈艦。
+            const shipData = api?.api_ship_data;
+            if (shipData && typeof shipData === 'object'
+                && GameState.positiveId(shipData.api_id) === GameState.positiveId(req.api_id)) {
+                this.ingestShips([shipData]);
+            }
         } else if (path === 'api_req_kaisou/slotset' && req) {
             // 一般裝備欄（0-3 番）。已用真實封包排除補強增設走這條的假設——現行版本
             // 補強增設是獨立端點 api_req_kaisou/slotset_ex（見下），這裡恆定收到有效 idx。
@@ -1511,10 +1562,13 @@ export class GameState {
             // ── 基地航空隊 ──────────────────────────────
         } else if (path === 'api_get_member/base_air_corps') {
             this.airBases.clear();
+            this.airBaseCondAsOf.clear();
+            this.airBaseCondMinRate.clear();
             if (Array.isArray(api)) {
                 for (const ab of api) {
                     const key = `${ab.api_area_id}_${ab.api_rid}`;
                     this.airBases.set(key, ab);
+                    this.markAirBaseCondObserved(key, ts);
                 }
             }
         } else if (path === 'api_get_member/mapinfo') {
@@ -1522,6 +1576,7 @@ export class GameState {
                 for (const ab of api.api_air_base) {
                     const key = `${ab.api_area_id}_${ab.api_rid}`;
                     this.airBases.set(key, ab);
+                    this.markAirBaseCondObserved(key, ts);
                 }
             }
             // 基地整備為「海域」層級，不在 api_air_base 個別航空隊物件上。資料缺席時保留
@@ -1557,26 +1612,51 @@ export class GameState {
             }
         } else if (path === 'api_req_air_corps/set_plane' && req) {
             // api 回應包含更新後的 api_plane_info + api_distance
-            const key = `${req.api_area_id}_${req.api_base_id}`;
-            const ab = this.airBases.get(key);
-            if (ab && api) {
-                if (api.api_plane_info) ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
+            const key = this.resolveAirBaseKeys(req)[0]?.key;
+            const ab = key ? this.airBases.get(key) : undefined;
+            if (ab && key && api) {
+                if (api.api_plane_info) {
+                    ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
+                    this.markAirBaseCondObserved(key, ts);
+                }
                 if (api.api_distance) ab.api_distance = api.api_distance;
             }
         } else if (path === 'api_req_air_corps/set_action' && req) {
             // set_action 可同時設定多個航空隊 (api_base_id=1,2 / api_action_kind=1,2)
-            const areaId = req.api_area_id;
-            const bases = (req.api_base_id ?? '').split(',');
             const actions = (req.api_action_kind ?? '').split(',');
-            bases.forEach((bid: string, i: number) => {
-                const ab = this.airBases.get(`${areaId}_${bid}`);
-                if (ab) ab.api_action_kind = Number(actions[i] ?? actions[0]);
+            this.resolveAirBaseKeys(req).forEach(({ key, index: i }) => {
+                const ab = this.airBases.get(key);
+                if (!ab) return;
+                ab.api_action_kind = Number(actions[i] ?? actions[0]);
+                // 札一改，回復速度就變了。取「這段期間看過的最慢速度」作為推論依據
+                // ——中途從休息改成出撃時，若還用現在的札回算，會把疲勞提早判定成回復。
+                const prev = this.airBaseCondMinRate.get(key);
+                const rate = lbasRecoveryRate(ab.api_action_kind);
+                this.airBaseCondMinRate.set(key, prev == null ? rate : Math.min(prev, rate));
             });
         } else if (path === 'api_req_air_corps/supply' && req) {
-            const key = `${req.api_area_id}_${req.api_base_id}`;
-            const ab = this.airBases.get(key);
-            if (ab && api?.api_plane_info) {
-                ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
+            // 補給後的機數只能從這裡更新——戰鬥封包不帶 api_count，下一次 base_air_corps／
+            // mapinfo 才會校正。這裡漏掉就等於面板一直顯示補給前的機數。
+            // 補給後的資材餘額（samples/air-corps-supply.json 實測：只送燃料與鋁土，
+            // 那正是配置飛機會消耗的兩項）。只就地更新這兩格，其餘沿用母港封包
+            // ——同 api_req_hokyu/charge 的既定寫法，絕不整批覆蓋 materials。
+            // 資源紀錄（db.resources）不受影響：那條路徑只認帶完整八項的封包。
+            if (Number.isFinite(api?.api_after_fuel)) this.materials[0] = api.api_after_fuel;
+            if (Number.isFinite(api?.api_after_bauxite)) this.materials[3] = api.api_after_bauxite;
+            const keys = this.resolveAirBaseKeys(req);
+            if (keys.length === 1 && api?.api_plane_info) {
+                const key = keys[0]!.key;
+                const ab = this.airBases.get(key);
+                if (ab) {
+                    ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
+                    this.markAirBaseCondObserved(key, ts);
+                }
+            } else {
+                // 多個基地一次補給時，無法確定回應的 api_plane_info 各屬哪一個基地
+                // （沒有樣本，squadron id 在各基地內都是 1–4，硬分會分錯）；查不到基地
+                // 亦同。兩種情況都**不猜**，但要留下痕跡——靜默失敗正是這個 bug 難查的原因。
+                console.warn('[KC-Monitor] 基地航空隊補給無法套用，面板機數可能停在補給前',
+                    { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
             }
         } else if (path === 'api_req_air_corps/change_name' && req) {
             const key = `${req.api_area_id}_${req.api_base_id}`;
@@ -2371,6 +2451,11 @@ export class GameState {
             normal: { fuel: number; bullet: number; steel: number; alum: number };
             great: { fuel: number; bullet: number; steel: number; alum: number };
             items: { name: string; max: number; guaranteed: boolean }[];
+            /** 是否套用了大発動艇系裝備加成（面板據此決定資源數字要不要變色標示）。 */
+            bonusActive: boolean;
+            /** false＝出擊條件已知，但 fuel/bullet/steel/alum 尚無可信來源（面板須改顯示
+             * 「尚未收錄」而非把佔位 0 當真的數字）。`items` 不受影響，一律是封包事實。 */
+            amountsVerified: boolean;
         } | null;
         greatSuccess: { rate: number; note: string } | null;
     } {
@@ -2481,23 +2566,41 @@ export class GameState {
             if (ex.firepower) rows.push({ label: t('exped.reqFirepower', { n: ex.firepower }), ok: tot('api_karyoku') >= ex.firepower, cur: `${tot('api_karyoku')}` });
         }
 
+        // itemtype 1–6 是 poi 舊資料（2015–2018 年凍結快照）自訂的內部編號，1–3 恰好與目前
+        // 封包 api_win_item 的原始值相同（2026-08-03 用 wikiwiki.jp/kancolle/遠征 逐筆核對
+        // 確認：1＝高速修復材、2＝高速建造材——**先前這兩項名稱寫反過，已修正**），但
+        // 4/5/6（家具箱小/中/大）在封包裡目前已改用 10/11/12，只有 poi 舊資料仍用 4/5/6，
+        // 故兩組數字並存、不可合併。7/11/12/59 是新增遠征（id 41 起）直接取用封包原始值，
+        // 其中改修資材撞上舊編號 4（家具箱小），改配 7 這個新編號避免衝突。
         const rewardNames: Record<number, string> = {
-            1: '応急修理要員', 2: '高速修復材', 3: '開発資材',
+            1: '高速修復材', 2: '高速建造材', 3: '開発資材',
             4: '家具箱(小)', 5: '家具箱(中)', 6: '家具箱(大)',
+            7: '改修資材', 11: '家具箱(中)', 12: '家具箱(大)',
+            59: '給糧艦「伊良湖」',
         };
-        const mul15 = (n: number) => Math.floor(n * 1.5);
         const items = (data.reward_items ?? []).map((it: any, i: number, arr: any[]) => ({
             name: rewardNames[it.itemtype] ?? `種別${it.itemtype}`,
             max: it.max_number,
             guaranteed: arr.length >= 2 && i === arr.length - 1,   // 推測:複数ある場合、最後は大成功限定
         }));
+        // 大発動艇系裝備的資源加成（社群機制轉寫，非封包驗證，見 expedition-bonus.ts）。
+        const bonus = computeExpeditionBonus(collectLandingCraftGears(ships, this.slotItems));
         const rewards = {
-            normal: { fuel: data.reward_fuel, bullet: data.reward_bullet, steel: data.reward_steel, alum: data.reward_alum },
+            normal: {
+                fuel: applyExpeditionBonus(data.reward_fuel, bonus),
+                bullet: applyExpeditionBonus(data.reward_bullet, bonus),
+                steel: applyExpeditionBonus(data.reward_steel, bonus),
+                alum: applyExpeditionBonus(data.reward_alum, bonus),
+            },
             great: {
-                fuel: mul15(data.reward_fuel), bullet: mul15(data.reward_bullet),
-                steel: mul15(data.reward_steel), alum: mul15(data.reward_alum),
+                fuel: applyExpeditionBonus(data.reward_fuel, bonus, 1.5),
+                bullet: applyExpeditionBonus(data.reward_bullet, bonus, 1.5),
+                steel: applyExpeditionBonus(data.reward_steel, bonus, 1.5),
+                alum: applyExpeditionBonus(data.reward_alum, bonus, 1.5),
             },
             items,
+            bonusActive: bonus.active,
+            amountsVerified: !data.rewardAmountsUnverified,
         };
         return { rows, gsRows, known: true, time: mst.time, rewards, greatSuccess };
     }
@@ -2817,6 +2920,8 @@ export class GameState {
                         lv: s.api_lv, hp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
                         fuel: s.api_fuel ?? 0, maxFuel: mst?.fuelMax ?? 0,
                         bull: s.api_bull ?? 0, maxBull: mst?.bullMax ?? 0,
+                        firepower: Array.isArray(s.api_karyoku) ? Number(s.api_karyoku[0]) || 0 : 0,
+                        luck: Array.isArray(s.api_lucky) ? Number(s.api_lucky[0]) || 0 : 0,
                         gears: slots.map((gid: number, idx: number) => {
                             const gv = this.gearOf(gid);
                             // 裝備為飛機的槽才附搭載數；滿載數取 master 的 maxeq
@@ -3171,6 +3276,7 @@ export class GameState {
             const dist = ab.api_distance;
             const distance = (dist?.api_base ?? 0) + (dist?.api_bonus ?? 0);
             const airPower = this.lbasAirPower(ab.api_area_id, ab.api_rid);
+            const key = `${ab.api_area_id}_${ab.api_rid}`;
             result.push({
                 areaId: ab.api_area_id, rid: ab.api_rid,
                 name: ab.api_name ?? `第${ab.api_rid}航空隊`,
@@ -3178,11 +3284,53 @@ export class GameState {
                 distance,
                 squadrons,
                 airPower,
+                condAsOf: this.airBaseCondAsOf.get(key) ?? null,
+                condRate: this.airBaseCondMinRate.get(key) ?? lbasRecoveryRate(ab.api_action_kind),
             });
         }
         // 按 area_id → rid 排序
         result.sort((a, b) => a.areaId - b.areaId || a.rid - b.rid);
         return result;
+    }
+
+    /**
+     * 由 `api_req_air_corps/*` 的請求參數找出要更新的基地 key。
+     *
+     * ⚠️ 這一族端點（set_plane／supply／set_action／change_name）**完全沒有真封包樣本**，
+     * 欄位名依社群工具慣例推定，故解析一律防禦：
+     *  - `api_base_id` 可能是逗號分隔的多個基地（`set_action` 已實測會這樣送，補給若有
+     *    「一括補給」極可能同形）。舊寫法直接把整串 `"1,2"` 當成 rid 去組 key，
+     *    **查不到就靜靜什麼都不做**——面板於是一直掛著補給前的機數（實機回報 2026-08-04）。
+     *  - `api_area_id` 缺席時，若該 rid 在目前的 airBases 裡唯一就用那一個；不唯一不猜。
+     */
+    /*
+     * 2026-08-04 追記（samples/air-corps-supply.json）：真封包的 supply 請求是
+     * `api_area_id=62, api_base_id=1, api_squadron_id=4`——**單一基地、逐中隊**，
+     * api_area_id 有送。故實務上一律走「單一 key」那條路；逗號分隔與 area 缺席的
+     * 退路目前只有 set_action 用得到（那個是實測會送 `1,2`），其餘屬防禦性保留。
+     */
+    private resolveAirBaseKeys(req: Record<string, string>): { key: string; index: number }[] {
+        const area = req.api_area_id;
+        const out: { key: string; index: number }[] = [];
+        // index＝該基地在 api_base_id 裡的位置：同一族請求的其他參數（如 set_action 的
+        // api_action_kind）是**逐位對應**的，解不出來的位置不能讓後面的整排位移。
+        String(req.api_base_id ?? '').split(',').forEach((raw, index) => {
+            const rid = raw.trim();
+            if (!rid) return;
+            const key = `${area}_${rid}`;
+            if (this.airBases.has(key)) { out.push({ key, index }); return; }
+            // area 對不上（或沒送）時的唯一解退路
+            const sameRid = [...this.airBases.keys()].filter(k => k.endsWith(`_${rid}`));
+            if (sameRid.length === 1) out.push({ key: sameRid[0]!, index });
+        });
+        return out;
+    }
+
+    /** 記下「這個基地的 cond 是這一刻觀測到的」，並把回復速度重設為當下的札 */
+    private markAirBaseCondObserved(key: string, ts: number) {
+        if (!Number.isFinite(ts)) return;
+        this.airBaseCondAsOf.set(key, ts);
+        this.airBaseCondMinRate.set(key, lbasRecoveryRate(this.airBases.get(key)?.api_action_kind));
     }
 
     actionLabel(kind: number): string {
@@ -3192,23 +3340,78 @@ export class GameState {
     /**
      * 基地航空隊中隊疲勞的面板狀態碼。
      *
-     * 遊戲本體的內部疲勞值確有 0–46 區間，但實機 UI 回報顯示 api_cond 並未傳送該
-     * 原始數值；將 0 當作紅疲勞會讓正常中隊全數誤標。因此僅依封包的顯示狀態碼判斷。
+     * **`api_cond` 是顯示碼，不是遊戲內部的 0–46 疲勞值**（0 若是原始值就會是最慘的赤，
+     * 但收到全 0 的那份封包時遊戲畫面六隊全無標記）。對照（2026-08-04 以四份真封包
+     * ＋實機畫面定案，同一隊 62_2 在一晚內隨著連續出撃走完 0→1→2→3）：
+     *
+     *   · `0` → 全滿／完全休息，無標記　`samples/mapinfo-air-base.json`（六隊 24 中隊全 0）
+     *   · `1` → **輕度疲勞，但遊戲同樣不顯示標記**　`samples/mapinfo-air-base-tired.json`
+     *     ＋ `samples/air-corps-supply.json`（剛出撃回來補給的中隊）。KC3Kai 會把 0 與 1
+     *     畫成兩種不同表情，本專案同樣分開（1 給淡色小點，不給黃臉）。
+     *   · `2` → 橙（中度疲勞）　`samples/mapinfo-air-base-exhausted.json`
+     *   · `3` → 赤（重度疲勞）　`samples/mapinfo-air-base-red.json`（使用者確認「紅臉更疲勞」）
+     *   · 其餘 → `unknown`，顯示原始值不猜
+     *
+     * ⚠️ **別再把 1 當成橙**：2026-08-04 曾依中途的實機回報改成 0=無／1=橙／2=赤，
+     * 之後撈到 `cond: 3` 才發現整組錯位（3 會變成「不明」而完全不顯示）。四段一起看
+     * 才對得起來：0/1 都無標記、2 橙、3 赤——這也正是本專案最初沿用的社群工具慣例。
      */
-    lbasCondState(cond: number | null): 'normal' | 'tired' | 'exhausted' | 'unknown' {
+    lbasCondState(cond: number | null): 'normal' | 'mild' | 'tired' | 'exhausted' | 'unknown' {
         if (cond == null || !Number.isFinite(cond)) return 'unknown';
-        if (cond === 0 || cond === 1) return 'normal';
-        if (cond === 2) return 'tired';
-        if (cond === 3) return 'exhausted';
+        if (cond === 0) return 'normal';
+        if (cond === LBAS_COND_MILD) return 'mild';
+        if (cond === LBAS_COND_TIRED) return 'tired';
+        if (cond === LBAS_COND_EXHAUSTED) return 'exhausted';
         return 'unknown';
+    }
+
+    /**
+     * 套用「經過時間」後的疲勞狀態——**面板一律用這支，不要直接用 `lbasCondState()`**。
+     *
+     * `api_cond` 是觀測當下的快照；遊戲每 3 分鐘在伺服器端回復一次且不推封包，所以放著
+     * 不管的話面板會掛著遊戲裡早就消失的標記（實機回報 2026-08-04）。這裡只做單向推論：
+     * **連最慢的回復速度都足以到達下一段時**才降級（赤→橙→輕度），其餘原樣回傳。
+     * 詳見 `utils/lbas-cond.ts`。
+     */
+    lbasCondStateNow(
+        cond: number | null,
+        base: Pick<AirBaseView, 'condAsOf' | 'condRate'>,
+        now = Date.now(),
+    ): ReturnType<GameState['lbasCondState']> {
+        if (base.condAsOf == null) return this.lbasCondState(cond);
+        // 降級是連續的（赤→橙→無標記），不是「有標記／沒標記」兩態——
+        // 赤已經確定回到橙時就該畫黃臉，繼續畫紅臉同樣是過度斷言。
+        return this.lbasCondState(lbasCondDowngrade(cond, base.condRate, now - base.condAsOf));
+    }
+
+    /**
+     * 這個疲勞標記現在有多少把握——`certain`＝確定還在、`possiblyRecovered`＝可能已退掉
+     * （面板要淡化表現、不得斷言）、`clear`＝必定已退（`lbasCondStateNow` 會直接回 normal）。
+     * 本來就沒有標記或未知碼時回 null。詳見 `utils/lbas-cond.ts`。
+     */
+    lbasCondCertaintyNow(
+        cond: number | null,
+        base: Pick<AirBaseView, 'condAsOf' | 'condRate'>,
+        now = Date.now(),
+    ): 'certain' | 'possiblyRecovered' | 'clear' | null {
+        if (base.condAsOf == null) return lbasCondCertainty(cond, base.condRate, 0);
+        return lbasCondCertainty(cond, base.condRate, now - base.condAsOf);
     }
 
     /** 正常中隊回空字串，讓面板如遊戲本體般不額外顯示標記。 */
     lbasCondLabel(cond: number | null): string {
-        const state = this.lbasCondState(cond);
-        if (state === 'normal') return '';
-        if (state === 'tired') return t('lbas.cond.tired');
-        if (state === 'exhausted') return t('lbas.cond.exhausted');
+        return this.lbasCondLabelOf(this.lbasCondState(cond), cond);
+    }
+
+    /**
+     * 依**狀態**取標籤——經過時間降級後的狀態要用這支，不能再拿原始 cond 去查
+     * （赤降級成橙之後，標籤必須跟著變）。
+     */
+    lbasCondLabelOf(kind: ReturnType<GameState['lbasCondState']>, cond: number | null): string {
+        if (kind === 'normal') return '';
+        if (kind === 'mild') return t('lbas.cond.mild');
+        if (kind === 'tired') return t('lbas.cond.tired');
+        if (kind === 'exhausted') return t('lbas.cond.exhausted');
         return t('lbas.cond.unknown', { n: cond ?? '?' });
     }
 
@@ -3314,12 +3517,24 @@ export class GameState {
                 return t('wanted.tagHokyuCharge', { n: this.hokyuSampleCount });
             }
         }
-        // 自軍聯合艦隊戰鬥：path 本身就是訊號，不需要額外欄位判斷
-        if (path.startsWith('api_req_combined_battle/') && !path.endsWith('result') && api?.api_f_nowhps) {
-            return t('wanted.tagCombinedBattle');
+        // 基地航空隊中隊疲勞：0／1／2／3 四段**全部已由真封包定案**（見 lbasCondState）。
+        // 這個鉤子因此降級成「遊戲改版偵測」：只有出現沒見過的第五個值（>=4）才撈，
+        // 平時完全不佔額度。門檻絕不可調回 `>= 3`——3（赤）已定案，是 LBAS 出擊後的常態，
+        // 調回 3 會讓每次紅臉都觸發下載，這正是先前洗掉額度、每次出擊都在抓檔的原因。
+        if (path === 'api_get_member/base_air_corps' && this.lbasCondSampleCount < 3
+            && Array.isArray(api)
+            && api.some((ab: any) => (ab?.api_plane_info ?? []).some(
+                (sq: any) => Number.isFinite(sq?.api_cond) && sq.api_cond >= 4))) {
+            this.lbasCondSampleCount++;
+            return t('wanted.tagLbasCond', { n: this.lbasCondSampleCount });
         }
-        // 基地空襲：api_destruction_battle 結構未驗證（sorties 歸檔目前 best-effort 讀取）
-        if (path === 'api_req_map/next' && api?.api_destruction_battle) {
+        // 基地空襲：頂層結構已由真封包確認（見 CLAUDE.md 待辦 #1），唯一還沒定案的是
+        // `api_lost_kind` 各值的語意。已知值只有 2、4（`samples/base-air-raid{,-2}.json`），
+        // 若還是任何 destruction_battle 就抓，同一個常打的海域每次過這個節點都會命中、
+        // 抓到的多半是重複的已知值——只有出現沒見過的新值才真的有用，故只在這時才擷取。
+        const KNOWN_LOST_KINDS = new Set([2, 4]);
+        if (path === 'api_req_map/next' && api?.api_destruction_battle
+            && !KNOWN_LOST_KINDS.has(Number(api.api_destruction_battle.api_lost_kind))) {
             return t('wanted.tagBaseRaid');
         }
         // 大漩渦候選：已知海域的節點移動封包（見 UZUSHIO_MAPS 定義的來源與限制）
@@ -3327,15 +3542,15 @@ export class GameState {
             && UZUSHIO_MAPS.has(`${this.sortieInfo.mapArea}-${this.sortieInfo.mapNo}`)) {
             return t('wanted.tagUzushio');
         }
-        // 支援艦隊攻擊：戰鬥封包自帶 api_support_flag，觸發時附完整 api_support_info 結構
-        if ((path.startsWith('api_req_sortie/battle') || path.startsWith('api_req_combined_battle/')
-            || path.startsWith('api_req_battle_midnight/'))
-            && !path.endsWith('result') && (api?.api_support_flag ?? 0) > 0) {
-            return t('wanted.tagSupportFleet');
-        }
-        // 友軍艦隊：活動海域 boss 夜戰封包含 api_friendly_battle（友軍對敵傷害）
+        // （2026-08-05 移除）支援艦隊攻擊鉤子：欄位路徑（61-5 航空／61-3 砲擊）已✅驗證，
+        // 唯一剩下的「api_support_hourai.api_damage 索引基準」是已接受的永久限制——
+        // BattleSupportView 只加總不逐位置歸屬，血量歸屬另走 applyDmg 讀同一批欄位，不需要
+        // 索引基準即可正確運作。每次出擊只要有支援就會命中，持續抓對定案沒有幫助，純粹洗
+        // db.wanted 額度，故拿掉。見 CLAUDE.md「支援艦隊的傷害陣列長度不固定」一節。
+        // 友軍艦隊：只有 api_raigeki 分支仍未經真封包驗證（api_hougeki 已✅），故縮小條件、
+        // 不再對每場已驗證的 hougeki-only 友軍戰鬥重複觸發。
         if ((path.startsWith('api_req_combined_battle/') || path.startsWith('api_req_battle_midnight/'))
-            && !path.endsWith('result') && api?.api_friendly_battle) {
+            && !path.endsWith('result') && api?.api_friendly_battle?.api_raigeki) {
             return t('wanted.tagFriendlyFleet');
         }
         // 退避（艦隊司令部施設）驗證鉤子，兩條：
@@ -3352,18 +3567,24 @@ export class GameState {
         }
         // 海域資訊 mapinfo：主結構已驗證。仍待驗證的兩項，偵測到就抓樣本（各限 3 次）：
         //   (a) TP輸送型量表（gaugeType 3）——TP 剩餘次數的量表欄位結構未驗證，最想要
-        //   (b) EO 的 api_sally_flag（剩餘挑戰次數語意未知），供比對攻略前後變化
-        //   (c) 斬殺（量表擊破）當下的 mapinfo——HP量表歸 0，供校正面板 detectClear 的
+        //   (b) 斬殺（量表擊破）當下的 mapinfo——HP量表歸 0，供校正面板 detectClear 的
         //       「未擊破→擊破」轉變偵測（判定欄位已實測，但轉變 mapinfo 本身尚無真封包）
+        // （2026-08-05 移除）EO 的 api_sally_flag 分支：`this.mapinfoSampleCount` 是每次
+        // 面板啟動就重置的記憶體計數（GameState 每次都從 snapshot+events 重建），但
+        // `api_sally_flag` 只要活動海域還開著就幾乎每筆 mapinfo 都帶——出擊畫面每點一次
+        // 都會送 mapinfo，於是每次開面板都在幾秒內燒完 1/3→2/3→3/3、每次都跳三次下載
+        // （2026-08-05 實機回報「每次點出擊海域都在下載」，即此因）。已收集 3 份樣本
+        // （`samples/mapinfo-sally-flag-{1,2}.json` 起算），數值對同一組海域（621/622）
+        // 全程不變，繼續抓同一組海域的封包不會有新資訊，故直接移除；(a)(b) 兩項因為至今
+        // 零樣本、且不會被目前開著的活動海域天天觸發，予以保留。
         if (path === 'api_get_member/mapinfo' && this.mapinfoSampleCount < 3
             && Array.isArray(api?.api_map_info)) {
             const hasTP = api.api_map_info.some((m: any) => m?.api_gauge_type === 3);
-            const hasSally = api.api_map_info.some((m: any) => Array.isArray(m?.api_sally_flag));
             const hasClear = api.api_map_info.some((m: any) => m?.api_gauge_type === 2
                 && (m?.api_eventmap?.api_now_maphp === 0) && (m?.api_eventmap?.api_max_maphp ?? 0) > 0);
-            if (hasTP || hasSally || hasClear) {
+            if (hasTP || hasClear) {
                 this.mapinfoSampleCount++;
-                const kind = hasClear ? t('wanted.tagKindClear') : hasTP ? t('wanted.tagKindTP') : t('wanted.tagKindSally');
+                const kind = hasClear ? t('wanted.tagKindClear') : t('wanted.tagKindTP');
                 return t('wanted.tagMapinfoSample', { kind, n: this.mapinfoSampleCount });
             }
         }
@@ -3379,16 +3600,17 @@ export class GameState {
             return t('wanted.tagSlotData', { path, n: this.slotDataSampleCount });
         }
         // ── 出擊標籤驗證鉤子（兩條，見 CLAUDE.md「活動作戰板」）─────────────────
-        // 現況：api_sally_area 欄位名已用真封包確認，但手上所有樣本都取自非活動期，
-        // 值全為 0——標籤 id 的實際語意、以及「標籤名是否存在於任何封包」皆未實測。
-        // 下列兩條在活動期間會自動撈到真封包，拿到後即可定案，屆時回頭更新本註解。
+        // 標籤 id 的實際語意、以及「標籤名是否存在於任何封包」仍未實測，下列 (b) 條在
+        // 活動期間會自動撈到真封包，拿到後即可定案，屆時回頭更新本註解。
         //
-        // (a) 首見「有船帶著標籤」的艦娘清單封包。api_port/port 是全量重建（見上方
-        //     reducer），ship2/ship3/ship_deck 是否仍在使用尚未實測，故一併納入條件——
-        //     真的還在送就會自己浮出來，同時驗證它們帶不帶 api_sally_area。
+        // (a)（2026-08-04 已用真封包解決，移除）api_port/port 帶非零 api_sally_area 已
+        //     實測確認（真實鎮守府快照，多艘船同時帶 1/2/3/4 四種不同標籤 id）——這條只
+        //     驗證「欄位有沒有真的被送」，答案已經是「有」，繼續撈只會重複同一個結論。
+        //     ship2/ship3/ship_deck 這三個端點是否仍在使用、送不送 api_sally_area，
+        //     仍未實測，故保留這三條路徑供之後撈值。
         if (this.sallySampleCount < 2 && Array.isArray(api?.api_ship)
-            && (path === 'api_port/port' || path === 'api_get_member/ship2'
-                || path === 'api_get_member/ship3' || path === 'api_get_member/ship_deck')
+            && (path === 'api_get_member/ship2' || path === 'api_get_member/ship3'
+                || path === 'api_get_member/ship_deck')
             && api.api_ship.some((s: any) => Number(s?.api_sally_area) > 0)) {
             this.sallySampleCount++;
             return t('wanted.tagSallyArea', { path, n: this.sallySampleCount });

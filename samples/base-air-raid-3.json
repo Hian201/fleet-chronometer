@@ -1,0 +1,86 @@
+{
+  "_note": "api_req_map/next 帶 api_destruction_battle（基地空襲）第三份真實封包（2026-08-05 實機擷取 wanted 自動下載）。與 samples/base-air-raid.json 同一海域節點（62-2）、同樣 api_lost_kind=4、同樣 api_stage3.api_fdam=[0,0]（本波兩基地皆無損失）、api_f_nowhps 仍 200/200——與第一份樣本本質上是同一種情境的重複觀測，值＝4 對應「無損失」的假說又多一次支持，但仍只是兩組獨立觀測（值＝2 那邊只有一次），不足以定案，且缺 0/1/3 等其他值。此樣本促成 wantedTag 收斂為只在出現不屬於 {2,4} 的新值時才擷取（見 CLAUDE.md 待辦 #1），往後同一海域打過的空襲節點若仍是這兩個值就不會再跳下載。無 PII。",
+  "req": {
+    "api_recovery_type": "0"
+  },
+  "api": {
+    "api_rashin_flg": 0,
+    "api_rashin_id": 0,
+    "api_maparea_id": 62,
+    "api_mapinfo_no": 2,
+    "api_no": 55,
+    "api_color_no": 5,
+    "api_event_id": 5,
+    "api_event_kind": 5,
+    "api_next": 0,
+    "api_bosscell_no": 32,
+    "api_bosscomp": 0,
+    "api_comment_kind": 0,
+    "api_production_kind": 0,
+    "api_airsearch": {
+      "api_plane_type": 0,
+      "api_result": 0
+    },
+    "api_eventmap": {
+      "api_max_maphp": 4840,
+      "api_now_maphp": 840,
+      "api_dmg": 1
+    },
+    "api_e_deck_info": [
+      {
+        "api_kind": 2,
+        "api_ship_ids": [2367, 2119, 2352]
+      },
+      {
+        "api_kind": 2,
+        "api_ship_ids": [1555, 1527, 1527]
+      }
+    ],
+    "api_limit_state": 0,
+    "api_ration_flag": 0,
+    "api_destruction_battle": {
+      "api_formation": [1, 3, 1],
+      "api_ship_ke": [2119, 2361, 1956, 1956, 1592, 1555],
+      "api_ship_lv": [1, 1, 1, 1, 1, 1],
+      "api_e_nowhps": [900, 1100, 470, 470, 66, 57],
+      "api_e_maxhps": [900, 1100, 470, 470, 66, 57],
+      "api_eSlot": [
+        [1581, 1582, 1583, 1574, 1608],
+        [1609, 1609, 1559, 1611, 1634],
+        [1600, 1600, 1541, 1603, -1],
+        [1600, 1600, 1541, 1603, -1],
+        [1550, 1550, 1545, 1525, -1],
+        [1506, 1525, 1542, 1543, -1]
+      ],
+      "api_f_nowhps": [200, 200],
+      "api_f_maxhps": [200, 200],
+      "api_air_base_attack": {
+        "api_stage_flag": [1, 0, 1],
+        "api_plane_from": [null, [1, 2, 5, 6]],
+        "api_map_squadron_plane": null,
+        "api_stage1": {
+          "api_f_count": 0,
+          "api_f_lostcount": 0,
+          "api_e_count": 303,
+          "api_e_lostcount": 18,
+          "api_disp_seiku": 4,
+          "api_touch_plane": [-1, 1525]
+        },
+        "api_stage2": null,
+        "api_stage3": {
+          "api_frai_flag": [1, 1],
+          "api_erai_flag": [0, 0, 0, 0, 0, 0],
+          "api_fbak_flag": [1, 1],
+          "api_ebak_flag": [0, 0, 0, 0, 0, 0],
+          "api_fcl_flag": [0, 0],
+          "api_ecl_flag": [0, 0, 0, 0, 0, 0],
+          "api_fdam": [0, 0],
+          "api_edam": [0, 0, 0, 0, 0, 0],
+          "api_f_sp_list": [null, null],
+          "api_e_sp_list": [null, null, null, null, null, null]
+        }
+      },
+      "api_lost_kind": 4
+    }
+  }
+}

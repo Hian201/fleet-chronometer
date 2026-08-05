@@ -483,3 +483,59 @@ describe('熟練度過時旗標（alvStale）', () => {
         expect(state.airPower(0).min).toBeLessThan(stale.min);
     });
 });
+
+// 拖曳交換裝備槽位（母港編成畫面把兩個已裝備的艦載機格互換）走
+// `api_req_kaisou/slot_exchange_index`，不是逐格點擊用的 `slotset`（見 utils/state.ts
+// 該分支說明）。兩格的搭載數（api_onslot）通常不同（例如一格滿員、一格出擊後有損耗），
+// 若實作只搬動 api_slot、沒有讓 api_onslot 跟著同一格走，制空就會用錯的搭載數重算。
+describe('拖曳交換槽位後制空重新計算（api_req_kaisou/slot_exchange_index）', () => {
+    // 回應的 api_ship_data 是完整艦快照（已用真封包驗證，見
+    // samples/slot-exchange-index.json＋tests/equipment-position.test.ts），不是只帶
+    // slot/onslot 的局部物件；這裡沿用既有艦記錄複製一份再改槽位，貼近真實回應形狀，
+    // 順便確保整艦覆蓋不會把 hp/cond 等其餘欄位意外洗掉。
+    function exchange(state: GameState, shipId: number, slot: number[], onslot: number[]) {
+        const current = (state as any).ships.get(shipId);
+        state.applyEvent('api_req_kaisou/slot_exchange_index', {
+            api_ship_data: { ...current, api_slot: slot, api_onslot: onslot },
+        }, { api_id: String(shipId), api_src_idx: '0', api_dst_idx: '1' });
+    }
+
+    it('單艦隊：兩格互換後，搭載數跟著裝備一起走，制空合計不變但逐格歸屬正確', () => {
+        const state = stateWithFleets([[
+            { mst: SHOUHOU, gears: [FIGHTER, TORPEDO_BOMBER], onslot: [18, 9] },
+        ]]);
+        const shipId = state.fleets()[0].ships[0].id;
+        const before = state.airPower(0);
+        const rawSlot = (state as any).ships.get(shipId).api_slot as number[];
+
+        exchange(state, shipId, [rawSlot[1], rawSlot[0]], [9, 18]);
+
+        const gears = state.fleets()[0].ships[0].gears;
+        expect(gears.map(g => g?.mst)).toEqual([TORPEDO_BOMBER, FIGHTER]);
+        // 熟練度未變、對空未變，純位置對調＋搭載數同行——合計必須跟交換前一樣；
+        // 若 onslot 沒跟著移動（停在原位），戰鬥機會誤用 9 而非 18，合計會偏低。
+        expect(state.airPower(0)).toEqual(before);
+        expect(gears[0]!.count).toBe(9);   // 艦攻現在在 0 號格，帶走它原本的搭載數
+        expect(gears[1]!.count).toBe(18);  // 戰鬥機換到 1 號格，搭載數同行
+    });
+
+    it('連合艦隊：第2艦隊（隨伴）的艦載機交換也會即時重算制空', () => {
+        const state = stateWithFleets([
+            [{ mst: MUTSUKI }],
+            [{ mst: MUTSUKI }, { mst: SHOUHOU, gears: [FIGHTER, TORPEDO_BOMBER], onslot: [18, 9] }],
+        ], 1);
+        const shipId = state.fleets()[1].ships[1].id;
+        const before = state.airPower(1);
+        const combinedBefore = state.combinedSummary().air;
+        const rawSlot = (state as any).ships.get(shipId).api_slot as number[];
+
+        exchange(state, shipId, [rawSlot[1], rawSlot[0]], [9, 18]);
+
+        const gears = state.fleets()[1].ships[1].gears;
+        expect(gears.map(g => g?.mst)).toEqual([TORPEDO_BOMBER, FIGHTER]);
+        expect(gears[0]!.count).toBe(9);
+        expect(gears[1]!.count).toBe(18);
+        expect(state.airPower(1)).toEqual(before);
+        expect(state.combinedSummary().air).toEqual(combinedBefore);
+    });
+});

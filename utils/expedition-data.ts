@@ -1,5 +1,9 @@
 // 出典: poi-plugin-expedition (MIT License) https://github.com/poooi/plugin-expedition
 // 遠征 #id ごとの出撃条件データ。ゲーム内APIには存在しないため、静的データとして保持。
+// id 41–46/103–105/112–115/131–133/141–142 の出撃条件は ElectronicObserver（MIT）から、
+// 収益数字（reward_fuel/bullet/steel/alum/items）は wikiwiki.jp/kancolle/遠征 の詳細一覧表
+// から補完（2026-08-03、api_win_mat_level の 0/非0 パターンと全件突合済み）。詳細は
+// CLAUDE.md「遠征資料完整性」節参照。
 const data = [
   {
     "id": 1,
@@ -1524,6 +1528,831 @@ const data = [
   },
   {
     "id": 166,
+    "reward_fuel": 0,
+    "reward_bullet": 0,
+    "reward_steel": 0,
+    "reward_alum": 0,
+    "reward_items": [],
+    "flagship_lv": 0,
+    "fleet_lv": 0,
+    "flagship_shiptype": 0,
+    "ship_count": 2,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 2
+      }
+    ],
+    "big_success": null
+  },
+  {
+    "id": 41,
+    "reward_fuel": 100,
+    "reward_bullet": 0,
+    "reward_steel": 0,
+    "reward_alum": 20,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 1
+      },
+      {
+        "itemtype": 1,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 30,
+    "fleet_lv": 100,
+    "flagship_shiptype": 0,
+    "ship_count": 0,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 3
+      }
+    ],
+    "required_extra": {
+      "firepower": 60,
+      "aa": 80,
+      "asw": 210
+    },
+    "big_success": null
+  },
+  {
+    "id": 42,
+    "reward_fuel": 800,
+    "reward_bullet": 0,
+    "reward_steel": 0,
+    "reward_alum": 200,
+    "reward_items": [
+      {
+        "itemtype": 12,
+        "max_number": 1
+      },
+      {
+        "itemtype": 2,
+        "max_number": 3
+      }
+    ],
+    "flagship_lv": 45,
+    "fleet_lv": 200,
+    "flagship_shiptype": 0,
+    "ship_count": 4,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 2
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      }
+    ],
+    "big_success": null
+  },
+  {
+    "id": 43,
+    "reward_fuel": 2000,
+    "reward_bullet": 0,
+    "reward_steel": 0,
+    "reward_alum": 400,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 4
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 55,
+    "fleet_lv": 300,
+    "flagship_shiptype": 7,
+    "ship_count": 6,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 4
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      }
+    ],
+    "required_extra": {
+      "firepower": 500,
+      "aa": 280,
+      "asw": 280,
+      "los": 170
+    },
+    "big_success": null
+  },
+  {
+    "id": 44,
+    "reward_fuel": 0,
+    "reward_bullet": 200,
+    "reward_steel": 0,
+    "reward_alum": 800,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 4
+      },
+      {
+        "itemtype": 12,
+        "max_number": 2
+      }
+    ],
+    "flagship_lv": 35,
+    "fleet_lv": 210,
+    "flagship_shiptype": 0,
+    "ship_count": 6,
+    "drum_ship_count": 3,
+    "drum_count": 6,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          16
+        ],
+        "count": 2
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 2
+      }
+    ],
+    "required_extra": {
+      "aa": 200,
+      "asw": 200,
+      "los": 150
+    },
+    "big_success": null
+  },
+  {
+    "id": 45,
+    "reward_fuel": 40,
+    "reward_bullet": 0,
+    "reward_steel": 0,
+    "reward_alum": 220,
+    "reward_items": [
+      {
+        "itemtype": 11,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 50,
+    "fleet_lv": 240,
+    "flagship_shiptype": 7,
+    "ship_count": 0,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 4
+      }
+    ],
+    "required_extra": {
+      "aa": 240,
+      "asw": 300,
+      "los": 180
+    },
+    "big_success": null
+  },
+  {
+    "id": 46,
+    "reward_fuel": 300,
+    "reward_bullet": 0,
+    "reward_steel": 150,
+    "reward_alum": 380,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 3
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 60,
+    "fleet_lv": 300,
+    "flagship_shiptype": 0,
+    "ship_count": 5,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          5
+        ],
+        "count": 2
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 2
+      }
+    ],
+    "required_extra": {
+      "firepower": 350,
+      "aa": 250,
+      "asw": 220,
+      "los": 190
+    },
+    "big_success": null
+  },
+  {
+    "id": 103,
+    "reward_fuel": 80,
+    "reward_bullet": 120,
+    "reward_steel": 0,
+    "reward_alum": 100,
+    "reward_items": [
+      {
+        "itemtype": 1,
+        "max_number": 2
+      },
+      {
+        "itemtype": 2,
+        "max_number": 2
+      }
+    ],
+    "flagship_lv": 40,
+    "fleet_lv": 200,
+    "flagship_shiptype": 0,
+    "ship_count": 5,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 2
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      }
+    ],
+    "required_extra": {
+      "firepower": 300,
+      "aa": 200,
+      "asw": 200,
+      "los": 120
+    },
+    "big_success": null
+  },
+  {
+    "id": 104,
+    "reward_fuel": 0,
+    "reward_bullet": 300,
+    "reward_steel": 0,
+    "reward_alum": 100,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 4
+      },
+      {
+        "itemtype": 1,
+        "max_number": 3
+      }
+    ],
+    "flagship_lv": 45,
+    "fleet_lv": 230,
+    "flagship_shiptype": 0,
+    "ship_count": 5,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 3
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      }
+    ],
+    "required_extra": {
+      "firepower": 280,
+      "aa": 220,
+      "asw": 240,
+      "los": 150
+    },
+    "big_success": null
+  },
+  {
+    "id": 105,
+    "reward_fuel": 100,
+    "reward_bullet": 500,
+    "reward_steel": 100,
+    "reward_alum": 200,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 5
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 55,
+    "fleet_lv": 290,
+    "flagship_shiptype": 0,
+    "ship_count": 6,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 3
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      }
+    ],
+    "required_extra": {
+      "firepower": 330,
+      "aa": 300,
+      "asw": 270,
+      "los": 180
+    },
+    "big_success": null
+  },
+  {
+    "id": 112,
+    "reward_fuel": 0,
+    "reward_bullet": 100,
+    "reward_steel": 100,
+    "reward_alum": 180,
+    "reward_items": [
+      {
+        "itemtype": 12,
+        "max_number": 1
+      },
+      {
+        "itemtype": 1,
+        "max_number": 2
+      }
+    ],
+    "flagship_lv": 50,
+    "fleet_lv": 250,
+    "flagship_shiptype": 0,
+    "ship_count": 0,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          16
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          1,
+          2
+        ],
+        "count": 4
+      }
+    ],
+    "required_extra": {
+      "firepower": 400,
+      "aa": 220,
+      "asw": 220,
+      "los": 190
+    },
+    "big_success": null
+  },
+  {
+    "id": 113,
+    "reward_fuel": 0,
+    "reward_bullet": 0,
+    "reward_steel": 1200,
+    "reward_alum": 650,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 4
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 55,
+    "fleet_lv": 300,
+    "flagship_shiptype": 0,
+    "ship_count": 0,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          5
+        ],
+        "count": 2
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 2
+      },
+      {
+        "shiptype": [
+          13,
+          14
+        ],
+        "count": 1
+      }
+    ],
+    "required_extra": {
+      "firepower": 500,
+      "aa": 280,
+      "asw": 280,
+      "los": 170
+    },
+    "big_success": null
+  },
+  {
+    "id": 114,
+    "reward_fuel": 500,
+    "reward_bullet": 500,
+    "reward_steel": 1000,
+    "reward_alum": 750,
+    "reward_items": [
+      {
+        "itemtype": 1,
+        "max_number": 4
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 60,
+    "fleet_lv": 330,
+    "flagship_shiptype": 0,
+    "ship_count": 6,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          16
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 2
+      }
+    ],
+    "required_extra": {
+      "firepower": 510,
+      "aa": 400,
+      "asw": 285,
+      "los": 385
+    },
+    "big_success": null
+  },
+  {
+    "id": 115,
+    "reward_fuel": 600,
+    "reward_bullet": 1000,
+    "reward_steel": 600,
+    "reward_alum": 600,
+    "reward_items": [
+      {
+        "itemtype": 3,
+        "max_number": 5
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 75,
+    "fleet_lv": 400,
+    "flagship_shiptype": 3,
+    "ship_count": 0,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 5
+      }
+    ],
+    "required_extra": {
+      "firepower": 410,
+      "aa": 390,
+      "asw": 410,
+      "los": 340
+    },
+    "big_success": null
+  },
+  {
+    "id": 131,
+    "reward_fuel": 0,
+    "reward_bullet": 20,
+    "reward_steel": 20,
+    "reward_alum": 100,
+    "reward_items": [
+      {
+        "itemtype": 1,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 50,
+    "fleet_lv": 200,
+    "flagship_shiptype": 16,
+    "ship_count": 5,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 3
+      }
+    ],
+    "required_extra": {
+      "aa": 240,
+      "asw": 240,
+      "los": 300
+    },
+    "big_success": null
+  },
+  {
+    "id": 132,
+    "reward_fuel": 0,
+    "reward_bullet": 0,
+    "reward_steel": 400,
+    "reward_alum": 800,
+    "reward_items": [
+      {
+        "itemtype": 59,
+        "max_number": 1
+      },
+      {
+        "itemtype": 12,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 55,
+    "fleet_lv": 270,
+    "flagship_shiptype": 20,
+    "ship_count": 5,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          13,
+          14
+        ],
+        "count": 3
+      }
+    ],
+    "required_extra": {
+      "firepower": 60,
+      "aa": 80,
+      "asw": 50
+    },
+    "big_success": null
+  },
+  {
+    "id": 133,
+    "reward_fuel": 0,
+    "reward_bullet": 800,
+    "reward_steel": 500,
+    "reward_alum": 400,
+    "reward_items": [
+      {
+        "itemtype": 1,
+        "max_number": 3
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 65,
+    "fleet_lv": 350,
+    "flagship_shiptype": 20,
+    "ship_count": 5,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          13,
+          14
+        ],
+        "count": 3
+      }
+    ],
+    "required_extra": {
+      "firepower": 115,
+      "aa": 90,
+      "asw": 70,
+      "los": 95
+    },
+    "big_success": null
+  },
+  {
+    "id": 141,
+    "reward_fuel": 0,
+    "reward_bullet": 600,
+    "reward_steel": 600,
+    "reward_alum": 1000,
+    "reward_items": [
+      {
+        "itemtype": 12,
+        "max_number": 2
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 55,
+    "fleet_lv": 290,
+    "flagship_shiptype": 5,
+    "ship_count": 6,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          3
+        ],
+        "count": 1
+      },
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 3
+      }
+    ],
+    "required_extra": {
+      "firepower": 450,
+      "aa": 350,
+      "asw": 330,
+      "los": 250
+    },
+    "big_success": null
+  },
+  {
+    "id": 142,
+    "reward_fuel": 0,
+    "reward_bullet": 480,
+    "reward_steel": 0,
+    "reward_alum": 0,
+    "reward_items": [
+      {
+        "itemtype": 1,
+        "max_number": 2
+      },
+      {
+        "itemtype": 7,
+        "max_number": 1
+      }
+    ],
+    "flagship_lv": 70,
+    "fleet_lv": 320,
+    "flagship_shiptype": 0,
+    "ship_count": 0,
+    "drum_ship_count": 3,
+    "drum_count": 4,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 5
+      }
+    ],
+    "required_extra": {
+      "firepower": 280,
+      "aa": 240,
+      "asw": 200,
+      "los": 160
+    },
+    "big_success": null
+  },
+  {
+    "id": 301,
+    "reward_fuel": 0,
+    "reward_bullet": 0,
+    "reward_steel": 0,
+    "reward_alum": 0,
+    "reward_items": [],
+    "flagship_lv": 0,
+    "fleet_lv": 0,
+    "flagship_shiptype": 0,
+    "ship_count": 2,
+    "drum_ship_count": 0,
+    "drum_count": 0,
+    "required_shiptypes": [
+      {
+        "shiptype": [
+          2
+        ],
+        "count": 2
+      }
+    ],
+    "big_success": null
+  },
+  {
+    "id": 302,
     "reward_fuel": 0,
     "reward_bullet": 0,
     "reward_steel": 0,

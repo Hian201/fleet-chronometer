@@ -3,7 +3,7 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { groupByMission, summarize } from '../utils/expedition-stats';
-import { defaultPrefs, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
+import { COLUMNS, defaultPrefs, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
 import { setLang, t } from '../utils/ui-i18n';
 
 beforeAll(() => setLang('zh-TW'));
@@ -76,5 +76,46 @@ describe('各遠征彙總表', () => {
 
     it('沒有資料時整段不畫（空表格比不畫更難讀）', () => {
         expect(statsHtml([], defaultPrefs())).toBe('');
+    });
+
+    // 本分區的主體是逐筆明細（一趟回來拿了什麼／多少／成功還是失敗）；依遠征種類加總的
+    // 統計是次要的查詢工具，故收進 <details> 且**預設收合**。別改回展開的主表。
+    it('收在 <details> 裡且預設收合', () => {
+        const stats = groupByMission([exped({ ts: 1000 })]);
+        const html = statsHtml(stats, defaultPrefs());
+        expect(html.startsWith('<details class="el-stats">')).toBe(true);
+        expect(html).not.toContain('<details class="el-stats" open>');
+    });
+
+    it('展開狀態由 prefs 帶入（表頭排序會整塊重繪，不記狀態就會自己收起來）', () => {
+        const stats = groupByMission([exped({ ts: 1000 })]);
+        expect(statsHtml(stats, { ...defaultPrefs(), statsOpen: true })).toContain('<details class="el-stats" open>');
+    });
+});
+
+describe('逐筆明細的編成欄', () => {
+    it('預設收合成「N艘」，展開才列出艦名（避免每列高好幾倍）', () => {
+        const fleetCol = COLUMNS.find(c => c.id === 'fleet')!;
+        const html = fleetCol.cell(exped({
+            ts: 1000,
+            fleet: [{ name: '睦月', level: 30 }, { name: '如月', level: 28 }],
+        }));
+        expect(html).toContain('<details class="el-fleet-d">');
+        expect(html).not.toContain('<details class="el-fleet-d" open>');
+        expect(html).toContain(`<summary>${t('unit.ships', { n: 2 })}</summary>`);
+        expect(html).toContain('睦月');
+    });
+
+    it('沒有編成快照的舊紀錄照實標為不可考，不畫成空的折疊區', () => {
+        const fleetCol = COLUMNS.find(c => c.id === 'fleet')!;
+        const html = fleetCol.cell(exped({ ts: 1000 }));
+        expect(html).not.toContain('<details');
+        expect(html).toContain(t('ov.expedUnknown'));
+    });
+
+    it('CSV 仍匯出完整編成（收合只是顯示層的事）', () => {
+        const fleetCol = COLUMNS.find(c => c.id === 'fleet')!;
+        expect(fleetCol.text(exped({ ts: 1000, fleet: [{ name: '睦月', level: 30 }] })))
+            .toBe('睦月 Lv30');
     });
 });

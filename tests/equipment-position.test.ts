@@ -133,10 +133,10 @@ describe('裝備位置與面板視圖', () => {
         expect(state.slotItems.size).toBe(0);
     });
 
-    it('未驗證的 slot_exchange_index 不猜索引語意，等待後續完整快照校正', () => {
+    it('回應缺 api_ship_data 時不猜索引語意，等待後續完整快照校正', () => {
         const state = stateWithSlots([9001, 9002, -1, -1]);
         state.applyEvent('api_req_kaisou/slot_exchange_index', { api_result: 1 }, {
-            api_id: '100', api_slot_idx: '0', api_slot_idx2: '1',
+            api_id: '100', api_src_idx: '0', api_dst_idx: '1',
         });
 
         const ship = state.ships.get(100);
@@ -147,11 +147,72 @@ describe('裝備位置與面板視圖', () => {
         ]);
     });
 
-    it('缺少第二個交換索引時不猜位置、不改動既有投影', () => {
+    it('回應的 api_id 與請求對不上時不改動既有投影', () => {
         const state = stateWithSlots([9001, 9002, -1, -1]);
-        state.applyEvent('api_req_kaisou/slot_exchange_index', { api_result: 1 }, {
-            api_id: '100', api_slot_idx: '0',
-        });
+        state.applyEvent('api_req_kaisou/slot_exchange_index', {
+            api_ship_data: { api_id: 999, api_slot: [9002, 9001, -1, -1], api_onslot: [18, 4, 0, 0] },
+        }, { api_id: '100', api_src_idx: '0', api_dst_idx: '1' });
         expect(state.ships.get(100).api_slot).toEqual([9001, 9002, -1, -1]);
+    });
+
+    it('拖曳交換槽位（api_req_kaisou/slot_exchange_index）用回應的完整 api_ship_data 整艦覆蓋，槽位與其餘欄位一併同步', () => {
+        const state = stateWithSlots([9001, 9002, -1, -1]);
+        const before = state.fleets()[0].ships[0].gears.map(g => g?.mst ?? 0);
+        expect(before).toEqual([scRadar.api_id, gunMst.api_id, 0]);
+
+        // 已用真封包驗證（samples/slot-exchange-index.json）：回應的 api_ship_data 是
+        // 完整艦快照（與 api_port/port 單艦記錄同形），不是只帶 slot/onslot 的局部物件，
+        // 故這裡也給一份完整快照（沿用原本 HP/cond，僅槽位與搭載數對調），驗證整艦覆蓋
+        // 沒有把其餘欄位（例如 HP）意外洗掉。
+        state.applyEvent('api_req_kaisou/slot_exchange_index', {
+            api_ship_data: {
+                api_id: 100, api_ship_id: 182, api_lv: 1, api_exp: [0, 0, 0],
+                api_nowhp: 32, api_maxhp: 32, api_cond: 49, api_soku: 5, api_leng: 2,
+                api_slot: [9002, 9001, -1, -1], api_onslot: [18, 4, 0, 0], api_slot_ex: 0,
+                api_kyouka: [0, 0, 0, 0, 0, 0, 0], api_locked: 1, api_sally_area: 0,
+                api_karyoku: [0, 0], api_raisou: [0, 0], api_taiku: [0, 0], api_soukou: [0, 0],
+                api_taisen: [0, 0], api_kaihi: [0, 0], api_sakuteki: [0, 0], api_lucky: [0, 0],
+            },
+        }, { api_id: '100', api_src_idx: '0', api_dst_idx: '1' });
+
+        const ship = state.ships.get(100);
+        expect(ship.api_slot).toEqual([9002, 9001, -1, -1]);
+        expect(ship.api_onslot).toEqual([18, 4, 0, 0]);
+        expect(ship.api_nowhp).toBe(32);   // 整艦覆蓋沒有把其餘欄位洗掉
+        expect(state.fleets()[0].ships[0].gears.map(g => g?.mst ?? 0)).toEqual([
+            gunMst.api_id, scRadar.api_id, 0,
+        ]);
+    });
+
+    it('拖曳交換槽位：直接餵真封包樣本（samples/slot-exchange-index.json）跑一遍完整解析', () => {
+        const samples = JSON.parse(
+            readFileSync(new URL('../samples/slot-exchange-index.json', import.meta.url), 'utf8'));
+        const state = new GameState();
+        state.applyEvent('api_start2/getData', master);
+        // 樣本艦（api_ship_id 297）不在測試用的最小艦隊裡，直接把樣本的初始 api_slot
+        // （逆操作那筆，src/dst_idx=0/3 的結果即為第一筆套用前的原始排列）灌成起始狀態。
+        state.applyEvent('api_port/port', {
+            api_ship: [{
+                api_id: 69, api_ship_id: 297, api_lv: 98, api_exp: [923482, 76518, 48],
+                api_nowhp: 1, api_maxhp: 58, api_cond: 80, api_soku: 10, api_leng: 1,
+                api_slot: [69693, 98825, 86404, 116473, -1], api_onslot: [24, 16, 11, 8, 0],
+                api_slot_ex: 1151, api_kyouka: [34, 0, 42, 33, 0, 0, 0],
+                api_locked: 1, api_sally_area: 4,
+                api_karyoku: [37, 34], api_raisou: [23, 0], api_taiku: [121, 72],
+                api_soukou: [66, 65], api_taisen: [11, 0], api_kaihi: [74, 69],
+                api_sakuteki: [86, 79], api_lucky: [13, 59],
+            }],
+            api_deck_port: [{ api_ship: [69, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
+            api_ndock: [], api_material: [], api_basic: {}, api_count_kdock: 0, api_combined_flag: 0,
+        });
+
+        const [first, second] = samples;
+        state.applyEvent('api_req_kaisou/slot_exchange_index', first.api, first.req);
+        expect(state.ships.get(69).api_slot).toEqual([116473, 98825, 86404, 69693, -1]);
+
+        state.applyEvent('api_req_kaisou/slot_exchange_index', second.api, second.req);
+        expect(state.ships.get(69).api_slot).toEqual([69693, 98825, 86404, 116473, -1]);
+        // 兩筆是互為逆操作的交換，來回一趟後應完全還原成原始排列。
+        expect(state.ships.get(69).api_onslot).toEqual([24, 16, 11, 8, 0]);
     });
 });

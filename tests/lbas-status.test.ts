@@ -3,16 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 
 describe('基地航空隊疲勞與整備等級', () => {
-    it('疲勞以 api_cond 顯示狀態碼判定，0 與 1 都不顯示標記', () => {
+    // 2026-08-04 以四份真封包定案（同一隊 62_2 隨連續出撃走完 0→1→2→3）：
+    // 0=全滿／1=輕度疲勞（**遊戲同樣不顯示標記**）／2=橙／3=赤。
+    // ⚠️ 中途曾依單一次實機回報改成 0=無/1=橙/2=赤，撈到 cond:3 才發現整組錯位
+    // （3 變成「不明」、面板連符號都不顯示）。別再改回去。
+    it('疲勞以 api_cond 顯示碼判定：0 全滿／1 輕度／2 橙／3 赤', () => {
         const state = new GameState();
         expect(state.lbasCondState(0)).toBe('normal');
-        expect(state.lbasCondState(1)).toBe('normal');
         expect(state.lbasCondLabel(0)).toBe('');
-        expect(state.lbasCondLabel(1)).toBe('');
+        expect(state.lbasCondState(1)).toBe('mild');
         expect(state.lbasCondState(2)).toBe('tired');
         expect(state.lbasCondState(3)).toBe('exhausted');
-        expect(state.lbasCondLabel(2)).not.toBe('');
-        expect(state.lbasCondLabel(3)).toBe(state.lbasCondLabel(2));
+        // 輕度與橙的標籤必須不同——前者遊戲沒有標記，講成「疲勞」會誤導
+        expect(state.lbasCondLabel(1)).not.toBe(state.lbasCondLabel(2));
+        expect(state.lbasCondLabel(2)).toBe(state.lbasCondLabel(3));
         expect(state.lbasCondState(null)).toBe('unknown');
         expect(state.lbasCondState(4)).toBe('unknown');
     });

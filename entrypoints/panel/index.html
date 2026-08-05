@@ -20,6 +20,12 @@
             /* 索敵/航向/觸接/航空戰數值色。刻意獨立於 --dmg-mid（傷害語意），
                避免兩種無關語意共用同一色而互相稀釋（design-guidelines §4.5）。 */
             --stat-mini: #e0954d;
+            /* 基地航空隊「輕度疲勞」（中隊 cond 20–29）：分區內的黃臉與編成列的基地航空隊鈕
+               共用這一個變數，兩處不得各自寫死色碼。重度疲勞沿用 --dmg-major。
+               目前值與 --dmg-mid 相同，但**刻意保留成獨立變數**——疲勞與艦娘中破是兩種語意，
+               只是現階段選了同一個橘；日後要調其中一邊時不該連動另一邊。
+               對比：暗底 7.1:1；亮底 2.3:1（偏低，與面板既有的 --dmg-mid 用法同級）。 */
+            --lbas-tired: #e08b3d;
             /* 關卡量表 pill 的軌道色。獨立變數而非沿用 --line：條子裡是白字的剩餘實數，
                軌道必須在兩個主題下都夠深才讀得到（亮色主題只調深、不轉淺，見 .s-gauge-bar）。 */
             --gauge-track: #2a3548;
@@ -521,6 +527,22 @@
            變化互不干擾（不論分頁是否選取都看得到警示）。 */
         #fleetnav button.attn {
             box-shadow: 0 0 0 1px var(--dmg-major);
+        }
+
+        /* 基地航空隊鈕：有中隊帶疲勞標記時，整顆鈕的文字與外框轉成對應語意色
+           （黃標記＝cond 20–29／紅標記＝cond 0–19，取最嚴重的一段）。
+           **必須排在 `.on` 之後**（同 specificity，後者勝）——面板正開著 LBAS 分區時
+           一樣要看得到疲勞，否則最該注意的時候反而沒有標示。
+           與 `.attn`（機數未補滿的紅框）是兩套獨立語意，可同時成立：框線色講疲勞、
+           外圈 box-shadow 講未補給。 */
+        #fleetnav button.cond-tired {
+            color: var(--lbas-tired);
+            border-color: var(--lbas-tired);
+        }
+
+        #fleetnav button.cond-exhausted {
+            color: var(--dmg-major);
+            border-color: var(--dmg-major);
         }
 
         #fleetnav .grow {
@@ -1239,18 +1261,27 @@
             color: var(--dmg-mid);
         }
 
-        /* ── 基地航空隊 ── */
-        #air-bases {
-            padding: 10px;
+        /* ── 基地航空隊 ──
+           版面硬約束：一個海域最多三隊、一隊最多四個中隊，**三隊必須在不捲動的前提下
+           全部看得完**（LBAS 區塊與 #fleets 共用同一塊可用高度，約 440px）。原本
+           「表頭／制空列／四個中隊各自成列」的排法量到 626px，超出 186px。現行排法為
+           (a) 隊名＋制空＋半徑＋行動徽章併成單行 `.ab-head1`、(b) 四個中隊改 2×2 雙欄
+           `.ab-sq-grid`、(c) 卡片與列距收緊，量到 320px（餘裕 120px）。
+           **改這一區前先跑離線預覽比高度**（不必等活動開圖、不必真的配好三隊）：
+             npx vite-node --config vitest.config.ts tools/preview/lbas-layout.ts
+           那支腳本套的是本檔同一份 CSS，並列出現況與各候選版本的實測高度。 */
+        /* `.air-bases` 同列：離線預覽一頁要放多個 LBAS 區塊，id 只能有一個 */
+        #air-bases,
+        .air-bases {
+            padding: 6px 8px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
         }
 
         .ab-tabs {
             display: flex;
             gap: 6px;
-            margin-bottom: 4px;
             overflow-x: auto;
         }
 
@@ -1302,23 +1333,26 @@
         .ab-card {
             background: var(--panel);
             border-radius: 6px;
-            padding: 8px 10px;
+            padding: 5px 8px;
             border: 1px solid var(--line);
         }
 
-        .ab-header {
+        /* 抬頭列：隊名｜制空・半徑｜行動徽章。制空/半徑刻意與隊名同列——它們是掃視用的
+           兩個數字，獨立成列只是多吃 23px。baseline 對齊讓 12px 隊名與 10px 數字齊腳。 */
+        .ab-head1 {
             display: flex;
+            align-items: baseline;
             gap: 8px;
-            align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
-        .ab-header .ab-name {
-            font-size: 13px;
+        .ab-head1 .ab-name {
+            font-size: 12px;
             font-weight: 600;
+            white-space: nowrap;
         }
 
-        .ab-header .grow {
+        .ab-head1 .grow {
             flex: 1;
         }
 
@@ -1360,30 +1394,43 @@
 
         /* 休息 */
 
-        .ab-stats {
-            display: flex;
-            gap: 12px;
-            font-size: 11px;
+        .ab-inline-stats {
+            font-size: 10px;
             color: var(--dim);
-            margin-bottom: 6px;
             font-variant-numeric: tabular-nums;
+            white-space: nowrap;
         }
 
-        .ab-stats b {
+        .ab-inline-stats b {
             color: var(--text);
             font-weight: 600;
         }
 
-        .ab-sq {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 3px 4px;
-            border-radius: 4px;
-            font-size: 12px;
+        /* 中隊 2×2：一隊四個中隊排成兩列兩欄，比逐列排省 48px/卡。
+           `min-width: 0` **不可拿掉**——grid item 預設 `min-width: auto` 會被最長的中隊名
+           （如「一式戦 隼III型甲(54戦隊)」）撐破卡片右緣，機數與疲勞標記會被切掉。 */
+        .ab-sq-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 6px;
         }
 
-        .ab-sq:nth-child(odd) {
+        .ab-sq {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 1px 3px;
+            border-radius: 4px;
+            font-size: 11px;
+            min-width: 0;
+        }
+
+        .ab-sq>* {
+            min-width: 0;
+        }
+
+        /* 斑馬紋：雙欄下 `nth-child(odd)` 會變成左右交錯（讀起來像壞掉），改成整個上排一組 */
+        .ab-sq-grid .ab-sq:nth-child(-n+2) {
             background: color-mix(in srgb, var(--line) 40%, transparent);
         }
 
@@ -1415,6 +1462,7 @@
         .ab-sq .sq-name {
             flex: 1;
             min-width: 0;
+            line-height: 1.3;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -1430,15 +1478,63 @@
             color: var(--dmg-major);
         }
 
+        /* 雙欄下欄寬只剩一半，疲勞標記不再預留固定寬（`min-width` 會再吃掉中隊名的空間） */
         .ab-sq .sq-cond {
             font-size: 10px;
-            min-width: 2.5em;
             text-align: right;
             white-space: nowrap;
         }
 
+        /* 疲勞標記的表情（見 main.ts `condFaceSvg` 的理由說明）。
+           **必須是內聯 SVG**——走 `<img src>` 時 SVG 是獨立文件、吃不到這裡的 CSS，
+           就無法用 currentColor 沿用下面 .cond-tired／.cond-exhausted 的語意色。 */
+        .ab-sq .sq-cond.face {
+            display: inline-flex;
+            align-items: center;
+            flex: none;
+        }
+
+        .ab-sq .cond-face {
+            width: 11px;
+            height: 11px;
+            display: block;
+        }
+
+        /* 輕度疲勞（api_cond 1）：**遊戲本身不顯示任何標記**，所以這裡只給一顆空心小點，
+           顏色走 --dim（不是警示色）。它回答的是「還沒到黃臉、但已經不是全滿」——
+           KC3Kai 同樣把「全滿」與「輕度疲勞」分成兩種表情。
+           ⚠️ 不可升級成臉或警示色：那會比遊戲本身還吵，屬過度提醒。 */
+        .ab-sq .sq-cond.mild {
+            display: inline-flex;
+            align-items: center;
+            flex: none;
+            color: var(--dim);
+        }
+
+        .ab-sq .sq-cond.mild .cond-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            border: 1.5px solid currentColor;
+        }
+
+        /* 「可能已回復但不能斷定」：淡化＋去掉臉的填色，讓它明顯不是斷言。
+           遊戲的疲勞回復不送封包，出撃札的橙 3 分鐘就可能退掉、卻要 30 分鐘才能確定
+           （見 utils/lbas-cond.ts）；那段期間畫實心臉等於拿不確定的事當事實講。
+           ⚠️ 只淡化、**不可直接不顯示**——「不能斷定」不等於「已經回復」，
+           拿掉是把仍疲勞的中隊謊報成正常，那是更危險的方向。 */
+        .ab-sq .sq-cond.face.unsure {
+            opacity: .55;
+        }
+
+        .ab-sq .sq-cond.face.unsure .cond-face circle[fill],
+        .ab-sq .sq-cond.face.unsure .cond-face path[fill="none"] {
+            opacity: .7;
+        }
+
+        /* 與編成列的基地航空隊鈕同一個變數：同一個「輕度疲勞」語意只有一個色源 */
         .ab-sq .sq-cond.cond-tired {
-            color: var(--dmg-mid);
+            color: var(--lbas-tired);
         }
 
         .ab-sq .sq-cond.cond-exhausted {
@@ -1449,9 +1545,12 @@
             color: var(--stub);
         }
 
+        /* 未配備只是佔位訊息，不需要跟已配備列一樣高 */
         .ab-sq.empty-sq {
             color: var(--stub);
             font-style: italic;
+            font-size: 10px;
+            padding: 0 3px;
         }
 
         /* ── 出擊 (Sortie) ── */
@@ -2542,6 +2641,11 @@
             #tabs button.on {
                 color: var(--text);
                 border-bottom-width: 3px;
+            }
+
+            /* 疲勞表情：11px 下線條細，高對比模式加粗描邊。SVG 尺寸不變，零版面影響。 */
+            .ab-sq .cond-face * {
+                stroke-width: 1.8;
             }
 
             /* 高對比模式：輪廓加粗、標籤回到純白。仍用 inset box-shadow，維持零版面影響

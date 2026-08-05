@@ -306,6 +306,28 @@ function lbasNeedsAttention() {
     return state.airBases_().some(ab => ab.squadrons.some(sq => sq.state === 1 && sq.count < sq.maxCount));
 }
 /**
+ * 基地航空隊鈕要標的疲勞程度：任一中隊紅標記＝`exhausted`，否則任一黃標記＝`tired`。
+ * 兩段各自對應遊戲內的 cond 0–19／20–29（封包送來已是換算好的狀態碼）。
+ * **取最嚴重的一段**，不加總也不平均——按鈕只回答「要不要現在去看」，最慘的那一隊決定答案。
+ * 範圍是所有海域（同 `lbasNeedsAttention`）：按鈕在收合狀態下不分海域，只挑一個海域看會漏報。
+ */
+function lbasCondSeverity(): 'tired' | 'exhausted' | null {
+    let tired = false;
+    for (const ab of state.airBases_()) {
+        for (const sq of ab.squadrons) {
+            if (sq.state !== 1) continue;
+            // `lbasCondStateNow`（非 `lbasCondState`）：疲勞回復不推封包，直接用封包值
+            // 會讓按鈕一直亮著遊戲裡早就消失的疲勞
+            // 只有橙／赤才染色：`mild`（cond 1）遊戲本身不顯示標記，
+            // 染上去等於比遊戲還吵，那是過度提醒的方向。
+            const kind = state.lbasCondStateNow(sq.cond, ab);
+            if (kind === 'exhausted') return 'exhausted';
+            if (kind === 'tired') tired = true;
+        }
+    }
+    return tired ? 'tired' : null;
+}
+/**
  * 出擊當下把編成檢視切到「這次出擊的那一隊」（#10）。出擊前多半在看別隊編組，
  * 一按出擊想看的必然是出擊中的隊；連合艦隊（旗艦隊為第1）自動切成 1+2 併看。
  *
@@ -321,6 +343,7 @@ function switchFleetViewToSortie() {
 function renderFleetNav() {
     const names = ['1', '2', '3', '4'];
     const all = state.fleets();
+    const lbasCond = lbasCondSeverity();
     fleetnavEl.innerHTML =
         names.map((n, i) => {
             const visible = !showLbas && view.includes(i);
@@ -333,7 +356,9 @@ function renderFleetNav() {
         // （state.combinedFlag: 1=機動/2=水上/3=輸送），按鈕文字改顯示對應部隊種類，
         // 讓使用者不用猜就知道現在是哪種連合；未組連合時維持通用「連合艦隊」字樣。
         `<button data-combined="1" class="${!showLbas && isCombinedView() ? 'on' : ''}" title="${esc(t('fleet.combinedTitle'))}">${state.combinedFlag ? t(`fleet.combinedType.${state.combinedFlag}`) : t('fleet.combined')}</button>` +
-        `<span class="grow"></span><button data-lbas="1" class="${[showLbas ? 'on' : '', lbasNeedsAttention() ? 'attn' : ''].filter(Boolean).join(' ')}" ${state.airBases.size === 0 ? `title="${esc(t('lbas.selectAreaFirst'))}"` : ''}>${t('lbas.button')}</button>`;
+        // 疲勞（中隊 cond）與未補給（機數耗損）是兩種不同的提醒，各走各的 class：
+        // 前者染文字與外框（分黃/紅兩段），後者維持既有的紅框。兩者可同時成立。
+        `<span class="grow"></span><button data-lbas="1" class="${[showLbas ? 'on' : '', lbasNeedsAttention() ? 'attn' : '', lbasCond ? `cond-${lbasCond}` : ''].filter(Boolean).join(' ')}" ${state.airBases.size === 0 ? `title="${esc(t('lbas.selectAreaFirst'))}"` : ''}>${t('lbas.button')}</button>`;
 }
 fleetnavEl.addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest('button');
@@ -403,7 +428,7 @@ function gearChip(g: NonNullable<ShipView['exGear']>, ex = false) {
     const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
     return `<span class="chip ${g.cat}" title="${title}">` +
         `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top"><u>${alvMark(g.alv)}</u><b>${impMark(g.level)}</b></span>` +
-        `<em class="oc ${ocCls}">${g.countEst ? '≈' : ''}${g.count ?? ''}</em></span></span>`;
+        `<em class="oc ${ocCls}">${g.count ?? ''}</em></span></span>`;
 }
 // 泊地修理／給糧：算出該艦隊的兩份計畫＋摘要 badge。
 // 倒數一律標為估算（遊戲不送這兩個機制的封包，計時器靠觀察編成封包推算）；
@@ -563,15 +588,28 @@ function renderExped() {
         : !allOk
             ? `<span style="color:var(--dmg-major)">${t('exped.gsExcluded')}</span>`
             : `<span style="color:var(--sparkle)" title="${esc(greatSuccess.note)}">${t('exped.gsRate', { rate: greatSuccess.rate })}</span>`;
-    const resLine = rewards ? `
-        <div class="dim">${t('exped.success')}　${t('mat.fuel')}${rewards.normal.fuel} ${t('mat.ammo')}${rewards.normal.bullet} ${t('mat.steel')}${rewards.normal.steel} ${t('mat.bauxite')}${rewards.normal.alum}　${successMark}</div>
-        <div class="dim">${t('exped.greatSuccess')}　${t('mat.fuel')}${rewards.great.fuel} ${t('mat.ammo')}${rewards.great.bullet} ${t('mat.steel')}${rewards.great.steel} ${t('mat.bauxite')}${rewards.great.alum}
-            <span style="color:var(--sparkle)">(×1.5)</span>　${gsMark}</div>
-        ${rewards.items.length ? `<div class="dim">${t('exped.items')} ${rewards.items.map(it =>
+    // 有大発動艇系裝備加成時，資源數字整段變色標示（sparkle 金色＝「有加成」語意色，不挪用
+    // 資源紀錄的 --res-gain/--res-drain——那組是餘額消長語意，混用會稀釋意義）；title 註明
+    // 估算來源，不影響版面。
+    const bonusWrap = (s: string) => rewards?.bonusActive
+        ? `<span style="color:var(--sparkle)" title="${esc(t('exped.bonusHint'))}">${s}</span>` : s;
+    // rewardAmountsUnverified 的遠征（出擊條件已知、燃彈鋼鋁數字尚無可信來源）：不把佔位 0
+    // 當真數字顯示，只留成功/大成功判定與（封包事實的）道具，另加一行明講缺什麼。
+    const itemsLine = rewards?.items.length ? `<div class="dim">${t('exped.items')} ${rewards.items.map(it =>
         `${esc(it.name)}×${it.max}${it.guaranteed
             ? `<span style="color:var(--sparkle)">${t('exped.gsOnly')}</span>`
-            : `<span style="color:var(--dim)">${t('exped.randomOnSuccess')}</span>`}`).join('　')}</div>` : ''}
-    ` : '';
+            : `<span style="color:var(--dim)">${t('exped.randomOnSuccess')}</span>`}`).join('　')}</div>` : '';
+    const resLine = !rewards ? '' : !rewards.amountsVerified ? `
+        <div class="dim">${t('exped.success')}　${successMark}</div>
+        <div class="dim">${t('exped.greatSuccess')}　${gsMark}</div>
+        ${itemsLine}
+        <div class="dim">${t('exped.rewardAmountUnverified')}</div>
+    ` : `
+        <div class="dim">${t('exped.success')}　${bonusWrap(`${t('mat.fuel')}${rewards.normal.fuel} ${t('mat.ammo')}${rewards.normal.bullet} ${t('mat.steel')}${rewards.normal.steel} ${t('mat.bauxite')}${rewards.normal.alum}`)}　${successMark}</div>
+        <div class="dim">${t('exped.greatSuccess')}　${bonusWrap(`${t('mat.fuel')}${rewards.great.fuel} ${t('mat.ammo')}${rewards.great.bullet} ${t('mat.steel')}${rewards.great.steel} ${t('mat.bauxite')}${rewards.great.alum}`)}
+            　${gsMark}</div>
+        ${itemsLine}
+    `;
     const warn = known ? '' : `<div class="dim">${t('exped.notRecorded')}</div>`;
     expedCheckEl.innerHTML = head + resLine + warn + rows.map(r => `
       <div class="check-row ${r.ok ? 'ok' : 'ng'}">
@@ -598,7 +636,7 @@ function compactGearRow(s: ShipView) {
     const cgItem = (g: GearView, ex = false) => {
         const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${esc(slotCountTitle(g))}`;
         const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
-        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${g.count != null ? `<em class="${ocCls}">${g.countEst ? '≈' : ''}${g.count}</em>` : ''}</span>`;
+        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${g.count != null ? `<em class="${ocCls}">${g.count}</em>` : ''}</span>`;
     };
     // class 用 cg-empty（非裸 empty）：裸 .empty 撞到面板另一個全域樣式
     // （「尚無資料」占位文字的 .empty,.dim{padding:2px 6px}，見 index.html），曾經讓
@@ -716,6 +754,51 @@ fleetsEl.addEventListener('change', e => {
     cn = Number(sel.value);
     renderFleets();
 });
+// 中隊疲勞標記：遊戲內是三段（內部 cond 30–46 無標記／20–29 黃臉／0–19 紅臉），封包給的
+// `api_cond` 是換算好的**顯示碼**（0=全滿／1=輕度疲勞（遊戲同樣不顯示標記）／2=橙／3=赤，
+// 四份真封包定案，見 GameState.lbasCondState），故這裡只是換符號、不含任何判定。
+// 用**表情**而非「疲勞」二字的理由：(a) 零 i18n（符號不必進三語字典）、(b) 中隊改 2×2
+// 雙欄後欄寬只剩一半，兩個漢字要吃掉中隊名約 30px。
+// ⚠️ **必須是內聯 SVG**：面板其他圖示走 `<img src>`，SVG 是獨立文件、吃不到外部 CSS，
+// 那條路無法用 currentColor 沿用既有的 `.cond-tired`／`.cond-exhausted` 語意色。
+// 造型本身也要帶階序（不只靠顏色，色覺障礙者才分得出）：黃臉平眼平嘴、紅臉閉眼苦笑。
+const condFaceSvg = (kind: 'tired' | 'exhausted') =>
+    `<svg class="cond-face" viewBox="0 0 16 16" aria-hidden="true">` +
+    `<circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.3"/>` +
+    (kind === 'tired'
+        ? `<circle cx="5.6" cy="6.5" r=".95" fill="currentColor"/><circle cx="10.4" cy="6.5" r=".95" fill="currentColor"/>` +
+        `<path d="M5.3 10.6h5.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>`
+        : `<path d="M4.4 6.3l2.2 1.2M11.6 6.3l-2.2 1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>` +
+        `<path d="M5.3 11.4q2.7-2.6 5.4 0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>`) +
+    `</svg>`;
+/**
+ * 疲勞標記的 markup。未知狀態畫不出對應表情，維持原本的文字（誠實顯示原始值）。
+ * `hint` 是資料時間說明——疲勞值是觀測當下的快照、遊戲回復時不推封包，故標記還在
+ * 不代表「此刻」還疲勞（只代表還不能斷定已回復），這件事要講在 title 裡。
+ */
+function condMarkHtml(
+    kind: ReturnType<GameState['lbasCondState']>,
+    label: string,
+    hint = '',
+    certainty: ReturnType<GameState['lbasCondCertaintyNow']> = 'certain',
+): string {
+    if (!label) return '';
+    const title = esc(hint ? `${label}\n${hint}` : label);
+    // 輕度疲勞（cond 1）：**遊戲本身不顯示標記**，所以這裡只給一顆很安靜的空心點，
+    // 不畫臉也不用警示色——它的用途是「還沒到黃臉、但已經不是全滿」（KC3Kai 同樣分這兩種）。
+    if (kind === 'mild') {
+        return `<span class="sq-cond mild" title="${title}"><i class="cond-dot"></i></span>`;
+    }
+    if (kind === 'tired' || kind === 'exhausted') {
+        // `unsure`＝可能已回復但不能斷定（見 GameState.lbasCondCertaintyNow）：淡化表現，
+        // 不把「還不能斷定」畫成跟「確定還在疲勞」一樣的實心臉。標記仍然留著——
+        // 拿掉才是危險方向（把仍疲勞的中隊謊報成正常）。
+        const unsure = certainty === 'possiblyRecovered' ? ' unsure' : '';
+        // label 仍掛在 title 上：符號不佔版面地保留既有的 i18n 說明與可及性
+        return `<span class="sq-cond face cond-${kind}${unsure}" title="${title}">${condFaceSvg(kind)}</span>`;
+    }
+    return `<span class="sq-cond cond-${kind}" title="${title}">${esc(label)}</span>`;
+}
 function renderAirBases() {
     const bases = state.airBases_();
     if (bases.length === 0) {
@@ -736,34 +819,45 @@ function renderAirBases() {
     for (const ab of bases.filter(b => b.areaId === selectedLbasArea)) {
         const actCls = `act-${Math.min(ab.actionKind, 4)}`;
         const actLabel = state.actionLabel(ab.actionKind);
+        // 疲勞快照的年齡：標記還在只代表「還不能斷定已回復」，不是「此刻確定疲勞」
+        const condAsOfHint = ab.condAsOf == null ? ''
+            : t('lbas.cond.asOf', { n: Math.max(0, Math.floor((Date.now() - ab.condAsOf) / 60_000)) });
         const airStr = ab.airPower.min === ab.airPower.max
             ? `${ab.airPower.min}` : `${ab.airPower.min}~${ab.airPower.max}`;
+        // 抬頭列＋中隊 2×2（見 index.html「基地航空隊」段的版面硬約束）：一個海域最多
+        // 三隊、一隊最多四個中隊，三隊必須不捲動就看得完。
         html += `<div class="ab-card">
-          <div class="ab-header">
+          <div class="ab-head1">
             <span class="ab-name">${esc(ab.name)}</span>
+            <span class="ab-inline-stats">${t('fleet.airPower')} <b>${airStr}</b> · ${t('lbas.radius')} <b>${ab.distance}</b></span>
             <span class="grow"></span>
             <span class="ab-action ${actCls}">${actLabel}</span>
           </div>
-          <div class="ab-stats">
-            <span>${t('fleet.airPower')} <b>${airStr}</b></span>
-            <span>${t('lbas.radius')} <b>${ab.distance}</b></span>
-          </div>`;
+          <div class="ab-sq-grid">`;
         for (const sq of ab.squadrons) {
             if (sq.state !== 1) {
                 html += `<div class="ab-sq empty-sq"><span class="sq-name">${t('lbas.notDeployed')}</span></div>`;
                 continue;
             }
-            const condState = state.lbasCondState(sq.cond);
-            const condLabel = state.lbasCondLabel(sq.cond);
+            // 疲勞一律走「經過時間修正後」的狀態（見 GameState.lbasCondStateNow）；
+            // 被判定為必定已回復時整個標記不顯示，與遊戲畫面對齊。
+            const condState = state.lbasCondStateNow(sq.cond, ab);
+            const condLabel = state.lbasCondLabelOf(condState, sq.cond);
+            const condCertainty = state.lbasCondCertaintyNow(sq.cond, ab);
+            // 「可能已回復」只在真的不能斷定時才講，確定還在疲勞時講會變成雜訊
+            const condHint = [
+                condAsOfHint,
+                condCertainty === 'possiblyRecovered' ? t('lbas.cond.maybeRecovered') : '',
+            ].filter(Boolean).join('\n');
             const depleted = sq.count < sq.maxCount;
             html += `<div class="ab-sq">
               <span class="sq-chip ${sq.cat}" title="${esc(sq.name)}${sq.level ? ` ★${sq.level}` : ''}${sq.alv ? ` »${sq.alv}` : ''}">${gearIconHtml(sq.icon, sq.short)}${sq.alv ? `<u>${alvMark(sq.alv)}</u>` : ''}${sq.level ? `<b>${impMark(sq.level)}</b>` : ''}</span>
               <span class="sq-name" title="${esc(sq.name)}">${esc(sq.name)}</span>
               <span class="sq-count ${depleted ? 'depleted' : ''}">${sq.count}/${sq.maxCount}</span>
-              ${condLabel ? `<span class="sq-cond cond-${condState}">${esc(condLabel)}</span>` : ''}
+              ${condMarkHtml(condState, condLabel, condHint, condCertainty)}
             </div>`;
         }
-        html += '</div>';
+        html += '</div></div>';
     }
     airBasesEl.innerHTML = html;
 }
@@ -1152,6 +1246,26 @@ const WANTED_TAG_LIMIT = 5;
 const WANTED_TOTAL_LIMIT = 50;
 /** 上次擷取是否因為達上限而略過（達上限要說出來，不能靜靜不擷取）。 */
 let wantedSkipped = false;
+/**
+ * 開發用：把資料存成 JSON 檔案觸發瀏覽器下載（落地到使用者的預設下載資料夾，一般是
+ * `~/Downloads/`）。用 Blob＋`<a download>` 即可，不需要 `downloads` 權限
+ * （見 CLAUDE.md 設計原則 5 權限精簡）；只在 `isDebugUiEnabled()` 的呼叫路徑上使用。
+ */
+function downloadJson(filename: string, data: unknown) {
+    try {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+        console.warn('[KC-Monitor] 自動存檔失敗', filename, e);
+    }
+}
+/** 檔名不可用字元（含路徑分隔符）一律換成底線，中日文與其餘符號原樣保留。 */
+const sanitizeFilename = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '_');
 async function captureWanted(eventId: number, tag: string, ts: number, path: string) {
     try {
         const [total, sameTag] = await Promise.all([
@@ -1163,6 +1277,13 @@ async function captureWanted(eventId: number, tag: string, ts: number, path: str
             console.warn('[KC-Monitor] 待驗證封包已達上限，未擷取', tag, path);
         } else {
             await db.wanted.add({ eventId, tag, ts, path });
+            // 落地即自動存檔，不必再靠清單裡的「複製 JSON」手動取用——這是唯一取得完整
+            // req/api 的即時管道；db.wanted 列表仍保留供之後管理／補救重存。
+            const row = await db.events.get(eventId).catch(() => undefined);
+            if (row) {
+                downloadJson(`kc-wanted_${sanitizeFilename(tag)}_${sanitizeFilename(path)}_${ts}.json`,
+                    { tag, path, ts, req: row.req ?? {}, api: row.api });
+            }
         }
     } catch (e) {
         // 擷取樣本失敗不能連累事件消費（那會讓 pump 停掉）：只記錄，不往外拋。
@@ -1344,6 +1465,9 @@ interface PlaneLossProbe {
     totals?: { packetLost: number; actualLost: number };
     /** true＝after 的熟練度還是出擊前那份，請開一次遊戲的裝備畫面再複製一次。 */
     alvPending?: boolean;
+    /** false＝出擊前追蹤的艦娘有整艘在 after 消失（多半是出擊中途重載遊戲分頁造成），
+     *  totals/diff 不可信，不會自動落地存檔。 */
+    reliable?: boolean;
 }
 let planeProbe: PlaneLossProbe | null = null;
 // 出擊中兩隊（連合時含隨伴）的逐格搭載快照。GameState 已解析好裝備與 master，
@@ -1433,17 +1557,45 @@ function collectPlaneProbe(path: string, api: any) {
                 m + (Number(p?.api_stage1?.api_f_lostcount) || 0) + (Number(p?.api_stage2?.api_f_lostcount) || 0), 0), 0),
             actualLost: diff.reduce((n, d) => n + d.lost, 0),
         };
+        // ⚠️ **出擊中途重載遊戲分頁（例如王點斬殺失敗後想保留熟練度重打）會讓這份資料整個
+        // 不可信**：重載當下遊戲可能在艦隊尚未真正「回港」的過渡狀態送出 require_info／
+        // api_port/port，此時仍在出擊中的艦娘可能整艘從回應裡消失（不是真的擊沉），
+        // `after` 因此只剩碰巧有效的那幾艘、`diff` 漏掉的份全部被上面的比對邏輯悄悄跳過，
+        // 算出的 `actualLost` 會遠低於 `packetLost`、造成「4 艘船憑空消失」這種誤導結果
+        // （2026-08-05 實機回報：出擊時 5 艘船、回港後只剩 1 艘進得了 after，查證後是重載
+        // 造成、並非真的擊沉）。故只要出擊前追蹤的艦娘有任何一艘完全不在 after 裡，就整份
+        // 標記不可信、不落地存檔（仍留在 `__kcPlaneLoss` 供手動判斷，不是完全丟棄）。
+        const beforeShipIds = new Set(planeProbe.before.map(s => s.shipId));
+        const afterShipIds = new Set(after.map(s => s.shipId));
+        const missingShips = [...beforeShipIds].filter(id => !afterShipIds.has(id));
+        const reliable = missingShips.length === 0;
+        planeProbe.reliable = reliable;
         // alvStale 仍為 true＝這趟有擊墜、但遊戲還沒送過新的裝備資料，after 的熟練度
         // 還是出擊前那份，熟練度那半邊還不能用。
         planeProbe.alvPending = planeProbe.fleetIndexes.some(i => state.fleetSummary(i)?.airStale);
         (window as any).__kcPlaneLoss = planeProbe;
-        console.log(planeProbe.alvPending
-            ? '[KC-Monitor] 艦載機戰損（含回港搭載實數・熟練度尚未刷新）↓ 請在遊戲開一次「裝備」或「改修」畫面，本物件會自動補上熟練度變化並再印一次：'
-            : '[KC-Monitor] 艦載機戰損（完整・含搭載與熟練度實數）↓ 右鍵此物件可 Copy object，或 console 執行 copy(__kcPlaneLoss)：',
+        console.log(!reliable
+            ? '[KC-Monitor] 艦載機戰損（資料不可信，疑似出擊中途重載遊戲分頁——有追蹤的艦娘整艘從回港快照消失）↓ 不會自動下載，需要的話手動 copy(__kcPlaneLoss)：'
+            : planeProbe.alvPending
+                ? '[KC-Monitor] 艦載機戰損（含回港搭載實數・熟練度尚未刷新）↓ 請在遊戲開一次「裝備」或「改修」畫面，本物件會自動補上熟練度變化並再印一次：'
+                : '[KC-Monitor] 艦載機戰損（完整・含搭載與熟練度實數）↓ 右鍵此物件可 Copy object，或 console 執行 copy(__kcPlaneLoss)：',
             planeProbe);
         // 熟練度還沒到手就留著 probe 等下一次裝備資料刷新；**下次出擊會重置**，故要在
-        // 再次出擊前先去開一次裝備畫面。
-        if (!planeProbe.alvPending) planeProbe = null;
+        // 再次出擊前先去開一次裝備畫面。只在「完整版」（熟練度也到手、資料可信）才落地
+        // 存檔，避免每個 battleresult／中繼封包都各存一份半成品洗版 Downloads 資料夾。
+        // ⚠️ **沒有艦載機參戰（`before` 空、`packetLost` 0）就沒有任何東西可驗證**：
+        // 單艦／無母艦出擊（如 1-1 這種純水面艦練功海域）每次回港都會走到這裡，若不加
+        // 這個門檻，等於每次出擊都在下載一份完全空白的檔案（2026-08-05 實機回報）。
+        const hasSignal = planeProbe.before.length > 0
+            && ((planeProbe.totals?.packetLost ?? 0) > 0 || (planeProbe.diff?.length ?? 0) > 0);
+        // 不可信就沒有等熟練度刷新的意義（消失的艦娘不會自己回來），直接結束這次 probe，
+        // 避免之後每次開裝備畫面都在重算一份注定不會下載的資料、對著 console 洗同一則警告。
+        if (!reliable) {
+            planeProbe = null;
+        } else if (!planeProbe.alvPending) {
+            if (hasSignal) downloadJson(`kc-planeloss_${Date.now()}.json`, planeProbe);
+            planeProbe = null;
+        }
     }
 }
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
@@ -1529,10 +1681,28 @@ function tickRepairCountdowns() {
         if (el.textContent !== text) el.textContent = text;
     }
 }
+// 基地航空隊疲勞：回復是時間到就發生、**遊戲不會送封包**，故沒有任何事件會觸發重繪。
+// 這裡每秒算一次「目前該顯示哪些標記」的簽章，變了才重畫——不是每秒無條件重繪
+// （那會白白重建整個分區的 DOM）。標記消失時編成列的按鈕顏色也要跟著退掉。
+function lbasCondSignature(): string {
+    return state.airBases_().map(ab =>
+        ab.squadrons.map(sq => sq.state !== 1 ? '-'
+            : `${state.lbasCondStateNow(sq.cond, ab)[0]}${state.lbasCondCertaintyNow(sq.cond, ab)?.[0] ?? ''}`).join('')
+    ).join('|');
+}
+let lastLbasCondSig = '';
+function tickLbasCond() {
+    const sig = lbasCondSignature();
+    if (sig === lastLbasCondSig) return;
+    lastLbasCondSig = sig;
+    renderFleetNav();
+    if (showLbas) renderAirBases();
+}
 setInterval(() => {
     if (tab === 'general') renderGeneral();
     if (tab === 'factory') renderFactoryLive();   // 建造渠倒數
     tickRepairCountdowns();                       // 泊地修理/給糧倒數（艦隊區塊常駐顯示）
+    tickLbasCond();                               // 基地航空隊疲勞回復（無封包可觸發）
 }, 1000);
 // 事件消費採「單一有序佇列」：所有 live 事件 id 進 pending，由 pump() 逐一 await
 // db.get 後 consume。這樣「啟動重播」與「即時訊息」不會交錯——否則即時訊息的

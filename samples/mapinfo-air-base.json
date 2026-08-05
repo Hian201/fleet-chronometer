@@ -1,0 +1,114 @@
+{
+  "_note": "api_get_member/mapinfo 真實封包（2026-08-04 實機擷取，面板『待驗證封包』複製）。基地航空隊（api_air_base）與 api_air_base_expanded_info 的第一份真封包樣本；api_map_info 只保留代表性的幾筆（一般海域 2 筆＋活動海域 621/622），其餘同構列已刪以縮小檔案。航空隊名稱在剪貼過程被編碼弄壞（第一/二/三基地航空隊），已還原為正確漢字，其餘欄位原樣未動。無 PII。",
+  "req": {},
+  "api": {
+    "api_map_info": [
+      { "api_id": 15, "api_cleared": 0, "api_defeat_count": 0, "api_required_defeat_count": 4, "api_gauge_type": 1, "api_gauge_num": 1 },
+      { "api_id": 64, "api_cleared": 1, "api_gauge_type": 1, "api_gauge_num": 1, "api_air_base_decks": 1 },
+      { "api_id": 65, "api_cleared": 0, "api_defeat_count": 0, "api_required_defeat_count": 6, "api_gauge_type": 1, "api_gauge_num": 1, "api_air_base_decks": 2 },
+      {
+        "api_id": 621,
+        "api_cleared": 1,
+        "api_s_no": 5,
+        "api_eventmap": { "api_state": 2, "api_selected_rank": 4, "api_limit_flag": 0 },
+        "api_sally_flag": [1, 0, 1],
+        "api_gauge_type": 2,
+        "api_gauge_num": 3,
+        "api_air_base_decks": 1
+      },
+      {
+        "api_id": 622,
+        "api_cleared": 0,
+        "api_s_no": 5,
+        "api_eventmap": { "api_now_maphp": 840, "api_max_maphp": 4840, "api_state": 1, "api_selected_rank": 4, "api_limit_flag": 0 },
+        "api_sally_flag": [1, 7, 1],
+        "api_gauge_type": 2,
+        "api_gauge_num": 3,
+        "api_air_base_decks": 2
+      }
+    ],
+    "api_air_base": [
+      {
+        "api_area_id": 6,
+        "api_rid": 1,
+        "api_name": "第一基地航空隊",
+        "api_distance": { "api_base": 4, "api_bonus": 2 },
+        "api_action_kind": 1,
+        "api_plane_info": [
+          { "api_squadron_id": 1, "api_state": 1, "api_slotid": 15723, "api_count": 4, "api_max_count": 4, "api_cond": 0 },
+          { "api_squadron_id": 2, "api_state": 1, "api_slotid": 26196, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 3, "api_state": 1, "api_slotid": 129484, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 4, "api_state": 1, "api_slotid": 91723, "api_count": 18, "api_max_count": 18, "api_cond": 0 }
+        ]
+      },
+      {
+        "api_area_id": 6,
+        "api_rid": 2,
+        "api_name": "第二基地航空隊",
+        "api_distance": { "api_base": 8, "api_bonus": 0 },
+        "api_action_kind": 1,
+        "api_plane_info": [
+          { "api_squadron_id": 1, "api_state": 1, "api_slotid": 125475, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 2, "api_state": 1, "api_slotid": 30216, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 3, "api_state": 1, "api_slotid": 113371, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 4, "api_state": 1, "api_slotid": 43350, "api_count": 18, "api_max_count": 18, "api_cond": 0 }
+        ]
+      },
+      {
+        "api_area_id": 6,
+        "api_rid": 3,
+        "api_name": "第三基地航空隊",
+        "api_distance": { "api_base": 2, "api_bonus": 2 },
+        "api_action_kind": 2,
+        "api_plane_info": [
+          { "api_squadron_id": 1, "api_state": 1, "api_slotid": 28191, "api_count": 4, "api_max_count": 4, "api_cond": 0 },
+          { "api_squadron_id": 2, "api_state": 1, "api_slotid": 15529, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 3, "api_state": 1, "api_slotid": 122165, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 4, "api_state": 1, "api_slotid": 22157, "api_count": 18, "api_max_count": 18, "api_cond": 0 }
+        ]
+      },
+      {
+        "api_area_id": 7,
+        "api_rid": 1,
+        "api_name": "第一基地航空隊",
+        "api_distance": { "api_base": 5, "api_bonus": 0 },
+        "api_action_kind": 1,
+        "api_plane_info": [
+          { "api_squadron_id": 1, "api_state": 1, "api_slotid": 81580, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 2, "api_state": 1, "api_slotid": 91724, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 3, "api_state": 1, "api_slotid": 76687, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 4, "api_state": 1, "api_slotid": 31571, "api_count": 18, "api_max_count": 18, "api_cond": 0 }
+        ]
+      },
+      {
+        "api_area_id": 62,
+        "api_rid": 1,
+        "api_name": "第一基地航空隊",
+        "api_distance": { "api_base": 7, "api_bonus": 0 },
+        "api_action_kind": 1,
+        "api_plane_info": [
+          { "api_squadron_id": 1, "api_state": 1, "api_slotid": 114543, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 2, "api_state": 1, "api_slotid": 95035, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 3, "api_state": 1, "api_slotid": 117038, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 4, "api_state": 1, "api_slotid": 116192, "api_count": 18, "api_max_count": 18, "api_cond": 0 }
+        ]
+      },
+      {
+        "api_area_id": 62,
+        "api_rid": 2,
+        "api_name": "第二基地航空隊",
+        "api_distance": { "api_base": 7, "api_bonus": 0 },
+        "api_action_kind": 1,
+        "api_plane_info": [
+          { "api_squadron_id": 1, "api_state": 1, "api_slotid": 18381, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 2, "api_state": 1, "api_slotid": 26349, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 3, "api_state": 1, "api_slotid": 94975, "api_count": 18, "api_max_count": 18, "api_cond": 0 },
+          { "api_squadron_id": 4, "api_state": 1, "api_slotid": 123644, "api_count": 18, "api_max_count": 18, "api_cond": 0 }
+        ]
+      }
+    ],
+    "api_air_base_expanded_info": [
+      { "api_area_id": 62, "api_maintenance_level": 3 }
+    ]
+  }
+}

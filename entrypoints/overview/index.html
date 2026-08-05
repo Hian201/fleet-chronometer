@@ -2470,10 +2470,10 @@
             font-variant-numeric: tabular-nums;
         }
 
-        :is(.bl-colmenu, .dl-colmenu, .el-colmenu, .vl-colmenu) .rs-colbox {
-            right: 0;
-            max-width: min(420px, calc(100vw - 24px));
-        }
+        /* 欄位下拉的錨點是「工具列」不是按鈕本身（見 .rs-colbox）。六個分區的工具列**都已經
+           是定位元素**：這四條與 ships 的 .rs-bar／裝備的 .eq-bar 一樣是 sticky，故不需要另外
+           補 position——但**改動這幾條工具列時別把 sticky 拿掉**，拿掉下拉就會往上找到更外層
+           的祖先當錨點，寬度與位置全跑掉。 */
 
         :is(.bl-table-wrap, .dl-table-wrap, .el-table-wrap, .vl-table-wrap) {
             overflow: auto;
@@ -2583,6 +2583,36 @@
             white-space: nowrap;
         }
 
+        /* 編成預設收合：攤開六艘 chip 會讓每一列高好幾倍，逐筆瀏覽時要讀的是資源與結果。
+           caret 用 ::before 字元、非 transform:rotate——rotate 在 prefers-reduced-motion
+           下要關掉，關掉後兩態長得一樣、狀態訊號就消失了（design-guidelines §4.3，
+           同 .fo-scope／.sl-detail 的手法）。 */
+        .el-fleet-d>summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            list-style: none;
+            color: var(--dim);
+            font-size: 11px;
+            letter-spacing: var(--track-tag);
+            white-space: nowrap;
+        }
+
+        .el-fleet-d>summary::-webkit-details-marker { display: none; }
+
+        .el-fleet-d>summary::before {
+            content: '▸';
+            display: inline-block;
+            width: 10px;
+            font-size: 10px;
+        }
+
+        .el-fleet-d[open]>summary::before { content: '▾'; }
+        .el-fleet-d>summary:hover { color: var(--text); }
+        .el-fleet-d>summary:hover::before { color: var(--sparkle); }
+        .el-fleet-d .el-fleet { margin-top: 4px; }
+
         .el-ship { max-width: 138px; overflow: hidden; text-overflow: ellipsis; }
         .el-ship i { color: var(--dim); font-size: 9px; font-style: normal; letter-spacing: var(--track-tag); }
         .el-result { font-size: 11px; font-weight: 700; letter-spacing: var(--track-label); white-space: nowrap; }
@@ -2636,6 +2666,29 @@
             letter-spacing: var(--track-label);
         }
 
+        /* 各遠征次數與收穫＝次要的查詢工具（主體是逐筆明細），收進 <details> 放在明細下方。
+           summary 沿用 .el-h 的字級／字色，只補 caret 與游標。 */
+        .el-stats>summary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .el-stats>summary::-webkit-details-marker { display: none; }
+
+        .el-stats>summary::before {
+            content: '▸';
+            display: inline-block;
+            width: 12px;
+            font-size: 10px;
+        }
+
+        .el-stats[open]>summary::before { content: '▾'; }
+        .el-stats>summary:hover { color: var(--text); }
+        .el-stats>summary:hover::before { color: var(--sparkle); }
+
         .el-stats .el-table-wrap { max-height: min(50vh, 460px); }
         .el-sum-table .el-num { text-align: right; font-variant-numeric: tabular-nums; }
         .el-sum-table th.on { color: var(--text); }
@@ -2663,8 +2716,9 @@
 
         /* ── 艦隊全覽 ──
            核心版面決定（見 fleet-overview.ts 檔頭修正記錄）：一整隊一整行橫向排開
-           （.fo-ship-row flex），一艘船一欄、欄寬 flex:1 1 0 平分——不滿 6/7 艘時每艘
-           自動撐滿整行寬度，這是「盡量不捲軸」的主要密度來源。裝備清單縱向一格一行
+           （.fo-ship-row flex），一艘船一欄、欄寬 flex:0 1 20em 靠左排——不滿編時停在
+           這個「裝備全名讀得完」的寬度，滿編才平均收縮，這是「盡量不捲軸」的主要密度
+           來源（拉伸版已被使用者否決，見檔頭修正記錄 7）。裝備清單縱向一格一行
            （對齊 samples/Fleet_formation.png），常駐攤開不折疊；欄寬夠看得到全名，
            欄擠時 .fo-gear-name 的 ellipsis 自然截斷。基地航空隊卡量體遠小於艦隊，
            維持獨立的多欄 grid（.fo-lbas-row），不比照艦隊做橫向多欄。 */
@@ -2678,8 +2732,22 @@
            caret 用 ::before 字元、非 transform:rotate——prefers-reduced-motion 關掉
            旋轉後兩態會長得一樣，訊號就消失了（design-guidelines §4.3，同 sortie-log.ts
            的 .sl-detail details>summary 手法）。 */
+        /* **釘在捲動區頂端**（使用者要求）：展開勾選欄位後往下捲看艦隊時，這排開關要
+           留在畫面上，否則捲到一半就忘了自己關掉了哪幾隊、要回捲才看得到。#content 是
+           捲動容器，故 top:0 就貼在內容區上緣；底色必須是不透明的 --bg，不然捲上來的
+           艦隊卡會透出來疊在 chip 上。chip 多時（多海域的基地）用 max-height＋自捲，
+           避免這條「常駐列」自己長到吃掉半個畫面。 */
         .fo-scope {
+            position: sticky;
+            top: 0;
+            z-index: 8;
             margin: 10px 0;
+            padding: 6px 0;
+            background: var(--bg);
+        }
+
+        .fo-scope[open] {
+            border-bottom: 1px solid var(--line);
         }
 
         .fo-scope>summary {
@@ -2726,7 +2794,15 @@
             flex-wrap: wrap;
             align-items: center;
             gap: 6px;
-            padding: 8px 0 0 18px;
+            padding: 8px 0 4px 18px;
+            max-height: 40vh;
+            overflow-y: auto;
+        }
+
+        /* 基地 chip 的海域名：與基地名同列但視覺分層，才看得出「哪個基地・哪個海域」。 */
+        .fo-scope-body .fo-area,
+        .fo-export-choices .fo-area {
+            margin-left: 2px;
         }
 
         .fo-body {
@@ -2780,17 +2856,56 @@
             margin-bottom: 4px;
         }
 
-        /* 一整隊橫向排開，一艘船一欄；flex:1 1 0（見 .fo-ship-col）讓欄寬平分整行，
-           不滿 6/7 艘時每艘自動撐滿——這是本次改版的核心（見上方大註解），不可加
-           flex-wrap（加了船會換行變回直的，就失去「一隊一行」的意義）。 */
+        /* 一整隊橫向排開，一艘船一欄，**靠左對齊、不拉伸**（見 fleet-overview.ts 檔頭
+           修正記錄 7）：欄寬用 `flex: 0 1 var(--fo-col-w)`——不足滿編時每欄就停在
+           --fo-col-w（一個「裝備全名讀得完」的寬度），滿編（6/7 艘）擠不下才依同一個
+           basis 平均收縮回原設計的窄欄＋名稱省略。**不可改回 `flex: 1 1 0`**：那會讓
+           一艘船的隊伍把艦名／Lv／運／士氣拉開到整行兩端，資訊反而更難讀（使用者回報）。
+           不可加 flex-wrap（加了船會換行變回直的，就失去「一隊一行」的意義）。 */
         .fo-ship-row {
             display: flex;
+            justify-content: flex-start;
             gap: 4px;
             align-items: stretch;
         }
 
+        /* 艦隊標題列下方的合計徽章（Lv／索敵／制空／TP／速力／火力），比照使用者指定的
+           參照版面：一列方框徽章。面板的 .fsummary 是同一批數字但另一套視覺（那邊擠在
+           420px 面板寬裡），兩邊刻意不共用 class——這裡有整個瀏覽器寬度可用。 */
+        .fo-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 0 0 6px;
+        }
+
+        .fo-badge {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 4px;
+            padding: 2px 8px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--dim);
+            letter-spacing: var(--track-label);
+        }
+
+        .fo-badge b {
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 制空的熟練度成分可能已過時＝估算，沿用面板既有的虛線底線語彙（.badge-tag.est）。 */
+        .fo-badge b.est {
+            border-bottom: 1px dashed currentColor;
+        }
+
+        /* --fo-col-w＝「裝備全名讀得完」的基準欄寬（20em ≒ 260px，扣掉圖示與間距後
+           約 235px 給名稱＝中文約 21 字）。它同時是**上限**（flex-grow 0）與滿編時的
+           **收縮基準**（同一個 basis ⇒ 六欄等寬），故只要調這一個值就同時改兩態。 */
         .fo-ship-col {
-            flex: 1 1 0;
+            flex: 0 1 var(--fo-col-w, 20em);
             min-width: 0;
             display: flex;
             flex-direction: column;
@@ -2803,20 +2918,41 @@
             border-left: 0;
         }
 
-        .fo-ship-head {
+        /* 艦名獨佔一列（參照圖裡它壓在立繪上方）：本擴充不畫立繪，改用一條底線與底色
+           把它與下方數值分開，讓「一艘船一張卡」的邊界仍然讀得出來。 */
+        .fo-ship-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: center;
+            font-size: 12px;
+            padding: 1px 2px;
+            border-bottom: 1px solid var(--line);
+            background: color-mix(in srgb, var(--line) 22%, transparent);
+        }
+
+        .fo-ship-head,
+        .fo-ship-stats {
             display: flex;
             align-items: baseline;
-            gap: 3px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0 4px;
             min-width: 0;
         }
 
-        .fo-ship-stats {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px 6px;
+        /* 運／士氣的欄名（HP 有斜線自帶辨識度，不加標籤）。這一列在窄欄會換行——
+           寧可換行也不留三個沒有標籤的裸數字（缺標籤時 24 / 34/34 / 49 分不出誰是誰）。 */
+        .fo-ship-stats i {
+            font-style: normal;
+            font-size: 9px;
+            letter-spacing: var(--track-label);
+            color: var(--dim);
         }
 
-        /* 縱向裝備清單：一格一行，icon＋全名（ellipsis）＋改修/熟練/搭載數靠右——
+        /* 縱向裝備清單：一格一行，icon＋全名（ellipsis）＋改修★／熟練度符號靠右
+           （搭載數與熟練度數字刻意不畫，見 fleet-overview.ts 檔頭修正記錄 6）——
            對齊 samples/Fleet_formation.png 的清晰度。艦艇欄與基地航空隊卡共用同一套
            樣式；欄寬夠看全名，欄擠時 .fo-gear-name 的 ellipsis 自然截斷。 */
         .fo-gear-list {
@@ -2881,14 +3017,24 @@
             min-width: 26px;
         }
 
-        .fo-name {
-            min-width: 0;
-            flex: 1 1 auto;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        /* 熟練度：使用者指定不顯示數字，只留一個符號（數字退到 title）。三段顏色＝
+           「有／中／滿」，不畫遊戲的 0-7 階帶章（那需要另一組美術資源）。 */
+        .fo-gear-alv {
+            flex: none;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--dim);
         }
 
+        .fo-gear-alv.mid {
+            color: var(--brass, #c9a227);
+        }
+
+        .fo-gear-alv.hi {
+            color: var(--sparkle);
+        }
+
+        .fo-luck,
         .fo-lv,
         .fo-hp {
             font-size: 11px;
@@ -3032,24 +3178,29 @@
             font-weight: 700;
         }
 
-        .rs-colmenu,
-        .eq-colmenu { position: relative; }
-
+        /* .rs-colmenu／.eq-colmenu **刻意不設 position: relative**——下拉要錨定整條工具列，
+           不是這顆按鈕（見 .rs-colbox）。 */
         .rs-colmenu summary,
         .eq-colmenu summary { list-style: none; cursor: pointer; }
 
         .rs-colmenu summary::-webkit-details-marker,
         .eq-colmenu summary::-webkit-details-marker { display: none; }
 
+        /* 欄位下拉：**釘在工具列下方、左右與工具列同寬**。
+           原本是 `right: 0` 貼齊按鈕右緣，但工具列一換行、按鈕就跑到最左邊，下拉隨之往左
+           溢出內容區、被側欄整片蓋掉勾選框（實機回報）。改以工具列為錨點後，按鈕落在哪一
+           列都不影響，左右兩側都不可能溢出；欄位多時往下長而不是往旁邊擠，也比原本
+           固定三欄好讀。**別改回貼齊按鈕的 right: 0。** */
         .rs-colbox,
         .eq-colbox {
             position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
             z-index: 6;
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             gap: 4px;
-            width: max-content;
-            max-width: 420px;
             margin-top: 4px;
             padding: 8px;
             border: 1px solid var(--line);
@@ -4388,8 +4539,6 @@
             .rs-row { grid-template-columns: minmax(0, 1fr); }
             .rl-seg-row { grid-template-columns: minmax(0, 1fr); }
             .rl-tip-chips { grid-template-columns: minmax(0, 1fr); }
-            .rs-colbox,
-            .eq-colbox { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .eq-grid { grid-template-columns: minmax(0, 1fr); }
         }
 
