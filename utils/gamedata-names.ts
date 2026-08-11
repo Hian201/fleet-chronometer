@@ -154,7 +154,7 @@ export const SHIP_NAMES: NameTable = {
     144: { 'en': 'Yuudachi Kai Ni', 'zh-TW': '夕立改二' },
     145: { 'en': 'Shigure Kai Ni', 'zh-TW': '時雨改二' },
     146: { 'en': 'Kiso Kai Ni', 'zh-TW': '木曾改二' },
-    147: { 'en': 'Verniy', 'zh-TW': 'Верный' },
+    147: { 'en': 'Verniy', 'zh-TW': '信賴' },
     148: { 'en': 'Musashi Kai', 'zh-TW': '武藏改' },
     149: { 'en': 'Kongou Kai Ni', 'zh-TW': '金剛改二' },
     150: { 'en': 'Hiei Kai Ni', 'zh-TW': '比叡改二' },

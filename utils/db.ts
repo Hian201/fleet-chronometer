@@ -54,11 +54,11 @@ export interface SortieLogRow {
     // battle-result 已驗證的 api_get_ship.api_ship_id。舊資料可能沒有；不得由 drop 名稱反推。
     dropMst?: number;
     taiha: boolean;
-    raidLostKind?: number;     // 基地空襲損失種別（api_lost_kind，欄位未驗證 best-effort）
+    raidLostKind?: number;     // 基地空襲損失種別（api_lost_kind；1–4 見 air-raid-lost-kind.ts）
     // 斬殺旗標：這場 boss 出擊擊破了該海域量表（api_cleared 由 0→1／HP量表歸 0／擊破數達標）。
     // 由 EventProjector 的轉變偵測寫入（見 event-projector.ts）。用於重播保留規則「斬殺永久保留」。
     // ⚠️ 判定用的 api_cleared/api_now_maphp 欄位已實測，但「擊破當下緊接的 mapinfo」轉變本身
-    //    尚未用真封包觀測（見待辦），屬防禦性實作；wantedTag 會擷取該轉變 mapinfo 供日後校正。
+    //    尚未用真封包觀測（見待辦），屬防禦性實作。
     cleared?: boolean;
     // ── 以下皆取自 battleresult 封包（已用 samples/6-5-ec_result.json 逐欄驗證），
     //    2026-07-22 新增，舊資料沒有 → UI 一律當「不可考」處理，不得回填猜測值。

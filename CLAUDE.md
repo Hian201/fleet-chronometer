@@ -157,6 +157,8 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/gamedata-i18n.ts` | 艦名／裝備名本地化唯一入口 `localizeShip()`/`localizeGear()`；`SHIP_NAMES`/`GEAR_NAMES` 從 `gamedata-names.ts` 匯入，缺譯回退封包日文原名 |
 | `utils/gamedata-names.ts` | **產生物、勿手改**——`tools/gamedata-names/generate.py` 由 `samples/i18n/*.csv` 產生的譯名表 |
 | `utils/gamedata-coverage.ts` / `utils/gamedata-known-ids.ts` | 翻譯缺漏偵測：純函式差集 `findUnknownShips`/`findUnknownGears` ＋ `tools/gamedata-coverage/generate.py` 產生的已知 id 集合，供 LLM 分區「匯出翻譯缺漏」使用 |
+| `utils/maelstrom-data.ts`／`utils/maelstrom.ts` | 渦潮比例表（KC3Kai `fud_weekly.json#maelstromLoss`）＋`planMaelstromLosses`（純函式）；`GameState` 在 map start/next 套用 |
+| `utils/air-raid-lost-kind.ts` | 基地空襲 `api_lost_kind` 1–4 文案對照（inspired by KC3Kai） |
 | `utils/replay.ts` | 出擊重播組裝（純函式，無 chrome.*）：`snapshotDeck`/`startReplay`/`appendBattle` 累積成 `ReplayRow`、`toKc3Replay()` 輸出 KC3Kai battleplayer 可貼上物件 |
 | `utils/map-node-kind.ts` | 節點類型（`api_event_id`／`api_event_kind` → 資源／渦潮／能動分歧／空襲戰／敵連合…）。封包事實，語意轉寫自航海日誌拡張版（MIT） |
 | `utils/map-node-letters.ts` | 節點字母查表（純函式）：`nodeLabel(map, edge)` 有對照給字母、沒有給原始 edge 編號。**兩種推算法皆已被真實資料否證**（見存檔「節點字母」），絕不可改回推算 |
@@ -171,7 +173,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/retention.ts` | 重播保留規則引擎（純函式）：`planRetention()` 依保護規則＋裁剪窗決定 `db.replays` 去留、`firstOwnedDropKeys()` 算新船場 |
 | `utils/event-plan.ts` | 活動作戰板核心（純函式）：`groupBySally()`／`checkStage()`／`findPlanConflicts()`／`sallyBudget()` |
 | `utils/ship-filter.ts` | 鎮守府全船篩選（純函式）：航速／艦種／國籍／可裝備／出擊標籤／關鍵字。由活動作戰板與艦娘全覽共用；`matchSpeed`／`matchEquip` 另行匯出給活動配船板自由池借用（那邊有自己的艦種分組與關鍵字邏輯，只借這兩項語意，不得各自複製門檻） |
-| `utils/ship-nationality.ts` | 艦娘國籍（建造國）參照表，鍵＝艦型 `api_ctype`。遊戲 API 不提供國籍，人工維護；未列出的一律日本 |
+| `utils/ship-nationality.ts` | 艦娘基本國籍（建造國）參照表，鍵＝艦型 `api_ctype`。遊戲 API 不提供國籍，人工維護；篩選層 `nationsOf` 可依已確認的活動機制為特殊艦加掛額外陣營標籤（目前 Верный 同時列入日本／蘇聯）；未列出的一律日本 |
 | `utils/ship-roster.ts` | 艦娘全覽詳細清單的篩選／排序／分頁核心（純函式）。先制對潛是全檔唯一的推算值（遊戲不送旗標） |
 | `utils/gear-inventory.ts` | 裝備全覽的彙總／篩選／排序核心（純函式）：`groupGears()` 把裝備實例依 master 彙總成種類。素質一律是 master 基礎值、**不含改修 ★ 加成** |
 | `utils/repair.ts` | 泊地修理（工作艦）＋母港給糧（補給艦野埼）的涵蓋範圍與結算預估（純函式）：`planAnchorageRepair()`／`planMoraleSupply()`／`nextSettlementIn()` |
@@ -387,9 +389,8 @@ no-op，導致艦載機拖曳交換後制空（`airPower()`）沒有跟著換位
 - 大破艦可以在第1或第2艦隊，但**兩隊的旗艦都不能退避**（第2艦隊旗艦大破也不能退避，
   它靠的是轟沈保護）。**一場戰鬥只能退避一艘**，即使同時兩艘以上大破。
 - 護衛艦的挑選是**固定順位、由上到下**：第2艦隊 2 號艦起往下，第一艘「損傷未達小破」的
-  驅逐艦即是（旗艦拖不了）；**第1艦隊的驅逐艦再健康也不能當護衛艦**。判定集中在
-  `canTowEscort()`，`retreatAvailability()`（有沒有人選）與 `resolveEscape()`（實際是哪
-  一艘）共用同一條門檻。
+  驅逐艦即是（旗艦拖不了）；**第1艦隊的驅逐艦再健康也不能當護衛艦**。面板預告用
+  `canTowEscort()`／`retreatAvailability()`；實際標記比照 KC3Kai 採封包 `tow_idx[0]`。
 - ⚠️ **門檻是「損傷未達小破」不是「滿血」**（殘 HP > 最大值的 75%）：かすり傷照樣拖得動。
   舊碼寫成 `api_nowhp >= api_maxhp`，會把 38/40 的驅逐艦謊報成沒人可當護衛艦＝
   `'noEscort'`＝「沒有退避選項」——那是最危險的誤讀方向。**別改回滿血判定。**
@@ -406,19 +407,13 @@ no-op，導致艦載機拖曳交換後制空（`airPower()`）沒有跟著換位
 > ⚠️ **`api_escape_idx`／`api_tow_idx` 是「可以退避的船」不是「實際退避的船」**（實機
 > 回報反推，2026-07-31）：某次連合出擊只有朝霜曳航大井退避，面板卻把第2艦隊三艘驅逐艦
 > 全標成退避——反推位置集合為 `{8, 10, 11, 12}`＝大破的大井（第2艦隊2號艦）＋**全部三艘
-> 未損傷驅逐艦**，正是遊戲護衛退避的候補條件。故 `parseEscapeIdx` 只解析成兩份候補清單，
-> 由 `resolveEscape()` 收斂成**最多兩艘**（大破艦以本機追蹤的血量篩出唯一解；只有一個
-> 封包候補時亦可由 `goback_port` 確認，候補多筆又無唯一解時不猜。曳航艦只有連合艦隊才有，
-> 只採符合已知護衛條件的順位第一艘，否則少標不猜）。**別改回整批標記**：那會讓三艘健康
-> 的船燃料歸 0、cond 22，還被剔出制空／索敵／TP。
+> 未損傷驅逐艦**，正是遊戲護衛退避的候補條件。**別改回整批標記**：那會讓三艘健康的船
+> 燃料歸 0、cond 22，還被剔出制空／索敵／TP。
 >
-> 同一份觀測順帶佐證了**索引基準**（1-based；連合時 7-12 為隨伴，非連合含七艘遊撃部隊則
-> 整段落在出擊那一隊）：位置 8 對到第2艦隊2號艦、9（大淀）沒被標到，0-based 讀法會標到
-> 大淀而漏掉大井。**仍無真封包樣本**（欄位名與 `goback_port` 端點仍依社群工具慣例推定），
-> 解析一律防禦性：只收 1..12 的安全整數，**沒有 `api_escape` 就不猜是哪艘船退避**（維持
-> 原本的警告，保守方向）。`wantedTag` 已埋兩條擷取鉤子（結算帶 `api_escape`／
-> `api_escape_flag`、任何 `/goback_port`），下次真的退避即自動撈樣本回來定案；屆時只需改
-> `shipAtSortiePos`。契約鎖在 `tests/taiha-escape.test.ts`。
+> 收斂比照 KC3Kai `SortieManager.checkFCF`：`api_escape_idx`／`api_tow_idx` **各只取
+> [0]**（一場只退一艘大破艦、最多一艘護衛）；索引 1-based、連合時 >6 為隨伴；單艦隊不採
+> tow。旗艦位置（1／連合的 7）解不出則不標。`wantedTag` 不再為此抓樣本。
+> 契約鎖在 `tests/taiha-escape.test.ts`。
 
 
 ### 勝利判定 `predictRank`（clean-room 重寫，已用真實資料校準）
@@ -450,7 +445,8 @@ no-op，導致艦載機拖曳交換後制空（`airPower()`）沒有跟著換位
 | 空襲戰(單向) | `ld_airbattle` 其他(5-2/7-2/活動) | 6% | 4% |
 | 反潛點 | 敵主隊全潛水(stype13/14)；boss(color=5)與4-1/4-3例外仍20/20 | 8% | 0% |
 
-> 未涵蓋：活動特殊點按普通處理；大漩渦電探減免待封包。
+> 未涵蓋：活動特殊點按普通處理。大漩渦燃彈另見 `utils/maelstrom.ts`（KC3Kai 查表＋
+> `api_happening`；表外不扣；連合 A／B 各隊分開計電探擱置）。
 
 ### 出擊途中的艦載機戰損（`GameState.queuePlaneLoss`／`spreadPlaneLoss`，與燃彈同屬估算）
 
@@ -458,6 +454,14 @@ no-op，導致艦載機拖曳交換後制空（`airPower()`）沒有跟著換位
 `api_stage2.api_f_lostcount` 對空砲火），**沒有任何逐格殘量欄位**（已逐一檢查 samples/ 的
 6-5 ec_battle 與 61-3／61-4／61-5 三份聯合艦隊封包）；`api_onslot` 先前只在
 `api_port/port` 與 `api_req_hokyu/charge` 更新，故出擊途中搭載數不會動（實機回報）。
+
+**逐格分攤是永久估算，不是待收斂的暫代**（2026-08-07 以 wikiwiki「航空戰」定案）：
+遊戲機制是**逐格獨立亂數**——制空戰
+`⌊｛搭載數 ×[A + 制空常數/4]｝/10⌋`（A＝0～制空常數/3；確保時常數＝1），對空砲火亦為
+逐攻擊機格獨立判定（艦戰不受對空砲火）。封包只吐各格擲完後的合計，資訊論上無法從合計
+反推「哪一格掉幾架」；重跑 wiki 公式也救不了（要重現每一格的亂數與敵方對空分配，被動
+觀測做不到，且會與封包已給定的合計打架）。舊的 `collectPlaneProbe` 自動下載鉤子已移除——
+它假設「合計是先算出再分攤」，方向錯了，樣本再多也收斂不到真規則。
 
 現行做法與燃彈**完全同一個模式**（連寫回時機都一樣）：戰鬥封包只把損失架數累積進
 `pendingPlaneLoss`，**結算（`battleresult`）才逐段寫回**，回港 `api_port/port` 以實數校正。
@@ -515,36 +519,17 @@ wiki 例題（對空10、24 搭載、熟練 >>）→ 74 已鎖進 `tests/plane-l
 
 - **全滅（帰投時 0 架）→ 熟練度歸零（帯なし）**。wiki 唯一給出的絕對規則，且兩端搭載數都是
   母港封包實數，故這是**確定值不是估算**：直接寫 `alv = 0` 並解除過時標記。
-- **部分損耗 → 依殘數比率下降，但 wiki 沒給下降量**（只說常時發生，即使制空確保也約 3.5%
-  損耗）。故只標過時、**不推算**。
+- **部分損耗 → 依殘數比率下降，但 wiki 明載「低下については要検証」、沒給下降量**（只說
+  常時發生，即使制空確保也約 3.5% 損耗）。故只標過時、**不推算**。
 - 沒損耗 → 完全不動。
 
-`GameState.alvStaleGears` 記「熟練度可能已過時」的**裝備實例 id**（逐格，不是全域旗標——
-`ship_deck` 只回一隊，全域旗標會讓刷新過的那隊跟著沒刷新的那隊一起掛警示）；
+`GameState.alvStaleGears` 記「熟練度可能已過時」的**裝備實例 id**（逐格，不是全域旗標）；
 `fleetSummary()`／`combinedSummary()` 以 `airStale` 帶出去，面板把制空值標成估算（虛線＋
-說明）。歸零時機**只有三種帶裝備資料的封包**：`require_info`／`slot_item`（全量，整批清空）
-與 `ship_deck`／`ship3`／`ship2` 的 `api_slot_data`（部分；只刷新已知且 master id 一致的
-裝備實例，只消被確實刷新到的那幾格）。
+說明）。歸零時機**只有** `require_info`／`slot_item`（全量，整批清空）。
 ⚠️ **不可在 `api_port/port` 歸零**——回港封包不帶裝備資料，歸在那裡等於謊稱已校正。
-契約鎖在 `tests/plane-loss.test.ts`。
-
-⚠️ `ship_deck`／`ship3`／`ship2` 的 `api_slot_data` **尚無真封包樣本**（欄位名依社群工具慣例
-推定），故該分支一律防禦性：形狀對不上就整段不做事，也不新增實例、不改 master 歸屬、
-不以局部艦／艦隊物件覆蓋完整狀態。`wantedTag` 已埋鉤子（`tagSlotData`），
-撈一份回來即可定案，順便看熟練度在戰損後實際降了多少。
-
-**驗證擷取鉤子**（`panel/main.ts` 的 `collectPlaneProbe`，只在 `isDebugUiEnabled()` 開啟時執行，
-**分攤規則定案後整段可移除**）：
-出擊時拍 before（此刻搭載數仍是母港實數）、各節點收航空戰的原始欄位、回港拍 after 並算出
-逐格實際損失與 `totals`（封包合計 vs 實際合計）。`battleresult` 印一次尚缺回港實數的版本、
-回港印一次含搭載實數的版本、**再開一次遊戲的裝備／改修畫面**（讓遊戲送 `slot_item`）才補上
-`alvDrop` 熟練度變化，`alvPending: false` 那一版才算完整——**完整版會自動觸發下載**
-（`downloadJson()`，Blob＋`<a download>`，落地到瀏覽器預設下載資料夾，一般是
-`~/Downloads/kc-planeloss_{ts}.json`，不需要 `downloads` 權限）；中繼（尚缺回港實數／熟練度）
-版本只印 console 供即時查看，不落地存檔，避免每個 battleresult 都各存一份半成品洗版下載
-資料夾。仍可在面板視窗右鍵「檢查」開 DevTools，對物件右鍵「Copy object」或執行
-`copy(__kcPlaneLoss)` 取用當下版本。**只經過一個航空戰節點的出擊**最容易反推真正的分攤
-規則；probe 會在下次出擊時重置，故要在再次出擊前先取回。
+⚠️ **`ship_deck`／`ship3`／`ship2` 的 `api_slot_data`＝未裝備清單（KC3Kai／EO unsetslot），
+不是裝備實例＋alv**——不可拿來消過時標記；那三條路徑只合併帶 `api_ship_id` 的完整艦資料
+與 `api_deck_data`。契約鎖在 `tests/plane-loss.test.ts`。
 
 ### 關卡進度與剩餘次數（`api_get_member/mapinfo`，已實測驗證）
 
@@ -809,7 +794,7 @@ Drive／WebDAV 原生 API 需 OAuth／host_permissions，違反權限精簡）�
 ⚠️ **這組對照 2026-08-04 曾被改錯一次，別重蹈**：當時只看到 0/1/2 三個值，又依單一次實機
 回報把 1 讀成橙，於是改成 0=無／1=橙／2=赤；直到撈到 `cond: 3` 才發現整組錯位——面板對 3
 回 `unknown`，連符號都畫不出來。**四段一起看才對得起來**，這也正是本專案最初沿用的社群
-工具（KC3Kai）慣例。`wantedTag` 的鉤子是「遊戲改版偵測」，門檻 `api_cond >= 4`。
+工具（KC3Kai）慣例。未知值顯示原始數字、不猜（KC3Kai 對未知 cond 也只是 fallback 圖示）。
 `utils/lbas-cond.ts` 的 `bandMin()`／`bandMax()` 用同一組碼（2→20–29、3→0–19），
 改一邊就要改兩邊。
 
@@ -1239,24 +1224,10 @@ vs 明細），**表頭用目前語言的欄名**——與 drop-log/build-log �
 出擊紀錄的「單場 JSON 匯入」同屬開發用 UI，正式建置不顯示（`utils/sortie-import.ts` 與
 測試仍保留）。
 
-`wantedTag()` 已移除三條**已解決**的鉤子：`api_req_air_corps/supply`（2026-08-04，
-`samples/air-corps-supply.json` 已定案，見「基地航空隊中隊疲勞」節）、自軍聯合艦隊戰鬥
-偵測（2026-08-04，已用真實 61-5 甲封包驗證，見「現行遊戲 API 格式」節「自軍聯合艦隊」）、
-**支援艦隊攻擊**（2026-08-05；欄位路徑本身早已✅驗證，剩下的「傷害陣列索引基準」是
-已接受的永久限制——`BattleSupportView` 只加總不逐位置歸屬，血量歸屬另走 `applyDmg`
-讀同一批欄位不需要索引基準，繼續抓樣本對這題沒有幫助，純粹洗 `db.wanted` 額度）。
-**友軍艦隊**鉤子同日縮小條件（原本任何 `api_friendly_battle` 都觸發，但 `api_hougeki`
-早已✅驗證、只有 `api_raigeki` 分支仍缺樣本，故改成只在後者出現時才擷取，不再對每場
-已驗證的 hougeki-only 友軍戰鬥重複觸發）。**基地航空隊疲勞改版偵測**鉤子門檻同日修正
-（`>=3` 誤留成能被赤/cond=3 命中——3 早已定案，赤是 LBAS 出撃後的常態，每次紅臉都在
-觸發下載正是「一直抓取很煩」的主因；已改回文件原意的 `>=4`，見「基地航空隊中隊疲勞」節）。
-**mapinfo 的 `api_sally_flag` 分支**同日移除（見「活動作戰板」節待辦 8b：欄位存在即觸發、
-活動海域開著時幾乎每次進出擊畫面都命中，且連續 3 份樣本數值飽和不再變化，是另一個
-「每次點出擊海域都在下載」的來源）。
-其餘鉤子（艦隊全補給、基地空襲、大漩渦、退避、mapinfo TP/斬殺樣本、熟練度
-slot_data、出擊標籤×2）仍對應「里程碑」表下方「待辦」中明列的未定案項目，予以保留；
-這些鉤子的標籤文字固定不含變動內容，靠 `db.wanted` 的同標籤 5 筆／總數 50 筆上限自然
-收斂，不會無限成長。
+`wantedTag()`（2026-08-08）只留兩類「表／欄位更新」、且不會洗版的鉤子：渦潮**表外**且
+真有 `api_happening`（供補 `maelstromLoss` 表）、未知 sally 系 key（標籤名是否進 API）。
+已拿掉改版警報與可比照 KC3Kai 的機制鉤子（LBAS cond≥4、lost_kind、退避／goback_port、
+七艦補給、友軍 raigeki、mapinfo TP/斬殺、ship3 slot_data、sally_area 重複樣本）。
 
 **手動擷取（備用）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
 Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 篩選。
@@ -1326,29 +1297,23 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
 
 ### 待辦（依優先序）
 
-1. 基地空襲：**頂層 key 名稱與結構已由真封包確認**（`samples/base-air-raid.json`，2026-08-04：
-   `api_req_map/next` 帶 `api_destruction_battle`，內含 `api_lost_kind`、`api_air_base_attack`
-   為**物件**、`api_stage1.api_disp_seiku`；EventProjector 既有的 best-effort 讀法逐欄對得上）。
-   **仍未定案：`api_lost_kind` 各值的語意**——現有兩個值（`base-air-raid.json`／
-   `base-air-raid-3.json` 值＝4，`base-air-raid-2.json` 值＝2，2026-08-05 補，其中值＝4
-   已重複觀測到 2 次、皆是 `api_stage3.api_fdam` 全 0 的情況，值＝2 那次則 fdam 有數值——
-   傾向支持「4＝這波沒損失、2＝有損失」，但只有各一組獨立觀測仍不足以定案，且缺 0/1/3
-   等其他值，**不猜語意**）。**wantedTag 鉤子已收斂**：只在出現不屬於 `{2, 4}` 的新值時
-   才擷取——同一個常打的海域每次過空襲節點都會命中，抓到的幾乎都是重複的已知值，繼續照
-   舊條件抓只會一直跳下載（2026-08-05 實機回報），只有真正沒見過的值才有用。
-2. `api_mst_slotitem` 反查 icon id 41「輸送機材」對應何物仍未證實，56–60 正式名稱仍為推定。
+1. ~~基地空襲 `api_lost_kind`~~ ✅ 比照 KC3Kai／遊戲文案對照 1–4（`utils/air-raid-lost-kind.ts`）；
+   超出 1–4 才抓樣本。結構本身早已由 `samples/base-air-raid*.json` 確認。
+2. ~~icon id 41／56–60~~ ✅ start2 反查：41＝彩雲(輸送用分解済)；56=Me 262 A-1a/R1、
+   57=試製 震電、58=夜間爆戦系、59=Ho229、60=震電改三（見 `tools/icons/README.md`）。
 3. 節點字母新活動開圖：上游 `edges.json` 未更新前顯示原始 edge 編號，重新下載後重跑產生器即可。
-4. 燃彈：活動特殊點與大漩渦電探減免（待 `api_happening` 封包）。
+4. ~~大漩渦燃彈~~ ✅ 比照 KC3Kai `reduceFleetRscOnMaelstrom`＋`fud_weekly.json#maelstromLoss`
+   （`utils/maelstrom.ts`／`maelstrom-data.ts`）。表外不扣；連合 A／B 各隊分開計電探
+   （KC3Kai 亦未完整做）擱置。活動特殊點燃彈費率仍待觀測。
 5. gaugeType 3（TP輸送）量表欄位驗證；TP 表新變種裝備補值。
 6. 掉落統計彙總（資料已在 `db.sorties.drop`，缺 UI 彙總視圖）。
 6b. 斬殺偵測只剩「即時性」待觀測（欄位判定已用真封包定案）。
-6c. 退避（艦隊司令部施設）：遊撃部隊用哪個 `goback_port` path、退避艦是否仍佔戰鬥封包的
-   血量陣列位置、曳航艦候補有多艘時遊戲實際挑哪一艘（目前取第一個候補）——皆待真封包
-   （`wantedTag` 鉤子已埋）。索引基準已由實機回報反推佐證（見「大破・損管・退避」）。
-   連同第二艦隊旗艦不沉時的殘 HP 值一併驗證。
-6d. 出擊途中艦載機戰損：合計損失是封包事實、逐格分攤是估算（`GameState.spreadPlaneLoss`
-   按目前搭載數比例分攤）。真實分攤規則若日後有可驗證的來源再收斂；`AIR_COMBAT_CATS`
-   （哪些機種會折損）為 wikiwiki 機制轉寫、非封包欄位事實。
+6c. ~~退避收斂~~ ✅ 比照 KC3Kai 只取各陣列 [0]（2026-08-08）；鉤子已移除。殘項（第二艦隊
+   旗艦不沉時的殘 HP 值等）非封包索引問題，暫擱。
+6d. ~~出擊途中艦載機戰損分攤~~ ✅ 定案為永久估算（2026-08-07）：wikiwiki「航空戰」為逐格
+   獨立亂數，封包只有合計，無法從觀測收斂逐格；比例分攤＋回港校正維持現狀，
+   `collectPlaneProbe` 已移除。部分損耗的熟練度下降量 wiki 仍標「要検証」，繼續只標
+   `alvStale`、不推算。
 7. M4 殘項：side panel 選配、視窗位置記憶、Firefox 打包驗證。
 8. 亮色主題細部調校；遠征紀錄回航道具欄位未經真封包驗證。
 8b. 活動作戰板三項待驗（標籤 id 語意／標籤名是否存在於封包／`api_sally_flag` 是否為出擊制限

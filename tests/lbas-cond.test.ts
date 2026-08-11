@@ -196,28 +196,6 @@ describe('真封包 mapinfo 的基地航空隊', () => {
         }
     });
 
-    // 疲勞擷取鉤子的門檻：正常值是 0，寫成 `!== 1` 會每次開基地畫面都擷取
-    it('全部正常的封包不觸發疲勞樣本擷取', () => {
-        expect(stateFromFixture().wantedTag('api_get_member/base_air_corps', fixture.api.api_air_base))
-            .toBeNull();
-    });
-
-    // 0／1／2／3 四段都定案了，鉤子降級成「遊戲改版偵測」：只有第五個值（>=4）才撈。
-    // 3（赤）已定案且是 LBAS 出撃後的常態——門檻若誤設回 >=3，會讓每次紅臉都觸發下載
-    // （2026-08-05 實機回報：一直抓檔很煩，即是這個門檻與定案狀態不同步所致）。
-    it('0/1/2/3 都不觸發擷取，出現沒見過的值才觸發', () => {
-        const bases = fixture.api.api_air_base;
-        const withCond = (cond: number) => {
-            const copy = JSON.parse(JSON.stringify(bases));
-            copy[0].api_plane_info[0].api_cond = cond;
-            return copy;
-        };
-        for (const cond of [0, 1, 2, 3]) {
-            expect(stateFromFixture().wantedTag('api_get_member/base_air_corps', withCond(cond))).toBeNull();
-        }
-        expect(stateFromFixture().wantedTag('api_get_member/base_air_corps', withCond(4))).not.toBeNull();
-    });
-
     it('基地整備等級只在封包有給的海域成立，其餘維持不可考', () => {
         const state = stateFromFixture();
         expect(state.airBaseMaintenanceLevel(62)).toBe(3);
@@ -261,10 +239,6 @@ describe('真封包 mapinfo：api_cond 1 = 輕度疲勞（無標記）', () => {
         expect(base.condRate).toBe(3);
     });
 
-    it('這份封包不觸發疲勞樣本擷取（1 已定案）', () => {
-        expect(stateFromFixture().wantedTag('api_get_member/base_air_corps', fixture.api.api_air_base))
-            .toBeNull();
-    });
 });
 
 // ── 橙的樣本（samples/mapinfo-air-base-exhausted.json，檔名是命名當下的誤判） ──

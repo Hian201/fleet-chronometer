@@ -109,6 +109,130 @@ describe('支援艦隊戰果彙總', () => {
         const plain = load('61-3.json').battles.find((b: any) => !b.data?.api_support_info);
         expect(analyze(plain.data).support).toBeNull();
     });
+
+    it('砲擊支援依敵艦隊位置對應名稱所需的索引，並保留命中／暴擊判定', () => {
+        const combined = load('61-5-jibun-rengou-node52.json').battles.find((b: any) => b.node === 55);
+        const phase = analyze(combined.data).timeline!.phases.find(p => p.kind === 'supportShell')!;
+        expect(phase.events.map(event => ({
+            defenderIndex: event.defenderIndex, damage: event.damage, critical: event.critical,
+        }))).toEqual([
+            { defenderIndex: 7, damage: 123, critical: false },
+            { defenderIndex: 8, damage: 329, critical: true },
+        ]);
+        expect(phase.events.every(event => event.beforeHp !== null && event.afterHp !== null)).toBe(true);
+    });
+
+    it('敵單艦隊支援封包的第 0 格佔位會正規化，不把第一發誤配到第二艘敵艦', () => {
+        const single = load('61-3.json').battles.find((b: any) => b.node === 25);
+        const phase = analyze(single.data).timeline!.phases.find(p => p.kind === 'supportShell')!;
+        expect(phase.events.map(event => [event.defenderIndex, event.damage])).toEqual([[0, 103]]);
+    });
+});
+
+describe('交戰記錄時間線', () => {
+    it('沿用同一套傷害解析，留下陸航／支援／砲雷擊階段與 HP 快照', () => {
+        const sample = load('61-3.json');
+        const node = sample.battles.find((b: any) => b.node === 53);
+        const view = analyzeBattle([node.data, node.yasen], { main: [], escort: [] });
+        expect(view.timeline).toBeDefined();
+        expect(view.timeline!.initial.enemyMain).toHaveLength(6);
+        expect(view.timeline!.phases.map(phase => phase.kind)).toEqual(expect.arrayContaining([
+            'landBase', 'supportShell', 'shelling1', 'torpedo', 'nightShelling',
+        ]));
+        const shelling = view.timeline!.phases.find(phase => phase.kind === 'shelling1')!;
+        expect(shelling.events.length).toBeGreaterThan(0);
+        expect(shelling.events.some(event => event.kind === 'ship' && event.attackerIndex !== null)).toBe(true);
+        expect(shelling.events.some(event => event.damage > 0 && event.beforeHp !== null && event.afterHp !== null)).toBe(true);
+        const last = view.timeline!.phases.at(-1)!;
+        expect(last.enemyDamage).toBeGreaterThanOrEqual(0);
+        expect(last.playerMain.map(ship => ship?.hp ?? 0)).toEqual(
+            view.resultFleets!.playerMain.map(ship => ship.hp),
+        );
+    });
+
+    it('保留特殊砲擊／夜戰 CI 的攻擊代碼與裝備，且忽略 -1 填充欄位', () => {
+        const sample = load('61-5-jibun-rengou-node52.json');
+        const node = sample.battles.find((b: any) => b.node === 55);
+        const view = analyzeBattle([node.data, node.yasen], { main: [], escort: [] });
+        expect(view.nightEffects).toMatchObject({ nightRecon: true }); // yasen 的 api_touch_plane[0] = 469
+        const daySpecial = view.timeline!.phases.find(phase => phase.kind === 'shelling1')!;
+        expect(daySpecial.events.slice(0, 3).map(event => ({
+            attackerIndex: event.attackerIndex,
+            defenderIndex: event.defenderIndex,
+            damage: event.damage,
+            attackType: event.attackType,
+            specialType: event.specialType,
+        }))).toEqual([
+            { attackerIndex: 0, defenderIndex: 4, damage: 1152, attackType: 401, specialType: null },
+            { attackerIndex: 0, defenderIndex: 2, damage: 804, attackType: 401, specialType: null },
+            { attackerIndex: 0, defenderIndex: 0, damage: 412, attackType: 401, specialType: null },
+        ]);
+
+        const night = view.timeline!.phases.find(phase => phase.kind === 'nightShelling')!;
+        const torpedoLookout = night.events.filter(event => event.specialType === 9);
+        expect(torpedoLookout.map(event => ({
+            defenderIndex: event.defenderIndex,
+            damage: event.damage,
+            attackSlots: event.attackSlots,
+        }))).toEqual([
+            { defenderIndex: 3, damage: 369, attackSlots: [179, 285, 412] },
+        ]);
+        expect(torpedoLookout.every(event => event.attackerIndex === 11)).toBe(true);
+
+        const radarSample = load('61-4.json');
+        const radarNode = radarSample.battles.find((b: any) => b.node === 55);
+        const radarView = analyzeBattle([radarNode.data, radarNode.yasen], { main: [], escort: [] });
+        const mainTorpedoRadar = radarView.timeline!.phases
+            .find(phase => phase.kind === 'nightShelling')!.events
+            .filter(event => event.specialType === 7);
+        expect(mainTorpedoRadar[0]).toMatchObject({
+            attackerIndex: 3, defenderIndex: 0, damage: 209, attackSlots: [366, 286, 506],
+        });
+    });
+
+    it('夜戰只標記封包明示或出擊快照可確認的夜戰裝備發動', () => {
+        const packet = {
+            api_f_nowhps: [20], api_f_maxhps: [20],
+            api_e_nowhps: [30], api_e_maxhps: [30],
+            api_flare_pos: [0, -1], api_touch_plane: [102, -1],
+            api_hougeki: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]],
+                api_damage: [[3]], api_si_list: [[74]],
+            },
+        };
+        const view = analyzeBattle([packet], { main: [], escort: [] }, {
+            playerGearIds: { main: [[101, 102, 74]], escort: [] },
+        });
+        expect(view.nightEffects).toEqual({ starShell: true, nightRecon: true, searchlight: true });
+
+        const noEffect = analyzeBattle([{
+            ...packet,
+            api_flare_pos: [-1, -1], api_touch_plane: [471, -1],
+            api_hougeki: { ...packet.api_hougeki, api_si_list: [[122]] },
+        }], { main: [], escort: [] }, {
+            playerGearIds: { main: [[122]], escort: [] },
+        });
+        expect(noEffect.nightEffects).toEqual({ starShell: false, nightRecon: false, searchlight: false });
+
+        const taihaSearchlight = analyzeBattle([{
+            ...packet,
+            api_f_nowhps: [1], api_flare_pos: [-1, -1], api_touch_plane: [471, -1],
+            api_hougeki: { ...packet.api_hougeki, api_si_list: [[74]] },
+        }], { main: [], escort: [] });
+        expect(taihaSearchlight.nightEffects?.searchlight).toBe(false);
+
+        const striking = analyzeBattle([{
+            ...packet,
+            api_f_nowhps: [20, 20, 20, 20, 20, 20, 20],
+            api_f_maxhps: [20, 20, 20, 20, 20, 20, 20],
+            api_flare_pos: [6, -1],
+        }], { main: [], escort: [] }, {
+            playerGearIds: {
+                main: [[], [], [], [], [], [], [101, 102, 74]], escort: [],
+            },
+        });
+        expect(striking.nightEffects?.starShell).toBe(true);
+    });
 });
 
 describe('敵艦詳細（等級／素質／裝備）', () => {

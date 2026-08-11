@@ -5,7 +5,7 @@
 //   3. 反過來，被歸為外國的艦型裡不能混進純日文名的艦（除了已知的戰後移交形態）
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { NATIONS, NATION_BY_CTYPE, nationOf, type Nation } from '../utils/ship-nationality';
+import { NATIONS, NATION_BY_CTYPE, nationOf, nationsOf, type Nation } from '../utils/ship-nationality';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 /** 図鑑內艦（api_sortno > 0）。深海棲艦等不在収録範囲。 */
@@ -76,5 +76,19 @@ describe('nationOf 的降級行為', () => {
         expect(nationOf(byName('General Belgrano').api_ctype)).toBe('us');    // ex Phoenix
         expect(nationOf(byName('Leonardo da Vinci').api_ctype)).toBe('us');   // ex Dace
         expect(nationOf(byName('伊504').api_ctype)).toBe('it');               // ex Luigi Torelli
+    });
+});
+
+describe('國籍篩選的多重標籤', () => {
+    it('Верный 同時命中日本與蘇聯，但基本國籍仍由 ctype 判為日本', () => {
+        const verniy = master.api_mst_ship.find((s: any) => s.api_id === 147);
+        expect(verniy.api_name).toBe('Верный');
+        expect(nationOf(verniy.api_ctype)).toBe('jp');
+        expect(nationsOf(verniy.api_id, verniy.api_ctype)).toEqual(['jp', 'su']);
+    });
+
+    it('ctype 不可考時不套用逐艦覆蓋', () => {
+        expect(nationsOf(147, 0)).toEqual([]);
+        expect(nationsOf(1, 2)).toEqual(['jp']);
     });
 });

@@ -5,6 +5,7 @@ import { validProjectionThroughEventId } from './projection-cursor';
 // 避免 safety prune 刪掉 cutoff 前最後一筆 master data。
 export const KEEP_RECENT: Record<string, number> = {
     'api_start2/getData': 1,
+    // 各 tab 整批回傳（2020-03-27 起 API 不分頁）；保留多筆以覆蓋不同分類。
     'api_get_member/questlist': 10,
     'api_get_member/base_air_corps': 1,
     'api_get_member/mapinfo': 1,

@@ -11,7 +11,7 @@ import {
     emptyFilter, filterShips, nationOptions, sallyOptions, stypeOptions,
     type EquipFilter, type ShipFilterState, type ShipSortKey, type SpeedFilter,
 } from '@/utils/ship-filter';
-import { nationOf, type Nation } from '@/utils/ship-nationality';
+import { nationOf, nationsOf, type Nation } from '@/utils/ship-nationality';
 import { t } from '@/utils/ui-i18n';
 import { esc, gearIconHtml } from './lib';
 
@@ -79,14 +79,16 @@ type PlanFilter = 'all' | 'yes' | 'no';
  * `ship-nationality.ts` 的人工參照表查出來的（遊戲 API 不提供國籍），把它塞進 state 的
  * view 會讓「封包事實」與「參照資料」混在同一層。同 ship-roster.ts 的作法。
  */
-type PickerShip = OwnedShipView & { nation: Nation | null };
+type PickerShip = OwnedShipView & { nation: Nation | null; nations: Nation[] };
 
 const option = (value: string, label: string, selected: boolean) =>
     `<option value="${esc(value)}" ${selected ? 'selected' : ''}>${esc(label)}</option>`;
 
 export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): ShipPickerHandle {
     let opts = options;
-    let rows: PickerShip[] = options.ships.map(s => ({ ...s, nation: nationOf(s.ctype) }));
+    let rows: PickerShip[] = options.ships.map(s => ({
+        ...s, nation: nationOf(s.ctype), nations: nationsOf(s.masterId, s.ctype),
+    }));
     const filter: ShipFilterState = emptyFilter();
     let sort: ShipSortKey = 'level';
     let planned: PlanFilter = 'all';
@@ -280,7 +282,9 @@ export function renderShipPicker(el: HTMLElement, options: ShipPickerOptions): S
         refresh(patch) {
             opts = { ...opts, ...patch };
             if (patch?.ships) {
-                rows = patch.ships.map(s => ({ ...s, nation: nationOf(s.ctype) }));
+                rows = patch.ships.map(s => ({
+                    ...s, nation: nationOf(s.ctype), nations: nationsOf(s.masterId, s.ctype),
+                }));
                 drawStypeOptions();
             }
             drawNationOptions();

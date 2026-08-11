@@ -8,7 +8,7 @@ import {
     emptyFilter, filterShips, nationOptions, sallyOptions, stypeOptions,
     type EquipFilter, type FilterableShip,
 } from '../utils/ship-filter';
-import { nationOf } from '../utils/ship-nationality';
+import { nationOf, nationsOf } from '../utils/ship-nationality';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 
@@ -21,6 +21,7 @@ const allShips: FilterableShip[] = master.api_mst_ship.map((s: any) => ({
     name: s.api_name,
     stypeId: s.api_stype ?? 0,
     nation: nationOf(s.api_ctype ?? 0),
+    nations: nationsOf(s.api_id, s.api_ctype ?? 0),
     lv: 1,
     soku: s.api_soku ?? 0,
     equipTypes: [...state.equipTypesOf(s.api_id)],
@@ -99,6 +100,17 @@ describe('國籍篩選（共用維度）', () => {
         expect(byNation.us).toBeGreaterThan(0);
         expect(byNation.gb).toBeGreaterThan(0);
         expect(opts.map(o => o.nation)[0]).toBe('jp');   // 日本在首（收錄量最大）
+    });
+
+    it('Верный 的國籍篩選標籤同時命中日本與蘇聯', () => {
+        const verniy = allShips.find(s => s.id === 147)!;
+        expect(verniy.nations).toEqual(['jp', 'su']);
+        expect(filterShips(allShips, { ...emptyFilter(), nations: ['jp'] })).toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: 147 })]),
+        );
+        expect(filterShips(allShips, { ...emptyFilter(), nations: ['su'] })).toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: 147 })]),
+        );
     });
 });
 

@@ -20,12 +20,15 @@ import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { maxObservedBossHp } from '@/utils/boss-hp';
+import { mountOrder, renderOrder } from './order';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     resline = $('resline'), missionsEl = $('missions'), ndocksEl = $('ndocks'), kdocksEl = $('kdocks'), questsEl = $('quests'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
     wantedEl = $('wanted'),
-    facLiveEl = $('factory-live');
+    facLiveEl = $('factory-live'),
+    orderEl = $('tab-order'),
+    tabpanelEl = $('tabpanel');
 const state = new GameState();
 const projector = new EventProjector({ state, mode: 'persist', tables: db });
 // 面板顯示語言＋主題：持久化／偵測／跨頁同步抽到 utils/ui-prefs.ts（panel/popup/overview
@@ -34,6 +37,7 @@ const projector = new EventProjector({ state, mode: 'persist', tables: db });
 // 已開頁面（#1/#2）——面板收到就套用並整頁重繪。
 initLang();
 applyTheme();
+mountOrder(orderEl, () => state);
 // 語言／主題變更（其他擴充頁面改的，經 storage 事件送來）：靜態文字、動態渲染，以及
 // 兩個「不在 renderAll 裡」的區塊都要跟著換——遠征下拉的選項在 renderExped 內只建一次
 // （靠 expedSelLang 偵測語言），待驗證封包清單則要重讀 DB 才能換掉按鈕與說明文字。
@@ -54,7 +58,7 @@ applyStaticI18n();
 // 與 cleared 更新的耐久進度。snapshot、render、wanted 與 autoSwitch 都不得改動後者。
 let maxId = 0, projectionThroughEventId = 0, ready = false;
 const pending: number[] = [];   // 待消費的 live 事件 id（保持由小到大）
-let tab: 'general' | 'exped' | 'activity' | 'sortie' | 'factory' = 'general';
+let tab: 'general' | 'exped' | 'activity' | 'sortie' | 'factory' | 'order' = 'general';
 let manualOverride = false;          // 使用者手動切過分頁後暫停自動切換
 let currentContext: string | null = null;  // 目前情境（port / sortie / exped）
 let expedId: number | null = null;
@@ -163,6 +167,7 @@ function renderTabs() {
       <button data-t="sortie" class="${tab === 'sortie' ? 'on' : ''}">${t('tab.sortie')}</button>
       <button data-t="exped" class="${tab === 'exped' ? 'on' : ''}">${t('tab.exped')}</button>
       <button data-t="factory" class="${tab === 'factory' ? 'on' : ''}">${t('tab.factory')}</button>
+      <button data-t="order" class="${tab === 'order' ? 'on' : ''}">${t('tab.order')}</button>
       ${activityBtn}`;
 }
 // 切換分頁的共用函式（manual=true 代表使用者手動點選，會暫停自動切換）
@@ -174,9 +179,13 @@ function setTab(next: typeof tab, manual: boolean) {
     document.getElementById('tab-exped')!.style.display = tab === 'exped' ? '' : 'none';
     document.getElementById('tab-sortie')!.style.display = tab === 'sortie' ? '' : 'none';
     document.getElementById('tab-factory')!.style.display = tab === 'factory' ? '' : 'none';
+    // 調度分頁要 flex 填滿 #tabpanel（表內部捲動）；其他分頁用預設 block。
+    orderEl.style.display = tab === 'order' ? 'flex' : 'none';
+    tabpanelEl.classList.toggle('has-order', tab === 'order');
     activityEl.style.display = tab === 'activity' && isDebugUiEnabled() ? '' : 'none';
     renderTabs(); renderExped(); renderSortie();
     if (tab === 'factory') renderFactory();
+    if (tab === 'order') renderOrder();
 }
 // 依情境自動切換分頁：
 //   - 進入新情境（ctx 改變）→ 一律切換並解除手動暫停
@@ -870,6 +879,7 @@ airBasesEl.addEventListener('click', e => {
 });
 function renderAll() {
     renderHeader(); renderTabs(); renderGeneral(); renderFleetNav(); renderFleets(); renderExped(); renderSortie(); renderFactory();
+    renderOrder();
     if (showLbas) renderAirBases();
 }
 function getEdgeLetter(mapArea: number, mapNo: number, edgeId: number) {
@@ -1431,173 +1441,6 @@ const isSortieBattlePath = (path: string) =>
 const isNewBattlePacket = (path: string) =>
     isSortieBattlePath(path) && !path.endsWith('result') && !path.endsWith('/goback_port');
 
-// ── [debug] 艦載機戰損的封包驗證擷取 ──────────────────────────────────────
-// 遊戲的航空戰段只送**整場合計**損失機數，不送逐格殘量，故 GameState.spreadPlaneLoss
-// 的逐格分攤目前是估算（見 CLAUDE.md「出擊途中的艦載機戰損」）。要把分攤規則定案，需要
-// 這一組對照：
-//   出擊前逐格搭載 → 各節點航空戰的合計損失 → 回港後逐格搭載
-// 前後兩份搭載數的差就是**實際**逐格損失；只要出擊中只經過一個航空戰節點，就能直接
-// 反推遊戲真正的分攤規則。故此處在「節點戰鬥結束（battleresult）」印出當下已累積的
-// 內容，並在**回港**時印出補上 after／diff 的完整版——完整版才是驗證需要的那一份。
-// 面板視窗按右鍵「檢查」開 DevTools，對印出的物件按右鍵「Copy object」即可複製；
-// 也可在 console 執行 `copy(__kcPlaneLoss)`。**分攤規則定案後這整段可移除。**
-// alv（熟練度）也一起拍：擊墜會讓熟練度下降、制空跟著掉，但**沒有任何出擊／回港封包
-// 帶熟練度**（已查證 api_port/port 與 battleresult 都不帶），只有登入的 require_info 與
-// 開裝備畫面的 slot_item 會整批刷新。故要拿到熟練度的實際變化，**回港後必須再開一次
-// 遊戲的裝備／改修畫面**，probe 才收得到 after 的 alv——`alvPending` 就是在等這一步。
-interface PlaneSlotSnap {
-    ship: string; shipId: number; slot: number; gear: string; cat: number;
-    count: number; max: number | null; level: number; alv: number;
-}
-interface PlaneLossProbe {
-    note: string;
-    map: string | null;
-    /** 本次實際出擊的艦隊索引；回港後 currentSortieFleetId 會被 port 重設，不能再現查。 */
-    fleetIndexes: number[];
-    before: PlaneSlotSnap[];
-    nodes: { node: number; path: string; phases: unknown[] }[];
-    after?: PlaneSlotSnap[];
-    diff?: {
-        ship: string; slot: number; gear: string; cat: number;
-        before: number; after: number; lost: number;
-        alvBefore: number; alvAfter: number; alvDrop: number;
-    }[];
-    totals?: { packetLost: number; actualLost: number };
-    /** true＝after 的熟練度還是出擊前那份，請開一次遊戲的裝備畫面再複製一次。 */
-    alvPending?: boolean;
-    /** false＝出擊前追蹤的艦娘有整艘在 after 消失（多半是出擊中途重載遊戲分頁造成），
-     *  totals/diff 不可信，不會自動落地存檔。 */
-    reliable?: boolean;
-}
-let planeProbe: PlaneLossProbe | null = null;
-// 出擊中兩隊（連合時含隨伴）的逐格搭載快照。GameState 已解析好裝備與 master，
-// 故這份快照自帶機種名與類別 id，不必再回頭對照 start2。
-function planeSnapshot(fleetIndexes: readonly number[]): PlaneSlotSnap[] {
-    const out: PlaneSlotSnap[] = [];
-    const fleets = state.fleets();
-    fleetIndexes.map(i => fleets[i]).filter((f): f is NonNullable<typeof f> => !!f).forEach(f => f.ships.forEach(s => {
-        s.gears.forEach((g, i) => {
-            if (g?.count == null) return;
-            out.push({
-                ship: s.nameJa, shipId: s.id, slot: i, gear: g.name, cat: g.type,
-                count: g.count, max: g.countMax ?? null, level: g.level, alv: g.alv,
-            });
-        });
-    }));
-    return out;
-}
-// 一則戰鬥封包裡各航空戰段的原始欄位（不加工，保留原名以便直接對照）。
-function planePhases(api: any): unknown[] {
-    const out: unknown[] = [];
-    for (const key of ['api_injection_kouku', 'api_kouku', 'api_kouku2']) {
-        const ph = api?.[key];
-        if (!ph) continue;
-        out.push({ phase: key, api_stage1: ph.api_stage1, api_stage2: ph.api_stage2, api_plane_from: ph.api_plane_from });
-    }
-    return out;
-}
-function collectPlaneProbe(path: string, api: any) {
-    if (path === 'api_req_map/start') {
-        // 出擊當下的搭載數還是母港實數（此時尚未有任何戰鬥），正是需要的 before。
-        const map = state.sortieInfo;
-        const mainFleet = state.currentSortieFleetId;
-        const fleetIndexes = state.combinedFlag > 0 && mainFleet === 0 ? [0, 1] : [mainFleet];
-        planeProbe = {
-            note: '艦載機戰損驗證：before＝出擊前逐格搭載與熟練度、nodes＝各節點航空戰的封包欄位、'
-                + 'after／diff＝回港後的實數與實際逐格損失（含 alvDrop 熟練度下降量）。'
-                + '熟練度是回港時依「出擊時殘數 vs 回港時殘數」結算的，全滅那一格必定歸零（帯なし），'
-                + '部分損耗的下降量才是待驗證的部分。'
-                + '⚠️ 熟練度只有「登入」「開編成／改裝畫面」或「開裝備庫」才會送，故回港後**再開一次'
-                + '編成畫面**（且在下次出擊之前），alvPending 轉 false 的那一版才是完整的。',
-            map: map ? `${map.mapArea}-${map.mapNo}` : null,
-            fleetIndexes,
-            before: planeSnapshot(fleetIndexes), nodes: [],
-        };
-        return;
-    }
-    if (!planeProbe) return;
-    if (isNewBattlePacket(path)) {
-        const phases = planePhases(api);
-        if (phases.length) {
-            planeProbe.nodes.push({ node: state.sortieInfo?.nodes.length ?? 0, path, phases });
-        }
-        return;
-    }
-    if (path.endsWith('battleresult')) {
-        (window as any).__kcPlaneLoss = planeProbe;
-        console.log('[KC-Monitor] 艦載機戰損（節點戰鬥結束・尚缺回港實數）↓ 右鍵此物件可 Copy object：', planeProbe);
-        return;
-    }
-    // 回港：母港封包已把 api_onslot 覆蓋成實數（consume 在 applyEvent 之後才呼叫本函式），
-    // 故此刻的快照就是搭載數的 after。但**熟練度還是出擊前那份**——母港封包不帶裝備資料，
-    // 要等玩家開一次遊戲的裝備／改修畫面（slot_item）才會刷新，故那時再補算一次。
-    if (path === 'api_port/port' || path === 'api_get_member/require_info' || path === 'api_get_member/slot_item'
-        || path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
-        || path === 'api_get_member/ship2') {
-        // 裝備資料刷新只在「已經回過港」之後才有意義（還沒回港＝出擊還沒結束）。
-        if (path !== 'api_port/port' && !planeProbe.after) return;
-        const after = planeSnapshot(planeProbe.fleetIndexes);
-        const key = (s: { shipId: number; slot: number }) => `${s.shipId}:${s.slot}`;
-        const afterBy = new Map(after.map(s => [key(s), s]));
-        planeProbe.after = after;
-        planeProbe.diff = planeProbe.before
-            .map(b => {
-                const a = afterBy.get(key(b));
-                // 回港後查不到同一格（換裝備／解隊）就跳過，不猜損失。
-                return a ? {
-                    ship: b.ship, slot: b.slot, gear: b.gear, cat: b.cat,
-                    before: b.count, after: a.count, lost: b.count - a.count,
-                    alvBefore: b.alv, alvAfter: a.alv, alvDrop: b.alv - a.alv,
-                } : null;
-            })
-            .filter((v): v is NonNullable<typeof v> => v !== null && (v.lost !== 0 || v.alvDrop !== 0));
-        const diff = planeProbe.diff;
-        planeProbe.totals = {
-            packetLost: planeProbe.nodes.reduce((n, node) => n + node.phases.reduce((m: number, p: any) =>
-                m + (Number(p?.api_stage1?.api_f_lostcount) || 0) + (Number(p?.api_stage2?.api_f_lostcount) || 0), 0), 0),
-            actualLost: diff.reduce((n, d) => n + d.lost, 0),
-        };
-        // ⚠️ **出擊中途重載遊戲分頁（例如王點斬殺失敗後想保留熟練度重打）會讓這份資料整個
-        // 不可信**：重載當下遊戲可能在艦隊尚未真正「回港」的過渡狀態送出 require_info／
-        // api_port/port，此時仍在出擊中的艦娘可能整艘從回應裡消失（不是真的擊沉），
-        // `after` 因此只剩碰巧有效的那幾艘、`diff` 漏掉的份全部被上面的比對邏輯悄悄跳過，
-        // 算出的 `actualLost` 會遠低於 `packetLost`、造成「4 艘船憑空消失」這種誤導結果
-        // （2026-08-05 實機回報：出擊時 5 艘船、回港後只剩 1 艘進得了 after，查證後是重載
-        // 造成、並非真的擊沉）。故只要出擊前追蹤的艦娘有任何一艘完全不在 after 裡，就整份
-        // 標記不可信、不落地存檔（仍留在 `__kcPlaneLoss` 供手動判斷，不是完全丟棄）。
-        const beforeShipIds = new Set(planeProbe.before.map(s => s.shipId));
-        const afterShipIds = new Set(after.map(s => s.shipId));
-        const missingShips = [...beforeShipIds].filter(id => !afterShipIds.has(id));
-        const reliable = missingShips.length === 0;
-        planeProbe.reliable = reliable;
-        // alvStale 仍為 true＝這趟有擊墜、但遊戲還沒送過新的裝備資料，after 的熟練度
-        // 還是出擊前那份，熟練度那半邊還不能用。
-        planeProbe.alvPending = planeProbe.fleetIndexes.some(i => state.fleetSummary(i)?.airStale);
-        (window as any).__kcPlaneLoss = planeProbe;
-        console.log(!reliable
-            ? '[KC-Monitor] 艦載機戰損（資料不可信，疑似出擊中途重載遊戲分頁——有追蹤的艦娘整艘從回港快照消失）↓ 不會自動下載，需要的話手動 copy(__kcPlaneLoss)：'
-            : planeProbe.alvPending
-                ? '[KC-Monitor] 艦載機戰損（含回港搭載實數・熟練度尚未刷新）↓ 請在遊戲開一次「裝備」或「改修」畫面，本物件會自動補上熟練度變化並再印一次：'
-                : '[KC-Monitor] 艦載機戰損（完整・含搭載與熟練度實數）↓ 右鍵此物件可 Copy object，或 console 執行 copy(__kcPlaneLoss)：',
-            planeProbe);
-        // 熟練度還沒到手就留著 probe 等下一次裝備資料刷新；**下次出擊會重置**，故要在
-        // 再次出擊前先去開一次裝備畫面。只在「完整版」（熟練度也到手、資料可信）才落地
-        // 存檔，避免每個 battleresult／中繼封包都各存一份半成品洗版 Downloads 資料夾。
-        // ⚠️ **沒有艦載機參戰（`before` 空、`packetLost` 0）就沒有任何東西可驗證**：
-        // 單艦／無母艦出擊（如 1-1 這種純水面艦練功海域）每次回港都會走到這裡，若不加
-        // 這個門檻，等於每次出擊都在下載一份完全空白的檔案（2026-08-05 實機回報）。
-        const hasSignal = planeProbe.before.length > 0
-            && ((planeProbe.totals?.packetLost ?? 0) > 0 || (planeProbe.diff?.length ?? 0) > 0);
-        // 不可信就沒有等熟練度刷新的意義（消失的艦娘不會自己回來），直接結束這次 probe，
-        // 避免之後每次開裝備畫面都在重算一份注定不會下載的資料、對著 console 洗同一則警告。
-        if (!reliable) {
-            planeProbe = null;
-        } else if (!planeProbe.alvPending) {
-            if (hasSignal) downloadJson(`kc-planeloss_${Date.now()}.json`, planeProbe);
-            planeProbe = null;
-        }
-    }
-}
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
     // [debug] 效能量測：live 事件才量（重播期間量測沒意義，且會洗版）。
@@ -1650,12 +1493,6 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         if (isDebugUiEnabled()) {
             const tag = state.wantedTag(path, api, req);
             if (tag) void captureWanted(id, tag, ts, path);
-        }
-        // [debug] 艦載機戰損的封包驗證擷取（只在 live 事件；重播歷史事件不印，否則面板
-        // 一開就洗版，且重播時的 before/after 早已被後來的封包蓋過、對照不成立）。
-        if (isDebugUiEnabled()) {
-            try { collectPlaneProbe(path, api); }
-            catch (e) { console.warn('[KC-Monitor] 艦載機戰損擷取失敗', e); }
         }
         const t2 = performance.now();
         renderAll();

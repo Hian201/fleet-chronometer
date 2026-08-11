@@ -73,6 +73,8 @@ export interface FilterableShip {
     stypeId: number;
     /** 國籍（建造國）。由 `nationOf(ctype)` 查得；null＝master 未載入、不可考。 */
     nation: Nation | null;
+    /** 國籍篩選標籤；未提供時回退成單一的 `nation`，供舊資料／純函式呼叫端相容。 */
+    nations?: Nation[];
     lv: number;
     soku: number;
     equipTypes: number[];
@@ -128,7 +130,7 @@ export function filterShips<T extends FilterableShip>(
         && (stypes.size === 0 || stypes.has(s.stypeId))
         // 國籍不可考（master 未載入）時不落入任何白名單，這是對的——寧可不列，
         // 也不要在缺 master 的情況下宣稱某艘是日艦。
-        && (nations.size === 0 || (s.nation != null && nations.has(s.nation)))
+        && (nations.size === 0 || filterNationsOf(s).some(n => nations.has(n)))
         && matchEquip(s.equipTypes, filter.equip)
         && (filter.sallyArea == null || s.sallyArea === filter.sallyArea)
         && (!needle || s.name.toLocaleLowerCase().includes(needle)));
@@ -155,8 +157,17 @@ export function sallyOptions(ships: FilterableShip[]): { sallyArea: number; coun
  */
 export function nationOptions(ships: FilterableShip[]): { nation: Nation; count: number }[] {
     const counts = new Map<Nation, number>();
-    for (const s of ships) if (s.nation) counts.set(s.nation, (counts.get(s.nation) ?? 0) + 1);
+    for (const s of ships) {
+        for (const nation of filterNationsOf(s)) {
+            counts.set(nation, (counts.get(nation) ?? 0) + 1);
+        }
+    }
     return NATIONS.filter(n => counts.has(n)).map(nation => ({ nation, count: counts.get(nation)! }));
+}
+
+/** 取得篩選用國籍標籤；同一艦可同時落在多個國籍選項。 */
+function filterNationsOf(ship: FilterableShip): Nation[] {
+    return ship.nations ?? (ship.nation == null ? [] : [ship.nation]);
 }
 
 /** 目前名冊實際出現過的艦種 id（升冪）——篩選器只列出有船的艦種，不列全 22 種。 */

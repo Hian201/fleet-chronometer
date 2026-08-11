@@ -14,7 +14,7 @@ import { dirname, resolve } from 'node:path';
 import { GameState } from '../../utils/state';
 import type { ReplayLbas, ReplayRow, ReplayShip, SortieLogRow } from '../../utils/db';
 import { buildSortieDetail, groupSorties, numberSorties } from '../../utils/sortie-detail';
-import { detailHtml, headHtml, shellHtml, type Entry } from '../../entrypoints/overview/sections/sortie-log';
+import { battleLogHtml, detailHtml, headHtml, shellHtml, type Entry } from '../../entrypoints/overview/sections/sortie-log';
 import { parseSortieImport } from '../../utils/sortie-import';
 import { setLang } from '../../utils/ui-i18n';
 
@@ -159,3 +159,30 @@ const light = resolve(root, '.preview/sortie-log-light.html');
 writeFileSync(light, page.replace('<html lang="zh-TW">', '<html lang="zh-TW" data-theme="light">'));
 console.log(out);
 console.log(light);
+
+// 單獨輸出交戰記錄對話框，讓瀏覽器檢查可以直接看到逐筆攻擊資料，不必依賴靜態預覽的事件綁定。
+const battlePreviewReplay = {
+    ...replays[2],
+    battles: replays[2].battles.filter(b => b.node === 55),
+};
+const battlePreviewDetail = buildSortieDetail(
+    toRows(battlePreviewReplay, { boss: 55, drop: '天霧' }), battlePreviewReplay,
+);
+const battleMarkup = battleLogHtml(battlePreviewDetail, state);
+const battlePage = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8">
+<title>交戰記錄版面預覽</title><style>${css}</style></head>
+<body><dialog class="sl-battle-dialog" open aria-labelledby="sl-battle-preview-title">
+    <div class="sl-battle-dialog-shell">
+        <header class="sl-battle-dialog-head"><h2 id="sl-battle-preview-title">交戰記錄</h2>
+            <button type="button" class="ov-btn icon sl-battle-close" aria-label="關閉交戰記錄"><span aria-hidden="true"></span></button>
+        </header>
+        <div class="sl-battle-dialog-body">${battleMarkup}</div>
+    </div>
+</dialog></body></html>`
+    .replace(/src="\/icons\//g, `src="${resolve(root, 'public/icons')}/`);
+const battleOut = resolve(root, '.preview/sortie-battle-log.html');
+const battleLight = resolve(root, '.preview/sortie-battle-log-light.html');
+writeFileSync(battleOut, battlePage);
+writeFileSync(battleLight, battlePage.replace('<html lang="zh-TW">', '<html lang="zh-TW" data-theme="light">'));
+console.log(battleOut);
+console.log(battleLight);

@@ -19,8 +19,9 @@ const EARLY_MS = 60_000;
 // 足以讓 GameState.applyEvent() 在全新安裝（db.events 為空）時重建艦娘/裝備/艦隊/
 // 基地航空隊/關卡量表——api_start2/getData 尤其關鍵（艦種/裝備 master 表的唯一來源，
 // 沒有它 shipName()/gearName() 只能回退顯示日文原名、stype/maxeq 等衍生欄位全部缺失）。
-// 刻意不含 api_get_member/questlist：任務清單靠多頁累積（見 background.ts KEEP_RECENT
-// 註解），單一 path 只留最新一筆的快照設計留不住完整分頁，優先權較低（非本次範圍）。
+// 刻意不含 api_get_member/questlist：任務清單依 tab 整批回傳、需跨登入保留多筆才能
+// 覆蓋各分類（見 utils/event-pruning.ts KEEP_RECENT）；單一 path 只留最新一筆的
+// 快照設計留不住。面板以 tab 0／9 做完整集合同步（見 state.ts questlist 分支）。
 const SNAPSHOT_PATHS = new Set([
   'api_start2/getData',
   'api_port/port',
@@ -352,7 +353,7 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
 // 出擊紀錄回填（由面板開啟時執行）在事件被刪前至少有一整個世代的機會完成。
 // 保護名單：
 //   1. db.wanted 引用的事件（待驗證封包的「複製 JSON」需要原始內容）
-//   2. 會跨登入累積狀態的 path 各保留最近 N 筆（questlist 分頁式、quests Map 不隨 port 清空）
+//   2. 會跨登入累積狀態的 path 各保留最近 N 筆（questlist 各 tab 整批、quests Map 不隨 port 清空）
 // 出擊紀錄已於面板消費時消化進 db.sorties（獨立表），不受裁剪影響。
 async function pruneEvents(currentStart2Id: number) {
   try {

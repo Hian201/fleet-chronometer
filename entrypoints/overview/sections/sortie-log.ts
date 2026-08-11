@@ -40,7 +40,11 @@ import {
 } from '@/utils/sortie-import';
 import { hasNodeLetters, nodeLabel as letterOf } from '@/utils/map-node-letters';
 import { nodeKindKey } from '@/utils/map-node-kind';
-import type { BattleInfoView, BattleShipView } from '@/utils/state';
+import { airRaidLostKindLabel } from '@/utils/air-raid-lost-kind';
+import type {
+    BattleDamageEvent, BattleDamageKind, BattleHpSnapshot, BattleHpView, BattleInfoView, BattlePhaseKind, BattlePhaseView,
+    BattleShipView,
+} from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
@@ -63,6 +67,20 @@ const LBAS_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lba
 // 連合艦隊編成（api_combined_flag）：1=空母機動部隊／2=水上打撃部隊／3=輸送護衛部隊。
 // 2 已用真封包確認（samples/61-5-jibun-rengou-node52.json combined=2，即使用者所述的「自軍水上部隊」）。
 const COMBINED_KEYS = ['', 'ov.slCombinedCarrier', 'ov.slCombinedSurface', 'ov.slCombinedTransport'];
+
+const BATTLE_PHASE_KEYS: Record<BattlePhaseKind, string> = {
+    landBase: 'ov.slPhaseLandBase', jet: 'ov.slPhaseJet', air: 'ov.slPhaseAir', airSecond: 'ov.slPhaseAirSecond',
+    supportAir: 'ov.slPhaseSupportAir', supportShell: 'ov.slPhaseSupportShell',
+    openingAntiSub: 'ov.slPhaseOpeningAntiSub', openingTorpedo: 'ov.slPhaseOpeningTorpedo',
+    shelling1: 'ov.slPhaseShelling1', shelling2: 'ov.slPhaseShelling2', shelling3: 'ov.slPhaseShelling3',
+    torpedo: 'ov.slPhaseTorpedo', friendlyShelling: 'ov.slPhaseFriendlyShelling',
+    friendlyTorpedo: 'ov.slPhaseFriendlyTorpedo', nightShelling: 'ov.slPhaseNightShelling',
+};
+
+const BATTLE_EVENT_KEYS: Record<BattleDamageKind, string> = {
+    ship: 'ov.slEventShip', torpedo: 'ov.slEventTorpedo', air: 'ov.slEventAir',
+    landBase: 'ov.slEventLandBase', support: 'ov.slEventSupport',
+};
 
 const PREFS_KEY = 'kc-sortie-view';
 type Category = 'all' | 'normal' | 'event';
@@ -382,6 +400,29 @@ function nodeLbas(waves: LbasWave[], state: SectionContext['state']): string {
     return `<div class="sl-nlbas"><span class="sl-dim">${esc(t('ov.slLbas'))}</span>${rows}</div>`;
 }
 
+function battleSupportDetails(battle: BattleInfoView, state: SectionContext['state']): string {
+    const support = battle.support;
+    if (!support) return '';
+    return `<div class="sl-battle-support-line">
+        <span class="sl-tag alt">${esc(support.kind === 'air' ? t('ov.slSupportAir') : t('ov.slSupportShell'))}</span>
+        <span class="sl-dim">${esc(t('ov.expedDeck', { n: support.deckId }))}</span>
+        <span>${esc(t('sortie.supportDamage', {
+            kind: support.kind === 'air' ? t('sortie.supportKindAir') : t('sortie.supportKindShelling'),
+            deck: support.deckId, damage: support.damage,
+        }))}</span>
+        ${support.shipIds.length ? `<span class="sl-dim">${esc(t('sortie.supportShips', { ships: supportShipNames(support.shipIds, state) }))}</span>` : ''}
+    </div>`;
+}
+
+function battleFriendlyFleetDetails(battle: BattleInfoView, state: SectionContext['state']): string {
+    const ids = battle.friendlyFleetIds ?? [];
+    if (!ids.length) return '';
+    return `<div class="sl-battle-support-line">
+        <span class="sl-tag alt">${esc(t('ov.slBattleFriendlyFleet'))}</span>
+        <span>${esc(ids.map(id => state.shipName(id)).join('、'))}</span>
+    </div>`;
+}
+
 /** MVP：battleresult 的確定值（1-based 位置）→ 對應到出擊快照的艦名。 */
 function mvpLabel(detail: SortieDetail, n: NodeDetail, state: SectionContext['state']): string {
     const pick = (fleet: SortieShip[], pos: number | undefined) =>
@@ -427,7 +468,7 @@ function nodeCard(detail: SortieDetail, n: NodeDetail, state: SectionContext['st
                 ${kindTag(n)}
                 ${n.seiku !== null ? `<span class="sl-seiku sk-${n.seiku}">${esc(seikuLabel(n.seiku))}</span>` : ''}
                 <span class="grow"></span>
-                <span class="sl-dim">${esc(t('history.lossKind', { v: n.raidLostKind ?? '?' }))}</span>
+                <span class="sl-dim">${esc(airRaidLostKindLabel(n.raidLostKind))}</span>
             </div>
         </article>`;
     }
@@ -492,11 +533,560 @@ function nodeCard(detail: SortieDetail, n: NodeDetail, state: SectionContext['st
     </details>`;
 }
 
+// ── 交戰記錄 ───────────────────────────────────────────────────────────
+// 這個檢視器使用 analyzeBattle() 留下的階段快照，不重新解讀原始封包。
+// 顯示重點對照使用者提供的航海日誌擴張版／KC3Kai 範例：敵我編成、陣形／航向／索敵／觸接、
+// 航空戰與基地航空隊、支援、各交戰階段、以及開戰前→晝戰後→夜戰後的逐艦 HP。
+
+function phaseTurnLabel(phase: BattlePhaseView): string {
+    return phase.kind === 'nightShelling' || phase.kind === 'friendlyShelling' || phase.kind === 'friendlyTorpedo'
+        || phase.packet > 0 ? t('ov.slBattleNight') : t('ov.slBattleDay');
+}
+
+function nightEffectBadges(battle: BattleInfoView): string {
+    const effects = battle.nightEffects;
+    if (!effects || (!effects.starShell && !effects.nightRecon && !effects.searchlight)) return '';
+    const labels: [boolean, string][] = [
+        [effects.starShell, 'ov.slBattleNightStarShell'],
+        [effects.nightRecon, 'ov.slBattleNightRecon'],
+        [effects.searchlight, 'ov.slBattleNightSearchlight'],
+    ];
+    return `<span class="sl-battle-night-effects" aria-label="${esc(t('ov.slBattleNightEquipment'))}">`
+        + labels.filter(([active]) => active)
+            .map(([, key]) => `<span class="sl-battle-night-effect">${esc(t(key))}</span>`).join('')
+        + '</span>';
+}
+
+function hpClass(view: BattleHpView | null | undefined): string {
+    if (!view) return 'unknown';
+    if (view.sunk || view.hp <= 0) return 'sunk';
+    if (view.maxHp > 0 && view.hp * 4 <= view.maxHp) return 'major';
+    if (view.maxHp > 0 && view.hp * 2 <= view.maxHp) return 'mid';
+    if (view.maxHp > 0 && view.hp * 4 <= view.maxHp * 3) return 'minor';
+    return '';
+}
+
+function hpCell(view: BattleHpView | null | undefined): string {
+    if (!view) return `<span class="sl-bhp unknown">—</span>`;
+    return `<span class="sl-bhp ${hpClass(view)}">${Math.max(0, view.hp)}/${view.maxHp}</span>`;
+}
+
+function snapshotTotal(snapshot: BattleHpSnapshot, side: 'player' | 'enemy'): string {
+    const groups = side === 'player'
+        ? [snapshot.playerMain, snapshot.playerEscort]
+        : [snapshot.enemyMain, snapshot.enemyEscort];
+    const now = groups.flat().reduce((sum, ship) => sum + (ship?.hp ?? 0), 0);
+    const max = groups.flat().reduce((sum, ship) => sum + (ship?.maxHp ?? 0), 0);
+    return `${now}/${max}`;
+}
+
+function timelineCheckpoints(battle: BattleInfoView): { label: string; snapshot: BattleHpSnapshot }[] {
+    const timeline = battle.timeline;
+    if (!timeline) return [];
+    const points = [{ label: t('ov.slBattleBefore'), snapshot: timeline.initial }];
+    const day = timeline.phases.filter(phase => phase.packet === 0).slice(-1)[0];
+    const night = timeline.phases.filter(phase => phase.packet > 0).slice(-1)[0];
+    if (day) points.push({
+        label: night ? t('ov.slBattleAfterDay') : t('ov.slBattleAfter'), snapshot: day,
+    });
+    if (night) points.push({ label: t('ov.slBattleAfterNight'), snapshot: night });
+    return points;
+}
+
+function hpTimelineTable(
+    title: string,
+    names: string[],
+    side: keyof BattleHpSnapshot,
+    points: { label: string; snapshot: BattleHpSnapshot }[],
+): string {
+    if (!names.length) return '';
+    return `<section class="sl-battle-hp-group">
+        <h4>${esc(title)}</h4>
+        <div class="sl-battle-hp-table" role="table">
+            <div class="sl-battle-hp-row header" style="--sl-battle-point-count:${points.length}" role="row">
+                <span role="columnheader">${esc(t('ov.slBattleShip'))}</span>
+                ${points.map(point => `<span role="columnheader">${esc(point.label)}</span>`).join('')}
+            </div>
+            ${names.map((name, i) => `<div class="sl-battle-hp-row" style="--sl-battle-point-count:${points.length}" role="row">
+                <span class="sl-battle-hp-name" role="rowheader">${esc(name)}</span>
+                ${points.map(point => `<span role="cell">${hpCell(point.snapshot[side][i])}</span>`).join('')}
+            </div>`).join('')}
+        </div>
+    </section>`;
+}
+
+function enemyNames(ids: number[], levels: number[], state: SectionContext['state']): string[] {
+    return ids.map((id, i) => {
+        const name = id > 0 ? state.shipName(id) : '?';
+        const lv = levels[i];
+        return lv && lv > 1 ? `${name} Lv${lv}` : name;
+    });
+}
+
+function supportShipNames(ids: number[], state: SectionContext['state']): string {
+    return ids.map(id => {
+        const mst = state.ships.get(id)?.api_ship_id;
+        return mst ? state.shipName(mst) : `#${id}`;
+    }).join('、');
+}
+
+function fleetShipLabel(
+    side: 'player' | 'enemy' | 'friendly',
+    index: number | null,
+    detail: SortieDetail,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    const position = index === null ? '' : ` #${index < 6 ? index + 1 : index - 5}`;
+    if (side === 'friendly') {
+        const mst = index !== null ? battle.friendlyFleetIds?.[index] : undefined;
+        return mst ? `${state.shipName(mst)}${position}` : `${t('ov.slBattleFriendlyFleet')}${position}`;
+    }
+    if (index === null) return side === 'player' ? t('ov.slBattleOurAir') : t('ov.slBattleEnemyAir');
+    const escort = index >= 6;
+    const local = escort ? index - 6 : index;
+    const ships = side === 'player' ? (escort ? detail.fleet2 : detail.fleet1) : null;
+    if (ships?.[local]) return `${state.shipName(ships[local].mst)}${position}`;
+    const ids = side === 'enemy' ? (escort ? node.enemyIdsEscort : node.enemyIds) : [];
+    const positions = side === 'enemy'
+        ? (escort ? battle.enemyPositionsEscort : battle.enemyPositions)
+        : undefined;
+    const compactIndex = positions?.indexOf(local) ?? -1;
+    const mst = ids[compactIndex >= 0 ? compactIndex : local];
+    if (mst) return `${state.shipName(mst)}${position}`;
+    return `${side === 'player' ? t('sortie.ourSide') : t('sortie.enemySide')}${position}`;
+}
+
+function eventSourceLabel(
+    event: BattleDamageEvent,
+    detail: SortieDetail,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    if (event.attackerIndex !== null) {
+        return fleetShipLabel(event.attackerSide ?? 'enemy', event.attackerIndex, detail, node, battle, state);
+    }
+    if (event.kind === 'landBase') return t('ov.slBattleLandBaseSource');
+    if (event.kind === 'support') return t('ov.slBattleSupportSource');
+    if (event.kind === 'torpedo') {
+        return event.attackerSide === 'enemy' ? t('ov.slBattleEnemyTorpedo') : t('ov.slBattleOurTorpedo');
+    }
+    if (event.kind === 'air') {
+        return event.attackerSide === 'enemy' ? t('ov.slBattleEnemyAir') : t('ov.slBattleOurAir');
+    }
+    return t('ov.slBattleUnknownSource');
+}
+
+/**
+ * `api_si_list` 的裝備 master id → 夜戰 CI 的裝備構成。
+ * 這裡只使用 start2 已提供的裝備類別，不用裝備名稱猜測；未載入 master 時會退回原始
+ * `api_sp_list`／`api_at_type` 代碼。類別值來自 `api_mst_slotitem.api_type[2]`。
+ */
+function attackPattern(event: BattleDamageEvent, state: SectionContext['state']): string | null {
+    const categories = event.attackSlots
+        .map(id => state.masterGears.get(id)?.cat)
+        .filter((cat): cat is number => Number.isSafeInteger(cat));
+    const count = (ids: number[]) => categories.filter(cat => ids.includes(cat)).length;
+    const main = count([1, 2, 3, 38]);
+    const secondary = count([4, 95]);
+    const torpedo = count([5, 32]);
+    const radar = count([12, 13, 93]);
+    const lookout = count([39]);
+    const aircraft = count([6, 7, 8, 9, 11, 45, 56, 57, 58, 59, 91, 94]);
+
+    // 夜戰的特殊攻擊代碼與裝備構成同時存在時，以封包實際送出的裝備構成為顯示依據。
+    // 這能涵蓋新型驅逐艦 CI（主魚電／魚水魚），也避免把未知的新代碼硬套成舊型 CI。
+    if (event.specialType !== null && event.specialType > 0) {
+        if (main > 0 && torpedo > 0 && radar > 0) return t('ov.slAttackNightMainTorpedoRadar');
+        if (torpedo >= 2 && lookout > 0) return t('ov.slAttackNightTorpedoLookoutTorpedo');
+        if (aircraft >= 2) return t('ov.slAttackNightAirCutIn');
+        if (event.specialType === 1) return t('ov.slAttackNightDouble');
+        if (event.specialType === 3) return t('ov.slAttackTorpedoCutIn');
+        if (main >= 2 && secondary > 0) return t('ov.slAttackMainMainSecondary');
+        if (main >= 1 && torpedo >= 1) return t('ov.slAttackMainTorpedo');
+        if (torpedo >= 2) return t('ov.slAttackTorpedoCutIn');
+        return t('ov.slAttackNightRaw', { n: event.specialType });
+    }
+
+    if (event.attackType !== null && event.attackType > 0) {
+        // 現有樣本的三位數 api_at_type 都是多目標特殊砲擊代碼；保留原始代碼在
+        // title，畫面主標用玩家可讀的共同名稱，避免把長門型等代碼誤當普通砲擊。
+        if (event.attackType >= 100) return t('ov.slAttackSpecialShelling');
+        if (event.attackType === 2) return t('ov.slAttackDayDouble');
+        if (event.attackType === 6 && aircraft === 0) return t('ov.slAttackDayCutIn');
+        if (event.attackType === 7 && aircraft > 0) return t('ov.slAttackCarrierCutIn');
+        return t('ov.slAttackRaw', { n: event.attackType });
+    }
+    return null;
+}
+
+function attackMeta(event: BattleDamageEvent, state: SectionContext['state']): { label: string; title: string } | null {
+    const label = attackPattern(event, state);
+    if (!label) return null;
+    const raw = [
+        event.attackType === null ? '' : `api_at_type=${event.attackType}`,
+        event.specialType === null ? '' : `api_sp_list=${event.specialType}`,
+    ].filter(Boolean).join(' · ');
+    const slots = event.attackSlots.length
+        ? `api_si_list=${event.attackSlots.join(',')}`
+        : '';
+    const title = [raw, slots].filter(Boolean).join(' · ');
+    return { label, title };
+}
+
+function hpBand(hp: number | null, maxHp: number | null, sunk = false): string {
+    if (hp === null || maxHp === null) return 'unknown';
+    if (sunk || hp <= 0) return 'sunk';
+    if (maxHp > 0 && hp * 4 <= maxHp) return 'major';
+    if (maxHp > 0 && hp * 2 <= maxHp) return 'mid';
+    if (maxHp > 0 && hp * 4 <= maxHp * 3) return 'minor';
+    return 'safe';
+}
+
+function eventOutcomeStatus(event: BattleDamageEvent): string | null {
+    if (event.damage <= 0) return t('ov.slBattleMiss');
+    if (event.sunk || event.afterHp === 0) return t('ov.slBattleSunk');
+    const before = hpBand(event.beforeHp, event.maxHp);
+    const after = hpBand(event.afterHp, event.maxHp);
+    if (after === before) return null;
+    const key = after === 'major' ? 'ov.slBattleTaiha'
+        : after === 'mid' ? 'ov.slBattleChuhai'
+            : after === 'minor' ? 'ov.slBattleShouha' : '';
+    return key ? t(key) : null;
+}
+
+type BattleEventGroup = {
+    side: 'player' | 'friendly' | 'enemy';
+    key: string;
+    events: BattleDamageEvent[];
+};
+
+type BattleAttackSeries = {
+    key: string;
+    events: BattleDamageEvent[];
+};
+
+type BattleTargetGroup = {
+    side: Exclude<BattleDamageEvent['defenderSide'], null>;
+    index: number;
+    events: BattleDamageEvent[];
+};
+
+/** `BattleDamageEvent` 是資料層的逐次命中；畫面只合併原始順序中相鄰的同一攻擊方。 */
+function battleEventSide(event: BattleDamageEvent): 'player' | 'friendly' | 'enemy' {
+    if (event.attackerSide === 'enemy') return 'enemy';
+    if (event.attackerSide === 'friendly') return 'friendly';
+    return 'player';
+}
+
+function battleEventGroupKey(event: BattleDamageEvent, side: BattleEventGroup['side']): string {
+    // 有攻擊艦索引時，同一階段同一艦的所有攻擊放進同一張卡；
+    // 航空／基地／支援／雷擊沒有個別攻擊艦索引時，依封包提供的來源種類分卡。
+    return event.attackerIndex === null
+        ? `${side}|source|${event.kind}`
+        : `${side}|ship|${event.attackerIndex}`;
+}
+
+function battleEventSeriesKey(event: BattleDamageEvent): string {
+    return [
+        event.kind,
+        event.attackType ?? '',
+        event.specialType ?? '',
+        event.attackSlots.join(','),
+    ].join('|');
+}
+
+function battleEventGroups(events: BattleDamageEvent[]): BattleEventGroup[] {
+    const groups: BattleEventGroup[] = [];
+    for (const event of events) {
+        const side = battleEventSide(event);
+        const key = battleEventGroupKey(event, side);
+        const previous = groups.at(-1);
+        if (previous?.key === key) previous.events.push(event);
+        else groups.push({ side, key, events: [event] });
+    }
+    return groups;
+}
+
+function battleAttackSeries(events: BattleDamageEvent[]): BattleAttackSeries[] {
+    const series: BattleAttackSeries[] = [];
+    for (const event of events) {
+        const key = battleEventSeriesKey(event);
+        const previous = series.at(-1);
+        if (previous?.key === key) previous.events.push(event);
+        else series.push({ key, events: [event] });
+    }
+    return series;
+}
+
+/** 同一次攻擊中的同一目標只畫一列；傷害數字仍依封包順序逐個保留。 */
+function battleTargetGroups(events: BattleDamageEvent[]): BattleTargetGroup[] {
+    const groups = new Map<string, BattleTargetGroup>();
+    for (const event of events) {
+        if (!event.defenderSide || event.defenderIndex === null) continue;
+        const key = `${event.defenderSide}|${event.defenderIndex}`;
+        const group = groups.get(key);
+        if (group) group.events.push(event);
+        else groups.set(key, { side: event.defenderSide, index: event.defenderIndex, events: [event] });
+    }
+    return [...groups.values()];
+}
+
+function phaseTargetGroupHtml(
+    targetGroup: BattleTargetGroup,
+    detail: SortieDetail,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    const defender = fleetShipLabel(targetGroup.side, targetGroup.index, detail, node, battle, state);
+    const damages = targetGroup.events.map(event => {
+        const damage = event.damage > 0 ? `−${event.damage.toLocaleString()}` : '0';
+        return `<span class="sl-battle-hit-damage-token${event.critical ? ' critical' : ''}">${damage}${event.critical ? `<small>${esc(t('ov.slBattleCritical'))}</small>` : ''}</span>`;
+    }).join('<span class="sl-battle-hit-damage-separator" aria-hidden="true">、</span>');
+    const damageLabel = targetGroup.events.map(event => event.damage > 0
+        ? t('ov.slBattleDamage', { n: event.damage })
+        : t('ov.slBattleMiss')).join('、');
+    const statuses: string[] = [];
+    for (const event of targetGroup.events) {
+        const status = eventOutcomeStatus(event);
+        if (status && !statuses.includes(status)) statuses.push(status);
+    }
+    const sunk = targetGroup.events.some(event => event.sunk);
+    return `<span class="sl-battle-hit${sunk ? ' sunk' : ''}">
+        <strong class="sl-battle-hit-target">${esc(defender)}</strong>
+        <span class="sl-battle-hit-damage" aria-label="${esc(damageLabel)}">${damages}</span>
+        ${statuses.length ? `<span class="sl-battle-hit-results">${statuses.map(status => `<span class="sl-battle-hit-outcome">${esc(status)}</span>`).join('<span class="sl-battle-hit-result-separator" aria-hidden="true">·</span>')}</span>` : ''}
+    </span>`;
+}
+
+function phaseAttackSeriesHtml(
+    series: BattleAttackSeries,
+    detail: SortieDetail,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    const event = series.events[0];
+    const attack = attackMeta(event, state);
+    const targetGroups = battleTargetGroups(series.events);
+    return `<div class="sl-battle-attack-series">
+        <div class="sl-battle-attack-series-head">
+            <span class="sl-battle-event-kind">${esc(t(BATTLE_EVENT_KEYS[event.kind]))}</span>
+            ${attack ? `<b class="sl-battle-event-attack"${attack.title ? ` title="${esc(attack.title)}"` : ''}>${esc(attack.label)}</b>` : ''}
+        </div>
+        <div class="sl-battle-hits sl-battle-targets">${targetGroups.length
+            ? targetGroups.map((target, index) => `${index ? '<span class="sl-battle-target-separator" aria-hidden="true">；</span>' : ''}${phaseTargetGroupHtml(target, detail, node, battle, state)}`).join('')
+            : `<span class="sl-battle-hit sl-battle-hit-no-target"><span class="sl-battle-hit-outcome">${esc(t('ov.slBattleMiss'))}</span></span>`}</div>
+    </div>`;
+}
+
+function phaseAttackGroupHtml(
+    group: BattleEventGroup,
+    detail: SortieDetail,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    const source = eventSourceLabel(group.events[0], detail, node, battle, state);
+    const series = battleAttackSeries(group.events);
+    return `<li class="sl-battle-attack-group sl-battle-event sl-battle-attack-group-${group.side}">
+        <div class="sl-battle-combat-row">
+            <div class="sl-battle-combat-attacker">
+                <strong class="sl-battle-attacker-name">${esc(source)}</strong>
+            </div>
+            <span class="sl-battle-combat-arrow" aria-hidden="true">→</span>
+            <div class="sl-battle-attack-series-list">
+                ${series.map(item => phaseAttackSeriesHtml(item, detail, node, battle, state)).join('')}
+            </div>
+        </div>
+    </li>`;
+}
+
+function phaseDetailsHtml(
+    phase: BattlePhaseView,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    const details: string[] = [];
+    let title = '';
+
+    if (phase.kind === 'air') {
+        const planes = planeTable(battle);
+        if (planes) {
+            title = t('ov.slBattlePlaneLoss');
+            details.push(planes);
+        }
+    } else if (phase.kind === 'landBase' && node.lbas.length) {
+        title = t('ov.slBattleLbasWaves');
+        details.push(nodeLbas(node.lbas, state));
+    } else if (phase.kind === 'supportAir' || phase.kind === 'supportShell') {
+        const support = battleSupportDetails(battle, state);
+        if (support) {
+            title = t('ov.slBattleSupportComposition');
+            details.push(support);
+        }
+    } else if (phase.kind === 'friendlyShelling') {
+        const friendly = battleFriendlyFleetDetails(battle, state);
+        if (friendly) {
+            title = t('ov.slBattleFriendlyFleetDetails');
+            details.push(friendly);
+        }
+    }
+
+    const events = phase.events ?? [];
+    const unresolved = events.some(event => event.attackerIndex === null
+        && (event.kind === 'air' || event.kind === 'landBase' || event.kind === 'support' || event.kind === 'torpedo'))
+        || events.some(event => event.kind === 'support');
+    if (unresolved) {
+        title ||= t('ov.slBattlePacketNote');
+        details.push(`<p class="sl-dim sl-battle-event-note">${esc(t('ov.slBattleUnresolvedSource'))}</p>`);
+    }
+    if (!details.length) return '';
+
+    return `<details class="sl-battle-phase-details">
+        <summary><span>${esc(title)}</span><span class="sl-dim">${esc(t('ov.slBattleDetails'))}</span></summary>
+        <div class="sl-battle-phase-details-body">${details.join('')}</div>
+    </details>`;
+}
+
+function phaseCard(
+    phase: BattlePhaseView,
+    index: number,
+    detail: SortieDetail,
+    node: NodeDetail,
+    battle: BattleInfoView,
+    state: SectionContext['state'],
+): string {
+    const label = t(BATTLE_PHASE_KEYS[phase.kind]);
+    const after = `${t('ov.slBattleOurHp')} ${snapshotTotal(phase, 'player')}　·　${t('ov.slBattleEnemyHp')} ${snapshotTotal(phase, 'enemy')}`;
+    const events = phase.events ?? [];
+    const attackGroups = battleEventGroups(events);
+    return `<li class="sl-battle-phase" data-battle-phase="${phase.kind}">
+        <div class="sl-battle-phase-head${phase.kind === 'nightShelling' ? ' sl-battle-phase-head-night' : ''}">
+            <span class="sl-battle-step">${String(index + 1).padStart(2, '0')}</span>
+            <strong>${esc(label)}</strong>
+            ${phase.kind === 'nightShelling' ? nightEffectBadges(battle) : ''}
+            <span class="sl-battle-turn">${esc(phaseTurnLabel(phase))}</span>
+        </div>
+        ${phaseDetailsHtml(phase, node, battle, state)}
+        ${events.length ? `<ol class="sl-battle-attack-groups">${attackGroups.map(group => phaseAttackGroupHtml(group, detail, node, battle, state)).join('')}</ol>`
+            : `<p class="sl-dim sl-battle-no-events">${esc(t('ov.slBattleNoEvents'))}</p>`}
+        <div class="sl-battle-phase-stats">
+            <span class="enemy-damage">${esc(t('ov.slBattleEnemyDamage'))} <b>${phase.enemyDamage.toLocaleString()}</b></span>
+            <span class="own-damage">${esc(t('ov.slBattleOwnDamage'))} <b>${phase.ownDamage.toLocaleString()}</b></span>
+        </div>
+        <div class="sl-battle-phase-after">${esc(after)}</div>
+    </li>`;
+}
+
+function battleNodeLog(
+    detail: SortieDetail,
+    n: NodeDetail,
+    state: SectionContext['state'],
+    index: number,
+    active: boolean,
+): string {
+    const battle = n.battle;
+    if (!battle) return '';
+    const points = timelineCheckpoints(battle);
+    const formation = `${formationLabel(battle.formation[0])} / ${formationLabel(battle.formation[1])}`;
+    const engagement = t(ENGAGEMENT_KEYS[battle.formation[2]] ?? 'eng.unknown');
+    const airPresent = battle.planes.playerFighter.count + battle.planes.playerBomber.count
+        + battle.planes.enemyFighter.count + battle.planes.enemyBomber.count > 0;
+    const contact = `${battle.touchPlane[0] > 0 ? t('sortie.yes') : t('sortie.no')} / ${battle.touchPlane[1] > 0 ? t('sortie.yes') : t('sortie.no')}`;
+    const search = `${searchLabel(n.search[0])} (${n.search[0] ?? '?'}) / ${searchLabel(n.search[1])} (${n.search[1] ?? '?'})`;
+    const meta = [
+        `<span class="sl-battle-meta-item"><i>${esc(t('ov.slFormation'))}</i>${esc(formation)}</span>`,
+        `<span class="sl-battle-meta-item"><i>${esc(t('ov.slBattleEngagement'))}</i>${esc(engagement)}</span>`,
+        `<span class="sl-battle-meta-item"><i>${esc(t('ov.slBattleSearch'))}</i>${esc(search)}</span>`,
+        `<span class="sl-battle-meta-item"><i>${esc(t('sortie.contact'))}</i>${esc(contact)}</span>`,
+        airPresent ? `<span class="sl-battle-meta-item"><i>${esc(t('sortie.airBattle'))}</i>${esc(seikuLabel(battle.seiku))}</span>` : '',
+        battle.aaci > 0 ? `<span class="sl-battle-meta-item"><i>${esc(t('sortie.antiAirCutin'))}</i>#${battle.aaci}</span>` : '',
+    ].filter(Boolean).join('');
+
+    const enemyMain = enemyNames(n.enemyIds, n.enemyLv, state);
+    const enemyEscort = enemyNames(n.enemyIdsEscort, n.enemyLvEscort, state);
+    const hpTables = points.length ? [
+        hpTimelineTable(t('ov.slBattleOurMain'), detail.fleet1.map(ship => `${state.shipName(ship.mst)} Lv${ship.lv}`), 'playerMain', points),
+        hpTimelineTable(t('ov.slBattleOurEscort'), detail.fleet2.map(ship => `${state.shipName(ship.mst)} Lv${ship.lv}`), 'playerEscort', points),
+        hpTimelineTable(t('ov.slBattleEnemyMain'), enemyMain, 'enemyMain', points),
+        hpTimelineTable(t('ov.slBattleEnemyEscort'), enemyEscort, 'enemyEscort', points),
+    ].filter(Boolean).join('') : `<p class="sl-dim">${esc(t('ov.slBattleTimelineUnavailable'))}</p>`;
+    const phases = battle.timeline?.phases ?? [];
+    const finalMain = battle.resultFleets?.enemyMain ?? [];
+    const finalEscort = battle.resultFleets?.enemyEscort ?? [];
+    const enemyLineup = [
+        enemyMain.length ? `<div class="sl-battle-lineup"><span>${esc(t('ov.slBattleEnemyMain'))}</span><div class="sl-ecs">${n.enemyIds.map((id, i) => enemyChip(id, n.enemyLv[i], finalMain[i], state)).join('')}</div></div>` : '',
+        enemyEscort.length ? `<div class="sl-battle-lineup"><span>${esc(t('ov.slBattleEnemyEscort'))}</span><div class="sl-ecs">${n.enemyIdsEscort.map((id, i) => enemyChip(id, n.enemyLvEscort[i], finalEscort[i], state)).join('')}</div></div>` : '',
+    ].filter(Boolean).join('');
+    const result = [
+        n.rank ? `<span class="sl-rank ${rankClass(n.rank)}">${esc(n.rank)}</span>` : rankChip(n),
+        mvpLabel(detail, n, state),
+        n.getExp ? `<span class="sl-tag">${esc(t('ov.slExp'))} ${n.getExp.toLocaleString()}</span>` : '',
+        n.baseExp ? `<span class="sl-tag">${esc(t('ov.slBaseExp'))} ${n.baseExp.toLocaleString()}</span>` : '',
+        n.drop || n.dropMst ? `<span class="sl-flag drop">${esc(t('ov.slDrop'))} ${esc(dropName(n, state) ?? '?')}</span>` : '',
+    ].filter(Boolean).join('');
+
+    return `<article id="sl-battle-node-${index}" data-battle-node-panel="${index}" class="sl-battle-node-log${n.boss ? ' boss' : ''}"${active ? '' : ' hidden'}>
+        <header class="sl-battle-node-log-head">
+            <div class="sl-battle-node-log-title">
+                <span class="sl-pill ${n.boss ? 'boss' : ''}"><span class="sl-pill-node">${esc(nodeLabel(detail.map, n.node))}</span></span>
+                <div><strong>${esc(t('ov.slBattleNode', { n: nodeLabel(detail.map, n.node) }))}</strong>
+                    ${n.boss ? `<span class="sl-tag boss">${esc(t('sortie.boss'))}</span>` : ''}
+                    ${n.enemyName ? `<small>${esc(n.enemyName)}</small>` : ''}
+                </div>
+            </div>
+            <div class="sl-battle-result">${result}</div>
+        </header>
+        <div class="sl-battle-meta">${meta}</div>
+        ${enemyLineup ? `<section class="sl-battle-panel"><h3>${esc(t('ov.slBattleEnemyFleet'))}</h3>${enemyLineup}</section>` : ''}
+        <section class="sl-battle-panel">
+            <div class="sl-battle-panel-head"><h3>${esc(t('ov.slBattlePhases'))}</h3><span class="sl-dim">${esc(t('ov.slBattlePhaseHint'))}</span></div>
+            ${phases.length ? `<ol class="sl-battle-phases">${phases.map((phase, i) => phaseCard(phase, i, detail, n, battle, state)).join('')}</ol>` : `<p class="sl-dim">${esc(t('ov.slBattleNoPhases'))}</p>`}
+        </section>
+        <details class="sl-battle-panel sl-battle-hp-panel">
+            <summary><h3>${esc(t('ov.slBattleHpTimeline'))}</h3><span class="sl-dim">${esc(t('ov.slBattleHpHint'))}</span></summary>
+            <div class="sl-battle-hp-grid">${hpTables}</div>
+        </details>
+    </article>`;
+}
+
+/** 以對話框呈現一整場出擊的交戰資料；沒有原始重播時不會有此入口。 */
+export function battleLogHtml(detail: SortieDetail, state: SectionContext['state']): string {
+    const nodes = detail.nodes.filter(n => n.kind === 'battle' && n.battle);
+    if (!nodes.length) return `<div class="sl-battle-empty">${esc(t('ov.slBattleNoPacket'))}</div>`;
+    const summary = [
+        `<span class="sl-tag">${esc(t('ov.slBattleNodeCount', { n: nodes.length }))}</span>`,
+        detail.lastRank ? `<span class="sl-rank ${rankClass(detail.lastRank)}">${esc(detail.lastRank)}</span>` : '',
+        detail.cleared ? `<span class="sl-flag clear">${esc(t('history.cleared'))}</span>` : '',
+        detail.taiha ? `<span class="sl-flag taiha">${esc(t('fleet.heavyDamage'))}</span>` : '',
+    ].filter(Boolean).join('');
+    return `<div class="sl-battle-log">
+        <header class="sl-battle-log-intro">
+            <div>
+                <p class="sl-battle-kicker">${esc(t('ov.slBattleKicker'))}</p>
+                <h2>${esc(mapLabel(detail))} <span>${esc(fmtTs(detail.ts))}</span></h2>
+                <p class="sl-dim">${esc(t('ov.slBattleIntro'))}</p>
+            </div>
+            <div class="sl-battle-log-summary">${summary}</div>
+        </header>
+        <div class="sl-battle-route" role="tablist" aria-label="${esc(t('ov.slBattleRoute'))}">
+            ${nodes.map((n, i) => `<button type="button" class="sl-battle-route-node${n.boss ? ' boss' : ''}" data-battle-node="${i}" role="tab" aria-selected="${i === 0}" aria-controls="sl-battle-node-${i}" tabindex="${i === 0 ? 0 : -1}" title="${esc(t('ov.slBattleSelectNode', { n: nodeLabel(detail.map, n.node) }))}">${esc(nodeLabel(detail.map, n.node))}</button>`).join('<span class="sl-battle-route-arrow" aria-hidden="true">›</span>')}
+        </div>
+        <div class="sl-battle-node-list">${nodes.map((n, i) => battleNodeLog(detail, n, state, i, i === 0)).join('')}</div>
+    </div>`;
+}
+
 export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, state: SectionContext['state']): string {
     const actions = replay
         ? `<button type="button" class="ov-btn" data-replay-copy="${detail.sortieKey}">${esc(t('ov.replayCopy'))}</button>
            <button type="button" class="ov-btn" data-replay-dl="${detail.sortieKey}">${esc(t('ov.replayDownload'))}</button>
            <button type="button" class="ov-btn" data-replay-open="${detail.sortieKey}">${esc(t('ov.replayOpen'))} ↗</button>
+           <button type="button" class="ov-btn battle-log-open" data-battle-log="${detail.sortieKey}" aria-haspopup="dialog">${esc(t('ov.slBattleLog'))}</button>
            <button type="button" class="ov-btn danger" data-replay-del="${detail.sortieKey}" title="${esc(t('ov.replayDeleteTip'))}">🗑</button>`
         : `<span class="sl-dim">${esc(t('ov.slNoPacket'))}</span>`;
     // 掉落：有就列艦名；沒有掉落但**有結算過**才顯示「無掉落」。Fleet Chronometer 自身匯出
@@ -614,6 +1204,15 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
             </div>
             ${importPanel}
             <div class="sl-body ov-list"></div>
+            <dialog class="sl-battle-dialog" aria-labelledby="sl-battle-dialog-title">
+                <div class="sl-battle-dialog-shell">
+                    <header class="sl-battle-dialog-head">
+                        <h2 id="sl-battle-dialog-title">${esc(t('ov.slBattleLog'))}</h2>
+                        <button type="button" class="ov-btn icon sl-battle-close" data-battle-close aria-label="${esc(t('ov.slBattleClose'))}"><span aria-hidden="true"></span></button>
+                    </header>
+                    <div class="sl-battle-dialog-body"></div>
+                </div>
+            </dialog>
         </div>`;
 }
 
@@ -643,6 +1242,32 @@ export const sortieLogSection: OverviewSection = {
         const countEl = el.querySelector<HTMLSpanElement>('.sl-count')!;
         const body = el.querySelector<HTMLDivElement>('.sl-body')!;
         const expandBtn = el.querySelector<HTMLButtonElement>('.sl-expand')!;
+        const battleDialog = el.querySelector<HTMLDialogElement>('.sl-battle-dialog')!;
+        const battleDialogBody = el.querySelector<HTMLDivElement>('.sl-battle-dialog-body')!;
+        const closeBattleDialog = () => { if (battleDialog.open) battleDialog.close(); };
+        el.querySelector<HTMLButtonElement>('[data-battle-close]')!.addEventListener('click', closeBattleDialog);
+        battleDialogBody.addEventListener('click', event => {
+            const target = event.target as HTMLElement;
+            const nodeButton = target.closest<HTMLButtonElement>('button[data-battle-node]');
+            if (!nodeButton) return;
+            const selected = nodeButton.dataset.battleNode;
+            if (selected === undefined) return;
+            battleDialogBody.querySelectorAll<HTMLButtonElement>('button[data-battle-node]').forEach(button => {
+                const isSelected = button.dataset.battleNode === selected;
+                button.setAttribute('aria-selected', String(isSelected));
+                button.tabIndex = isSelected ? 0 : -1;
+            });
+            battleDialogBody.querySelectorAll<HTMLElement>('[data-battle-node-panel]').forEach(panel => {
+                panel.hidden = panel.dataset.battleNodePanel !== selected;
+            });
+            const panel = [...battleDialogBody.querySelectorAll<HTMLElement>('[data-battle-node-panel]')]
+                .find(item => item.dataset.battleNodePanel === selected);
+            panel?.scrollIntoView({ block: 'start' });
+        });
+        battleDialog.addEventListener('click', event => {
+            // 點擊對話框本身的留白關閉，內容區的點擊不受影響。
+            if (event.target === battleDialog) closeBattleDialog();
+        });
 
         const byCategory = () => entries.filter(e =>
             prefs.cat === 'all' || (prefs.cat === 'event' ? e.event : !e.event));
@@ -799,6 +1424,16 @@ export const sortieLogSection: OverviewSection = {
                         await copyWithFeedback(replayOpen, JSON.stringify(toKc3Replay(r)), t('ov.replayCopied'));
                     }
                 }
+                return;
+            }
+            const battleLog = target.closest<HTMLButtonElement>('button[data-battle-log]');
+            if (battleLog) {
+                const key = Number(battleLog.dataset.battleLog);
+                const entry = entries.find(item => item.key === key);
+                if (!entry?.replay) return;
+                const detail = buildSortieDetail(entry.rows, entry.replay);
+                battleDialogBody.innerHTML = battleLogHtml(detail, ctx.state);
+                battleDialog.showModal();
                 return;
             }
             // ★ 釘選：保留規則永不裁剪釘選場（見 utils/retention.ts）

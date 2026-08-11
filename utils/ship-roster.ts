@@ -26,7 +26,7 @@ import {
     filterShips,
     type EquipFilter, type ShipFilterState, type SpeedFilter,
 } from './ship-filter';
-import { NATIONS, nationOf, type Nation } from './ship-nationality';
+import { NATIONS, nationOf, nationsOf, type Nation } from './ship-nationality';
 
 // ── 裝備類別 id（api_mst_slotitem_equiptype，已用真實 start2 核對名稱）──
 export const GEAR_TYPE = {
@@ -220,6 +220,8 @@ export interface RosterShip extends OwnedShipView {
     night: number;
     /** 國籍（建造國，由 ctype 查表）。master 未載入時為 null＝不可考，見 nationOf()。 */
     nation: Nation | null;
+    /** 國籍篩選標籤；Верный 等因遊戲機制可同時屬於多個篩選國籍。 */
+    nations: Nation[];
 }
 
 /** 近代化改修四項是否全滿。master 未載入（kyoukaMax 為空）時一律 false——不猜。 */
@@ -262,6 +264,7 @@ export function annotateRoster(ships: OwnedShipView[], ann: RosterAnnotations): 
         openingTorpedo: isOpeningTorpedo(s),
         night: s.stats.firepower + s.stats.torpedo,
         nation: nationOf(s.ctype),
+        nations: nationsOf(s.masterId, s.ctype),
     }));
 }
 

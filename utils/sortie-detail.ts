@@ -287,6 +287,11 @@ function toSortieShip(s: ReplayShip | ReplaySupportShip): SortieShip {
     };
 }
 
+/** 出擊快照的裝備 master id（含補強增設），供夜戰裝備發動判定使用。 */
+function gearMasterIds(s: ReplayShip): number[] {
+    return [...(s.equip ?? []), s.exequip].filter((mst): mst is number => Number.isSafeInteger(mst) && mst > 0);
+}
+
 /** 對一個 replay 節點跑戰鬥重放。封包損壞時不讓整頁掛掉，回 null（UI 退回摘要欄位）。 */
 function analyzeNode(entry: ReplayNode, replay: ReplayRow): BattleInfoView | null {
     const day: any = entry.data;
@@ -296,9 +301,13 @@ function analyzeNode(entry: ReplayNode, replay: ReplayRow): BattleInfoView | nul
         escort: replay.fleet2.map(dameconOf),
     };
     try {
+        const playerGearIds = {
+            main: replay.fleet1.map(gearMasterIds),
+            escort: replay.fleet2.map(gearMasterIds),
+        };
         return entry.yasen
-            ? analyzeBattle([day, entry.yasen], damecons)
-            : analyzeBattle([day], damecons);
+            ? analyzeBattle([day, entry.yasen], damecons, { playerGearIds })
+            : analyzeBattle([day], damecons, { playerGearIds });
     } catch {
         return null;
     }

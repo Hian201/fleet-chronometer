@@ -80,9 +80,10 @@ describe('裝備位置與面板視圖', () => {
         expect(state.ownedGears().map(g => g.mst)).toEqual([e27Radar.api_id, scRadar.api_id]);
     });
 
-    it('未驗證的編成局部快照只刷新已知且 master 一致的裝備，不覆蓋完整艦資料', () => {
+    it('編成局部快照缺 api_ship_id 時不覆蓋完整艦資料，且 api_slot_data 不寫裝備庫', () => {
         const state = stateWithSlots([9202, -1, -1, -1], [4, 0, 0, 0], [scRadar.api_id]);
         const originalShip = state.ships.get(100);
+        const beforeGear = state.slotItems.get(9202);
         state.applyEvent('api_get_member/ship_deck', {
             // 只有 id 的局部物件不能覆蓋掉 HP／裝備欄等完整資料。
             api_ship_data: [{ api_id: 100 }],
@@ -92,37 +93,22 @@ describe('裝備位置與面板視圖', () => {
             }],
         });
         expect(state.ships.get(100)).toBe(originalShip);
-        expect(state.fleets()[0].ships[0].gears[0]).toMatchObject({
-            mst: scRadar.api_id, level: 2, alv: 1, cat: 'c-radar',
-        });
-
-        // 同一實例若 master 對不上，整筆忽略，不改裝備歸屬。
-        state.applyEvent('api_get_member/ship_deck', {
-            api_slot_data: [{ api_id: '9202', api_slotitem_id: String(e27Radar.api_id), api_level: 7 }],
-        });
-        expect(state.slotItems.get(9202)).toMatchObject({ mst: scRadar.api_id, level: 2 });
+        // KC3Kai：api_slot_data＝unsetslot，不是裝備實例刷新
+        expect(state.slotItems.get(9202)).toEqual(beforeGear);
     });
 
-    it('局部裝備資料缺少有效熟練度時不會誤稱已完成校正', () => {
+    it('ship_deck 帶完整 api_ship_data 時合併艦資料與艦隊', () => {
         const state = stateWithSlots([9202, -1, -1, -1], [4, 0, 0, 0], [scRadar.api_id]);
-        (state as any).alvStaleGears.add(9202);
-
         state.applyEvent('api_get_member/ship_deck', {
-            api_slot_data: [{
-                api_id: '9202', api_slotitem_id: String(scRadar.api_id),
-                api_level: '3', api_alv: 'invalid',
+            api_ship_data: [{
+                api_id: 100, api_ship_id: 1, api_slot: [9202, -1, -1, -1],
+                api_nowhp: 25, api_maxhp: 30, api_fuel: 10, api_bull: 10,
+                api_lv: 50, api_cond: 40, api_onslot: [0, 0, 0, 0],
             }],
+            api_deck_data: [{ api_ship: [100, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
         });
-        expect(state.slotItems.get(9202)).toMatchObject({ level: 3, alv: 0 });
-        expect(state.alvStale).toBe(true);
-
-        state.applyEvent('api_get_member/ship_deck', {
-            api_slot_data: [{
-                api_id: '9202', api_slotitem_id: String(scRadar.api_id), api_alv: '2',
-            }],
-        });
-        expect(state.slotItems.get(9202)).toMatchObject({ level: 3, alv: 2 });
-        expect(state.alvStale).toBe(false);
+        expect(state.ships.get(100)?.api_nowhp).toBe(25);
+        expect(state.decks[0].api_ship[0]).toBe(100);
     });
 
     it('只有未確認語意的任務獎勵 api_bounus 不會被誤當裝備實例', () => {

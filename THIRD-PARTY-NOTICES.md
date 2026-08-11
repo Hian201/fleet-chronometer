@@ -103,6 +103,22 @@
 
 ---
 
+## 5b. 渦潮燃彈扣減與基地空襲損失種別
+
+- **用途**：`utils/maelstrom.ts`／`utils/maelstrom-data.ts`（渦潮查表＋電探減輕逐艦扣燃彈）；
+  `utils/air-raid-lost-kind.ts`（`api_lost_kind` 1–4 文案對照）。
+- **來源**：KC3Kai — https://github.com/KC3Kai/KC3Kai
+  - 渦潮公式：`src/library/objects/Node.js#reduceFleetRscOnMaelstrom`（clean-room 重寫，
+    *inspired by* KC3Kai，非逐字複製）
+  - 渦潮比例表：`src/data/fud_weekly.json` 的 `maelstromLoss`（轉寫為 TypeScript 常數表）
+  - lost_kind 文案：`Meta.airraiddamage`／遊戲畫面既有四段訊息（事實性語意對照）
+- **授權**：MIT License
+- **版權**：Copyright (c) 2015-2026 dragonjet
+- **限制**：表外渦潮節點不猜不扣；連合艦隊 A／B 兩種電探計算法 KC3Kai 亦未完整處理，
+  本專案同樣擱置（出擊中各隊合併計電探、合併扣減）。
+
+---
+
 ## 6. 節點類型語意 (Map node event semantics)
 
 - **用途**：`utils/map-node-kind.ts` 把 `api_event_id`／`api_event_kind` 對應成節點類型
@@ -121,7 +137,7 @@
 
 ## MIT License 全文
 
-上述第 1、2、5、6 項（及第 3 項曾參照的 ElectronicObserverEN）均採用 MIT License，
+上述第 1、2、5、5b、6 項（及第 3 項曾參照的 ElectronicObserverEN）均採用 MIT License，
 其條款內容相同，全文如下：
 
 ```

@@ -258,6 +258,13 @@ describe('國籍篩選', () => {
     it('依國籍排序用顯示順序，不用字母序', () => {
         expect(sortRoster(roster(ships()), 'nation', 'asc').map(s => s.nation)).toEqual(['jp', 'us', 'gb']);
     });
+
+    it('Верный 可從日本與蘇聯國籍篩選找到', () => {
+        const rows = roster(build([{ id: 147, mst: 147 }]));
+        expect(rows[0]).toMatchObject({ nation: 'jp', nations: ['jp', 'su'] });
+        expect(filterRoster(rows, { ...emptyRosterFilter(), nations: ['jp'] }).map(s => s.id)).toEqual([147]);
+        expect(filterRoster(rows, { ...emptyRosterFilter(), nations: ['su'] }).map(s => s.id)).toEqual([147]);
+    });
 });
 
 describe('排序與分頁', () => {

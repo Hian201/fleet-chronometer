@@ -1,4 +1,4 @@
-// 艦娘國籍（建造國）對照表。
+// 艦娘基本國籍（建造國）與國籍篩選標籤對照表。
 //
 // 純資料＋純函式，無 chrome.* 與 DOM，可獨立編譯用 node 驗證（CLAUDE.md 設計原則 4）。
 //
@@ -7,7 +7,7 @@
 // 艦型 ctype，沒有任何國別欄位。故本表是人工維護的參照資料，不是從封包推導的衍生值。
 //
 // ── 鍵為什麼是 ctype（艦型）而不是逐艦 ────────────────────────────────
-// 國籍是**艦型層級**的屬性：同一艦型的所有艦與其所有改造形態都同國。以 ctype 為鍵有兩個
+// 基本國籍是**艦型層級**的屬性：同一艦型的所有艦與其所有改造形態都同國。以 ctype 為鍵有兩個
 // 好處：(1) 一個艦型只需一筆，新增改造形態不必回來補；(2) 改造形態自己的 master id 會隨
 // 改版增加，逐艦列舉必然腐爛。已用真實完整 start2 核對：862 艘図鑑內艦分屬 140 個 ctype，
 // **沒有任何 ctype 為 0**，也沒有跨國混編的 ctype（見下方「戰後移交」說明）。
@@ -21,8 +21,8 @@
 //     Dace → Dace改 → Leonardo da Vinci，yomi 仍是「デイス」）→ **美國**，不是義大利
 // 反向的例子同樣成立：伊504（ex Luigi Torelli，ctype 80）與伊503（ex C.Cappellini，
 // ctype 124）是義大利建造後移交日本，故歸**義大利**。
-// 這條規則讓 ctype 表自洽、零例外——**不要**為了個別艦名「看起來是哪一國」加逐艦覆蓋，
-// 那會讓同一艦型的不同形態分屬不同國，篩選結果反而變得無法解釋。
+// 這條規則讓基本 ctype 表自洽。國籍篩選若有明確的遊戲機制需求，另由下方的逐艦篩選
+// 標籤補充；它不會改寫 ctype 的基本國籍，也不會把封包欄位假裝成官方國籍資料。
 //
 // ── 維護方式 ────────────────────────────────────────────────────────────
 // 遊戲新增外國艦型時在下表補一列（鍵＝該艦型的 ctype，註解寫艦型名）。**未列出的 ctype
@@ -39,7 +39,7 @@ export type Nation =
  */
 export const NATIONS: Nation[] = ['jp', 'us', 'gb', 'de', 'it', 'fr', 'su', 'nl', 'au', 'se', 'no', 'th'];
 
-/** 艦型 → 國籍。未列出者一律為日本，見檔頭。註解為該 ctype 的代表艦／艦型名。 */
+/** 艦型 → 基本國籍（建造國）。未列出者一律為日本，見檔頭。 */
 export const NATION_BY_CTYPE: Readonly<Record<number, Nation>> = {
     // ── アメリカ ──
     65: 'us',   // Iowa級
@@ -121,4 +121,22 @@ export const NATION_BY_CTYPE: Readonly<Record<number, Nation>> = {
 export function nationOf(ctype: number): Nation | null {
     if (!ctype) return null;
     return NATION_BY_CTYPE[ctype] ?? 'jp';
+}
+
+/**
+ * 國籍篩選用的多重標籤。
+ *
+ * `nationOf()` 仍代表 ctype 查出的基本國籍；這支只在篩選層補上同一艦娘需要命中的
+ * 其他國籍。Верный（master id 147）依本專案的遊戲機制需求同時列入日本與蘇聯，讓
+ * 熟練見張員的日本艦加成與活動的海外艦篩選都能找到它。這不是遊戲 API 提供的國籍欄位。
+ */
+export const NATION_FILTER_OVERRIDES: Readonly<Record<number, readonly Nation[]>> = {
+    147: ['jp', 'su'], // Верный：繁中顯示「信賴」，原名仍是 Верный。
+};
+
+export function nationsOf(masterId: number | undefined, ctype: number): Nation[] {
+    // master 未載入時不可用 id 覆蓋把未知資料誤標成國籍；先確認基本 ctype 可考。
+    const base = nationOf(ctype);
+    if (base == null) return [];
+    return [...(NATION_FILTER_OVERRIDES[masterId ?? -1] ?? [base])];
 }

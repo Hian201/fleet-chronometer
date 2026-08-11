@@ -242,3 +242,91 @@ describe('任務本機進度：限定特定遠征任務 id（410/411/424）', ()
         expect(state.quests_().find(q => q.no === 424)?.progress).toEqual({ count: 4, target: 4 });
     });
 });
+
+describe('任務清單同步：完整 tab 缺席清除（2020-03-27 起 API 不分頁）', () => {
+    function seedActive(state: GameState, nos: number[], doneNo?: number) {
+        state.applyEvent('api_get_member/questlist', {
+            api_list: nos.map(no => ({
+                api_no: no,
+                api_state: no === doneNo ? 3 : 2,
+                api_title: `任務${no}`,
+                api_detail: '補給15回を達成せよ！',
+            })),
+        }, { api_tab_id: '9' });
+    }
+
+    it('tab 9（遂行中）缺席的達成任務必須從面板清除', () => {
+        const state = new GameState();
+        seedActive(state, [201, 210], 201);
+        expect(state.quests_().map(q => q.no).sort()).toEqual([201, 210]);
+        expect(state.quests_().find(q => q.no === 201)?.done).toBe(true);
+
+        // 領完 201 後再開遂行中：清單只剩 210（201 缺席＝已不在受注中/達成）
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [{ api_no: 210, api_state: 2, api_title: '任務210', api_detail: '補給15回を達成せよ！' }],
+        }, { api_tab_id: '9' });
+
+        expect(state.quests_().map(q => q.no)).toEqual([210]);
+        expect(state.questProgress.has(201)).toBe(false);
+    });
+
+    it('tab 0（全て）缺席或變回未受注（state 1）的任務必須清除', () => {
+        const state = new GameState();
+        seedActive(state, [201, 210], 201);
+
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [
+                { api_no: 210, api_state: 2, api_title: '任務210', api_detail: '補給15回を達成せよ！' },
+                // 201 已領獎後隔日重置會以 state 1 再出現；同時驗證 -1 空欄不誤判
+                { api_no: 201, api_state: 1, api_title: '任務201', api_detail: '…' },
+                -1,
+            ],
+        }, { api_tab_id: '0' });
+
+        expect(state.quests_().map(q => q.no)).toEqual([210]);
+        expect(state.questProgress.has(201)).toBe(false);
+    });
+
+    it('tab 9 回傳 api_list=null（該集合空了）時清空本機追蹤', () => {
+        const state = new GameState();
+        seedActive(state, [201], 201);
+
+        state.applyEvent('api_get_member/questlist', { api_list: null }, { api_tab_id: '9' });
+        expect(state.quests_()).toEqual([]);
+        expect(state.questProgress.size).toBe(0);
+    });
+
+    it('子集 tab（例如每日）缺席不得誤刪其他分類的任務', () => {
+        const state = new GameState();
+        seedActive(state, [201, 210]);
+
+        // 只刷新每日 tab：清單裡沒有 210 不代表 210 消失了
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [{ api_no: 201, api_state: 2, api_title: '任務201', api_detail: '補給15回を達成せよ！' }],
+        }, { api_tab_id: '1' });
+
+        expect(state.quests_().map(q => q.no).sort()).toEqual([201, 210]);
+    });
+
+    it('clearitemget 仍即時刪除；缺 api_quest_id 時不亂刪', () => {
+        const state = new GameState();
+        seedActive(state, [201, 210], 201);
+
+        state.applyEvent('api_req_quest/clearitemget', {}, { api_quest_id: '201' });
+        expect(state.quests_().map(q => q.no)).toEqual([210]);
+
+        state.applyEvent('api_req_quest/clearitemget', {}, {});
+        expect(state.quests_().map(q => q.no)).toEqual([210]);
+    });
+
+    it('無 api_tab_id 的舊封包維持只更新出現列、不因缺席刪除（防禦）', () => {
+        const state = new GameState();
+        seedActive(state, [201, 210], 201);
+
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [{ api_no: 210, api_state: 2, api_title: '任務210', api_detail: '補給15回を達成せよ！' }],
+        }, {});
+
+        expect(state.quests_().map(q => q.no).sort()).toEqual([201, 210]);
+    });
+});

@@ -10,7 +10,8 @@
 //   ・只攤到參戰的艦載機格（偵察機／對潛機不參戰，不分攤）
 //   ・不會把某一格扣成負數；扣不下的餘額順延給其他格
 //   ・出擊／回港重置估算標記（回港的 api_port/port 帶實數，那一刻起又是封包事實）
-// **逐格的分配比例本身是估算、不是封包事實**，故此處只斷言合計與邊界，不鎖特定分配。
+// **逐格分配是永久估算**（wikiwiki「航空戰」為逐格獨立亂數，封包只有合計，無法反推），
+// 故此處只斷言合計與邊界，不鎖特定分配。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { GameState } from '../utils/state';
@@ -403,69 +404,20 @@ describe('熟練度過時旗標（alvStale）', () => {
         expect(state.alvStale).toBe(true);
     });
 
-    // 撈完之後最早能拿回真實熟練度的地方：開「編成」／「改裝」畫面的端點帶
-    // api_slot_data。母港封包不帶，所以不接這一組的話，制空會一路錯到玩家碰巧開裝備庫。
-    it('編成／改裝端點的 api_slot_data 也會校正熟練度（不必等裝備庫）', () => {
-        const state = stateWithFleets([[{ mst: SHOUHOU, gears: [FIGHTER] }]]);
-        state.applyEvent('api_get_member/slot_item', [gear(1, FIGHTER, 7)]);
-        sortie(state);
-        state.applyEvent('api_req_sortie/battle', airBattle(3));
-        state.applyEvent('api_port/port', portOnly([15]));
-        const stale = state.airPower(0);
-        expect(state.alvStale).toBe(true);
-        state.applyEvent('api_get_member/ship_deck', { api_slot_data: [gear(1, FIGHTER, 3)] });
-        expect(state.alvStale).toBe(false);
-        expect(state.airPower(0).min).toBeLessThan(stale.min);
-    });
-
-    it('編成端點的形狀對不上就整段不做事（尚無真封包樣本，一律防禦性）', () => {
+    // KC3Kai／EO：ship_deck／ship3 的 api_slot_data＝未裝備清單，不是裝備＋alv。
+    // 熟練度校正只靠 require_info／slot_item；編成端點不得誤消過時標記。
+    it('編成端點的 api_slot_data 不校正熟練度（等同 unsetslot）', () => {
         const state = stateWithFleets([[{ mst: SHOUHOU, gears: [FIGHTER] }]]);
         state.applyEvent('api_get_member/slot_item', [gear(1, FIGHTER, 7)]);
         sortie(state);
         state.applyEvent('api_req_sortie/battle', airBattle(3));
         state.applyEvent('api_port/port', portOnly([15]));
         const before = state.airPower(0);
-        state.applyEvent('api_get_member/ship_deck', { api_ship_data: [] });        // 沒有 api_slot_data
-        state.applyEvent('api_get_member/ship_deck', { api_slot_data: 'nope' });    // 型別不對
-        state.applyEvent('api_get_member/ship_deck', { api_slot_data: [{ foo: 1 }] }); // 欄位不對
+        expect(state.alvStale).toBe(true);
+        state.applyEvent('api_get_member/ship_deck', { api_slot_data: [gear(1, FIGHTER, 3)] });
         expect(state.alvStale).toBe(true);
         expect(state.airPower(0)).toEqual(before);
-    });
-
-    // 過時標記記在「格」上而非全域：ship_deck 只回一隊，標成全域旗標的話，已經刷新過的
-    // 那一隊會跟著沒刷新的那一隊一起繼續掛警示。
-    it('部分刷新只消掉被刷新到的那幾格，其他艦隊仍如實標示過時', () => {
-        const state = stateWithFleets([
-            [{ mst: SHOUHOU, gears: [FIGHTER] }],
-            [{ mst: SHOUHOU, gears: [FIGHTER] }],
-        ], 1);
-        state.applyEvent('api_get_member/slot_item', [gear(1, FIGHTER, 7), gear(2, FIGHTER, 7)]);
-        sortie(state);
-        state.applyEvent('api_req_combined_battle/battle', {
-            ...airBattle(6),
-            api_f_nowhps_combined: [40], api_f_maxhps_combined: [40],
-        });
-        // 回港才結算：兩隊各有一格部分損耗（18 → 15）
-        const ship = (id: number, gid: number) => ({
-            api_id: id, api_ship_id: SHOUHOU, api_slot: [gid], api_slot_ex: 0,
-            api_lv: 1, api_nowhp: 40, api_maxhp: 40, api_cond: 49,
-            api_onslot: [15], api_fuel: 15, api_bull: 15, api_sakuteki: [10],
-        });
-        state.applyEvent('api_port/port', {
-            api_ship: [ship(1, 1), ship(2, 2)],
-            api_deck_port: [
-                { api_ship: [1], api_mission: [0, 0, 0, 0] },
-                { api_ship: [2], api_mission: [0, 0, 0, 0] },
-            ],
-            api_ndock: [], api_material: [], api_basic: {}, api_count_kdock: 0, api_combined_flag: 1,
-        });
-        expect(state.fleetSummary(0)!.airStale).toBe(true);
-        expect(state.fleetSummary(1)!.airStale).toBe(true);
-        // 只開了第1艦隊的編成畫面
-        state.applyEvent('api_get_member/ship_deck', { api_slot_data: [gear(1, FIGHTER, 4)] });
-        expect(state.fleetSummary(0)!.airStale).toBe(false);
-        expect(state.fleetSummary(1)!.airStale).toBe(true);
-        expect(state.combinedSummary().airStale).toBe(true);
+        expect(state.slotItems.get(1)?.alv).toBe(7);
     });
 
     it('裝備資料整批刷新（slot_item／require_info）才歸零，且制空跟著新熟練度重算', () => {

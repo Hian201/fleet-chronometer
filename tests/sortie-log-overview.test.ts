@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 import type { ReplayRow, ReplayShip, SortieLogRow } from '../utils/db';
 import { buildSortieDetail } from '../utils/sortie-detail';
-import { detailHtml, fleetKindKey, headHtml, shellHtml, type Entry } from '../entrypoints/overview/sections/sortie-log';
+import { battleLogHtml, detailHtml, fleetKindKey, headHtml, shellHtml, type Entry } from '../entrypoints/overview/sections/sortie-log';
 import { setLang, t } from '../utils/ui-i18n';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
@@ -110,6 +110,8 @@ describe('展開內容', () => {
         expect(html).toContain(t('ov.replayCopy'));
         expect(html).toContain('data-replay-open="500"');
         expect(html).toContain(t('ov.replayOpen'));
+        expect(html).toContain('data-battle-log="500"');
+        expect(html).toContain(t('ov.slBattleLog'));
     });
 
     it('沒有重播時只給摘要，並明講原因（不假裝那些資訊不存在）', () => {
@@ -160,6 +162,77 @@ describe('展開內容（KC3Kai 級的資訊密度）', () => {
         expect(html).toContain(t('ov.slFormation'));
         expect(html).toContain(t('sortie.ourSide'));
         expect(html).toContain(t('sortie.enemySide'));
+    });
+
+    it('交戰記錄包含路線、HP 時間線、交戰階段與航空／支援資料', () => {
+        const r = replay();
+        const html = battleLogHtml(buildSortieDetail(rows(), r), state);
+        expect(html).toContain(t('ov.slBattleKicker'));
+        expect(html).toContain(t('ov.slBattleHpTimeline'));
+        expect(html).toContain(t('ov.slBattlePhases'));
+        expect(html).toContain(t('ov.slBattlePlaneLoss'));
+        expect(html).toContain(t('ov.slBattleLbasWaves'));
+        expect(html).toContain(t('ov.slBattleSupportComposition'));
+        expect(html).toContain(t('ov.slBattleUnresolvedSource'));
+        expect(html).toContain('sl-battle-phase-details');
+        expect(html).not.toContain(`<h3>${t('ov.slBattleCombatSupport')}</h3>`);
+        expect(html).not.toContain('<details class="sl-battle-phase-details" open>');
+        expect(html).toContain(t('ov.slPhaseLandBase'));
+        expect(html).toContain(t('ov.slPhaseSupportShell'));
+        expect(html).toContain(t('sortie.airBattle'));
+        expect(html).toContain(t('ov.slBattleEnemyFleet'));
+        expect(html).toContain(t('ov.slBattleAfterDay'));
+        expect(html).toContain('data-battle-node="0"');
+        expect(html).toContain('data-battle-node="1"');
+        expect(html).toContain('data-battle-node-panel="0"');
+        expect(html).toContain('data-battle-node-panel="1"');
+        expect(html).toContain('<details class="sl-battle-panel sl-battle-hp-panel">');
+        expect(html).toContain('sl-battle-event');
+        expect(html).toContain(`<strong class="sl-battle-attacker-name">${state.shipName(2322)} #1</strong>`); // 61-3 node25 砲擊支援
+        expect(html).toContain(t('ov.slAttackDayCutIn'));          // api_at_type=6：水偵＋主砲
+        expect(html).toContain(t('ov.slAttackCarrierCutIn'));      // api_at_type=7：艦爆／艦攻
+        expect(html).toContain(t('ov.slAttackNightDouble'));      // api_sp_list=1
+        expect(html).toContain(t('ov.slAttackTorpedoCutIn'));     // api_sp_list=3
+        expect(html).not.toContain(t('ov.slBattleOurAttacks'));
+        expect(html).not.toContain(t('ov.slBattleFriendlyAttacks'));
+        expect(html).not.toContain(t('ov.slBattleEnemyAttacks'));
+        expect(html).toContain('sl-battle-attack-group');
+        expect(html).toContain('sl-battle-combat-row');
+        expect(html).toContain('sl-battle-combat-arrow');
+        expect(html).toContain('sl-battle-targets');
+        expect(html).toContain('sl-battle-hits');
+        expect(html).toMatch(/造成 \d+ 傷害、造成 \d+ 傷害/);
+        expect(html).not.toContain(t('ov.slBattleUnknownTarget'));
+        expect(html).not.toContain('sl-battle-event-flow');
+        const groupedAttacks = html.match(/class="sl-battle-attack-group sl-battle-event sl-battle-attack-group-/g)?.length ?? 0;
+        const separatedHits = html.match(/class="sl-battle-hit/g)?.length ?? 0;
+        expect(separatedHits).toBeGreaterThan(groupedAttacks);
+        const shelling1Start = html.indexOf('data-battle-phase="shelling1"');
+        const shelling2Start = html.indexOf('data-battle-phase="shelling2"', shelling1Start + 1);
+        const shelling1 = html.slice(shelling1Start, shelling2Start > shelling1Start ? shelling2Start : undefined);
+        const shelling1Sides = [...shelling1.matchAll(/sl-battle-attack-group-(player|friendly|enemy)/g)].map(m => m[1]);
+        const firstEnemy = shelling1Sides.indexOf('enemy');
+        expect(firstEnemy).toBeGreaterThanOrEqual(0);
+        expect(shelling1Sides.indexOf('player', firstEnemy + 1)).toBeGreaterThan(firstEnemy);
+        expect(html).not.toContain('敵方封包位置');
+        expect(html).not.toContain('>T<i>01</i>');
+    });
+
+    it('夜戰流程標題以緊湊標籤顯示已發動的夜戰裝備', () => {
+        const detail = buildSortieDetail(rows(), replay());
+        const nightNode = detail.nodes.find(node => node.battle?.timeline?.phases
+            .some(phase => phase.kind === 'nightShelling'));
+        expect(nightNode?.battle).toBeTruthy();
+        nightNode!.battle!.nightEffects = { starShell: true, nightRecon: true, searchlight: true };
+        const html = battleLogHtml(detail, state);
+        expect(html).toContain('sl-battle-night-effects');
+        expect(html).toContain('sl-battle-night-effect');
+        expect(html).toContain(t('ov.slBattleNightStarShell'));
+        expect(html).toContain(t('ov.slBattleNightRecon'));
+        expect(html).toContain(t('ov.slBattleNightSearchlight'));
+        const nightHeadStart = html.indexOf('data-battle-phase="nightShelling"');
+        const nightHead = html.slice(nightHeadStart, html.indexOf('</div>', nightHeadStart));
+        expect(nightHead.indexOf('<strong>')).toBeLessThan(nightHead.indexOf('sl-battle-night-effects'));
     });
 
     it('MVP 解析成艦名（1-based 位置對應出擊編成）、經驗值合計顯示', () => {

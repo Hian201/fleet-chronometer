@@ -1,10 +1,8 @@
 // 大破機制（旗艦大破／第二艦隊旗艦不沉／損管）與艦隊司令部退避的回歸測試。
 // 艦與裝備 master 一律取自真實 start2 fixture，不手捏 api_stype／裝備 id。
 //
-// ⚠️ 退避相關的封包欄位（battleresult 的 api_escape 與 goback_port 端點）**尚無真封包
-// 樣本**，本檔鎖住的是「解析與下游影響」的行為契約：欄位對了會怎樣、欄位缺了會怎樣。
-// 真封包到手（wantedTag 已埋鉤子）若證實索引基準不同，改 state.ts 的 shipAtSortiePos
-// 即可，本檔其餘斷言不受影響。
+// 退避：比照 KC3Kai（`api_escape_idx`／`api_tow_idx` 各取 [0]；1-based；連合 >6＝隨伴）。
+// 本檔鎖住解析與下游影響；旗艦哨兵（位置 1／連合的 7）解不出則不標。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { analyzeBattle } from '../utils/battle';
@@ -283,14 +281,14 @@ describe('艦隊司令部退避', () => {
         expect(state.escapedShipIds.size).toBe(0);
     });
 
-    it('候補混有不可解析的主隊旗艦哨兵時整筆不猜', () => {
+    it('只取 escape_idx[0]：開頭是旗艦哨兵就不標（後面候補忽略）', () => {
         const state = stateWithFleets([[{ mst: 1 }, { mst: 1 }]]);
         sortie(state);
         retreat(state, [1, 2]);
         expect([...state.escapedShipIds]).toEqual([]);
     });
 
-    it('連合候補混有第二艦隊旗艦哨兵時整筆不猜', () => {
+    it('連合：只取 [0]，開頭是第二艦隊旗艦哨兵就不標', () => {
         const state = stateWithFleets([
             [{ mst: 1 }, { mst: 1 }],
             [{ mst: 1 }, { mst: 1 }],
@@ -334,34 +332,10 @@ describe('艦隊司令部退避', () => {
     });
 });
 
-// api_escape_idx／api_tow_idx 是結算畫面「可以退避的船」，不是「實際退避的船」。
-// 實機回報：連合出擊只有朝霜曳航大井退避，面板卻把第2艦隊三艘驅逐艦全標成退避
-// ——反推當時的位置集合正是「大破艦＋全部未損傷驅逐艦」。整批標記會讓三艘健康的船
-// 燃料歸 0、cond 22，還被剔出制空／索敵／TP，故必須收斂成最多兩艘。
-describe('退避候補要收斂成實際退避的那一（兩）艘', () => {
-    it('曳航艦依隊內順位由上到下挑，跳過小破以上的候補', () => {
-        const state = stateWithFleets([
-            [{ mst: 1 }, { mst: 1 }],
-            // 第2艦隊：旗艦／大破的2號艦／小破的3號艦／健康的4號艦
-            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1, hp: 25 }, { mst: 1 }],
-        ], 1);
-        sortie(state);
-        retreat(state, [8], [9, 10]);
-        // 位置 9（小破）跳過 → 位置 10（id 6）才是曳航艦
-        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 6]);
-    });
-
-    it('候補順序未排序時仍依位置由上到下挑', () => {
-        const state = stateWithFleets([
-            [{ mst: 1 }, { mst: 1 }],
-            [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1 }, { mst: 1 }],
-        ], 1);
-        sortie(state);
-        retreat(state, [8], [10, 9]);
-        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
-    });
-
-    it('曳航候補有多艘時只退避一艘，不整批標記', () => {
+// api_escape_idx／api_tow_idx 可能列多艘候補；比照 KC3Kai 只取各陣列 [0]，
+// 絕不可整批標記（曾把三艘健康驅逐艦一起標退避）。
+describe('退避只取各陣列 [0]（inspired by KC3Kai）', () => {
+    it('曳航候補有多艘時只取 tow_idx[0]，不整批標記', () => {
         const state = stateWithFleets([
             [{ mst: 1 }, { mst: 1 }],
             // 第2艦隊：旗艦＋大破的 2 號艦＋三艘健康驅逐艦（＝遊戲會列出的曳航候補）
@@ -369,19 +343,19 @@ describe('退避候補要收斂成實際退避的那一（兩）艘', () => {
         ], 1);
         sortie(state);
         retreat(state, [8], [9, 10, 11]);
-        // 大破的第2艦隊2號艦（id 4）＋候補第一艘（id 5）；6、7 不受影響
+        // 大破的第2艦隊2號艦（id 4）＋ tow[0]（id 5）；6、7 不受影響
         expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
         expect(state.fleets()[1].ships.map(s => s.escaped)).toEqual([false, true, true, false, false]);
     });
 
-    it('大破候補有多筆時以本機追蹤的血量收斂出唯一那艘', () => {
+    it('escape_idx 有多筆時只取 [0]，不靠本機血量另猜', () => {
         const state = stateWithFleets([[{ mst: 1 }, { mst: 1 }, { mst: 1, hp: 4 }]]);
         sortie(state);
         retreat(state, [2, 3]);
-        expect([...state.escapedShipIds]).toEqual([3]);
+        expect([...state.escapedShipIds]).toEqual([2]);
     });
 
-    it('只有曳航候補、沒有大破艦候補時不猜任何退避艦', () => {
+    it('只有曳航候補、沒有大破艦候補時不標任何退避艦', () => {
         const state = stateWithFleets([
             [{ mst: 1 }, { mst: 1 }],
             [{ mst: 1 }, { mst: 1 }, { mst: 1 }],
@@ -391,38 +365,31 @@ describe('退避候補要收斂成實際退避的那一（兩）艘', () => {
         expect([...state.escapedShipIds]).toEqual([]);
     });
 
-    it('多個大破候補都符合本機血量時不猜玩家實際選了哪一艘', () => {
-        const state = stateWithFleets([[{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1, hp: 4 }]]);
-        sortie(state);
-        retreat(state, [2, 3]);
-        expect([...state.escapedShipIds]).toEqual([]);
-    });
-
-    it('沒有候補符合已知護衛條件時只標大破艦，不猜第一艘護衛候補', () => {
+    it('連合：tow_idx[0] 原樣採信（不另以護衛條件過濾）', () => {
         const state = stateWithFleets([
             [{ mst: 1 }, { mst: 1 }],
             [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1, hp: 25 }],
         ], 1);
         sortie(state);
         retreat(state, [8], [9]);
-        expect([...state.escapedShipIds]).toEqual([4]);
+        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
     });
 
-    it('單艦隊（遊撃部隊／水雷戦隊）沒有曳航艦：封包帶了曳航候補也不採信', () => {
+    it('單艦隊（遊撃部隊／水雷戦隊）沒有曳航艦：封包帶了 tow 也不採信', () => {
         const state = stateWithFleets([Array.from({ length: 7 }, () => ({ mst: 1 }))]);
         sortie(state);
         retreat(state, [3], [4, 5]);
         expect([...state.escapedShipIds]).toEqual([3]);
     });
 
-    it('曳航候補與大破艦重複時不會重複佔用名額', () => {
+    it('tow[0] 與 escape 同一艘時不重複佔名額', () => {
         const state = stateWithFleets([
             [{ mst: 1 }, { mst: 1 }],
             [{ mst: 1 }, { mst: 1, hp: 4 }, { mst: 1 }],
         ], 1);
         sortie(state);
         retreat(state, [8], [8, 9]);
-        expect([...state.escapedShipIds].sort((a, b) => a - b)).toEqual([4, 5]);
+        expect([...state.escapedShipIds]).toEqual([4]);
     });
 });
 

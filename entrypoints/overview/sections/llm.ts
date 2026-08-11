@@ -32,6 +32,7 @@ import { groupGears } from '@/utils/gear-inventory';
 import { findUnknownGears, findUnknownShips, type CoverageGap } from '@/utils/gamedata-coverage';
 import { rowsToCsv } from '@/utils/csv';
 import { t } from '@/utils/ui-i18n';
+import { airRaidLostKindLabel } from '@/utils/air-raid-lost-kind';
 import { esc, fmtTs, downloadText, copyWithFeedback } from '../lib';
 
 // ── B. 鎮守府概覽（完整報告，Markdown）──────────────────────
@@ -146,7 +147,10 @@ async function buildFullReport(state: GameState): Promise<string> {
         // 短版「最近出擊」保留一點時序脈絡（剛做了什麼），不做為統計依據
         lines.push('', t('ov.sortieRecent'));
         for (const s of sorties.slice(0, 5)) {
-            if (s.kind === 'raid') { lines.push(`- ${t('history.baseNode')}　損失種別 ${s.raidLostKind ?? '?'}`); continue; }
+            if (s.kind === 'raid') {
+                lines.push(`- ${t('history.baseNode')}　${airRaidLostKindLabel(s.raidLostKind)}`);
+                continue;
+            }
             const flag = s.enemyIds[0] ? state.shipName(s.enemyIds[0]) : '?';
             // 節點用攻略圈的字母（查表，見 utils/map-node-letters.ts）——給人／LLM 讀的報告
             // 寫「node 48」對不上任何攻略資料，寫「E」才有意義；查不到才退回原始 edge 編號。
