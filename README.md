@@ -31,7 +31,9 @@ still depend on MV2 (for example [KC3Kai](https://github.com/KC3Kai/KC3Kai))
 can no longer be relied on in current Chrome. This project is an emergency
 **Manifest V3** response — passive observation and local computation only. It
 does not replace the game, and it does not claim feature or data parity with
-existing tools.
+existing tools. This is an independently developed personal project with no
+affiliation, collaboration, or licensing relationship with [KC3Kai](https://github.com/KC3Kai/KC3Kai)
+or its original authors. It is intended solely as a personal fallback.
 
 **Do not treat this extension's displays or predictions as your only source of
 truth.** Back up anything that matters (use the local backup feature, or
