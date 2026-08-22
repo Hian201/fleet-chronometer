@@ -1,60 +1,18 @@
-// 艦隊四隊＋基地航空隊全覽（#4）。從共用 GameState 讀當前母港狀態，渲染四艦隊與
+// 艦隊四隊＋基地航空隊全覽。從共用 GameState 讀當前母港狀態，渲染四艦隊與
 // 基地航空隊，並可「複製／下載 Markdown」或「下載 PNG」（截圖）。
 //
-// 版面修正記錄（別走回頭路）：
-//   1. 艦艇列先前做成「主資訊＋裝備一路橫向 wrap 的 pill」，使用者回報「有點太亂」——
-//      改成縱向一格一行的裝備清單（icon＋全名＋改修/熟練/搭載數），對齊
-//      samples/Fleet_formation.png 的清晰度。
-//   2. 縱向清單第一版讓每艘船摺疊（`<details>`）省高度，但使用者接著回報「還是浪費
-//      太多空間」——問題不是清單本身，是**版面沒用到寬度**：艦隊卡先前是窄欄縱向堆
-//      六艘船，瀏覽器明明有 800px 寬只用了 300 多。改法：**一艘船一欄，一整隊一整行
-//      橫向排開**（`.fo-ship-row` flex），欄寬用 `flex:1 1 0` 平分——不滿 6/7 艘時
-//      每艘自動撐滿整行寬度，7 艘（遊擊部隊）都排得下就不留白。裝備清單**不再折疊**
-//      （常駐攤開），欄寬夠時看得到全名，欄擠時 `.fo-gear-name` 的 ellipsis 自然
-//      截斷——同一份 markup／CSS 兩種寬度都對付得了，不必為窄欄另刻一份圖示版。
-//   3. 基地航空隊卡欄寬同理收窄（`.fo-lbas-row` minmax 240px），目標 820px 內容寬時
-//      三隊排一行；量體遠小於艦隊（最多 4 中隊 vs 六艘船各五六格裝備），維持常駐攤開、
-//      不比照艦隊做橫向多欄。
-//   4. 「顯示範圍」（哪些艦隊/基地要顯示）用 `<details>` 摺疊起來，摺疊時的 summary
-//      顯示「已隱藏 N 項」（同 ships.ts「生效條件 chip 列常駐」的精神）。
-//   5. 傳給 KanColleImgBuilder／制空権シミュレータ的範圍**獨立於畫面顯示範圍**——
-//      使用者要求「先自選哪些編成跟基地航空隊」再送出，故兩顆按鈕改成先跳一個
-//      `<dialog>` 讓你單次勾選（預設帶入目前畫面的顯示範圍當起點，不影響畫面本身的
-//      顯示範圍設定），確定才組 DeckBuilder JSON 開新分頁。
-//   6. 艦卡版面改對齊使用者指定的參照圖（2026-08-03）：**一艘船一張卡**——艦名獨佔
-//      頂端一列（參照圖裡它壓在立繪上），下面兩列分別是「艦種｜Lv.」與「運｜HP｜士氣」
-//      （左右對齊、窄欄可換行），再下面才是裝備清單；艦隊標題下方多一列合計徽章
-//      （Lv／索敵／制空／TP／速力／火力，見 headBadges）。三項刻意的取捨：
-//        · **立繪不畫**——本擴充不碰遊戲美術資源，使用者已明確表示「沒有大頭貼不要緊」。
-//        · **艦載機搭載數（格子數量）整個不顯示**（使用者指定）：這一區看的是「這艘船
-//          帶了什麼」，名稱才是主角；搭載實數仍在面板出擊監控顯示，那邊要看的正是戰損
-//          後還剩幾架，兩區用途不同，別為了一致把數字加回來。
-//        · **熟練度不顯示數字**（使用者指定）：只留一個 `»` 符號＋三段顏色，實際階級退到
-//          title。裝備名稱維持單行 ellipsis＋hover 全名（使用者從三個選項裡選的這個，
-//          別自作主張改成換行或橫向捲動）。
-//   7. 艦欄改成**靠左對齊、不拉伸**（2026-08-03，使用者回報）：修正記錄 2 的
-//      `flex: 1 1 0`（欄寬平分整行、不滿編時每欄撐滿）在**只有一艘船**的隊伍上會把
-//      艦名／Lv／運／士氣拉開到整行左右兩端，中間一大片空白，反而更難讀。改成
-//      `flex: 0 1 var(--fo-col-w)`：不滿編時每欄停在「裝備全名讀得完」的基準寬度
-//      （20em）並靠左排，滿編（6/7 艘）擠不下時才依同一個 basis 平均收縮，回到修正
-//      記錄 2 的窄欄＋名稱省略。**別改回 `flex: 1 1 0`**——修正記錄 2 要解的是「窄欄
-//      縱向堆六艘、寬度沒用到」，靠左排一樣沒有回到那個問題。
-//   8. **rid 不是基地的唯一鍵**（2026-08-03，實機回報）：舊碼用 rid 當鍵（顯示範圍
-//      prefs、海域名對照、匯出 dialog 的 selector、DeckBuilder 的 a1~a3），但 rid 只是
-//      「**該海域的**第幾個基地」——中部海域與活動海域各有自己的第一/第二/第三基地
-//      航空隊，撞號後海域名整批被最後一個海域覆蓋，畫面上六個基地全掛同一個活動名、
-//      分不出誰是誰，開關也變成兩海域連動。唯一鍵見 `utils/state.ts` 的 `airBaseKey()`；
-//      DeckBuilder 的 a1~a3 改成依選取順序填、滿三格就停。
-//      同時把海域標籤改成 `airBaseAreaLabel()`：通常海域標成「6 中部海域」（那個 6 就是
-//      玩家熟悉的 6-x 的 6）。⚠️ **封包只給海域(maparea)層級**，沒有「這個基地屬於 6-4
-//      還是 6-5」這種資訊——基地本來就是整個海域共用，別再去找那個欄位。
-//   9. 「顯示範圍」改成 `position: sticky` 釘在捲動區頂端（使用者要求）：展開勾選後往下
-//      捲看艦隊時開關仍留在畫面上，才知道自己關掉了什麼。
-//  10. 基地航空隊的顯示範圍**以海域為單位、一個海域一顆 checkbox**（使用者指定）：
-//      一個海域最多三個基地、平常整組一起看，逐基地一顆只是讓那排 chip 更長（多海域時
-//      六顆以上）。chip 標的是海域標籤＋該海域的基地數（`6 中部海域 ×3`）。故 prefs 與
-//      兩個 scope 型別（`FleetMarkdownScope`／`DeckBuilderScope`）的 lbas 鍵都是
-//      `String(areaId)`——**別改回逐基地鍵，更別改回 rid**（後者見修正記錄 8）。
+// 版面契約：
+//   · 每艘艦一張卡，艦隊以橫向欄呈現；裝備逐列顯示完整名稱，欄寬不足時以 ellipsis 收束。
+//     同一份 markup／CSS 同時支援不同寬度，無須另維護窄欄圖示版。
+//   · 艦隊與基地航空隊的顯示範圍以 `<details>` 管理，控制項以 sticky 固定在捲動區頂端。
+//   · 傳給 KanColleImgBuilder／制空権シミュレータ的範圍獨立於畫面顯示範圍；使用者在
+//     `<dialog>` 中選取後才組 DeckBuilder JSON 開新分頁。
+//   · 不繪製立繪，因為本擴充不處理遊戲美術資源；艦載機搭載數不佔此區欄寬，熟練度以
+//     三段顏色與 `»` 表示，完整階級放在 title。出擊監控仍提供搭載實數。
+//   · 艦欄使用 `flex: 0 1 var(--fo-col-w)` 靠左排列；滿編時才平均收縮，避免單艘艦時
+//     資訊分散到整行兩端。
+//   · 基地航空隊的顯示範圍以海域為單位，lbas 鍵使用 `String(areaId)`。封包只提供
+//     maparea 層級的所屬資訊，不能可靠區分同一海域內的個別地圖；`rid` 不是全域鍵。
 //
 // Markdown／PNG 匯出仍直接吃畫面的顯示範圍 prefs（不跳選擇框）——這兩個是「複製/
 // 下載現在看到的東西」，跟「傳去另一個網站」的心智模型不同，沒有必要每次都多問一次。
@@ -69,18 +27,14 @@ import type { OverviewSection } from './types';
 import type { GameState, FleetView, AirBaseView, ShipView, GearView, SquadronView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
 import {
-    airBaseAreaLabel, esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, gearMarkdown,
-    loadJsonPrefs, saveJsonPrefs, type FleetMarkdownScope,
+    AIR_ACTION_KEYS, airBaseAreaLabel, esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, gearMarkdown,
+    loadJsonPrefs, saveJsonPrefs, shipGearsMarkdown, type FleetMarkdownScope,
 } from '../lib';
 import { buildDeckBuilder, imgBuilderUrl, airCalcUrl } from '@/utils/deckbuilder';
 
-const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];
-
 // ── 顯示範圍偏好（localStorage）──────────────────────────────
-// key 換過一次（`…-view` → `…-view2`）：lbas 的資料形狀從「長度 3、索引＝rid-1 的陣列」
-// 改成「以海域 id 為鍵的表」，見檔頭修正記錄 8、10。舊 key 的值沒有海域資訊、無法安全
-// 對映到新鍵（rid 1 到底是哪個海域的第一基地無從得知），故直接換 key 讓舊值自然作廢
-// ＝全部顯示，而不是猜著搬移。
+// lbas 偏好以海域 id 為鍵的表儲存；缺少海域資訊的舊格式無法安全轉換，故不套用其值，
+// 以全部顯示作為安全預設。
 const PREFS_KEY = 'kc-fleet-overview-view2';
 // lbas：`String(海域 id)` → 是否顯示，**缺席＝顯示**。新開的活動海域基地會自動出現在
 // 畫面上（不需要預先知道有幾個海域），這正是不能再用固定長度陣列的原因。
@@ -115,10 +69,10 @@ const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 // （艦隊裡船少、或基地卡）看得到全名，欄擠時（艦隊裡船多，見 shipCol）ellipsis 自然
 // 截斷——同一份 markup 兩種寬度都對付得了，不必為窄欄另刻一份圖示版。
 //
-// **搭載數（艦載機格數）與熟練度數字刻意不顯示**（使用者指定，見檔頭修正記錄 6）：
+// **搭載數（艦載機格數）與熟練度數字刻意不顯示**：
 // 這一區看的是「這艘船帶了什麼」，一行裡再塞 `18/18 »7` 會把裝備名的可用寬度吃掉
 // （名稱是這裡最重要的欄位），故搭載數整個不畫、熟練度只留一個符號、數字退到 title。
-// 面板（出擊監控）仍照舊顯示搭載實數——那邊要看的正是戰損後還剩幾架，兩區用途不同。
+// 面板（出擊監控）仍顯示搭載實數；兩區用途不同。
 function alvMarkHtml(alv: number): string {
     if (alv <= 0) return '';
     // 遊戲內熟練度是 0-7 階的帶章；本專案不畫帶章，只用一個符號＋分三段的顏色表達
@@ -150,10 +104,9 @@ function squadronRow(sq: SquadronView): string {
 
 // ── 螢幕渲染 ──────────────────────────────────────────────
 // 一艘船一欄（非一整行）：`.fo-ship-row` 用 flex 橫向排開，本函式只負責單欄內容，
-// 常駐攤開、不折疊（見檔頭修正記錄 2）。
+// 常駐攤開，讓裝備名稱與狀態可直接掃讀。
 //
-// 卡片內的三段（艦名／艦種＋Lv／運＋HP＋士氣）＝使用者指定的參照版面（見檔頭修正
-// 記錄 6）。艦名獨佔一列（參照圖裡它壓在立繪上方），故不再與艦種擠同一行——擠在
+// 卡片內的三段（艦名／艦種＋Lv／運＋HP＋士氣）保持固定層次。艦名獨佔一列，故不與艦種擠同一行——擠在
 // 一起時長艦名（Гангут два／天霧改二丁）會被艦種欄壓成一半寬度。**立繪刻意不畫**：
 // 本擴充不碰遊戲美術資源（設計原則：被動擷取、不代發請求），使用者已確認可接受。
 function shipCol(s: ShipView): string {
@@ -164,8 +117,9 @@ function shipCol(s: ShipView): string {
         : s.exEmpty ? `<div class="fo-gear-row ex empty"><span class="g-icon-slot"></span><span class="fo-gear-name dim">${esc(t('ov.shipsExEquipment'))}</span></div>`
             : '';
     const hpPct = s.maxhp > 0 ? s.hp / s.maxhp : 1;
-    const hpCls = hpPct <= 0.25 ? 'taiha' : hpPct <= 0.5 ? 'chuha' : hpPct < 1 ? 'shouha' : '';
+    const hpCls = s.inDock ? 'dock' : hpPct <= 0.25 ? 'taiha' : hpPct <= 0.5 ? 'chuha' : hpPct < 1 ? 'shouha' : '';
     const condCls = s.cond >= 50 ? 'fo-sparkle' : s.cond <= 19 ? 'fo-heavy' : s.cond <= 29 ? 'fo-tired' : '';
+    const dock = s.inDock ? `<span class="fo-dock" title="${esc(t('fleet.inDockTitle'))}">${esc(t('fleet.inDock'))}</span>` : '';
     return `<div class="fo-ship-col">
         <div class="fo-ship-name" title="${esc(s.nameJa && s.nameJa !== s.name ? `${s.name}（${s.nameJa}）` : s.name)}">${esc(s.name)}</div>
         <div class="fo-ship-head">
@@ -175,6 +129,7 @@ function shipCol(s: ShipView): string {
         <div class="fo-ship-stats">
             <span class="fo-luck"><i>${esc(t('ov.rsColLuck'))}</i> ${s.luck}</span>
             <span class="fo-hp ${hpCls}" title="${esc(t('ov.rsColHp'))}">${s.hp}/${s.maxhp}</span>
+            ${dock}
             <span class="fo-cond ${condCls}"><i>${esc(t('ov.rsColCond'))}</i> ${s.cond}</span>
         </div>
         <div class="fo-gear-list">${gears}${ex}</div>
@@ -195,7 +150,7 @@ function headBadges(f: FleetView, sum: FleetHeadSummary | null): string {
     const air = sum ? (sum.air.min === sum.air.max ? `${sum.air.min}` : `${sum.air.min}~${sum.air.max}`) : '';
     return `<div class="fo-badges">
         ${sum ? badge(t('fleet.lvTotal'), String(sum.lvSum)) : ''}
-        ${sum ? badge(t('fleet.scouting33'), sum.f33.toFixed(2)) : ''}
+        ${sum ? badge(t('fleet.scouting33'), sum.f33.toFixed(1)) : ''}
         ${sum ? badge(t('fleet.airPower'), air, { est: sum.airStale, title: sum.airStale ? t('fleet.airPowerStaleTitle') : undefined }) : ''}
         ${sum && sum.tp.gear > 0 ? badge(t('fleet.transportTP'), String(sum.tp.total), { title: t('fleet.transportTPTitle') }) : ''}
         ${sum ? `<span class="fo-badge"><b>${esc(sum.speed)}</b></span>` : ''}
@@ -243,7 +198,7 @@ function buildMarkdown(state: GameState, scope: FleetMarkdownScope): string {
 
 // ── PNG 匯出（內聯樣式、純文字，穩定點陣化）────────────────
 // 裝備寫法共用 lib.ts 的 gearMarkdown()（同 Markdown 匯出）：★10 只給星號、熟練度接
-// 符號。這裡曾自己內聯一份「name + ★level」，於是同一支艦隊兩種匯出寫法不一致。
+// 符號。Markdown 與 PNG 匯出共用同一份純文字格式，確保同一支艦隊的輸出一致。
 function buildExportHtml(state: GameState, scope: FleetMarkdownScope): { html: string; height: number } {
     const rows: string[] = [];
     const line = (txt: string, bold = false, indent = 0) =>
@@ -253,7 +208,7 @@ function buildExportHtml(state: GameState, scope: FleetMarkdownScope): { html: s
         if (!f.ships.length || !scope.fleets[i]) return;
         rows.push(line(`${t('ov.fleetN', { n: i + 1 })} — ${f.name}`, true));
         for (const s of f.ships) {
-            const gears = s.gears.filter(Boolean).map(g => gearMarkdown(g!)).join(' / ');
+            const gears = shipGearsMarkdown(s);
             rows.push(line(`${s.stype} ${s.name}  Lv${s.lv}  HP${s.hp}/${s.maxhp}  ${gears}`, false, 12));
         }
     });
@@ -299,7 +254,7 @@ export const fleetOverviewSection: OverviewSection = {
         const hasData = fleetsAll.some(f => f.ships.length) || basesAll.length > 0;
         if (!hasData) { el.innerHTML = `<div class="ov-empty">${esc(t('ov.fleetOverviewNone'))}</div>`; return; }
         const prefs = loadPrefs(fleetsAll.length);
-        // 基地航空隊**以海域為單位**開關（使用者指定，見檔頭修正記錄 10）：一個海域最多
+        // 基地航空隊**以海域為單位**開關：一個海域最多
         // 三個基地、平常整組一起看，逐基地一顆 checkbox 只是讓那排 chip 更長。海域名在
         // 這裡查一次快取起來（chip 列與基地卡各要用一次，避免兩處算出不一致的字串）。
         const areaIds = [...new Set(basesAll.map(b => b.areaId))].sort((a, b) => a - b);
@@ -393,7 +348,7 @@ export const fleetOverviewSection: OverviewSection = {
             downloadText(`fleet-${Date.now()}.md`, buildMarkdown(state, scope()), 'text/markdown'));
         el.querySelector('#fo-png')!.addEventListener('click', () => downloadPng(state, scope()));
 
-        // ── 傳去外部工具前先選範圍（使用者要求，見檔頭修正記錄 5）──
+        // ── 傳去外部工具前先選範圍 ──
         // dialog 裡的 checkbox 是獨立一份、預設帶入目前畫面顯示範圍當起點，勾選只
         // 影響這次傳送，不寫回 prefs／不影響畫面。
         const dialogEl = el.querySelector<HTMLDialogElement>('.fo-export-dialog')!;

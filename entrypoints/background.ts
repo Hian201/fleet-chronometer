@@ -12,7 +12,7 @@ import { captureResources } from '@/utils/resource-capture';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
 
-// [新增] 提前通知時間：遊戲機制中剩餘 1 分鐘回港即自動結算
+// 提前通知時間：遊戲機制中剩餘 1 分鐘回港即自動結算
 const EARLY_MS = 60_000;
 
 // 母港快照（db.snapshot，見 utils/db.ts SnapshotRow 註解）要保存的 path 清單：
@@ -31,7 +31,7 @@ const SNAPSHOT_PATHS = new Set([
   'api_get_member/mapinfo',
 ]);
 
-// [新增] 立即發送系統通知
+// 立即發送系統通知
 async function notifyNow(message: string, notificationId?: string) {
   console.log('[notify now]', message);
   const options = {
@@ -44,7 +44,7 @@ async function notifyNow(message: string, notificationId?: string) {
   else await browser.notifications.create(options);
 }
 
-// [新增] 若剩餘 ≤ 1 分鐘就立即通知，否則建立提前 1 分鐘的 alarm
+// 若剩餘 ≤ 1 分鐘就立即通知，否則建立提前 1 分鐘的 alarm
 async function scheduleOrNotify(name: string, completeAt: number, notificationId?: string) {
   const target = completeAt - EARLY_MS;
   if (target <= Date.now()) {
@@ -55,7 +55,7 @@ async function scheduleOrNotify(name: string, completeAt: number, notificationId
 }
 
 // ingestEvent() 失敗時的回覆內容：sender 只需要知道「這筆結束了」，錯誤本身留在 SW console。
-// 舊寫法把 promise 直接回傳給瀏覽器，失敗時會變成無人接手的 unhandled rejection。
+// 回覆只表示處理已結束；錯誤留在 SW console，避免將 rejected promise 交給訊息通道。
 function reportIngestFailure(error: unknown): undefined {
   console.error('[KC-Monitor] ingestEvent 失敗', error);
   return undefined;
@@ -76,8 +76,8 @@ export default defineBackground(() => {
   // 各自在此加一個 listener、構造同格式 row 並標對應 source，同樣呼叫 ingestEvent()——
   // 下游（裁剪、通知、db.events→GameState→面板）一行都不用改（見 utils/db.ts ApiEventRow 合約）。
   // ── 遊戲頁偏好（靜音／語言鏡像）─────────────────────
-  // 靜音狀態的持有者是 SW（遊戲分頁重載後仍要生效）。實機確認 BGM 不一定走遊戲框內可
-  // 攔截的音訊路徑，故除既有 hook 外，以 tabs.update 靜音整個遊戲分頁，確保 BGM 一併停止。
+  // 靜音狀態的持有者是 SW（遊戲分頁重載後仍要生效）。BGM 不一定走遊戲框內可攔截的
+  // 音訊路徑，故除既有 hook 外，以 tabs.update 靜音整個遊戲分頁，確保 BGM 一併停止。
   type MutePort = Parameters<Parameters<typeof browser.runtime.onConnect.addListener>[0]>[0];
   const mutePorts = new Set<MutePort>();
   const mutePortTabs = new Map<MutePort, number>();
@@ -109,8 +109,8 @@ export default defineBackground(() => {
     }
   };
 
-  // 所有回覆一律走 sendResponse + return true（見 utils/runtime-reply.ts 檔頭：回傳
-  // Promise 只有 Chrome 148 起才支援，舊版會讓 sender 收到 undefined 而非真正的回覆）。
+  // 所有回覆一律走 sendResponse + return true（見 utils/runtime-reply.ts 檔頭）：
+  // 這能讓未支援 Promise listener 的瀏覽器也收到實際回覆。
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // popup 快捷選單的「開啟面板」（entrypoints/popup/）：開窗邏輯留在 SW，
     // popup 送完訊息就自關，不能自己開窗（popup 關閉會中斷其非同步流程）。
@@ -125,8 +125,8 @@ export default defineBackground(() => {
         sendResponse,
       );
     }
-    // `connected` = 目前連著的遊戲分頁數。0 代表沒有任何分頁跑著新版 content script
-    // （擴充更新後遊戲分頁未 F5），此時靜音一定無效——這種「靜靜沒反應」最難查，故回報。
+    // `connected` = 目前連著的遊戲分頁數。0 代表沒有任何分頁已重新注入 content script
+    // （擴充更新後遊戲分頁未 F5），此時靜音一定無效；回傳連線數讓 UI 能指出這個狀態。
     if (msg?.type === MSG_MUTE_GET) {
       return replyWhenSettled(
         readGamePagePrefs().then(p => ({ muted: p.muted, connected: mutePorts.size })),
@@ -189,7 +189,7 @@ export default defineBackground(() => {
       delete (req as Record<string, unknown>).api_token;
       delete (req as Record<string, unknown>).api_verno;
     }
-    // ingestion 完成後才回覆（舊寫法是回傳 promise，等於在多數瀏覽器上立刻回覆 undefined）。
+    // ingestion 完成後才回覆；訊息通道必須保持開啟，
     // 這裡刻意讓通道開到寫入結束：SW 若在寫入途中被回收，通道會以錯誤關閉，bridge 的
     // sendKcApiRuntimeMessageWithRetry 便會用同一個 envelope 重試一次，而不是靜靜掉一筆封包；
     // captureId 相同，重複由既有 unique index 去重，不會產生第二筆 raw event。
@@ -208,7 +208,7 @@ export default defineBackground(() => {
     );
   });
 
-  // [修改] alarm 觸發時改用 notifyNow 統一邏輯
+  // alarm 觸發時統一使用 notifyNow
   browser.alarms.onAlarm.addListener(a => {
     console.log('[alarm fired]', a.name);
     void notifyNow(a.name);
@@ -218,7 +218,7 @@ export default defineBackground(() => {
 
   // 點擊擴充圖示改由 popup 快捷選單接手（manifest action.default_popup，
   // entrypoints/popup/）：MV3 規格下設了 default_popup 後 action.onClicked
-  // 永遠不觸發，故原本掛在 onClicked 的開面板邏輯移到上方 kc:open-panel 訊息。
+  // 永遠不觸發，開面板邏輯由上方 kc:open-panel 訊息處理。
 });
 
 /** 依 content script 的實際 outer-inner 差，讓內容區精準容納原始遊戲區與底部列。 */
@@ -266,8 +266,8 @@ async function writeGamePagePrefs(patch: { muted?: boolean; lang?: string }): Pr
 
 // 面板視窗單例化：已開著就聚焦既有視窗，不重複開新的。
 // 作法是向面板 ping、由它回報自己的 windowId（面板側 listener 見 panel/main.ts）：
-// tabs.query({url}) 依 url 過濾需要 tabs 權限（自家頁面亦然，無權限時一律匹配不到），
-// 而本擴充刻意只保留 alarms+notifications，故不走該路。SW 隨時會死，不能靠記憶體變數。
+// tabs.query({url}) 依賴分頁 URL 且會擴大查詢範圍；面板只需 runtime ping 回報 windowId，
+// 因此不必再以 URL 查詢。SW 隨時會死，不能靠記憶體變數。
 async function openPanelWindow() {
   // 沒有面板在聽時 sendMessage 會 reject（無接收端），視同未開啟
   const winId = await browser.runtime.sendMessage({ type: 'kc:panel-ping' }).catch(() => null);
@@ -278,14 +278,10 @@ async function openPanelWindow() {
   }
   await browser.windows.create({
     url: browser.runtime.getURL('/panel.html'),
-    // width 420 為硬約束（使用者要求不准加寬）。
-    // height 905→850：先前 800→850→915→905 一路都是純算式估計，從未量過實機。
-    // 拿使用者提供的實機截圖（未保留於儲存庫，height=915 時只有 6 艘）
-    // 逐像素量測：從視窗最頂（含 macOS 標題列）到最後一艘裝備列結束僅 775px，
-    // 下方留白足足 140px；用 headless Chromium 載入真實 CSS＋7 艘樣板 render 交叉
-    // 驗證，單艘列高確實是 49.5px（不是估計的 51.5px），tabpanel 固定高度也已生效
-    // （後調為 270px 收資訊區底留白、編成上移以露出七船；165px 戰鬥列釘死不變）。
-    // 775（6艘）+49.5（第7艘）+標題列已含在775內 ≈ 825，850 再留 25px 餘裕。
+    // width 420 是內容區目標（與預覽 .pv-app 相同）。create 的 width 含外框，
+    // 面板啟動時 fitPanelInnerWidth 會把 popup 補到內寬 420，視窗仍須維持此內容寬度。
+    // height 850 須容納標題列、固定 270px 資訊區、固定 165px 戰鬥列與七艘單行編成；
+    // 這個高度已按面板 CSS 的實際列高保留少量餘裕。
     // ⚠️ 此高度假設裝備列單行。若 .chips wrap 成兩行，單艘變高，第 7 艘會被裁掉——
     // 見 panel/index.html .chips／.chip 寬度預算註解，勿靠加高視窗掩蓋換行。
     type: 'popup', width: 420, height: 850,

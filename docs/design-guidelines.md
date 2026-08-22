@@ -485,7 +485,9 @@ npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts   # 出擊
 npx vite-node --config vitest.config.ts tools/preview/panel-general.ts  # 一般分頁
 ```
 
-→ `.preview/panel-sortie{,-light}.html`（編成／連合艦隊由頁面上方選項切換）。**先改預覽、量過、再改正式面板。**
+→ `.preview/panel-sortie{,-light}.html`（編成／連合艦隊由頁面上方選項切換）。預覽是獨立的
+量測 fixture，不是正式面板的實作來源；版面變更後必須同步 `tools/preview/panel-sortie.ts`、
+`entrypoints/panel/main.ts` 與相關測試。
 
 ### 7.1 視窗幾何
 

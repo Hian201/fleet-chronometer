@@ -61,12 +61,8 @@
   **非描圖（tracing）亦非任何既有圖示的改作**。
 - **配色依據**：各裝備主色取自遊戲的既有色彩慣例（如主砲依口徑由 `#ff8080`→`#ff4040`→`#ff0000`、
   艦載機機身統一綠、徽章依機種著色）。色彩慣例屬事實性資訊，不構成著作權標的。
-- **曾參照（現已不再散布其資產）**：開發期間曾短暫採用 ElectronicObserverEN
-  （https://github.com/ElectronicObserverEN/ElectronicObserver ，MIT，
-  Copyright (c) 2014 Andante）的 PNG 圖示作為過渡，並用其
-  `ElectronicObserver.Core/Types/EquipmentIconType.cs` 確認 icon id 的語意對應
-  （該對應為遊戲 API 的事實性資料）。**現行版本已全數換為原創 SVG，
-  未散布該專案任何檔案**，保留此段僅為開發歷程的誠實記錄。
+- **現行資產**：圖示由本專案以幾何圖形重新繪製為 SVG；icon id 的語意只依遊戲 API
+  master 資料確認，不散布第三方圖示檔案。
 
 ---
 
@@ -96,8 +92,8 @@
 - **散布內容**：`tools/map-edges/edges.json` 為原始檔的副本（取得日 2026-07-22）；
   產生物只保留「edge id → 終點字母」，**已捨棄原檔的起點欄位**。
 - **為何非用不可**：字母不在任何遊戲封包裡（封包只給 edge 編號），且編號與字母**沒有可推導的
-  關係**（同一字母可對到多條 edge）。本專案先後試過 ASCII 推算與編號排序兩種規則，
-  皆被使用者提供的真實對照否證（見 `utils/map-node-letters.ts` 檔頭）。
+  關係**（同一字母可對到多條 edge）。因此必須使用上游 edge 對照資料；沒有對照的海域顯示
+  原始編號，不從編號推算字母（見 `utils/map-node-letters.ts`）。
 - **更新方式**：重新下載上游 `edges.json` 覆蓋 `tools/map-edges/edges.json` 後重跑產生器；
   新活動海域在上游更新前會顯示原始編號，UI 已明講原因。
 
@@ -137,7 +133,7 @@
 
 ## MIT License 全文
 
-上述第 1、2、5、5b、6 項（及第 3 項曾參照的 ElectronicObserverEN）均採用 MIT License，
+上述第 1、2、5、5b、6 項均採用 MIT License，
 其條款內容相同，全文如下：
 
 ```

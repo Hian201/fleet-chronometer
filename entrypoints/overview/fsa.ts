@@ -2,8 +2,8 @@
 //
 // 為何走這條而非 Google Drive / WebDAV 原生 API：後兩者需要 identity(OAuth)＋
 // host_permissions（googleapis.com）或 optional_host_permissions（WebDAV 主機），
-// 都是「新增權限」，違反本專案權限精簡的硬約束（見 CLAUDE.md 設計原則 5、LLM 子系統
-// 決策脈絡）。FSA 是 secure context 的網頁 API，overview 是一般 extension 頁面即可用；
+// 都會增加本專案的權限範圍（見 CLAUDE.md 設計原則 5）。FSA 是 secure context 的網頁 API，
+// overview 是一般 extension 頁面即可用；
 // 使用者選一次資料夾（可指向 Google Drive Desktop 同步夾／WebDAV 掛載的網路磁碟／
 // Dropbox…），上雲同步是桌面同步客戶端的事，擴充只負責「寫檔進那個資料夾」——
 // 延續 MCP 路徑「擴充存檔就結束、出不出境由使用者的 OS/同步客戶端決定」的同一套哲學。
@@ -64,7 +64,7 @@ export function fsaSupported(): boolean {
     return typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
 }
 
-/** 讓使用者選一個資料夾並記住（覆寫先前選的）。使用者取消會 throw AbortError。 */
+/** 讓使用者選一個資料夾並儲存最新的 handle。使用者取消會 throw AbortError。 */
 export async function pickBackupDir(): Promise<DirHandle> {
     const picker = (window as unknown as {
         showDirectoryPicker(opts?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
@@ -74,7 +74,7 @@ export async function pickBackupDir(): Promise<DirHandle> {
     return handle;
 }
 
-/** 取回先前選定的資料夾 handle（沒有則 undefined）。尚未重新授權，寫入前須 ensureRw。 */
+/** 取回已儲存的資料夾 handle（沒有則 undefined）。尚未重新授權，寫入前須 ensureRw。 */
 export async function savedBackupDir(): Promise<DirHandle | undefined> {
     return idbGet<DirHandle>(KEY);
 }
@@ -96,7 +96,20 @@ export function dirName(handle: FileSystemDirectoryHandle): string {
     return handle.name;
 }
 
-/** 寫一個文字檔到資料夾（同名覆寫）。 */
+/** 資料夾裡是否已有這個檔名（不含 create，不會誤生空檔）。 */
+export async function fileExists(dir: DirHandle, name: string): Promise<boolean> {
+    try {
+        await dir.getFileHandle(name);
+        return true;
+    } catch (e) {
+        if (e instanceof DOMException && e.name === 'NotFoundError') return false;
+        // 同名是資料夾：視為已佔用，換下一個檔名。
+        if (e instanceof DOMException && e.name === 'TypeMismatchError') return true;
+        throw e;
+    }
+}
+
+/** 寫一個文字檔到資料夾（同名覆寫；備份 JSON 須先用 unusedBackupFileName 避開既有檔案）。 */
 export async function writeFileTo(dir: DirHandle, name: string, text: string): Promise<void> {
     const fh = await dir.getFileHandle(name, { create: true });
     const w = await fh.createWritable();

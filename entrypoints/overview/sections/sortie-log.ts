@@ -1,9 +1,9 @@
 // 出擊紀錄：db.sorties 全歷史（面板「紀錄」分頁的完整版）＋每次出擊的 KC3Kai battleplayer
 // 重播匯出（資料在 db.replays）。
 //
-// ── 版面取捨（2026-07-22 改版）──────────────────────────────────────────
-// 舊版是「一張海域一塊、底下逐節點一行」的流水帳：看得到結果，看不出**這是哪一次出擊、
-// 帶了誰、走了哪條路**——而那正是回頭翻紀錄時真正要問的三件事。改成一次出擊一張卡：
+// ── 版面契約 ──────────────────────────────────────────────────────────
+// 一次出擊一張卡，摘要列固定呈現出擊次數、關卡、編成與節點軌跡；展開後才載入編成、支援、
+// 基地航空隊與逐節點作戰資訊。這讓摘要可快速掃讀，詳細戰鬥資料也不必在進入分區時全部解析。
 //
 //   摺疊列（一次出擊一列，兩行）：
 //     行1　#第幾次 ・ 關卡代號（活動顯示 E{n}＋難度）・ 出擊編成成員 ・ 展開箭頭
@@ -20,11 +20,11 @@
 // ── 資料來源與分工 ────────────────────────────────────────────────────
 // 節點序列與勝負來自 db.sorties（摘要，永久保留）；敵艦等級／制空詳情／基地航空隊組成／
 // 支援艦隊編組只存在於 db.replays 的**原始封包**裡，故沒有重播的舊出擊只會顯示摘要那半邊
-// （UI 明講，不假裝那些資訊不存在）。重建邏輯全在 utils/sortie-detail.ts（純函式、
-// 用真封包測試），本檔只負責 DOM 與事件——同 ships.ts／equipment.ts 的分工。
+// （UI 明講，不假裝那些資訊不存在）。重建邏輯全在 utils/sortie-detail.ts（純函式），
+// 本檔只負責 DOM 與事件——同 ships.ts／equipment.ts 的分工。
 //
 // 展開時才跑 `buildSortieDetail()`（內含戰鬥重放），結果快取；摺疊列只用摘要＋快照，
-// 不碰封包解析——否則一進分區就要把整個重播層跑一遍。
+// 以避免進入分區時解析整個重播層。
 import type { OverviewSection, SectionContext } from './types';
 import { db, type ReplayRow, type SortieLogRow } from '@/utils/db';
 import {
@@ -36,11 +36,16 @@ import {
     sortieTime, type LbasWave, type NodeDetail, type SortieDetail, type SortieShip,
 } from '@/utils/sortie-detail';
 import {
+    buildSortieSimulator, KC3_SORTIE_SIMULATOR_DIRECT_URL_LIMIT, KC3_SORTIE_SIMULATOR_URL,
+    toSortieSimulatorUrl, type SortieSimulatorInput,
+} from '@/utils/sortie-simulator';
+import {
     importSortie, parseSortieImport, SortieImportDuplicateError, SortieImportError,
 } from '@/utils/sortie-import';
 import { hasNodeLetters, nodeLabel as letterOf } from '@/utils/map-node-letters';
 import { nodeKindKey } from '@/utils/map-node-kind';
 import { airRaidLostKindLabel } from '@/utils/air-raid-lost-kind';
+import { buildReplayDeckBuilder } from '@/utils/deckbuilder';
 import type {
     BattleDamageEvent, BattleDamageKind, BattleHpSnapshot, BattleHpView, BattleInfoView, BattlePhaseKind, BattlePhaseView,
     BattleShipView,
@@ -54,8 +59,8 @@ import {
 } from '../lib';
 
 const SEIKU_KEYS = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
-// 陣形 api_formation[0]/[1]：1–6 一般陣形；連合艦隊為 11–14（警戒航行序列，真封包實測
-// 61-3／61-5 的我方值為 11–14、敵連合亦出現 14）。中間 7–10 不存在，故留空。
+// 陣形 api_formation[0]/[1]：1–6 一般陣形；連合艦隊為 11–14（警戒航行序列）。
+// 中間 7–10 沒有對應標籤，故留空。
 const FORMATION_KEYS = [
     'form.unknown', 'form.single', 'form.double', 'form.ring', 'form.ladder', 'form.abreast', 'form.vigilant',
     '', '', '', '',
@@ -69,8 +74,8 @@ const LBAS_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lba
 const COMBINED_KEYS = ['', 'ov.slCombinedCarrier', 'ov.slCombinedSurface', 'ov.slCombinedTransport'];
 
 const BATTLE_PHASE_KEYS: Record<BattlePhaseKind, string> = {
-    landBase: 'ov.slPhaseLandBase', jet: 'ov.slPhaseJet', air: 'ov.slPhaseAir', airSecond: 'ov.slPhaseAirSecond',
-    supportAir: 'ov.slPhaseSupportAir', supportShell: 'ov.slPhaseSupportShell',
+    jetBase: 'ov.slPhaseJetBase', landBase: 'ov.slPhaseLandBase', jet: 'ov.slPhaseJet', air: 'ov.slPhaseAir', airSecond: 'ov.slPhaseAirSecond',
+    supportAir: 'ov.slPhaseSupportAir', supportShell: 'ov.slPhaseSupportShell', supportTorpedo: 'ov.slPhaseSupportTorpedo', supportAsw: 'ov.slPhaseSupportAsw',
     openingAntiSub: 'ov.slPhaseOpeningAntiSub', openingTorpedo: 'ov.slPhaseOpeningTorpedo',
     shelling1: 'ov.slPhaseShelling1', shelling2: 'ov.slPhaseShelling2', shelling3: 'ov.slPhaseShelling3',
     torpedo: 'ov.slPhaseTorpedo', friendlyShelling: 'ov.slPhaseFriendlyShelling',
@@ -247,7 +252,9 @@ function gearIcons(ship: SortieShip, state: SectionContext['state']): string {
     });
     if (ship.exequip > 0) {
         const name = state.gearName(ship.exequip);
-        cells.push(`<span class="sl-gear ex" title="${esc(t('ov.shipsEx'))}: ${esc(name)}">${gearIconHtml(state.gearIconId(ship.exequip), name)}</span>`);
+        const exStar = (ship.exstars ?? 0) > 0 ? `<i class="sl-star">★${ship.exstars}</i>` : '';
+        const exTitleStar = (ship.exstars ?? 0) > 0 ? ` ★${ship.exstars}` : '';
+        cells.push(`<span class="sl-gear ex" title="${esc(t('ov.shipsEx'))}: ${esc(name)}${exTitleStar}">${gearIconHtml(state.gearIconId(ship.exequip), name)}${exStar}</span>`);
     }
     return cells.join('');
 }
@@ -301,8 +308,8 @@ function supportColumn(
     entry: SortieDetail['supports'][number] | undefined, title: string, state: SectionContext['state'], map = '',
 ): string {
     if (!entry) return fleetColumn(title, [], state, t('ov.slSupportNone'));
-    // 支援種別（航空系／砲擊系）由封包哪個結構非 null 決定，api_support_flag 只放 title
-    const kind = t(entry.use.kind === 'air' ? 'ov.slSupportAir' : 'ov.slSupportShell');
+    // 支援種別由 api_support_flag 分類；未知旗標才依封包中存在的支援結構回退。
+    const kind = t(entry.use.kind === 'air' ? 'ov.slSupportAir' : entry.use.kind === 'asw' ? 'ov.slSupportAsw' : entry.use.kind === 'torpedo' ? 'ov.slSupportTorpedo' : 'ov.slSupportShell');
     // 出動節點也要用字母（與節點列表同一套標籤，混用數字/字母會看不出是同一個節點）
     const nodes = entry.nodes.map(node => nodeLabel(map, node)).join(', ');
     const note = `${t('ov.expedDeck', { n: entry.use.deckId })}・${kind}・${t('ov.slAtNodes', { list: nodes })}`;
@@ -404,10 +411,10 @@ function battleSupportDetails(battle: BattleInfoView, state: SectionContext['sta
     const support = battle.support;
     if (!support) return '';
     return `<div class="sl-battle-support-line">
-        <span class="sl-tag alt">${esc(support.kind === 'air' ? t('ov.slSupportAir') : t('ov.slSupportShell'))}</span>
+        <span class="sl-tag alt">${esc(support.kind === 'air' ? t('ov.slSupportAir') : support.kind === 'asw' ? t('ov.slSupportAsw') : support.kind === 'torpedo' ? t('ov.slSupportTorpedo') : t('ov.slSupportShell'))}</span>
         <span class="sl-dim">${esc(t('ov.expedDeck', { n: support.deckId }))}</span>
         <span>${esc(t('sortie.supportDamage', {
-            kind: support.kind === 'air' ? t('sortie.supportKindAir') : t('sortie.supportKindShelling'),
+            kind: support.kind === 'air' ? t('sortie.supportKindAir') : support.kind === 'asw' ? t('sortie.supportKindAsw') : support.kind === 'torpedo' ? t('sortie.supportKindTorpedo') : t('sortie.supportKindShelling'),
             deck: support.deckId, damage: support.damage,
         }))}</span>
         ${support.shipIds.length ? `<span class="sl-dim">${esc(t('sortie.supportShips', { ships: supportShipNames(support.shipIds, state) }))}</span>` : ''}
@@ -638,28 +645,28 @@ function fleetShipLabel(
     battle: BattleInfoView,
     state: SectionContext['state'],
 ): string {
-    const position = index === null ? '' : ` #${index < 6 ? index + 1 : index - 5}`;
     if (side === 'friendly') {
         const mst = index !== null ? battle.friendlyFleetIds?.[index] : undefined;
-        return mst ? `${state.shipName(mst)}${position}` : `${t('ov.slBattleFriendlyFleet')}${position}`;
+        return mst ? state.shipName(mst) : t('ov.slBattleFriendlyFleet');
     }
     if (index === null) return side === 'player' ? t('ov.slBattleOurAir') : t('ov.slBattleEnemyAir');
     const escort = index >= 6;
     const local = escort ? index - 6 : index;
     const ships = side === 'player' ? (escort ? detail.fleet2 : detail.fleet1) : null;
-    if (ships?.[local]) return `${state.shipName(ships[local].mst)}${position}`;
+    if (ships?.[local]) return state.shipName(ships[local].mst);
     const ids = side === 'enemy' ? (escort ? node.enemyIdsEscort : node.enemyIds) : [];
     const positions = side === 'enemy'
         ? (escort ? battle.enemyPositionsEscort : battle.enemyPositions)
         : undefined;
     const compactIndex = positions?.indexOf(local) ?? -1;
     const mst = ids[compactIndex >= 0 ? compactIndex : local];
-    if (mst) return `${state.shipName(mst)}${position}`;
-    return `${side === 'player' ? t('sortie.ourSide') : t('sortie.enemySide')}${position}`;
+    if (mst) return state.shipName(mst);
+    return side === 'player' ? t('sortie.ourSide') : t('sortie.enemySide');
 }
 
 function eventSourceLabel(
     event: BattleDamageEvent,
+    phase: BattlePhaseView,
     detail: SortieDetail,
     node: NodeDetail,
     battle: BattleInfoView,
@@ -668,12 +675,25 @@ function eventSourceLabel(
     if (event.attackerIndex !== null) {
         return fleetShipLabel(event.attackerSide ?? 'enemy', event.attackerIndex, detail, node, battle, state);
     }
-    if (event.kind === 'landBase') return t('ov.slBattleLandBaseSource');
+    if (event.kind === 'landBase') {
+        if (phase.kind === 'jetBase') {
+            return event.attackerSide === 'enemy'
+                ? t('ov.slBattleEnemyLandBaseJetSource') : t('ov.slBattleLandBaseJetSource');
+        }
+        return event.attackerSide === 'enemy'
+            ? t('ov.slBattleEnemyLandBaseSource') : t('ov.slBattleLandBaseSource');
+    }
     if (event.kind === 'support') return t('ov.slBattleSupportSource');
     if (event.kind === 'torpedo') {
+        if (phase.kind === 'openingTorpedo' && event.attackerIndex === null) {
+            return event.attackerSide === 'enemy' ? t('ov.slBattleEnemyOpeningTorpedo') : t('ov.slBattleOurOpeningTorpedo');
+        }
         return event.attackerSide === 'enemy' ? t('ov.slBattleEnemyTorpedo') : t('ov.slBattleOurTorpedo');
     }
     if (event.kind === 'air') {
+        if (phase.kind === 'jet') {
+            return event.attackerSide === 'enemy' ? t('ov.slBattleEnemyCarrierJet') : t('ov.slBattleOurCarrierJet');
+        }
         return event.attackerSide === 'enemy' ? t('ov.slBattleEnemyAir') : t('ov.slBattleOurAir');
     }
     return t('ov.slBattleUnknownSource');
@@ -885,12 +905,13 @@ function phaseAttackSeriesHtml(
 
 function phaseAttackGroupHtml(
     group: BattleEventGroup,
+    phase: BattlePhaseView,
     detail: SortieDetail,
     node: NodeDetail,
     battle: BattleInfoView,
     state: SectionContext['state'],
 ): string {
-    const source = eventSourceLabel(group.events[0], detail, node, battle, state);
+    const source = eventSourceLabel(group.events[0], phase, detail, node, battle, state);
     const series = battleAttackSeries(group.events);
     return `<li class="sl-battle-attack-group sl-battle-event sl-battle-attack-group-${group.side}">
         <div class="sl-battle-combat-row">
@@ -923,7 +944,7 @@ function phaseDetailsHtml(
     } else if (phase.kind === 'landBase' && node.lbas.length) {
         title = t('ov.slBattleLbasWaves');
         details.push(nodeLbas(node.lbas, state));
-    } else if (phase.kind === 'supportAir' || phase.kind === 'supportShell') {
+    } else if (phase.kind === 'supportAir' || phase.kind === 'supportShell' || phase.kind === 'supportTorpedo' || phase.kind === 'supportAsw') {
         const support = battleSupportDetails(battle, state);
         if (support) {
             title = t('ov.slBattleSupportComposition');
@@ -938,7 +959,8 @@ function phaseDetailsHtml(
     }
 
     const events = phase.events ?? [];
-    const unresolved = events.some(event => event.attackerIndex === null
+    const phaseSourceResolved = phase.kind === 'jetBase' || phase.kind === 'jet' || phase.kind === 'openingTorpedo';
+    const unresolved = events.some(event => !phaseSourceResolved && event.attackerIndex === null
         && (event.kind === 'air' || event.kind === 'landBase' || event.kind === 'support' || event.kind === 'torpedo'))
         || events.some(event => event.kind === 'support');
     if (unresolved) {
@@ -973,7 +995,7 @@ function phaseCard(
             <span class="sl-battle-turn">${esc(phaseTurnLabel(phase))}</span>
         </div>
         ${phaseDetailsHtml(phase, node, battle, state)}
-        ${events.length ? `<ol class="sl-battle-attack-groups">${attackGroups.map(group => phaseAttackGroupHtml(group, detail, node, battle, state)).join('')}</ol>`
+        ${events.length ? `<ol class="sl-battle-attack-groups">${attackGroups.map(group => phaseAttackGroupHtml(group, phase, detail, node, battle, state)).join('')}</ol>`
             : `<p class="sl-dim sl-battle-no-events">${esc(t('ov.slBattleNoEvents'))}</p>`}
         <div class="sl-battle-phase-stats">
             <span class="enemy-damage">${esc(t('ov.slBattleEnemyDamage'))} <b>${phase.enemyDamage.toLocaleString()}</b></span>
@@ -1086,6 +1108,10 @@ export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, 
         ? `<button type="button" class="ov-btn" data-replay-copy="${detail.sortieKey}">${esc(t('ov.replayCopy'))}</button>
            <button type="button" class="ov-btn" data-replay-dl="${detail.sortieKey}">${esc(t('ov.replayDownload'))}</button>
            <button type="button" class="ov-btn" data-replay-open="${detail.sortieKey}">${esc(t('ov.replayOpen'))} ↗</button>
+           ${replay.battles.length
+        ? `<button type="button" class="ov-btn" data-deckbuilder-copy="${detail.sortieKey}">${esc(t('ov.deckbuilderCopy'))}</button>
+           <button type="button" class="ov-btn" data-simulator-open="${detail.sortieKey}">${esc(t('ov.sortieSimulatorOpen'))} ↗</button>`
+        : ''}
            <button type="button" class="ov-btn battle-log-open" data-battle-log="${detail.sortieKey}" aria-haspopup="dialog">${esc(t('ov.slBattleLog'))}</button>
            <button type="button" class="ov-btn danger" data-replay-del="${detail.sortieKey}" title="${esc(t('ov.replayDeleteTip'))}">🗑</button>`
         : `<span class="sl-dim">${esc(t('ov.slNoPacket'))}</span>`;
@@ -1222,10 +1248,9 @@ export const sortieLogSection: OverviewSection = {
     id: 'sortie-log',
     titleKey: 'ov.sortieLog',
     async render(el, ctx) {
-        // **先畫殼、再讀資料**（順序是刻意的，別調回去）：資料讀取可能很慢（重播層很大）、
+        // **先畫殼、再讀資料**：資料讀取可能很慢（重播層很大）、
         // 也可能整個卡住（Dexie 版本升級被其他分頁／面板擋住時 open() 會無限等待）。
-        // 先前是「讀完才畫」，只要讀取沒回來，整個分區就是一片空白——連「匯入 JSON」都按不到，
-        // 使用者只會看到「介面不見了」，卻沒有任何線索。現在殼一定先出現，資料失敗只影響清單。
+        // 殼一定先出現，資料失敗只影響清單，工具列與匯入 JSON 仍可操作並顯示錯誤原因。
         el.innerHTML = shellHtml();
 
         const prefs = loadPrefs();
@@ -1233,8 +1258,9 @@ export const sortieLogSection: OverviewSection = {
         let mapFilter = 'all';
         const open = new Set<number>();
         const detailCache = new Map<number, string>();
+        const simulatorCache = new Map<number, SortieSimulatorInput>();
 
-        // 重播列的查表：事件委派（複製／下載／釘選）需要，載入完成後才有內容
+        // 重播列的查表：事件委派（複製／下載／匯入／釘選）需要，載入完成後才有內容
         let replayCache = new Map<number, ReplayRow>();
 
         const catBtns = el.querySelectorAll<HTMLButtonElement>('.sl-cat button');
@@ -1310,11 +1336,37 @@ export const sortieLogSection: OverviewSection = {
             if (!host || host.dataset.filled === '1') return;
             let html = detailCache.get(entry.key);
             if (html === undefined) {
-                html = detailHtml(buildSortieDetail(entry.rows, entry.replay), entry.replay, ctx.state);
+                const detail = buildSortieDetail(entry.rows, entry.replay);
+                html = detailHtml(detail, entry.replay, ctx.state);
                 detailCache.set(entry.key, html);
+                if (entry.replay?.battles.length) {
+                    simulatorCache.set(entry.key, buildSortieSimulator(entry.replay, {
+                        bossNodes: new Set(detail.nodes.filter(node => node.boss).map(node => node.node)),
+                        routeNodes: detail.nodes.map(node => ({
+                            node: node.node, boss: node.boss, kind: node.kind,
+                            enemyIds: node.enemyIds, enemyIdsEscort: node.enemyIdsEscort,
+                        })),
+                    }));
+                }
             }
             host.innerHTML = html;
             host.dataset.filled = '1';
+        }
+
+        function simulatorPayload(entry: Entry): SortieSimulatorInput | undefined {
+            if (!entry.replay?.battles.length) return undefined;
+            const cached = simulatorCache.get(entry.key);
+            if (cached) return cached;
+            const detail = buildSortieDetail(entry.rows, entry.replay);
+            const payload = buildSortieSimulator(entry.replay, {
+                bossNodes: new Set(detail.nodes.filter(node => node.boss).map(node => node.node)),
+                routeNodes: detail.nodes.map(node => ({
+                    node: node.node, boss: node.boss, kind: node.kind,
+                    enemyIds: node.enemyIds, enemyIdsEscort: node.enemyIdsEscort,
+                })),
+            });
+            simulatorCache.set(entry.key, payload);
+            return payload;
         }
 
         catBtns.forEach(btn => btn.addEventListener('click', () => {
@@ -1426,6 +1478,39 @@ export const sortieLogSection: OverviewSection = {
                 }
                 return;
             }
+            const deckbuilderCopy = target.closest<HTMLButtonElement>('button[data-deckbuilder-copy]');
+            if (deckbuilderCopy) {
+                const key = Number(deckbuilderCopy.dataset.deckbuilderCopy);
+                const entry = entries.find(item => item.key === key);
+                if (entry?.replay) {
+                    await copyWithFeedback(
+                        deckbuilderCopy,
+                        JSON.stringify(buildReplayDeckBuilder(entry.replay), null, 2),
+                        t('ov.deckbuilderCopied'),
+                    );
+                }
+                return;
+            }
+            const simulatorOpen = target.closest<HTMLButtonElement>('button[data-simulator-open]');
+            if (simulatorOpen) {
+                const key = Number(simulatorOpen.dataset.simulatorOpen);
+                const entry = entries.find(item => item.key === key);
+                if (!entry?.replay) return;
+                const payload = simulatorPayload(entry);
+                if (!payload) return;
+                const url = toSortieSimulatorUrl(entry.replay, {
+                    bossNodes: new Set(payload.fleetChronometer.routeNodes.filter(node => node.boss).map(node => node.node)),
+                    routeNodes: payload.fleetChronometer.routeNodes,
+                });
+                if (url.length < KC3_SORTIE_SIMULATOR_DIRECT_URL_LIMIT) {
+                    window.open(url, '_blank', 'noopener');
+                } else {
+                    // 先在使用者手勢內開頁，避免 await clipboard 後被 popup blocker 擋下。
+                    window.open(KC3_SORTIE_SIMULATOR_URL, '_blank', 'noopener');
+                    await copyWithFeedback(simulatorOpen, JSON.stringify(payload, null, 2), t('ov.sortieSimulatorCopied'));
+                }
+                return;
+            }
             const battleLog = target.closest<HTMLButtonElement>('button[data-battle-log]');
             if (battleLog) {
                 const key = Number(battleLog.dataset.battleLog);
@@ -1465,8 +1550,8 @@ export const sortieLogSection: OverviewSection = {
                 db.sorties.orderBy('eventId').toArray(),      // 升冪＝時序，「第幾次」據此計數
                 db.replays.toArray(),
             ]);
-            // 舊版曾把第3艦隊獨立出擊誤存成第1/2艦隊連合出擊；只在對應艦隊完整快照仍在時
-            // 於讀取層修復，不覆寫 IndexedDB，也不對證據不足的舊匯入資料猜編成。
+            // 對 legacy replay 的艦隊編號只在對應艦隊完整快照仍在時於讀取層修復；不覆寫
+            // IndexedDB，也不對證據不足的匯入資料猜編成。
             const replayByKey = new Map(replays.map(raw => {
                 const replay = repairLegacyReplayFleet(raw);
                 return [replay.sortieKey, replay] as const;

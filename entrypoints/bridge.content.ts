@@ -13,19 +13,11 @@ export default defineContentScript({
     allFrames: true,
     main() {
         // ── 關閉分頁前警示（避免手滑關掉正在進行的出擊／遠征）──────
-        // **關鍵功能：不能靠使用者先授權才生效**。曾經改放到頂層 DMM 頁（需要劇場模式／
-        // 拍照那組 optional host permission 才會注入），但那樣全新安裝、還沒用過那兩個
-        // 功能時完全沒有保護——不可接受。故改回掛在這裡：manifest 靜態注入
-        // （matches kancolle-server.com），安裝當下、零額外授權、零使用者互動就生效，
-        // 涵蓋新舊 DMM 入口。
+        // **關鍵功能不能依賴使用者授權**：掛在 manifest 靜態注入的 kancolle-server.com
+        // 框上，安裝後即能在零額外授權與零使用者互動下生效，並涵蓋新舊 DMM 入口。
         //
-        // 已知代價：Chromium 對「跨源 iframe 掛 beforeunload」有多次社群回報的重複跳出
-        // 對話框問題（例如 crbug.com/1119438），使用者實機也遇過取消一次還會再跳一次。
-        // 試過用 playwright-core（channel:"chrome"）建兩個不同 port 模擬真跨源 iframe、
-        // 呼叫 page.close({runBeforeUnload:true}) 想重現，但 CDP 自動化關閉分頁的路徑本來
-        // 就不會觸發 beforeunload（不論掛在哪、掛幾份，一律 0 次），驗證不了、只能如實記錄
-        // 沒能重現。這裡是刻意的取捨：**零權限、可能跳兩次**比「單次跳窗但需要先授權」更
-        // 貼近「這是關鍵功能」的要求——跳兩次終究還是能擋下誤關，沒有保護才是真正的風險。
+        // Chromium 的跨源 iframe beforeunload 可能在取消後再次顯示對話框
+        // （例如 crbug.com/1119438）；這是瀏覽器限制，但靜態注入仍能在零額外權限下攔下誤關。
         //
         // 只在「最外層」的 kancolle-server.com 框安裝，避免遊戲內部若真有巢狀同源子框時
         // 各自掛一份、放大重複跳窗機率：讀得到 `window.parent.location`（不丟
@@ -75,7 +67,7 @@ export default defineContentScript({
         // 焦點落進遊戲框內時，鍵盤事件只送到框內文件，父頁收不到 Esc。
         // 故把 Esc 轉發上去（**只送互動意圖，不含任何遊戲資料**）。
         // 不做滾輪轉發：視窗適應永遠 fit，縮放交給瀏覽器原生 Ctrl／⌘＋滾輪。
-        // listener 是 passive、不 stopPropagation：遊戲照樣收到原本的事件。
+        // listener 是 passive、不 stopPropagation：遊戲照樣收到該事件。
         const relay = (message: TheaterRelayMessage) => {
             if (window.top === window) return;
             try { window.top?.postMessage(message, '*'); } catch { /* 上層不可達時忽略 */ }

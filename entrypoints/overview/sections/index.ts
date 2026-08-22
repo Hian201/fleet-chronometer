@@ -14,16 +14,16 @@ import { llmSection } from './llm';
 import { backupSection } from './backup';
 
 export const sections: OverviewSection[] = [
-    fleetOverviewSection,   // #4 艦隊四隊＋基地航空隊全覽（＋markdown/PNG 匯出）
+    fleetOverviewSection,   // 艦隊四隊＋基地航空隊全覽（＋markdown/PNG 匯出）
     tagBoardSection,        // 活動配船板（自由池 × 標籤欄；hash 仍為 event-ops）
     shipsSection,           // 艦娘全覽（詳細清單：篩選抽屜＋十八個排序欄＋分頁）
     equipmentSection,       // 裝備全覽（圖示篩選架＋圖磚／詳細清單雙模式）
-    sortieLogSection,       // #5 出擊紀錄（＋#6 KC3Kai 重播匯出）
+    sortieLogSection,       // 出擊紀錄（＋KC3Kai 重播匯出）
     dropLogSection,         // 打撈紀錄（通常／活動篩選＋可選欄位詳細清單）
-    expedLogSection,        // #3 遠征紀錄
-    buildLogSection,        // #5 建造紀錄
-    devLogSection,          // #5 開發紀錄
+    expedLogSection,        // 遠征紀錄
+    buildLogSection,        // 建造紀錄
+    devLogSection,          // 開發紀錄分區
     resourceLogSection,     // 資源紀錄（趨勢圖＋詳細清單＋活動區段消耗）
-    llmSection,             // #7 LLM 接入（預留）
+    llmSection,             // LLM 分析
     backupSection,          // 資料備份與還原（＋FSA 資料夾備份、重播層裁剪）
 ];

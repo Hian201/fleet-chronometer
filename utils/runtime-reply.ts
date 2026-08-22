@@ -8,7 +8,7 @@
 // 「沒有連線到遊戲分頁」。
 //
 // 本專案沒有 webextension-polyfill（@wxt-dev/browser 的 `browser` 就是原生
-// chrome/browser namespace），也刻意不用 minimum_chrome_version 把舊版使用者擋在門外，
+// chrome/browser namespace），也不以 minimum_chrome_version 排除尚未支援 Promise listener 的瀏覽器，
 // 故一律走官方建議的全版本相容寫法：`sendResponse` ＋ `return true`。
 //
 // 純函式、無 chrome.* 相依，node 可直接測（tests/runtime-reply.test.ts）。

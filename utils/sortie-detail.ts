@@ -17,11 +17,13 @@
 //     `api_stage1.api_disp_seiku`＝該波制空狀態。
 //     （注意：基地「防空」的 api_destruction_battle 底下同名欄位是**物件不是陣列**，
 //      那條路徑不經過本模組——空襲節點只有 db.sorties 的摘要，見 event-projector.ts。）
-//   · api_support_info：`api_support_airatack`（航空支援類）與 `api_support_hourai`
-//     （砲擊支援類）擇一非 null，兩者都帶 `api_deck_id` 與 `api_ship_id[]`。
+//   · api_support_info：`api_support_airatack`（航空／對潛支援類）與 `api_support_hourai`
+//     （砲擊支援類）擇一非 null，兩者都帶 `api_deck_id` 與 `api_ship_id[]`；
+//     `api_support_flag` 1／2／3 依 poi/lib-battle 對應航空／砲擊／雷擊；本專案真實 61-5
+//     node 1 的 flag=4 潛水艦節點封包確認為對潛支援。
 //     ⚠️ `api_ship_id` 是**艦實例 id 不是 master id**，要靠當前 GameState.ships 反查
 //     （呼叫端負責；本模組只如實回傳原始 id）。
-import { analyzeBattle } from './battle';
+import { analyzeBattle, supportKindFromFlag } from './battle';
 import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip, SortieLogRow } from './db';
 import { repairLegacyReplayFleet } from './replay';
 import type { BattleInfoView } from './state';
@@ -82,9 +84,9 @@ export interface LbasWave {
 /** 支援艦隊的一次出動。shipIds 為**艦實例 id**（非 master id），呼叫端自行反查名稱。 */
 export interface SupportUse {
     deckId: number;
-    /** air＝走 api_support_airatack（航空／對潛支援），shell＝走 api_support_hourai（砲擊系）。 */
-    kind: 'air' | 'shell';
-    /** 原始 api_support_flag，僅供顯示／除錯（各值語意未逐一以真封包驗證，不據以分類）。 */
+    /** air＝航空、asw＝對潛、shell＝砲擊、torpedo＝雷擊。 */
+    kind: 'air' | 'shell' | 'torpedo' | 'asw';
+    /** 原始 api_support_flag，保留供顯示／除錯。 */
     flag: number;
     shipIds: number[];
 }
@@ -96,6 +98,8 @@ export interface SortieShip {
     equip: number[];
     stars: number[];
     exequip: number;
+    /** 補強增設改修；舊快照缺席時為 null（不可考，不是 ★0）。 */
+    exstars: number | null;
     cond: number | null;
     /** 出擊當下的 HP（快照值）。 */
     hp: number | null; maxHp: number | null;
@@ -263,9 +267,10 @@ export function supportUse(api: any): SupportUse | null {
     const shell = info.api_support_hourai;
     const src = air ?? shell;
     if (!src) return null;
+    const mappedKind = supportKindFromFlag(flag, Boolean(air));
     return {
         deckId: Number(src.api_deck_id) || 0,
-        kind: air ? 'air' : 'shell',
+        kind: mappedKind === 'shelling' ? 'shell' : mappedKind,
         flag,
         shipIds: Array.isArray(src.api_ship_id) ? src.api_ship_id.filter((v: number) => v > 0) : [],
     };
@@ -282,7 +287,9 @@ function enemyLevels(api: any, key: 'api_ship_lv' | 'api_ship_lv_combined', ids:
 function toSortieShip(s: ReplayShip | ReplaySupportShip): SortieShip {
     return {
         mst: s.mst_id, lv: s.lv, equip: s.equip ?? [], stars: s.stars ?? [],
-        exequip: s.exequip ?? -1, cond: s.cond ?? null,
+        exequip: s.exequip ?? -1,
+        exstars: s.exstars === undefined ? null : s.exstars,
+        cond: s.cond ?? null,
         hp: s.nowhp ?? null, maxHp: s.maxhp ?? null,
     };
 }

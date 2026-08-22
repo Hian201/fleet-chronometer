@@ -1,7 +1,6 @@
-// 翻譯對照表覆蓋率檢查的驗證。gamedata-known-ids.ts 是由 samples/i18n/*.csv（該次
-// 下載 samples/start2-master.json 這個快照時整理的對照表）產生，故拿同一份 master
-// 快照跑過 findUnknownShips/findUnknownGears 應該回報「沒有缺漏」——這是產生器與
-// 差集邏輯的一致性防線，缺漏只能來自「遊戲更新後的新內容」而非程式錯誤。
+// 翻譯對照表覆蓋率檢查。gamedata-known-ids.ts 由 samples/i18n/*.csv 產生，需與對應的
+// samples/start2-master.json 快照一致；findUnknownShips/findUnknownGears 應回報沒有缺漏，
+// 新缺漏才代表遊戲資料新增內容。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { findUnknownGears, findUnknownShips } from '../utils/gamedata-coverage';

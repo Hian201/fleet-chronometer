@@ -230,7 +230,7 @@ function isModernFull(ship: OwnedShipView): boolean {
     return ship.kyoukaMax.every((max, i) => (ship.kyouka[i] ?? 0) >= max);
 }
 
-/** 運／耐久／對潛（api_kyouka[4..6]）曾被特殊手段提升過。 */
+/** 運／耐久／對潛（api_kyouka[4..6]）是否已有特殊手段提升量。 */
 function isModernSpecial(ship: OwnedShipView): boolean {
     return ship.kyouka.slice(4, 7).some(v => (v ?? 0) > 0);
 }
@@ -319,7 +319,7 @@ export function filterRoster(ships: RosterShip[], f: RosterFilter): RosterShip[]
         && (f.namedEquip === 'all' || s.equipTypes.includes(NAMED_EQUIP_TYPE[f.namedEquip]))
         && matchExSlot(s, f.exSlot));
     // 國籍是**共用維度**（活動作戰板的右欄清單也要），故已上移到 ship-filter；
-    // 這裡不再重寫一份，見本檔頭「與 ship-filter 的分工」。
+    // 共用 ship-filter 的判定，見本檔頭「與 ship-filter 的分工」。
 }
 
 // ── 排序 ────────────────────────────────────────────────────────────────

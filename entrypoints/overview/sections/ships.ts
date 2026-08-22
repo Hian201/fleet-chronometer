@@ -185,8 +185,8 @@ function joinedCell(ship: ShipsRow): string {
 // ── 同名艦種的消歧（遊戲的 api_mst_stype 把 id 8／9 都叫「戰艦」）────────────
 //
 // 高速／低速**不是艦種本身**，要靠 api_soku 合判（見 ship-filter.ts 檔頭）——篩選
-// （matchSpeed／matchEquip）與量表統計絕不可用 stype id 當航速捷徑。真封包實測（見
-// samples/start2-master.json）：stype 8 有 87 艘高速但也有 3 艘低速（Гангут 線），
+// （matchSpeed／matchEquip）與量表統計絕不可用 stype id 當航速捷徑。樣本中 stype 8
+// 同時有高速與低速艦（Гангут 線），stype 9 也同時有低速與高速艦（深海戰艦棲姫改），
 // stype 9 有 75 艘低速但也有 3 艘高速（深海戰艦棲姫改）。**故 id → 航速的硬對映是錯的。**
 //
 // 但「兩顆長得一模一樣的『戰艦』checkbox」使用者根本分不出哪顆是哪群，比誤差更難用。

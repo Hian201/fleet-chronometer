@@ -138,7 +138,7 @@ describe('從持久化出擊紀錄恢復 Boss HP', () => {
 });
 
 describe('斬殺期量表 HTML', () => {
-    it('斬殺期顯示可見標籤、實數與 meter ARIA', () => {
+    it('斬殺期以 Final 與條外實數顯示 meter ARIA', () => {
         const html = sortieGaugeBarHtml({
             now: 840,
             max: MAX_HP,
@@ -148,10 +148,10 @@ describe('斬殺期量表 HTML', () => {
         });
 
         expect(html).toContain('zansatsu');
-        // 標籤在量表條**之內**，不是條子外的第二顆徽章（並排會撐寬標題列導致換行）
+        // Final 在量表條內；數字在條外，避免兩者互相擠壓。
         expect(html).toMatch(/<span class="s-gauge-bar"[\s\S]*s-gauge-final[\s\S]*<\/span>/);
-        expect(html).toContain('<b class="s-gauge-final">斬殺期</b>');
-        expect(html).toContain('840/4840');
+        expect(html).toContain('<b class="s-gauge-final">Final</b>');
+        expect(html).toContain('<strong>840</strong><small>/4840</small>');
         expect(html).toContain('role="meter"');
         expect(html).toContain('aria-valuemin="0"');
         expect(html).toContain('aria-valuemax="4840"');
@@ -169,8 +169,8 @@ describe('斬殺期量表 HTML', () => {
 
         expect(html).not.toContain('zansatsu');
         expect(html).not.toContain('s-gauge-final');
-        expect(html).not.toContain('斬殺期');
-        expect(html).toContain('880/4840');
+        expect(html).not.toContain('Final');
+        expect(html).toContain('<strong>880</strong><small>/4840</small>');
         expect(html).toContain('role="meter"');
     });
 
@@ -196,4 +196,5 @@ describe('斬殺期量表 HTML', () => {
         // 高對比模式同樣不得靠 border-width 加粗（會讓兩個模式高度不同）
         expect(panelHtml).not.toMatch(/\.s-gauge\.zansatsu[^{]*\{[^}]*border-width/);
     });
+
 });

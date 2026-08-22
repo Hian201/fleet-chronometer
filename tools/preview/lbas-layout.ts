@@ -9,7 +9,7 @@
 //   → .preview/lbas-layout{,-light}.html（瀏覽器直接開）
 //
 // ⚠️ 本檔的 `card()` 是 panel/main.ts `renderAirBases()` 的**逐字鏡像**（那支綁在 DOM 上
-// 不能直接匯入）。改了那邊就要改這邊，否則量到的是舊版面。
+// 不能直接匯入）。兩邊的 markup 必須同步，否則量到的不是正式版面。
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -91,7 +91,7 @@ const condLabel = (cond: number | null) => (cond === 2 || cond === 3 ? '疲勞'
 const condState = (cond: number | null) => (cond === 2 ? 'tired' : cond === 3 ? 'exhausted'
     : cond === 1 ? 'mild' : 'unknown');
 
-// ── 疲勞標記的表現候選 ─────────────────────────────────────────────────────
+// ── 疲勞標記的表現對照 ─────────────────────────────────────────────────────
 // 遊戲內是三段（內部 cond 30–46 無標記／20–29 黃臉／0–19 紅臉），封包給的 `api_cond` 是
 // 四段顯示碼（**0=全滿／1=輕度(無標記)／2=黃／3=紅**，四份真封包定案），故顯示層只是換符號。文字「疲勞」要進三語字典，
 // 符號則零 i18n——但符號本身必須自己講得清「黃 < 紅」的嚴重度階序。

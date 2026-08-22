@@ -1,6 +1,6 @@
 // 活動配船板：自由池 × 標籤欄網格。以 planByShip 為分配真相；stages 保留路線規則。
 //
-// 版面與互動對齊 `.preview/tag-board-mock.html` v2。舊三層 event-ops UI 已整段替換。
+// 版面與互動對齊 `.preview/tag-board-mock.html` v2；本檔負責現行的自由池、標籤與路線檢視。
 // 鎖定／快照／觀測規則同 utils/event-plan.ts；本檔只負責 DOM。
 import type { OverviewSection, SectionContext } from './types';
 import type { GameState, OwnedShipView } from '@/utils/state';
@@ -562,7 +562,7 @@ export const tagBoardSection: OverviewSection = {
             });
         }
 
-        /** 新增標籤；mapNo 有值時綁到該關。優先重用「已確立卻未綁 grants」的標籤 id（勿另開 #3）。 */
+        /** 新增標籤；mapNo 有值時綁到該關。優先重用「已確立卻未綁 grants」的標籤 id。 */
         function addTag(mapNo: number | null) {
             const used = new Set(tagIds());
             const bound = new Set(

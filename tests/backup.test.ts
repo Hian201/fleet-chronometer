@@ -1,9 +1,9 @@
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-    BackupDestinationError, BackupValidationError, combineBackupEnvelopes, highestReferencedEventId,
-    MAX_RESTORABLE_SOURCE_EVENT_ID, parseBackupJson, restoreBackup, validateBackupEnvelope,
-    type BackupTables,
+    BackupDestinationError, BackupValidationError, backupFileName, combineBackupEnvelopes,
+    countBackupRecords, highestReferencedEventId, isEmptyBackup, MAX_RESTORABLE_SOURCE_EVENT_ID,
+    parseBackupJson, restoreBackup, unusedBackupFileName, validateBackupEnvelope,
 } from '../utils/backup';
 import { KcDb, type ExpeditionRow } from '../utils/db';
 
@@ -234,8 +234,8 @@ describe('備份 envelope runtime validation', () => {
         expect(() => parseBackupJson('{not json')).toThrow('備份檔不是有效的 JSON');
     });
 
-    // 備份檔是使用者可以任意編輯的外部輸入。以前 validateXxx 用 `...row` 把未列舉的鍵
-    // 原封放行，等於任何欄位都能寫進 IndexedDB，之後被各分區當成自家欄位讀。
+    // 備份檔是使用者可以任意編輯的外部輸入；驗證器只應保留明確列舉的鍵，避免未知欄位
+    // 進入 IndexedDB 後被各分區當成自家欄位讀取。
     it('未列舉的多餘欄位一律丟棄，不會進到還原結果', () => {
         const input = v3Restore() as unknown as { tables: Record<string, Array<Record<string, unknown>>> };
         input.tables.snapshot[0].evil = { nested: true };
@@ -632,5 +632,37 @@ describe('備份還原 transaction', () => {
             factory: [], replays: [], wanted: [], shipObtained: [],
         });
         expect(await database.events.add(rawEvent('api_mock/after_meta_rollback'))).toBe(1);
+    });
+});
+
+describe('備份檔名與空備份拒絕', () => {
+    it('檔名用本地日期與時分秒，不是 UTC；同一秒再備加序號', () => {
+        const ts = new Date(2026, 7, 14, 3, 8, 9).getTime();
+        expect(backupFileName(ts)).toBe('kanmusu-backup-2026-08-14-030809.json');
+        expect(backupFileName(ts, 1)).toBe('kanmusu-backup-2026-08-14-030809.json');
+        expect(backupFileName(ts, 2)).toBe('kanmusu-backup-2026-08-14-030809-2.json');
+    });
+
+    it('資料夾撞名時跳過已佔用檔名', async () => {
+        const ts = new Date(2026, 7, 14, 3, 8, 9).getTime();
+        const taken = new Set([
+            'kanmusu-backup-2026-08-14-030809.json',
+            'kanmusu-backup-2026-08-14-030809-2.json',
+        ]);
+        await expect(unusedBackupFileName(ts, name => taken.has(name)))
+            .resolves.toBe('kanmusu-backup-2026-08-14-030809-3.json');
+    });
+
+    it('表全空視為不可寫檔；有任一筆記錄即可', () => {
+        const empty = validateBackupEnvelope({
+            schemaVersion: 6, kind: 'full', exportedAt: TS,
+            tables: {
+                snapshot: [], sorties: [], expeditions: [], factory: [], wanted: [],
+                shipObtained: [], eventPlans: [], resources: [], resourceMarks: [], replays: [],
+            },
+        });
+        expect(isEmptyBackup(empty.tables)).toBe(true);
+        expect(countBackupRecords(empty.tables)).toBe(0);
+        expect(isEmptyBackup(validateBackupEnvelope(v6Full()).tables)).toBe(false);
     });
 });

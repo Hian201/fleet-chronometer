@@ -1,7 +1,7 @@
 // 視窗適應（把 DMM 頁面裡的遊戲框等比填滿瀏覽器視窗）的**純函式核心**：
 // 遊戲框辨識、fit 幾何、注入用 CSS 產生器。無 chrome.*、無 DOM 型別依賴
 // （只吃 `{src,width,height}` 這種最小形狀），故可用 node 直接測（CLAUDE.md 設計原則 4）。
-// UI 不再暴露手動縮放／平移；`zoomByWheel`／`clampPan` 等仍保留供幾何／測試使用。
+// UI 不暴露手動縮放／平移；`zoomByWheel`／`clampPan` 等僅供幾何／測試使用。
 //
 // 為什麼需要這一層：DMM 遊戲頁已改版為 `play.games.dmm.com/game/kancolle`，是 Vite+React
 // 的 SPA（`<div id="root">` 由 JS 動態插入遊戲框），**DOM 結構沒有任何可依賴的固定 id
@@ -18,8 +18,8 @@ export interface FrameCandidate {
 /**
  * 辨識規則：`host` 比對**解析後的主機名**（精確或子網域後綴），`path` 比對 pathname 前綴。
  *
- * **絕不可改回對整段 src 做子字串／正規式比對**：`https://attacker.example/ad?ref=
- * kancolle-server.com` 這種 URL 會直接命中「確定證據」那一層，讓惡意頁面把自己的框
+ * **只能對解析後的主機名與路徑比對**：`https://attacker.example/ad?ref=
+ * kancolle-server.com` 這種 URL 不得命中「確定證據」那一層，避免惡意頁面把自己的框
  * 冒充成遊戲框、被放大到整個視窗，連拍照裁切矩形都跟著算到它身上。
  */
 interface FrameRule { host?: string; path?: string }
@@ -120,8 +120,8 @@ export interface Rect { x: number; y: number; width: number; height: number }
 /**
  * 實際要顯示的「畫面」＝遊戲框內部的遊戲畫布區域（`content`），不是整個 iframe。
  *
- * **這是第一版做錯的地方**：DMM 的遊戲框除了遊戲，還包著頁尾按鈕與大片白底，拿整個
- * iframe 去 fit 會讓遊戲縮得比視窗小、下方留一大條白。遊戲畫布的位置只有框內的
+ * DMM 的遊戲框除了遊戲，還包著頁尾按鈕與大片白底，拿整個 iframe 去 fit 會讓遊戲縮得
+ * 比視窗小、下方留一大條白。遊戲畫布的位置只有框內的
  * content script 量得到（跨源），量到才裁；量不到就退回整個 iframe（誠實地不猜）。
  */
 export function contentArea(frame: Size, content: Rect | null): Rect {
@@ -149,9 +149,7 @@ export function fallbackGameArea(frame: Size): Rect | null {
  * 「適應視窗」：畫面完整可見、等比例呈現——取兩軸較嚴格者（`Math.min`，同 CSS
  * `object-fit: contain`），比例跟視窗不同時寧可留黑邊，也絕不裁掉畫面的任何一部分。
  *
- * **這條是硬性第一原則，別再改成 `Math.max`（cover）**：2026-07-24 改過一次 cover
- * （填滿視窗不留黑邊），使用者實測後明確否決——「調整寬度時會剪掉畫面，絕對不能容忍，
- * 畫面等比例完整呈現是第一原則」。黑邊是可接受的代價，裁掉任何一部分畫面不是；
+ * 黑邊是可接受的代價，裁掉任何一部分畫面不是；
  * 兩者互斥時（視窗比例跟遊戲畫面比例不同時必然互斥）一律選前者。
  */
 export function fitZoom(viewport: Size, area: Size, padding = 0): number {

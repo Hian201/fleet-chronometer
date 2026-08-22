@@ -9,7 +9,9 @@
 >   retained raw-event replay；baseline 必須早於第一筆 retained raw event，且絕不送入 projector。
 > - raw-event pruning 已實作，但受 projection cursor（`meta['projection']` v3）限制；metadata 無效時
 >   不裁剪，並保留 `KEEP_RECENT` 基石與 wanted references。
-> - 權限比 §6 更精簡：目前僅 `alarms`+`notifications`（無 storage/unlimitedStorage/host_permissions——Dexie 不需要 storage 權限，content script matches 即隱含站點存取）。
+> - 現行權限契約與本原始設計不同：正式 manifest 的 `host_permissions` 為空；目前的
+>   `permissions` 與 `optional_host_permissions` 以 `wxt.config.ts` 及
+>   `tests/manifest.test.ts` 為準。
 
 ---
 

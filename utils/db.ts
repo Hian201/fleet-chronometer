@@ -60,8 +60,8 @@ export interface SortieLogRow {
     // ⚠️ 判定用的 api_cleared/api_now_maphp 欄位已實測，但「擊破當下緊接的 mapinfo」轉變本身
     //    尚未用真封包觀測（見待辦），屬防禦性實作。
     cleared?: boolean;
-    // ── 以下皆取自 battleresult 封包（已用 samples/6-5-ec_result.json 逐欄驗證），
-    //    2026-07-22 新增，舊資料沒有 → UI 一律當「不可考」處理，不得回填猜測值。
+    // ── 以下皆取自 battleresult 封包（已用 samples/6-5-ec_result.json 逐欄驗證）。
+    //    歷史資料可能缺少這些欄位，UI 一律當「不可考」處理，不得回填猜測值。
     /** 提督經驗值（`api_get_exp`）。※「基礎經驗值」不在封包裡（KC3Kai 靠自帶的海域資料庫），故不顯示。 */
     getExp?: number;
     /** MVP 位置（`api_mvp`，**1-based**）。已與 `analyzeBattle` 的傷害推算在真封包上比對一致。 */
@@ -76,11 +76,11 @@ export interface SortieLogRow {
      */
     baseExp?: number;
     // 節點類型（`api_req_map/start|next` 的 `api_event_id`／`api_event_kind`，封包事實）。
-    // 語意對照見 utils/map-node-kind.ts。**存原始值不存推導出的標籤**——語意對照將來若修正，
-    // 舊紀錄跟著一起變正確；存標籤就固化了當下的理解。2026-07-22 新增，舊資料沒有。
+    // 語意對照見 utils/map-node-kind.ts。**存原始值不存推導出的標籤**——語意對照若調整，
+    // 歷史紀錄才能套用新解讀；存標籤會固化擷取當下的理解。缺欄時維持不可考。
     nodeEventId?: number;
     nodeEventKind?: number;
-    // 2026-07-23 新增：CSV 匯入（utils/drop-log-import.ts）產生的列一律標記，UI 顯示徽章區分
+    // CSV 匯入（utils/drop-log-import.ts）產生的列一律標記，UI 顯示徽章區分
     // 「本機擷取」與「外部謄寫」。本機擷取的紀錄一律不帶此欄位（不是 false，是缺席）。
     imported?: boolean;
 }
@@ -135,6 +135,10 @@ export interface ReplayShip {
     stars: number[];         // 各裝備改修值（與 equip 同序）
     ace: number[];           // 各裝備熟練度（與 equip 同序）
     exequip: number;         // 補強增設 master id（無則 -1）
+    // 補強增設的改修／熟練。與一般槽的 stars／ace 分開存——KC3Kai 的 stars／ace
+    // 只對齊 equip、不含 ex；舊快照缺這兩欄＝不可考（匯出時退回 0，不假裝有值）。
+    exstars?: number;
+    exace?: number;
     nowhp: number; maxhp: number;
     // Fleet Chronometer 的公開 toKc3Replay() 格式刻意不帶士氣；由該格式重新匯入時
     // 必須保留「來源未提供」，不可用 0 假裝成赤疲勞。
@@ -265,7 +269,7 @@ export interface BackupRestoreMetaRow {
     importedReplays: boolean;
     highestSourceEventId: number;
     // 下一次 auto-increment 應配出的 key；complementary 匯入用 guard 實際核對，
-    // 可辨識「rows 已刪但 generator 曾被未知本機寫入推進」的來源不明環境。
+    // 可辨識「rows 已刪但 generator 被未知本機寫入推進」的來源不明環境。
     nextEventId: number;
     updatedAt: number;
 }
@@ -383,9 +387,8 @@ export interface ResourceMarkRow {
     gaugeNum?: number;
 }
 
-// 已提前通知過的遠征（防重複通知）。原本存在 background.ts 的 module 級 Set，
-// SW 被 MV3 殺掉重啟就會清空、違反本專案「SW 不持跨事件狀態」的硬約束
-// （見 CLAUDE.md 設計原則 5），改存 IndexedDB。deckId 當主鍵，同艦隊只需一筆、天然去重。
+// 已提前通知過的遠征（防重複通知）。狀態必須持久化，才能跨 service worker 重啟維持
+// 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
 export interface NotifiedRow {
     deckId: number;
     completeAt: number;   // 需比對到完全相同的完成時刻才算「已通知過」，避免誤殺同艦隊之後的新遠征

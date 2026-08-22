@@ -11,7 +11,7 @@
 //   · eventKind 5 → 敵連合艦隊（61-3 節點 53、61-5 節點 55，desc「深海聯合艦隊」）
 //   · eventKind 6 → 空襲戰（61-3 節點 50、61-5 節點 48／37／51，desc「空襲」，封包 `fc_ld_airbattle`）
 // **其餘 eventKind（2/3/4…）沒有樣本佐證，一律回 null 不猜**——寧可少顯示一個標籤，
-// 也不要標錯節點類型（同「節點字母」那次的教訓）。
+// 也不要把未驗證值標成錯誤的節點類型。
 export const NODE_KIND_KEYS = {
     resource: 'node.resource',
     maelstrom: 'node.maelstrom',

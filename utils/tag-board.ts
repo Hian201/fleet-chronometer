@@ -38,7 +38,7 @@ export function columnOf(planTag: number, actualTag: number): number {
 
 export interface MigrateSlotsResult {
     planByShip: Record<number, number>;
-    /** 同艦已被先前關卡以不同 grantsTag 指派 → 後到者丟棄。 */
+    /** 同艦被不同 grantsTag 指派時，後續指派無法唯一歸屬，列入 dropped。 */
     dropped: { shipId: number; stageKey: string }[];
     /** 有 shipId 但該關 grantsTag 未填 → 無法歸屬。 */
     skipped: { shipId: number; stageKey: string }[];
@@ -264,9 +264,8 @@ export interface StypeGroupDef {
 
 export const DEFAULT_STYPE_GROUPS: readonly StypeGroupDef[] = [
     { key: 'CV', stypeIds: [11], labelKey: 'ov.tbStypeCV' },
-    // 裝甲空母（stype 18）機能上是可上艦載機出擊的空母，獨立一組放在正規／輕空母之間，
-    // 別再併回 AV——曾經跟水母/工作艦等輔助艦混在一起，讓翔鶴改二乙／瑞鶴改二乙這類艦
-    // 被藏進「水母・補助」找不到。
+    // 裝甲空母（stype 18）可搭載艦載機出擊，獨立一組放在正規／輕空母之間，避免與水母／
+    // 工作艦等輔助艦混組而難以定位。
     { key: 'CVB', stypeIds: [18], labelKey: 'ov.tbStypeCVB' },
     { key: 'CVL', stypeIds: [7], labelKey: 'ov.tbStypeCVL' },
     { key: 'BB', stypeIds: [8, 9], labelKey: 'ov.tbStypeBB' },
@@ -400,7 +399,7 @@ function bindTagToMap(
  * 出擊後釘死的事實不該永遠手按「＋再加標籤」——自動確保標籤條目存在，並綁到對應 mapNo
  * （主列 grants 空則填上；已綁別標籤則新增階段）。不覆寫既有不同的 grantsTag。
  *
- * 若某標籤已有觀測地圖集合，會清掉「不在觀測內」的 grants 綁定（修正誤綁到別關的情況），
+ * 若某標籤已有觀測地圖集合，會清掉「不在觀測內」的 grants 綁定，避免標籤留在錯誤關卡，
  * 不猜 allowedTags——「可帶哪些已貼標船」與「無標籤會被貼什麼」是兩件事。
  */
 export function applyObservedTagBindings(
@@ -446,7 +445,7 @@ export function applyObservedTagBindings(
         }
     }
 
-    // 有觀測證據的標籤：清掉不在觀測地圖上的 grants（常見：曾誤綁到 E1）
+    // 有觀測證據的標籤：清掉不在觀測地圖上的 grants，避免未觀測的關卡保留標籤。
     for (const st of nextStages) {
         const tag = st.grantsTag;
         if (tag == null || tag < 1 || st.mapNo == null || st.mapNo < 1) continue;

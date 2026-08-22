@@ -16,7 +16,7 @@ function ship(overrides: Partial<ShipView> = {}): ShipView {
     return {
         name: '測試艦', nameJa: '測試艦', stype: '', lv: 99, hp: 100, maxhp: 100, cond: 49,
         fuel: 100, maxFuel: 100, bull: 100, maxBull: 100,
-        id: 1, mst: 1, stypeId: 1, ndockTime: 2_000_000, inDock: false, escaped: false,
+        id: 1, mst: 1, stypeId: 1, ndockTime: 2_000_000, inDock: false, dockCompleteAt: null, escaped: false,
         firepower: 0, luck: 0,
         gears: [], exGear: null, exEmpty: false, slotCapacity: [],
         ...overrides,
@@ -190,6 +190,10 @@ describe('結算倒數與 GameState 錨點', () => {
         historical.applyEvent('api_port/port', portApi(), {}, TS);
         historical.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '2', api_ndock_id: '1', api_highspeed: '0' }, TS + 123);
         expect(historical.ndockData[0].api_complete_time).toBe(TS + 123 + 600_000);
+        expect(historical.fleets()[0].ships.find(s => s.id === 2))
+            .toMatchObject({ inDock: true, dockCompleteAt: TS + 123 + 600_000 });
+        expect(historical.fleets()[0].ships.find(s => s.id === 1))
+            .toMatchObject({ inDock: false, dockCompleteAt: null });
 
         vi.useFakeTimers();
         vi.setSystemTime(TS + 456);

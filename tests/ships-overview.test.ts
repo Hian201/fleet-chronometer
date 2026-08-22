@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import { KcDb, type ShipObtainedRow } from '../utils/db';
-import { SHIP_NAMES } from '../utils/gamedata-i18n';
+import { SHIP_NAMES } from '../utils/gamedata-names';
 import { GameState } from '../utils/state';
 import {
     COLUMNS, buildRoster, loadOwnedShipRows, rosterCsv, rosterTableHtml, visibleColumns,

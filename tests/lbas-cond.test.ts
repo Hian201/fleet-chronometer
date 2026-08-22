@@ -65,8 +65,8 @@ describe('lbasCondCertainlyClear', () => {
 });
 
 // ── 面板實際會走的路徑 ───────────────────────────────────────────────────────
-// 症狀（實機回報 2026-08-04）：遊戲介面顯示無疲勞，面板卻仍顯示橙。原因是疲勞回復
-// 只發生在伺服器端、**回復時不送封包**，面板手上的 api_cond 是上次開基地畫面時的快照。
+// 疲勞回復只發生在伺服器端、**回復時不送封包**；面板手上的 api_cond 是上次開基地畫面
+// 時的快照，因此需依時間區間標示狀態把握程度。
 const T0 = Date.parse('2026-08-04T12:00:00+09:00');
 
 function stateWithTiredBase(actionKind: number) {
@@ -155,8 +155,8 @@ describe('GameState.lbasCondStateNow', () => {
 });
 
 // ── 真封包（samples/mapinfo-air-base.json，2026-08-04 實機擷取） ──────────────
-// 本專案第一份帶 api_air_base 的真實封包：六個航空隊 24 個中隊全部 api_cond=0，
-// 且當時全部補給完畢、遊戲畫面全無疲勞標記 → **0 = 無標記**（同時證明 api_cond 是
+// 六個航空隊 24 個中隊全部 api_cond=0，且封包顯示全部補給完畢、遊戲畫面全無疲勞標記
+// → **0 = 無標記**（同時證明 api_cond 是
 // 顯示碼不是 0–46 原始值，否則 0 會是最慘的赤）。
 describe('真封包 mapinfo 的基地航空隊', () => {
     const fixture = JSON.parse(
@@ -224,7 +224,7 @@ describe('真封包 mapinfo：api_cond 1 = 輕度疲勞（無標記）', () => {
         }
     });
 
-    // mild 本來就沒有標記可退，時間推論不動它（0 與 1 的分界無佐證，不能猜）
+    // mild 沒有可移除的標記，時間推論不動它（0 與 1 的分界無佐證，不能猜）
     it('mild 不隨時間降級（無佐證可推）', () => {
         const state = stateFromFixture();
         const base = state.airBases_().find(b => b.areaId === 62 && b.rid === 2)!;
@@ -232,7 +232,7 @@ describe('真封包 mapinfo：api_cond 1 = 輕度疲勞（無標記）', () => {
         expect(state.lbasCondCertaintyNow(base.squadrons[0]!.cond, base, T0 + 600 * MIN)).toBeNull();
     });
 
-    // 退避札（+3/tick）是這份樣本第一次出現的 action_kind 值
+    // 此樣本的退避札（+3/tick）action_kind 為 3
     it('退避札(3)的回復速度為 +3/tick', () => {
         const base = stateFromFixture().airBases_().find(b => b.areaId === 62 && b.rid === 1)!;
         expect(base.actionKind).toBe(3);
@@ -241,7 +241,7 @@ describe('真封包 mapinfo：api_cond 1 = 輕度疲勞（無標記）', () => {
 
 });
 
-// ── 橙的樣本（samples/mapinfo-air-base-exhausted.json，檔名是命名當下的誤判） ──
+// ── 橙的樣本（samples/mapinfo-air-base-exhausted.json） ─────────────────────────
 // 62_2 再出撃一次後 api_cond 由 1 變成 2＝橙（黃臉）。
 describe('真封包 mapinfo：api_cond 2 = 橙', () => {
     const fixture = JSON.parse(
@@ -270,9 +270,8 @@ describe('真封包 mapinfo：api_cond 2 = 橙', () => {
 });
 
 // ── 赤的定案樣本（samples/mapinfo-air-base-red.json） ─────────────────────────
-// 62_2 再出撃後 api_cond 變成 3，**使用者確認「紅臉、更疲勞」**。這一筆是四段對照的
-// 關鍵：先前只看到 0/1/2 時曾誤讀成三段（0=無/1=橙/2=赤），撈到 3 才發現整組錯位
-// ——當時面板對 cond 3 顯示「不明」、連符號都畫不出來。
+// 62_2 再出撃後 api_cond 變成 3，**使用者確認「紅臉、更疲勞」**；這筆樣本固定四段
+// 對照：0=全滿、1=輕度、2=橙、3=赤。
 describe('真封包 mapinfo：api_cond 3 = 赤', () => {
     const fixture = JSON.parse(
         readFileSync(new URL('../samples/mapinfo-air-base-red.json', import.meta.url), 'utf8'));
@@ -295,7 +294,7 @@ describe('真封包 mapinfo：api_cond 3 = 赤', () => {
     });
 
     // 出撃札（+1/tick）的赤：60 分確定回到橙帶、90 分確定回到無標記帶。
-    // 逐段降級的意義就在這裡——舊版會整整 90 分鐘畫紅臉，中間 30 分鐘其實已經是黃臉了。
+    // 逐段降級的意義在於：赤色狀態先經過橙色區間，再進入無標記區間。
     it('赤在出撃札下 60 分降成橙、90 分降到無標記帶', () => {
         const state = stateFromFixture();
         const base = state.airBases_().find(b => b.areaId === 62 && b.rid === 2)!;
@@ -315,8 +314,8 @@ describe('真封包 mapinfo：api_cond 3 = 赤', () => {
 });
 
 // ── mapinfo 就是對齊點 ────────────────────────────────────────────────────────
-// 使用者指出（2026-08-04）：點「出擊→海域選擇」時遊戲就會送 mapinfo，那一筆帶著完整的
-// api_air_base（含 api_cond），所以正常遊玩流程下面板每次都會對齊，不必等時間推算。
+// 點「出擊→海域選擇」時遊戲會送帶完整 api_air_base（含 api_cond）的 mapinfo；正常遊玩流程
+// 下，面板每次都會對齊，不必等時間推算。
 // 這條路徑必須真的會覆蓋——用三份真封包（無標記→橙→赤）串起來驗證。
 describe('連續 mapinfo 會把疲勞狀態對齊到最新', () => {
     const load = (name: string) =>
@@ -332,7 +331,7 @@ describe('連續 mapinfo 會把疲勞狀態對齊到最新', () => {
         return state.lbasCondStateNow(base.squadrons[0]!.cond, base, now);
     }
 
-    // 這正是 62_2 真實走過的軌跡：全滿 → 輕度 → 橙 → 赤（每多出撃一次往下一段）
+    // 四份封包呈現 62_2 從全滿 → 輕度 → 橙 → 赤的狀態序列（每多出撃一次往下一段）
     it('全滿 → 輕度 → 橙 → 赤 → 全滿，每一筆都跟著最新封包走', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/mapinfo', NORMAL, undefined, T0);
@@ -367,10 +366,8 @@ describe('連續 mapinfo 會把疲勞狀態對齊到最新', () => {
 });
 
 // ── 「可能已回復」的把握程度分級 ──────────────────────────────────────────────
-// 實機回報（2026-08-04）：遊戲畫面的黃臉已經退掉，面板卻還畫著實心黃臉。
-// 根因不是判定表錯，而是**表現方式在說謊**——封包只給三段顯示碼，收到時只知道值落在
-// 一個區間（橙＝20–29）。出撃札（+1/tick）下：3 分鐘就**可能**退掉、30 分鐘才**保證**
-// 退掉，中間那 27 分鐘舊版照樣畫實心臉。現在這段回 'possiblyRecovered'，面板淡化表現。
+// 封包只給三段顯示碼，收到時只知道值落在一個區間（橙＝20–29）。出撃札（+1/tick）下：
+// 3 分鐘就**可能**退掉、30 分鐘才**保證**退掉；中間回傳 'possiblyRecovered'，面板淡化表現。
 describe('lbasCondCertainty', () => {
     it('橙在出撃札(+1)：0–3 分確定、3–30 分存疑、30 分後必定已退', () => {
         expect(lbasCondCertainty(2, 1, 0)).toBe('certain');

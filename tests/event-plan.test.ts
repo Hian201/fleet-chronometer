@@ -169,8 +169,7 @@ describe('標籤預算', () => {
         .toEqual({ free: 0, locked: [], plannedStamp: [], freeAfterPlan: 0 }));
 });
 
-// 使用者實際回報三次：把船排進計畫後，標籤總帳仍顯示 0 艘、排進去的船像人間蒸發。
-// 「計畫」與「現實」是兩個維度，必須並排顯示。
+// 「計畫」與「現實」是兩個維度；排入計畫的艦船即使尚未有實際標籤，也必須在計畫欄顯示。
 describe('計畫歸屬（實際 vs 計畫兩個維度）', () => {
     const taiyou = S(401, '大鷹改二', 0);
     const roster = [...ships, taiyou];

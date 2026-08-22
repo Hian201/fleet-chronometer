@@ -110,6 +110,10 @@ describe('展開內容', () => {
         expect(html).toContain(t('ov.replayCopy'));
         expect(html).toContain('data-replay-open="500"');
         expect(html).toContain(t('ov.replayOpen'));
+        expect(html).toContain(t('ov.deckbuilderCopy'));
+        expect(html).toContain(t('ov.sortieSimulatorOpen'));
+        expect(html).toContain('data-simulator-open="500"');
+        expect(html).not.toContain('data-deckbuilder-open');
         expect(html).toContain('data-battle-log="500"');
         expect(html).toContain(t('ov.slBattleLog'));
     });
@@ -188,7 +192,8 @@ describe('展開內容（KC3Kai 級的資訊密度）', () => {
         expect(html).toContain('data-battle-node-panel="1"');
         expect(html).toContain('<details class="sl-battle-panel sl-battle-hp-panel">');
         expect(html).toContain('sl-battle-event');
-        expect(html).toContain(`<strong class="sl-battle-attacker-name">${state.shipName(2322)} #1</strong>`); // 61-3 node25 砲擊支援
+        expect(html).toContain(`<strong class="sl-battle-attacker-name">${state.shipName(2322)}</strong>`); // 61-3 node25 砲擊支援
+        expect(html).not.toContain(`${state.shipName(2322)} #1`);
         expect(html).toContain(t('ov.slAttackDayCutIn'));          // api_at_type=6：水偵＋主砲
         expect(html).toContain(t('ov.slAttackCarrierCutIn'));      // api_at_type=7：艦爆／艦攻
         expect(html).toContain(t('ov.slAttackNightDouble'));      // api_sp_list=1
@@ -216,6 +221,23 @@ describe('展開內容（KC3Kai 級的資訊密度）', () => {
         expect(shelling1Sides.indexOf('player', firstEnemy + 1)).toBeGreaterThan(firstEnemy);
         expect(html).not.toContain('敵方封包位置');
         expect(html).not.toContain('>T<i>01</i>');
+    });
+
+    it('噴式強襲以封包階段辨識空母來源，且不再顯示無法歸屬的泛用警告', () => {
+        const packet = {
+            api_f_nowhps: [100], api_f_maxhps: [100],
+            api_e_nowhps: [100], api_e_maxhps: [100], api_ship_ke: [1501],
+            api_injection_kouku: { api_stage3: { api_edam: [13] } },
+        };
+        const r: ReplayRow = {
+            ...replay(), sortieKey: 900, fleet1: [ship(YUKIKAZE)], fleet2: [],
+            battles: [{ node: 99, data: packet }],
+        };
+        const nodeRows = [{ ...rows()[0], eventId: 900, sortieKey: 900, node: 99, boss: true, enemyIds: [1501] }];
+        const html = battleLogHtml(buildSortieDetail(nodeRows, r), state);
+        expect(html).toContain(t('ov.slPhaseJet'));
+        expect(html).toContain(t('ov.slBattleOurCarrierJet'));
+        expect(html).not.toContain(t('ov.slBattleUnresolvedSource'));
     });
 
     it('夜戰流程標題以緊湊標籤顯示已發動的夜戰裝備', () => {

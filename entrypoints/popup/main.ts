@@ -1,7 +1,7 @@
 // 擴充圖示點選後的快捷選單（manifest action.default_popup，由 WXT 依本目錄自動註冊）。
 // 注意：設了 default_popup 之後 browser.action.onClicked 永遠不會觸發（MV3 規格），
-// 原本「點圖示直接開面板」改為此選單的第一項——實際開窗／單例聚焦邏輯仍留在
-// background（SW 常駐訊息端），popup 只送 kc:open-panel 就關閉自己。
+// 選單第一項負責開面板；實際開窗／單例聚焦邏輯留在 background（SW 常駐訊息端），
+// popup 只送 kc:open-panel 就關閉自己。
 import { t } from '@/utils/ui-i18n';
 import { initLang } from '@/utils/ui-prefs';
 import {
@@ -44,7 +44,7 @@ bind('open-game', focusOrOpenGameTab);
  *
  * 比對用 GAME_TAB_MATCHES 而非 GAME_PAGE_MATCHES：後者是 content script 的注入範圍，
  * 涵蓋整個 play.games.dmm.com（DMM 上的其他遊戲也在內），拿來判斷單例會把別的遊戲頁
- * 誤認成艦これ。查詢失敗（權限或瀏覽器差異）就退回原本的「直接開新分頁」行為。
+ * 誤認成艦これ。查詢失敗（權限或瀏覽器差異）就直接開新分頁。
  */
 async function focusOrOpenGameTab(): Promise<unknown> {
     const tabs = await browser.tabs.query({ url: [...GAME_TAB_MATCHES] }).catch(() => []);
@@ -57,7 +57,6 @@ async function focusOrOpenGameTab(): Promise<unknown> {
     return existing;
 }
 // 鎮守府情報總括：獨立分頁（大量資料檢視適合完整分頁而非 420px 彈窗）。
-// TODO(細節)：分頁單例化（已開啟就聚焦既有分頁；無 tabs 權限下需仿面板的 ping 機制）
 bind('open-overview', () => browser.tabs.create({ url: browser.runtime.getURL('/overview.html') }));
 
 // ── 狀態列（劇場模式／靜音需要就地回饋，故這兩項不自動關閉 popup）──
@@ -72,7 +71,7 @@ function status(message: string) {
 // 之後才 await tabs.query 會失去手勢資格，授權對話框直接不跳。所以分頁資訊得在點擊前備好，
 // 點擊當下只做同步判斷——「在非遊戲分頁按劇場／拍照」就能先擋下來，不會為了一個註定
 // 沒用的注入先要一次 dmm.com 權限。
-// `undefined` = 查詢還沒回來（開啟後幾毫秒內）：這時不擋，維持原本流程，寧可多跳一次
+// `undefined` = 查詢還沒回來（開啟後幾毫秒內）：這時不擋，維持流程，寧可多跳一次
 // 授權也不要因為競態把功能鎖死。
 let activeTab: { id?: number; url?: string } | null | undefined;
 void browser.tabs.query({ active: true, currentWindow: true })
@@ -92,7 +91,7 @@ let gameTabsConnected = 0;
 // 斷言「沒有遊戲分頁、請按 F5」，而真正的原因是狀態根本沒查到。
 let stateKnown = false;
 const renderMute = () => {
-    // 沒有任何遊戲分頁連上來＝那些分頁跑的還是舊版 content script（擴充更新後未 F5），
+    // 沒有任何遊戲分頁連上來＝那些分頁尚未重新注入 content script（擴充更新後未 F5），
     // 這時按靜音一定沒反應。**這種靜靜失敗最難查，所以直接寫在選單上。**
     muteStateEl.textContent = !stateKnown
         ? t('theater.muteUnknown')
@@ -140,7 +139,7 @@ document.getElementById('mute')!.addEventListener('click', async () => {
 
 // ── 劇場模式 ──────────────────────────────────────────
 // 這是本擴充唯一需要 dmm.com 權限的功能，故走 optional_host_permissions：manifest 預設
-// 權限維持只有 alarms/notifications，使用者第一次按下這裡才跳一次原生授權視窗，授權後
+// 安裝時維持現行最小權限集，使用者第一次按下這裡才跳一次原生授權視窗，授權後
 // 以 scripting.registerContentScripts 常駐（persistAcrossSessions），日後開遊戲頁自動生效。
 // **permissions.request() 必須是點擊手勢的第一個呼叫**——先 await 別的事情會失去手勢資格。
 document.getElementById('theater')!.addEventListener('click', async () => {
@@ -162,7 +161,7 @@ document.getElementById('theater')!.addEventListener('click', async () => {
     window.close();
 });
 
-/** 常駐註冊（重複註冊會拋 duplicate id，改成 update；兩者都失敗只影響「下次自動生效」）。 */
+/** 常駐註冊；重複 id 時更新既有註冊，兩者都失敗只影響「下次自動生效」。 */
 async function registerTheaterScript(): Promise<void> {
     const script = {
         id: THEATER_SCRIPT_ID,

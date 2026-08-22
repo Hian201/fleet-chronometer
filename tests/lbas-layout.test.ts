@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 
 // 基地航空隊版面的硬約束（見 panel/index.html「基地航空隊」段）：一個海域最多三隊、
 // 一隊最多四個中隊，**三隊必須在不捲動的前提下全部看得完**（區塊可用高度約 440px）。
-// 原本逐列排法量到 626px；現行為「抬頭列（隊名＋制空＋半徑＋行動）＋中隊 2×2」，
-// 最壞情況量到 329px。高度本身要用離線預覽量：
+// 版面採用「抬頭列（隊名＋制空＋半徑＋行動）＋中隊 2×2」，最壞情況量到 329px；
+// 高度本身要用離線預覽量：
 //   npx vite-node --config vitest.config.ts tools/preview/lbas-layout.ts
-// 這裡鎖的是「別把它改回逐列排」與那條救命的 min-width。
+// 這裡鎖的是 2×2 排列與避免內容被壓縮的 min-width。
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const panelMain = readFileSync(new URL('../entrypoints/panel/main.ts', import.meta.url), 'utf8');
 const css = panelHtml.slice(panelHtml.indexOf('<style>') + 7, panelHtml.indexOf('</style>'));
@@ -20,7 +20,7 @@ describe('基地航空隊版面', () => {
     it('隊名與制空/半徑併在同一列，不再各佔一列', () => {
         expect(panelMain).toContain('ab-head1');
         expect(panelMain).toContain('ab-inline-stats');
-        // 舊的獨立制空列不得復活——那是每卡多 23px 的來源
+        // 制空資訊與隊名共用同一列，避免每張卡額外增加 23px。
         expect(panelMain).not.toContain('class="ab-stats"');
         expect(panelMain).not.toContain('class="ab-header"');
     });
@@ -103,7 +103,7 @@ describe('編成列的基地航空隊鈕', () => {
     });
 });
 
-// 「可能已回復」的淡化表現（實機回報 2026-08-04：遊戲已退掉黃臉、面板還畫實心臉）
+// 「可能已回復」的淡化表現：遊戲狀態可能已退掉黃臉，但封包尚未更新。
 describe('疲勞標記的把握程度表現', () => {
     it('存疑時加 unsure class，並仍保留標記本身', () => {
         expect(panelMain).toContain("certainty === 'possiblyRecovered' ? ' unsure' : ''");

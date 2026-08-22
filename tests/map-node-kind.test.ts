@@ -48,8 +48,8 @@ describe('節點類型', () => {
     });
 });
 
-// eventKind 6 = 空襲 的獨立佐證升級：先前只有 KC3Kai 匯出的 desc 文字，
-// 現在有一筆封包**自己帶著 api_destruction_battle**（基地空襲）且 eventId/Kind = 4/6。
+// eventKind 6 = 空襲 的獨立佐證：封包本身帶著 `api_destruction_battle`（基地空襲），
+// 且 eventId／kind = 4／6。
 describe('空襲節點的真封包佐證', () => {
     const raid = sample('base-air-raid.json').api;
 

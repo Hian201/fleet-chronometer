@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""面板 UI 圖示（非裝備）：入渠／建造／遠征的計時列標籤＋頂欄的艦數／裝備數。
+"""面板 UI 圖示（非裝備）：入渠／建造／遠征的計時列標籤＋頂欄的艦數／裝備數＋任務札。
 入渠＝沿用艦艇修理施設（裝備 id 26）的吊臂造型，語意直接對應。
 建造＝造船鎚（#feea74）＋兩顆 Solid Rivets（與開発資材同一語彙）。
 遠征＝羅盤（參照 samples/compass.jpg：黃銅錶圈・白錶盤・黑三角刻度・八方位羅經花・紅指北針）。
+任務＝鎮守府通達用紙＋朱印（任務畫面是文書，不是勾選框／剪貼簿）。
 艦數＝軍艦側影（參照遊戲原圖 samples/ships.png：黃綠 #b3c96f 艦體、深綠細節）。
 裝備數＝金銀雙齒輪（參照遊戲原圖 samples/equips.png：金齒輪前、銀齒輪後，
 　　　　齒輪幾何沿用開発資材的 12 齒語彙）。
@@ -130,6 +131,27 @@ def compass():
     p.append(f'<circle cx="16" cy="16" r="1.0" fill="{bez_d}"/>')
     return svg(''.join(p))
 OUT['exped'] = compass()
+
+# ── 任務：通達用紙＋朱印 ──
+def quest():
+    """鎮守府任務畫面是一疊文書，不是勾選清單。16px 只留三層：紙面、折角、朱印。
+    朱印色 #c46a4a 是文書印泥，不是大破紅（--dmg-major）。"""
+    paper = "#e8e2d2"
+    pd = shade(paper, 0.7)
+    pl = light(paper, 0.32)
+    seal = "#c46a4a"
+    sl = light(seal, 0.38)
+    p = []
+    p.append(f'<path fill="{paper}" d="M7.0 3.8 L20.2 3.8 L25.0 8.6 L25.0 28.0 '
+             'Q25.0 29.2 23.8 29.2 L8.2 29.2 Q7.0 29.2 7.0 28.0 Z"/>')
+    p.append(f'<path fill="{pl}" opacity="0.55" d="M7.0 3.8 L10.2 3.8 L10.2 29.2 '
+             'L8.2 29.2 Q7.0 29.2 7.0 28.0 Z"/>')
+    p.append(f'<path fill="{pd}" d="M20.2 3.8 L25.0 8.6 L20.2 8.6 Z"/>')
+    p.append(f'<circle cx="16.2" cy="18.6" r="5.4" fill="{seal}"/>')
+    p.append(f'<circle cx="16.2" cy="18.6" r="3.6" fill="none" stroke="{sl}" stroke-width="1.1"/>')
+    p.append(f'<circle cx="14.8" cy="17.2" r="1.3" fill="{sl}" opacity="0.5"/>')
+    return svg(''.join(p))
+OUT['quest'] = quest()
 
 # ── 艦數（頂欄）：軍艦側影（配色參照遊戲原圖 samples/ships.png，
 #     外框參照 1944 年頃的戰艦側影：飛剪艦首・背負式前砲塔・塔式艦橋・後傾煙囪）──

@@ -65,6 +65,7 @@ describe('viewerHtml 內嵌腳本與 helper 對齊', () => {
 
     it('預設說明完整備份，仍用 tables.replays 相容舊重播檔', () => {
         const src = viewerHtml();
+        expect(src).toContain('kanmusu-backup-YYYY-MM-DD-HHmmss.json');
         expect(src).toContain('kanmusu-backup.json');
         expect(src).toContain('kanmusu-replays.json');
         expect(src).toContain('env.tables && env.tables.replays');

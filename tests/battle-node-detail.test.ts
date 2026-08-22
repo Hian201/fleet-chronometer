@@ -82,12 +82,12 @@ describe('基地航空隊戰果彙總', () => {
 
 describe('支援艦隊戰果彙總', () => {
     /** 樣本中每個帶 api_support_info 的節點 → 期望值（由原始封包逐格切捨加總算出）。 */
-    const cases: { file: string; node: number; kind: 'air' | 'shelling'; deckId: number; damage: number }[] = [
+    const cases: { file: string; node: number; kind: 'air' | 'shelling' | 'torpedo' | 'asw'; deckId: number; damage: number }[] = [
         { file: '61-3.json', node: 25, kind: 'shelling', deckId: 3, damage: 103 },
         { file: '61-3.json', node: 51, kind: 'shelling', deckId: 3, damage: 186 },
         // 決戰支援出動了但一發沒中：0 是事實，不是「沒有支援」——故仍要有 support 物件。
         { file: '61-3.json', node: 53, kind: 'shelling', deckId: 4, damage: 0 },
-        { file: '61-5-jibun-rengou-node52.json', node: 1, kind: 'air', deckId: 4, damage: 135 },
+        { file: '61-5-jibun-rengou-node52.json', node: 1, kind: 'asw', deckId: 4, damage: 135 },
         { file: '61-5-jibun-rengou-node52.json', node: 15, kind: 'air', deckId: 4, damage: 36 },
         { file: '61-5-jibun-rengou-node52.json', node: 55, kind: 'shelling', deckId: 3, damage: 452 },
     ];
@@ -130,6 +130,82 @@ describe('支援艦隊戰果彙總', () => {
 });
 
 describe('交戰記錄時間線', () => {
+    it('依官方階段欄位區分基地噴式、空母噴式與一般基地航空隊順序', () => {
+        const packet = {
+            api_f_nowhps: [100], api_f_maxhps: [100],
+            api_e_nowhps: [100], api_e_maxhps: [100],
+            api_air_base_injection: {
+                api_stage3: { api_edam: [11] },
+            },
+            api_injection_kouku: {
+                api_stage3: { api_edam: [13] },
+            },
+            api_air_base_attack: [{
+                api_base_id: 1,
+                api_stage1: { api_f_count: 18, api_f_lostcount: 0, api_e_count: 0, api_e_lostcount: 0 },
+                api_stage3: { api_edam: [17] },
+            }],
+        };
+        const view = analyzeBattle([packet], { main: [], escort: [] });
+        expect(view.timeline!.phases.map(phase => phase.kind)).toEqual([
+            'jetBase', 'jet', 'landBase',
+        ]);
+        expect(view.timeline!.phases.map(phase => phase.events[0]?.kind)).toEqual([
+            'landBase', 'air', 'landBase',
+        ]);
+        expect(view.timeline!.phases.map(phase => phase.enemyDamage)).toEqual([11, 13, 17]);
+    });
+
+    it('用開幕雷擊的攻擊者／目標陣列還原聯合艦隊隨伴艦，不再只顯示受擊總表', () => {
+        const packet = {
+            api_f_nowhps: [100, 100, 100, 100, 100, 100],
+            api_f_maxhps: [100, 100, 100, 100, 100, 100],
+            api_f_nowhps_combined: [100, 100, 100, 100, 100, 100],
+            api_f_maxhps_combined: [100, 100, 100, 100, 100, 100],
+            api_e_nowhps: [300, 300, 300, 300],
+            api_e_maxhps: [300, 300, 300, 300],
+            api_opening_atack: {
+                // E2_Boss.json 的實際形狀：第 11 格（0-based）是我方隨伴艦第 5 格。
+                api_frai_list_items: [null, null, null, null, null, null, null, null, null, null, [3], null],
+                api_fydam_list_items: [null, null, null, null, null, null, null, null, null, null, [131], null],
+                api_fcl_list_items: [null, null, null, null, null, null, null, null, null, null, [1], null],
+                api_erai_list_items: [null, null, null, null],
+                api_eydam_list_items: [null, null, null, null],
+                api_ecl_list_items: [null, null, null, null],
+                api_fdam: [0, 0, 0, 0, 0, 0],
+                api_edam: [0, 0, 0, 131],
+            },
+        };
+        const view = analyzeBattle([packet], { main: [], escort: [] });
+        const phase = view.timeline!.phases.find(item => item.kind === 'openingTorpedo')!;
+        expect(phase.events).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                attackerSide: 'player', attackerIndex: 10,
+                defenderSide: 'enemy', defenderIndex: 3, damage: 131,
+            }),
+        ]));
+        expect(phase.enemyDamage).toBe(131);
+        expect(phase.events.some(event => event.attackerIndex === null)).toBe(false);
+    });
+
+    it('開幕雷擊保留封包明示的 0 傷害命中，不製造目標未提供列', () => {
+        const packet = {
+            api_f_nowhps: [100], api_f_maxhps: [100],
+            api_e_nowhps: [100], api_e_maxhps: [100],
+            api_opening_atack: {
+                api_frai: [0], api_fydam: [0], api_fcl: [1],
+                api_erai: [-1], api_eydam: [0], api_ecl: [0],
+                api_fdam: [0], api_edam: [0],
+            },
+        };
+        const view = analyzeBattle([packet], { main: [], escort: [] });
+        const phase = view.timeline!.phases.find(item => item.kind === 'openingTorpedo')!;
+        expect(phase.events).toHaveLength(1);
+        expect(phase.events[0]).toMatchObject({
+            attackerIndex: 0, defenderIndex: 0, damage: 0,
+        });
+    });
+
     it('沿用同一套傷害解析，留下陸航／支援／砲雷擊階段與 HP 快照', () => {
         const sample = load('61-3.json');
         const node = sample.battles.find((b: any) => b.node === 53);

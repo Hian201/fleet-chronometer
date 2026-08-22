@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 
 /**
- * 基地航空隊中隊格消失的回歸測試。
+ * 基地航空隊中隊格完整保留的行為測試。
  *
- * 症狀（實機回報）：補給完只剩一架飛機格；出擊前換飛機四格變兩格甚至一格；
- * 陸航飛機互換位置同樣不正常；回母港才會恢復。制空與格數一起錯，因為
- * `airBases_()` 與 `lbasAirPower()` 都直接讀 `ab.api_plane_info`。
+ * `set_plane`／`supply` 的回應只帶被更動的中隊；若整排覆蓋，未被更動的中隊會消失，
+ * 進而同時影響 `airBases_()` 與 `lbasAirPower()`。
  *
- * 根因：`set_plane`／`supply` 的回應只帶被更動的中隊，舊寫法整排覆蓋。
+ * 合併時必須依 `api_squadron_id` 更新局部項目並保留其他中隊。
  */
 
 const AREA = 6;
@@ -115,11 +114,11 @@ describe('基地航空隊中隊合併', () => {
 });
 
 /**
- * 補給後機數沒更新的回歸測試（實機回報 2026-08-04：遊戲已補給、面板仍顯示補給前機數）。
+ * 補給後機數依請求中的基地鍵正確更新。
  *
  * 機數只有 base_air_corps／mapinfo／set_plane／supply 四條路徑會更新——戰鬥封包不帶
- * `api_count`。舊寫法把 `api_base_id` 原樣塞進 key（`${area}_${base}`），只要請求的形狀
- * 跟推定的不一樣（逗號分隔、api_area_id 缺席）就查不到基地，然後**靜靜什麼都不做**。
+ * `api_count`。`api_base_id` 可能逗號分隔，`api_area_id` 也可能缺席；解析器必須逐項解析，
+ * 並在無法唯一定位時保留可診斷的結果。
  */
 describe('基地航空隊補給的請求解析', () => {
     const supply = (s: GameState, req: Record<string, string>, count = 18) =>
@@ -148,7 +147,7 @@ describe('基地航空隊補給的請求解析', () => {
     });
 
     // 多基地一次補給時無法確定 api_plane_info 各屬哪個基地（squadron id 在各基地內都是
-    // 1–4），硬分會分錯。維持原狀＋console 警告，不猜。
+    // 1–4），無法唯一對應時保留原機數並記錄 console 警告，不猜。
     it('多個基地一次補給時不亂套用（維持原機數）', () => {
         const s = stateWithBase();
         s.applyEvent('api_get_member/base_air_corps', [{

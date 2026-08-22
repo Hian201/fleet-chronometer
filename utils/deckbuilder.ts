@@ -20,13 +20,14 @@
 //     故本檔案在附不到精確素質時省略該欄位並非未完成，而是兩個消費端都容許的行為。
 // 兩者吃同一種 schema（f1~f4 艦隊、a1~a3 基地航空隊），故只需一份轉換器共用。
 import type { GameState } from './state';
+import type { ReplayLbas, ReplayRow, ReplayShip, ReplaySupportShip } from './db';
 
 // lbas：以**海域（maparea id）**為鍵的開關表（`String(areaId)`），缺席＝送出，見
 // entrypoints/overview/lib.ts 的 FleetMarkdownScope 同一份註解——**不可用 rid 當鍵**
 // （各海域都有自己的第一/第二/第三基地航空隊，會撞號）。
 export interface DeckBuilderScope { fleets: boolean[]; lbas: Record<string, boolean> }
 
-interface DeckBuilderItem { id: number; rf: number; mas: number }
+interface DeckBuilderItem { id: number; rf: number; mas: number; count?: number }
 type DeckBuilderItems = Record<string, DeckBuilderItem>;
 
 // 補強增設槽位的 key：kc-web 的 convert.ts 認得 'ix' 這個固定字串（另一種
@@ -80,6 +81,72 @@ export function buildDeckBuilder(state: GameState, scope: DeckBuilderScope): obj
     });
 
     return deck;
+}
+
+/**
+ * 將一場出擊開始時保存的快照轉成標準 DeckBuilder JSON。
+ *
+ * 出擊模擬器網址使用的是它自己的 `fleetF`／`nodes` 輸入格式；但 KC3Kai 的「從文字
+ * 載入」會呼叫 DeckBuilder converter，只認得 `f1`～`f4`／`a1`～`a3`。兩種格式不可
+ * 混用：網址可載入不代表複製的 JSON 可貼進 DeckBuilder。
+ */
+export function buildReplayDeckBuilder(row: ReplayRow): object {
+    const deck: Record<string, unknown> = { version: 4 };
+    if (typeof row.hqLv === 'number' && Number.isFinite(row.hqLv) && row.hqLv > 0) deck.hqlv = row.hqLv;
+
+    const fleet = (ships: readonly (ReplayShip | ReplaySupportShip)[]) => {
+        const out: Record<string, unknown> = {};
+        ships.slice(0, 7).forEach((ship, index) => { out[`s${index + 1}`] = replayShip(ship); });
+        return out;
+    };
+    if (row.fleet1.length) deck.f1 = fleet(row.fleet1);
+    if (row.fleet2.length) deck.f2 = fleet(row.fleet2);
+    if (row.fleet3?.length) deck.f3 = fleet(row.fleet3);
+    if (row.fleet4?.length) deck.f4 = fleet(row.fleet4);
+
+    // 一場出擊的快照只會保存該海域的基地，rid 正好對應標準格式 a1～a3。
+    for (const base of row.lbas ?? []) {
+        if (!Number.isInteger(base.rid) || base.rid < 1 || base.rid > 3) continue;
+        const converted = replayLbas(base);
+        if (converted) deck[`a${base.rid}`] = converted;
+    }
+    return deck;
+}
+
+function replayShip(ship: ReplayShip | ReplaySupportShip): object {
+    const items: DeckBuilderItems = {};
+    ship.equip.forEach((id, index) => {
+        if (id > 0) items[`i${index + 1}`] = {
+            id,
+            rf: Math.max(0, ship.stars[index] ?? 0),
+            mas: Math.max(0, ship.ace[index] ?? 0),
+        };
+    });
+    if (ship.exequip > 0) {
+        items[EX_ITEM_KEY] = {
+            id: ship.exequip,
+            rf: Math.max(0, ship.exstars ?? 0),
+            mas: Math.max(0, ship.exace ?? 0),
+        };
+    }
+    const out: Record<string, unknown> = { id: ship.mst_id, lv: ship.lv, items };
+    // 支援艦隊快照沒有 HP；欄位缺席比以不明值補寫更符合 DeckBuilder 契約。
+    if ('maxhp' in ship && typeof ship.maxhp === 'number' && ship.maxhp > 0) out.hp = ship.maxhp;
+    return out;
+}
+
+function replayLbas(base: ReplayLbas): object | undefined {
+    const items: DeckBuilderItems = {};
+    base.squadrons.forEach((squadron, index) => {
+        if (squadron.mst <= 0) return;
+        items[`i${index + 1}`] = {
+            id: squadron.mst,
+            rf: Math.max(0, squadron.stars),
+            mas: Math.max(0, squadron.ace),
+            count: Math.max(0, squadron.count),
+        };
+    });
+    return Object.keys(items).length ? { mode: base.action, items } : undefined;
 }
 
 // KanColleImgBuilder：網址 hash 用 encodeURI/decodeURI 這一對（非 encodeURIComponent），

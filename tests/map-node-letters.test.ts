@@ -1,5 +1,5 @@
-// 節點字母查表。**這支測試的重點是釘住「不可用推算」這個結論**——曾經有兩版推算法
-// （ASCII、編號排序）都被真實資料否證，見 utils/map-node-letters.ts 檔頭。
+// 節點字母查表。edge id 與節點字母不是可由編號推導的關係，故沒有對照時必須保留原始
+// edge 編號；見 utils/map-node-letters.ts 檔頭。
 import { describe, expect, it } from 'vitest';
 import { EDGE_LETTERS } from '../utils/map-edge-letters';
 import { hasNodeLetters, nodeLabel, nodeLetter } from '../utils/map-node-letters';

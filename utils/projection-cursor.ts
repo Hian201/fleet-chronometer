@@ -13,7 +13,7 @@ export function validProjectionThroughEventId(metadata: DatabaseMetaRow | undefi
         : undefined;
 }
 
-// metadata 缺少、版本未知或內容損壞時一律從 0 開始；不能猜測舊版已完成的投影進度。
+// metadata 缺少、版本未知或內容損壞時一律從 0 開始；無法證實的投影進度不作推定。
 export function projectionCursorValue(metadata: DatabaseMetaRow | undefined): number {
     return validProjectionThroughEventId(metadata) ?? 0;
 }

@@ -1,4 +1,4 @@
-// LLM 分析（#7）。三條互不相依的路徑，皆不需要新增 manifest 權限、不打破「資料不落地
+// LLM 分析。三條互不相依的路徑，皆不需要新增 manifest 權限、不打破「資料不落地
 // 出境」的預設立場——出不出境完全由使用者自己決定要不要把檔案／文字交給誰：
 //
 //   B. 鎮守府概覽（主線）：把鎮守府現況整理成一份 Markdown，複製或下載，
@@ -109,13 +109,9 @@ async function buildFullReport(state: GameState): Promise<string> {
     } else lines.push(t('ov.gearSummaryNone'));
     lines.push('');
 
-    // 出擊：依海域分組統計（rank 分布／大破次數／常見掉落／最近出擊時間），而非把
-    // 個別戰鬥攤平列成一份「全海域混在一起」的清單——原本的設計讓 LLM 沒辦法回答
-    // 「我在某海域的歷史勝率」（全域統計混雜所有海域，細節列表又只有全體最近 20 筆，
-    // 常常根本看不到目標海域的紀錄）。分組後每個海域一行，資訊密度更高、且是回答
-    // 「目標海域勝率」這類問題真正需要的形狀。**限制在最接近當下的半年份**（見檔頭
-    // SORTIE_SCOPE_MONTHS）：分組運算本身很輕量，但輸出行數只該跟「去過幾個海域」
-    // 成正比，全歷史下去反而會把最該關注的近期趨勢淹沒。
+    // 出擊依海域分組統計（rank 分布／大破次數／常見掉落／最近出擊時間），每個海域一行，
+    // 讓 LLM 能回答指定海域的近期勝率。**限制在最接近當下的半年份**（見檔頭
+    // SORTIE_SCOPE_MONTHS），避免舊活動淹沒近期趨勢並控制輸出大小。
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - SORTIE_SCOPE_MONTHS);
     const sorties = (await db.sorties.orderBy('eventId').reverse().toArray())
@@ -261,10 +257,8 @@ function renderAiNano(el: HTMLElement, state: GameState) {
             const question = q.value.trim() || t('ov.aiNanoDefaultQuestion');
             const context = await buildQuickContext(state);
             const stream = session.promptStreaming(`${context}\n\n${question}`);
-            // promptStreaming 的分塊語意曾經改版（部分版本回傳「目前為止的全文」，
-            // 穩定版回傳「只有新增的 token」），且行為隨 Chrome 版本而異、無法從
-            // typeof 特徵偵測分辨。用「新塊是否以目前已顯示文字開頭」判斷，兩種
-            // 語意都能正確顯示，不用賭使用者裝置跑的是哪一版。
+            // promptStreaming 的 chunk 可能是累積全文或增量文字；用「新塊是否以目前已顯示
+            // 文字開頭」判斷，兩種語意都能正確顯示。
             let acc = '';
             for await (const chunk of stream) {
                 acc = chunk.startsWith(acc) ? chunk : acc + chunk;

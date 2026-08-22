@@ -18,7 +18,7 @@ export default defineContentScript({
         // [debug] 靜音沒反應時，在**遊戲分頁**的 console（frame 選遊戲框）執行：
         //   __kcAudio.contextCount()   ← 0 代表遊戲根本沒用 WebAudio（那就是走 media 元素）
         //   __kcAudio.isMuted()        ← 目前狀態
-        // 最常見的原因其實是「擴充更新後遊戲分頁沒有 F5」＝這支腳本還是舊版，
+        // 最常見的原因是擴充更新後遊戲分頁沒有 F5，
         // 那時連 __kcAudio 都不存在——這正好是判斷依據。
         (window as any).__kcAudio = audio;
         window.addEventListener('message', (e) => {
@@ -36,7 +36,7 @@ export default defineContentScript({
                 //   copy(__kcLastBattle)   ← 複製最後一場戰鬥的完整 JSON
                 // 只為既有戰鬥 debug 解析；一般母港／編成／改裝封包一律留給 background 解析。
                 // [debug] 擷取戰鬥／結算封包，方便驗證：對印出的物件按右鍵 →「Copy object」複製 JSON
-                //   （與 console context 無關；驗證完成後可移除這段）
+                //   （與 console context 無關）
                 if (path.includes('battle')) {
                     const api = parseKcsapiResponse(text);
                     if (path.endsWith('result')) {
@@ -110,7 +110,7 @@ export default defineContentScript({
                     const responseCopy = res.clone();
                     void reqBody.then((body) => captureQueue.enqueue(p, body, () => responseCopy.text()));
                 } catch (error) {
-                    // 擷取失敗只能略過該筆，絕不能改變遊戲原本可取得的 Response。
+                    // 擷取失敗只能略過該筆，絕不能改變遊戲可取得的 Response。
                     console.warn('[KC-Monitor] 無法複製 fetch 回應，略過此筆', p, error);
                 }
             }
@@ -138,7 +138,7 @@ export default defineContentScript({
             // { once: true }：若遊戲重用同一個 XHR 實例送出下一筆請求，這個 listener 不能
             // 留著——留著的話下一次 load 事件會被這個「舊」listener 跟這次新註冊的一起觸發，
             // 屆時 this.responseText 已經是新請求的內容，卻會被舊 listener 標成舊的 path
-            // 重複入列（見開發紀錄的 XHR 重用錯位案例）。每個 send() 呼叫只該對應它自己
+            // 重複入列。每個 send() 呼叫只該對應它自己
             // 那一次 load。
             if (p) this.addEventListener('load', () => {
                 // 不在 load callback 讀 this.responseText；取得大型字串與 postMessage 都留給

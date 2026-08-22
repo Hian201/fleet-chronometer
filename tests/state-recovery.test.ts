@@ -131,10 +131,8 @@ describe('state recovery replay planning', () => {
         ]);
     });
 
-    // 實機回報 2026-08-04：每次進遊戲，面板的基地航空隊都顯示補給前的機數。
-    // 根因是 baseline 依固定 path 順序重播——mapinfo 與 base_air_corps 都會寫
-    // GameState.airBases，而玩家的操作順序讓 base_air_corps 比 mapinfo 新，
-    // 固定順序卻把較舊的 mapinfo 排在後面覆蓋回去。順序必須依觀測時間。
+    // 不同 path 的快照只各自保留最新一筆；mapinfo 與 base_air_corps 都會寫
+    // GameState.airBases，故 baseline 必須依觀測時間套用，避免較舊的 mapinfo 覆蓋較新資料。
     it('較舊的 mapinfo 快照不得覆蓋較新的 base_air_corps（基地航空隊機數）', () => {
         const planeInfo = (count: number) => [
             { api_squadron_id: 1, api_state: 1, api_slotid: 101, api_count: count, api_max_count: 18, api_cond: 1 },

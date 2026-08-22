@@ -6,3 +6,7 @@ node_modules/
 *.log
 .claude/settings.local.json
 __pycache__/
+.playwright-mcp/
+/fleet-combined-before.png
+/sortie-diagnosis.png
+tools/icons/out/

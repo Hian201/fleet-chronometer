@@ -1,4 +1,4 @@
-// 大破機制（旗艦大破／第二艦隊旗艦不沉／損管）與艦隊司令部退避的回歸測試。
+// 大破機制（旗艦大破／第二艦隊旗艦不沉／損管）與艦隊司令部退避的行為測試。
 // 艦與裝備 master 一律取自真實 start2 fixture，不手捏 api_stype／裝備 id。
 //
 // 退避：比照 KC3Kai（`api_escape_idx`／`api_tow_idx` 各取 [0]；1-based；連合 >6＝隨伴）。
@@ -196,6 +196,46 @@ function retreat(state: GameState, escapeIdx: number[], towIdx: number[] = []) {
     state.applyEvent('api_req_combined_battle/goback_port', {});
 }
 
+describe('ship3／ship_deck 的艦隊同步', () => {
+    it('局部回傳的第3艦隊依 api_id 留在第3格，不覆蓋第1艦隊或清空其他艦隊', () => {
+        const state = stateWithFleets([
+            [{ mst: MUTSUKI, hp: 11 }],
+            [{ mst: MUTSUKI, hp: 22 }],
+            [{ mst: MUTSUKI, hp: 33 }],
+        ]);
+        const firstDeck = state.decks[0];
+        const secondDeck = state.decks[1];
+        const thirdDeck = { ...state.decks[2], api_id: 3, api_name: '第三艦隊（更新）' };
+
+        // 能動分歧後遊戲重取目前編成時，可只回傳指定艦隊；陣列第 0 格不是艦隊 1。
+        state.applyEvent('api_get_member/ship3', {
+            api_ship_data: [],
+            api_deck_data: [thirdDeck],
+        });
+
+        expect(state.decks[0]).toBe(firstDeck);
+        expect(state.decks[1]).toBe(secondDeck);
+        expect(state.decks[2]).toBe(thirdDeck);
+        expect(state.fleets().map(fleet => fleet.ships[0]?.hp)).toEqual([11, 22, 33]);
+    });
+
+    it('沒有 api_id 的局部資料不臆測艦隊位置', () => {
+        const state = stateWithFleets([
+            [{ mst: MUTSUKI, hp: 11 }],
+            [{ mst: MUTSUKI, hp: 22 }],
+            [{ mst: MUTSUKI, hp: 33 }],
+        ]);
+        const before = state.decks.slice();
+
+        state.applyEvent('api_get_member/ship_deck', {
+            api_ship_data: [],
+            api_deck_data: [{ api_ship: [999] }],
+        });
+
+        expect(state.decks).toEqual(before);
+    });
+});
+
 // 夜戰接續會把晝戰封包整場重放一次（analyzeBattle([晝, 夜])），故餵進去的損管必須是
 // **晝戰開打前**的狀態。晝戰觸發過損管的艦已被記進 damaconUsed，若在夜戰用「當下」重算
 // 的損管去重放，那艘船會在重放晝戰傷害時無損管可用 → 誤報轟沈：血量被寫回 0（編成面板
@@ -243,6 +283,38 @@ describe('損管與夜戰接續（GameState 端）', () => {
 });
 
 describe('艦隊司令部退避', () => {
+    it('第3艦隊七艘：戰鬥封包 api_deck_id 會校正 HP 回寫目標，結算候補在退避後正確標記', () => {
+        const state = stateWithFleets([
+            [{ mst: MUTSUKI, hp: 40 }],
+            [{ mst: MUTSUKI, hp: 40 }],
+            Array.from({ length: 7 }, () => ({ mst: MUTSUKI, hp: 40 })),
+        ]);
+        sortie(state, 3);
+        // 模擬面板中途重建後遺失 map/start 的艦隊上下文；戰鬥封包本身明示第3艦隊。
+        state.currentSortieFleetId = 0;
+        const packet = battlePacket({
+            fHp: [40, 40, 40, 40, 40, 1, 40],
+            fMax: [40, 40, 40, 40, 40, 40, 40],
+            hits: [],
+        });
+        Object.assign(packet, { api_deck_id: 3 });
+        state.applyEvent('api_req_battle_midnight/battle', packet);
+
+        expect(state.currentSortieFleetId).toBe(2);
+        expect(state.fleets()[0].ships[0].hp).toBe(40);
+        expect(state.fleets()[2].ships[5].hp).toBe(1);
+
+        // KC3Kai 同樣從 battleresult.api_escape 暫存候補；實際按退避送出
+        // goback_port 後才離隊。
+        state.applyEvent('api_req_sortie/battleresult', {
+            api_escape: { api_escape_idx: [6], api_tow_idx: [] },
+        });
+        state.applyEvent('api_req_combined_battle/goback_port', {});
+        expect(state.fleets()[2].ships.map(ship => ship.escaped)).toEqual([
+            false, false, false, false, false, true, false,
+        ]);
+    });
+
     it('退避的是結算封包指名的位置（1-based），其餘艦不受影響', () => {
         const state = stateWithFleets([[{ mst: 1 }, { mst: 1 }, { mst: 1 }]]);
         sortie(state);
@@ -333,7 +405,7 @@ describe('艦隊司令部退避', () => {
 });
 
 // api_escape_idx／api_tow_idx 可能列多艘候補；比照 KC3Kai 只取各陣列 [0]，
-// 絕不可整批標記（曾把三艘健康驅逐艦一起標退避）。
+// 絕不可整批標記；健康驅逐艦不得因候補陣列中的其他艦而被標退避。
 describe('退避只取各陣列 [0]（inspired by KC3Kai）', () => {
     it('曳航候補有多艘時只取 tow_idx[0]，不整批標記', () => {
         const state = stateWithFleets([
@@ -459,7 +531,7 @@ describe('退避後按剩下的船重算大破警告', () => {
         expect(state.battleInfo!.flagshipTaiha).toBe(true);
         retreat(state, [2]);
         expect(state.battleInfo!.isTaiha).toBe(false);      // 2 號艦已離隊
-        expect(state.battleInfo!.flagshipTaiha).toBe(true); // 旗艦還在，照舊禁止進擊
+        expect(state.battleInfo!.flagshipTaiha).toBe(true); // 旗艦還在，仍禁止進擊
     });
 });
 
@@ -591,8 +663,8 @@ describe('護衛退避的可用性判定（連合艦隊・107）', () => {
     });
 });
 
-// 三顆司令部各自綁一種編制，**不可互換**——把 272／413 當成同一類「單艦隊用司令部」
-// 是曾經的錯誤（那樣一顆 272 在六艘一般編成裡也會謊報「可以退避」）。
+// 三顆司令部各自綁一種編制，**不可互換**；272 僅適用七艘遊撃部隊，413 僅適用
+// 水雷戦隊，其他編制不得顯示可退避。
 // ⚠️ 遊撃部隊／水雷戦隊的成立條件為使用者提供之遊戲設定、未經封包驗證（見 state.ts）。
 describe('單艦退避的可用性判定（遊撃部隊・272／水雷戦隊・413）', () => {
     const singleWith = (ships: TestShip[]) => {

@@ -15,7 +15,7 @@
 //    故：遊戲框靠 src／尺寸辨識（utils/theater.ts 的 pickGameFrame），並用 MutationObserver
 //    在每次重繪後重新貼標記。
 //
-// 產品意圖與別改回去的點：
+// 現行顯示契約：
 //   a. **顯示的是「遊戲畫布」不是「整個 iframe」**：框裡還有頁尾按鈕與大片白底，拿整個框
 //      去 fit 會讓遊戲縮得比視窗小、下面留一大條白。畫布位置只有框內的 bridge 量得到。
 //   b. **工具列不覆蓋遊戲畫面**：底部預留一條，fit 計算扣掉它。
@@ -79,7 +79,7 @@ export default defineContentScript({
 
         const save = () => {
             try {
-                // 只記「是否啟用」；倍率永遠由 fit 當場算出，不持久化手動縮放（已移除）。
+                // 只記「是否啟用」；倍率永遠由 fit 當場算出，不持久化手動縮放。
                 localStorage.setItem(STORE_KEY, JSON.stringify({ active } satisfies Stored));
             } catch { /* 頁面禁用儲存時只是不記住偏好，不影響功能 */ }
         };
@@ -132,8 +132,7 @@ export default defineContentScript({
             }
         };
 
-        // 工具列佔住底部一條，故可用高度要扣掉——工具列**不覆蓋遊戲畫面**（實機回報過
-        // 上緣浮動工具列正好蓋住司令部資源列）。
+        // 工具列佔住底部一條，故可用高度要扣掉；工具列不應覆蓋遊戲畫面上緣的資源列。
         const viewport = () => ({
             width: window.innerWidth,
             height: Math.max(0, window.innerHeight - BAR_HEIGHT),
@@ -191,7 +190,7 @@ export default defineContentScript({
         // 不論劇場模式有沒有開啟都能用（拍照不該逼玩家先進劇場）。與劇場模式共用同一套
         // pickGameFrame／contentArea／fallbackGameArea 後備規則與跨源量測協定——
         // 拍照裁切跟劇場模式的視覺裁切算的必須是同一塊區域，不能另外重新推算一次
-        // （這條路徑之前吃過抓錯遊戲畫面的苦頭，見 utils/theater.ts 檔頭）。
+        // （與 utils/theater.ts 的遊戲框辨識與後備規則一致）。
         // getBoundingClientRect() 已經反映了框上的 CSS transform（劇場模式的縮放/平移），
         // 故不論是否在劇場模式中、有沒有手動縮放，這裡算出來的都是「畫面現在實際顯示在
         // 螢幕上的哪裡」；frameRect.width / size.width 即是目前的有效縮放倍率。
@@ -310,8 +309,8 @@ export default defineContentScript({
         });
 
         // 滑鼠在遊戲框上時鍵盤事件只送到框內文件；框內的 bridge 會把 Esc 轉發上來
-        // （只送互動意圖，不含任何遊戲資料），並回覆畫布量測。滾輪縮放已移除——
-        // Ctrl／⌘＋滾輪留給瀏覽器原生頁面縮放，不要搶。
+        // （只送互動意圖，不含任何遊戲資料），並回覆畫布量測；Ctrl／⌘＋滾輪交給瀏覽器
+        // 原生頁面縮放，不改變劇場模式的畫面倍率。
         window.addEventListener('message', (e) => {
             const data = e.data as TheaterRelayMessage | undefined;
             if (!data || (data as any)[RELAY_MARK] !== 1) return;
@@ -345,7 +344,7 @@ export default defineContentScript({
             ui.render();
             const reply: any = await browser.runtime.sendMessage({ type: MSG_MUTE_SET, muted: next })
                 .catch(() => null);
-            // 遊戲分頁沒有連線＝那個分頁跑的還是舊版 content script（擴充更新後未 F5）。
+            // 遊戲分頁沒有連線＝該分頁尚未重新注入 content script（擴充更新後未 F5）。
             // 靜靜沒反應最難查，故明講。
             if (reply && reply.connected === 0) ui.flash(t('theater.muteNoTab'), 6000);
         };
@@ -382,7 +381,7 @@ export default defineContentScript({
             }
         };
 
-        // 回覆一律 sendResponse + return true（見 utils/runtime-reply.ts 檔頭）：舊寫法回傳
+        // 回覆一律 sendResponse + return true（見 utils/runtime-reply.ts 檔頭）：
         // promise，在尚未支援的瀏覽器上 popup 會收到 undefined，於是量不到矩形就誤報
         // 「找不到遊戲畫面」。
         browser.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {

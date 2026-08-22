@@ -6,6 +6,20 @@ import {
     type BattleDamageEvent, type BattleDamageKind, type BattleEventSide,
 } from './state';
 
+/**
+ * 支援艦隊的旗標分類，對照 poi/lib-battle 的 SupportTypeMap：
+ * api_support_flag 1＝航空、2＝砲擊、3＝雷擊、4＝對潛。這與 poi 的 1／2／3
+ * SupportTypeMap 及本專案 61-5 node 1 的真實潛水艦支援封包相互核對；未知旗標仍以
+ * 實際存在的支援結構回退，避免補猜未驗證值。
+ */
+export function supportKindFromFlag(flag: number, hasAirSupport: boolean): 'air' | 'shelling' | 'torpedo' | 'asw' {
+    if (flag === 3) return 'torpedo';
+    if (flag === 4) return 'asw';
+    if (flag === 1) return 'air';
+    if (flag === 2) return 'shelling';
+    return hasAirSupport ? 'air' : 'shelling';
+}
+
 // ── 戰鬥評級預測 ──────────────────────────────────────────────
 // clean-room 重寫，依公開文件化的艦これ勝利判定規則（inspired by KC3Kai, MIT）。
 // 損害率 = (戰鬥開始時殘HP合計 − 現在殘HP合計) / 戰鬥開始時殘HP合計
@@ -55,7 +69,7 @@ export function predictRank(player: BattleShipView[], enemy: BattleShipView[]): 
 }
 
 // ── 戰鬥解析（現行遊戲 API 格式）─────────────────────────────────
-// 現行格式重點（與舊版不同）：
+// 現行格式重點：
 //   血量：api_f_nowhps / api_f_maxhps（我方主隊）、api_e_nowhps / api_e_maxhps（敵主隊），
 //         隨伴為 *_combined。皆為 0-indexed、無 leading -1。
 //   砲擊/夜戰：api_at_eflag 分辨攻擊方（0=我方,1=敵方），api_at_list / api_df_list 的索引
@@ -283,8 +297,7 @@ export function analyzeBattle(
                 s.hp = 1;
             } else if (isPlayer && s.damecon > 0) {
                 // 応急修理要員＝修復至中破（最大HP的 50%）／女神＝全快（燃彈另在 state.ts
-                // 補回）。發動後即消耗消失。50% 為使用者提供之遊戲設定（非封包驗證），
-                // 先前沿用 KC3Kai 的 20%——那個值會讓修復後仍判定大破，與遊戲行為不符。
+                // 補回）。發動後即消耗消失。50% 為使用者提供之遊戲設定（非封包驗證）。
                 s.hp = s.damecon === 1 ? Math.floor(s.maxHp * 0.5) : s.maxHp;
                 s.damecon = 0;
             } else {
@@ -341,6 +354,60 @@ export function analyzeBattle(
             ));
         }
         return { total, events };
+    };
+
+    /**
+     * 讀取雷擊封包的「攻擊者 → 目標 → 傷害」陣列。
+     *
+     * 舊格式使用 api_frai／api_fydam（每個攻擊者一格）；2024-03-01 後的多目標格式
+     * 使用 api_frai_list_items／api_fydam_list_items（每個攻擊者一格、格內可有多次攻擊）。
+     * KC3Kai 與七四式都以這組欄位建立逐艦雷擊事件；api_fdam／api_edam 只表示受擊方
+     * 的合計結果，不能拿來反推攻擊者。
+     */
+    const torpedoAttackEvents = (
+        phase: any,
+        attackerSide: 'player' | 'enemy',
+        defenderSide: 'player' | 'enemy',
+    ): { detailed: boolean; total: number; events: BattleDamageEvent[] } => {
+        const isPlayer = attackerSide === 'player';
+        const targetValues = phase?.[isPlayer ? 'api_frai' : 'api_erai'];
+        const damageValues = phase?.[isPlayer ? 'api_fydam' : 'api_eydam'];
+        const criticalValues = phase?.[isPlayer ? 'api_fcl' : 'api_ecl'];
+        const targetListItems = phase?.[isPlayer ? 'api_frai_list_items' : 'api_erai_list_items'];
+        const damageListItems = phase?.[isPlayer ? 'api_fydam_list_items' : 'api_eydam_list_items'];
+        const criticalListItems = phase?.[isPlayer ? 'api_fcl_list_items' : 'api_ecl_list_items'];
+        const listFormat = Array.isArray(targetListItems) && Array.isArray(damageListItems);
+        const flatFormat = Array.isArray(targetValues) && Array.isArray(damageValues);
+        if (!listFormat && !flatFormat) return { detailed: false, total: 0, events: [] };
+
+        const asValues = (value: unknown): unknown[] => Array.isArray(value) ? value : [value];
+        const count = listFormat
+            ? Math.max(targetListItems.length, damageListItems.length, Array.isArray(criticalListItems) ? criticalListItems.length : 0)
+            : Math.max(targetValues.length, damageValues.length, Array.isArray(criticalValues) ? criticalValues.length : 0);
+        const events: BattleDamageEvent[] = [];
+        let total = 0;
+        for (let attackerIndex = 0; attackerIndex < count; attackerIndex++) {
+            const targets = listFormat ? asValues(targetListItems[attackerIndex]) : [targetValues[attackerIndex]];
+            const damages = listFormat ? asValues(damageListItems[attackerIndex]) : [damageValues[attackerIndex]];
+            const criticals = listFormat
+                ? asValues(Array.isArray(criticalListItems) ? criticalListItems[attackerIndex] : undefined)
+                : [Array.isArray(criticalValues) ? criticalValues[attackerIndex] : undefined];
+            const hitCount = Math.max(targets.length, damages.length, criticals.length);
+            for (let hitIndex = 0; hitIndex < hitCount; hitIndex++) {
+                const defenderIndex = targetIndex(targets[hitIndex]);
+                // -1／null 是「沒有發動這艘艦的雷擊」，不製造虛構的目標列。
+                if (defenderIndex === null) continue;
+                const damage = Math.max(0, Math.floor(Number(damages[hitIndex] ?? 0)));
+                total += damage;
+                const attacker = sideShip(attackerSide, attackerIndex);
+                events.push(damageEvent(
+                    'torpedo', attackerSide, attackerIndex, defenderSide, defenderIndex, damage,
+                    criticalFromFlag(criticals[hitIndex]),
+                ));
+                if (attacker) attacker.dealtDamage += damage;
+            }
+        }
+        return { detailed: true, total, events };
     };
 
     // 砲擊戰／夜戰：api_at_eflag[i] 為攻擊方（0=我方,1=敵方）
@@ -430,35 +497,48 @@ export function analyzeBattle(
         const damage = noDamage();
         const events: BattleDamageEvent[] = [];
         if (!phase) return { damage, events };
-        const own = targetDamage('torpedo', phase.api_fdam, 'enemy', 'player');
-        const enemy = targetDamage('torpedo', phase.api_edam, 'player', 'enemy');
-        damage.ownDamage = own.total;
-        damage.enemyDamage = enemy.total;
+        const playerAttacks = torpedoAttackEvents(phase, 'player', 'enemy');
+        const enemyAttacks = torpedoAttackEvents(phase, 'enemy', 'player');
+        const own = playerAttacks.detailed
+            ? playerAttacks
+            : targetDamage('torpedo', phase.api_edam, 'player', 'enemy');
+        const enemy = enemyAttacks.detailed
+            ? enemyAttacks
+            : targetDamage('torpedo', phase.api_fdam, 'enemy', 'player');
+        damage.enemyDamage = own.total;
+        damage.ownDamage = enemy.total;
         events.push(...own.events, ...enemy.events);
-        creditDmg(phase.api_fydam, 'player');
-        creditDmg(phase.api_eydam, 'enemy');
-        creditDmgList(phase.api_fydam_list_items, 'player');   // 聯合艦隊開幕雷擊變體
-        creditDmgList(phase.api_eydam_list_items, 'enemy');
+        // 有逐艦攻擊陣列時，torpedoAttackEvents 已經把傷害記到攻擊艦；
+        // 缺少目標陣列時才使用封包提供的 MVP 合計欄位。
+        if (!playerAttacks.detailed) {
+            creditDmg(phase.api_fydam, 'player');
+            creditDmgList(phase.api_fydam_list_items, 'player');
+        }
+        if (!enemyAttacks.detailed) {
+            creditDmg(phase.api_eydam, 'enemy');
+            creditDmgList(phase.api_eydam_list_items, 'enemy');
+        }
         return { damage, events };
     };
-    // 航空戰（api_kouku / api_kouku2 / api_injection_kouku 噴式強襲）。
+    // 航空戰（api_kouku / api_kouku2）與噴式強襲（api_injection_kouku /
+    // api_air_base_injection）。
     // stage3 = 主隊、stage3_combined = 隨伴（索引 0-5，+6 對映）。
     // 已用真實 6-5 敵聯合封包驗證：不套用 *_combined 會漏算隨伴受傷 → rank 誤判 A（實際 S）。
-    const processKouku = (kouku: any): PhaseResult => {
+    const processKouku = (kouku: any, eventKind: 'air' | 'landBase' = 'air'): PhaseResult => {
         const damage = noDamage();
         const events: BattleDamageEvent[] = [];
         const s3 = kouku?.api_stage3;
         if (s3) {
-            const own = targetDamage('air', s3.api_fdam, 'enemy', 'player');
-            const enemy = targetDamage('air', s3.api_edam, 'player', 'enemy');
+            const own = targetDamage(eventKind, s3.api_fdam, 'enemy', 'player');
+            const enemy = targetDamage(eventKind, s3.api_edam, 'player', 'enemy');
             damage.ownDamage += own.total;
             damage.enemyDamage += enemy.total;
             events.push(...own.events, ...enemy.events);
         }
         const s3c = kouku?.api_stage3_combined;
         if (s3c) {
-            const own = targetDamage('air', s3c.api_fdam, 'enemy', 'player', 6);
-            const enemy = targetDamage('air', s3c.api_edam, 'player', 'enemy', 6);
+            const own = targetDamage(eventKind, s3c.api_fdam, 'enemy', 'player', 6);
+            const enemy = targetDamage(eventKind, s3c.api_edam, 'player', 'enemy', 6);
             damage.ownDamage += own.total;
             damage.enemyDamage += enemy.total;
             events.push(...own.events, ...enemy.events);
@@ -536,6 +616,7 @@ export function analyzeBattle(
     // 支援艦隊戰果（見 BattleSupportView）。
     let supportDamage = 0;
     let supportSource: Omit<BattleSupportView, 'damage'> | null = null;
+    let supportFlag = Number(initialApi.api_support_flag) || Number(initialApi.api_support_info?.api_support_flag) || 0;
 
     /**
      * 支援傷害陣列的原始索引正規化：單艦隊封包多一個第 0 格佔位，聯合艦隊則直接是
@@ -553,6 +634,26 @@ export function analyzeBattle(
     // 供出擊紀錄的「交戰記錄」顯示；這裡與既有傷害套用共用同一條路徑，避免兩邊數字漂移。
     for (const [packet, api] of apiList.entries()) {
         if (!api) continue;
+        // 遊戲順序：基地航空隊噴式強襲 → 空母噴式強襲 → 基地航空隊一般波次 → 航空戰。
+        // `api_air_base_injection` 是基地噴式強襲（KC3Kai／七四式均單獨解析），
+        // `api_injection_kouku` 是空母噴式強襲；兩者不應合併成一個「未辨識航空隊」來源。
+        if (api.api_air_base_injection) {
+            const injections = Array.isArray(api.api_air_base_injection)
+                ? api.api_air_base_injection : [api.api_air_base_injection];
+            const result = injections.reduce((acc: PhaseResult, injection: any) => {
+                const next = processKouku(injection, 'landBase');
+                return {
+                    damage: {
+                        ownDamage: acc.damage.ownDamage + next.damage.ownDamage,
+                        enemyDamage: acc.damage.enemyDamage + next.damage.enemyDamage,
+                    },
+                    events: [...acc.events, ...next.events],
+                };
+            }, { damage: noDamage(), events: [] });
+            recordPhase('jetBase', packet, result);
+        }
+        if (api.api_injection_kouku) recordPhase('jet', packet, processKouku(api.api_injection_kouku));
+
         // 基地航空隊（主隊 + 隨伴）。順便彙總出擊／損失機數與對敵傷害（BattleLbasView）——
         // 傷害本來就要逐格套用，這裡只是同一趟把數字加起來，不另外重掃封包。
         if (Array.isArray(api.api_air_base_attack)) {
@@ -580,8 +681,7 @@ export function analyzeBattle(
             }
             if (api.api_air_base_attack.length) recordPhase('landBase', packet, { damage, events });
         }
-        // 噴式強襲（api_injection_kouku）→ 航空戰 → 二巡航空戰
-        if (api.api_injection_kouku) recordPhase('jet', packet, processKouku(api.api_injection_kouku));
+        // 空母噴式強襲已在基地航空隊一般波次之前記錄；接著才是一般航空戰。
         if (api.api_kouku) recordPhase('air', packet, processKouku(api.api_kouku));
         if (api.api_kouku2) recordPhase('airSecond', packet, processKouku(api.api_kouku2));
         // 支援艦隊（對敵）。彙總與套用讀同一批欄位，數字不會兩套（見 BattleSupportView）。
@@ -589,6 +689,8 @@ export function analyzeBattle(
         if (sup) {
             const air = sup.api_support_airatack;
             const hourai = sup.api_support_hourai;
+            const packetSupportFlag = Number(api.api_support_flag) || Number(sup.api_support_flag) || 0;
+            if (packetSupportFlag) supportFlag = packetSupportFlag;
             const airEdam = air?.api_stage3?.api_edam;
             const houraiDamageValues = hourai?.api_damage;
             const airDamage = targetDamage(
@@ -600,15 +702,16 @@ export function analyzeBattle(
             );
             const src = air ?? hourai;
             if (src) {
+                const supportKind = supportKindFromFlag(packetSupportFlag, Boolean(air));
                 const phaseDamage = airDamage.total + houraiDamage.total;
                 supportDamage += phaseDamage;
-                recordPhase(air ? 'supportAir' : 'supportShell', packet, {
+                recordPhase(supportKind === 'asw' ? 'supportAsw' : supportKind === 'torpedo' ? 'supportTorpedo' : supportKind === 'air' ? 'supportAir' : 'supportShell', packet, {
                     damage: { ownDamage: 0, enemyDamage: phaseDamage },
                     events: [...airDamage.events, ...houraiDamage.events],
                 });
                 // 編組資訊取第一則帶支援的封包（同一節點的道中／決戰支援不會兩次出動）。
                 supportSource ??= {
-                    kind: air ? 'air' : 'shelling',
+                    kind: supportKind,
                     deckId: Number.isSafeInteger(src.api_deck_id) ? src.api_deck_id : 0,
                     shipIds: Array.isArray(src.api_ship_id)
                         ? src.api_ship_id.filter((v: number) => Number.isSafeInteger(v) && v > 0) : [],
@@ -714,13 +817,17 @@ export function analyzeBattle(
     };
 
     const formation = Array.isArray(initialApi.api_formation) ? initialApi.api_formation : [0, 0, 0];
+    // `api_search` 的兩個值分別是我方／敵方結果。依 sortie-detail.ts 已驗證的分組，
+    // 只有 1–3 可稱「發現」、4–6 可稱「未發現」；其餘值保留未知，不能硬畫成成功。
+    const ownSearch = Array.isArray(initialApi.api_search) ? Number(initialApi.api_search[0]) : 0;
+    const search = ownSearch >= 1 && ownSearch <= 3 ? 'success'
+        : ownSearch >= 4 && ownSearch <= 6 ? 'failed' : 'unknown';
     let seiku = 0;
     let touchPlane = [0, 0];
     const planes = {
         playerFighter: { count: 0, lost: 0 }, playerBomber: { count: 0, lost: 0 },
         enemyFighter: { count: 0, lost: 0 }, enemyBomber: { count: 0, lost: 0 },
     };
-    const supportFlag = initialApi.api_support_flag ?? 0;
     const midnightFlag = initialApi.api_midnight_flag === 1;
     let aaci = 0;
 
@@ -755,6 +862,7 @@ export function analyzeBattle(
         },
         formation,
         seiku,
+        search,
         touchPlane,
         planes,
         drop: null,

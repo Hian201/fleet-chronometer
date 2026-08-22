@@ -23,7 +23,6 @@ export function setDisplayLang(lang: Lang) { displayLang = lang; }
 export function getDisplayLang(): Lang { return displayLang; }
 // ── 譯名表 ──────────────────────────────────────────────────
 import { SHIP_NAMES, GEAR_NAMES } from './gamedata-names';
-export { SHIP_NAMES, GEAR_NAMES };
 // ── 解析入口（state.ts 唯一呼叫點）──────────────────────────
 // ja 為封包原始日文名（可能 undefined，如 master 尚未載入）。命中譯表用譯名，否則回退。
 export function localizeShip(masterId: number | undefined, ja: string | undefined): string {

@@ -61,8 +61,8 @@ describe('replyWhenSettled', () => {
 // 這種錯誤型別檢查抓不到、單元測試也測不到（要真的跑在瀏覽器裡才看得出來），
 // 故用原始碼掃描把它擋在 commit 前。
 //
-// 用 TypeScript 自己的 parser 而非自製的字串掃描：手寫掃描器要正確處理註解、樣板字串與
-// **內含引號的正則字面值**（`/'/g` 這種）才不會誤判，而那正是它第一次上線就踩到的坑。
+// 用 TypeScript 自己的 parser 而非自製的字串掃描：parser 能正確處理註解、樣板字串與
+// **內含引號的正則字面值**（`/'/g` 這種），避免掃描結果受語法內容干擾。
 const entrypointsRoot = fileURLToPath(new URL('../entrypoints/', import.meta.url));
 const LISTENER_MARKER = 'runtime.onMessage.addListener(';
 const ALLOWED_RETURNS = ['', 'true', 'false'];
@@ -171,7 +171,7 @@ describe('runtime.onMessage 回覆契約（原始碼掃描）', () => {
         const source = `
             const esc = (s) => s.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
             browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-                // 舊寫法是 return somePromise( 這裡故意留一個沒配對的括號
+                // 這裡故意保留未配對括號，模擬 listener 直接回傳 Promise 時的原始程式碼形狀。
                 const label = 'return fake(';
                 if (msg?.type === 'x') return replyWhenSettled(work(), sendResponse);
                 return;
@@ -194,4 +194,3 @@ describe('runtime.onMessage 回覆契約（原始碼掃描）', () => {
         },
     );
 });
-

@@ -57,6 +57,8 @@ UI 版面離線預覽（真實封包資料＋overview 的同一份 CSS，不連�
 ```bash
 npx vite-node --config vitest.config.ts tools/preview/sortie-log.ts     # → .preview/sortie-log{,-light}.html
 npx vite-node --config vitest.config.ts tools/preview/resource-log.ts   # → .preview/resource-log{,-light}.html
+npx vite-node --config vitest.config.ts tools/preview/fleet-overview.ts # → .preview/fleet-overview{,-light}.html
+npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts   # → .preview/panel-sortie{,-light}.html
 npx vite-node --config vitest.config.ts tools/preview/panel-general.ts  # → .preview/panel-general{,-light}.html
 ```
 
@@ -154,7 +156,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/ship-picker.ts` | 鎮守府全船篩選清單的共用 UI 元件（見「反覆出現的設計慣例」全量重繪陷阱） |
 | `entrypoints/overview/sections/ships.ts` | 艦娘全覽：工具列＋篩選抽屜＋條件 chip 列＋詳細表格＋分頁。欄位開關／每頁筆數／排序／素質模式存 localStorage（`kc-ships-view`），不進 Dexie、不進備份 |
 | `entrypoints/overview/sections/equipment.ts` | 裝備全覽：圖示篩選架（既有裝備圖示即篩選鈕）＋圖磚／詳細清單雙模式＋逐顆實例展開。模式／排序存 localStorage（`kc-equip-view`） |
-| `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄：通常／活動兩大分類＋海域下拉＋單場 JSON 匯入，一次出擊一張卡（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板 markup 由 `shellHtml()` 提供，離線預覽共用 |
+| `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄：通常／活動兩大分類＋海域下拉＋單場 JSON 匯入，一次出擊一張卡（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊；提供標準 DeckBuilder JSON 複製與 KC3Kai 出擊模擬器開啟／貼上。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板 markup 由 `shellHtml()` 提供，離線預覽共用 |
 | `entrypoints/overview/sections/drop-log.ts` | 打撈紀錄：通常／活動分類＋新船／非新船篩選＋關鍵字／時間篩選＋分頁＋CSV 匯出入。CSV 邏輯全在 `utils/drop-log-import.ts`；新船判定走 `utils/drop-new-ship.ts`（**不是** retention 那支） |
 | `utils/drop-new-ship.ts` | 打撈紀錄「新船」判定（純函式）：`newShipDropKeys()`。判準與面板 Drop 晶片同一條——比對鎮守府全艦娘（**以基礎形態**）後這一撈才讓它第一次成為成員才算。**與 `retention.ts` 的 `firstOwnedDropKeys()` 是兩支，別合併**（見該檔說明） |
 | `entrypoints/overview/sections/exped-log.ts` | 遠征紀錄：**主體是逐筆明細**（一趟回來拿了什麼／多少／成功還是失敗，可選欄位＋分頁，編成欄預設收合）；上方一行期間總計，下方收合的「各遠征次數與收穫」為次要查詢工具。期間捷徑／自訂起訖日／活動期間捷徑＋明細／彙總兩份 CSV。彙總核心在 `utils/expedition-stats.ts` |
@@ -163,7 +165,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/sections/resource-log.ts` | 資源紀錄：最上方一張大折線圖（八項資材疊在同一張圖、圖例逐條開關、y 軸只依顯示中的序列縮放、十字準線）＋活動區段消耗＋詳細清單（表頭與欄位開關皆純圖示無文字）。控制項只建一次、只重繪 `.rl-body`；期間／粒度／欄位／分頁存 localStorage（`kc-resource-view`） |
 | `entrypoints/overview/main.ts` | 側欄導覽＋hash 路由＋語言/主題套用；側欄三態（釘選／收合／浮層滑入，`body[data-nav]`）與側欄左右側（`body[data-nav-side]`，與三態正交）。窄視窗（≤760px）強制不釘選 |
 | `entrypoints/overview/lib.ts` | `loadGameState()` 依 `planStateRecovery()` 選安全 snapshot baseline 再重播 raw events；overview 不投影、不寫 derived tables |
-| `entrypoints/overview/fsa.ts` | File System Access API 封裝（零 manifest 權限的資料夾備份）：目錄選取、讀寫權限請求、寫檔；目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，非 Dexie） |
+| `entrypoints/overview/fsa.ts` | File System Access API 封裝（零 manifest 權限的資料夾備份）：目錄選取、讀寫權限請求、`fileExists()`、寫檔；目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，非 Dexie） |
 | `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-backup-YYYY-MM-DD-HHmmss.json`（亦相容舊 `kanmusu-backup.json`／`kanmusu-replays.json`）即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁 |
 | `entrypoints/panel/main.ts` | 面板控制器：以 `EventProjector` state-only/persist 兩階段重播與 live 投影、只在成功後推進 cursor、渲染與 autoSwitch |
 | `utils/ui-prefs.ts` | UI 偏好持久化（語言＋亮暗主題，localStorage）——panel/popup/overview 共用；SW 不使用。`onPrefsChange()` 用 DOM `storage` 事件做跨頁即時同步 |
@@ -181,6 +183,8 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/csv.ts` | CSV／TSV 最小共用解析與序列化（純函式） |
 | `utils/drop-log-import.ts` / `utils/build-log-import.ts` | 打撈／建造紀錄 CSV 匯出入，借 event ID 寫入 derived tables（不寫 raw event，逐列去重不整批 rollback） |
 | `utils/sortie-detail.ts` | 出擊紀錄「一次出擊」的重建（純函式）：`buildSortieDetail()` 把 `db.sorties` 摘要 × `db.replays` 原始封包合成逐節點作戰資訊。戰鬥細節直接餵 `battle.ts` 的 `analyzeBattle()`（與面板同一支） |
+| `utils/deckbuilder.ts` | 兩種外部工具格式的輸出：`buildDeckBuilder()` 產生母港艦隊 JSON，`buildReplayDeckBuilder()` 產生出擊快照的標準 DeckBuilder JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()`；DeckBuilder 格式與出擊模擬器格式分開維護 |
+| `utils/sortie-simulator.ts` | `buildSortieSimulator()`／`toSortieSimulatorUrl()` 產生 KC3Kai 出擊模擬器使用的 `fleetF`／`nodes` 格式，含支援艦隊與基地航空隊資料；不與 DeckBuilder 格式混用 |
 | `utils/resource-capture.ts` | 資源紀錄的擷取層（純函式）：`readMaterials()`／`readEventGauges()`／`captureResources()`。由 background 呼叫而非 EventProjector——資源序列不需要 GameState 上下文，價值在連續 |
 | `utils/resource-log.ts` | 資源紀錄分析核心（純函式）：`normalizeSamples()`／`bucketSamples()`／`downsample()`／`buildEventPeriods()`／`toCsv()`。餘額是封包事實、消長是差分，算不出來一律回 null |
 | `utils/line-chart.ts` | 折線圖幾何（純函式，無 DOM）：`multiChartGeometry()`／`niceTicks()`／`nearestIndex()`。y 值域只看傳進來的序列 |
@@ -237,7 +241,7 @@ projection cursor；safe pruning 只刪已投影的 retained raw events，metada
 **單場 JSON／CSV 匯入不是 raw ingestion**：在 transaction 內寫入 derived tables，借用 events
 key generator 後立即刪除 reservation，**不寫 raw event**。去重規則各自見對應檔案職責列。
 
-**v1 產品識別**：package 為 fleet-chronometer 1.0.0，權限 `alarms`、`notifications`、
+**產品識別**：package 為 fleet-chronometer 1.1.0.3，權限 `alarms`、`notifications`、
 `scripting`、`activeTab`、`tabs`。品牌名走 i18n（`public/_locales/{en,ja,zh_TW}/messages.json`），
 manifest 只放 `__MSG_extName__`／`__MSG_extShortName__`／`__MSG_extDescription__`
 （`default_locale: en`）；頁面標題另由 panel/popup/overview 執行期以 `ov.brandShort` 改寫
@@ -334,8 +338,8 @@ tooltip 語言。
 |---------|------|
 | 對潛先制爆雷 | ✅ 已涵蓋（`api_opening_taisen` 走通用陣列） |
 | 彈著觀測射撃／空母戰爆連合CI／夜戰CI | ✅ 已涵蓋（讀最終 `api_damage`，不管倍率怎麼來） |
-| 噴式強襲 | ✅ 已涵蓋（`api_injection_kouku`） |
-| 支援艦隊（對敵） | ✅ 航空(61-5)＋砲擊(61-3)支援兩種欄位路徑皆已驗證 |
+| 噴式強襲 | ✅ 已涵蓋（基地：`api_air_base_injection`；空母：`api_injection_kouku`） |
+| 支援艦隊（對敵） | ✅ 航空／砲擊欄位路徑已以 61-5／61-3 驗證；`api_support_flag` 1/2/3/4 分類為航空／砲擊／雷擊／對潛，未知值依結構回退 |
 | 友軍艦隊 | ✅ `api_hougeki` 已驗證（61-3 甲 boss 夜戰）；`api_raigeki` 未經真封包驗證 |
 
 ### 大破・損管・退避（`battle.ts` isTaiha／`state.ts` escapedShipIds）
@@ -828,8 +832,8 @@ bug feature）。進母港時推進：出門中隊回港後重新起算，已跑
 **野埼給糧**：須在 1/2 號位，自身需補給完了、小破未滿、cond≥30、非遠征/入渠；每 15 分回復
 同隊除自己外全員 cond（野埼+2／改+3，上限 **54**），每艘實際回復消耗燃料 1。可與泊地修理併用。
 
-**尚未實作**：背景 alarms/notifications 提醒；緊急泊地修理（連合艦隊出擊中機制，相關封包
-欄位未經真封包驗證）。
+背景 `alarms`／`notifications` 提醒已由 `entrypoints/background.ts` 實作；目前尚未實作的是
+緊急泊地修理（連合艦隊出擊中機制，相關封包欄位未經真封包驗證）。
 
 ### 遠征資源加成（`utils/expedition-bonus.ts`）
 

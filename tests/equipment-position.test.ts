@@ -1,4 +1,4 @@
-// 裝備圖示與改裝畫面同艦換位的回歸測試。
+// 裝備圖示與改裝畫面同艦換位的行為測試。
 //
 // SC 雷達的 master、圖示分類與名稱都來自真實 start2 fixture；不在測試內手捏裝備資料，
 // 以免把「資料缺失」誤測成「面板渲染正常」。
@@ -148,7 +148,7 @@ describe('裝備位置與面板視圖', () => {
 
         // 已用真封包驗證（samples/slot-exchange-index.json）：回應的 api_ship_data 是
         // 完整艦快照（與 api_port/port 單艦記錄同形），不是只帶 slot/onslot 的局部物件，
-        // 故這裡也給一份完整快照（沿用原本 HP/cond，僅槽位與搭載數對調），驗證整艦覆蓋
+        // 故這裡也給一份完整快照（保留 HP/cond，僅槽位與搭載數對調），驗證整艦覆蓋
         // 沒有把其餘欄位（例如 HP）意外洗掉。
         state.applyEvent('api_req_kaisou/slot_exchange_index', {
             api_ship_data: {

@@ -79,7 +79,7 @@ describe('各遠征彙總表', () => {
     });
 
     // 本分區的主體是逐筆明細（一趟回來拿了什麼／多少／成功還是失敗）；依遠征種類加總的
-    // 統計是次要的查詢工具，故收進 <details> 且**預設收合**。別改回展開的主表。
+    // 統計是次要的查詢工具，故收進 <details> 且**預設收合**，避免搶占逐筆明細的空間。
     it('收在 <details> 裡且預設收合', () => {
         const stats = groupByMission([exped({ ts: 1000 })]);
         const html = statsHtml(stats, defaultPrefs());

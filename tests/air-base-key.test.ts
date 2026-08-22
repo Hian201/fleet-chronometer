@@ -1,9 +1,7 @@
 // 基地航空隊的唯一鍵＝海域 id＋rid（`airBaseKey`）。
 //
-// 這支測試鎖的是一個**實機回報過的災情**：舊碼一律拿 rid（「該海域的第幾個基地」）當鍵，
-// 於是同時擁有中部海域與活動海域的基地時，海域名對照表、顯示範圍開關、匯出 dialog 的
-// selector 全部撞號——畫面上每個基地都掛同一個海域名（最後寫入的那個），一整排長得一模
-// 一樣分不出誰是誰，開關也變成兩個海域連動。詳見 utils/state.ts airBaseKey 的註解。
+// 基地鍵必須包含海域 id 與 rid；同一 rid 可在不同海域同時存在，若省略海域 id 會造成
+// 基地資料、顯示範圍與匯出 selector 互相覆蓋。詳見 utils/state.ts airBaseKey 的註解。
 import { describe, expect, it } from 'vitest';
 import { GameState, airBaseKey } from '../utils/state';
 import { airBaseAreaLabel, fleetMarkdown } from '../entrypoints/overview/lib';
@@ -44,7 +42,7 @@ describe('基地航空隊的唯一鍵', () => {
         const keys = bases.map(airBaseKey);
         expect(new Set(keys).size).toBe(2);
         // 分隔符必須與 GameState.airBases 的 map key 完全一致——airBaseKey() 就是那把鍵
-        // 本身，拿去 airBases.get() 要查得到（曾經一邊 `_` 一邊 `-`，查不到又不報錯）。
+        // 本身，拿去 airBases.get() 必須查得到。
         expect(keys).toEqual(['6_1', '62_1']);
         const state = stateWithTwoAreas();
         for (const key of keys) expect(state.airBases.get(key)).toBeTruthy();
@@ -74,7 +72,7 @@ describe('基地航空隊的唯一鍵', () => {
     it('DeckBuilder 輸出：兩個海域的基地各佔一格，不互相覆蓋', () => {
         const state = stateWithTwoAreas();
         const deck = buildDeckBuilder(state, { fleets: [], lbas: {} }) as Record<string, unknown>;
-        // 舊碼用 `a${rid}` 當鍵，兩顆都是 rid=1 ⇒ 後者覆蓋前者、只剩一格。
+        // 匯出鍵若只含 rid，兩顆都是 rid=1 會互相覆蓋；輸出必須保留兩個海域的基地。
         expect(deck.a1).toBeTruthy();
         expect(deck.a2).toBeTruthy();
     });

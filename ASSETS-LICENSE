@@ -17,10 +17,9 @@ written permission from the copyright holder. This is unlike the MIT
 license that covers the source code (see `LICENSE`) and is a deliberate,
 separate restriction on these specific files.
 
-Design provenance and any historically-referenced third-party sources for
-these assets are documented in `THIRD-PARTY-NOTICES.md` §3 — that section
-records development history and does not grant any rights beyond what is
-stated here.
+Design provenance and referenced third-party sources for these assets are
+documented in `THIRD-PARTY-NOTICES.md` §3. That section does not grant any
+rights beyond what is stated here.
 
 This license does not apply to reference material outside the paths above
 (e.g. files under `samples/`), which are not original assets of this

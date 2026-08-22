@@ -54,7 +54,7 @@ export interface ShipView {
     // 火力合計，故一併帶進 view，不讓顯示層自己去 ownedShips() 反查 id（那會為了兩個
     // 數字重算全鎮守府的裸素質與可裝備表）。缺欄位一律 0＝不可考，不猜。
     firepower: number; luck: number;
-    // mst／stypeId：艦 master id 與艦種 id。面板原本只有艦種縮寫字串，無法判定
+    // mst／stypeId：艦 master id 與艦種 id。僅有艦種縮寫字串無法判定
     // 「這艘是不是明石／野埼」，泊地修理與給糧範圍計算需要，故補上原始 id。
     mst: number; stypeId: number;
     // id：艦實例 id（api_id）。艦隊全覽輸出 DeckBuilder 格式（給 KanColleImgBuilder／
@@ -67,6 +67,8 @@ export interface ShipView {
     ndockTime: number;
     // 入渠中：泊地修理與野埼給糧都會跳過入渠中的艦。
     inDock: boolean;
+    // 入渠完成時刻（api_ndock 的 api_complete_time，毫秒）。未入渠為 null。
+    dockCompleteAt: number | null;
     // 本次出擊已由艦隊司令部施設退避：已離開艦隊，不再參戰，也不計入該隊的
     // 等級／制空／索敵／TP（見 GameState.escapedShipIds）。回港即歸零。
     escaped: boolean;
@@ -246,8 +248,8 @@ export interface BattleHpSnapshot {
  * packet 是 apiList 的位置：0 通常為晝戰，1 通常為夜戰；保留原始位置供 UI 誠實標示。
  */
 export type BattlePhaseKind =
-    | 'landBase' | 'jet' | 'air' | 'airSecond'
-    | 'supportAir' | 'supportShell'
+    | 'jetBase' | 'landBase' | 'jet' | 'air' | 'airSecond'
+    | 'supportAir' | 'supportShell' | 'supportTorpedo' | 'supportAsw'
     | 'openingAntiSub' | 'openingTorpedo'
     | 'shelling1' | 'shelling2' | 'shelling3' | 'torpedo'
     | 'friendlyShelling' | 'friendlyTorpedo' | 'nightShelling';
@@ -256,8 +258,8 @@ export type BattleEventSide = 'player' | 'enemy' | 'friendly';
 export type BattleDamageKind = 'ship' | 'torpedo' | 'air' | 'landBase' | 'support';
 
 /**
- * 交戰流程中的一筆原始傷害事件。砲擊／夜戰有明確攻擊方與目標位置；
- * 航空、陸航、雷擊、支援只保留封包實際提供的歸屬，沒有索引時以 null 表示，禁止猜測。
+ * 交戰流程中的一筆原始傷害事件。砲擊／夜戰／雷擊在封包提供攻擊陣列時保留攻擊方與目標位置；
+ * 航空、陸航、支援的封包仍以階段來源表示，沒有逐艦索引時以 null 表示，禁止猜測個別艦載機歸屬。
  * critical 只有封包帶有命中判定欄位時才會填入；支援砲擊的 2 代表暴擊，1 代表一般命中。
  * attackType／specialType／attackSlots 是同一筆砲擊或夜戰攻擊的原始攻擊欄位：
  * `api_at_type[i]`、`api_sp_list[i]`、`api_si_list[i]`。它們只保存封包明示的代碼與
@@ -321,6 +323,8 @@ export interface BattleInfoView {
     enemyDetail: { main: BattleEnemyShipView[]; escort: BattleEnemyShipView[] };
     formation: number[]; // [player, enemy, engagement]
     seiku: number; // 0=互角, 1=確保, 2=優勢, 3=劣勢, 4=喪失
+    // `api_search[0]`：1–3 為我方發現、4–6 為未發現；其他值或缺席不作推論。
+    search?: 'success' | 'failed' | 'unknown';
     touchPlane: number[]; // [player, enemy]
     planes: {
         playerFighter: { count: number, lost: number },
@@ -375,8 +379,8 @@ export interface BattleEnemyShipView {
  * 0-based 位置，再套用 HP 並交給 UI 顯示艦名。`damage` 仍保留整場支援傷害合計供摘要使用。
  */
 export interface BattleSupportView {
-    /** 'air'＝航空支援／'shelling'＝砲擊支援。 */
-    kind: 'air' | 'shelling';
+    /** 'air'＝航空支援／'shelling'＝砲擊支援／'torpedo'＝雷擊支援／'asw'＝對潛支援。 */
+    kind: 'air' | 'shelling' | 'torpedo' | 'asw';
     /** 支援艦隊的編成編號（`api_deck_id` 原值；缺席為 0＝不可考）。 */
     deckId: number;
     /** 對敵造成的傷害合計（與 applyDmg 實際套用的是同一批欄位）。 */
@@ -432,20 +436,21 @@ export interface SortieInfoView {
     mapNo: number;
     nodes: SortieNode[];
 }
-// 關卡進度。已用真實 api_get_member/mapinfo 封包驗證兩種量表類型：
+// 關卡進度。已用 api_get_member/mapinfo、api_req_map/select_eventmap_rank
+// 與 api_req_map/start 的封包結構驗證兩種量表類型：
 //   gaugeType 1：擊破數式（一般圖5番艦隊決戦等）— api_defeat_count / api_required_defeat_count
 //   gaugeType 2：HP量表式（活動圖／EO 拡張作戦等）— api_eventmap.api_now_maphp / api_max_maphp
-//     （maxHp===9999 為「尚未選擇難度」佔位值：api_selected_rank===0 時固定回傳 9999/9999；
-//      選定難度(rank>0)後才會換成該難度真正的總HP。已用兩份真實 mapinfo 樣本比對驗證。）
+//     （mapinfo 的 9999/9999 是尚未取得實際量表時的佔位值；選定難度的回應與出擊起點
+//      回應會提供該難度的實際總 HP，不能只以先前的 mapinfo 快照判定。）
 export interface MapGaugeView {
     cleared: boolean;
-    gaugeType: number;   // 0=無量表, 1=擊破數式, 2=HP量表式
+    gaugeType: number;   // 0=無量表, 1=擊破數式, 2/3=HP量表式
     defeatCount: number;
     requiredDefeatCount: number;
     nowHp: number;
     maxHp: number;
-    // api_eventmap.api_selected_rank。已由 mapinfo 樣本驗證；沒有 eventmap、值無效或尚未
-    // 選擇難度時一律為 0，不能從其他 event-map 欄位推測。
+    // api_eventmap.api_selected_rank；由選難度請求的 api_rank 與 mapinfo 同步。沒有這兩者
+    // 的有效值時一律為 0，不能從其他 event-map 欄位推測。
     selectedRank: number;
 }
 // ── 工廠（開發/建造/改修）──────────────────────────────
@@ -467,20 +472,11 @@ export interface MapGaugeView {
 //   確実化在回應中無任何可辨識欄位（跟一般成功長得一樣，僅資材消耗量較高），
 //   純靠 req.api_certain_flag 判斷，此欄位名現已確認無誤。
 //
-// createship（建造發起）回應本身不含任何有用資料，但**不需要**靠 req 補——已用
-// samples/build_1.json、build_2.json 證實 api_get_member/kdock 的每個渠物件除既有的
-// state/created_ship_id/complete_time 外，也帶 api_item1~api_item5（該渠當初投入的
-// 燃彈鋼鋁＋開發資材，真實數字非估算）。這比猜 createship 的 req 欄位名可靠得多，
-// 也連帶推翻了先前「api_large_flag／api_highspeed 是 createship req 欄位」的猜測——
-// build_2.json 的巨額投入（1500/1500/2000/1000，明顯是大型艦）在 kdock 資料上就是
-// 普通的 api_item1-4，並無另一個布林欄位標示「這是大型建造」；故 BuildStartView 不再
-// 保留 large/highspeed 概念，改直接呈現真實投入量（見 applyEvent 的 api_get_member/kdock
-// 分支：比對前後 kdockData 偵測「渠新換了 created_ship_id」＝新送出的建造單，判斷式刻意
-// 涵蓋 state 2 與 3 兩種，見下方分支內註解）。build_1.json 後續更新過的內容（dock1＝
-// 已用 createship_speedchange 高速完工、state 3、api_complete_time 0、created_ship_id 56）
-// 額外證實：**渠的 api_item1-5 只反映最初送出建造時的投入量，不受後續是否高速完工影響**
-// ——高速建造材本身消耗的資材仍未驗證（該端點 createship_speedchange 回應本身不帶資料，
-// 需要材料前後對照樣本，非本次範圍）。
+// createship（建造發起）回應不含投入量；api_get_member/kdock 的渠物件帶
+// api_item1~api_item5，分別表示燃彈、鋼、鋁與開發資材的實際投入。封包沒有標示大型建造
+// 的布林欄位，BuildStartView 直接呈現這些數字；applyEvent 以 created_ship_id 變化辨識新建造，
+// 並涵蓋 state 2 與 3。api_item1~5 維持建造投入量，不因高速完工改變；高速建造材的消耗量
+// 未由 createship_speedchange 回應提供，故不推定。
 //
 // 名稱不存 view（只存 master id），渲染時經 gearName()/shipName() 取當前語言譯名，
 // 語言切換即時生效。
@@ -576,13 +572,11 @@ export interface AirBaseView {
 
 /**
  * 基地航空隊的唯一鍵＝**海域(maparea) id ＋ rid**，就是 `GameState.airBases` 的 map key
- * 本身——所有組鍵處一律呼叫這一支，**不要再各自寫字串樣板**（分隔符曾經一邊 `_`、
- * 一邊 `-`，照註解拿去 `airBases.get()` 會永遠 undefined 又不報錯）。
+ * 本身——所有組鍵處一律呼叫這一支，避免不同分隔符造成查詢失敗。
  *
  * ⚠️ **rid 單獨不是唯一鍵**：rid 是「該海域的第幾個基地」，中部海域與活動海域各自都有
- * 第一/第二/第三基地航空隊。實機回報過的災情就是拿 rid 當鍵：顯示範圍的開關、海域名稱
- * 對照表全部撞號，結果每個基地都掛上同一個海域名（活動名），一整排長得一模一樣、分不出
- * 誰是誰，開關也變成連動。**別再把任何以基地為單位的資料結構改回 rid 索引**——要嘛用
+ * 第一/第二/第三基地航空隊。若只用 rid，來自不同海域的基地會互相覆蓋，造成海域名稱與
+ * 顯示範圍錯配；**任何以基地為單位的資料結構都必須使用複合鍵**——要嘛用
  * 這支的複合鍵，要嘛以「海域」為單位（顯示範圍開關就是走後者，見
  * entrypoints/overview/lib.ts 的 FleetMarkdownScope）。
  */
@@ -630,15 +624,13 @@ const AIR_COMBAT_CATS = new Set([6, 7, 8, 11, 45, 56, 57, 58]);
 // 依日wiki「艦載機熟練度」：**艦戦・水戦・陸戦・局戦**吃戰鬥機表、**水爆**吃水爆表，
 // **艦攻・艦爆・噴式機・陸攻・全偵察機一律 0**。
 //
-// ⚠️ 這裡曾經錯得很嚴重，別改回去：舊碼寫成 `t===6||45||56||57` 並在註解標成
-// 「局戦(56), 陸戦(57)」——但 56／57 是**噴式戦闘機／噴式戦闘爆撃機**，真正的局地戦闘機
-// 是 **48**。後果有兩個方向：(a) 雷電・紫電改・隼・Spitfire 等 31 種局戦**整批沒有計入
-// 基地航空隊制空**（連本體対空都沒算，不只是熟練度加成）；(b) 噴式機反而被多給了最高
-// +22 的戰鬥機加成。
+// ⚠️ 分類必須維持：56／57 是**噴式戦闘機／噴式戦闘爆撃機**，真正的局地戦闘機是
+// **48**。戰鬥機表只套用艦戦（6）、水戦（45）與局戦／陸戦（48）；噴式機不套用這組
+// 機種類型加成，否則會同時漏算局戰制空並誤加噴式機加成。
 const AIR_TB_FIGHTER = new Set([6, 45, 48]);   // 艦戦・水戦・局戦（＝陸戦）
 const AIR_TB_SEAPLANE_BOMBER = 11;             // 水爆
 // 制空値の改修★補正：艦戦・水戦・局戦 +0.2×★、艦爆 +0.25×★。噴式機的★補正**未經
-// 查證**，維持與修正前相同的 0.2×★（這次只動機種類型加成，不順手改動改修補正）。
+// 查證**，噴式機目前套用 0.2×★；機種類型加成與改修補正分開計算。
 const AIR_IMP_FIGHTER = new Set([6, 45, 48, 56, 57]);
 
 // 艦種 id → 英文縮寫（艦名前綴用）
@@ -902,7 +894,7 @@ export class GameState {
     // 僅更換裝備、其他艦隊的任何操作——這幾條是刻意的例外，別「順手」補進重置清單。
     // null＝該隊出門中（出擊/遠征），回港時才重新錨定。
     // **兩個機制的週期不同（修理20分／給糧15分）故各存一份錨點**：共用一份無法表達
-    // 「經過15分時給糧已結算、修理還沒」這個中間狀態，結算後重新起算也會互相打架。
+    // 「經過15分時給糧已結算、修理還沒」這種不同步狀態，結算後重新起算也會互相打架。
     repairAnchorByDeck = new Map<number, number | null>();
     moraleAnchorByDeck = new Map<number, number | null>();
 
@@ -910,6 +902,37 @@ export class GameState {
         if (deckIdx < 0) return;
         this.repairAnchorByDeck.set(deckIdx, ts);
         this.moraleAnchorByDeck.set(deckIdx, ts);
+    }
+
+    /**
+     * 遊戲編成不會留下空位：id>0 的艦一律往前擠，尾端補 -1，陣列長度不變（6 或遊撃 7）。
+     * `api_req_hensei/change` 的回應通常不含新編成（只有一括解除才帶 api_change_count），
+     * 必須在本機維持這個不變量；漏補會讓後續請求的 api_ship_idx 對到錯格，把還在隊上的艦蓋掉。
+     */
+    private compactDeckShips(deck: any) {
+        const ships = deck?.api_ship;
+        if (!Array.isArray(ships)) return;
+        const kept = ships.filter((id: number) => id > 0);
+        for (let i = 0; i < ships.length; i++) ships[i] = i < kept.length ? kept[i] : -1;
+    }
+
+    /**
+     * `ship_deck`／`ship3` 的 api_deck_data 可以只回傳剛被讀取的一支艦隊，且陣列
+     * 順序不是艦隊位置；艦隊位置只能由 api_id 決定。直接指定整個陣列會使「第3艦隊」
+     * 變成索引 0，並遺失其餘艦隊。KC3Kai 的 PlayerManager.setFleets 與 poi 的
+     * mergeIndexifiedFleets 都以 api_id 合併，這裡維持同一個不變量。
+     */
+    private mergeDeckData(deckData: unknown) {
+        if (!Array.isArray(deckData)) return;
+        const merged = this.decks.slice();
+        let changed = false;
+        for (const deck of deckData) {
+            const deckIdx = Number(deck?.api_id) - 1;
+            if (!Number.isInteger(deckIdx) || deckIdx < 0 || deckIdx > 3) continue;
+            merged[deckIdx] = deck;
+            changed = true;
+        }
+        if (changed) this.decks = merged;
     }
 
     private markFleetAway(deckIdx: number) {
@@ -1179,7 +1202,7 @@ export class GameState {
                 this.ingestShips(api, { requireMaster: true });
             } else {
                 this.ingestShips(api?.api_ship_data, { requireMaster: true });
-                if (Array.isArray(api?.api_deck_data)) this.decks = api.api_deck_data;
+                this.mergeDeckData(api?.api_deck_data);
             }
         } else if (path === 'api_get_member/kdock') {
             // 建造渠狀態：api_port/port 只帶解鎖數（api_count_kdock），不含每個渠的即時狀態。
@@ -1291,7 +1314,6 @@ export class GameState {
             // 4=単発／5=他／9=遂行中（EO apilist／KC3Kai QuestManager.definePage）。
             // tab 0 與 9 是完整集合——缺席＝已不在受注中／達成（領獎後消失、或過期重置），
             // 必須刪除本機追蹤；其餘 tab 只是子集，只能更新出現的列，不能因缺席而刪。
-            // 舊註解寫「分頁式無法自動移除」已過時；clearitemget／stop 仍保留作即時刪除。
             const tabId = Number(req?.api_tab_id);
             const completeTab = tabId === 0 || tabId === 9;
             const list = api.api_list;
@@ -1321,7 +1343,7 @@ export class GameState {
                             if (goal) this.questProgress.set(q.api_no, { ...goal, count: 0 });
                         }
                     } else {
-                        // state 1=未受注：若先前追蹤過（例如放棄後），從面板拿掉。
+                        // state 1=未受注：若已追蹤過（例如放棄後），從面板拿掉。
                         this.quests.delete(q.api_no);
                         this.questProgress.delete(q.api_no);
                     }
@@ -1401,6 +1423,32 @@ export class GameState {
                 advance(this.repairAnchorByDeck, i, d, 20 * 60_000);
                 advance(this.moraleAnchorByDeck, i, d, 15 * 60_000);
             });
+        } else if (path === 'api_req_map/select_eventmap_rank' && req) {
+            const area = Number(req.api_maparea_id);
+            const mapNo = Number(req.api_map_no);
+            const rank = Number(req.api_rank);
+            const maphp = api?.api_maphp;
+            const nowHp = Number(maphp?.api_now_maphp);
+            const maxHp = Number(maphp?.api_max_maphp);
+            const gaugeType = Number(maphp?.api_gauge_type);
+            if (Number.isSafeInteger(area) && area > 0
+                && Number.isSafeInteger(mapNo) && mapNo > 0
+                && Number.isSafeInteger(rank) && rank > 0
+                && Number.isSafeInteger(nowHp) && nowHp >= 0
+                && Number.isSafeInteger(maxHp) && maxHp > 0) {
+                const mapId = area * 10 + mapNo;
+                const previous = this.mapGauges.get(mapId);
+                this.mapGauges.set(mapId, {
+                    cleared: previous?.cleared ?? false,
+                    gaugeType: Number.isSafeInteger(gaugeType) && gaugeType >= 0
+                        ? gaugeType : (previous?.gaugeType ?? 0),
+                    defeatCount: previous?.defeatCount ?? 0,
+                    requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
+                    nowHp,
+                    maxHp,
+                    selectedRank: rank,
+                });
+            }
         } else if (path === 'api_req_map/start' && req) {
             this.currentSortieFleetId = Number(req.api_deck_id) - 1;
             // 出擊中：計時器歸零、且要等回港才重新起算，故先標 null（見 repairAnchorByDeck）。
@@ -1426,6 +1474,23 @@ export class GameState {
                 mapNo: api.api_mapinfo_no,
                 nodes: [startNode],
             };
+            const eventmap = api?.api_eventmap;
+            const nowHp = Number(eventmap?.api_now_maphp);
+            const maxHp = Number(eventmap?.api_max_maphp);
+            if (Number.isSafeInteger(nowHp) && nowHp >= 0
+                && Number.isSafeInteger(maxHp) && maxHp > 0) {
+                const mapId = api.api_maparea_id * 10 + api.api_mapinfo_no;
+                const previous = this.mapGauges.get(mapId);
+                this.mapGauges.set(mapId, {
+                    cleared: previous?.cleared ?? false,
+                    gaugeType: previous?.gaugeType ?? 0,
+                    defeatCount: previous?.defeatCount ?? 0,
+                    requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
+                    nowHp,
+                    maxHp,
+                    selectedRank: previous?.selectedRank ?? 0,
+                });
+            }
             this.noteBossEntry(startNode);
             this.applyMaelstromIfAny(api, startNode.id);
             this.bumpQuestProgress('sortie');
@@ -1440,7 +1505,7 @@ export class GameState {
             }
         } else if (path === 'api_req_hensei/change' && req) {
             const deck = this.decks[Number(req.api_id) - 1];
-            if (!deck) return;
+            if (!deck || !Array.isArray(deck.api_ship)) return;
             const deckIdx = Number(req.api_id) - 1;
             const idx = Number(req.api_ship_idx);
             const newId = Number(req.api_ship_id);
@@ -1450,18 +1515,26 @@ export class GameState {
                 deck.api_ship = deck.api_ship.map((v: number, i: number) => (i === 0 ? v : -1));
                 return;
             }
+            if (!Number.isInteger(idx) || idx < 0 || idx >= deck.api_ship.length) return;
             const oldId = deck.api_ship[idx];
             if (newId > 0) {
                 for (const d of this.decks) {
                     const j = d.api_ship.indexOf(newId);
                     if (j >= 0) {
                         d.api_ship[j] = oldId;
-                        // 換上來的艦若原本在別隊，那一隊的成員也被改動了 → 一併重置。
-                        if (d !== deck) this.resetRepairAnchor(this.decks.indexOf(d), ts);
+                        // 換上來的艦若位於別隊，那一隊的成員也被改動了 → 一併重置。
+                        // 目標格若是空的，來源格會變成 -1，必須立刻補位，否則來源艦隊也會留洞。
+                        if (d !== deck) {
+                            this.compactDeckShips(d);
+                            this.resetRepairAnchor(this.decks.indexOf(d), ts);
+                        }
                     }
                 }
             }
+            // 寫入指定格後一律補位：移除（-1）會把後面的艦往前擠；點到空格加入時
+            // req.api_ship_idx 只是點擊格、不是最終落點（與裝備 slotset 空格補位同一類行為）。
             deck.api_ship[idx] = newId;
+            this.compactDeckShips(deck);
             this.resetRepairAnchor(deckIdx, ts);
         } else if (path === 'api_req_hensei/preset_select' && req) {
             const idx = Number(req.api_deck_id) - 1;
@@ -1470,9 +1543,8 @@ export class GameState {
             // 母港「連合艦隊」切換鈕：型別值在 req.api_combined_type（1=機動、3=輸送
             // 兩個值都已用真封包交叉驗證，見 samples/hensei-combined-*.json），2=水上
             // 用刪去法推得（僅 3 種型別，1/3 已確定，未直接驗證）。api_data.api_combined
-            // 恆為 1，是「連合已啟用」的通用成功旗標、不是型別值——曾經誤讀這個欄位
-            // 導致面板不論選哪種都誤顯示成機動部隊，已用兩個不同 req 值（1與3、api
-            // 皆回1）證實那個假設是錯的，不要改回去讀 api。
+            // api_data.api_combined 恆為 1，是「連合已啟用」的通用成功旗標、不是型別值；
+            // 編制類型必須讀取 req.api_combined_type。
             this.combinedFlag = Number(req?.api_combined_type ?? 0);
         } else if (path === 'api_req_kaisou/destroyship' && req) {
             // 解体：移除艦娘（api_ship_id 可為逗號分隔多艘），面板即時反映艦娘數/編成。
@@ -1490,6 +1562,7 @@ export class GameState {
             this.decks.forEach((d, di) => {
                 if (!d.api_ship.some((id: number) => ids.includes(id))) return;
                 d.api_ship = d.api_ship.map((id: number) => (ids.includes(id) ? -1 : id));
+                this.compactDeckShips(d);
                 this.resetRepairAnchor(di, ts);
             });
             // 解体艦娘任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務609「軍縮条約対応！」）：
@@ -1514,6 +1587,7 @@ export class GameState {
             this.decks.forEach((d, di) => {
                 if (!d.api_ship.some((id: number) => feeders.includes(id))) return;
                 d.api_ship = d.api_ship.map((id: number) => (feeders.includes(id) ? -1 : id));
+                this.compactDeckShips(d);
                 this.resetRepairAnchor(di, ts);
             });
             // 近代化改修没有失敗判定（有餌就必定吃成功），故每次呼叫都算一次成功。
@@ -1764,6 +1838,16 @@ export class GameState {
             && api?.api_f_nowhps          // 只處理帶有戰鬥血量的封包（現行格式），避免 goback_port 等把 battleInfo 洗空
         ) {
             try {
+                // 遊撃部隊的戰鬥封包本身會明示 api_deck_id（本次第3艦隊七船封包實證）。
+                // currentSortieFleetId 是 map/start 時的快照；面板中途開啟、歷史事件裁剪或
+                // 狀態不完整時，不能讓它的預設第1艦隊把這場戰鬥的 HP 寫到錯誤艦隊。
+                // 僅接受 1–4 且目前確有該編成的值，缺席仍沿用 map/start 的既有狀態。
+                const battleDeckId = Number(api?.api_deck_id);
+                const battleDeckIdx = battleDeckId - 1;
+                if (Number.isInteger(battleDeckIdx) && battleDeckIdx >= 0
+                    && battleDeckIdx < this.decks.length && this.decks[battleDeckIdx]) {
+                    this.currentSortieFleetId = battleDeckIdx;
+                }
                 const isNightOnly = path.includes('sp_midnight');
                 const isNight = path.includes('midnight');
                 // 演習「挑戰次數」在晝戰當下就算一次，不必等結果——夜戰接續是同一場
@@ -1837,7 +1921,7 @@ export class GameState {
                 this.pendingConsumption.push({ fuelRate, bullRate, nightAmmoBoost, hasEscort: GameState.hasEscortFleet(api) });
                 // Boss 節點（color=5）：記錄已觀測到的最高 boss 旗艦 HP，供 HP量表式關卡
                 // （gaugeType 2）估剩餘次數與斬殺線。同一活動海域可能有多個 Boss 節點，
-                // 較低 HP 的旁支 Boss 不得覆蓋先前已知的較高門檻。
+                // 較低 HP 的旁支 Boss 不得覆蓋已知的較高門檻。
                 if (atBoss && map) {
                     const bossHp = this.battleInfo?.resultFleets?.enemyMain?.[0]?.maxHp ?? 0;
                     this.observeMapBossHp(map.mapArea, map.mapNo, bossHp);
@@ -2001,7 +2085,7 @@ export class GameState {
      * 出擊途中的艦載機戰損（**估算**，與燃彈估算同一個模式：途中封包不給實數 → 估算 →
      * 回港 `api_port/port` 以實數校正）。
      *
-     * 為什麼只能估算（**永久限制，不是待驗證的暫代**）：
+     * 為什麼只能估算（**封包契約的資訊限制**）：
      * wikiwiki「航空戰」明載制空戰損失是**逐格獨立亂數**——
      * `⌊｛搭載數 ×[A + 制空常數/4]｝/10⌋`（A＝0～制空常數/3 的亂數；確保時常數＝1），
      * 對空砲火段亦為逐攻擊機格的獨立判定（艦戰不受對空砲火）。遊戲先各自擲完再加總，
@@ -2481,8 +2565,8 @@ export class GameState {
     }
 
     // 名稱本地化的唯一入口：master id → 目前顯示語言的譯名，缺譯回退封包日文原名。
-    // 譯名表在 utils/gamedata-i18n.ts（純資料，內容待外部填入）；面板亦一律透過這兩個
-    // 方法取名（含敵艦名），確保翻譯只有一個掛鉤點。
+    // 譯名資料由 utils/gamedata-names.ts 產生，透過 gamedata-i18n.ts 的查表函式使用；
+    // 面板亦一律透過這兩個方法取名（含敵艦名），確保翻譯只有一個掛鉤點。
     shipName(masterId: number | undefined): string {
         return localizeShip(masterId, masterId == null ? undefined : this.master.get(masterId)?.name);
     }
@@ -2667,9 +2751,9 @@ export class GameState {
             if (ex.firepower) rows.push({ label: t('exped.reqFirepower', { n: ex.firepower }), ok: tot('api_karyoku') >= ex.firepower, cur: `${tot('api_karyoku')}` });
         }
 
-        // itemtype 1–6 是 poi 舊資料（2015–2018 年凍結快照）自訂的內部編號，1–3 恰好與目前
+        // itemtype 1–6 是 poi 資料（2015–2018 年凍結快照）自訂的內部編號，1–3 恰好與目前
         // 封包 api_win_item 的原始值相同（2026-08-03 用 wikiwiki.jp/kancolle/遠征 逐筆核對
-        // 確認：1＝高速修復材、2＝高速建造材——**先前這兩項名稱寫反過，已修正**），但
+        // 確認：1＝高速修復材、2＝高速建造材），但
         // 4/5/6（家具箱小/中/大）在封包裡目前已改用 10/11/12，只有 poi 舊資料仍用 4/5/6，
         // 故兩組數字並存、不可合併。7/11/12/59 是新增遠征（id 41 起）直接取用封包原始值，
         // 其中改修資材撞上舊編號 4（家具箱小），改配 7 這個新編號避免衝突。
@@ -2807,14 +2891,53 @@ export class GameState {
         22: 15, // 補給艦
         // 未列艦種（雷巡、重巡、輕空母、戰艦、正空、潛水艦、工作艦、海防艦等）→ 0
     };
+    // 裝備類別預設 TP（api_mst_slotitem_equiptype id），提供未知新裝備同類別備援。
+    private static TP_BY_GEAR_CAT: Record<number, number> = {
+        24: 8, // 上陸用舟艇
+        30: 5, // 簡易輸送部材
+        46: 2, // 特型内火艇
+        43: 1, // 戦闘糧食
+    };
+    // 裝備 master id 專屬 TP（含陸戰部隊等非通用類別之裝備與全部大發/內火艇/糧食等明細表）。
     private static TP_BY_GEAR_MST: Record<number, number> = {
+        // 上陸用舟艇 (8 TP)
         68: 8,    // 大発動艇
-        193: 8,   // 特大発動艇
         166: 8,   // 大発動艇(八九式中戦車&陸戦隊)
-        167: 2,   // 特二式内火艇
-        75: 5,    // ドラム缶(輸送用)
+        193: 8,   // 特大発動艇
         230: 8,   // 特大発動艇+戦車第11連隊
-        // 註：表未涵蓋的陸戦隊/戦車系新變種暫記 0（保守少算，不會多報）。待實測樣本再補。
+        355: 8,   // M4A1 DD
+        408: 8,   // 装甲艇(AB艇)
+        409: 8,   // 武装大発
+        436: 8,   // 大発動艇(II号戦車/北アフリカ仕様)
+        449: 8,   // 特大発動艇+一式砲戦車
+        482: 8,   // 特大発動艇+Ⅲ号戦車(北アフリカ仕様)
+        494: 8,   // 特大発動艇+チハ
+        495: 8,   // 特大発動艇+チハ改
+        514: 8,   // 特大発動艇+Ⅲ号戦車J型
+        576: 8,   // 大発動艇(R35&フランス兵)
+
+        // 簡易輸送部材 (5 TP)
+        75: 5,    // ドラム缶(輸送用)
+
+        // 特型内火艇 (2 TP)
+        167: 2,   // 特二式内火艇
+        525: 2,   // 特四式内火艇
+        526: 2,   // 特四式内火艇改
+
+        // 戦闘糧食 (1 TP)
+        145: 1,   // 戦闘糧食
+        150: 1,   // 秋刀魚の缶詰
+        241: 1,   // 戦闘糧食(特別なおにぎり)
+
+        // 陸戦部隊（第百一号輸送艦專用）
+        496: 5,   // 陸軍歩兵部隊
+        497: 7,   // 九七式中戦車(チハ)
+        498: 9,   // 九七式中戦車 新砲塔(チハ改)
+        499: 14,  // 陸軍歩兵部隊+チハ改
+    };
+    // 特殊艦娘固有 TP 加成（未退避時生效；例如鬼怒改二自帶大發效果 +8 TP）
+    private static TP_BY_SHIP_MST: Record<number, number> = {
+        487: 8, // 鬼怒改二
     };
 
     // 出擊編成的 S勝利基本輸送量。回傳 { total, gear }（gear>0 才是輸送編成，顯示端據此判斷）。
@@ -2830,11 +2953,24 @@ export class GameState {
             if (!s) continue;
             const stype = this.master.get(s.api_ship_id)?.stype ?? 0;
             shipTP += GameState.TP_BY_STYPE[stype] ?? 0;   // 未列 = 0
+
+            // 艦娘固有 TP 加成（例如鬼怒改二內建大發效果 +8 TP）
+            const shipBonusTP = GameState.TP_BY_SHIP_MST[s.api_ship_id] ?? 0;
+            gearTP += shipBonusTP;
+
             const slots = [...(s.api_slot ?? []), s.api_slot_ex > 0 ? s.api_slot_ex : -1];
             for (const instId of slots) {
                 if (instId <= 0) continue;
                 const it = this.slotItems.get(instId);
-                if (it) gearTP += GameState.TP_BY_GEAR_MST[it.mst] ?? 0;
+                if (!it) continue;
+                // 優先查 master id 明細表，若無則按裝備類別（cat）預設值備援
+                const mstTP = GameState.TP_BY_GEAR_MST[it.mst];
+                if (mstTP !== undefined) {
+                    gearTP += mstTP;
+                } else {
+                    const cat = this.masterGears.get(it.mst)?.cat ?? 0;
+                    gearTP += GameState.TP_BY_GEAR_CAT[cat] ?? 0;
+                }
             }
         }
         return { total: shipTP + gearTP, gear: gearTP };
@@ -2894,7 +3030,7 @@ export class GameState {
     }
 
     // ── 退避可用性（面板提示用；使用者提供之遊戲設定，非封包驗證）─────────────────
-    // 三顆司令部系裝備**各自綁定一種編制，不可互換**（把它們當成同一類是曾經的錯誤）：
+    // 三顆司令部系裝備**各自綁定一種編制，不可互換**：
     //   · 107 艦隊司令部施設      → 連合艦隊。護衛退避（大破艦＋一艘健康驅逐艦一起離場）。
     //   · 272 遊撃部隊 艦隊司令部 → 七艘編成的遊撃部隊。單艦退避。
     //   · 413 精鋭水雷戦隊 司令部 → 水雷戦隊（輕巡系旗艦帶驅逐艦等小型艦）。單艦退避。
@@ -2993,7 +3129,13 @@ export class GameState {
     }
 
     fleets(): FleetView[] {
-        const inDock = this.shipsInDock();
+        const dockCompleteById = new Map<number, number>();
+        for (const n of this.ndockData) {
+            if (n.api_state > 0 && n.api_ship_id > 0) {
+                const at = Number(n.api_complete_time);
+                dockCompleteById.set(n.api_ship_id as number, Number.isFinite(at) && at > 0 ? at : 0);
+            }
+        }
         return this.decks.map((d, i) => ({
             name: this.fleetName(d, i),
             mission: d.api_mission?.[0] > 0,
@@ -3016,7 +3158,8 @@ export class GameState {
                         stype: STYPE_ABBR[mst?.stype ?? 0] ?? '',
                         mst: s.api_ship_id, stypeId: mst?.stype ?? 0,
                         ndockTime: Number(s.api_ndock_time ?? 0),
-                        inDock: inDock.has(id),
+                        inDock: dockCompleteById.has(id),
+                        dockCompleteAt: dockCompleteById.get(id) || null,
                         escaped: this.escapedShipIds.has(id),
                         lv: s.api_lv, hp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
                         fuel: s.api_fuel ?? 0, maxFuel: mst?.fuelMax ?? 0,
@@ -3318,7 +3461,7 @@ export class GameState {
      *   各中隊 = ⌊(対空 + 1.5×迎撃 + 改修補正) × √搭載 + 機種熟練補正⌋
      *   合計   = ⌊Σ中隊 × 陸偵倍率⌋
      *
-     * ⚠️ 三個曾經漏掉、會讓數字明顯低於 KC3Kai 的項——別再拿掉：
+     * ⚠️ 以下三項都會影響基地航空隊制空，計算不可省略：
      *   1. **迎撃×1.5**（局戦/陸戦 `api_type[2]=48` 才有；`api_houk` 在這類裝備＝迎撃
      *      不是迴避）。隼II型(64戦隊) 一格就差約 +32。
      *   2. **陸偵出撃倍率**：同隊有 type 49 時依索敵 ≥9 → ×1.18、否則 ×1.15
@@ -3341,9 +3484,7 @@ export class GameState {
             const t = g.cat;
             // 制空參與機種：艦戦(6)・水戦(45)・**局戦/陸戦(48)**・艦爆(7)・艦攻(8)・
             //              水爆(11)・陸攻(47)・陸偵(49)・噴式機(56/57)。
-            // ⚠️ 48 曾經整個漏掉（舊註解把 56/57 誤標成「局戦/陸戦」），雷電・紫電改・隼・
-            //    Spitfire 等 31 種局戦因而**連本體対空都沒被計入基地航空隊制空**。見
-            //    AIR_TB_FIGHTER 的說明，別改回去。
+            // ⚠️ 48 是局戦／陸戦，必須納入基地航空隊制空；56/57 是噴式機，不屬於局戦／陸戦。
             const isDB = t === 7;
             const isSPB = t === AIR_TB_SEAPLANE_BOMBER;
             const isInterceptor = t === 48;   // 局戦/陸戦（迎撃欄位只在這類成立）
@@ -3428,8 +3569,7 @@ export class GameState {
      * ⚠️ 這一族端點（set_plane／supply／set_action／change_name）**完全沒有真封包樣本**，
      * 欄位名依社群工具慣例推定，故解析一律防禦：
      *  - `api_base_id` 可能是逗號分隔的多個基地（`set_action` 已實測會這樣送，補給若有
-     *    「一括補給」極可能同形）。舊寫法直接把整串 `"1,2"` 當成 rid 去組 key，
-     *    **查不到就靜靜什麼都不做**——面板於是一直掛著補給前的機數（實機回報 2026-08-04）。
+     *    「一括補給」極可能同形）；必須逐項解析，否則無法更新對應基地的機數。
      *  - `api_area_id` 缺席時，若該 rid 在目前的 airBases 裡唯一就用那一個；不唯一不猜。
      */
     /*
@@ -3481,9 +3621,7 @@ export class GameState {
      *   · `3` → 赤（重度疲勞）　`samples/mapinfo-air-base-red.json`（使用者確認「紅臉更疲勞」）
      *   · 其餘 → `unknown`，顯示原始值不猜
      *
-     * ⚠️ **別再把 1 當成橙**：2026-08-04 曾依中途的實機回報改成 0=無／1=橙／2=赤，
-     * 之後撈到 `cond: 3` 才發現整組錯位（3 會變成「不明」而完全不顯示）。四段一起看
-     * 才對得起來：0/1 都無標記、2 橙、3 赤——這也正是本專案最初沿用的社群工具慣例。
+     * ⚠️ 四段對照固定為：0/1 都無標記、2 橙、3 赤；未知值保留原始數字，不推測語意。
      */
     lbasCondState(cond: number | null): 'normal' | 'mild' | 'tired' | 'exhausted' | 'unknown' {
         if (cond == null || !Number.isFinite(cond)) return 'unknown';
@@ -3498,7 +3636,7 @@ export class GameState {
      * 套用「經過時間」後的疲勞狀態——**面板一律用這支，不要直接用 `lbasCondState()`**。
      *
      * `api_cond` 是觀測當下的快照；遊戲每 3 分鐘在伺服器端回復一次且不推封包，所以放著
-     * 不管的話面板會掛著遊戲裡早就消失的標記（實機回報 2026-08-04）。這裡只做單向推論：
+     * 不處理會讓面板持續顯示遊戲中已消失的標記。這裡只做單向推論：
      * **連最慢的回復速度都足以到達下一段時**才降級（赤→橙→輕度），其餘原樣回傳。
      * 詳見 `utils/lbas-cond.ts`。
      */
@@ -3630,7 +3768,7 @@ export class GameState {
     }
 
     // ── 待驗證封包自動偵測 ──────────────────────────────
-    // 比照 KC3Kai 已可轉寫的機制不再抓樣本。只留「表／欄位更新」類、且不會洗版的鉤子。
+    // 比照 KC3Kai 已可轉寫的機制，僅保留「表／欄位更新」類且不會洗版的鉤子。
     // 命中時回傳人類可讀分類；main.ts 只在 live 事件呼叫並寫入 db.wanted。
     wantedTag(path: string, api: any, _req?: Record<string, string>): string | null {
         // 渦潮：表內已查表扣減；表外且真有 api_happening 才抓（活動新紫點，供補表）。
@@ -3664,8 +3802,8 @@ export class GameState {
  * 依 `api_squadron_id` 合併中隊，未被提及的中隊原樣保留。
  *
  * 為什麼不能直接覆蓋整排：`set_plane`／`supply` 的回應**只帶被更動的中隊**，不是完整四格。
- * 舊寫法 `ab.api_plane_info = api.api_plane_info` 會把沒動到的中隊整個丟掉——換一架飛機
- * 就剩一格、換兩架剩兩格，且 `lbasAirPower()` 與 `airBases_()` 都直接讀這個陣列，
+ * 回應只帶被更動的中隊，直接覆蓋 `ab.api_plane_info` 會把沒動到的中隊整個丟掉——換一架
+ * 飛機就剩一格、換兩架剩兩格，且 `lbasAirPower()` 與 `airBases_()` 都直接讀這個陣列，
  * 所以制空與格數會一起錯，要回母港收到完整的 `base_air_corps` 才會修回來。
  *
  * 合併在「回應是完整四格」的情況下與覆蓋等價（四個 id 都會被蓋掉），故不論回應是部分
@@ -3677,7 +3815,7 @@ function mergeSquadrons(current: unknown, incoming: unknown): unknown {
     const byId = new Map<unknown, any>();
     for (const sq of current) byId.set(sq?.api_squadron_id, sq);
     for (const sq of incoming) {
-        // 沒有 api_squadron_id 可對位就無從合併，退回整排覆蓋（保持舊行為，不猜）
+        // 沒有 api_squadron_id 可對位就無從合併，退回整排覆蓋，不猜測缺失的對位。
         if (sq?.api_squadron_id == null) return incoming;
         byId.set(sq.api_squadron_id, sq);
     }

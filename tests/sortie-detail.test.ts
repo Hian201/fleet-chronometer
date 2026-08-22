@@ -106,13 +106,23 @@ describe('支援艦隊編組（真封包）', () => {
         expect(use.shipIds).toHaveLength(6);
     });
 
-    it('航空／對潛支援走 api_support_airatack（61-5 node1：第4艦隊、flag 4）', () => {
+    it('對潛支援走 api_support_airatack（61-5 node1：潛水艦節點、第4艦隊、flag 4）', () => {
         const node1 = load('61-5-jibun-rengou-node52.json').battles.find((b: any) => b.node === 1).data;
         const use = supportUse(node1)!;
-        expect(use.kind).toBe('air');
+        expect(use.kind).toBe('asw');
         expect(use.deckId).toBe(4);
         expect(use.flag).toBe(4);
         expect(use.shipIds).toHaveLength(6);
+    });
+
+    it('flag 3 依 poi 的旗標對應保留為雷擊支援，不誤標成對潛', () => {
+        const use = supportUse({
+            api_support_flag: 3,
+            api_support_info: {
+                api_support_airatack: { api_deck_id: 4, api_ship_id: [101, 102] },
+            },
+        });
+        expect(use?.kind).toBe('torpedo');
     });
 
     it('沒出支援的節點回 null', () => {

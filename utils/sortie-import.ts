@@ -14,7 +14,7 @@
 // 不是本機觀測到的封包，不得偽裝成 raw event（provider 合約，見 CLAUDE.md 設計原則 3）。
 //
 // ── 結算資訊：KC3Kai 匯出有，本專案自己的匯出沒有 ──────────────────
-// **KC3Kai logger 的匯出每個 battle 都帶結算欄位**（欄位名與 kcsapi 不同，別再拿 `rank` 去找）：
+// **KC3Kai logger 的匯出每個 battle 都帶結算欄位**（欄位名與 kcsapi 不同，解析時以這些鍵為準）：
 //   · `rating` ＝ rank。**KC3Kai 會吐 `SS`（完全勝利），遊戲的 `api_win_rank` 只吐 `S`**
 //     （已實測，見 CLAUDE.md predictRank），故一律正規化成 `S`，與本機擷取的紀錄同形狀。
 //   · `drop`   ＝ 掉落艦的 **master id**（0＝沒掉）。61-5 樣本的 boss 節點是 135＝長波。
@@ -242,7 +242,7 @@ function validateBattlePacket(value: unknown, where: string): UnknownRecord {
     return packet;
 }
 
-/** `time` 可能是秒（KC3Kai／現行輸出）或毫秒（本專案舊輸出）。以 1e12 為界換算。 */
+/** `time` 可能是秒（KC3Kai／現行輸出）或毫秒（相容輸入）。以 1e12 為界換算。 */
 export function normalizeTime(value: unknown): number | null {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) return null;
     const normalized = value < 1e12 ? value * 1000 : value;
@@ -256,7 +256,7 @@ export function normalizeTime(value: unknown): number | null {
 function normalizeShip(rawValue: unknown, where: string, format: ImportFormat, hp?: { now: number; max: number }): ReplayShip | ReplaySupportShip {
     const raw = objectAt(rawValue, where);
     const allowed = format === 'fleet-chronometer'
-        ? ['mst_id', 'lv', 'level', 'equip', 'stars', 'ace', 'exequip', 'nowhps', 'maxhps']
+        ? ['mst_id', 'lv', 'level', 'equip', 'stars', 'ace', 'exequip', 'exstars', 'exace', 'nowhps', 'maxhps']
         : ['mst_id', 'level', 'morale', 'stats', 'kyouka', 'effect', 'equip', 'stars', 'ace', 'exequip'];
     assertOnlyKeys(raw, allowed, where);
     const equip = integerArrayAt(raw.equip, `${where}.equip`, -1);
@@ -275,6 +275,8 @@ function normalizeShip(rawValue: unknown, where: string, format: ImportFormat, h
         ? -1 : integerAt(raw.exequip, `${where}.exequip`, -1);
     const common = {
         mst_id, lv, equip, stars, ace, exequip,
+        ...(raw.exstars === undefined ? {} : { exstars: integerAt(raw.exstars, `${where}.exstars`, 0, 10) }),
+        ...(raw.exace === undefined ? {} : { exace: integerAt(raw.exace, `${where}.exace`, -1, 7) }),
         ...(format === 'kc3kai' ? { cond: integerAt(raw.morale, `${where}.morale`, 0, 100) } : {}),
         ...(raw.kyouka === undefined ? {} : { kyouka: integerArrayAt(raw.kyouka, `${where}.kyouka`, 0) }),
     };

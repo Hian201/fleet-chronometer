@@ -1,17 +1,15 @@
-# 工程細節存檔（原 CLAUDE.md 完整內容，2026-07-24 拆分）
+# 工程細節與驗證依據
 
-> 這是 `CLAUDE.md` 精簡前的完整存檔，一字不改地保留每一項「已用真封包驗證」的
-> 事實、每一條「別改回去」的既知陷阱、以及每個功能的完整決策脈絡（使用者原話、
-> 為什麼選這個方案而不是那個、曾經被否決的做法）。`CLAUDE.md` 現在只留審查／
-> 日常開發必須知道的硬約束與速查事實，並在對應段落註明「詳見本檔 §節名」；
-> 需要理解「這條規則從何而來」「這個決定有沒有考慮過其他方案」時才回來查這份。
+> 本文件集中保存不適合放在日常速查中的**目前有效事實、設計約束、非顯而易見的取捨
+> 理由與來源證據**。`CLAUDE.md` 保留審查與日常開發必須知道的硬約束；兩者若有差異，
+> 以目前程式碼與測試為準。本文不記錄未合入方案、嘗試過程或使用者討論紀錄。
 >
-> **這份文件本身不會再維護更新**——新的決策脈絡與踩坑記錄請寫回精簡後的
-> `CLAUDE.md`（若篇幅不適合塞進精簡版，另開新的分類文件而非繼續往這份塞）。
+> 新增功能或驗證結果時，只補充仍適用的最終行為、約束、理由與證據；過時內容直接改成
+> 目前契約，不保留中間版本。
 
 ---
 
-# CLAUDE.md — fleet-chronometer（拆分前存檔）
+# CLAUDE.md 對應的工程參考
 
 艦これ（KanColle）用的 MV3 監控擴充：攔截遊戲 `kcsapi` 封包，面板即時顯示艦隊/遠征/
 入渠/基地航空隊/關卡進度，及**戰鬥預測**（終末HP、rank、MVP、大破警告）與燃彈估算。
@@ -29,11 +27,12 @@
    關閉期間不漏資料。SW 視為隨時會死，不持跨事件狀態。
 4. **核心零瀏覽器依賴**：`utils/state.ts`+`battle.ts` 不含 `chrome.*`，可獨立編譯、
    用 node 餵真實封包測試（未來可拆包共用給 macOS app）。
-5. **權限精簡**：安裝時的權限為 `alarms`+`notifications`+`scripting`，且 **host permission
-   一律為空**。`scripting` 不授予任何網站存取權、Chrome 也不顯示警告，它只是「能動態注入」
-   的能力；劇場模式需要的 dmm.com 存取權走 `optional_host_permissions`，使用者按下按鈕才
-   跳一次原生授權（見「劇場模式」）。任何新增權限都要有明確理由（已否決過「擴充重載後回頭
-   注入」因需新增 host permission；LLM 子系統也因此否決雲端直連）。
+5. **權限精簡**：正式 manifest 的 `permissions` 為 `activeTab`、`alarms`、`notifications`、
+   `scripting`、`tabs`；正式 build 的 `host_permissions` 為空。劇場模式需要的 dmm.com 存取權
+   走 `optional_host_permissions`，使用者按下按鈕才跳一次原生授權（見「劇場模式」）。
+   `scripting` 不授予任何網站存取權、Chrome 也不顯示警告，它只是「能動態注入」的能力。
+   任何新增權限都要有明確理由；擴充重載後的動態注入與 LLM 雲端直連均不採用，因為會增加
+   host／網路權限。
    `tests/manifest.test.ts` 常駐斷言 `host_permissions` 為空——WXT 對
    `registration: 'runtime'` 的 content script **會自動把 matches 塞進 host_permissions**，
    `wxt.config.ts` 的 `build:manifestGenerated` hook 負責剝掉。
@@ -57,6 +56,8 @@ UI 版面離線預覽（真實封包資料＋overview 的同一份 CSS，不連�
 ```bash
 npx vite-node --config vitest.config.ts tools/preview/sortie-log.ts     # → .preview/sortie-log{,-light}.html
 npx vite-node --config vitest.config.ts tools/preview/resource-log.ts   # → .preview/resource-log{,-light}.html
+npx vite-node --config vitest.config.ts tools/preview/fleet-overview.ts # → .preview/fleet-overview{,-light}.html
+npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts   # → .preview/panel-sortie{,-light}.html
 ```
 
 核心邏輯獨立驗證（餵真實封包 JSON，樣本在 `samples/`）：
@@ -110,7 +111,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 
 | 檔案 | 職責 |
 |------|------|
-| `wxt.config.ts` | manifest（permissions: alarms, notifications, scripting, tabs；`optional_host_permissions` 為 DMM 遊戲頁）＋剝除 WXT 自動加上的 `host_permissions` 的 build hook |
+| `wxt.config.ts` | manifest（permissions: activeTab, alarms, notifications, scripting, tabs；`optional_host_permissions` 為 DMM 遊戲頁）＋剝除 WXT 自動加上的 `host_permissions` 的 build hook |
 | `entrypoints/interceptor.content.ts` | MAIN world 攔封包 + debug 擷取 ＋**遊戲靜音 hook 的安裝點**（`installAudioMute`，必須早於遊戲建立音訊圖，故掛在 document_start） |
 | `entrypoints/bridge.content.ts` | 轉發到 background，去 token；另接**靜音狀態長連線**（`runtime.connect`，故不需要對遊戲分頁的 host permission）與**劇場模式的互動意圖轉發**（Alt+滾輪／Esc，一律 passive、不 stopPropagation）；**關閉分頁前警示**（`beforeunload`，manifest 靜態注入、無需任何權限、涵蓋新舊 DMM 入口——刻意不放在需要 optional permission 的頂層 DMM 頁，見「關閉分頁前警示」一節） |
 | `entrypoints/theater.content.ts` | 劇場模式（DMM 遊戲頁）：把遊戲框放到整個視窗、滾輪縮放、平移、隨時還原。**動態註冊**（`registration: 'runtime'`），不在 manifest 的 content_scripts 裡。詳見「劇場模式」 |
@@ -123,23 +124,23 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `entrypoints/overview/ship-picker.ts` | 鎮守府全船篩選清單的共用 UI 元件。**刻意不遵守「全量重繪」慣例**（design-guidelines §4.2）：篩選器控制項只建一次，變更時只重繪結果清單——否則關鍵字輸入框每打一個字就失焦，實際打不了字 |
 | `entrypoints/overview/sections/ships.ts` | 艦娘全覽 UI：常駐工具列＋可收合篩選抽屜＋生效條件 chip 列＋詳細表格＋分頁。同 ship-picker **刻意不遵守「全量重繪」慣例**（有關鍵字與等級輸入框）。欄位開關／每頁筆數／排序／素質模式存 localStorage（`kc-ships-view`），不進 Dexie、不進備份 |
 | `entrypoints/overview/sections/equipment.ts` | 裝備全覽 UI：**圖示篩選架**（既有裝備圖示即篩選鈕）＋圖磚／詳細清單雙模式＋可展開的逐顆實例。同 ships **刻意不遵守「全量重繪」慣例**（有關鍵字輸入框）。模式／排序存 localStorage（`kc-equip-view`），不進 Dexie、不進備份。詳見「裝備全覽」 |
-| `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄 UI：通常／活動兩大分類＋海域下拉＋**單場 JSON 匯入**，**一次出擊一張卡**（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊。**刻意不遵守「全量重繪」慣例**（design-guidelines §4.2）：控制項只建一次，篩選只重繪 `.sl-body`——否則每次篩選都會把展開狀態與捲動位置洗掉。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板的 markup 由 `shellHtml()` 提供，離線預覽共用同一份。詳見「出擊紀錄的展開檢視」 |
+| `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄 UI：通常／活動兩大分類＋海域下拉＋**單場 JSON 匯入**，**一次出擊一張卡**（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊；提供標準 DeckBuilder JSON 複製與 KC3Kai 出擊模擬器開啟／貼上。**刻意不遵守「全量重繪」慣例**（design-guidelines §4.2）：控制項只建一次，篩選只重繪 `.sl-body`——否則每次篩選都會把展開狀態與捲動位置洗掉。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板的 markup 由 `shellHtml()` 提供，離線預覽共用同一份。詳見「出擊紀錄的展開檢視」 |
 | `entrypoints/overview/sections/drop-log.ts` | 打撈紀錄 UI：通常／活動分類＋新船／非新船篩選＋關鍵字／時間篩選＋分頁＋CSV 匯出入。CSV 匯出入邏輯全在 `utils/drop-log-import.ts`，本檔只負責 UI 狀態（同 sortie-log 單場 JSON 匯入的互動模式：切換面板／選檔或貼上／狀態列三態）。詳見「打撈紀錄／建造紀錄的 CSV 匯出入」 |
 | `entrypoints/overview/sections/exped-log.ts` | 遠征紀錄 UI：**期間彙總**（期間捷徑／自訂起訖日／活動期間捷徑＋四資源小計＋各遠征次數與收穫的可排序表）＋可選欄位的詳細清單＋分頁＋彙總／明細兩份 CSV。彙總核心在 `utils/expedition-stats.ts`，本檔只負責 UI 狀態；同 sortie-log **刻意不遵守「全量重繪」慣例**（有關鍵字與日期輸入框）。詳見「遠征紀錄的期間彙總」 |
 | `entrypoints/overview/sections/build-log.ts` | 建造紀錄 UI：可選欄位詳細清單＋分頁＋CSV 匯出入。匯入來源查不到 master id 時改顯示 `FactoryLogRow.importedShipName`／`importedSecretaryName`，不落回 shipName(0) 的「？」。詳見「打撈紀錄／建造紀錄的 CSV 匯出入」 |
 | `entrypoints/overview/sections/event-ops.ts` | 活動作戰板 UI：標籤總帳（自動）＋計畫疊層＋關卡表。直接讀寫 `db.eventPlans`——那是**使用者手輸的攻略意圖**、非從 events 投影的衍生資料，故不違反「overview 不寫 derived tables」（同 ships 分區的手填打撈上任日） |
 | `entrypoints/overview/sections/resource-log.ts` | 資源紀錄 UI：**最上方一張大折線圖**（八項資材疊在同一張圖、圖例逐條開關、y 軸只依顯示中的序列縮放、十字準線）＋活動區段消耗＋詳細清單（表頭與欄位開關皆**純圖示無文字**，欄位開關是表格正上方一排圖示鈕）。同 sortie-log **刻意不遵守「全量重繪」慣例**（要保住十字準線、捲動位置與分頁）。控制項只建一次、只重繪 `.rl-body`；期間／粒度／欄位／分頁存 localStorage（`kc-resource-view`），不進 Dexie、不進備份。純 HTML 建構器抽到 module scope 供離線預覽共用。詳見「資源紀錄」 |
-| `entrypoints/overview/main.ts` | 側欄導覽＋hash 路由＋語言/主題套用（`renderSection()` 用 try/catch 接住分區例外並顯示原因，不留白）；另管**側欄三態**（釘選／收合／浮層滑入，`body[data-nav]`＋localStorage `kc-overview-nav`）與**側欄左右側**（`body[data-nav-side]`＋localStorage `kc-overview-nav-side`，與三態正交、純版面鏡射）。窄視窗（≤760px）強制不釘選，且按鈕改切浮層開合——此時去切釘選會毫無反應等於按鈕壞掉。**靠右時 hover 熱區整個關掉**（右緣是內容捲軸的地盤，hover 熱區在那裡會跟拖曳捲軸互搶而一直開合亂跳，任何寬度都會發生，不是窄視窗限定）；`#nav-toggle`／`#nav-side-toggle` 兩顆按鈕也用 CSS `order` 跟著側欄換邊，避免按鈕留在左上角、側欄卻彈在右邊的「按了沒反應」錯覺。**曾經真的讓靠右的側欄完全彈不出來**：靠右的收起規則帶了 `[data-nav-side="right"]`，specificity 比三態泛用的展開規則高，展開規則永遠打不贏，`#nav` 卡在 `translateX(100%)` 出不來——已用 `playwright-core`（`channel:"chrome"` 指向系統 Chrome）實際跑 `.output/chrome-mv3/overview.html` 量測 `#nav` 的 bounding rect 抓到並補上同 specificity 的靠右展開規則修好，見 design-guidelines §4.4 的 specificity 陷阱段落 |
+| `entrypoints/overview/main.ts` | 側欄導覽＋hash 路由＋語言/主題套用（`renderSection()` 用 try/catch 接住分區例外並顯示原因，不留白）；另管**側欄三態**（釘選／收合／浮層滑入，`body[data-nav]`＋localStorage `kc-overview-nav`）與**側欄左右側**（`body[data-nav-side]`＋localStorage `kc-overview-nav-side`，與三態正交、純版面鏡射）。窄視窗（≤760px）強制不釘選，且按鈕改切浮層開合；靠右時停用 hover 熱區以免與內容捲軸互搶；`#nav-toggle`／`#nav-side-toggle` 兩顆按鈕也用 CSS `order` 跟著側欄換邊，避免按鈕留在左上角、側欄卻彈在右邊。靠右展開規則必須與收起規則具有相同 specificity，否則泛用三態展開規則無法覆寫 `translateX(100%)`；此約束見 design-guidelines §4.4 的 specificity 段落 |
 | `entrypoints/overview/lib.ts` | `loadGameState()` 依 `planStateRecovery()` 選安全 snapshot baseline 再重播 raw events；overview 不投影、不寫 derived tables |
-| `entrypoints/overview/fsa.ts` | File System Access API 封裝（**零 manifest 權限**的資料夾備份）：目錄選取（`showDirectoryPicker`）、讀寫權限請求、寫檔；目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，非 Dexie）。使用者選一次同步夾（Google Drive Desktop／WebDAV 掛載磁碟…），上雲交給桌面同步客戶端。**選它而非 Drive/WebDAV 原生 API 的理由見檔頭**（後者需 identity/host_permissions，違反權限精簡） |
-| `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-backup.json` 即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁，亦相容舊 `kanmusu-replays.json`。由 `backup` 分區寫進備份資料夾，讓存檔「沒有擴充也能提取單場」 |
+| `entrypoints/overview/fsa.ts` | File System Access API 封裝（**零 manifest 權限**的資料夾備份）：目錄選取（`showDirectoryPicker`）、讀寫權限請求、`fileExists()`、寫檔；目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，非 Dexie）。使用者選一次同步夾（Google Drive Desktop／WebDAV 掛載磁碟…），上雲交給桌面同步客戶端。**選它而非 Drive/WebDAV 原生 API 的理由見檔頭**（後者需 identity/host_permissions，違反權限精簡） |
+| `entrypoints/overview/viewer-html.ts` | 離線 `viewer.html` 產生器（單檔、零擴充、零外連）：內聯 `toKc3Replay`，載入 `kanmusu-backup-YYYY-MM-DD-HHmmss.json`（本地時間；亦相容舊 `kanmusu-backup.json`／`kanmusu-replays.json`）即可逐場複製 KC3Kai battleplayer 物件／開公開重播頁。由 `backup` 分區寫進備份資料夾，讓存檔「沒有擴充也能提取單場」 |
 | `entrypoints/overview/prompt-api.d.ts` | Chrome 內建 AI「Prompt API」（`LanguageModel`）的最小環境型別宣告，供 `llm.ts` 特徵偵測使用；見「LLM 分析子系統」 |
 | `entrypoints/panel/index.html` | 面板結構與 CSS（深色艦これ風） |
 | `entrypoints/panel/main.ts` | 面板控制器：以 `EventProjector` state-only/persist 兩階段重播與 live 投影、只在成功後推進 cursor、渲染與 autoSwitch |
 | `utils/ui-prefs.ts` | UI 偏好持久化（語言＋亮暗主題，localStorage）——panel/popup/overview 三種擴充頁面共用；SW 不使用。`onPrefsChange()` 用 DOM `storage` 事件做跨頁即時同步（任一頁切換語言/主題→其他已開頁面自動套用重繪，**無需 storage 權限**） |
 | `utils/replay.ts` | 出擊重播組裝（純函式，無 chrome.*）：`snapshotDeck`/`startReplay`/`appendBattle` 累積成 `ReplayRow`、`toKc3Replay()` 輸出 KC3Kai battleplayer 可貼上物件。快照讀 GameState 公開原始欄位，state.ts 不必改、維持可獨立編譯 |
 | `utils/map-node-kind.ts` | 節點類型（`api_event_id`／`api_event_kind` → 資源／渦潮／能動分歧／空襲戰／敵連合…）。**封包事實**，與需要對照表的節點字母不同層次；語意轉寫自航海日誌拡張版（MIT，見 THIRD-PARTY-NOTICES §6），**沒有樣本佐證的 eventKind 一律不對應** |
-| `utils/map-node-letters.ts` | 節點字母查表（純函式）：`nodeLabel(map, edge)` 有對照給字母（A／B／…／ZZ）、沒有給原始 edge 編號。**兩種推算法皆已被真實資料否證**（見「節點字母」）。面板與 overview 共用 |
+| `utils/map-node-letters.ts` | 節點字母查表（純函式）：`nodeLabel(map, edge)` 有對照給字母（A／B／…／ZZ）、沒有給原始 edge 編號；查不到時顯示原始 edge 編號。面板與 overview 共用 |
 | `utils/map-edge-letters.ts` | 上表的資料本體（193 張海域、5904 條 edge）。**產生物、勿手改**——改 `tools/map-edges/edges.json` 後重跑 `tools/map-edges/generate.py`。來源＝KC3Kai `edges.json`（MIT，見 THIRD-PARTY-NOTICES §5） |
 | `tools/map-edges/` | 上表的產生器＋上游 `edges.json` 副本（取得日 2026-07-22）。新活動海域要等上游更新，更新後重跑產生器即可 |
 | `utils/sortie-import.ts` | 單場出擊 JSON 匯入（解析／去重為純函式，落地為一個 Dexie transaction）：只吃 `toKc3Replay()` version 4 或既有 fixture 證實的 KC3Kai logger 格式，產生 `db.replays`＋`db.sorties` 各一組。**去重在 transaction 內做**（海域＋戰鬥節點序列完全相同，且在 ±10 分鐘內；有封包再比 canonical 完整原始內容，缺封包才只靠時間），命中即拋 `SortieImportDuplicateError` 並整個 rollback。event ID 向 events key generator 借（add→delete，只前進不回頭）**但不寫任何 raw event**——匯入的不是本機觀測，不得偽裝成封包 |
@@ -147,6 +148,8 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `utils/drop-log-import.ts` | 打撈紀錄 CSV 匯出入：`dropLogCsvText()` 固定欄位匯出、`parseDropLogCsv()` 辨識自家格式或航海日誌拡張版戦績／ドロップ報告書、`importDropLogRows()` 借 event ID 寫入 `db.sorties`（不寫 raw event，逐列去重不整批 rollback）。詳見「打撈紀錄／建造紀錄的 CSV 匯出入」 |
 | `utils/build-log-import.ts` | 建造紀錄 CSV 匯出入，設計同 drop-log-import.ts；相容航海日誌拡張版建造報告書，艦名／秘書艦名查不到 master id 時存 `importedShipName`／`importedSecretaryName` 供顯示 |
 | `utils/sortie-detail.ts` | 出擊紀錄「一次出擊」的重建（純函式，無 chrome.*，node 可測）：`buildSortieDetail()` 把 `db.sorties` 摘要 × `db.replays` 原始封包合成逐節點的作戰資訊，並把支援艦隊／基地航空隊波次彙整到出擊層級；`lbasWaves()`／`supportUse()` 解封包欄位、`numberSorties()` 算「該海域第幾次出擊」、`isEventWorld()` 分通常／活動。戰鬥細節**不另寫解析**，直接餵 `battle.ts` 的 `analyzeBattle()`（與面板同一支）。詳見「出擊紀錄的展開檢視」 |
+| `utils/deckbuilder.ts` | 兩種外部工具格式的輸出：`buildDeckBuilder()` 產生母港艦隊 JSON，`buildReplayDeckBuilder()` 產生出擊快照的標準 DeckBuilder JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()`；DeckBuilder 格式與出擊模擬器格式分開維護 |
+| `utils/sortie-simulator.ts` | `buildSortieSimulator()`／`toSortieSimulatorUrl()` 產生 KC3Kai 出擊模擬器使用的 `fleetF`／`nodes` 格式，含支援艦隊與基地航空隊資料；不與 DeckBuilder 格式混用 |
 | `tools/preview/resource-log.ts` | 資源紀錄版面的**離線預覽產生器**（開發用，不進 bundle）。`samples/` 裡沒有現成的餘額歷史（那要跑好幾週才生得出來），故用**有依據的合成序列**——起訖水位、每場出擊的消耗量級、活動的關卡數與里程碑順序都照 `samples/61-*.json` 那次活動的形狀；合成的是時間軸，欄位語意仍走與分區完全相同的那份程式碼 |
 | `tools/preview/sortie-log.ts` | 出擊紀錄版面的**離線預覽產生器**（開發用，不進 bundle）：拿 `samples/` 的 KC3Kai logger 匯出當真實資料、套 overview 的同一份 CSS，產出 `.preview/sortie-log.html`（深／亮兩色）供瀏覽器檢視或 headless 截圖。不連遊戲、不需登入 |
 | `utils/resource-capture.ts` | 資源紀錄的擷取層（純函式＋最小 table 合約，node 可測）：`readMaterials()` 取八項餘額、`readEventGauges()` 讀活動量表狀態、`captureResources()` 落地。**由 background 呼叫而非 EventProjector**——資源序列不需要 GameState 上下文，而它的價值就在連續，面板沒開的那幾天要是斷掉就算不出「這次活動花了多少」。詳見「資源紀錄」 |
@@ -162,7 +165,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `utils/quest-progress.ts` | 任務「本機進度」推算（純函式，無 chrome.*，node 可測）：`parseQuestGoal()` 從任務標題/內文的「N回」字樣反推目標次數與動作種類（遠征/建造/開發/近代化改修/裝備改修/演習/出撃）。**遊戲封包完全不給精確完成次數**（只有 `api_state` 受注中/達成與粗略的 `api_progress_flag`），故計數只能是「自本機面板看到這個任務起算」，可能低於遊戲內實際值（同 ship-debut-data.ts 的 baseline 誠實原則）。解不出目標的任務（單次型、或以「隻」為單位）回傳 null，UI 回退顯示受注中/達成。詳見「任務本機進度追蹤」 |
 | `utils/state.ts` | `GameState`：封包 reduce 成狀態；遠征檢查、制空/索敵、戰鬥接線、血量寫回、燃彈估算、關卡量表、TP、`wantedTag`、泊地修理計時器錨點、任務進度計數（`bumpQuestProgress()`） |
 | `utils/battle.ts` | `analyzeBattle`（傷害重放）+ `predictRank`（勝利判定） |
-| `tests/` | vitest 套件（`npm test`）。活動作戰板相關：`event-plan.test.ts`（核心純函式）、`ship-filter.test.ts`（共用篩選，可裝備七桶以真實 master 全 1751 艦驗算）、`map-master.test.ts`（海域 master，含真實 area 62）、`backup-v4-event-plans.test.ts`（envelope v4 往返與舊版相容）；出擊紀錄：`sortie-detail.test.ts`（基地航空隊各波／支援艦隊編組以真封包驗證，摘要×封包合併與「第幾次」計數）、`sortie-import.test.ts`（單場 JSON 匯入與去重）、`map-node-letters.test.ts`（節點字母查表，含「不可改回推算」的否證與 61-5／6-5 兩份 ground truth）、`map-node-kind.test.ts`（節點類型，與 KC3Kai 匯出的 desc 交叉驗證）；資源紀錄：`resource-capture.test.ts`（擷取與量表狀態機，量表數值取自 61-3／61-4／61-5 真實 eventmap）、`resource-log.test.ts`（分析核心與折線幾何）、`backup-v5-resources.test.ts`（envelope v5 往返與 v4 相容）；打撈／建造紀錄 CSV：`csv.test.ts`（分隔符偵測／跳脫／往返）、`drop-log-import.test.ts`、`build-log-import.test.ts`（自家格式往返、航海日誌拡張版相容解析、去重與 event ID 借號）；遠征期間彙總：`expedition-stats.test.ts`（分組／加總／排序／CSV，含壞資料不得變 NaN）、`exped-log-overview.test.ts`（分區 HTML 產出：escape、排序箭頭、缺席文案） |
+| `tests/` | vitest 套件（`npm test`）。活動作戰板相關：`event-plan.test.ts`（核心純函式）、`ship-filter.test.ts`（共用篩選，可裝備七桶以真實 master 全 1751 艦驗算）、`map-master.test.ts`（海域 master，含真實 area 62）、`backup-v4-event-plans.test.ts`（envelope v4 往返與舊版相容）；出擊紀錄：`sortie-detail.test.ts`（基地航空隊各波／支援艦隊編組以真封包驗證，摘要×封包合併與「第幾次」計數）、`sortie-import.test.ts`（單場 JSON 匯入與去重）、`map-node-letters.test.ts`（節點字母查表與 61-5／6-5 兩份 ground truth）、`map-node-kind.test.ts`（節點類型，與 KC3Kai 匯出的 desc 交叉驗證）；資源紀錄：`resource-capture.test.ts`（擷取與量表狀態機，量表數值取自 61-3／61-4／61-5 真實 eventmap）、`resource-log.test.ts`（分析核心與折線幾何）、`backup-v5-resources.test.ts`（envelope v5 往返與 v4 相容）；打撈／建造紀錄 CSV：`csv.test.ts`（分隔符偵測／跳脫／往返）、`drop-log-import.test.ts`、`build-log-import.test.ts`（自家格式往返、航海日誌拡張版相容解析、去重與 event ID 借號）；遠征期間彙總：`expedition-stats.test.ts`（分組／加總／排序／CSV，含壞資料不得變 NaN）、`exped-log-overview.test.ts`（分區 HTML 產出：escape、排序箭頭、缺席文案） |
 | `utils/db.ts` | Dexie schema **v12**：stores 為 events、wanted、sorties、notified、factory、replays、expeditions、snapshot、shipObtained、eventPlans、resources、resourceMarks、meta；events 的 `captureId` 為 unique index，並有 `postProcessState`；v10 不猜補歷史 captureId／state／metadata；v11 純新增 `eventPlans`（主鍵 areaId）；v12 純新增 `resources`（主鍵＝來源 event id）與 `resourceMarks`（主鍵＝字串 key），既有表不變、無遷移、**不回填歷史**（v12 之前沒有任何餘額序列可考） |
 | `utils/ingestion-persistence.ts`／`utils/background-ingestion-lifecycle.ts` | raw event 持久化、captureId 去重與 collision 拒絕、pending/processing/done 狀態機，以及 SW recovery 的單一順序 queue |
 | `utils/event-projector.ts`／`utils/projection-cursor.ts`／`utils/event-pruning.ts` | derived-table 投影、`meta['projection']` version 3 cursor，以及只刪已投影 raw event 的安全裁剪 |
@@ -206,7 +209,8 @@ generator 後立即刪除 reservation，**不寫 raw event**。去重為同海�
 雙方都有封包時再比 canonical 原始封包，否則才以時間 fallback。Fleet Chronometer 自身匯出沒有結算
 欄位；KC3Kai logger 的 `rating`／`drop`／`mvp`／`hqEXP`／`baseEXP` 可帶來結算資訊（`SS` 正規化為 `S`）。
 
-**v1 產品識別**：package 為 **fleet-chronometer 1.0.0**，僅有 `alarms`、`notifications` 權限。
+**產品識別與版本**：套件名稱與版本以 `package.json` 為唯一來源；manifest 權限以
+`wxt.config.ts` 與 `tests/manifest.test.ts` 為準。本文不重複維護版本與權限清單。
 **品牌名走 i18n、不是固定字面值**——manifest 只放 `__MSG_extName__`／`__MSG_extShortName__`／
 `__MSG_extDescription__`（`default_locale: en`），實際名稱由 `public/_locales/{en,ja,zh_TW}/messages.json`
 決定：en「Fleet Chronometer」／ja「クロノメーター」／zh_TW「航海鐘」。頁面標題是**另一份來源**
@@ -216,7 +220,7 @@ generator 後立即刪除 reservation，**不寫 raw event**。去重為同海�
 **`popup/index.html` 的 `<title>` 是 load-bearing 的佔位字串，別改成實際名字**：WXT 會把 popup
 entrypoint 的 `<title>` 寫進 manifest 的 `action.default_title`，而且**蓋過 `wxt.config.ts` 裡
 的設定**——佔位字串在 manifest 裡才會被代換成當前語系的品牌名（圖示 tooltip）；改成實際名字
-會把 tooltip 鎖死在單一語言（已實際踩過一次，測試的 `default_title` 與 popup `<title>` 兩條
+會把 tooltip 鎖死在單一語言；測試的 `default_title` 與 popup `<title>` 兩條
 斷言就是這件事的兩端）。**HTML 本身不做 `__MSG_` 代換**（只有 manifest 與 CSS 會），故 popup 的
 `document.title` 改由 `popup/main.ts` 於執行期以 `ov.brandShort` 改寫（同 panel）。
 extension app icon 位於 `public/icon/`，來源在
@@ -281,8 +285,8 @@ EventProjector 與 state recovery 必須傳入原始 `event.ts`，live 呼叫未
 |---------|------|------|
 | 對潛先制爆雷 | 跟通常砲擊戰同一種「複數敵→複數傷害陣列」 | ✅ 已涵蓋（`api_opening_taisen` 走 `processHougeki` 通用陣列） |
 | 彈著觀測射撃／空母戰爆連合CI／夜戰CI | 倍率已算進最終 `api_damage`，不影響我方讀取 | ✅ 已涵蓋（讀最終數字，不管倍率怎麼來） |
-| 噴式強襲 | 跟標準航空戰同公式 | ✅ 已涵蓋（`api_injection_kouku`） |
-| 支援艦隊（對敵） | `api_support_info.api_support_airatack.api_stage3.api_edam`（航空）／`api_support_hourai.api_damage`（砲擊，索引=敵位置） | ✅ 航空(61-5)＋砲擊(61-3)支援兩種欄位路徑皆已用真實封包驗證 |
+| 噴式強襲 | 跟標準航空戰同公式；基地與空母分別由不同封包欄位提供 | ✅ 已涵蓋（基地：`api_air_base_injection`；空母：`api_injection_kouku`） |
+| 支援艦隊（對敵） | `api_support_info.api_support_airatack.api_stage3.api_edam`（航空／對潛系）／`api_support_hourai.api_damage`（砲擊／雷擊系，索引=敵位置） | ✅ 航空／砲擊欄位路徑已以 61-5／61-3 真實封包驗證；`api_support_flag` 1/2/3/4 分類為航空／砲擊／雷擊／對潛，未知值依結構回退 |
 | **友軍艦隊** | `api_friendly_battle.api_hougeki`（夜戰封包內獨立 top-level 欄位）；`api_at_eflag` 0=友軍攻擊敵方、1=敵方攻擊友軍（不影響玩家） | ✅ `api_hougeki` 已用 61-3 甲 boss 夜戰驗證（`samples/61-3.json` node53，友軍傷害不計入玩家 MVP）；`api_raigeki` 該樣本未出現，寫法防禦性預留、**未經真封包驗證** |
 
 - **自軍聯合艦隊**：已用真實 61-5 甲自軍水上部隊封包驗證（`samples/61-5-jibun-rengou-*.json`）。
@@ -317,7 +321,7 @@ EventProjector 與 state recovery 必須傳入原始 `event.ts`，live 呼叫未
 與遊戲戰鬥畫面一致（油彈餘量影響傷害，過早顯示會誤導）。map/start 與回港會清空 pending。
 結婚艦 −15% 是補給折扣、不影響途中油量計，不套用。
 
-**隨伴艦隊的判定必須看封包，不能看 `currentSortieFleetId === 0`**（已修過一次的 bug）：
+**隨伴艦隊的判定必須看封包，不能看 `currentSortieFleetId === 0`**：
 第1艦隊「單獨」出擊時 `currentSortieFleetId` 同樣是 0，若據此就把第2艦隊當隨伴，會讓
 根本沒出門的第2艦隊被扣燃彈（面板因而跳出未補給提醒）。正解是 `GameState.hasEscortFleet(api)`
 ——**只有連合艦隊出擊的封包才帶 `api_f_nowhps_combined`**，故以該欄位存在與否為唯一證據；
@@ -385,12 +389,11 @@ raw packet 原封保存、node/rank 歸位、fleet ship shape 正確。
 `battleresult`＝補 rank 到最後節點；其餘帶 `api_f_nowhps` 者為晝戰/航空戰。
 面板中途才開啟（沒看到 `api_req_map/start`）則無從快照艦隊，該次出擊不留重播。
 
-### 出擊紀錄的展開檢視（`utils/sortie-detail.ts`＋`sections/sortie-log.ts`，2026-07-22）
+### 出擊紀錄的展開檢視（`utils/sortie-detail.ts`＋`sections/sortie-log.ts`＋`utils/deckbuilder.ts`＋`utils/sortie-simulator.ts`，2026-07-22）
 
-**改版動機**：舊版是「一張海域一塊、底下逐節點一行」的流水帳，看得到結果，卻看不出
-**這是哪一次出擊、帶了誰、走了哪條路**——而那正是回頭翻紀錄時真正要問的三件事。
-改成**一次出擊一張卡**：摺疊列兩行（行1＝#第幾次・關卡代號・出擊編成成員；
-行2＝節點軌跡＋結果標記），展開才給細節。
+**現行呈現**：一次出擊一張卡，摺疊列兩行（行1＝#第幾次・關卡代號・出擊編成成員；
+行2＝節點軌跡＋結果標記），展開才給細節。將出擊作為單位可同時辨識隊伍、路線與結果，
+避免把同一場出擊拆成難以追溯的節點流水帳。
 
 **資訊密度對照 KC3Kai 的出擊紀錄展開檢視**（參照圖 `samples/KC3kai_sortie_log.png`，
 使用者指定的標竿）：四支艦隊各一欄（主力／護衛／道中支援／決戰支援）＋基地航空隊三隊
@@ -416,21 +419,21 @@ raw packet 原封保存、node/rank 歸位、fleet ship shape 正確。
 玩家可以把任一隊當道中或決戰。61-3 真封包實測正好兩支（第3艦隊在 25／51、第4艦隊在 53），
 這也是「必須分兩欄」的依據。
 
-**摺疊列（banner）只放「哪一隊、誰帶隊」**（2026-07-22 第四輪，使用者要求）：
+**摺疊列（banner）只放「哪一隊、誰帶隊」**：
 `#第幾次・關卡代號・**旗艦**・艦隊編制・時間・展開箭頭`＋第二行的節點軌跡與結果標記。
-12 艘全名單會把 banner 撐成三行、還把時間與箭頭擠掉，而「這次帶了誰」本來就是展開後逐艘看的事。
+12 艘全名單會把 banner 撐成三行、還把時間與箭頭擠掉；完整名單在展開後逐艘呈現。
 編制標籤：連合三種（空母機動／水上打撃／輸送護衛，`api_combined_flag`）＋**遊撃部隊**
 （`combined===0` 但主隊 7 艘——只有遊撃部隊艦隊司令部做得到，是封包事實不是猜測）＋單艦隊。
 
-**節點藥丸：節點標籤是主角**。先前節點字母是 11px 的 `--dim`、rank 是同級距的粗體彩色，
+**節點藥丸：節點標籤是主角**。節點字母是 11px 的 `--dim`、rank 是同級距的粗體彩色，
 兩個字擠在一起分不清哪個是節點哪個是戰果。現在節點 14px 粗體主要文字色、rank 以一條分隔線
 推開並降一級字級；boss 藥丸另加語意色淡底。
 
-**基地空襲節點掛空襲警報圖示**（`public/icons/ui/airraid.svg`，M7 圖示族新增的第 75 顆）：
-節點軌跡的藥丸與節點卡各一顆。**遊戲沒有這個圖示**——它是本專案為此新造的（回轉警示燈意象），
+**基地空襲節點掛空襲警報圖示**（`public/icons/ui/airraid.svg`，M7 圖示族的第 76 顆）：
+節點軌跡的藥丸與節點卡各一顆。**遊戲沒有這個圖示**——它是本專案繪製的回轉警示燈意象，
 同樣由 `tools/icons/gen_ui.py` 產生、`normalize.py` 注入描邊，不手改 SVG。
 
-**展開內容一律可折疊（2026-07-22 第三輪，使用者要求）**：一次出擊的資訊量太大，全部攤開
+**展開內容一律可折疊**：一次出擊的資訊量太大，全部攤開
 反而找不到東西，故分四段、各有自己的開合：
 
 - **出擊編成**：常駐（要看「帶了誰」），但**每艘的裝備預設折疊**——六艘×五格圖示會變成一面
@@ -439,7 +442,7 @@ raw packet 原封保存、node/rank 歸位、fleet ship shape 正確。
 - **支援艦隊／基地航空隊**：整段預設折疊，但**收合時的摘要必須看得出內容**
   （「道中支援 第4艦隊・決戰支援 第3艦隊」「第1基地 出擊・第2基地 出擊・第3基地 防空」）
   ——藏起來讓人找等於沒做（同活動作戰板標籤成員的教訓）。
-- **逐節點**：一節點一列、**由上而下＝路線先後順序**（先前的網格排法左→右換行，會讓順序變成
+- **逐節點**：一節點一列、**由上而下＝路線先後順序**（網格排法左→右換行，會讓順序變成
   用猜的），預設收合，可單獨點開或用「全部節點」批次開。收合列放的是要橫向掃描比較的東西
   （節點・rank・boss／夜戰・制空・支援／基地・大破・掉落），細節留給展開。
 
@@ -454,8 +457,8 @@ raw packet 原封保存、node/rank 歸位、fleet ship shape 正確。
 ### 節點類型（`utils/map-node-kind.ts`）——這個**在**封包裡
 
 `api_req_map/start`／`next` 的 `api_event_id`／`api_event_kind` 直接給出節點性質，**是封包事實**，
-與需要外部對照表的節點字母完全不同層次。先前只讀 `api_color_no`（判 boss）就把這兩欄丟掉，
-等於白白放棄「這條路線上有渦潮、有能動分歧、有空襲戰」這種資訊。
+與需要外部對照表的節點字母完全不同層次。節點類型必須直接保留這兩欄，才能呈現
+「這條路線上有渦潮、有能動分歧、有空襲戰」等資訊。
 
 語意轉寫自**航海日誌拡張版**（Nishisonic/logbook，MIT，見 THIRD-PARTY-NOTICES §6）的
 `MapCellDto.getNextKind()`：`api_event_id` 2＝資源獲得／3＝渦潮／4＝戰鬥／5＝boss／
@@ -480,18 +483,14 @@ id**，不是格子 id，更不是字母。KC3Kai 的 `edges.json` 一筆 edge �
 我們要的是**終點字母**；而且**多條 edge 會對到同一個字母**（同一節點從不同方向進入——6-5 的
 C／G／H／I／M 各有兩條）。所以「編號 → 字母」是多對一，**不可能由編號推算**。
 
-兩種推算法都被使用者提供的真實對照當場否證（61-5 該場出擊）：
+61-5 真實出擊提供的對照如下，證明 edge id 與字母沒有可推導的順序關係：
 
 ```
 edge    1   48   15   37   51   52   55
 letter  A    E    I    Q    Y    Z   ZZ
 ```
 
-- `String.fromCharCode(64 + id)`（面板舊有的 `getEdgeLetter`）：15 會算成 O（實際 I），
-  48 以上變小寫亂碼。
-- 「該圖 edge 由小到大排序後依序給字母」：48 排在 37 之後，但 48=E 在 37=Q 之前。
-
-**`api_get_master/mapinfo`／`api_get_master/mapcell` 解不了這題**（使用者提出的假設，已查證）：
+**`api_get_master/mapinfo`／`api_get_master/mapcell` 不提供字母**：
 那類 master 端點給的是**格子**（`api_id` 全海域通號／`api_no` 同海域內編號／顏色…），
 既沒有字母、也不是我們手上的 edge id；字母是攻略圈的命名慣例，不在任何封包裡。
 （`api_req_map/start` 的 `api_cell_data` 同理——ElectronicObserver 的 apilist 明載
@@ -507,17 +506,16 @@ letter  A    E    I    Q    Y    Z   ZZ
 原始編號一律留在 tooltip。`EDGE_LETTER_OVERRIDES` 供臨時人工覆蓋（平時應為空）。
 
 **顯示節點的地方一律走同一支 `nodeLabel()`**（面板出擊分頁、出擊紀錄的軌跡／節點卡／基地波次／
-支援出動節點、LLM 報告）。曾經面板用 ASCII 推算、出擊紀錄顯示數字，兩邊政策相反——**而且
-推算錯得「看起來像字母」**（拿對照表回頭算：一般海域只有 60% 正確、活動海域 32%；6-5 分歧
-回流的 edge 14–18 實際是 C/G/H/I/M，ASCII 會顯示這張圖根本沒有的 N/O/P/Q/R；61-5 那條路線
-會顯示小寫的 `A p O e s t w`）。這正是「不要為了畫面好看去推算未驗證的值」的教科書案例。
+支援出動節點、LLM 報告）。節點字母只能使用已驗證的對照表；查不到時顯示原始 edge 編號，
+不以 ASCII 或其他推算法補出字母。不同海域的 edge 編號並不共用同一字母順序，直接推算會產生
+看似合理但錯誤的節點標籤。
 
 **單場 JSON 匯入（2026-07-22，2026-07-22 收緊）**：分區工具列的「匯入 JSON」只接受兩種
 已確認來源：(a) 本專案 `toKc3Replay()` 產生、帶 `version:4` 的固定格式；(b) KC3Kai logger／
 kancolle-replay 現有 fixture 證實的格式（`nodes`＋`eventmap`＋logger battle wrapper）。
 `parseSortieImport()` 先辨識格式再逐欄驗證；其他通用 JSON、部分相似物件與未知工具格式一律拒絕。
 
-- **重複判定**（使用者要求「已存在就提示已存在」）：海域＋**戰鬥節點序列**必須完全相同，
+- **重複判定**：海域＋**戰鬥節點序列**必須完全相同，
   且一律受 **±10 分鐘**邊界限制。兩邊都有重播時，比對 `data`＋實際存在的 `yasen` 完整原始
   封包（物件 key 排序後 FNV-1a）；不混入只存在 KC3Kai wrapper 的 rating/drop/MVP/EXP。
   任一邊沒有封包（既有紀錄的重播已裁剪）才在同一時間窗內只靠時間 fallback。故相同封包跨日
@@ -531,9 +529,8 @@ kancolle-replay 現有 fixture 證實的格式（`nodes`＋`eventmap`＋logger b
 - **KC3Kai 對「沒有夜戰的節點」寫 `"yasen": {}`**（空物件仍是 truthy）：直接 `if (entry.yasen)`
   會讓每個節點都被標成夜戰接續，還會把空物件餵進 `analyzeBattle`。判準改為「至少有一個
   `api_` 開頭的欄位」（`hasPacket()`），`data` 也走同一關。這是靠離線預覽看出來的（見下）。
-- **KC3Kai logger 的匯出帶完整結算資訊，但鍵名跟 kcsapi 不一樣**（曾因為去找 `rank` 找不到，
-  就誤下「重播 JSON 沒有結算」的結論，導致匯入的紀錄看不到掉落——**檢查欄位缺席前先把整個
-  物件的鍵列出來**）：
+- **KC3Kai logger 的匯出帶完整結算資訊，但鍵名跟 kcsapi 不一樣**：**檢查欄位缺席前先把整個
+  物件的鍵列出來**，避免把不同命名誤判為資料缺席：
 
   | KC3Kai 鍵 | 意義 | 存進 |
   |---|---|---|
@@ -571,15 +568,15 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
   選項隨資料收斂）。活動海域顯示 `E{n}`＋難度徽章，完整編號（`62-3`）退到 title。
 - **展開時才解析封包**（含 `analyzeBattle` 戰鬥重放），結果快取；摺疊列只用 `db.sorties`
   摘要＋快照——否則一進分區就要把整個重播層跑一遍。
-- **先畫殼、再讀資料**（順序刻意，別調回去）：`render()` 第一件事是 `el.innerHTML = shellHtml()`
-  並綁好工具列／匯入面板的事件，**之後**才 await `db.sorties`／`db.replays`。先前是「讀完才畫」，
-  只要讀取慢、丟例外或**卡住**（Dexie 版本升級被其他分頁／面板擋住時 `open()` 會無限等待），
+- **先畫殼、再讀資料**：`render()` 第一件事是 `el.innerHTML = shellHtml()`
+  並綁好工具列／匯入面板的事件，**之後**才 await `db.sorties`／`db.replays`。資料讀取慢、丟例外或
+  **卡住**（Dexie 版本升級被其他分頁／面板擋住時 `open()` 會無限等待）時，
   整個分區就是一片空白——連「匯入 JSON」都按不到，使用者只看到「介面不見了」而毫無線索。
   現在殼一定先出現，載入中顯示「載入中…」，失敗只影響清單並印出原因（含「關掉其他分頁再
   重新整理」的提示）。`overview/main.ts` 也把 `sec.render()` 包在 try/catch 裡——**任何分區的
   例外都不得靜默留白**。
 - **戰鬥細節不另寫一套解析**：直接餵 `utils/battle.ts` 的 `analyzeBattle()`（面板即時監控
-  用的同一支），故展開看到的與當初面板顯示的一致，日後解析修正兩邊同時受惠。damecon 由
+用的同一支），故展開看到的與面板顯示的一致，日後解析修正兩邊同時受惠。damecon 由
   快照的裝備 master id 還原（42 要員／43 女神，同 `state.ts getDamecon`），不是猜的。
 
 **兩邊資料的分工要在 UI 上誠實呈現**：節點序列與勝負來自 `db.sorties`（永久保留）；
@@ -598,8 +595,9 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
 - `api_support_info` 的 `api_support_airatack`（航空／對潛系）與 `api_support_hourai`
   （砲擊系）擇一非 null，兩者都帶 `api_deck_id` 與 `api_ship_id[]`。
   **`api_ship_id` 是艦實例 id 不是 master id**——UI 靠目前的 `GameState.ships` 反查艦名，
-  查不到就顯示 `#id`（不猜）。`api_support_flag` 各值語意未逐一驗證，故**不據以分類**，
-  只放進 title 供除錯；分類一律看哪個結構非 null。
+  查不到就顯示 `#id`（不猜）。已用 poi/lib-battle 對照與 61-5 真封包確認
+  `api_support_flag` 的 1／2／3／4 分別對應航空／砲擊／雷擊／對潛；未知值才依存在的
+  支援結構回退，並保留原始 flag 供除錯。
 - `api_selected_rank`：1丁 2丙 3乙 4甲（三份甲難度樣本皆為 4）。
 
 **節點標籤走 `utils/map-node-letters.ts` 的查表**：有對照顯示字母、沒有顯示原始 edge 編號，
@@ -607,11 +605,11 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
 
 ### LLM 分析子系統（`entrypoints/overview/sections/llm.ts`，2026-07-19 定案）
 
-**決策脈絡**：原本設計讓擴充直接呼叫雲端 LLM API（api.openai.com／api.anthropic.com），
-但這需要新增網路權限——即使改用 `optional_host_permissions`＋執行期
+**權限邊界**：擴充不直接呼叫雲端 LLM API（api.openai.com／api.anthropic.com），
+因為這需要新增網路權限；即使改用 `optional_host_permissions`＋執行期
 `chrome.permissions.request()`（manifest 預設不變、只在使用者按下啟用時才跳一次原生
 授權視窗、且僅限使用者填的那個網域）也仍是「新增」，違反本專案權限精簡的立場。
-討論後選擇完全避開權限問題的三條路徑，皆已實作：
+現行功能以三條不增加擴充網路權限的路徑提供分析：
 
 1. **通用備份檔（主線）**：`buildFullReport()` 把提督/資源/四艦隊/基地航空隊
    （複用 `lib.ts` 的 `fleetMarkdown()`，與「艦隊全覽」分區共用同一段輸出，格式保證一致）
@@ -619,10 +617,8 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
    一份 Markdown。「複製完整報告」／「下載完整報告 (.md)」——純前端組字串＋既有的
    `downloadText`/`copyWithFeedback`，零網路、零權限。可直接貼進或上傳到任何主流
    LLM（Claude.ai／ChatGPT／Gemini…），資料出不出境完全由使用者決定要不要交出檔案。
-   **設計原則（2026-07-19 修正過一次，別走回頭路）**：能預先算好的統計就不要留給
-   LLM 自己從攤平的原始紀錄清單去數——原本的出擊段落是「全域 rank 統計＋全體最近
-   20 筆」，這答不出「我在某海域的歷史勝率」（統計混雜所有海域，細節列表又常常
-   看不到目標海域的紀錄，因為可能被擠到 20 筆之外）。改為**依海域分組**：每個
+   **報告摘要原則**：能預先計算的統計由擴充完成，不交給 LLM 從攤平的原始紀錄清單重算。
+   出擊資料依海域分組：每個
    海域一行（次數/rank分布/大破次數/常見掉落/最近出擊時間），輸出行數只跟「去過幾個
    海域」成正比、不隨歷史筆數膨脹（查詢不設 limit，全量下去分組運算依然很輕量）；
    保留一份「最近 5 筆」純作時序參考，不作統計依據。裝備同理：**依種類（mst）彙總
@@ -649,16 +645,13 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
    - 裝置端 context window 較小，故這裡刻意只餵 `buildQuickContext()`（精簡摘要，非
      上面的完整報告）——避免超出額度；深入分析大量歷史紀錄請引導使用者改用完整報告
      交給雲端 LLM。
-   - `promptStreaming()` 的分塊語意**曾經改版**（部分版本回傳「目前為止的全文」，
-     穩定版回傳「只有新增的 token」），且無法用特徵偵測分辨版本——已用
-     `chunk.startsWith(acc) ? chunk : acc + chunk` 的防禦寫法涵蓋兩種語意，不要
-     改回單純的 `+=` 或單純替換，會在另一種語意的 Chrome 版本上輸出錯誤。
+   - `promptStreaming()` 的分塊在不同 Chrome 版本可能是「目前為止的全文」或「只有新增的
+     token」，且無法用特徵偵測分辨；`chunk.startsWith(acc) ? chunk : acc + chunk` 同時涵蓋
+     兩種語意，避免輸出重複或遺漏。
 
 ### 母港快照與資料備份還原（2026-07-19）
 
-**觸發原因**：使用者問「LLM 分析的完整報告，能不能讓全新安裝的擴充復原資訊」——答案原本
-是不行：那份報告是給人/LLM 讀的 Markdown、近期紀錄節錄、格式不可逆解析；且更根本的問題
-是**當時完全沒有任何獨立保存「目前艦娘/裝備/艦隊」的資料表**——總括頁的母港狀態全靠
+**快照用途**：LLM 報告是給人／LLM 讀的 Markdown，格式不可逆解析；母港狀態也不能只靠
 重播 `db.events` 即時重建，而 `db.events` 本身會被 M6 裁剪到約兩個登入世代，完全解除
 安裝再重裝＝`db.events` 歸零，重播出來什麼都沒有，要等使用者重新登入遊戲才會恢復。
 
@@ -693,25 +686,26 @@ metadata、目標 rows，且 events generator 未被未知資料推進的乾淨�
 high-water 與 import marker 在同一 transaction；任一失敗完整 rollback。future local raw event ID
 保證高於備份所有相關來源 event ID。restore/replays 可依受支援順序接續，但不表示兩檔必然同源。
 
-#### 雲端備份與重播裁剪（2026-07-19 續作）
+#### 雲端備份與重播裁剪
 
-**觸發原因**：使用者問「能不能做 Google Drive／WebDAV 備份」，且發現 KC3Kai 備份 300MB＋
-而本專案試做的不到 5MB——追出兩件事並各自處理。
+**雲端備份邊界**：Google Drive／WebDAV 原生 API 需要額外權限；備份大小與重播保留策略則
+由資料內容決定，兩者分開處理。
 
 **(A) 雲端備份走 File System Access API（`entrypoints/overview/fsa.ts`），不碰任何新權限。**
 Google Drive／WebDAV 原生 API 需 `identity`(OAuth)＋`host_permissions`（googleapis）或
-`optional_host_permissions`（WebDAV 主機），都是「新增權限」，違反權限精簡（同 LLM 子系統
-否決雲端直連的理由）。FSA 是 secure context 網頁 API，overview 一般頁面即可用：使用者選
+`optional_host_permissions`（WebDAV 主機），都是「新增權限」，違反權限精簡（與 LLM 子系統
+採相同權限邊界）。FSA 是 secure context 網頁 API，overview 一般頁面即可用：使用者選
 一次資料夾（指向 Google Drive Desktop／WebDAV 掛載磁碟等**同步夾**），擴充只把檔案寫進去，
 上雲同步是桌面同步客戶端的事——延續 MCP 路徑「存檔就結束、出不出境由使用者 OS 決定」的
 同一套哲學。目錄 handle 存獨立原生 IndexedDB（`kc-fsa`，不動 Dexie schema）；重開分頁後
 handle 仍在但需使用者手勢重新授權（`queryPermission`→`requestPermission`）。無 FSA 支援
 的瀏覽器（Firefox/Safari）退回純下載。
 
-**(B) 備份改為單一完整檔（2026-07-28，取代原本拆兩檔的預設）。** `kanmusu-backup.json`
-同時帶 snapshot、所有永久紀錄與 `db.replays`。先前把出擊摘要與原始戰鬥封包拆開，並沒有壓縮
-總大小；少帶 replay 時雖能看到出擊卡，卻無法還原編成、逐節點戰鬥、支援與基地航空隊，故不再
-稱得上還原。空間管理仍由保留規則明確決定，裁剪後的詳情不會在後續完整備份中假裝存在。
+**(B) 備份使用單一完整檔。** 檔名以 `backupFileName()` 產生的
+`kanmusu-backup-YYYY-MM-DD-HHmmss.json` 為準（本地時間；同秒撞名加序號）；舊的
+`kanmusu-backup.json` 仍可相容匯入。完整檔同時帶 snapshot、所有永久紀錄與 `db.replays`。
+完整檔才能還原編成、逐節點戰鬥、支援與基地航空隊；空間管理仍由保留規則明確
+決定，裁剪後的詳情不會在後續完整備份中假裝存在。
 
 `viewer.html`（`viewer-html.ts`）隨資料夾備份一併寫入：單檔離線、內聯 `toKc3Replay`，任何人用
 瀏覽器開它、載入完整備份就能逐場複製 battleplayer 物件／開公開重播頁，**不需要擴充**。
@@ -805,15 +799,17 @@ UI 必須如實標示（面板倒數用虛線弱化樣式、錨點不可考時�
 raw events 的 SW 恢復結果一致，且 state recovery 不建立 derived rows 或推進 projection cursor。這些
 都是沒有專用結算封包下的**預估**測試，不把未驗證規則升格為封包事實。
 
-**尚未實作**：(a) 背景 alarms/notifications 提醒（目前只有面板倒數 badge）；
-(b) **緊急泊地修理**（連合艦隊出擊中的機制，與母港泊地修理是不同層次）——使用者提供之規則：
+背景 `alarms`／`notifications` 提醒已由 `entrypoints/background.ts` 實作，面板倒數 badge 並非唯一
+提醒來源。
+
+**目前尚未實作**：**緊急泊地修理**（連合艦隊出擊中的機制，與母港泊地修理是不同層次）——使用者提供之規則：
 第1個修理裝置對二隊1~3號位、第2個對二隊4~6號位、第3個對一隊4~6號位，回復約最大HP 28%
 （明石30%、秋津洲25%）；需要出擊context，且相關封包欄位未經真封包驗證。
 
 ### 任務本機進度追蹤（`utils/quest-progress.ts`＋`state.ts` `bumpQuestProgress()`，2026-07-23）
 
-**觸發原因**：面板「任務」分頁原本只有「受注中／達成」兩態，但很多任務其實是「N 回」型
-（遠征10回、演習7回勝利、近代化改修15回…），使用者想在受注中就看到「2/10」這種即時進度。
+**現行行為**：面板「任務」分頁對可由本機事件累加的「N 回」型任務顯示即時進度，
+例如遠征、演習勝利與近代化改修。
 
 **核心限制與現有其他「本機才知道」的欄位同一處境**：`api_get_member/questlist` 只給
 `api_state`（1受注可能／2受注中／3達成）與粗略的 `api_progress_flag`，**完全不給精確的
@@ -828,7 +824,7 @@ raw events 的 SW 恢復結果一致，且 state recovery 不建立 derived rows
 全形「１」+半形「5」）後找 `(\d+)回`，再依關鍵字判斷種類（**順序刻意講究**：「近代化改修」
 必須排在「改修」之前，否則會被裝備改修的關鍵字搶先命中）。以「隻」為單位的任務**原則上
 刻意不支援**（撃沈20隻等）——那是「同時湊到 N 艘」的批次條件，語意上不是「累計 N 次」，
-勉強套用會算錯，寧可回退顯示原本的受注中/達成。
+勉強套用會算錯，回退顯示受注中／達成。
 
 **入渠任務是「N隻」規則的唯一白名單例外**（2026-07-23 補上）：實測任務「艦隊大整備！」
 內文為「各艦隊から整備が必要な艦を5隻以上ドック入りさせ、大規模な整備をしよう！」——用
@@ -904,9 +900,8 @@ zh.kcwiki.cn／wikiwiki.jp 兩個 wiki 的「定期任務列表」皆一致，�
 出擊」搞混，兩者不等價：同一次出擊可能打好幾場戰鬥）。故改為 id 白名單優先，查不到才退回
 文字解析，`tests/quest-progress.test.ts` 有專門測資鎖住這個陷阱。
 
-**第二輪擴充：海域/boss/rank 限定＋特定遠征任務 id 限定**（2026-07-24，使用者要求「排除
-期間限定任務，常規任務裡驗證已足夠的先做」後，依風險分層只做這兩類，指名艦娘/艦型編成比對
-與敵艦種擊沉計數暫緩——那兩類需要全新的偵測機制，見下方）：
+**條件式任務支援**：目前白名單支援海域／boss／rank 條件與特定遠征任務 id 條件；指名艦娘／
+艦型編成比對及敵艦種擊沉計數需要目前追蹤資料以外的偵測欄位，故不由現有計數器推算：
 
 | id | 任務 | kind／target | 過濾條件 | id↔title 驗證 |
 |---|---|---|---|---|
@@ -925,7 +920,7 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
 `EventProjector.archiveSortie` 同一條件）；rank 門檻用 `quest-progress.ts` 的 `meetsRank()`
 （S>A>B>C>D 排序，未知/缺席一律視為不達標）。missionId 查表沿用既有的 `lastMissionByDeck`
 （`EventProjector.archiveExpedition` 也是靠這張表取得遠征任務 id，兩處共用同一組已驗證欄位）。
-**mission id↔任務名稱這次是本專案自己的真實封包驗證**（`samples/start2-master.json` 的
+**mission id↔任務名稱已由本專案真實封包驗證**（`samples/start2-master.json` 的
 `api_mst_mission`：id 5=「海上護衛任務」、37=「東京急行」、38=「東京急行(弐)」，`api_name`
 逐字相符），比其餘出擊類白名單單靠「五方社群交叉比對」更進一步。
 
@@ -984,7 +979,7 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
 優先使用前者的即時 `api_sally_area`，只有不能使用即時資料才回退該活動快照，兩者不混合。快照只保存
 艦實例 id→標籤 id，不創造標籤名，也不推測任何未驗證的封包語意。
 
-**燈號語意（⬜ 的意義與直覺相反，別改回去）**：`ok`＝已持有本關允許的標籤；`blocked`＝
+**燈號語意（⬜ 的意義與直覺相反）**：`ok`＝已持有本關允許的標籤；`blocked`＝
 持有別的標籤、**這隊走不了這條路線**；`willStamp`＝**無標籤船不是「安全可調度」而是「即將被
 不可逆消耗」**，出擊後就會被貼上 `grantsTag`。`allowedTags` 未填時一律 `unknown`，
 **不可判紅**——使用者還沒填就滿江紅會讓整張表失去訊號價值。
@@ -1015,19 +1010,18 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
 `[1,0,0]`）待辦原記為「EO 剩餘挑戰次數，語意未解」——依上述機制，它也可能是**該圖的出擊
 制限旗標**（允許哪幾個標籤）。下次活動一測便知。
 
-**版面是被實際規模逼出來的，兩次修正都別走回頭路**：一次活動可有 **12 個標籤、5～7 個關卡**
+**版面依實際規模配置**：一次活動可有 **12 個標籤、5～7 個關卡**
 （使用者實測，非估計）。
 
-- 初版把兩者都做成**展開卡片**→ 整天拉捲軸。改為：關卡**一行一關、只有選中的那關展開**；
-  右欄常駐艦娘篩選清單。
-- 第二版順手把標籤成員收進**摺疊區** → 也是錯的。**「現在每個標籤鎖了哪些船」是本分區的第一
-  優先資訊，必須常駐可見，不准收摺疊**（使用者原話：藏起來讓人找等於沒做）。正解是
-  **一行一標籤、無卡片外框、成員名字直接攤開**——12 個標籤也只佔十幾行，密度與可見性可以兼得。
+- 關卡**一行一關、只有選中的那關展開**，右欄常駐艦娘篩選清單；這樣可控制 5～7 個關卡的
+  垂直高度。
+- **「現在每個標籤鎖了哪些船」必須常駐可見**：一行一標籤、無卡片外框、成員名字直接攤開，
+  讓 12 個標籤仍維持可掃描密度。
 - **「帶入第 N 艦隊」不能當主要輸入手段**——玩家不可能為了找船一直切回遊戲畫面確認，
   故降為次要按鈕，主路徑是在右欄篩選清單裡點選。
 
-**「計畫」與「現實」是兩個維度，UI 必須並排顯示、不可只給一半**——這點**被使用者回報三次**
-（每次都以為是 bug）。把船排進計畫的關卡**不會**讓它被貼上標籤，標籤只有實際出擊才產生，所以
+**「計畫」與「現實」是兩個維度，UI 必須並排顯示、不可只給一半**，否則兩者的差異容易被
+誤讀為同步錯誤。把船排進計畫的關卡**不會**讓它被貼上標籤，標籤只有實際出擊才產生，所以
 「排了船但標籤總帳仍顯示 0 艘」是正確行為；但只顯示現實那半邊，排進去的船就像人間蒸發。定案：
 
 - **標籤總帳每列並排兩欄**：「實際」＝`api_sally_area` 已貼標（權威，一般色）／「計畫」＝
@@ -1064,7 +1058,7 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
 `api_opetext`（作戰名，如「第三十一戦隊駆逐艦の出撃」），本次活動正好五關。
 存進 `GameState.masterMapInfo`（`mapsOfArea()` 取用）。
 
-**抓得到 master 時，UI 一律不讓使用者做遊戲已經回答的事**（使用者要求，別走回頭路）：
+**抓得到 master 時，UI 一律不讓使用者重複輸入遊戲已經回答的事**：
 
 - **關卡列＝遊戲的海域清單，不由使用者建立**。`reconcileStages()` 依 `api_mst_mapinfo` 全數
   列出；沒有「新增關卡」「關卡名稱」「對應海域」三個控制項，來自遊戲的關卡也不可刪。
@@ -1073,7 +1067,7 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
   顯示**：摺疊列一關一行的密度是刻意的，多一行副標會讓 7 關變 14 行。
 - **活動名不需要自己命名**，直接用 `api_mst_maparea` 的活動標題；只有一個活動時連下拉都
   不畫，直接顯示名稱。
-- 對應不上任何海域、但**有內容**的既有關卡列一律保留在末尾——改版不得丟掉使用者填過的資料。
+- 對應不上任何海域、但**有內容**的既有關卡列一律保留在末尾，保留使用者填過的資料。
 
 抓不到 master（舊活動、或手動建立的板）才回退到「手填關卡名＋選對應海域」的模式。
 
@@ -1082,7 +1076,7 @@ E2 就同時存在兩個標籤），故每張圖的主列底下可再開階段�
 原始表格的寫法）。主列＝該圖的預設安排，階段＝各段的個別安排；**兩者都是完整的 PlanStage**，
 所以 `checkStage`／`plannedByTag`／`findPlanConflicts` 不必特別處理階段，照舊逐列跑。
 
-`reconcileStages()`（純函式，node 已測）的首要職責是**改版不得丟資料**：有 mapNo 照 mapNo
+`reconcileStages()`（純函式，node 已測）的首要職責是**保留既有資料**：有 mapNo 照 mapNo
 對應、沒有的用 `guessMapNo(label)` 反推、同圖第二個主列轉成階段而非丟棄、對應不上但填過
 東西的列保留在末尾；只有「對應不上又完全空白」才會消失。maps 為空時原樣返回（手填模式）。**這比 runtime 的
 `api_get_member/mapinfo` 更早可用**——start2 登入就送、且在 `db.snapshot` 永久保留，
@@ -1105,8 +1099,8 @@ runtime mapinfo 要玩家開過海域選擇畫面才有。故活動海域偵測�
 編成逐格狀態。取捨同 llm.ts——能先算好的就別留給讀者自己對照。這是給人／LLM 讀的摘要，
 **不是備份格式**，備份走 `db.eventPlans` 本體。
 
-**術語**：zh-TW 的 UI 字串、程式註解與本文件一律用「標籤」不用「標籤」（使用者要求，2026-07-28
-更新）；ja 維持遊戲原文「標籤」，en 為 tag。程式識別名（`api_sally_area`、`PlanTag`、
+**術語**：zh-TW 的 UI 字串、程式註解與本文件一律使用臺灣慣用詞；ja 維持遊戲原文，en 為 tag。
+程式識別名（`api_sally_area`、`PlanTag`、
 `--sally-*` 等）不動。
 
 ### 鎮守府全船篩選（`utils/ship-filter.ts`＋`overview/ship-picker.ts`，2026-07-21）
@@ -1138,7 +1132,7 @@ master 表已併入 `samples/start2-master.json`，該檔現有 12 張表）：
 
 版面參照 `samples/kanmusu_filter.png`（KC3Kai 風格的艦娘一覽篩選面板），**條件全數涵蓋但
 刻意不照抄版面**：參照圖把二十幾組「全部／是／否」常駐攤開，要捲過半個畫面才看得到第一
-艘船。改成三層——**常駐工具列**（關鍵字／每頁筆數／欄位開關／篩選抽屜開關／匯出）＋
+艘船。版面採三層——**常駐工具列**（關鍵字／每頁筆數／欄位開關／篩選抽屜開關／匯出）＋
 **可收合抽屜**（全部條件）＋**生效條件 chip 列常駐**（只列非預設值、每個可單獨 ×）。
 第三層是關鍵：抽屜收起來時仍一眼看得出「現在被什麼篩著」，不必展開整面牆去找那顆亮起來
 的選項。參照圖裡「顯示滾動條／提示框／鎖定圖示／分頁 顯示隱藏」這類純顯示開關**不照做**
@@ -1202,9 +1196,9 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 
 ### 裝備全覽：`utils/gear-inventory.ts`＋`sections/equipment.ts`（2026-07-22）
 
-**主導覽是那排裝備圖示，不是類別下拉**（使用者要求）。裝備和艦娘不一樣：玩家心裡的第一層
+**主導覽是那排裝備圖示，不是類別下拉**。裝備和艦娘不一樣：玩家心裡的第一層
 分類是「圖示長什麼樣」（主砲／魚雷／電探／艦戰…），那也是遊戲裡挑裝備時唯一的視覺線索，
-而本專案已經有 M7 的 74 顆原創圖示。故 `.eq-rail` 一顆圖示一個可切換的篩選鈕（多選＝聯集）、
+而本專案已經有 M7 的 76 顆原創圖示。故 `.eq-rail` 一顆圖示一個可切換的篩選鈕（多選＝聯集）、
 右下角疊持有件數。**只列實際持有的圖示**——全 master 共 59 個圖示 id，全排出來會讓
 「我有什麼」這個第一眼問題淹沒在一整面沒有的東西裡。
 
@@ -1227,7 +1221,7 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 圖磚上唯一的圖形化編碼是**裝備中／閒置比例條**——「有幾顆閒著可以拿去改修／配基地」是這張表
 最常被問的問題，長度比例一眼可比。
 
-**「裝備中艦娘」是可開的欄位，但預設關閉**（使用者要求）：同一種裝備動輒裝在十幾艘船上，
+**「裝備中艦娘」是可開的欄位，但預設關閉**：同一種裝備動輒裝在十幾艘船上，
 塞進一格只能截斷成幾個名字——既答不出完整名單，又把本來就要橫捲的表撐得更寬，平常看展開列
 即可。**但 CSV 沒有「展開」這個動作**，要在試算表裡回答「這顆裝在誰身上」就把該欄打開：
 **匯出跟著顯示欄位走**（同 ships.ts 的規則；欄位開關若不影響匯出，使用者關掉一堆欄位後匯出
@@ -1239,9 +1233,9 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 才好橫向掃描。裝備名多為日文全形連寫、沒有可斷點，故卡片需 `overflow-wrap: anywhere`，
 且 `.eq-name`／`.eq-title` 都要 `min-width: 0`（flex 項目預設不得縮到比內容窄，否則撐破卡片）。
 
-**展開／收合是就地插入 DOM，不重繪整個內容區**（`toggleExpand()`）。原本走全量重繪，結果每按
-一次展開畫面就跳掉：詳細清單的捲動容器被換掉後 `scrollTop` 歸零、圖磚整片重排，剛點的那張卡
-不知道跑哪去，得再滑一次捲軸找回來。同理排序／升降冪／切模式的重繪走 `draw(true)` 保留捲動
+**展開／收合是就地插入 DOM，不重繪整個內容區**（`toggleExpand()`）。詳細清單的捲動容器與
+圖磚位置必須保持穩定，否則插入內容會使 `scrollTop` 歸零並讓剛點的卡片移位。排序／升降冪／
+切模式的重繪走 `draw(true)` 保留捲動
 位置（集合沒變，只是換個排法）；**篩選變更則刻意不保留**——集合都換了，停在原位沒有意義。
 
 **素質是 master 基礎值，未含改修 ★ 加成**（UI 已標示，`ov.eqStatNote`）。改修加成的公式依
@@ -1313,8 +1307,8 @@ SW recovery 會重跑同一筆事件，put 冪等才不會把同一個時刻記�
 
 #### 趨勢圖：最上方一張大圖、八條線、圖例即開關
 
-**這是使用者指定的形狀。曾經做成「八張小圖各自 y 軸」，被明確否決過（原話：
-「錯的太離譜…不是給我拆成八張圖」），不要再改回去。**
+**趨勢圖固定為一張大圖、八條線與可切換圖例**：八項資材共用一個時間軸，便於比較資源變化；
+量級差距由序列開關與各自 y 值域處理。
 
 量級差距（燃料十萬級、螺絲千級）的解法是**開關**：`multiChartGeometry()` 的 y 值域
 **只由「顯示中」的序列決定**，關掉燃料之後螺絲那條就會撐滿整張圖。工具列另有
@@ -1331,7 +1325,7 @@ SW recovery 會重跑同一筆事件，put 冪等才不會把同一個時刻記�
 x 依 `ts` 的相對位置而非等距索引——取樣本來就不等距（一天打十場、隔天不上線），
 等距畫會把時間軸扭曲。
 
-**兩個踩過的坑**（改這張圖時別再犯）：
+**SVG 實作約束**：
 
 - **`hidden` 是 HTML 屬性，對 SVG 元素無效**。十字準線與游標點掛 `hidden` 之後照樣畫在
   (0,0)，畫面左上角會出現一顆莫名其妙的點。要用 CSS `[hidden] { display: none }`。
@@ -1354,8 +1348,8 @@ x 依 `ts` 的相對位置而非等距索引——取樣本來就不等距（一
 分區**刻意不遵守「全量重繪」慣例**（design-guidelines §4.2 的第二種例外）：這裡有使用者
 自己造出來的狀態——圖表的十字準線、詳細清單的捲動位置與分頁。控制項只建一次，之後只重繪
 `.rl-body`；結果區一律事件委派。**詳細清單的欄位開關做成表格正上方的一排圖示鈕
-（`colRackHtml`，一項資材一顆、只放圖示不放文字，同表頭也是純圖示）**，不是藏在下拉選單裡
-（使用者要求）；名稱靠 title 與圖表圖例補足。欄位開關**跟著 CSV 匯出走**（同 ships／equipment
+（`colRackHtml`，一項資材一顆、只放圖示不放文字，同表頭也是純圖示）**，不是藏在下拉選單裡；
+名稱靠 title 與圖表圖例補足。欄位開關**跟著 CSV 匯出走**（同 ships／equipment
 的規則）。期間／粒度／欄位／每頁筆數存 localStorage（`kc-resource-view`），不進 Dexie、不進備份。
 
 版面驗證走離線預覽（`tools/preview/resource-log.ts`）——上面那兩個坑都是它抓到的
@@ -1400,9 +1394,8 @@ date1 未收錄時只擋未來日期、不猜測。**手填一律寫 `source='ma
 - **可逆轉換改裝會讓 aftershipid 形成「環」，反解必須用帶 visited 的圖搜尋、不能用單鏈**。
   實例：Glorious 可在戦艦／正規空母兩形態間來回改裝且**同名**——
   `1022 Glorious 戦艦(No.612) → 1027 Glorious 正規空母(No.617) → 741 Glorious改 正規空母
-  ⇄ 740 Glorious改 戦艦`，其中 740⇄741 互指成環。單鏈走法會困在環裡繞到 guard 上限後
-  回傳錯誤答案（曾誤判為「master 重複條目」）；改成「收集所有前身 → 圖搜尋 → 取無前身的根
-  （多根取図鑑番号最小）」後，四個形態全部正確解到 1022。`remodelPrev` 因此存
+  ⇄ 740 Glorious改 戦艦`，其中 740⇄741 互指成環。反解必須收集所有前身、執行圖搜尋，
+  再取無前身的根（多根取図鑑番号最小）；四個形態皆可解到 1022。`remodelPrev` 因此存
   `Map<number, number[]>` 而非單一前身。
 
 **維護 `samples/ship-debut-dates.json` 的注意事項**：**活動艦不可一律套同一個日期**——
@@ -1441,7 +1434,7 @@ browsing context 並重新載入；直接另開或替換遊戲頁也可能產生
   containing block，fixed 就不再對齊視窗。改為「祖先鏈以外的東西藏起來、祖先鏈撐滿視窗」，
   對未知結構最不挑。
 
-**顯示的是「遊戲畫布」不是「整個 iframe」**（使用者實機回報「畫面裁切失敗」後修正）：
+**顯示的是「遊戲畫布」不是「整個 iframe」**：
 DMM 的遊戲框裡除了遊戲，還包著頁尾按鈕（作戦要綱／艦娘／用語…）與大片白底，拿整個框去
 fit 會讓遊戲縮得比視窗小、下方留一大條白。**畫布位置只有框內的 content script 量得到**
 （跨源），故由 bridge 回報 `canvas` 的 bounding rect，父頁據此 `clip-path: inset(...)` 裁掉
@@ -1457,36 +1450,24 @@ fit 會讓遊戲縮得比視窗小、下方留一大條白。**畫布位置只�
   `螢幕 = translate + zoom × 框內座標`，`50% 0` 之類的原點會讓「裁切後置中」變成兩層互相
   牽動的補償量（`tests/theater.test.ts` 有鎖這兩條）。
 
-**工具列固定佔住底部一條，絕不覆蓋遊戲畫面**（實機回報「控制按鈕擋住遊戲畫面」後修正）：
-第一版浮在上緣正中央，正好蓋住司令部資源列。**而且「浮上去再自動閃避」在這個環境不可能
-成立**——滑鼠移到遊戲畫面上時事件全被 iframe 吃掉，父頁根本收不到 hover。故改成底部
-`BAR_HEIGHT`（現為 38px，加了拍照鈕後從 26px 調高，見「拍照」一節）的實體條，fit 計算
-一律扣掉它。同一個原因，第一版的 `[hidden]` 也失效過：
-shadow CSS 裡 `button { display: inline-flex }` 是**作者樣式**，恆勝瀏覽器對 `[hidden]` 的
-`display:none`（與 specificity 無關），導致劇場中「劇場」進入鈕仍然顯示——必須明寫
+**工具列固定佔住底部一條，絕不覆蓋遊戲畫面**：滑鼠移到遊戲畫面上時事件全被 iframe 吃掉，
+父頁無法依 hover 自動閃避，因此使用底部 `BAR_HEIGHT`（38px）的實體條，fit 計算一律扣掉它。
+shadow CSS 裡 `button { display: inline-flex }` 是**作者樣式**，會覆蓋瀏覽器對 `[hidden]` 的
+`display:none`（與 specificity 無關），因此必須明寫
 `[hidden] { display: none !important }`。
 
-**視窗縮放要自動跟著 refit**（實機回報「拉動視窗會出現黑邊、還要另外點適應」後修正）：
+**視窗縮放要自動跟著 refit**：
 `fitMode` 預設開啟，resize 時重算縮放；**只有使用者親手縮放過（按鈕／滾輪）才脫離 fit**，
 按「適應」再回來。工具列的「適應」鈕在 fit 模式下亮色，讓使用者知道現在會不會自動跟上。
 
-**`fitZoom()` 硬性維持 contain，cover 已被明確否決（2026-07-24 第三輪→第四輪來回）**：
-第三輪曾依使用者要求「按下去就是要 fit 瀏覽器邊框，不要黑邊」改成取兩軸較寬鬆者
-（`Math.max`，同 CSS `object-fit: cover`）——畫面填滿視窗，比例不合時較長的那一軸溢出
-視窗外（裁掉一部分，只能靠平移看到）。**第四輪使用者實測後明確否決並訂下第一原則**：
-「調整寬度時會剪掉畫面，絕對不能容忍，畫面等比例完整呈現是第一原則」——裁掉畫面任何
-一部分不可接受，優先度高於黑邊。故改回 `Math.min`（`object-fit: contain`）：兩軸都要
-完整可見，比例不合時寧可留黑邊。**這是本檔目前唯一的黃金準則，未經使用者再次明確指示
-不得改回 cover**——`enter()`／resize refit／「適應」鈕的視窗縮放路徑都經同一支
+**`fitZoom()` 固定使用 contain，不使用 cover**：畫面必須等比例完整可見，比例不合時保留
+黑邊，不裁切內容。`enter()`／resize refit／「適應」鈕的視窗縮放路徑都經同一支
 `fitZoom()`，任何「消除黑邊」的需求都得換別的手段（例如既有的 `fitWindow()`／
 `MSG_THEATER_FIT_WINDOW` 改調整瀏覽器外框尺寸去貼合遊戲原生比例，而不是裁切畫面內容）。
 
-**`enter()` 直接做「適應」的完整動作，不必使用者自己再點一次**（第四輪接續，使用者要求
-「一開始點劇場就必須給我適應」）：原本 `enter()` 只呼叫 `applyTransform()`（純 CSS
-縮放，比例不合時黑邊仍在），使用者要再手動點一次「適應」鈕（`fitWindow()`）才會連帶調整
-瀏覽器外框尺寸去貼合遊戲原生比例、把黑邊縮到最小。改成 `enter()` 直接呼叫 `fitWindow()`
-（內部已含 `applyTransform()`，故不必兩個都呼叫）——這樣「畫面完整、盡量沒有黑邊」在
-點下劇場模式的當下就一次到位，不必事後補一個動作。自動恢復劇場狀態（`stored.active`）
+**`enter()` 直接做「適應」的完整動作**：`enter()` 呼叫 `fitWindow()`（內部含
+`applyTransform()`），會連帶調整瀏覽器外框尺寸去貼合遊戲原生比例、把黑邊縮到最小。
+這樣「畫面完整、盡量沒有黑邊」在點下劇場模式的當下就一次到位。自動恢復劇場狀態（`stored.active`）
 的啟動路徑同樣經過 `enter()`，故重新整理後自動回到劇場也會一併觸發，行為一致。
 **已知殘留**：`enter()` 當下畫布可能還沒被精準量到（`gameRect` 為 null，`fitWindow()`
 用 `fallbackGameArea()` 的 5:3 估計值計算視窗尺寸），稍後 `requestMeasure()` 量到精確值
@@ -1501,7 +1482,7 @@ fit 依畫布而非整框計算（1000×700 視窗下 zoom=0.833＝1000/1200，�
 頁首與廣告回復原位。靜音另以真實 `AudioContext` 驗過：`destination` 被換成 GainNode、
 `maxChannelCount` 轉發正確、靜音時 gain=0、既有與新播放的 `<audio>` 都被靜音。
 
-**滑鼠與鍵盤事件會被遊戲框吃掉，這點實測後改過設計**：一旦放大到蓋滿視窗，滾輪、拖曳與
+**滑鼠與鍵盤事件會被遊戲框吃掉**：一旦放大到蓋滿視窗，滾輪、拖曳與
 Esc 全部落進框內文件，父頁**再也收不到**。解法分兩邊：
 
 - 遊戲框內的 bridge 轉發 **Alt+滾輪**（縮放）與 **Esc**（離開）到 `window.top`；
@@ -1512,7 +1493,7 @@ Esc 全部落進框內文件，父頁**再也收不到**。解法分兩邊：
 
 **靜音以整個遊戲分頁為準**：`installAudioMute()` 在遊戲框的 MAIN world（document_start，
 早於遊戲建立音訊圖）把每個 `AudioContext` 的 `destination` 換成 master GainNode，gain 再接
-真正的輸出；同時處理 `<audio>`／`<video>`。但實機回報 BGM 不一定走這條可攔截路徑，故背景以
+真正的輸出；同時處理 `<audio>`／`<video>`。BGM 不保證走可攔截路徑，故背景以
 `tabs.update({muted:true})` 可靠靜音含有遊戲框的分頁。這新增 `tabs` 權限，且連 DMM 頁面聲音也
 一併靜音；目的僅是 BGM 與操作語音都停止，不讀取分頁內容。
 `destination` 的 `maxChannelCount` 轉回真正的輸出節點（少數音訊庫會讀它）；接管失敗一律
@@ -1520,12 +1501,12 @@ Esc 全部落進框內文件，父頁**再也收不到**。解法分兩邊：
 ⚠️ **未驗證**：艦これ Flight-IIA 究竟用 WebAudio 還是 media 元素播音，本專案沒有樣本可考
 （同驗證原則），故兩條路徑都接、實機再確認。
 
-**「靜音沒反應」的第一嫌疑是遊戲分頁沒有 F5，不是程式碼**（實機回報後補上診斷）：content
-script 改動後必須重新注入，而劇場模式是用 `executeScript` 立刻注入才會馬上生效，
-interceptor／bridge **不會**——舊分頁跑的仍是沒有靜音 hook 的舊版，於是靜靜沒反應。故
+**「靜音沒反應」的第一嫌疑是遊戲分頁沒有 F5**：content script 改動後必須重新注入，
+而劇場模式是用 `executeScript` 立刻注入才會馬上生效，
+interceptor／bridge **不會**——未重新注入的既有分頁沒有靜音 hook，故
 background 在靜音回覆裡附上 `connected`（目前連上的遊戲分頁數），popup 與劇場工具列在
 `connected === 0` 時直接顯示「請在遊戲分頁按 F5」。另外 MAIN world 會掛
-`window.__kcAudio`（`contextCount()`／`isMuted()`）：在遊戲框的 console 查得到就是新版已注入，
+`window.__kcAudio`（`contextCount()`／`isMuted()`）：在遊戲框的 console 查得到就代表 hook 已注入，
 `contextCount()` 為 0 則代表遊戲根本沒用 WebAudio。
 
 **狀態存放**：靜音開關與語言鏡像存 `db.meta['game-page']`（`GamePageMetaRow`）——SW 沒有
@@ -1546,7 +1527,7 @@ content script 另有 `__kcTheaterInstalled` 旗標防重複注入長出第二�
 
 只擷取「遊戲畫面」、不含 DMM 頁面其餘部分。入口有兩個：popup 選單的「拍照」與劇場模式
 工具列的相機鈕（後者的 `.bar[data-mode="on"]` 底部條隨此功能一併從 26px 加高到
-`BAR_HEIGHT=38`，見 `utils/theater.ts`——原本 26px 只夠塞縮放群組＋靜音，再擠一顆會太擠）。
+`BAR_HEIGHT=38`，見 `utils/theater.ts`，以容納縮放群組、靜音與相機按鈕）。
 
 **裁切矩形絕不重新推算一次**：兩個入口都呼叫 `theater.content.ts` 的
 `measureScreenshotRect()`，它直接沿用劇場模式本身已經校準過的
@@ -1563,10 +1544,9 @@ frame.offsetWidth` 換算目前有效縮放——劇場模式開著、手動縮�
 `downloadCroppedScreenshot()`（Blob + 臨時 `<a download>`，同 overview 的
 `downloadText` 手法，零額外權限）。兩個入口共用同一份，不各自實作一次。**
 
-**權限：新增 `activeTab`（第一版踩過的坑）**。第一版誤以為劇場模式既有的
-`optional_host_permissions`（dmm.com，用來注入 content script）就足夠讓
-`captureVisibleTab()` 運作，結果使用者「已授權仍拍照失敗」——查證 Chrome 官方文件後確認
-`captureVisibleTab()` **只認 `<all_urls>` 或 `activeTab` 兩者之一**，不認一般的 origin
+**截圖權限使用 `activeTab`**。劇場模式的 `optional_host_permissions`（dmm.com，用來注入
+content script）不涵蓋 `captureVisibleTab()`；Chrome 官方文件規定該 API
+**只認 `<all_urls>` 或 `activeTab` 兩者之一**，不認一般的 origin
 host permission。`<all_urls>` 違反權限精簡（設計原則5），改用 `activeTab`：manifest 裡
 不顯示任何警告、不進 `host_permissions`，且只在使用者「呼叫擴充」（點圖示開 popup／
 快捷鍵／右鍵選單）當下對「那個分頁」暫時授予，分頁換頁或關閉即失效——`tests/manifest.test.ts`
@@ -1578,39 +1558,27 @@ host permission。`<all_urls>` 違反權限精簡（設計原則5），改用 `a
 知道自己查到的 tab），content script 呼叫時不必帶，background 改用
 `sender.tab.windowId`（content script 的訊息一定帶 `sender.tab`）。
 
-**已知未驗證的邊角**：`activeTab` 的授予是「呼叫擴充」那個動作本身觸發，且只在該分頁**未
-換頁**期間持續有效。popup 開啟必定觸發（不論點的是不是拍照鈕），故 popup 的拍照鈕在任何
-情況下都可用。但劇場工具列的相機鈕是頁面內容（Shadow DOM）本身的點擊，**不算「呼叫擴充」**
-——它能不能拍全靠這次分頁生命週期裡「稍早」是否已經開過一次 popup（例如按過「劇場模式」
-進入）讓 `activeTab` 授予生效。同一個分頁裡先開劇場再拍照的常見路徑沒問題；但如果劇場模式
-是靠 `stored.active` 自動恢復（見上方「授權流程」之前那段）、且這次瀏覽器工作階段完全沒開過
-popup，相機鈕理論上會因為 `activeTab` 未授予而失敗。尚未實機遇過這個路徑，失敗時的訊息會是
-`screenshot.failed`（跟其他失敗原因訊息相同，暫不區分——之後若證實是常見情境，再考慮加一顆
-「請先點一次擴充圖示」的專屬提示）。
+**已知未驗證的邊角**：`activeTab` 的授予由「呼叫擴充」的動作觸發，且只在該分頁未換頁期間
+有效。popup 開啟必定觸發，因此 popup 的拍照鈕可用；劇場工具列的相機鈕屬於頁面內容點擊，
+若劇場模式由 `stored.active` 自動恢復且該分頁尚未開過 popup，可能因未取得 `activeTab` 而
+回報 `screenshot.failed`。
 
-### 關閉分頁前警示（`entrypoints/bridge.content.ts`，2026-07-24，定案於同日第二輪）
+### 關閉分頁前警示（`entrypoints/bridge.content.ts`）
 
 避免手滑關掉／重新整理／導覽離開正在進行出擊或遠征的分頁。標準 `beforeunload` +
 `e.preventDefault()`，瀏覽器規格保證只要有一個 frame 取消就會跳原生「離開此網站？」對話框；
 規格本身**無法區分**「關閉分頁」「重新整理」「離開網址」三者，也**無法自訂對話框文字**
 （現代瀏覽器一律顯示自己的固定文字，`e.returnValue` 的內容只看真假值）。
 
-**這是關鍵功能，不能靠使用者先授權才生效**——第一輪改版曾經把它移到頂層 DMM 頁
-（`theater.content.ts`，需要劇場模式／拍照那組 optional host permission 才會注入），
-理由是那樣可以避開下面這個雙跳問題；但使用者明確否決：全新安裝、還沒用過那兩個功能時
-完全沒有保護，不可接受。**故最終定案掛回 `bridge.content.ts`（遊戲框本身，
-kancolle-server.com）**：manifest 靜態注入，安裝當下、零額外授權、零使用者互動就生效，
-涵蓋新舊 DMM 入口。
+**這是關鍵功能，不能靠使用者先授權才生效**：`beforeunload` 掛在
+`bridge.content.ts`（遊戲框本身，kancolle-server.com），由 manifest 靜態注入；安裝當下、
+零額外授權、零使用者互動就生效，涵蓋新舊 DMM 入口。
 
-**已知代價，刻意接受**：使用者實機測試按「取消」後對話框又跳了一次——查證後這是
-Chromium 對「跨源 iframe 掛 `beforeunload`」的已知問題（多次社群回報，如
+**已知代價，刻意接受**：跨源 iframe 掛 `beforeunload` 時，Chromium 可能在按「取消」後再次
+顯示對話框；這是
+Chromium 對「跨源 iframe 掛 `beforeunload`」的已知問題（社群回報，如
 crbug.com/1119438）：跨源子框與分頁本身的關閉協商是分開處理的（Site Isolation 下通常落在
-不同 renderer process），瀏覽器 UI 層可能各問一次。**已嘗試用 `playwright-core`
-（`channel:"chrome"`）建兩個不同 port 模擬真實跨源 iframe 並呼叫
-`page.close({runBeforeUnload:true})` 重現**，但 CDP 自動化關閉分頁的路徑本來就不會觸發
-`beforeunload`（不論頂層或子框、單一或雙重掛載，一律 0 次對話框、事件本身沒有 fire）——
-這是自動化工具的已知限制，**沒能在本機重現雙跳，只能依已知的 Chromium bug 報告與使用者
-實機回報的行為判斷**，不是靠自己重現後才下的結論，如實記錄。**兩害相權**：零權限、
+不同 renderer process），瀏覽器 UI 層可能各問一次。**兩害相權**：零權限、
 可能跳兩次，優先於單次跳窗但需要先授權——跳兩次終究還是能擋下誤關，沒有保護才是真正的風險。
 
 **只在「最外層」的 kancolle-server.com 框安裝**（`isOutermostGameFrame()`）：避免遊戲
@@ -1651,9 +1619,9 @@ crbug.com/1119438）：跨源子框與分頁本身的關閉協商是分開處理
 
 ### 打撈紀錄／建造紀錄的 CSV 匯出入（`utils/csv.ts`＋`drop-log-import.ts`＋`build-log-import.ts`，2026-07-23）
 
-**觸發原因**：打撈紀錄（`db.sorties` 中有掉落的列）與建造紀錄（`db.factory` 的 `build`／
-`speedup`）都只有純展示，沒有搬家／備份還原前舊資料的補救手段；使用者要求補上 CSV
-匯出入，並相容「航海日誌拡張版」（Nishisonic/logbook，MIT，同 `map-node-kind.ts` 引用的
+**CSV 契約**：打撈紀錄（`db.sorties` 中有掉落的列）與建造紀錄（`db.factory` 的 `build`／
+`speedup`）提供 CSV 匯出入，以便搬移與備份還原前保留資料；格式相容「航海日誌拡張版」
+（Nishisonic/logbook，MIT，同 `map-node-kind.ts` 引用的
 上游）匯出的戦績／ドロップ報告書、建造報告書。
 
 **匯出格式刻意不跟隨「畫面顯示什麼就匯出什麼」的既有慣例**（ships.ts／equipment.ts）：
@@ -1703,10 +1671,9 @@ crbug.com/1119438）：跨源子框與分頁本身的關閉協商是分開處理
 - 日期一律是 `yyyy-MM-dd HH:mm:ss`（`AppConstants.DATE_FORMAT`），**無時區資訊，只能當本地
   時間解析**——與封包擷取的絕對時間戳不同源，屬已知的精度限制而非臆測。
 
-**打撈紀錄新增「新船／非新船」篩選**：複用既有的 `utils/retention.ts` `firstOwnedDropKeys()`
-（原本供重播裁剪判斷「這場出擊是不是打撈到新船」），在 UI 端算出 `Set<sortieKey>` 後對每列
-打撈紀錄判斷是否屬於新船場——**這與 CSV 匯入無關的獨立修整**：打撈紀錄舊版沒有分頁／關鍵字
-／時間篩選（建造紀錄早就有），一併補齊兩區操作體驗一致。
+**打撈紀錄提供「新船／非新船」篩選**：複用 `utils/retention.ts` 的 `firstOwnedDropKeys()`，
+在 UI 端算出 `Set<sortieKey>` 後對每列判斷是否屬於新船場；打撈與建造紀錄共用分頁、關鍵字及
+時間篩選行為。
 
 **測試**：`tests/csv.test.ts`（分隔符偵測／跳脫／往返）、`tests/drop-log-import.test.ts`、
 `tests/build-log-import.test.ts`（自家格式往返、航海日誌相容解析、去重與 event ID 借號皆以
@@ -1716,8 +1683,7 @@ node 純函式＋`fake-indexeddb` 驗證，同 `sortie-import.test.ts` 的手法
 
 ### 遠征紀錄的期間彙總（`utils/expedition-stats.ts`＋`sections/exped-log.ts`，2026-07-24）
 
-**觸發原因**：使用者要能查「指定日期區間內遠征總共獲得多少資源、跑了哪些遠征各幾次」。
-舊版遠征紀錄只有一張逐筆流水帳，答不了任何期間層級的問題。
+**現行行為**：遠征紀錄可依指定日期區間彙總資源總量與各遠征次數；逐筆資料仍保留供明細查閱。
 
 **為什麼落在遠征紀錄而不是資源紀錄（別搬家）**：兩者的數字語意根本不同——
 
@@ -1778,57 +1744,41 @@ IndexedDB 塞 60 筆假遠征紀錄驗證過期間切換／表頭排序／關鍵
 | **M4 載體完善** | 🔶 | popup 視窗✅；**劇場模式＋遊戲靜音✅**（見「劇場模式與遊戲靜音」；遊戲框的 Document PiP／獨立視窗**已確認規格上不可能**，會重載遊戲）；side panel 選配/面板本身的 Document PiP/視窗位置記憶/Firefox 打包**未做** |
 | **M5 擴充覆蓋** | 🔶 | 基地航空隊✅、關卡量表+剩餘次數✅、TP✅、待驗證擷取✅、**出擊紀錄歸檔✅**（`db.sorties`＋「紀錄」分頁：rank/節點/制空/大破/掉落/基地空襲，永久保留）；自軍聯合/支援航空/開幕雷擊已用 61-5 甲驗證✅；命名特殊攻擊(Nelson/CI等)判定已涵蓋；**友軍艦隊✅**（61-3 甲 boss 夜戰驗證）；掉落統計彙總**未做**；**工廠分頁✅**（開發/建造/改修/高速完工皆已涵蓋＋`db.factory` 永久紀錄＋akashi-list 連結；`createitem`／`remodel_slot`（回應＋req，含成功/確実化/失敗）皆已用真封包完整驗證；**建造改吃 `api_get_member/kdock` 快照比對**（每個渠自帶 `api_item1-5` 真實投入量，不需要猜 `createship` 的 `req`——原猜測的 `api_large_flag`/`api_highspeed` 欄位已證實不存在於這個資料源）；`createship_speedchange`（高速建造材完工）消耗量已依使用者提供之遊戲設定實作：普通1個／大型10個（大型判定＝投入資源達 `LARGE_BUILD_MIN`＝1500/1500/2000/1000，非封包驗證，屬固定常數）**M5 工廠子系統至此全數完成** |
 | **M6 事件裁剪** | ✅ | start2 與 safety prune 都先受 projection cursor（`meta['projection']` v3）限制：只刪已成功投影且不屬於 `KEEP_RECENT`／wanted 的 raw event；metadata 無效時停止裁剪。面板未開啟可令 derived tables 落後與 raw events 增長，但不會刪未投影資料 |
-| **M7 圖示化** | ✅ | 漢字縮寫→原創 SVG 圖示（75 顆＝裝備 61＋資源 8＋UI 6：渠/建/遠征/艦數/裝備數/空襲警報），達成多語系排版一致＋辨識；檔名即 `api_type[3]`，面板無對照表。飛機族 21 顆（有徽章）為真 3D 前左側俯視（仰角 32°，依 `samples/` 參照）；深色底明度下限為硬約束。全部原創、無第三方素材（授權義務已解除）。**全圖示帶描邊**（feMorphology 外輪廓，統一深墨 `#37302a`）——亮底暗底皆可讀，為亮暗主題切換的前提。生成器與設計約束見 `tools/icons/` |
+| **M7 圖示化** | ✅ | 漢字縮寫→原創 SVG 圖示（76 顆＝裝備 61＋資源 8＋UI 7：渠/建/遠征/艦數/裝備數/任務/空襲警報），達成多語系排版一致＋辨識；檔名即 `api_type[3]`，面板無對照表。飛機族 21 顆（有徽章）為真 3D 前左側俯視（仰角 32°，依 `samples/` 參照）；深色底明度下限為硬約束。全部原創、無第三方素材（授權義務已解除）。**全圖示帶描邊**（feMorphology 外輪廓，統一深墨 `#37302a`）——亮底暗底皆可讀，為亮暗主題切換的前提。生成器與設計約束見 `tools/icons/` |
 | **M8 popup 選單＋鎮守府情報總括** | ✅ | popup／overview、語言與主題同步、艦隊、**艦娘全覽（詳細清單：十八個排序欄＋涵蓋參照圖全部條件的篩選抽屜＋分頁 10/20/50/100/全部＋CSV 匯出）**、**活動作戰板**、**裝備全覽（圖示篩選架＋圖磚／詳細清單雙模式＋逐顆實例展開＋CSV 匯出）**、**出擊紀錄（通常／活動分類＋一次出擊一張卡＋逐節點作戰資訊展開）**、**資源紀錄（一張大折線圖＋圖例開關＋活動區段消耗＋可選欄位詳細清單＋CSV 匯出）**、遠征／工廠紀錄、重播、LLM、備份皆已實作，**無 stub 分區**。overview 使用安全 snapshot baseline＋raw replay 建立唯讀 GameState；derived projection 仍由 panel 負責（資源序列例外——由 background 落地，見「資源紀錄」） |
 
-### 待辦（依優先序）
+### 目前資料界線與驗證限制
 
-1. 基地空襲 `api_destruction_battle` 結構：61-5/61-3 樣本已見內部結構（`api_air_base_attack`
+1. 基地空襲 `api_destruction_battle` 結構：61-5／61-3 樣本已見內部結構（`api_air_base_attack`
    `.api_stage1.api_disp_seiku`、`api_lost_kind` 見過 2 與 4），sorties 歸檔路徑對應正確；
    但頂層 key 名稱（logger 改叫 `airRaid`）與 `api_lost_kind` 各值語意仍需原始封包確認。
-2. ~~取得 start2 樣本~~ **✅ 已取得**：`samples/start2-master.json`（去識別化的 master 子集，
+2. `samples/start2-master.json` 是去識別化的 master 子集（
    ship/slotitem/stype/slotitem_equiptype/shipupgrade/maparea/mapinfo/mission 八表，
    1751 艦＋741 裝備）。已藉此驗證 `api_slot_num`／`api_maxeq` 欄位名（不再是推測）。
-   **仍待做**：拿 `api_mst_slotitem` 反查 60 顆 icon id 的實際裝備名，驗證圖示機型假設——
-   **id 41「輸送機材」對應何物仍未證實**，56–60 的正式名稱仍為推定。
-3. ~~節點字母 ASCII 推算~~ **✅ 已解**：改為查 `utils/map-edge-letters.ts`（KC3Kai edges.json
-   產生，193 張海域），兩份真實資料交叉驗證通過，見「節點字母」小節。**剩餘維護工作**：
-   新活動開圖時上游若還沒更新，該圖會顯示原始 edge 編號——重新下載 `tools/map-edges/edges.json`
-   後重跑產生器即可。
-4. 燃彈：活動特殊點與大漩渦電探減免（待 `api_happening` 封包）。
-5. gaugeType 3（TP輸送）量表欄位驗證（待輸送海域樣本）；TP 表新變種裝備補值。
-6. 掉落統計彙總（資料已在 `db.sorties.drop`，缺 UI 彙總視圖）。
-6b. **斬殺偵測——只剩「即時性」待觀測**（欄位判定已用真封包定案，見「雲端備份與重播裁剪」）：
+   目前沒有足夠資料以 `api_mst_slotitem` 反查 60 顆 icon id 的實際裝備名，圖示機型假設仍未
+   證實；**id 41「輸送機材」對應何物仍未證實**，56–60 的正式名稱仍為推定。
+3. 節點字母使用 `utils/map-edge-letters.ts`（KC3Kai edges.json 產生，193 張海域），查不到
+   的新活動海域顯示原始 edge 編號；資料更新後重跑產生器即可。
+4. 燃彈的活動特殊點與大漩渦電探減免需要 `api_happening` 真實封包；目前不推算。
+5. gaugeType 3（TP 輸送）量表欄位及新變種裝備需要輸送海域樣本；目前不推算。
+6. **斬殺偵測的即時性仍未由樣本確認**（欄位判定已用真封包定案，見「雲端備份與重播裁剪」）：
    `detectClear()` 的「未擊破→擊破」兩端點皆已驗證（未通關 61-5 `now_maphp=809`、已通關
    61-4 `now_maphp=0/cleared=1`；`api_first_clear` 已排除當旗標）。唯一未觀測：**擊破當下遊戲
    是否即時推一筆 `now_maphp=0` 的 mapinfo**（或要等玩家再開圖才送）——只影響觸發延遲。
-   `wantedTag` 的 `hasClear` 會在下次活動斬殺自動抓到該筆即時 mapinfo；拿到後存 `samples/`
-   順便確認 (a) 即時性、(b) 擊破數式 gaugeType 1／TP gaugeType 3 的歸 0 表現。另可考慮消解
-   「斬殺後 farming 才更新 mapinfo」的邊角（用 sortie ts 錨定該場而非「最近 boss 場」）。
-7. M4 殘項：side panel 選配、視窗位置記憶、Firefox 打包驗證。
-8. **M8 鎮守府情報總括——分區已全部實作**（資源紀錄為最後一個，見「資源紀錄」；
-   `sections/stub.ts`／`renderStub()`／`ov.stub` 與 `.stub-*` CSS 已隨最後一個分區完工刪除）。
-   零星：popup 開 overview 的分頁單例化、亮色主題細部調校、遠征紀錄回航道具
-   （`api_get_item1/2`）欄位未經真封包驗證（best-effort，只顯示 id×count）。
+8. **M8 鎮守府情報總括的資料限制**：遠征紀錄回航道具（`api_get_item1/2`）欄位未經真封包驗證，
+   best-effort 只顯示 id×count；
    PNG 匯出目前為純文字內聯樣式版（foreignObject 安全模式不載外部圖示，故不含 icon）。
-8b. **活動作戰板的三項待驗（下次活動自動撈，見「活動作戰板」）**：(a) 標籤 id 的實際語意；
+8b. **活動作戰板的未驗證欄位**（見「活動作戰板」）：(a) 標籤 id 的實際語意；
    (b) 標籤名是否存在於任何封包（`findUnknownSallyKey` 鉤子命中即定案，查不到也是有效結論
    ——可據以確定「只能手動命名」並移除 `nameSource:'auto'` 的預留）；(c) `api_sally_flag`
-   是否為出擊制限旗標。**另有兩項第二版功能待做**：「標籤 ← 哪次出擊／哪條路線」的自動知識庫
-   （需新 derived table＋動 `EventProjector` 投影邊界，且貼標時機未經真封包驗證——我們只能在
+   是否為出擊制限旗標。本文不把「標籤 ← 哪次出擊／哪條路線」的自動知識庫列為現行契約；該功能
+   需要新的 derived table、`EventProjector` 投影邊界與已驗證的貼標時機，而目前只能在
    回港的 `api_port/port` 看到 `sally_area`，無法分辨是 `api_req_map/start` 當下就蓋章還是
    路線分歧後才決定）；以及出擊後偵測「貼錯標籤」的事後警示。
-9. **友軍艦隊「強力友軍艦隊」支援消耗高速建造材**：使用者提供之遊戲設定——活動海域
-   開放友軍艦隊時，開啟「強力友軍艦隊」支援會消耗 6 個高速建造材（非封包驗證，
-   先記錄供日後出擊資訊監控使用）。實作前需先取得友軍艦隊支援選項相關封包（可能是
-   `api_req_map/start` 或進入海域選擇畫面時的請求，欄位結構未知）；與現有
-   `api_friendly_battle`／`api_friendly_info`（見「戰鬥預測子系統」的友軍艦隊章節）
-   屬不同層次——那些是「戰鬥中友軍參戰」，這個是「出擊前選擇是否開啟強力支援」。
-10. **劇場模式／靜音的實機待驗**（見「劇場模式與遊戲靜音」；已用合成 SPA 頁在真實 Chrome
-   逐項驗過，且已依使用者第一次實機回饋修掉裁切／工具列遮擋／resize 三項，但**仍沒有登入
-   過真正的 DMM 遊戲頁**）：(a) **遊戲框與遊戲畫布之間是否隔著跨源框**——若隔著，畫布量測
+9. **劇場模式／靜音的實機驗證限制**（見「劇場模式與遊戲靜音」；已用合成 SPA 頁在真實 Chrome
+   逐項驗過，但**沒有登入真正的 DMM 遊戲頁**）：(a) **遊戲框與遊戲畫布之間是否隔著跨源框**——若隔著，畫布量測
    會被 `e.source` 檢查擋下而退回「不裁切」（下方仍會留白底），補救方向見上節；
    (b) 艦これ Flight-IIA 的音訊實作是 WebAudio 還是 media 元素（兩條路徑都接了，但沒有樣本
    佐證，實機可用 `__kcAudio.contextCount()` 判斷）；(c) 是否有祖先層級的 stacking context
-   造成版面偏移。三者實機開一次就能定案；(a) 可在遊戲分頁 console 跑
+   造成版面偏移；(a) 可在遊戲分頁 console 跑
    `[...document.querySelectorAll('iframe')].map(f => f.src)` 看層數。

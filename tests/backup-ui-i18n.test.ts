@@ -21,5 +21,11 @@ describe('完整備份與舊版遷移的三語安全提示', () => {
         expect(t('ov.backupFileIntro').length).toBeGreaterThan(40);
         expect(t('ov.backupFileIntro')).toContain('kanmusu-');
         expect(t('ov.backupNeedComplement').length).toBeGreaterThan(20);
+        expect(t('ov.backupEmptyRefuse')).not.toBe('ov.backupEmptyRefuse');
+        expect(t('ov.backupEmptyRefuse').length).toBeGreaterThan(20);
+        expect(t('ov.backupWrittenTo', { name: 'Drive', n: 3, file: 'kanmusu-backup-2026-08-14-030809.json' }))
+            .toContain('kanmusu-backup-2026-08-14-030809.json');
+        expect(t('ov.backupExported', { n: 3, file: 'kanmusu-backup-2026-08-14-030809.json' }))
+            .toContain('kanmusu-backup-2026-08-14-030809.json');
     });
 });

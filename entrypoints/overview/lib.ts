@@ -112,14 +112,12 @@ export const fmtShortTs = (ts: number) => {
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-// 四艦隊＋基地航空隊的 Markdown 片段。原本只在 fleet-overview.ts 內用，抽到這裡是因為
-// llm.ts 的「完整報告」匯出（#7 通用備份檔）也需要同一段內容——兩處輸出格式完全一致，
-// 只差外層要嵌在哪一級標題底下，故用 h 參數控制標題層級（fleet-overview 獨立成文件時
-// 用 '##'；嵌進完整報告的某個章節底下時用 '###'）。
-const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];
+// 四艦隊＋基地航空隊的 Markdown 片段。fleet-overview 與 llm.ts 的完整報告共用同一段內容，
+// 只差外層標題層級，故用 h 參數控制（獨立文件用 '##'，嵌入報告章節用 '###'）。
+export const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];
 // lbas：**以海域（maparea id）為單位**的開關表，鍵是 `String(areaId)`，缺席＝顯示。
 // 使用者指定「每個海域一個 checkbox 就好」——一個海域最多三個基地、平常整組一起看，
-// 逐基地開關只是讓那排 chip 長得更長。⚠️ **絕不可改回以 rid 為鍵**：rid 是「該海域的
+// 逐基地開關只是讓那排 chip 長得更長。⚠️ lbas 必須以海域 id 為鍵：rid 是「該海域的
 // 第幾個基地」，中部海域與活動海域各有自己的第一基地航空隊，用 rid 當鍵會兩個海域連動
 // （見 utils/state.ts airBaseKey 的災情註解）。
 export interface FleetMarkdownScope { fleets: boolean[]; lbas: Record<string, boolean> }
@@ -159,6 +157,19 @@ export const gearMarkdown = (g: { name: string; level: number; alv: number }) =>
     `${g.name}${g.level >= 10 ? '★' : g.level > 0 ? `★${g.level}` : ''}`
     + (ALV_MARKS[Math.min(7, Math.max(0, g.alv))] ?? '');
 
+/**
+ * 一艘艦的裝備列（一般槽＋補強增設）。補強增設有裝才追加，並加 `[補強]` 前綴
+ * （同艦娘全覽文字匯出）；空孔／無孔都不寫——Markdown 不需要「這格空著」的精度。
+ */
+export function shipGearsMarkdown(s: {
+    gears: ({ name: string; level: number; alv: number } | null)[];
+    exGear: { name: string; level: number; alv: number } | null;
+}): string {
+    const parts = s.gears.filter(Boolean).map(g => gearMarkdown(g!));
+    if (s.exGear) parts.push(`[${t('ov.shipsEx')}]${gearMarkdown(s.exGear)}`);
+    return parts.join(' / ');
+}
+
 export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownScope): string {
     const lines: string[] = [];
     state.fleets().forEach((f, i) => {
@@ -166,7 +177,7 @@ export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownS
         if (scope && scope.fleets[i] === false) return;
         lines.push(`${h} ${t('ov.fleetN', { n: i + 1 })} — ${f.name}${f.mission ? `（${t('ov.onMission')}）` : ''}`);
         for (const s of f.ships) {
-            const gears = s.gears.filter(Boolean).map(g => gearMarkdown(g!)).join(' / ');
+            const gears = shipGearsMarkdown(s);
             lines.push(`- **${s.stype} ${s.name}** Lv${s.lv}　HP ${s.hp}/${s.maxhp}　cond ${s.cond}${gears ? `　│ ${gears}` : ''}`);
         }
         lines.push('');

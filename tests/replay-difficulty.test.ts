@@ -59,9 +59,53 @@ describe('海域難度 reducer', () => {
 
         expect([1, 2, 3, 4, 5].map(id => state.mapGauges.get(id)?.selectedRank)).toEqual([0, 0, 0, 0, 0]);
     });
+
+    it('選定活動難度時，以選擇回應立即更新難度與實際量表', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/mapinfo', fixture('6-5-mapinfo.json'));
+
+        state.applyEvent('api_req_map/select_eventmap_rank', {
+            api_maphp: {
+                api_now_maphp: 600, api_max_maphp: 600,
+                api_gauge_type: 3, api_gauge_num: 1,
+            },
+        }, { api_maparea_id: '62', api_map_no: '1', api_rank: '4' });
+
+        expect(state.mapGauges.get(621)).toMatchObject({
+            selectedRank: 4, gaugeType: 3, nowHp: 600, maxHp: 600,
+        });
+    });
+
+    it('出擊起點的 eventmap 覆蓋舊 mapinfo 量表，但不臆測難度', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/mapinfo', fixture('6-5-mapinfo.json'));
+
+        state.applyEvent('api_req_map/start', {
+            api_maparea_id: 62, api_mapinfo_no: 1, api_no: 1, api_color_no: 1,
+            api_eventmap: { api_now_maphp: 540, api_max_maphp: 600 },
+        }, { api_deck_id: '1' });
+
+        expect(state.mapGauges.get(621)).toMatchObject({
+            selectedRank: 0, nowHp: 540, maxHp: 600,
+        });
+    });
 });
 
 describe('replay 難度投影', () => {
+    it('選難度回應後出擊，replay 立即保存該難度', async () => {
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: createDb() });
+
+        await projector.project(row(1, 'api_req_map/select_eventmap_rank', {
+            api_maphp: {
+                api_now_maphp: 600, api_max_maphp: 600,
+                api_gauge_type: 3, api_gauge_num: 1,
+            },
+        }, { api_maparea_id: '62', api_map_no: '1', api_rank: '4' }));
+        await projector.project(mapStart(2));
+
+        expect(projector.currentReplay?.diff).toBe(4);
+    });
+
     it('mapinfo 後的 map/start 依對應 map gauge 設定 diff，且 KC3 匯出保留該值', async () => {
         const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: createDb() });
 

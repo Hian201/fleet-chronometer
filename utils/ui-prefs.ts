@@ -4,7 +4,7 @@
 // 分工（沿 CLAUDE.md 設計原則 4/5）：
 //   - utils/ui-i18n.ts／gamedata-i18n.ts：純函式＋記憶體變數，零瀏覽器依賴（state.ts 可獨立編譯）。
 //   - 本檔：localStorage＋navigator 等瀏覽器 API 集中於此，三個頁面共用同一份持久化邏輯，
-//     不再各自複製（原本只有 panel/main.ts 一份，overview 加入後抽出）。
+//     三個頁面共用同一份持久化邏輯，避免各頁面產生不同的偏好語意。
 //   - 刻意不用 chrome.storage：維持權限精簡（不新增 storage 權限）。SW 不需讀取偏好。
 import { LANGS, setLang, getLang } from './ui-i18n';
 import { MSG_UI_LANG_SET } from './game-page';

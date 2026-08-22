@@ -1,6 +1,13 @@
 # Codex project instructions
 
-This repository was previously developed with Claude Code.
+## Comment and change-description policy (highest priority)
+
+This policy overrides lower-level documentation and applies to code comments, maintenance guidance, and pull-request descriptions.
+
+1. Comments explain only non-obvious reasons, constraints, or risks that cannot be read directly from the code.
+2. Do not preserve intermediate attempts, debugging history, rejected alternatives, prior implementations, or states that were never merged.
+3. Pull-request descriptions state the final behavior and trade-offs that are not visible in the diff. They must not mention unmerged intermediate states.
+4. When maintaining project guidance, express a constraint as the current rule plus its reason, without narrating how the project arrived there.
 
 Before doing any work:
 
@@ -44,6 +51,14 @@ The agent must not:
 If a task requires live-game verification, stop and provide a manual verification checklist for the developer instead.
 
 Only the developer may log into and operate the live Kancolle game.
+
+## Local preview and browser tool usage
+
+* The browser tool (`browser_subagent`) does not support the `file://` protocol due to sandbox restrictions.
+* When offline preview pages (`.preview/*.html`) or mock pages need visual inspection and DOM measurement:
+  1. The agent must start a background HTTP server (e.g., `python3 -m http.server <port>` with `IsDaemon: true`) from the project root before invoking the browser tool.
+  2. Pass `http://localhost:<port>/.preview/<filename>.html` (or the corresponding localhost route) to `browser_subagent`.
+  3. Clean up the background server task after inspection is complete.
 
 ## Passive observation requirement
 

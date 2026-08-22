@@ -22,9 +22,8 @@ const navEl = $('nav'), contentEl = $('content');
 //   open  ＝浮層被按鈕**固定**打開（窄視窗的抽屜行為，見下）
 // 釘選意願存 localStorage（純 UI 偏好，不進 Dexie、不進備份，同各分區的顯示偏好）。
 //
-// **視窗窄時一律不釘選**：200px 側欄會把內容區壓到不能看。但那只是「當下的有效狀態」，
-// 不覆寫使用者的釘選意願——視窗放大就自動釘回去。也因為如此，窄視窗下按鈕不能去切
-// 釘選（切了畫面毫無反應，等於壞掉），改成切浮層的開合。
+// **視窗窄時一律不釘選**：200px 側欄會把內容區壓到不能看；這只影響當下狀態，不覆寫
+// 使用者的釘選意願，視窗放大就自動恢復。窄視窗的按鈕因此控制浮層開合。
 const NAV_KEY = 'kc-overview-nav';
 const NAV_SIDE_KEY = 'kc-overview-nav-side';
 const NAV_NARROW = 760;
@@ -84,13 +83,13 @@ navEl.addEventListener('click', closeNavOverlay);
 contentEl.addEventListener('click', closeNavOverlay);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNavOverlay(); });
 window.addEventListener('resize', () => {
-    if (!navNarrow()) navOpen = false;   // 放寬後回到釘選／hover 模式，別留一個卡住的浮層
+    if (!navNarrow()) navOpen = false;   // 放寬後回到釘選／hover 模式，關閉浮層
     applyNav();
 });
 
 initLang();
 applyTheme();
-// 其他頁面（面板／另一個總括分頁）切換語言或主題時，本頁即時跟著套用並重繪（#1/#2）。
+// 其他頁面（面板／另一個總括分頁）切換語言或主題時，本頁即時跟著套用並重繪。
 onPrefsChange(() => renderAll());
 
 // 共用狀態：載入時重播 db.events 重建一次，供各分區讀取（艦隊全覽等）。先給空 state
@@ -124,7 +123,7 @@ async function renderSection() {
     const sec = sections.find(s => s.id === currentSectionId())!;
     // 分區名放前面、品牌短名放後面：瀏覽器分頁標題從尾端截斷，會變動的分區名須優先可見
     document.title = `${t(sec.titleKey)} — ${t('ov.brandShort')}`;
-    // 分區畫進獨立 host：新一次 render 會清掉 contentEl（卸離舊 host），舊 await
+    // 分區畫進獨立 host：新一次 render 會清掉 contentEl（卸離現有的 host），較早的 await
     // 結束後即使繼續寫 host 也不會污染目前畫面。
     const host = document.createElement('div');
     host.className = 'ov-section-host';

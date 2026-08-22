@@ -1,5 +1,6 @@
 // 離線重播提取器 viewer.html 的產生器——回傳一份「單檔、離線、零擴充」的 HTML 字串，
-// 由 backup 分區寫進備份資料夾。任何人用瀏覽器開它、載入 kanmusu-backup.json 就能
+// 由 backup 分區寫進備份資料夾。任何人用瀏覽器開它、載入完整備份 JSON
+// （檔名如 kanmusu-backup-YYYY-MM-DD-HHmmss.json，亦相容舊 kanmusu-backup.json）就能
 // 逐場提取 KC3Kai battleplayer 物件（複製或開公開重播頁），完全不需要安裝本擴充、
 // 不需要登入。因為每筆 replay 存的就是原封不動的 KC3Kai 相容原始戰鬥封包，這裡把
 // utils/replay.ts 的 toKc3Replay() 內聯進去即可自足（純資料轉換、無任何 chrome.*）。
@@ -76,7 +77,7 @@ export function viewerHtml(): string {
 </head>
 <body>
 <h1>艦隊重播提取器</h1>
-<p class="sub">載入 <code>kanmusu-backup.json</code>，挑任一場出擊複製 KC3Kai battleplayer 物件或直接開啟重播頁。也相容舊版的 <code>kanmusu-replays.json</code>。此頁離線運作、與擴充無關。</p>
+<p class="sub">載入完整備份 JSON（檔名如 <code>kanmusu-backup-YYYY-MM-DD-HHmmss.json</code>，亦相容舊的 <code>kanmusu-backup.json</code> 與 <code>kanmusu-replays.json</code>），挑任一場出擊複製 KC3Kai battleplayer 物件或直接開啟重播頁。此頁離線運作、與擴充無關。</p>
 <div class="bar">
   <label class="file">載入完整備份 JSON<input type="file" id="f" accept="application/json,.json"></label>
   <span class="status" id="st">尚未載入檔案。</span>
@@ -101,8 +102,11 @@ function toKc3(row) {
   row = repairLegacyFleet(row);
   var playerFleetnum = row.combined === 0 ? 1 : row.fleetnum;
   var ship = function (s) {
-    return { mst_id: s.mst_id, lv: s.lv, level: s.lv, equip: s.equip, stars: s.stars, ace: s.ace,
+    var out = { mst_id: s.mst_id, lv: s.lv, level: s.lv, equip: s.equip, stars: s.stars, ace: s.ace,
              exequip: s.exequip, nowhps: s.nowhp, maxhps: s.maxhp };
+    if (s.exstars !== undefined) out.exstars = s.exstars;
+    if (s.exace !== undefined) out.exace = s.exace;
+    return out;
   };
   return {
     version: 4, combined: row.combined, fleetnum: playerFleetnum,

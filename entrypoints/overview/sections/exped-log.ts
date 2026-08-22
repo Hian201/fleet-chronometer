@@ -1,5 +1,5 @@
 // 遠征紀錄：期間彙總（跑了哪些遠征、各幾次、總共拿回多少資源）＋可選欄位的詳細清單。
-// 遠征編成是 result 當下的摘要快照；舊紀錄沒有就誠實標為不可考。
+// 遠征編成是 result 當下的摘要快照；缺少快照的紀錄誠實標為不可考。
 //
 // ── 期間彙總為什麼落在這一區（別搬到資源紀錄）────────────────────────────
 // 遠征收入是**逐筆事件的獲得量**（`api_get_material`，封包直接給、可加總），資源紀錄
@@ -360,7 +360,7 @@ export const expedLogSection: OverviewSection = {
                     + statsHtml(stats, prefs)
                 : `<div class="ov-empty">${esc(t('ov.expedNone'))}</div>`;
             // `toggle` 不會冒泡，無法用 body 委派；每次重繪都是新節點，就地重綁即可
-            // （舊監聽器隨舊節點一起消失）。
+            // （監聽器隨節點一起消失）。
             body.querySelector<HTMLDetailsElement>('.el-stats')?.addEventListener('toggle', event => {
                 prefs.statsOpen = (event.currentTarget as HTMLDetailsElement).open;
                 savePrefs(prefs);
@@ -454,7 +454,7 @@ export const expedLogSection: OverviewSection = {
 
         // ── 資料載入 ──────────────────────────────────────────────────
         try {
-            // 活動期間捷徑靠 db.resourceMarks（v12 才有，舊安裝可能整張表是空的）；
+            // 活動期間捷徑靠 db.resourceMarks（舊安裝可能整張表是空的）；
             // 它只是捷徑，讀不到就不顯示那個控制項，不影響彙總本身。
             const [rows, marks] = await Promise.all([
                 db.expeditions.orderBy('ts').reverse().toArray(),

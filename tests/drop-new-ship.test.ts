@@ -4,8 +4,8 @@
 //
 // 兩件事要鎖住：
 //   1. **比對用基礎形態**：手上是改二時打撈到本體算已持有（同 baseShipId 的圖鑑視角）。
-//   2. **判定時機**：新船要等 `api_port/port` 才會進名冊，故必須在 battleresult 當下判定。
-//      若改成事後從名冊回推，回港之後永遠會答「已持有」——這條測試就是為了擋那個回歸。
+//   2. **判定時機**：新船要等 `api_port/port` 才會進名冊，故必須在 battleresult 當下判定；
+//      事後從名冊回推時，回港後永遠只會看到「已持有」。
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 import { newShipDropKeys } from '../utils/drop-new-ship';

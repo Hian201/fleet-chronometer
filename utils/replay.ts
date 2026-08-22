@@ -46,6 +46,8 @@ export function snapshotDeck(gs: GameState, deckId: number): ReplayShip[] {
             mst_id: s.api_ship_id, lv: s.api_lv,
             equip, stars, ace,
             exequip: exIt ? exIt.mst : -1,
+            // 有補強增設才寫改修／熟練；無格或缺席保持欄位缺席（與舊快照同語意）。
+            ...(exIt ? { exstars: exIt.level, exace: exIt.alv } : {}),
             nowhp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
             kyouka: s.api_kyouka,
         });
@@ -117,11 +119,11 @@ export function startReplay(gs: GameState, sortieKey: number, ts: number, mapSta
 }
 
 /**
- * 修復舊版誤把第2–4艦隊獨立出擊記成連合艦隊的重播列（不改動原物件）。
+ * 修復相容資料中把第2–4艦隊獨立出擊記成連合艦隊的重播列（不改動原物件）。
  *
- * 真正的連合艦隊只能由第1艦隊出擊，所以 `combined>0 && fleetnum!==1` 是舊 bug 留下的
- * 不可能組合。舊版同時會把第2–4艦隊快照留在對應欄位；只有該快照帶完整 HP、足以作為
- * 出擊主隊的封包事實時才修復。舊匯入資料若沒有 HP 就維持原樣，不猜是哪支艦隊。
+ * 真正的連合艦隊只能由第1艦隊出擊，所以 `combined>0 && fleetnum!==1` 是不可能組合。
+ * 只有對應快照帶完整 HP、足以作為出擊主隊的封包事實時才修復；缺少 HP 時維持原樣，
+ * 不猜是哪支艦隊。
  */
 export function repairLegacyReplayFleet(row: ReplayRow): ReplayRow {
     if (!(row.combined > 0) || row.fleetnum === 1) return row;
@@ -164,6 +166,9 @@ export function toKc3Replay(row: ReplayRow): object {
         // `lv` 保留 Fleet Chronometer 再匯入契約；KC3Kai 艦隊詳情讀的是 `level`。
         mst_id: s.mst_id, lv: s.lv, level: s.lv,
         equip: s.equip, stars: s.stars, ace: s.ace, exequip: s.exequip,
+        // exstars／exace 是本專案延伸欄；KC3Kai battleplayer 會忽略未知鍵，再匯入需保留。
+        ...(s.exstars === undefined ? {} : { exstars: s.exstars }),
+        ...(s.exace === undefined ? {} : { exace: s.exace }),
         nowhps: s.nowhp, maxhps: s.maxhp,
     });
     return {
@@ -176,7 +181,7 @@ export function toKc3Replay(row: ReplayRow): object {
         // KC3Kai 會直接 Object.keys(battle.yasen)；沒有夜戰也必須給空物件，null 會讓播放器中止。
         battles: row.battles.map(b => ({ node: b.node, data: b.data, yasen: b.yasen ?? {} })),
         world: row.world, mapnum: row.mapnum, diff: row.diff,
-        // KC3Kai 以 UNIX 秒判斷舊版海域節點與 BGM；ReplayRow.ts 則是毫秒。
+        // KC3Kai 的海域節點與 BGM 時間欄位使用 UNIX 秒；ReplayRow.ts 儲存毫秒。
         time: Math.floor(row.ts / 1000),
         hq: row.nickname,
     };

@@ -1,11 +1,10 @@
 // 遊戲頁（DMM）相關的共用常數與訊息型別：劇場模式 content script、bridge、background、
 // popup 四邊都要用到同一組字串，集中一處避免各自打字。純常數，無 chrome.* 相依。
 
-// DMM 的遊戲入口。**2026-07 已改版**：舊的
+// DMM 的遊戲入口。舊入口
 // `www.dmm.com/netgame/social/-/gadgets/=/app_id=854854/` 現在 302 導向登入頁，
-// 登入後的實際遊玩頁是 `play.games.dmm.com/game/kancolle`（Vite+React SPA，
-// `<div id="root">`，遊戲框由 JS 動態插入）。舊路徑仍列在 matches 裡：它只是換了入口，
-// 沒有證據顯示舊版版面已完全下線，而多一個 pattern 的代價只是授權對話框多一行。
+// 會導向登入頁；登入後的實際遊玩頁是 `play.games.dmm.com/game/kancolle`（Vite+React SPA，
+// `<div id="root">`，遊戲框由 JS 動態插入）。舊路徑仍列在 matches 裡以保留相容入口。
 export const GAME_URL = 'https://play.games.dmm.com/game/kancolle';
 
 /**
@@ -123,7 +122,7 @@ export const MSG_MUTE_SET = 'kc:mute-set';
  * 座標系的絕對矩形（CSS px）＋該分頁的 devicePixelRatio，供拍照裁切用。
  *
  * 刻意不在 popup 自己重新推算遊戲畫面位置——劇場模式的裁切（`pickGameFrame`／
- * `contentArea`／`fallbackGameArea`＋跨源畫布量測協定）已經是踩過坑才校準對的邏輯，
+ * `contentArea`／`fallbackGameArea`＋跨源畫布量測協定）是唯一共用的幾何來源，
  * 拍照的裁切矩形必須是同一套算法的產物，否則兩邊會漸漸長出不一致的「遊戲畫面在哪」。
  * 量不到遊戲框時回傳 `rect: null`，呼叫端據此誠實回報「找不到遊戲畫面」，不猜一個矩形。
  */
@@ -151,7 +150,7 @@ export const PORT_MUTE = 'kc:mute';
  * 遊戲框 → 最上層 DMM 頁的 window.postMessage 轉發（跨源，只送互動意圖，不含遊戲資料）。
  *
  * 為什麼需要轉發：焦點落進遊戲框內時，鍵盤事件只送到框內文件，父頁收不到 Esc。
- * 目前只轉發 Esc 離開；滾輪縮放已移除（永遠 fit，縮放交給瀏覽器原生 Ctrl／⌘＋滾輪）。
+ * 目前只轉發 Esc 離開；永遠維持 fit，縮放交給瀏覽器原生 Ctrl／⌘＋滾輪，因此不轉發滾輪。
  *
  * **一律 passive、絕不 stopPropagation／preventDefault**：遊戲仍會照常收到原本的事件。
  */

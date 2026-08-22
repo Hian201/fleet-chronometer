@@ -1583,7 +1583,8 @@
         }
 
         /* ── 編成定版：左側艦名／裝備、右側生命／補給 ──
-           正式面板與 tools/preview/panel-fleet.ts、panel-sortie.ts 共用這個結構。
+           正式面板由 entrypoints/panel/main.ts 實作；tools/preview/panel-sortie.ts 是獨立的
+           離線量測 fixture，不會自動同步，版面變更必須兩邊一併更新。
            右欄固定 96px，燃彈不再佔用裝備 chip；七艘滿編時只收緊列內 row-gap，
            不改變左右欄比例。 */
         html,

@@ -13,14 +13,20 @@ function buildState(): GameState {
         api_slot_item: [
             { api_id: 501, api_slotitem_id: 41, api_level: 3, api_alv: 7 },
             { api_id: 502, api_slotitem_id: 42, api_level: 0, api_alv: 0 },
+            { api_id: 503, api_slotitem_id: 68, api_level: 6, api_alv: 0 },
         ],
     });
-    const ship = (id: number, mst: number, slot: number[]) => ({
+    const ship = (id: number, mst: number, slot: number[], slotEx = 0) => ({
         api_id: id, api_ship_id: mst, api_lv: 90, api_nowhp: 30, api_maxhp: 30,
-        api_cond: 49, api_slot: slot, api_slot_ex: 0, api_exp: [0, 0, 0],
+        api_cond: 49, api_slot: slot, api_slot_ex: slotEx, api_exp: [0, 0, 0],
     });
     state.applyEvent('api_port/port', {
-        api_ship: [ship(1, 100, [501]), ship(2, 200, [502]), ship(3, 300, []), ship(4, 400, [])],
+        api_ship: [
+            ship(1, 100, [501], 503),
+            ship(2, 200, [502]),
+            ship(3, 300, []),
+            ship(4, 400, []),
+        ],
         api_deck_port: [
             { api_id: 1, api_name: '1', api_ship: [1, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] },
             { api_id: 2, api_name: '2', api_ship: [2, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] },
@@ -77,10 +83,23 @@ describe('出擊快照', () => {
         const state = buildState();
         const replay = startReplay(state, 10, 1_726_000_000_000, mapStart);
         expect(replay.fleet1.map(s => s.mst_id)).toEqual([100]);
+        expect(replay.fleet1[0]).toMatchObject({
+            equip: [41], stars: [3], ace: [7],
+            exequip: 68, exstars: 6, exace: 0,
+        });
         expect(replay.fleet2).toEqual([]);
         expect(replay.fleet3?.map(s => s.mst_id)).toEqual([300]);
         expect(replay.fleet4?.map(s => s.mst_id)).toEqual([400]);
         expect(replay.lbas?.map(b => b.rid)).toEqual([1, 2]);
+    });
+
+    it('無補強增設時不寫 exstars／exace（缺席＝不可考，不是 ★0）', () => {
+        const state = buildState();
+        const replay = startReplay(state, 10, 1_726_000_000_000, mapStart);
+        expect(replay.fleet2).toEqual([]);
+        expect(replay.fleet3?.[0]).toMatchObject({ exequip: -1 });
+        expect(replay.fleet3?.[0]).not.toHaveProperty('exstars');
+        expect(replay.fleet3?.[0]).not.toHaveProperty('exace');
     });
 
     it('連合艦隊出擊：第2艦隊為隨伴，支援候補不變', () => {
@@ -107,7 +126,7 @@ describe('出擊快照', () => {
     it('既有的錯誤第3艦隊紀錄有完整快照時，在讀取與匯出時安全修復', () => {
         const state = buildState();
         state.combinedFlag = 2;
-        // 模擬舊版結果：fleetnum 記得是 3，卻把 combined/fleet1/fleet2 留成水上打擊部隊。
+        // 模擬相容資料：fleetnum 是 3，但 combined/fleet1/fleet2 仍記成水上打擊部隊。
         const legacy = { ...startReplay(state, 13, 1_726_000_000_000, mapStart), fleetnum: 3 };
 
         const repaired = repairLegacyReplayFleet(legacy);

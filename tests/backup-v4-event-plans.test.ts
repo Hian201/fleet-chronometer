@@ -57,8 +57,8 @@ const v4Restore = (plans?: EventPlanRow[]) => ({
 });
 
 describe('版本協商', () => {
-    // v4 是「當時的最新版」，之後仍會往上加（v5 資源紀錄…）。這裡固定的是
-    // 「v4 檔案永遠讀得進來」這條相容承諾，不是版號本身。
+    // 後續版本新增的表不得反向改變 v4 契約；這裡固定的是
+    // 「v4 檔案永遠讀得進來」這條相容承諾，不是目前版號。
     it('v4 仍在支援範圍內', () => expect(BACKUP_SCHEMA_VERSION).toBeGreaterThanOrEqual(4));
 
     it('v4 restore 必須含 eventPlans', () => {

@@ -1,21 +1,21 @@
 # 圖示生成器
 
-`public/icons/**.svg`（75 顆：裝備 61＋資源 8＋UI 6）**全部由此產生**，不要手改 SVG——改生成器再重跑。
+`public/icons/**.svg`（76 顆：裝備 61＋資源 8＋UI 7）**全部由此產生**，不要手改 SVG——改生成器再重跑。
 
 ```bash
 cd tools/icons
 python3 gen_icons.py  out/equipment out/resource     # 全 61 顆＋資源 8 顆（含無徽章飛機的正俯視版）
 rm -rf all3d && python3 gen_planes.py                # 飛機族 3D：只產「有徽章」的 21 顆
 cp all3d/*.svg out/equipment/                        # 覆蓋這 21 顆
-python3 gen_ui.py out/ui                             # UI 圖示（入渠／建造／遠征／艦數／裝備數／空襲警報）
+python3 gen_ui.py out/ui                             # UI 圖示（入渠／建造／遠征／任務／艦數／裝備數／空襲警報）
 python3 normalize.py out/equipment out/resource out/ui   # 尺寸正規化（必跑，見下）
 cp out/equipment/*.svg ../../public/icons/equipment/
 cp out/resource/*.svg  ../../public/icons/resource/
 cp out/ui/*.svg        ../../public/icons/ui/
 ```
-> `rm -rf all3d` 不可省：`gen_planes.py` 只寫出當前該產的檔，舊檔殘留會被 `cp` 一併覆蓋過去。
+> 先清理 `all3d`：`gen_planes.py` 只寫出當前應產生的檔案，清理可避免過時檔案被 `cp` 一併複製。
 
-### 描邊（`normalize.py` 自動注入，全 75 顆一致）
+### 描邊（`normalize.py` 自動注入，全 76 顆一致）
 
 遊戲原圖的所有圖示都有描邊（貼紙風格）。除了風格一致，描邊有**功能性理由**：
 面板圖示以 `<img src>` 載入，SVG 是獨立文件、**吃不到外部 CSS**，無法靠主題 CSS 改色；
@@ -25,14 +25,14 @@ cp out/ui/*.svg        ../../public/icons/ui/
 - 做法：`feMorphology` 對整組的**合成 alpha** 做 dilate，以描邊色 flood 後墊在原圖下方
   → 單一外輪廓。**不是逐面線框**（已用 3D 飛機驗證：幾十個多邊形面只得到一圈外輪廓）。
 - 描邊色 = **全圖示統一的中性深墨** `INK = #37302a`（略帶暖調，呼應面板黃銅色系）。
-  **不要改回「主色的暗階」**——那對紅色系圖示必然生出暗紅，而暗紅是最搶眼的顏色之一，
+  **描邊固定使用中性深墨，不使用主色暗階**——紅色系圖示的暗紅會成為最搶眼的顏色之一，
   當輪廓用會刺眼、喧賓奪主。描邊的角色是「墨線」不是「彩色光暈」。
 - `OUTLINE_R = 0.85`：過粗會填平細節（如造船鎚的羊角分叉凹口）、過細在 16px 看不見。
 - 明度下限（`FLOOR`）仍要保留——它管的是**暗底**可讀性，描邊管的是**亮底**，兩者互補。
 
 ### 尺寸正規化（`normalize.py`，必跑）
 
-各顆的畫布佔用率原本沒有統一標準——實測 16px 下高度落在 **4.8px–15.2px（差 3 倍）**，
+各顆的畫布佔用率若不統一，實測 16px 下高度會落在 **4.8px–15.2px（差 3 倍）**，
 在編成欄的裝備 chip 並排時高度明顯不一。`normalize.py` 把 `<g class="a">`（本體，不含徽章）
 單獨渲染、量測實際不透明範圍，再注入 transform 使 **較長邊 = 29 單位**並置中（中心 y=15.4）。
 
@@ -42,7 +42,7 @@ cp out/ui/*.svg        ../../public/icons/ui/
 - 量測靠實際渲染（qlmanage），故能正確處理 `rotate()` 等 transform；
   純解析座標的算法會漏算旋轉，得到錯誤的 bbox。
 
-**量測的兩個陷阱**（都踩過，別再犯）：
+**量測約束**：
 
 1. **量測底不能用白色**。qlmanage 的渲染底是白色，而白色圖示（`34` 戦闘糧食＝おにぎり）
    會完全偵測不到 → bbox 嚴重低估 → 縮放暴衝、圖示撐爆畫布。故墊一層洋紅 `PROBE_BG`。
@@ -54,7 +54,8 @@ cp out/ui/*.svg        ../../public/icons/ui/
 
 檔名即 `api_slotitem.api_type[3]` 的 icon id（1–60；0＝空欄、99＝不明），故面板無需對照表。
 `public/icons/ui/` 為面板自身的 UI 圖示（非裝備）：`dock`（入渠＝沿用艦艇修理施設的吊臂造型）、
-`build`（建造＝造船鎚 `#feea74`＋金銀 Solid Rivets）、`exped`（遠征＝羅盤，參照 `samples/compass.jpg`）。
+`build`（建造＝造船鎚 `#feea74`＋金銀 Solid Rivets）、`exped`（遠征＝羅盤，參照 `samples/compass.jpg`）、
+`quest`（任務＝通達用紙＋朱印，不是勾選框）。
 
 ## 設計約束（改動前務必先讀）
 
@@ -75,7 +76,7 @@ cp out/ui/*.svg        ../../public/icons/ui/
    砲熕依口徑分明度 `#ff8080`→`#ff4040`→`#ff0000`；艦載機機身統一 `#00c040`，
    **靠徽章顏色**區分機種（戦綠／爆紅／攻藍／偵黃）——機身不因機種變色。
 5. **著作權**：全部原創向量，不含第三方美術資產（見 `THIRD-PARTY-NOTICES.md` 第 3 節）。
-   構圖以**遊戲原圖的概念**為藍本（非描圖、非 EO 的改作）；EO 僅曾用於色彩採樣與
+   構圖以**遊戲原圖的概念**為藍本（非描圖、非 EO 的改作）；EO 僅用於色彩採樣與
    icon id 語意確認（後者為遊戲 API 的事實性資料）。
 
 ## icon id ↔ 裝備（start2 反查，`samples/start2-master.json`）

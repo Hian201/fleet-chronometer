@@ -20,8 +20,7 @@
 import { EDGE_LETTERS } from './map-edge-letters';
 
 /**
- * 少數海域的人工覆蓋（新活動開圖當下對照表還沒更新，或發現來源有誤時暫時墊著）。
- * 平時應該是空的——正解是更新 `tools/map-edges/edges.json` 後重跑產生器。
+ * 少數海域的人工覆蓋；正式資料應更新 `tools/map-edges/edges.json` 後重跑產生器。
  */
 export const EDGE_LETTER_OVERRIDES: Record<string, Record<number, string>> = {};
 

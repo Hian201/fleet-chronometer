@@ -1,10 +1,7 @@
 // 艦娘全覽的「同名艦種消歧」契約（見 sections/ships.ts 的 buildStypeLabels 檔頭註解）。
 //
-// **這條曾經被 review 判成「不精確」而整個撤掉**，結果篩選抽屜裡出現兩顆一模一樣的
-// 「戰艦」checkbox，使用者完全分不出哪顆是哪群。撤掉的理由本身沒有錯（stype id 不等於
-// 航速，真封包實測 stype 8 有低速的 Гангут 線、stype 9 有高速的深海戰艦棲姫改），錯的是
-// 「因為不精確就什麼都不標」。本測試把折衷方案鎖住：群組層級用多數決加註，逐艦層級用
-// 該艦自己的 api_soku——**別再改回「兩顆都叫戰艦」**。
+// stype id 不等於航速，真封包可見 stype 8 有低速的 Гангут 線、stype 9 有高速的深海戰艦棲姫改；
+// 因此群組層級用多數決加註，逐艦層級使用該艦自己的 api_soku，避免兩個群組都顯示相同名稱。
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { buildStypeLabels, stypeDisplayLabel, type ShipsRow } from '../entrypoints/overview/sections/ships';

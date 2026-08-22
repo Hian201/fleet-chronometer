@@ -251,17 +251,16 @@ export class EventProjector {
             missionId: this.state.lastMissionByDeck.get(deckId - 1) ?? 0,
             name: api?.api_quest_name ?? '',
             result: api?.api_clear_result ?? 0,
-            // 實機觀測到 api_get_material 並非永遠是陣列（曾造成 .map 直接炸掉、把整條
-            // projection pump 卡死）——已知會觸發的情境是「遠征中途取消／提前召回而失敗」
-            // （result=0），此時該欄非陣列；確切原始值仍缺真封包樣本佐證，不猜語意，
-            // 一律視同「沒有資源資料」退回空陣列，只防禦不臆測。
+            // api_get_material 並非永遠是陣列；已知會出現在「遠征中途取消／提前召回而失敗」
+            // （result=0）時。確切原始值仍缺真封包樣本佐證，不猜語意，一律視同「沒有資源
+            // 資料」退回空陣列，只防禦不臆測。
             resources: Array.isArray(api?.api_get_material)
                 ? api.api_get_material.map((value: any) => Number(value) || 0)
                 : [],
             items,
         };
         // result 到達時艦隊仍維持本次遠征的編成；把名稱與等級存成摘要，日後改編成也能
-        // 回看當時帶了誰。這是新欄位，舊紀錄不可反推，不做回填猜測。
+        // 回看當時帶了誰。歷史紀錄缺少此欄時不可反推，因此不做回填猜測。
         const fleet = this.state.fleets()[deckId - 1]?.ships
             .map(ship => ({ name: ship.name, level: ship.lv }));
         if (fleet?.length) row.fleet = fleet;

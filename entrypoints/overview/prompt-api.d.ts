@@ -1,6 +1,6 @@
 // Chrome 內建 AI「Prompt API」（Gemini Nano）的環境型別宣告。
 // 此 API 尚未進入 TypeScript 標準 lib（截至本專案 TS 版本），且規格仍在演進中，
-// 故手動宣告目前實際會用到的最小介面（已對照 Chrome 官方文件驗證，2026-07）。
+// 故手動宣告目前實際會用到的最小介面。
 // 只在 overview 分頁使用（llm.ts）：官方文件明載「只在 top-level window 及其
 // same-origin iframe 可用，Web Worker 不可用」——故不適用於 background service worker，
 // 不影響 CLAUDE.md 設計原則 4（state.ts 核心零瀏覽器依賴）。

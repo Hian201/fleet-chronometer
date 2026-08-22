@@ -35,7 +35,7 @@ export interface BackupTables {
 
 export interface BackupEnvelope {
     schemaVersion: number;
-    // v1 沒有 kind；早期手動檔案若使用 full 也視為同一種 legacy-full。
+    // v1 沒有 kind；沒有 kind 或以 full 標記的 v1 輸入皆正規化為 legacy-full。
     kind?: ExportedKind;
     exportedAt: number;
     tables: BackupTables;
@@ -302,6 +302,9 @@ function validateReplayShip(value: unknown, where: string, support = false): Rep
         // KC3Kai 以 -1 表示沒有熟練度（兩份既有 logger fixture 都有此值）。
         ace: numberArray(ship.ace, `${where}.ace`, -1),
         exequip: integer(ship.exequip, `${where}.exequip`, -1),
+        // 舊備份／KC3Kai 來源可能缺席；有值才保留，缺席不補 0（0 是「未改修」的真實值）。
+        ...(ship.exstars === undefined ? {} : { exstars: integer(ship.exstars, `${where}.exstars`, 0) }),
+        ...(ship.exace === undefined ? {} : { exace: integer(ship.exace, `${where}.exace`, -1) }),
         ...(nowhp === undefined ? {} : { nowhp }),
         ...(maxhp === undefined ? {} : { maxhp }),
         // Fleet Chronometer 的 toKc3Replay() 沒有 cond；缺席保持缺席，不用 0 假裝赤疲勞。
@@ -581,7 +584,7 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
     const expected = (allowed: readonly string[]) => names.every(name => allowed.includes(name));
     if (schemaVersion === 1) {
         // legacy-full 是本模組對 v1 無 kind 資料的正規化名稱；接受它可讓 restoreBackup()
-        // 安全地再次驗證已解析的 envelope，亦相容曾手動補上 full 的早期檔案。
+        // 安全地再次驗證已解析的 envelope，亦相容 kind 標為 full 的 v1 envelope。
         if (kind !== undefined && kind !== 'full' && kind !== 'legacy-full') {
             invalid('schemaVersion 1 只支援 legacy-full 備份。');
         }
@@ -778,7 +781,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         invalid('舊版備份必須剛好包含一個 restore 檔與一個 replays 檔。');
     }
 
-    // 舊版較早出現的表本來就不存在，遷移成 v6 full 時以空表表示「來源沒有歷史」，
+    // 輸入格式未定義的表在遷移成 v6 full 時以空表表示「來源沒有歷史」，
     // 不猜測、更不從 snapshot/raw event 回填。兩張來源表完全不重疊，故不存在 merge 覆寫。
     const tables: BackupTables = {
         snapshot: restore.tables.snapshot ?? [],
@@ -802,6 +805,36 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
 
 export function countBackupRecords(tables: BackupTables): number {
     return TABLE_NAMES.reduce((count, name) => count + (tables[name]?.length ?? 0), 0);
+}
+
+/** 備份表全空＝全新安裝尚未擷取／還原。這種 envelope 不得寫檔，以免蓋掉資料夾裡的舊備份。 */
+export function isEmptyBackup(tables: BackupTables): boolean {
+    return countBackupRecords(tables) === 0;
+}
+
+/**
+ * 資料夾／下載用檔名。時間戳用**本地**年月日時分秒（不是 UTC），檔系統安全（無冒號）。
+ * 每次備份都是新檔：同一天不同時間不會互蓋；同一秒再備由 `seq` 加 `-2`、`-3`。
+ */
+export function backupFileName(exportedAt: number, seq = 1): string {
+    const d = new Date(exportedAt);
+    const p = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    return seq <= 1
+        ? `kanmusu-backup-${stamp}.json`
+        : `kanmusu-backup-${stamp}-${seq}.json`;
+}
+
+/** 在已佔用的檔名上往後加序號，直到找到空位。`taken` 為 true＝這個名字已經有檔。 */
+export async function unusedBackupFileName(
+    exportedAt: number,
+    taken: (name: string) => boolean | Promise<boolean>,
+): Promise<string> {
+    for (let seq = 1; seq <= 999; seq++) {
+        const name = backupFileName(exportedAt, seq);
+        if (!(await taken(name))) return name;
+    }
+    throw new Error('找不到可用的備份檔名。');
 }
 
 function hasRestoreRows(tables: BackupTables): boolean {

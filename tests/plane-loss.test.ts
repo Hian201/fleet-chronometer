@@ -1,8 +1,7 @@
-// 出擊途中的艦載機戰損（估算）回歸測試。
+// 出擊途中的艦載機戰損（估算）行為測試。
 //
-// 實機回報：出擊中船艦的搭載數不會隨戰鬥遞減，要回母港才更新。原因是遊戲的戰鬥封包
-// **只給整場合計損失機數**（api_stage1／api_stage2 的 api_f_lostcount），沒有任何逐格
-// 殘量欄位，而 api_onslot 先前只在 api_port/port 與 api_req_hokyu/charge 被更新。
+// 出擊中船艦的搭載數要到母港才由封包校正；戰鬥封包**只給整場合計損失機數**
+// （api_stage1／api_stage2 的 api_f_lostcount），沒有任何逐格殘量欄位。
 //
 // 故本檔鎖住的是「估算的行為契約」：
 //   ・可辨識搭載池足夠時，合計扣除量等於封包給的損失數（合計是封包事實，不容打折）
@@ -115,7 +114,7 @@ describe('出擊途中的艦載機戰損（估算）', () => {
 
     // 與燃彈同一個 pattern（pendingConsumption）：戰鬥封包只累積，結算才寫回。
     // **交戰途中的制空必須維持交戰當下的值** —— 打到一半就把機數扣掉，等於在戰鬥中
-    // 顯示一個「這場其實沒有用到」的制空值。別改回戰鬥封包當場扣。
+    // 戰鬥中的制空必須維持該場交戰開始時的值，不可在封包到達時先扣除估算損失。
     it('交戰途中不扣：搭載數與制空維持交戰當下的值，結算才更新', () => {
         const state = stateWithFleets([[{ mst: SHOUHOU, gears: [FIGHTER] }]]);
         sortie(state);
@@ -347,7 +346,7 @@ describe('熟練度過時旗標（alvStale）', () => {
 
     // ⚠️ 時機是本組的核心。日wiki 明載熟練度是**回港那一刻**依「出撃時の残数 vs
     // 帰投時の残数」結算的，不是每場戰鬥即時掉——所以出擊途中手上的 alv 還是對的，
-    // 標過時反而是報一個當下不成立的警示。別改回「一擊墜就標」。
+    // 標過時會把出擊途中仍有效的熟練度誤報為失效；單次擊墜不可觸發此標記。
     it('出擊途中不標過時：熟練度是回港才結算的', () => {
         const state = stateWithFleets([[{ mst: SHOUHOU, gears: [FIGHTER] }]]);
         sortie(state);
@@ -377,7 +376,7 @@ describe('熟練度過時旗標（alvStale）', () => {
         expect(state.alvStale).toBe(false);                   // 確定值，不是「不可考」
         // 熟練度歸零：制空只剩本體対空的部分（搭載 0 → 這一格完全不貢獻）
         expect(state.airPower(0)).toEqual({ min: 0, max: 0 });
-        // 補回艦載機後，熟練度確實是帯なし（沒有殘留舊的 >>）
+        // 補回艦載機後，熟練度確實是帯なし（不應保留 >> 標記）
         state.applyEvent('api_req_hokyu/charge', {
             api_ship: [{ api_id: 1, api_fuel: 15, api_bull: 15, api_onslot: [18] }],
             api_material: [],

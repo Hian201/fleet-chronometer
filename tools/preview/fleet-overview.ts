@@ -1,6 +1,6 @@
 // 艦隊全覽分區的**離線版面預覽產生器**（開發用，不進擴充 bundle）。
 //
-// 為什麼需要它：這次改版的核心是「縱向具名裝備清單＋每艘船折疊」的版面密度，
+// 為什麼需要它：艦隊全覽採用「縱向具名裝備清單＋每艘船折疊」的版面密度，
 // 只有真實資料（六艘滿編、五六格裝備）才看得出實際高度與換行狀況，同 sortie-log.ts
 // 的離線預覽動機。艦隊資料直接吃 samples/slot_to_port.json（真實封包，4 隊多數 6 艦
 // 滿編）；**基地航空隊沒有現成樣本**（見 CLAUDE.md 待辦，本專案尚未取得
@@ -29,7 +29,7 @@ setLang('zh-TW');
 state.applyEvent('api_start2/getData', master);
 
 // samples/slot_to_port.json 的全部 427 艦是 api_slot 皆為 -1 的「無裝備」快照（該樣本
-// 原本是為了驗證槽位/國籍篩選才取的，見 CLAUDE.md「鎮守府全船篩選」）——裝備清單版面
+// 該樣本用於驗證槽位／國籍篩選，見 CLAUDE.md「鎮守府全船篩選」——裝備清單版面
 // 因此需要另外注入幾組真實 master id 的裝備才看得出縱向清單的實際樣子（含超長全名
 // 的省略號、改修星、補強增設）。只動第1艦隊前兩個槽位的艦（用 deck_port 的實例 id
 // 反查，不能假設 api_ship 陣列順序＝deck 順序——兩者互不相干）。
@@ -73,7 +73,8 @@ state.applyEvent('api_get_member/base_air_corps', [
 // slot_item 事件每次都會清空重建整個裝備庫（state.ts 的 require_info/slot_item
 // 分支：`this.slotItems.clear()`），故艦娘裝備（90101-90104）與基地中隊裝備
 // （90001-90004）必須合在同一次呼叫，且要在下面 state.fleets()/airBases_() 之前——
-// 分兩次呼叫會讓後一次把前一次蓋掉（除錯用真封包踩過這個坑，別再分開呼叫）。
+// `api_get_member/slot_item` 會以整份清單重建裝備庫，故艦娘與基地中隊裝備必須同一次呼叫，
+// 以免後一次清單覆蓋前一次資料。
 state.applyEvent('api_get_member/slot_item', {
     api_slot_item: [
         // 361：現存最長全名的裝備，用來檢查 .fo-gear-name 的 ellipsis 是否正常截斷。
@@ -90,7 +91,7 @@ state.applyEvent('api_get_member/slot_item', {
 
 const fleetsAll = state.fleets();
 const basesAll = state.airBases_();
-// 顯示範圍以**海域**為單位（見 fleet-overview.ts 檔頭修正記錄 10），故海域名與
+// 顯示範圍以**海域**為單位，故海域名與
 // 基地數都以 areaId 為鍵。
 const areaIds = [...new Set(basesAll.map(b => b.areaId))].sort((a, b) => a - b);
 const areaLabels = new Map(areaIds.map(id => [id, airBaseAreaLabel(state, id)]));
@@ -100,7 +101,7 @@ const fleetsHtml = fleetsAll.map((f, i) => fleetHtml(f, i, state.fleetSummary(i,
 const lbasHtml = basesAll.map(b => baseHtml(b, areaLabels.get(b.areaId) ?? '')).join('');
 
 // 顯示範圍摺疊區塊：markup 與 render() 手寫的那份一致，僅供預覽外觀比對用
-// （這塊本身不是本次要驗的重點，重點是艦卡/裝備清單，故不透過額外 export 共用）。
+// （這塊只供預覽外觀比對，不透過額外 export 共用）。
 const scopeBody = `
     ${fleetsAll.map((f, i) => f.ships.length
         ? `<label class="eo-chip on" data-fleet="${i}"><input type="checkbox" checked>${t('ov.fleetN', { n: i + 1 })}</label>`

@@ -19,12 +19,11 @@ const MASTER_PATH = 'api_start2/getData';
 /**
  * 快照的重播順序＝**觀測時間順序**，不是固定的 path 順序。
  *
- * ⚠️ 曾經是固定順序，那是個真 bug（實機回報 2026-08-04：每次進遊戲，面板的基地航空隊
- * 都顯示補給前的機數）：每個 path 只留最新一筆快照，但**不同 path 的新舊互不相干**。
+ * ⚠️ 每個 path 只留最新一筆快照，但**不同 path 的新舊互不相干**；若依固定 path 順序套用，
+ * 較舊的快照可能覆蓋較新的基地航空隊機數：
  * `api_get_member/mapinfo` 與 `api_get_member/base_air_corps` 都會寫 `GameState.airBases`，
  * 玩家的實際操作順序是「開海域選擇（mapinfo）→ 開基地航空隊（base_air_corps）→ 補給」，
- * 於是 base_air_corps 比 mapinfo 新；固定順序卻把 mapinfo 排在後面，重播時用**較舊的**
- * mapinfo 覆蓋掉較新的 base_air_corps，補給後的機數每次啟動都被洗回去。
+ * 於是 base_air_corps 比 mapinfo 新；若 mapinfo 後套用，就會覆蓋較新的 base_air_corps。
  *
  * 以 `ts`（該筆快照來源事件的觀測時間）為主鍵、`eventId` 為次鍵，兩者皆缺才退回
  * SNAPSHOT_ORDER 的既定位置。

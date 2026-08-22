@@ -68,8 +68,8 @@ describe('解析（KC3Kai 匯出）', () => {
         expect(withYasen.map(b => b.node)).toEqual([53]);
     });
 
-    // ⚠️ 曾經誤判「重播 JSON 沒有結算資訊」——那是因為去找 `rank` 這個鍵，
-    // 而 KC3Kai logger 用的是 `rating`／`drop`／`mvp`／`hqEXP`／`baseEXP`。
+    // ⚠️ KC3Kai logger 用 `rating`／`drop`／`mvp`／`hqEXP`／`baseEXP` 表示結算資訊，
+    // 不使用 kcsapi 的 `rank` 鍵。
     it('KC3Kai 匯出帶完整結算：rating／drop／mvp／經驗值都要收', () => {
         const parsed = parseSortieImport(sample(), { shipName: mst => `#${mst}` });
         const boss = parsed.rows.find(r => r.node === 53 && r.kind === 'battle')!;

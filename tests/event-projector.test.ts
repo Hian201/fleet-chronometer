@@ -441,13 +441,13 @@ describe('EventProjector 寫入失敗傳播', () => {
 });
 
 // ── 基地空襲的真封包（samples/base-air-raid.json，2026-08-04 實機擷取） ──────────
-// CLAUDE.md 待辦 #1 的樣本。這一筆確認了三件先前只能 best-effort 讀的事：
+// 這筆樣本確認三項封包契約：
 //   ✅ 頂層 key 是 `api_destruction_battle`（掛在 api_req_map/next 上）
 //   ✅ `api_lost_kind` 確實存在（本樣本值＝4；各值語意仍未知，只有這一個樣本）
 //   ✅ 空襲的 `api_air_base_attack` 是**物件**（出擊時的陸航波次是陣列）——
 //      故 sortie-detail 的 lbasWaves() 只認陣列是對的，不可為了「相容」而放寬。
 // 節點類型 api_event_id=4／api_event_kind=6 亦與 map-node-kind 的 airRaid 對得上，
-// 且這是第一次由「封包本身帶 destruction_battle」獨立佐證那條對照（先前只有 KC3Kai desc）。
+// 且 `api_destruction_battle` 提供了獨立的封包佐證。
 describe('基地空襲的真封包歸檔', () => {
     it('projector 讀得出 seiku／lost_kind／節點類型，且標記為 raid', async () => {
         const raid = fixture<{ api: any }>('base-air-raid.json').api;
