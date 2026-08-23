@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const panelMain = readFileSync(new URL('../entrypoints/panel/main.ts', import.meta.url), 'utf8');
+const preview = readFileSync(new URL('../tools/preview/panel-sortie.ts', import.meta.url), 'utf8');
 const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
 
 describe('出擊面板的固定資訊密度', () => {
@@ -25,6 +26,16 @@ describe('出擊面板的固定資訊密度', () => {
     it('只有可驗證的 HP 斬殺期才使用 Final；一般量表數字維持主文字色', () => {
         expect(panelMain).toContain('gaugeBar(\n            remain,\n            gauge.requiredDefeatCount,\n            false,');
         expect(panelHtml).toMatch(/\.s-gauge-num strong\s*\{[^}]*color:\s*var\(--text\)/);
+    });
+
+    it('預覽的常態出擊場景不把 Final 當成固定量表狀態', () => {
+        expect(preview).not.toContain('finalGaugeHtml(500, 5500, 9.1)');
+        expect(preview).not.toContain('finalGaugeHtml(720, 5200, 14)');
+        expect(preview).not.toContain('finalGaugeHtml(600, 4000, 15)');
+        expect(preview).toContain('normalGaugeHtml(720, 5200, 14)');
+        expect(preview).toContain('normalGaugeHtml(600, 4000, 15)');
+        expect(preview).toContain('.pv-prop .pv-final-gauge.normal .pv-final-gauge-value strong { color: var(--text); }');
+        expect(preview).toContain('finalGaugeHtml(840, 4840, 18)');
     });
 
     it('敵我飛機戰損在結算後仍保留紅色減少數字', () => {

@@ -678,7 +678,7 @@ html, body {
   background: var(--brass);
   opacity: .86;
 }
-.pv-prop .pv-final-gauge.normal .pv-final-gauge-value strong { color: var(--sparkle); }
+.pv-prop .pv-final-gauge.normal .pv-final-gauge-value strong { color: var(--text); }
 
 .pv-prop .s-node {
   width: 16px;
@@ -2087,7 +2087,7 @@ const REFERENCE_MAIN_ENEMY_HTML = referenceEnemyHtml(REFERENCE_MAIN_ENEMY_NAMES,
 const REFERENCE_SORTIE_HTML = `<div class="sortie-container">
   <div class="s-header">
     <div class="s-map-id">E3<i>甲</i></div>
-    ${finalGaugeHtml(500, 5500, 9.1)}
+    ${normalGaugeHtml(500, 5500, 9.1)}
     <div class="s-nodes"><div class="s-node visited">R</div><div class="s-node visited">T</div><div class="s-node visited">V</div><div class="s-node visited">X</div>${sortieNodeHtml('Z', true, true)}</div>
     <div class="s-phase active">BOSS</div>
   </div>
@@ -2140,7 +2140,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2184,7 +2184,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2233,7 +2233,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2277,7 +2277,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2326,7 +2326,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">6-5</div>
-            ${finalGaugeHtml(600, 4000, 15)}
+            ${normalGaugeHtml(600, 4000, 15)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">C</div>
@@ -2356,7 +2356,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">6-5</div>
-            ${finalGaugeHtml(600, 4000, 15)}
+            ${normalGaugeHtml(600, 4000, 15)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">C</div>
@@ -2528,7 +2528,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2569,7 +2569,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2615,7 +2615,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2656,7 +2656,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2702,7 +2702,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2743,7 +2743,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2789,7 +2789,7 @@ const SCENES = [
         current: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
@@ -2830,7 +2830,7 @@ const SCENES = [
         proposed: `<div class="sortie-container">
           <div class="s-header">
             <div class="s-map-id">E3<i>甲</i></div>
-            ${finalGaugeHtml(720, 5200, 14)}
+            ${normalGaugeHtml(720, 5200, 14)}
             <div class="s-nodes">
               <div class="s-node visited">A</div>
               <div class="s-node visited">D</div>
