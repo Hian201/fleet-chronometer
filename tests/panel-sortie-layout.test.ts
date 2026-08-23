@@ -22,6 +22,21 @@ describe('出擊面板的固定資訊密度', () => {
         expect(sortieHeader).not.toContain('flex: 0 1 122px');
     });
 
+    it('只有可驗證的 HP 斬殺期才使用 Final；一般量表數字維持主文字色', () => {
+        expect(panelMain).toContain('gaugeBar(\n            remain,\n            gauge.requiredDefeatCount,\n            false,');
+        expect(panelHtml).toMatch(/\.s-gauge-num strong\s*\{[^}]*color:\s*var\(--text\)/);
+    });
+
+    it('敵我飛機戰損在結算後仍保留紅色減少數字', () => {
+        expect(panelMain).toContain('const planeCell = (v: { count: number; lost: number }) => `<b>${v.count}</b>${planeLost(v.lost)}`;');
+        expect(panelHtml).toMatch(/\.s-air-loss-cell i\s*\{[^}]*color:\s*var\(--dmg-major\)/);
+    });
+
+    it('陸航到着使用不裁字的專用標籤規則', () => {
+        expect(panelHtml).toMatch(/\.s-system-signal\.lbas \.s-system-label\s*\{[^}]*overflow:\s*visible/);
+        expect(panelHtml).toMatch(/\.s-system-signal\.lbas \.s-system-label\s*\{[^}]*text-overflow:\s*clip/);
+    });
+
     it('夜戰裝備列在尚未進入夜戰時仍顯示為未發動狀態', () => {
         expect(panelMain).toContain('const nightHtml = `<div class="s-night-effects"');
         expect(panelMain).not.toContain('const nightHtml = info.midnightFlag ?');

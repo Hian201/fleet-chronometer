@@ -3757,7 +3757,7 @@ export class GameState {
         if (id == null) return false;
         const g = this.mapGauges.get(id);
         if (!g || g.cleared || g.gaugeType !== 2 || g.nowHp <= 0
-            || g.maxHp <= 1 || g.maxHp === 9999) return false;
+            || g.nowHp >= g.maxHp || g.maxHp <= 1 || g.maxHp === 9999) return false;
         // **唯一不需要 Boss HP 的判定**：量表進入最終段後，對 boss 旗艦的傷害不會把它打到
         // 0，而是 floor 在 1（唯有實際沉沒 boss 旗艦才變 0＝通關，見「關卡進度」一節）。
         // 所以 nowHp===1 這個值本身就是「已在最終段」的封包事實——只要 boss 旗艦 HP > 1

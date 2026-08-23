@@ -2331,7 +2331,7 @@ const STRINGS: Record<Lang, Dict> = {
         'sortie.dropOwned': 'Already owned (matched by base form)',
         'sortie.detection': 'Detection',
         'sortie.detectionOk': 'OK',
-        'sortie.lbasArrived': 'LBAS arrived',
+        'sortie.lbasArrived': 'LBAS in',
         'sortie.searchSuccess': 'Found',
         'sortie.searchFailed': 'Missed',
         'sortie.searchSuccessTitle': 'Accuracy / evasion up',

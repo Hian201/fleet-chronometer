@@ -2430,7 +2430,7 @@
         }
 
         .s-gauge-num strong {
-            color: var(--sparkle);
+            color: var(--text);
             font-size: 10px;
             font-weight: 800;
         }
@@ -3649,6 +3649,13 @@
         .s-system-val { color: currentColor; font-size: 8.5px; font-weight: 650; }
         .s-system-signal.on { color: var(--sparkle); }
         .s-system-signal.on .s-system-label { color: var(--sparkle); font-weight: 650; }
+        /* 陸航到着／LBAS in 是固定狀態文案，不能被共用省略號裁成半個字。 */
+        .s-system-signal.lbas .s-system-label {
+            overflow: visible;
+            text-overflow: clip;
+            font-size: 8px;
+            letter-spacing: -.04em;
+        }
         .s-system-signal.off .s-system-glyph { opacity: .38; filter: grayscale(100%); }
         .s-system-signal.off .s-system-copy { color: var(--dim); }
         .s-system-signal:hover { z-index: 5; }

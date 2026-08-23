@@ -69,6 +69,12 @@ describe('斬殺期判定', () => {
         expect(stateAt(840, { cleared: true }).mapInFinalPhase()).toBe(false);
     });
 
+    it('滿量表即使殘量小於錯誤觀測到的 boss HP，也不會誤標斬殺期', () => {
+        const state = stateAt(MAX_HP);
+        state.mapBossHp.set(MAP_ID, MAX_HP + 1);
+        expect(state.mapInFinalPhase()).toBe(false);
+    });
+
     it('TP 量表不標成斬殺期', () => {
         expect(stateAt(840, { gaugeType: 3 }).mapInFinalPhase()).toBe(false);
     });

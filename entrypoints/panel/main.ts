@@ -999,15 +999,9 @@ function renderSortie() {
     }
     // 損失機數：>0 時以紅色 -N 顯示（例：-23）
     const planeLost = (lost: number) => lost > 0 ? `<i>−${lost}</i>` : '';
-    // 敵我方機數格。**這一節點打完之前顯示「出擊機數 -損失」（238 -23），結算後只留
-    // 殘存機數（215）**。
-    //   ・交戰中：要看的是這一場投入了多少、掉了多少。夜戰接續沒有航空戰，機數不會再變，
-    //     故整個節點期間都維持同一組數字，不中途改口。
-    //   ・結算後：`-損失` 已是打完的舊帳，殘存機數才是接下來要帶進下一個節點的東西，
-    //     再掛著損失只是雜訊。
-    // 不顯示 `殘存/出擊 -損失` 的三段式組合，避免交戰中把尚未結算的殘存數當成定局。
-    const planeCell = (v: { count: number; lost: number }) =>
-        info?.hasResult ? `<b>${v.count - v.lost}</b>` : `<b>${v.count}</b>${planeLost(v.lost)}`;
+    // 敵我方機數格一律保留本場的紅色損失數。結算後仍需能回看這一戰的代價，不能只剩
+    // 殘存數而失去戰損資訊；數值維持「出擊機數 − 損失」的同一語意。
+    const planeCell = (v: { count: number; lost: number }) => `<b>${v.count}</b>${planeLost(v.lost)}`;
     let html = '<div class="sortie-container">';
     // 標題列：海域編號 + 節點軌跡 + 狀態，合併為一行省高度。
     // 關卡進度使用 mapinfo 的兩種量表（見 state.ts MapGaugeView 註解）。
@@ -1045,13 +1039,13 @@ function renderSortie() {
         // 擊破數式（一般圖5番/EO）：量表隨擊破遞減，條子裡寫「剩餘擊破次數／需求次數」
         // （與 gaugeType 2 一致採剩餘語意，避免把已擊破數誤讀為剩餘數）
         const remain = Math.max(0, gauge.requiredDefeatCount - gauge.defeatCount);
-        // 剩最後 1 次 → 斬殺場提示（該次擊破即攻略）
-        const zansatsu = remain === 1;
-        const title = [
+        // 擊破數式沒有可驗證的 boss HP 斬殺線，剩最後一次也不能冒充「Final」。
+        gaugeHtml = gaugeBar(
+            remain,
+            gauge.requiredDefeatCount,
+            false,
             t('sortie.remainingHits', { n: remain, done: gauge.defeatCount, total: gauge.requiredDefeatCount }),
-            zansatsu ? t('sortie.zansatsuLabel') : '',
-        ].filter(Boolean).join('\n');
-        gaugeHtml = gaugeBar(remain, gauge.requiredDefeatCount, zansatsu, title);
+        );
     } else if ((gauge?.gaugeType === 2 || gauge?.gaugeType === 3) && gauge.maxHp > 0 && gauge.maxHp !== 9999) {
         // HP量表式(gaugeType 2, boss撃破)／TP輸送型(gaugeType 3)：條子裡一律寫封包實數
         // 「剩餘/最大」。剩餘次數是由 boss 旗艦 HP 推估的衍生值，改放 tooltip。
