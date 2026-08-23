@@ -1438,6 +1438,8 @@ export class GameState {
                 && Number.isSafeInteger(maxHp) && maxHp > 0) {
                 const mapId = area * 10 + mapNo;
                 const previous = this.mapGauges.get(mapId);
+                // 斬殺線依難度而異；切換難度後，舊難度的 Boss HP 不得沿用到新量表。
+                if (previous && previous.selectedRank !== rank) this.mapBossHp.delete(mapId);
                 this.mapGauges.set(mapId, {
                     cleared: previous?.cleared ?? false,
                     gaugeType: Number.isSafeInteger(gaugeType) && gaugeType >= 0
@@ -1751,6 +1753,12 @@ export class GameState {
                 for (const m of mapList) {
                     if (!m?.api_id) continue;
                     const ev = m.api_eventmap;
+                    const selectedRank = Number.isSafeInteger(ev?.api_selected_rank) && ev.api_selected_rank > 0
+                        ? ev.api_selected_rank
+                        : 0;
+                    const previous = this.mapGauges.get(m.api_id);
+                    // mapinfo 可能在換難度後先於出擊到達；同樣清掉舊難度的斬殺線。
+                    if (previous && previous.selectedRank !== selectedRank) this.mapBossHp.delete(m.api_id);
                     this.mapGauges.set(m.api_id, {
                         cleared: m.api_cleared === '1' || m.api_cleared === 1,
                         gaugeType: m.api_gauge_type ?? 0,
@@ -1758,9 +1766,7 @@ export class GameState {
                         requiredDefeatCount: m.api_required_defeat_count ?? 0,
                         nowHp: ev?.api_now_maphp ?? 0,
                         maxHp: ev?.api_max_maphp ?? 0,
-                        selectedRank: Number.isSafeInteger(ev?.api_selected_rank) && ev.api_selected_rank > 0
-                            ? ev.api_selected_rank
-                            : 0,
+                        selectedRank,
                     });
                 }
             }
@@ -3758,6 +3764,9 @@ export class GameState {
         const g = this.mapGauges.get(id);
         if (!g || g.cleared || g.gaugeType !== 2 || g.nowHp <= 0
             || g.nowHp >= g.maxHp || g.maxHp <= 1 || g.maxHp === 9999) return false;
+        // 活動圖的量表會依難度改變；沒有有效難度時不能把其他難度的歷史門檻套進來。
+        // 一般海域 selectedRank 固定為 0，仍可使用本機觀測到的 Boss HP。
+        if (Math.floor(id / 10) >= 10 && g.selectedRank <= 0) return false;
         // **唯一不需要 Boss HP 的判定**：量表進入最終段後，對 boss 旗艦的傷害不會把它打到
         // 0，而是 floor 在 1（唯有實際沉沒 boss 旗艦才變 0＝通關，見「關卡進度」一節）。
         // 所以 nowHp===1 這個值本身就是「已在最終段」的封包事實——只要 boss 旗艦 HP > 1

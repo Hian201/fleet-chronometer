@@ -10,7 +10,7 @@ const BOSS_HP = 880;
 const MAX_HP = 4_840;
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 
-function stateAt(nowHp: number, options: { cleared?: boolean; gaugeType?: number } = {}) {
+function stateAt(nowHp: number, options: { cleared?: boolean; gaugeType?: number; selectedRank?: number } = {}) {
     const state = new GameState();
     state.sortieInfo = { mapArea: 62, mapNo: 2, nodes: [] };
     state.mapGauges.set(MAP_ID, {
@@ -20,7 +20,7 @@ function stateAt(nowHp: number, options: { cleared?: boolean; gaugeType?: number
         requiredDefeatCount: 0,
         nowHp,
         maxHp: MAX_HP,
-        selectedRank: 4,
+        selectedRank: options.selectedRank ?? 4,
     });
     state.mapBossHp.set(MAP_ID, BOSS_HP);
     return state;
@@ -79,6 +79,18 @@ describe('斬殺期判定', () => {
         expect(stateAt(840, { gaugeType: 3 }).mapInFinalPhase()).toBe(false);
     });
 
+    it('活動圖沒有有效難度時不套用任何歷史斬殺線', () => {
+        expect(stateAt(840, { selectedRank: 0 }).mapInFinalPhase()).toBe(false);
+    });
+
+    it('切換活動難度時清除舊難度的 Boss HP 門檻', () => {
+        const state = stateAt(840);
+        state.applyEvent('api_req_map/select_eventmap_rank', {
+            api_maphp: { api_now_maphp: 4_840, api_max_maphp: 4_840, api_gauge_type: 2 },
+        }, { api_maparea_id: '62', api_map_no: '2', api_rank: '3' });
+        expect(state.mapBossHp.get(MAP_ID)).toBeUndefined();
+    });
+
     // 斬殺線的兩個材料（mapinfo 的量表值、出擊紀錄的 Boss HP）在母港就到齊，判定不得
     // 綁在「正在出擊中」——出擊一次的資源成本很高，把答案鎖在出擊後才給，等於在使用者
     // 要用它決定「該不該出擊」的當下藏起來。
@@ -111,8 +123,8 @@ describe('斬殺期判定', () => {
 });
 
 describe('從持久化出擊紀錄恢復 Boss HP', () => {
-    const replay = (sortieKey: number, node: number, hp: number, imported = false): ReplayRow => ({
-        sortieKey, ts: sortieKey, world: 62, mapnum: 2, diff: 4, combined: 0,
+    const replay = (sortieKey: number, node: number, hp: number, imported = false, diff = 4): ReplayRow => ({
+        sortieKey, ts: sortieKey, world: 62, mapnum: 2, diff, combined: 0,
         fleetnum: 1, fleet1: [], fleet2: [], imported,
         battles: [{ node, data: { api_e_maxhps: [hp] } }],
     });
@@ -140,6 +152,15 @@ describe('從持久化出擊紀錄恢復 Boss HP', () => {
         expect(maxObservedBossHp([malformed], [sortie(1, 32, true)], 62, 2)).toBe(null);
         malformed.battles[0].data = { api_e_maxhps: [12.5] };
         expect(maxObservedBossHp([malformed], [sortie(1, 32, true)], 62, 2)).toBe(null);
+    });
+
+    it('不同難度的 Boss HP 不會互相污染斬殺線', () => {
+        const rank4Replay = replay(1, 55, 920, false, 4);
+        const rank3Replay = replay(2, 55, 670, false, 3);
+        const rank4Sortie = sortie(1, 55, true);
+        const rank3Sortie = sortie(2, 55, true);
+        expect(maxObservedBossHp([rank4Replay, rank3Replay], [rank4Sortie, rank3Sortie], 62, 2, 4)).toBe(920);
+        expect(maxObservedBossHp([rank4Replay, rank3Replay], [rank4Sortie, rank3Sortie], 62, 2, 3)).toBe(670);
     });
 });
 

@@ -1694,11 +1694,11 @@ setNotice('loading', t('panel.loading'));
 // 出擊海域選單即送來），Boss HP 來自本機出擊紀錄。把補撈綁在「正在出擊中」會逼使用者
 // 花一次出擊的資源才看得到結果，而那次出擊本身正是要靠這條線去決定要不要打的。
 //
-// 一張圖只掃一次 DB（bossHpScanned）。**不可改用「mapBossHp 已有值就跳過」當快門**：
+// 一張圖／難度只掃一次 DB（bossHpScanned）。**不可改用「mapBossHp 已有值就跳過」當快門**：
 // 本次 session live 觀測到的可能是 HP 較低的旁支 Boss，紀錄裡的較高門檻仍必須併進來。
-const bossHpScanned = new Set<number>();
+const bossHpScanned = new Set<string>();
 
-async function restoreMapBossHp(mapArea: number, mapNo: number): Promise<boolean> {
+async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number): Promise<boolean> {
     const mapId = mapArea * 10 + mapNo;
     const before = state.mapBossHp.get(mapId);
     const map = `${mapArea}-${mapNo}`;
@@ -1713,7 +1713,7 @@ async function restoreMapBossHp(mapArea: number, mapNo: number): Promise<boolean
         await db.replays.where('world').equals(mapArea).each(row => {
             if (row.mapnum !== mapNo || row.imported) return;
             scanned++;
-            const hp = maxObservedBossHp([row], bossRows, mapArea, mapNo);
+            const hp = maxObservedBossHp([row], bossRows, mapArea, mapNo, diff);
             if (hp != null) state.observeMapBossHp(mapArea, mapNo, hp);
         });
     }
@@ -1727,14 +1727,15 @@ async function restoreMapBossHp(mapArea: number, mapNo: number): Promise<boolean
 // 那一刻），面板啟動時也跑一次。回傳是否有任一張圖的斬殺線改變，供呼叫端決定要不要重畫。
 async function restoreGaugeBossHp(): Promise<boolean> {
     let changed = false;
-    for (const { mapId, mapArea, mapNo } of state.unclearedHpGaugeMaps()) {
-        if (bossHpScanned.has(mapId)) continue;
-        bossHpScanned.add(mapId);
+    for (const { mapId, mapArea, mapNo, gauge } of state.unclearedHpGaugeMaps()) {
+        const key = `${mapId}:${gauge.selectedRank}`;
+        if (bossHpScanned.has(key)) continue;
+        bossHpScanned.add(key);
         try {
-            if (await restoreMapBossHp(mapArea, mapNo)) changed = true;
+            if (await restoreMapBossHp(mapArea, mapNo, gauge.selectedRank)) changed = true;
         } catch (e) {
-            bossHpScanned.delete(mapId);   // 失敗不算掃過，下次 mapinfo 再試
-            console.warn('[KC-Monitor] Boss HP 恢復失敗', mapId, e);
+            bossHpScanned.delete(key);   // 失敗不算掃過，下次 mapinfo 再試
+            console.warn('[KC-Monitor] Boss HP 恢復失敗', key, e);
         }
     }
     return changed;

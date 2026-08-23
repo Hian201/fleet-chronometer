@@ -12,14 +12,16 @@ function packetBossHp(packet: unknown): number | null {
  * 從仍保留的本機出擊紀錄恢復某海域已實戰觀測到的最高 Boss 旗艦 HP。
  *
  * 同一活動海域可能有多個 color=5 的 Boss 節點；較低 HP 的旁支 Boss 不得覆蓋已經
- * 觀測到的較高斬殺線。Boss 身分只採本機 sorties 的 `boss` 封包事實，外部匯入資料
- * 不拿來推導目前遊戲狀態。
+ * 觀測到的較高斬殺線。若指定難度，只取該難度的 replay，避免不同難度的 Boss HP
+ * 互相污染。Boss 身分只採本機 sorties 的 `boss` 封包事實，外部匯入資料不拿來推導
+ * 目前遊戲狀態。
  */
 export function maxObservedBossHp(
     replays: readonly ReplayRow[],
     sorties: readonly SortieLogRow[],
     mapArea: number,
     mapNo: number,
+    diff?: number,
 ): number | null {
     const map = `${mapArea}-${mapNo}`;
     const bossBattles = new Set(
@@ -29,7 +31,8 @@ export function maxObservedBossHp(
     );
     let max: number | null = null;
     for (const replay of replays) {
-        if (replay.imported || replay.world !== mapArea || replay.mapnum !== mapNo) continue;
+        if (replay.imported || replay.world !== mapArea || replay.mapnum !== mapNo
+            || (diff != null && replay.diff !== diff)) continue;
         for (const battle of replay.battles ?? []) {
             if (!bossBattles.has(`${replay.sortieKey}:${battle.node}`)) continue;
             const hp = packetBossHp(battle.data) ?? packetBossHp(battle.yasen);
