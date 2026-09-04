@@ -89,7 +89,9 @@ describe('編成版面', () => {
         expect(panelMain).toContain('PANEL_INNER_WIDTH = 420');
         expect(css).toMatch(/\.fleet\.fleet-seven\s*>\s*\.ship:has\(\.ship-body\)\s*\{[^}]*padding:\s*1px 6px/);
         expect(css).toMatch(/\.fleet\.fleet-seven\s*>\s*\.ship\s*>\s*\.ship-body\s*\{[^}]*row-gap:\s*2px/);
-        expect(panelMain).toContain("f.ships.length >= 7 ? ' fleet-seven' : ''");
+        expect(css).toMatch(/\.fleet\.fleet-seven\.fleet-seven-ops\s*>\s*\.ship\s*>\s*\.ship-body \.ship-vitals\s*\{[^}]*gap:\s*1px/);
+        expect(panelMain).toContain('f.ships.length >= 7');
+        expect(panelMain).toContain("fleet-seven${ops ? ' fleet-seven-ops' : ''}");
     });
 
     it('摘要兩列不 wrap：狀態全稱線框、制空／索敵為主、索敵 toFixed(1)', () => {
@@ -150,6 +152,22 @@ describe('編成版面', () => {
         expect(css).toMatch(/\.ship\.c \.c-hp\s*\{/);
         expect(css).toMatch(/\.ship\.c \.c-hp\s*\{[\s\S]*?justify-content:\s*flex-start/);
         expect(css).toMatch(/\.ship\.c \.c-hp \.hpbar\s*\{[\s\S]*?flex:\s*1 1 auto/);
+    });
+
+    it('聯合 compact 的五格空母裝備與搭載數維持同一列', () => {
+        expect(css).toMatch(/\.c-gear-slots\s*\{[^}]*flex-wrap:\s*nowrap/);
+        expect(css).toMatch(/\.c-gear-slots\s*\{[^}]*gap:\s*2px/);
+        expect(css).toMatch(/\.cg-item\s*\{[^}]*flex:\s*0 0 auto/);
+        expect(preview).toContain('const FIVE_SLOT_CARRIER');
+        expect(preview).toContain("cap: [20, 20, 44, 12, 3]");
+    });
+
+    it('七船功能艦的泊地修理／給糧狀態列納入離線安全線案例', () => {
+        expect(preview).toContain('SEVEN_FLEET_REPAIR_HTML');
+        expect(preview).toContain('SEVEN_FLEET_MORALE_HTML');
+        expect(preview).toContain('fleet-seven${ops ? \' fleet-seven-ops\' : \'\'}');
+        expect(preview).toContain('第一艘為明石改的七船編成');
+        expect(preview).toContain('第一艘為野埼改的七船編成');
     });
 
     it('單艦隊艦種、遠征與入渠標籤對齊目前 renderer 的 .ship-id 結構', () => {

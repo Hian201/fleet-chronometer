@@ -9,6 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { esc, gearIconHtml, matIconHtml } from '../../utils/html-escape';
+import { formationRects } from '../../utils/formation-geometry';
 import { setLang, t } from '../../utils/ui-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -192,8 +193,9 @@ const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven">
   ${SEVEN_SHIPS.map(s => shipRow(s)).join('')}
 </section>`;
 const SEVEN_TAIHA_SHIPS = SEVEN_SHIPS.map((s, i) => i === 0 ? { ...s, hp: 8 } : s);
-const sevenFleetHtml = (ships: Ship[]) => `<section class="fleet fleet-seven">
+const sevenFleetHtml = (ships: Ship[], ops = '') => `<section class="fleet fleet-seven${ops ? ' fleet-seven-ops' : ''}">
   <div class="fsummary">
+    ${ops ? `<div class="fs-ops">${ops}</div>` : ''}
     <div class="fs-metrics">
       <span class="fs-pri">${t('fleet.airPower')} <b>69~70</b></span>
       <span class="fs-pri">${t('fleet.scouting33')} <b>24.0</b> <select class="cn"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select></span>
@@ -243,10 +245,36 @@ const combinedFleetColumn = (ships: Ship[]) =>
 // 這組只用來重現使用者提供的連合艦隊版面；裝備槽沿用既有 fixture，避免把未提供的
 // 封包資料當成真實遊戲資料。艦名、等級、HP、cond 與總覽數字依參考畫面抄錄。
 const previewShip = (base: Ship, over: Partial<Ship>): Ship => ({ ...base, ...over, nameJa: String(over.name ?? base.name) });
+const SEVEN_FUNCTION_FLEET = (name: string, stype: string) => [
+    previewShip(SEVEN_SHIPS[0], { stype, name }),
+    ...SEVEN_SHIPS.slice(1),
+];
+const SEVEN_FLEET_REPAIR_HTML = sevenFleetHtml(
+    SEVEN_FUNCTION_FLEET('明石改', 'AR'),
+    '<span class="fs-tick repair-state"><span class="badge-tag repair">泊地修理 6艦</span></span>',
+);
+const SEVEN_FLEET_MORALE_HTML = sevenFleetHtml(
+    SEVEN_FUNCTION_FLEET('野埼改', 'AO'),
+    '<span class="fs-tick repair-state"><span class="badge-tag morale">給糧 6艦</span></span>',
+);
+// 五格空母的搭載數是 compact 裝備列最容易觸發換行的案例；這是離線版面 fixture，
+// 不是對任何真實艦娘裝備狀態的推定。
+const FIVE_SLOT_CARRIER = previewShip(SEVEN_SHIPS[2], {
+    stype: 'CV', name: '加賀改二', lv: 99, hp: 98, maxhp: 98,
+    gears: [
+        { name: '艦載機', short: '戰', cat: 'c-ftr', icon: 9, count: 20, countMax: 20 },
+        { name: '艦載機', short: '戰', cat: 'c-ftr', icon: 9, count: 20, countMax: 20 },
+        { name: '艦載機', short: '爆', cat: 'c-db', icon: 10, count: 44, countMax: 44 },
+        { name: '艦載機', short: '攻', cat: 'c-tb', icon: 11, count: 12, countMax: 12 },
+        null,
+    ],
+    cap: [20, 20, 44, 12, 3],
+    ex: 'empty',
+});
 const COMBINED_FIRST_SHIPS: Ship[] = [
     previewShip(SEVEN_SHIPS[0], { stype: 'BBV', name: '大和改二重', lv: 173, hp: 107, maxhp: 107, cond: 100 }),
     previewShip(SEVEN_SHIPS[1], { stype: 'BB', name: '武蔵改二', lv: 99, hp: 99, maxhp: 99, cond: 49 }),
-    previewShip(SEVEN_SHIPS[2], { stype: 'CV', name: '胡蝶改', lv: 99, hp: 69, maxhp: 69, cond: 49 }),
+    FIVE_SLOT_CARRIER,
     previewShip(SEVEN_SHIPS[3], { stype: 'CV', name: '無畏改', lv: 99, hp: 69, maxhp: 69, cond: 49 }),
     previewShip(SEVEN_SHIPS[4], { stype: 'CVL', name: '隼鷹改二', lv: 99, hp: 55, maxhp: 55, cond: 54 }),
     previewShip(SEVEN_SHIPS[5], { stype: 'CL', name: '多摩改二', lv: 99, hp: 46, maxhp: 46, cond: 49 }),
@@ -274,18 +302,19 @@ const NAV_HTML = `<button type="button">1</button><button type="button">2</butto
 
 // 陣形圖稿：只在離線預覽內聯，避免把外部工具的 PNG 資產帶進正式 bundle。
 type FormationSpec = { id: number; label: string; group: string; geometry: string };
-const formationBlocks = (points: Array<[number, number]>, width = 6, height = 6) =>
-    points.map(([x, y]) => `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="1" />`).join('');
+const formationBlocks = (id: number, width = 6, height = 6) =>
+    formationRects(id).map(([x, y]) => `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="1" />`).join('');
 const FORMATIONS: FormationSpec[] = [
-    { id: 1, label: '單縱陣', group: '單艦隊／遊擊', geometry: formationBlocks([[28, 5], [28, 14], [28, 23], [28, 31], [28, 40], [28, 49]]) },
-    { id: 2, label: '複縱陣', group: '單艦隊／遊擊', geometry: formationBlocks([[20, 11], [36, 11], [20, 27], [36, 27], [20, 43], [36, 43]]) },
-    { id: 3, label: '輪形陣', group: '單艦隊／遊擊', geometry: formationBlocks([[28, 8], [28, 21], [28, 34], [28, 46], [9, 27], [47, 27]]) },
-    { id: 4, label: '梯形陣', group: '單艦隊／遊擊', geometry: formationBlocks([[42, 11], [36, 18], [30, 24], [24, 30], [18, 36], [11, 42]]) },
-    { id: 5, label: '單橫陣', group: '單艦隊／遊擊', geometry: formationBlocks([[5, 27], [14, 27], [23, 27], [32, 27], [40, 27], [49, 27]]) },
-    { id: 11, label: '第一警戒', group: '連合艦隊', geometry: formationBlocks([[7, 23], [7, 33], [18, 14], [18, 23], [18, 33], [18, 42], [29, 28], [35, 10], [35, 46], [43, 19], [43, 37], [49, 28]]) },
-    { id: 12, label: '第二警戒', group: '連合艦隊', geometry: formationBlocks([[7, 24], [7, 34], [15, 24], [15, 34], [23, 24], [23, 34], [31, 24], [31, 34], [39, 29], [47, 19], [47, 29], [47, 39]]) },
-    { id: 13, label: '第三警戒', group: '連合艦隊', geometry: formationBlocks([[6, 29], [19, 26], [19, 32], [20, 17], [20, 41], [27, 26], [27, 32], [34, 17], [34, 41], [35, 26], [35, 32], [48, 29]]) },
-    { id: 14, label: '第四警戒', group: '連合艦隊', geometry: formationBlocks([[7, 24], [7, 34], [15, 24], [15, 34], [21, 29], [29, 29], [35, 24], [35, 34], [42, 29], [43, 21], [43, 37], [50, 29]]) },
+    { id: 1, label: '單縱陣', group: '單艦隊／遊擊', geometry: formationBlocks(1) },
+    { id: 2, label: '複縱陣', group: '單艦隊／遊擊', geometry: formationBlocks(2) },
+    { id: 3, label: '輪形陣', group: '單艦隊／遊擊', geometry: formationBlocks(3) },
+    { id: 4, label: '梯形陣', group: '單艦隊／遊擊', geometry: formationBlocks(4) },
+    { id: 5, label: '單橫陣', group: '單艦隊／遊擊', geometry: formationBlocks(5) },
+    { id: 6, label: '警戒陣', group: '單艦隊／遊擊', geometry: formationBlocks(6) },
+    { id: 11, label: '第一警戒', group: '連合艦隊', geometry: formationBlocks(11) },
+    { id: 12, label: '第二警戒', group: '連合艦隊', geometry: formationBlocks(12) },
+    { id: 13, label: '第三警戒', group: '連合艦隊', geometry: formationBlocks(13) },
+    { id: 14, label: '第四警戒', group: '連合艦隊', geometry: formationBlocks(14) },
 ];
 
 const formationSpec = (id: number) => FORMATIONS.find(f => f.id === id) ?? FORMATIONS[0];
@@ -328,13 +357,17 @@ const BOSS_NODE_SVG = `<svg class="s-boss-node-svg" viewBox="0 0 100 120" preser
   <text class="s-boss-letter" x="50" y="86" text-anchor="middle">Z</text>
 </svg>`;
 
-const bossNodeHtml = (letter: string, visited = false) => {
+const bossNodeHtml = (letter: string, visited = false, current = false) => {
     const svg = BOSS_NODE_SVG.replace('>Z<', `>${esc(letter)}<`);
-    return `<div class="s-node boss${visited ? ' visited' : ''}">${svg}</div>`;
+    return `<div class="s-node boss${visited ? ' visited' : ''}${current ? ' current' : ''}">${svg}</div>`;
 };
 
-const sortieNodeHtml = (letter: string, visited = false, isBoss = false) =>
-    isBoss ? bossNodeHtml(letter, visited) : `<div class="s-node${visited ? ' visited' : ''}">${esc(letter)}</div>`;
+type PreviewNodeKind = 'battle' | 'no-battle' | 'branch';
+const sortieNodeHtml = (letter: string, visited = false, isBoss = false, kind: PreviewNodeKind = 'battle', current = false) => {
+    const stateClass = kind === 'no-battle' ? ' no-battle' : kind === 'branch' ? ' branch' : '';
+    if (isBoss) return bossNodeHtml(letter, visited, current);
+    return `<div class="s-node${visited ? ' visited' : ''}${stateClass}${current ? ' current' : ''}">${esc(letter)}</div>`;
+};
 
 type TacticalSupportKind = 'air' | 'shell' | 'torpedo' | 'asw';
 type SupportShipVariant = 'north-carolina' | 'north-carolina-half' | 'yamato';
@@ -376,7 +409,7 @@ const lbasAircraftIconHtml = () =>
     `<span class="s-system-glyph lbas" title="基地航空隊"><img class="lbas-aircraft-raster" src="${tacticalIcon('b25-lbas-support.png')}" alt="基地航空隊" /></span>`;
 
 const aaciGunIconHtml = () =>
-    `<span class="s-system-glyph aaci" title="對空 CI"><img class="aaci-gun-raster" src="${tacticalIcon('bofors-40mm-aaci-mirrored.png')}" alt="對空 CI" /></span>`;
+    `<span class="s-system-glyph aaci"><img class="aaci-gun-raster" src="${tacticalIcon('bofors-40mm-aaci-mirrored.png')}" alt="對空 CI" /></span>`;
 
 const searchRadarIconHtml = () =>
     `<svg class="s-system-glyph search" viewBox="0 0 24 24" role="img" aria-label="索敵雷達" focusable="false">
@@ -423,31 +456,11 @@ const friendlyFleetIconHtml = (variant: FriendlyFleetVariant = 'anchor') => {
 };
 
 const sakuraAnchorSvg = (styleOrIsNew: 'bloom' | 'halo' | 'plain' | boolean = 'bloom', state: 'new' | 'owned' = 'new') => {
-    const style = typeof styleOrIsNew === 'boolean' ? 'bloom' : styleOrIsNew;
     const actualState = typeof styleOrIsNew === 'boolean' ? (styleOrIsNew ? 'new' : 'owned') : state;
     const isNew = actualState === 'new';
-    return `<svg class="pv-sakura-anchor ${style} ${actualState}" viewBox="0 0 48 48" role="img" aria-label="${isNew ? '新掉落櫻錨' : '已有船櫻錨'}" focusable="false">
-  ${style === 'halo' && isNew ? '<circle class="sakura-halo" cx="24" cy="24" r="20" />' : ''}
-  <g class="anchor-shape" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-    <path class="anchor-ring" d="M25.5 10.15c-3.25 1.15-5.8-1.85-4.55-4.75 1.05-2.45 4.62-2.6 5.85-.35 1.06 1.96-.42 4.68-2.55 4.12" stroke-width="2.65" />
-    <path class="anchor-stock" d="M12.6 13.3h22.8" stroke-width="4.05" />
-    <path class="anchor-stock-band" d="M15.2 11.35v3.9M18.3 11.35v3.9M29.7 11.35v3.9M32.8 11.35v3.9" stroke-width="1.05" stroke-linecap="butt" />
-    <path class="anchor-shank" d="M22.15 14.55h3.7v19.25h-3.7z" />
-    <path class="anchor-arms" d="M24 40c-9.8-.2-16.6-5.5-18.2-15.9l4.4 2.6c2.45 5.5 7.25 8.7 13.8 9zM24 40c9.8-.2 16.6-5.5 18.2-15.9l-4.4 2.6c-2.45 5.5-7.25 8.7-13.8 9z" />
-    <path class="anchor-crown" d="M19.1 32.8h9.8l-1.25 4.65L24 43.35l-3.65-5.9z" />
-    <path class="anchor-fluke" d="M6.8 22.8 5.2 31.2 13.8 27.2ZM41.2 22.8 34.2 27.2 42.8 31.2Z" />
-  </g>
-  <g class="sakura-flower" transform="translate(24 25)">
-    <path class="sakura-petal" d="M0 0C-2.9-1.15-5.15-4.35-4.5-7.35-4-9.15-2.65-10.2-1.4-10.1L0-8 1.4-10.1C2.65-10.2 4-9.15 4.5-7.35 5.15-4.35 2.9-1.15 0 0Z" transform="rotate(0)" />
-    <path class="sakura-petal" d="M0 0C-2.9-1.15-5.15-4.35-4.5-7.35-4-9.15-2.65-10.2-1.4-10.1L0-8 1.4-10.1C2.65-10.2 4-9.15 4.5-7.35 5.15-4.35 2.9-1.15 0 0Z" transform="rotate(72)" />
-    <path class="sakura-petal" d="M0 0C-2.9-1.15-5.15-4.35-4.5-7.35-4-9.15-2.65-10.2-1.4-10.1L0-8 1.4-10.1C2.65-10.2 4-9.15 4.5-7.35 5.15-4.35 2.9-1.15 0 0Z" transform="rotate(144)" />
-    <path class="sakura-petal" d="M0 0C-2.9-1.15-5.15-4.35-4.5-7.35-4-9.15-2.65-10.2-1.4-10.1L0-8 1.4-10.1C2.65-10.2 4-9.15 4.5-7.35 5.15-4.35 2.9-1.15 0 0Z" transform="rotate(216)" />
-    <path class="sakura-petal" d="M0 0C-2.9-1.15-5.15-4.35-4.5-7.35-4-9.15-2.65-10.2-1.4-10.1L0-8 1.4-10.1C2.65-10.2 4-9.15 4.5-7.35 5.15-4.35 2.9-1.15 0 0Z" transform="rotate(288)" />
-    <circle class="sakura-center" cx="0" cy="0" r="2.45" />
-  </g>
-  ${style === 'bloom' && isNew ? '<path class="sakura-spark" d="M39 8v5M36.5 10.5h5M9 9v3M7.5 10.5h3" />' : ''}
-  ${style === 'plain' && isNew ? '<path class="sakura-corner" d="M39 8v5M36.5 10.5h5" />' : ''}
-</svg>`;
+    const label = isNew ? '新掉落櫻錨' : '已有船櫻錨';
+    const file = isNew ? 'sakura-anchor-new.png' : 'sakura-anchor-owned.png';
+    return `<img class="pv-sakura-anchor ${actualState}" src="${tacticalIcon(file)}" alt="${label}" draggable="false" />`;
 };
 
 const panelDropChip = (name: string, isNewOrState: boolean | 'new' | 'owned' = true) => {
@@ -478,12 +491,12 @@ const nightEffectBadge = (kind: NightEffectKind, state: NightEffectState) => {
 };
 
 const nightEntryHtml = (state: NightEntryState, title = '') => {
-    if (state === 'none') return '';
     const moonImg = `<img class="s-night-moon" src="${tacticalIcon('brass-crescent.png')}" alt="" aria-hidden="true" />`;
-    const safeTitle = title || (state === 'main' ? '夜戰進入：主隊' : state === 'escort' ? '夜戰進入：隨伴艦隊' : state === 'available' ? '夜戰突入可能' : '無夜戰');
+    const unavailable = state === 'none';
+    const safeTitle = title || (state === 'main' ? '夜戰進入：主隊' : state === 'escort' ? '夜戰進入：隨伴艦隊' : state === 'available' ? '夜戰突入可能' : '本節點沒有夜戰；圖示維持暗色');
     const escortActive = state === 'escort';
     const mainActive = state === 'main';
-    const groupClass = state === 'available' ? ' unknown' : '';
+    const groupClass = `${state === 'available' || unavailable ? ' unknown' : ''}${unavailable ? ' unavailable' : ''}`;
     const groupLabel = state === 'available' ? `${safeTitle}；目標隊伍未確定` : safeTitle;
     return `<span class="s-night-entry-group${groupClass}" role="group" aria-label="${esc(groupLabel)}" title="${esc(safeTitle)}">
       <span class="s-night-entry-moon" aria-hidden="true">${moonImg}</span>
@@ -500,14 +513,18 @@ const nightEffectsHtml = (
     title = '',
     friendlyState: 'on' | 'off' | 'warn' | 'predicted' = 'off',
     friendlyTitle = '友軍艦隊狀態',
+    friendlyShips: string[] = [],
 ) => `<div class="s-night-effects${entry === 'main' || entry === 'escort' ? ' combined' : ''}" aria-label="夜戰裝備與友軍狀態">
   <div class="s-night-equipment-list">
     ${nightEffectBadge('searchlight', effects.searchlight)}
     ${nightEffectBadge('night-contact', effects['night-contact'])}
     ${nightEffectBadge('star-shell', effects['star-shell'])}
-    <span class="s-night-friendly ${friendlyState}" title="${esc(friendlyTitle)}">${friendlyFleetIconHtml('anchor')}</span>
+    <span class="s-night-friendly ${friendlyState}" tabindex="0" role="img" aria-label="${esc(friendlyTitle)}" title="${esc(friendlyTitle)}">
+      ${friendlyFleetIconHtml('anchor')}
+      ${friendlyShips.length ? `<span class="s-friendly-hover" aria-hidden="true">${friendlyShips.map(ship => `<span>${esc(ship)}</span>`).join('')}</span>` : ''}
+    </span>
   </div>
-  ${entry !== 'none' ? nightEntryHtml(entry, title) : ''}
+  ${nightEntryHtml(entry, title)}
 </div>`;
 
 const systemSignal = (
@@ -533,8 +550,9 @@ const systemSignal = (
     const valueHtml = value ? `<b class="s-system-val">${esc(value)}</b>` : '';
     const hoverBadge = hoverHtml ? `<span class="s-system-hover" aria-hidden="true">${hoverHtml}</span>` : '';
     const copyHtml = kind === 'contact' ? '' : `<span class="s-system-copy"><span class="s-system-label">${esc(label)}</span>${valueHtml}</span>`;
-    const signalTitle = kind === 'contact' ? '' : title;
-    return `<div class="s-system-signal ${kind} ${state}" title="${esc(signalTitle)}">
+    const signalTitle = kind === 'contact' || kind === 'aaci' ? '' : title;
+    const titleAttr = signalTitle ? ` title="${esc(signalTitle)}"` : '';
+    return `<div class="s-system-signal ${kind} ${state}"${titleAttr}>
       ${glyph}
       ${copyHtml}
       ${hoverBadge}
@@ -652,6 +670,17 @@ html, body {
 .pv-prop .s-header-right { display: none; }
 .pv-prop .s-map-id { border-radius: 2px; padding: 2px 4px; }
 .pv-prop .s-gauge { flex: 0 0 auto; }
+.pv-prop .s-nodes {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
+  gap: 2px;
+  /* 目前節點的藍綠／紅色光暈不能被容器左緣吃掉；內縮只佔節點列
+     自己的可用空間，不會把量表或後續戰鬥欄位往外推。 */
+  padding-inline: 4px;
+  box-sizing: border-box;
+}
 
 .pv-prop .pv-final-gauge {
   display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; min-width: 0;
@@ -776,6 +805,29 @@ html, body {
   background: #8b0000;
   box-shadow: 0 0 4px rgba(255, 0, 0, .38);
 }
+.pv-prop .s-node:not(.boss).no-battle::before {
+  border-color: #5aaecb;
+  background: #16465f;
+  box-shadow: 0 0 4px rgba(77, 180, 204, .42);
+}
+.pv-prop .s-node:not(.boss).branch {
+  color: #18232d;
+}
+.pv-prop .s-node:not(.boss).branch::before {
+  border-color: #f0f1e8;
+  background: #f0f1e8;
+  box-shadow: 0 0 4px rgba(235, 239, 232, .34);
+}
+.pv-prop .s-node:not(.boss).current::before {
+  box-shadow:
+    0 0 0 1px rgba(102, 218, 201, .84),
+    0 0 8px 2px rgba(69, 188, 199, .58);
+}
+.pv-prop .s-node.boss.current {
+  filter:
+    drop-shadow(0 0 3px rgba(102, 218, 201, .84))
+    drop-shadow(0 0 8px rgba(69, 188, 199, .58));
+}
 
 /* ── 戰鬥核心列（左右平衡 B：密度補償與同高底板）── */
 .pv-prop .s-battle-row {
@@ -800,7 +852,7 @@ html, body {
   padding: 12px 7px 4px;
   align-self: stretch;
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border: 0;
   border-radius: 4px;
   background: color-mix(in srgb, var(--panel) 32%, transparent);
   min-width: 0;
@@ -840,7 +892,7 @@ html, body {
   grid-template-rows: minmax(0, 1fr);
 }
 .pv-prop .s-efleet-body.single { grid-template-columns: 1fr; }
-.pv-prop .s-ecol-body { display: flex; flex-direction: column; justify-content: flex-start; gap: 0; height: 100%; min-height: 0; min-width: 0; }
+.pv-prop .s-ecol-body { display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; height: 100%; min-height: 0; min-width: 0; }
 .pv-prop .s-ecol-h {
   min-height: 15px;
   box-sizing: border-box;
@@ -852,12 +904,13 @@ html, body {
 
 .pv-prop .s-echip {
   display: flex;
-  flex: 1 1 0;
+  flex: 0 0 25px;
   flex-direction: column;
   justify-content: space-between;
   box-sizing: border-box;
   padding: 2px 5px;
-  min-height: 0;
+  min-height: 25px;
+  height: 25px;
   background: var(--panel);
   border: .5px solid var(--line);
   border-radius: 4px;
@@ -865,7 +918,7 @@ html, body {
 .pv-prop .s-echip-name {
   display: block;
   font-size: 10.5px;
-  line-height: 1.35;
+  line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -945,10 +998,11 @@ html, body {
 
 .pv-prop .s-rank-result {
   display: grid;
-  grid-template-columns: 29px auto;
+  /* 長 rank 名稱保留完整；先縮小圖示欄與間距，不能用省略號取代結果文字。 */
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 2px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -957,11 +1011,11 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 18px;
+  height: 21px;
   box-sizing: border-box;
   font-family: Georgia, "Times New Roman", "Noto Serif TC", serif;
-  font-size: 28px;
+  font-size: 21px;
   font-style: italic;
   font-weight: 900;
   line-height: 1;
@@ -981,10 +1035,13 @@ html, body {
 .pv-prop .s-rank-grade.predicted { opacity: .72; filter: saturate(.72); }
 .pv-prop .s-rank-name {
   min-width: 0;
+  overflow: hidden;
   color: var(--text);
-  font-size: 10.5px;
+  font-size: 9.5px;
+  letter-spacing: -.03em;
   font-weight: 650;
   line-height: 1.05;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1032,13 +1089,15 @@ html, body {
 }
 .pv-prop .s-air-loss-grid {
   display: grid;
-  grid-template-rows: 9px repeat(2, 14px);
+  /* 預覽必須沿用正式版的列高與垂直置中，避免點開大破警示後
+     紅框上緣壓住「我方／敵方」標題。 */
+  grid-template-rows: 9px repeat(2, 13px);
   gap: 1px 0;
   height: 100%;
   min-height: 0;
   padding: 0;
   box-sizing: border-box;
-  align-content: start;
+  align-content: center;
 }
 .pv-prop .s-air-loss-head,
 .pv-prop .s-air-loss-row {
@@ -1138,6 +1197,7 @@ html, body {
   box-sizing: border-box;
 }
 .pv-prop .s-night-friendly {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -1149,12 +1209,40 @@ html, body {
   color: var(--dim);
   line-height: 1;
   white-space: nowrap;
+  cursor: help;
+  outline: none;
 }
 .pv-prop .s-night-friendly.on { color: var(--sparkle); }
 .pv-prop .s-night-friendly.off .s-system-glyph { opacity: .38; }
 .pv-prop .s-night-friendly.warn { color: var(--dmg-mid); }
 .pv-prop .s-night-friendly.predicted { color: var(--text); }
 .pv-prop .s-night-friendly .s-system-glyph { width: 20px; height: 18px; flex: 0 0 20px; }
+.pv-prop .s-night-friendly .s-friendly-hover {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  z-index: 6;
+  display: none;
+  min-width: max-content;
+  max-width: calc(100vw - 16px);
+  padding: 3px 6px;
+  transform: translateX(-50%);
+  border: 1px solid #9b9b9b;
+  border-radius: 3px;
+  background: #f4f4f4;
+  color: #171717;
+  box-shadow: 0 2px 6px rgba(0,0,0,.28);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.pv-prop .s-night-friendly .s-friendly-hover > span { display: block; }
+.pv-prop .s-night-friendly:hover .s-friendly-hover,
+.pv-prop .s-night-friendly:focus-visible .s-friendly-hover { display: block; }
+.pv-prop .s-night-friendly:focus-visible { outline: 1px solid var(--sparkle); outline-offset: 1px; }
 .pv-prop .s-night-equipment-list {
   display: flex;
   align-items: center;
@@ -1247,6 +1335,7 @@ html, body {
 .pv-prop .s-night-entry-cell.active { color: var(--sparkle); font-weight: 550; }
 .pv-prop .s-night-entry-cell.active i { background: currentColor; opacity: 1; }
 .pv-prop .s-night-entry-group.unknown .s-night-entry-cell { opacity: .82; }
+.pv-prop .s-night-entry-group.unavailable { opacity: .34; }
 .pv-prop .s-night-entry-label { min-width: 0; overflow: visible; white-space: nowrap; font-size: 0; }
 .pv-prop .s-night-entry-label::before { content: attr(data-label-zh); font-size: 8px; }
 
@@ -1262,16 +1351,24 @@ html, body {
   margin-bottom: 0;
   border-top: 0;
 }
+.pv-prop .s-action-rail.with-system > .s-system-rail,
+.pv-prop .s-action-rail.with-system > .s-drop-slot {
+  min-width: 0;
+  max-width: 100%;
+}
+.pv-prop .s-action-rail.with-system > .s-system-rail { grid-column: 1; }
+.pv-prop .s-action-rail.with-system > .s-drop-slot { grid-column: 2; }
 .pv-prop .s-action-rail.with-system > .s-system-rail {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(35px, 1fr));
   justify-content: center;
-  column-gap: 4px;
+  column-gap: 2px;
   height: 35px;
   min-height: 35px;
   border: 0;
-  padding: 0;
+  /* Keep the last AA-CI cell inside the left module before the drop slot. */
+  padding: 0 8px 0 0;
   box-sizing: border-box;
 }
 .pv-app .sortie-combined-fleet {
@@ -1337,12 +1434,29 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pv-prop .s-system-signal.support .s-system-label,
+.pv-prop .s-system-signal.lbas .s-system-label {
+  overflow: visible;
+  text-overflow: clip;
+  letter-spacing: -.04em;
+}
+.pv-prop .s-system-signal.aaci .s-system-label,
+.pv-prop .s-system-signal.aaci .s-system-val {
+  overflow: visible;
+  text-overflow: clip;
+  letter-spacing: -.06em;
+  font-size: 7.5px;
+}
+.pv-prop .s-system-signal.aaci {
+  padding-inline-end: 6px;
+  box-sizing: border-box;
+}
 .pv-prop .s-system-copy b,
 .pv-prop .s-system-copy .s-system-val {
   color: currentColor;
   font-family: inherit;
   font-size: 8.5px;
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -1403,7 +1517,7 @@ html, body {
 }
 .pv-prop .s-system-signal.on .s-system-label {
   color: var(--sparkle);
-  font-weight: 600;
+  font-weight: 500;
   overflow: visible;
   text-overflow: clip;
   white-space: nowrap;
@@ -1411,12 +1525,12 @@ html, body {
 .pv-prop .s-system-signal.on .s-system-copy b,
 .pv-prop .s-system-signal.on .s-system-copy .s-system-val {
   color: var(--sparkle);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .pv-prop .s-system-signal.warn .s-system-label {
   color: var(--dmg-mid);
-  font-weight: 600;
+  font-weight: 500;
   overflow: visible;
   text-overflow: clip;
   white-space: nowrap;
@@ -1424,7 +1538,7 @@ html, body {
 .pv-prop .s-system-signal.warn .s-system-copy b,
 .pv-prop .s-system-signal.warn .s-system-copy .s-system-val {
   color: var(--dmg-mid);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .pv-prop .s-system-signal:hover,
@@ -1452,8 +1566,24 @@ html, body {
 }
 .pv-prop .s-system-signal:hover .s-system-hover,
 .pv-prop .s-system-signal:focus-within .s-system-hover { display: inline-flex; align-items: baseline; gap: 4px; }
+.pv-prop .s-system-signal.aaci .s-system-hover {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  white-space: nowrap;
+}
 .pv-prop .s-system-hover b { color: #171717; font-size: 9px; font-weight: 600; font-family: inherit; font-variant-numeric: tabular-nums; }
 .pv-prop .s-system-hover i { color: var(--dmg-major); font-size: 9px; font-style: normal; font-weight: 600; font-family: inherit; font-variant-numeric: tabular-nums; }
+.pv-prop .s-system-signal.aaci .s-system-hover {
+  min-width: 0;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.pv-prop .s-system-signal.aaci .s-system-hover > span { display: block; }
+.pv-prop .s-system-signal.aaci .s-aaci-gear { padding-left: 4px; }
 
 .pv-prop .s-system-glyph .support-ship-raster,
 .pv-prop .s-system-glyph .support-torpedo-raster,
@@ -1588,14 +1718,26 @@ html, body {
   height: 35px;
   min-height: 35px;
   padding-inline: 5px;
-  border: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+  border: 0;
   border-radius: 4px;
   background: color-mix(in srgb, var(--panel) 30%, transparent);
   box-shadow: none;
   justify-content: center;
 }
 .pv-prop .s-action-rail.with-system .s-drop-slot.empty {
-  display: none;
+  display: flex;
+  height: 35px;
+  min-height: 35px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel) 30%, transparent);
+  color: var(--dim);
+  justify-content: center;
+  align-items: center;
+  line-height: 1;
+  letter-spacing: 0;
+}
 }
 .pv-prop .sakura-drop {
   display: inline-flex;
@@ -1624,13 +1766,13 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 .pv-prop .sakura-drop.owned .sakura-drop-name { color: #8ea0b0; }
+.pv-prop .pv-sakura-anchor { display: block; width: 24px; height: 24px; object-fit: contain; }
+.pv-prop .sakura-drop.new .pv-sakura-anchor {
+  filter:
+    drop-shadow(0 0 5px rgba(255, 218, 105, .92))
+    drop-shadow(0 0 13px rgba(236, 169, 42, .62));
+}
 .pv-prop .sakura-drop.owned .pv-sakura-anchor { opacity: .88; }
-.pv-prop .sakura-drop.owned .pv-sakura-anchor .anchor-shape { color: #5a6878; }
-.pv-prop .sakura-drop.owned .pv-sakura-anchor .sakura-flower { color: #8ea0b3; fill: color-mix(in srgb, #8ea0b3 20%, var(--panel)); stroke: #8ea0b3; stroke-width: 1.35; }
-.pv-prop .sakura-drop.new .pv-sakura-anchor { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--sparkle) 52%, transparent)); }
-.pv-prop .sakura-drop.new .pv-sakura-anchor .anchor-shape { color: #8b9dad; }
-.pv-prop .sakura-drop.new .pv-sakura-anchor .sakura-flower { color: #dfb95f; fill: color-mix(in srgb, var(--sparkle) 72%, var(--panel)); stroke: #e2bb67; }
-.pv-prop .sakura-drop.new .pv-sakura-anchor .sakura-spark { stroke: #e2bb67; filter: drop-shadow(0 0 1.5px color-mix(in srgb, var(--sparkle) 72%, transparent)); }
 
 .pv-prop .s-drop-slot.filled .s-drop-chip.sakura-drop.long-name { display: grid; grid-template-columns: 1fr; grid-template-rows: 21px 10px; justify-items: center; align-content: center; gap: 0; }
 .pv-prop .sakura-drop.long-name .sakura-drop-icon { width: 21px; height: 21px; flex-basis: 21px; }
@@ -1691,20 +1833,13 @@ html, body {
 .pv-drop-state { min-width: 0; min-height: 56px; display: grid; grid-template-columns: 39px minmax(0, 1fr); align-items: center; gap: 4px; padding: 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
 .pv-drop-state.new { border-color: color-mix(in srgb, var(--sparkle) 72%, var(--line)); background: color-mix(in srgb, var(--sparkle) 8%, var(--panel)); }
 .pv-drop-icon { display: flex; align-items: center; justify-content: center; width: 39px; height: 39px; }
-.pv-sakura-anchor { display: block; width: 38px; height: 38px; color: #7d8fa0; overflow: visible; }
-.pv-sakura-anchor .anchor-shape { color: #7d8fa0; stroke: currentColor; }
-.pv-sakura-anchor .anchor-shape :is(.anchor-shank, .anchor-arms, .anchor-crown, .anchor-fluke) { fill: currentColor; stroke: none; }
-.pv-sakura-anchor .sakura-flower { color: #788797; fill: var(--panel); stroke: currentColor; stroke-width: 1.35; }
-.pv-sakura-anchor .sakura-center { fill: currentColor; }
-.pv-sakura-anchor .sakura-halo { fill: none; stroke: #b58e4a; stroke-width: 1.1; stroke-dasharray: 2.4 2; opacity: .82; }
-.pv-sakura-anchor .sakura-spark,
-.pv-sakura-anchor .sakura-corner { fill: none; stroke: #d7b15e; stroke-width: 1.35; stroke-linecap: round; opacity: .95; }
-.pv-drop-state.new .pv-sakura-anchor { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--sparkle) 42%, transparent)); }
-.pv-drop-state.new .pv-sakura-anchor .anchor-shape { color: #8799aa; }
-.pv-drop-state.new .pv-sakura-anchor .sakura-flower { color: #dfb95f; fill: color-mix(in srgb, var(--sparkle) 72%, var(--panel)); stroke: #e2bb67; }
+.pv-sakura-anchor { display: block; width: 38px; height: 38px; object-fit: contain; }
+.pv-drop-state.new .pv-sakura-anchor {
+  filter:
+    drop-shadow(0 0 5px rgba(255, 218, 105, .92))
+    drop-shadow(0 0 13px rgba(236, 169, 42, .62));
+}
 .pv-drop-state.owned .pv-sakura-anchor { opacity: .88; }
-.pv-drop-state.owned .pv-sakura-anchor .anchor-shape { color: #5a6878; }
-.pv-drop-state.owned .pv-sakura-anchor .sakura-flower { color: #8ea0b3; fill: color-mix(in srgb, #8ea0b3 20%, var(--panel)); stroke: #8ea0b3; stroke-width: 1.35; }
 .pv-drop-copy { min-width: 0; }
 .pv-drop-copy b { display: block; overflow: hidden; font-size: 12px; font-weight: 750; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 .pv-drop-state.new .pv-drop-copy b { color: #e2bb67; }
@@ -1748,10 +1883,10 @@ html, body {
   grid-column: 2;
 }
 .pv-reference .s-efleet-body.single .s-ecol-body {
-  gap: 0;
+  gap: 2px;
 }
 .pv-reference .s-efleet-body:not(.single) .s-ecol-body {
-  gap: 0;
+  gap: 2px;
 }
 .pv-reference .s-echip.flagship {
   border-color: color-mix(in srgb, var(--sparkle) 80%, var(--line));
@@ -1781,7 +1916,7 @@ html, body {
   min-height: 35px;
 }
 .pv-reference .s-action-rail.with-system > .s-system-rail {
-  column-gap: 4px;
+  column-gap: 2px;
   height: 35px;
   min-height: 35px;
 }
@@ -1795,7 +1930,7 @@ html, body {
   color: var(--sparkle);
 }
 .pv-reference .s-rank-result {
-  gap: 6px;
+  gap: 2px;
 }
 .pv-reference .s-formation-compact {
   gap: 5px;
@@ -1805,30 +1940,6 @@ html, body {
 }
 .pv-reference .s-system-copy {
   font-size: 8px;
-}
-.pv-reference .s-action-rail.with-system .s-drop-slot.empty {
-  display: flex;
-  height: 35px;
-  min-height: 35px;
-  padding: 3px 6px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border: 1px dashed color-mix(in srgb, var(--line) 92%, var(--dim));
-  border-radius: 4px;
-  background: transparent;
-  color: var(--dim);
-  line-height: 1.1;
-}
-.pv-reference .s-action-rail.with-system .s-drop-slot.empty .s-drop-slot-label {
-  color: var(--dim);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .08em;
-}
-.pv-reference .s-action-rail.with-system .s-drop-slot.empty .s-drop-slot-empty {
-  font-size: 9px;
 }
 `;
 
@@ -1850,6 +1961,8 @@ type TacticalSideParams = {
     search: string; searchState: 'on' | 'off' | 'warn' | 'predicted';
     contact: string; contactState: 'on' | 'off' | 'warn' | 'predicted'; contactEquipment?: { icon: number; short: string; name: string } | null;
     aaci: string; aaciState: 'on' | 'off' | 'warn' | 'predicted';
+    /** 預覽用的對空 CI 明細；正式面板由戰鬥封包與出擊快照填入同一欄位。 */
+    aaciDetails?: { ship: string; type: number; gears: string[] }[];
     friendly: string; friendlyState: 'on' | 'off' | 'warn' | 'predicted'; friendlyFleetVariant?: FriendlyFleetVariant;
     fighterFriend: string; fighterFriendLost: string; fighterEnemy: string; fighterEnemyLost: string;
     bomberFriend: string; bomberFriendLost: string; bomberEnemy: string; bomberEnemyLost: string;
@@ -1876,8 +1989,19 @@ const tacticalSideHtml = (s: TacticalSideParams) => {
     const searchValue = searchActive ? '成功' : searchFailed ? '失敗' : s.search;
     const searchTitle = searchActive ? '命中・回避力 UP' : searchFailed ? '對空・回避力 DOWN' : '索敵結果';
     const aaciFired = s.aaciState === 'on' && s.aaci !== '—';
-    const aaciLabel = aaciFired ? '' : '對空';
-    const aaciTitle = aaciFired ? `對空 CI 發動 ${s.aaci}` : '對空 CI 狀態';
+    const aaciLabel = aaciFired ? '' : '對空 CI';
+    const aaciDetails = aaciFired ? (s.aaciDetails ?? [{
+        ship: '秋月改',
+        type: Number(s.aaci.replace(/\D/g, '')) || 0,
+        gears: ['10cm連裝高角砲', '對空電探'],
+    }]) : [];
+    const aaciGearHoverHtml = (detail: { ship: string; type: number; gears: string[] }): string => detail.gears.length
+        ? ['<span class="s-aaci-equipment-label">裝備：</span>', ...detail.gears.map(gear => `<span class="s-aaci-gear">・${esc(gear)}</span>`)].join('')
+        : '<span class="s-aaci-equipment-label">裝備組合不可考</span>';
+    const aaciHoverHtml = aaciDetails.map(detail => `<span class="s-aaci-header"><b>${esc(detail.ship)}</b>・Typ ${detail.type}</span>${aaciGearHoverHtml(detail)}`).join('');
+    const aaciTitle = aaciFired
+        ? [`對空 CI 發動 ${s.aaci}`, ...aaciDetails.flatMap(detail => [`${detail.ship}・Typ ${detail.type}`, `裝備：${detail.gears.join(' ＋ ')}`])].join('\n')
+        : '對空 CI 狀態';
     const contactTitle = s.contact === '雙'
         ? `觸接：我方${s.contactEquipment?.name ?? '裝備圖示'}與敵方深海艦載機同時成立`
         : s.contact === '我'
@@ -1890,8 +2014,11 @@ const tacticalSideHtml = (s: TacticalSideParams) => {
       <span class="taiha-head">大破！</span><span class="taiha-hint">${retreatText}</span>
     </button>` : '';
     const friendlyArrived = s.friendlyState === 'on';
+    const friendlyShips = friendlyArrived
+        ? ['武蔵改二', '清霜改二', '藤波改二', '早波改', '大井改二']
+        : [];
     const friendlyTitle = friendlyArrived
-        ? '友軍陣容：武蔵改二／清霜改二／藤波改二／早波改／大井改二'
+        ? `友軍陣容：\n${friendlyShips.join('\n')}`
         : '友軍尚未抵達；錨標示維持黯淡';
     const airLossHtml = `<div class="s-air-loss-grid" aria-label="敵我戰鬥機與爆擊機數量及戰損">
   <div class="s-air-loss-head"><b>我方</b><span aria-hidden="true"></span><b>敵方</b></div>
@@ -1909,13 +2036,13 @@ const tacticalSideHtml = (s: TacticalSideParams) => {
 <div class="s-air-wrap${s.warning ? ' covered' : ''}">
 ${airLossHtml}${warning}
 </div>
-${nightEffectsHtml(s.nightEffects, s.nightEntry, s.nightTitle, s.friendlyState, friendlyTitle)}
+${nightEffectsHtml(s.nightEffects, s.nightEntry, s.nightTitle, s.friendlyState, friendlyTitle, friendlyShips)}
 <div class="s-system-rail" aria-label="支援、陸航、索敵、觸接與對空 CI 狀態">
   ${systemSignal('support', supportLabel, supportValue, s.supportState, supportTitle, s.supportKind ?? null, null, s.supportShipVariant ?? 'yamato', s.aswSupportVariant ?? 'ka2')}
   ${systemSignal('lbas', lbasLabel, lbasValue, s.lbasState, lbasTitle, null, null, 'yamato', 'tracker', 'anchor', lbasHoverHtml)}
   ${systemSignal('search', searchLabel, searchValue, s.searchState, searchTitle)}
   ${systemSignal('contact', '觸接', s.contact, s.contactState, contactTitle, null, s.contactEquipment ?? null)}
-  ${systemSignal('aaci', aaciLabel, s.aaci, s.aaciState, aaciTitle)}
+  ${systemSignal('aaci', aaciLabel, s.aaci, s.aaciState, aaciTitle, null, null, 'yamato', 'ka2', 'anchor', aaciHoverHtml)}
 </div>`;
 };
 
@@ -1937,7 +2064,7 @@ const ADVANTAGE_SIDE_HTML = tacticalSideHtml({
     support: '有', supportKind: 'asw', aswSupportVariant: 'ka2', supportState: 'on', lbas: '—', lbasLost: '', lbasState: 'off',
     search: '成功', searchState: 'on', contact: '我', contactState: 'on',
     contactEquipment: { icon: 9, short: '偵', name: '零式水上偵察機11型乙' },
-    aaci: 'Type 2', aaciState: 'on', friendly: '—', friendlyState: 'off',
+    aaci: 'Typ 2', aaciState: 'on', friendly: '—', friendlyState: 'off',
     fighterFriend: '142', fighterFriendLost: '', fighterEnemy: '0', fighterEnemyLost: '',
     bomberFriend: '78', bomberFriendLost: '', bomberEnemy: '0', bomberEnemyLost: '',
     nightEffects: { searchlight: 'off', 'night-contact': 'off', 'star-shell': 'off' }, nightEntry: 'none',
@@ -1950,7 +2077,7 @@ const SHELL_SUPPORT_SIDE_HTML = tacticalSideHtml({
     support: '有', supportKind: 'shell', supportShipVariant: 'yamato', supportState: 'on', lbas: '—', lbasLost: '', lbasState: 'off',
     search: '成功', searchState: 'on', contact: '我', contactState: 'on',
     contactEquipment: { icon: 9, short: '偵', name: '零式水上偵察機11型乙' },
-    aaci: 'Type 2', aaciState: 'on', friendly: '—', friendlyState: 'off',
+    aaci: 'Typ 2', aaciState: 'on', friendly: '—', friendlyState: 'off',
     fighterFriend: '142', fighterFriendLost: '', fighterEnemy: '0', fighterEnemyLost: '',
     bomberFriend: '78', bomberFriendLost: '', bomberEnemy: '0', bomberEnemyLost: '',
     nightEffects: { searchlight: 'off', 'night-contact': 'off', 'star-shell': 'off' }, nightEntry: 'none',
@@ -1970,7 +2097,7 @@ const COMBINED_SIDE_HTML = tacticalSideHtml({
     support: '有', supportKind: 'air', supportState: 'on', lbas: '384', lbasLost: '−12', lbasState: 'on',
     search: '成功', searchState: 'on', contact: '雙', contactState: 'on',
     contactEquipment: { icon: 9, short: '偵', name: '零式水上偵察機11型乙' },
-    aaci: 'Type 2', aaciState: 'on', friendly: '有', friendlyState: 'on', friendlyFleetVariant: 'anchor',
+    aaci: 'Typ 2', aaciState: 'on', friendly: '有', friendlyState: 'on', friendlyFleetVariant: 'anchor',
     fighterFriend: '198', fighterFriendLost: '−14', fighterEnemy: '240', fighterEnemyLost: '−86',
     bomberFriend: '86', bomberFriendLost: '−22', bomberEnemy: '110', bomberEnemyLost: '−60',
     nightEffects: { searchlight: 'on', 'night-contact': 'on', 'star-shell': 'on' }, nightEntry: 'main',
@@ -1988,7 +2115,7 @@ const STRIKING_FCF_SIDE_HTML = tacticalSideHtml({
     support: '有', supportKind: 'air', supportState: 'on', lbas: '240', lbasLost: '−6', lbasState: 'on',
     search: '成功', searchState: 'on', contact: '我', contactState: 'on',
     contactEquipment: { icon: 9, short: '偵', name: '零式水上偵察機11型乙' },
-    aaci: 'Type 8', aaciState: 'on', friendly: '—', friendlyState: 'off',
+    aaci: 'Typ 8', aaciState: 'on', friendly: '—', friendlyState: 'off',
     fighterFriend: '156', fighterFriendLost: '−8', fighterEnemy: '180', fighterEnemyLost: '−42',
     bomberFriend: '72', bomberFriendLost: '−12', bomberEnemy: '90', bomberEnemyLost: '−30',
     nightEffects: { searchlight: 'on', 'night-contact': 'on', 'star-shell': 'off' }, nightEntry: 'main',
@@ -2001,7 +2128,7 @@ const TORPEDO_FCF_SIDE_HTML = tacticalSideHtml({
     rank: 'A', rankState: 'on', rankResult: '勝利', formationId: 1, formation: '單縱陣',
     support: '—', supportState: 'off', lbas: '—', lbasState: 'off',
     search: '成功', searchState: 'on', contact: '—', contactState: 'off',
-    aaci: 'Type 1', aaciState: 'on', friendly: '—', friendlyState: 'off',
+    aaci: 'Typ 1', aaciState: 'on', friendly: '—', friendlyState: 'off',
     fighterFriend: '0', fighterFriendLost: '0', fighterEnemy: '110', fighterEnemyLost: '−12',
     bomberFriend: '0', bomberFriendLost: '0', bomberEnemy: '68', bomberEnemyLost: '−8',
     nightEffects: { searchlight: 'on', 'night-contact': 'off', 'star-shell': 'on' }, nightEntry: 'main',
@@ -2015,7 +2142,7 @@ const NO_RETREAT_SIDE_HTML = tacticalSideHtml({
     support: '有', supportKind: 'air', supportState: 'on', lbas: '384', lbasLost: '−12', lbasState: 'on',
     search: '成功', searchState: 'on', contact: '雙', contactState: 'on',
     contactEquipment: { icon: 9, short: '偵', name: '零式水上偵察機11型乙' },
-    aaci: 'Type 2', aaciState: 'on', friendly: '有', friendlyState: 'on', friendlyFleetVariant: 'anchor',
+    aaci: 'Typ 2', aaciState: 'on', friendly: '有', friendlyState: 'on', friendlyFleetVariant: 'anchor',
     fighterFriend: '198', fighterFriendLost: '−14', fighterEnemy: '240', fighterEnemyLost: '−86',
     bomberFriend: '86', bomberFriendLost: '−22', bomberEnemy: '110', bomberEnemyLost: '−60',
     nightEffects: { searchlight: 'on', 'night-contact': 'on', 'star-shell': 'on' }, nightEntry: 'main',
@@ -2049,7 +2176,7 @@ ${nightEffectsHtml({ searchlight: 'unknown', 'night-contact': 'unknown', 'star-s
   ${systemSignal('lbas', '陸航到着', '', 'on', '基地航空隊已到著', null, null, 'yamato', 'tracker', 'anchor')}
   ${systemSignal('search', '成功', '', 'on', '索敵成功')}
   ${systemSignal('contact', 'Type 48', '雙', 'on', '敵我雙方觸接', null, { icon: 9, short: '偵', name: '零式水上偵察機' })}
-  ${systemSignal('aaci', 'Type 48', '', 'on', '對空 CI：Type 48 發動')}
+  ${systemSignal('aaci', 'Typ 48', '', 'on', '對空 CI：Typ 48 發動')}
 </div>`;
 
 const REFERENCE_ESCORT_ENEMY_NAMES = [
@@ -2088,8 +2215,7 @@ const REFERENCE_SORTIE_HTML = `<div class="sortie-container">
   <div class="s-header">
     <div class="s-map-id">E3<i>甲</i></div>
     ${normalGaugeHtml(500, 5500, 9.1)}
-    <div class="s-nodes"><div class="s-node visited">R</div><div class="s-node visited">T</div><div class="s-node visited">V</div><div class="s-node visited">X</div>${sortieNodeHtml('Z', true, true)}</div>
-    <div class="s-phase active">BOSS</div>
+    <div class="s-nodes">${sortieNodeHtml('R', true)}${sortieNodeHtml('T', true, false, 'no-battle')}${sortieNodeHtml('V', true, false, 'branch')}${sortieNodeHtml('X', true)}${sortieNodeHtml('Y', true, false, 'no-battle')}${sortieNodeHtml('B', true)}${sortieNodeHtml('C', true, false, 'branch')}${sortieNodeHtml('D', true, false, 'no-battle')}${sortieNodeHtml('F', true)}${sortieNodeHtml('Z', true, true, 'battle', true)}</div>
   </div>
   <div class="s-battle-row">
     <div class="s-eside"></div>
@@ -2105,7 +2231,7 @@ const SCENES = [
     {
         id: 'reference',
         label: '參考畫面｜E3 甲斬殺期',
-        note: '以參考畫面校正：E3 甲斬殺期、R／T／V／X／BOSS 節點、敵方連合艦隊隨伴與主隊雙欄。',
+        note: '以參考畫面校正：E3 甲斬殺期、10 個節點（非戰鬥藍色／能動分歧白色／目前節點藍綠光暈）、敵方連合艦隊隨伴與主隊雙欄。',
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
     },
@@ -2132,6 +2258,22 @@ const SCENES = [
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
         fleet: SEVEN_FLEET_TAIHA_HTML,
+    },
+    {
+        id: 'single-fleet-repair',
+        label: '編成預覽｜七船泊地修理標籤',
+        note: '第一艘為明石改的七船編成，確認泊地修理摘要標籤出現時第 7 艘仍留在固定面板安全線內。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: SEVEN_FLEET_REPAIR_HTML,
+    },
+    {
+        id: 'single-fleet-morale',
+        label: '編成預覽｜七船給糧標籤',
+        note: '第一艘為野埼改的七船編成，確認給糧摘要標籤出現時第 7 艘仍留在固定面板安全線內。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: SEVEN_FLEET_MORALE_HTML,
     },
     {
         id: 'combined-boss',
@@ -2978,13 +3120,13 @@ const FORMATION_REFERENCE_HTML = `<div class="pv-formation-board">
     <div class="pv-formation-group">
       <span class="pv-formation-group-label">單艦隊／遊擊部隊</span>
       <div class="pv-formation-grid">
-        ${FORMATIONS.filter(f => f.id <= 5).map(f => `<span class="pv-formation-item">${formationSvg(f.id, f.id === 1)}<b>${esc(f.label)}</b></span>`).join('')}
+        ${FORMATIONS.filter(f => f.id <= 6).map(f => `<span class="pv-formation-item">${formationSvg(f.id, f.id === 1)}<b>${esc(f.label)}</b></span>`).join('')}
       </div>
     </div>
     <div class="pv-formation-group">
       <span class="pv-formation-group-label">連合艦隊警戒陣</span>
       <div class="pv-formation-grid">
-        ${FORMATIONS.filter(f => f.id > 5).map(f => `<span class="pv-formation-item">${formationSvg(f.id, f.id === 14)}<b>${esc(f.label)}</b></span>`).join('')}
+        ${FORMATIONS.filter(f => f.id > 6).map(f => `<span class="pv-formation-item">${formationSvg(f.id, f.id === 14)}<b>${esc(f.label)}</b></span>`).join('')}
       </div>
     </div>
   </div>
@@ -3103,7 +3245,7 @@ function render() {
       if (drop) {
         dropSlot.append(drop);
       } else {
-        dropSlot.innerHTML = '<span class="s-drop-slot-label">DROP</span><span class="s-drop-slot-empty">No drop</span>';
+        dropSlot.innerHTML = '<span class="s-drop-empty">No Drop</span>';
       }
       actionRail.append(dropSlot);
       actionRail.classList.add('with-system');

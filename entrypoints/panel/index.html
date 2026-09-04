@@ -297,6 +297,27 @@
             gap: 5px;
         }
 
+        /* 遠征檢核分頁：固定艦隊/選單抬頭與收益 HUD，檢核清單在內部自適應；避免 #tabpanel 產生外層捲軸。 */
+        #tabpanel.has-exped {
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #tabpanel.has-exped > #tab-exped {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #tab-exped > #exped-check {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
         /* ── 調度／采配／Order（配船配裝快篩）─────────────────────────── */
         .od-top {
             display: flex;
@@ -570,6 +591,7 @@
             gap: 2px 14px;
             align-content: start;
             font-size: 11px;
+            line-height: 1.3;
             color: var(--dim);
             font-variant-numeric: tabular-nums;
         }
@@ -578,13 +600,20 @@
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: 4px;
+            gap: 5px;
             min-width: 0;
+            white-space: nowrap;
         }
 
         .resblock b {
             color: var(--text);
             font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .resblock .sec b {
+            color: var(--dim);
+            font-weight: 400;
         }
 
         .resblock i {
@@ -612,19 +641,26 @@
             position: relative;
             min-width: 0;
             border-top: 1px solid var(--line);
-            padding-top: 5px;
+            padding-top: 4px;
         }
         .g-cat-exped { border-top-color: var(--brass); }
         .g-cat-dock { border-top-color: #7fd0ff; }
         .g-cat-build { border-top-color: #58a55c; }
         .g-cat > .t-tag {
             position: absolute;
-            top: -10px;
+            top: -8px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1;
-            padding: 0 3px;
+            padding: 0 4px;
             background: var(--bg);
+            height: 14px;
+            display: flex;
+            align-items: center;
+        }
+        .g-cat > .t-tag .t-icon {
+            width: 13px;
+            height: 13px;
         }
         .g-cat > div {
             display: grid;
@@ -638,28 +674,33 @@
         .g-chip {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 5px;
             min-width: 0;
-            min-height: 22px;
-            padding: 2px 4px;
-            border-radius: 4px;
+            min-height: 21px;
+            padding: 2px 5px;
+            border-radius: 3px;
             background: var(--panel);
             color: var(--text);
             font-size: 11px;
+            line-height: 1.25;
             font-variant-numeric: tabular-nums;
             cursor: default;
+            transition: background 80ms ease;
         }
         .g-chip[data-exped-fleet] { cursor: pointer; }
+        .g-chip:hover {
+            background: color-mix(in srgb, var(--line) 40%, var(--panel));
+        }
+        .g-chip[data-exped-fleet]:hover {
+            background: color-mix(in srgb, var(--brass) 14%, var(--panel));
+        }
         .g-chip .fleet-box {
             flex: none;
-            min-width: 18px;
-            padding: 0 3px;
-            border: 1px solid var(--brass);
-            border-radius: 3px;
-            color: var(--text);
-            background: color-mix(in srgb, var(--brass) 14%, transparent);
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--sparkle);
+            min-width: 12px;
             text-align: center;
-            line-height: 1.25;
         }
         .g-name {
             flex: 1;
@@ -667,31 +708,56 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            font-weight: 500;
         }
         .g-eta {
             flex: none;
             color: var(--brass);
             font-weight: 600;
+            font-size: 11px;
             white-space: nowrap;
         }
         .g-chip .g-eta.grow {
+            flex: 1;
+            min-width: 0;
             color: var(--dim);
             font-weight: 500;
         }
-        .g-chip.done .g-eta { color: var(--sparkle); }
+        .g-chip > .g-eta:last-child {
+            margin-left: auto;
+            text-align: right;
+        }
+        .g-chip.done {
+            background: color-mix(in srgb, var(--sparkle) 12%, var(--panel));
+        }
+        .g-chip.done .g-name {
+            color: var(--sparkle);
+            font-weight: 600;
+        }
+        .g-chip.done .g-eta {
+            color: var(--sparkle);
+            font-weight: 700;
+        }
         .g-empty {
-            min-height: 22px;
+            min-height: 21px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             padding: 2px 4px;
-            color: var(--dim);
-            font-size: 11px;
+            color: var(--stub);
+            font-size: 10.5px;
+            user-select: none;
         }
         .exped-detail {
-            padding: 1px 4px 2px;
-            overflow: hidden;
-            color: var(--dim);
+            padding: 2px 6px;
+            margin-top: 1px;
             font-size: 10px;
-            text-overflow: ellipsis;
+            color: var(--dim);
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: color-mix(in srgb, var(--bg) 80%, var(--panel));
+            border-left: 2px solid var(--brass);
         }
 
         .g-quest-block {
@@ -701,16 +767,23 @@
             min-height: 0;
             flex-direction: column;
             border-top: 1px solid var(--line);
-            padding-top: 5px;
+            padding-top: 4px;
         }
         .g-quest-block > .t-tag {
             position: absolute;
-            top: -10px;
+            top: -8px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1;
-            padding: 0 3px;
+            padding: 0 4px;
             background: var(--bg);
+            height: 14px;
+            display: flex;
+            align-items: center;
+        }
+        .g-quest-block > .t-tag .t-icon {
+            width: 13px;
+            height: 13px;
         }
 
         .timer-row {
@@ -799,44 +872,73 @@
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             grid-auto-rows: min-content;
-            gap: 0 12px;
+            gap: 1px 10px;
             align-content: start;
             align-items: start;
         }
 
+        .quest-cell {
+            min-width: 0;
+        }
+
         .quest-row {
             display: flex;
-            gap: 8px;
-            align-items: baseline;
-            padding: 3px 6px;
-            border-radius: 4px;
+            gap: 6px;
+            align-items: center;
+            padding: 2.5px 6px;
+            border-radius: 3px;
             cursor: pointer;
+            min-height: 21px;
+            background: transparent;
+            line-height: 1.25;
+            transition: background 80ms ease;
         }
 
         .quest-cell:nth-child(odd) .quest-row {
             background: var(--panel);
         }
 
+        .quest-row:hover {
+            background: color-mix(in srgb, var(--line) 40%, var(--panel));
+        }
+
+        .quest-row .grow {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text);
+        }
+
         .quest-row.done .grow {
-            color: var(--dmg-minor);
+            color: var(--sparkle);
+            font-weight: 600;
         }
 
         .quest-row .q-prog {
-            color: var(--text);
+            font-size: 10.5px;
+            color: var(--brass);
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
         }
         .quest-row .q-st {
+            font-size: 10px;
             color: var(--dim);
-            font-weight: 600;
+            font-weight: 500;
             white-space: nowrap;
+        }
+        .quest-row.done .q-st {
+            color: #58a55c;
+            font-weight: 600;
         }
 
         .quest-detail {
-            padding: 2px 6px 6px 6px;
-            font-size: 0.9em;
+            padding: 3px 6px 4px;
+            font-size: 10px;
             color: var(--dim);
+            line-height: 1.35;
+            background: color-mix(in srgb, var(--panel) 70%, var(--bg));
+            border-left: 2px solid var(--brass);
+            margin: 1px 0 2px;
             white-space: normal;
         }
 
@@ -1068,8 +1170,9 @@
            擁擠）。改用單純的「圖示＋搭載數」小標籤：數字放在圖示右側（非疊在圖示
            角落），改修★／熟練度移進 title、hover 才看到，讓聯合檢視的裝備列真正
            比單隊檢視精簡。 */
-        /* 外層：一般槽位（.c-gear-slots，可換行）＋打洞格，打洞格 flex:none 天然被
-           推到最右、不隨一般槽位數量變動而跳位（見 main.ts compactGearRow 說明）。 */
+        /* 外層：一般槽位（.c-gear-slots，固定單列）＋打洞格，打洞格 flex:none 天然被
+           推到最右、不隨一般槽位數量變動而跳位（見 main.ts compactGearRow 說明）。
+           五格空母的搭載數也必須留在同一列，否則 compact 艦列會被額外的第二行撐高。 */
         .c-gear {
             display: flex;
             align-items: flex-start;
@@ -1079,10 +1182,10 @@
         }
 
         .c-gear-slots {
-            flex: 1;
+            flex: 1 1 auto;
             display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
+            flex-wrap: nowrap;
+            gap: 2px;
             min-width: 0;
         }
 
@@ -1090,6 +1193,9 @@
             display: inline-flex;
             align-items: center;
             gap: 2px;
+            flex: 0 0 auto;
+            min-width: 0;
+            white-space: nowrap;
         }
 
         .cg-item .g-icon,
@@ -1914,6 +2020,13 @@
             row-gap: 2px;
         }
 
+        /* 七船若有泊地修理／給糧摘要，摘要會多出一列；只在這個狀態收緊右側
+           HP 與士氣之間的空白，把增加的摘要高度還回艦列。裝備列高度與資訊欄寬度
+           維持不變，避免功能標籤把第 7 艘推出固定面板底界。 */
+        .fleet.fleet-seven.fleet-seven-ops > .ship > .ship-body .ship-vitals {
+            gap: 1px;
+        }
+
         .ship.c .c-top {
             font-size: 12px;
         }
@@ -1986,38 +2099,224 @@
             font-size: 12px;
         }
 
-        .exped-controls {
+        /* ── 遠征檢核分頁（極簡高密度排版：No Border-Soup / No Bento / Zero Expansion）── */
+        .exped-header {
             display: flex;
+            align-items: center;
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 4px;
+            flex: none;
         }
 
-        .exped-controls select {
+        .exped-fleet-lbl {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: var(--brass);
+            letter-spacing: var(--track-label);
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            flex: none;
+        }
+
+        .exped-select {
+            flex: 1;
+            min-width: 0;
             background: var(--panel);
             color: var(--text);
             border: 1px solid var(--line);
-            border-radius: 5px;
-            font-size: 12px;
-            padding: 3px 6px;
-            max-width: 60%;
+            border-radius: 4px;
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 1px 6px;
+            height: 22px;
+            outline: none;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .exped-select:focus-visible {
+            border-color: var(--sparkle);
+        }
+
+        /* 視覺第一與第二層級：收益預算與判定狀態 HUD（3 列等寬無外框網格） */
+        .exped-yield-grid {
+            display: grid;
+            grid-template-columns: 36px 1fr auto;
+            align-items: center;
+            column-gap: 8px;
+            row-gap: 2px;
+            margin-bottom: 4px;
+            padding: 0;
+            flex: none;
+            line-height: 1.3;
+        }
+
+        .exped-lbl {
+            color: var(--dim);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: var(--track-label);
+            white-space: nowrap;
+        }
+
+        .exped-status {
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .exped-status.ok {
+            color: #58a55c;
+        }
+
+        .exped-status.ng {
+            color: var(--dmg-major);
+        }
+
+        .exped-status.gs {
+            color: var(--sparkle);
+        }
+
+        .exped-res-line {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .exped-res-line .res-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 11.5px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        .exped-res-line.bonus .res-item {
+            color: var(--sparkle);
+            font-weight: 700;
+        }
+
+        .exped-res-line .m-icon {
+            width: 12px;
+            height: 12px;
+            vertical-align: -1.5px;
+            flex: none;
+        }
+
+        .exped-items-line {
+            grid-column: 2 / -1;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            font-size: 10.5px;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .exped-items-line .item-name {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .exped-items-line .item-note {
+            font-size: 10px;
+            font-weight: 400;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .exped-items-line .item-note.gs {
+            color: var(--sparkle);
+            font-weight: 600;
+        }
+
+        .exped-items-line .item-note.dim {
+            color: var(--dim);
+        }
+
+        /* 檢核清單：三層階層（符號導引 → 條件名稱 → 當前值對照），徹底去除框線與斑馬紋 */
+        .exped-check-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--line) var(--panel);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding-right: 2px;
+        }
+
+        /* 條件多於 8 項時（最高 15–16 項）：自動切換為雙欄瀑布網格（8列×2欄），全部可見零捲軸 */
+        .exped-check-list.is-multi-col,
+        .exped-check-list:has(.check-row:nth-child(9)) {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-auto-flow: column;
+            grid-template-rows: repeat(8, auto);
+            column-gap: 8px;
+            row-gap: 1.5px;
+        }
+
+        .exped-check-list.is-multi-col .check-row,
+        .exped-check-list:has(.check-row:nth-child(9)) .check-row {
+            grid-template-columns: 12px 1fr auto;
+            font-size: 10.5px;
+            line-height: 1.25;
+            padding: 1.5px 2px;
+            column-gap: 3px;
+        }
+
+        .exped-check-list.is-multi-col .check-row .mark,
+        .exped-check-list:has(.check-row:nth-child(9)) .check-row .mark {
+            width: 12px;
+            font-size: 10px;
+        }
+
+        .exped-check-list.is-multi-col .check-row .num,
+        .exped-check-list:has(.check-row:nth-child(9)) .check-row .num {
+            font-size: 10px;
+        }
+
+        .exped-check-list.is-multi-col .check-row.ng .num,
+        .exped-check-list.is-multi-col .check-row .num.ng,
+        .exped-check-list:has(.check-row:nth-child(9)) .check-row.ng .num,
+        .exped-check-list:has(.check-row:nth-child(9)) .check-row .num.ng {
+            font-size: 10px;
         }
 
         .check-row {
-            display: flex;
-            gap: 8px;
+            display: grid;
+            grid-template-columns: 14px 1fr auto;
             align-items: baseline;
-            padding: 3px 6px;
-            border-radius: 4px;
+            column-gap: 6px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11.5px;
+            line-height: 1.3;
+            background: transparent;
+            border: none;
+            transition: background 80ms ease;
         }
 
-        .check-row:nth-child(odd) {
-            background: var(--panel);
+        .check-row:hover {
+            background: color-mix(in srgb, var(--panel) 50%, transparent);
         }
 
         .check-row .mark {
-            width: 1.4em;
+            width: 14px;
             text-align: center;
-            font-weight: 700;
+            font-weight: 800;
+            font-size: 11px;
         }
 
         .check-row.ok .mark {
@@ -2028,8 +2327,33 @@
             color: var(--dmg-major);
         }
 
+        .check-row .grow {
+            color: var(--text);
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .check-row.ng .grow {
             color: var(--dmg-mid);
+            font-weight: 600;
+        }
+
+        .check-row .num {
+            font-size: 10.5px;
+            font-weight: 400;
+            font-variant-numeric: tabular-nums;
+            color: var(--dim);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .check-row.ng .num,
+        .check-row .num.ng {
+            color: var(--dmg-major);
+            font-weight: 700;
+            font-size: 11px;
         }
 
         /* ── 基地航空隊 ──
@@ -2504,24 +2828,6 @@
             color: var(--dim);
         }
 
-        .s-phase {
-            font-size: 10px;
-            font-weight: 700;
-            color: #82ccdd;
-            border: 1px solid #82ccdd;
-            background: color-mix(in srgb, #82ccdd 12%, transparent);
-            border-radius: 8px;
-            padding: 0 8px;
-            line-height: 15px;
-            white-space: nowrap;
-        }
-
-        .s-phase.active {
-            color: #fff;
-            background: var(--dmg-major);
-            border-color: var(--dmg-major);
-        }
-
         /* 節點軌跡：緊湊、不撐滿，避免擠壓戰鬥資訊。 */
         .s-nodes {
             display: flex;
@@ -2657,7 +2963,7 @@
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
-            gap: 0;
+            gap: 2px;
             height: 100%;
             min-height: 0;
             min-width: 0;
@@ -2665,7 +2971,7 @@
 
         .s-echip {
             display: flex;
-            flex: 1 1 0;
+            flex: 0 0 25px;
             flex-direction: column;
             justify-content: space-between;
             background: var(--panel);
@@ -2674,7 +2980,8 @@
             box-sizing: border-box;
             padding: 3px 5px 2px;
             min-width: 0;
-            min-height: 0;
+            min-height: 25px;
+            height: 25px;
         }
 
         .s-echip.sunk {
@@ -3020,6 +3327,11 @@
             min-width: 0;
             overflow: hidden;
             flex-wrap: nowrap;
+            flex: 1 1 auto;
+            /* 當前節點的藍綠／紅色光暈不能被容器左右緣裁掉；內距只佔節點列自身空間，
+               不改變量表或戰鬥資訊欄的外部幾何。 */
+            padding-inline: 4px;
+            box-sizing: border-box;
         }
 
         .s-node.boss {
@@ -3107,10 +3419,34 @@
             box-shadow: 0 0 4px rgba(255, 0, 0, .38);
         }
 
-        .s-phase {
-            flex: none;
-            line-height: 15px;
-            padding: 0 8px;
+        /* 節點狀態沿用遊戲／KC3Kai 的語意色：非戰鬥藍、能動分歧白；
+           目前節點再以藍綠光暈提示位置，不改變原本的 Boss 外形。 */
+        .sortie-container .s-node:not(.boss).no-battle::before {
+            border-color: #5aaecb;
+            background: #16465f;
+            box-shadow: 0 0 4px rgba(77, 180, 204, .42);
+        }
+
+        .sortie-container .s-node:not(.boss).branch {
+            color: #18232d;
+        }
+
+        .sortie-container .s-node:not(.boss).branch::before {
+            border-color: #f0f1e8;
+            background: #f0f1e8;
+            box-shadow: 0 0 4px rgba(235, 239, 232, .34);
+        }
+
+        .sortie-container .s-node:not(.boss).current::before {
+            box-shadow:
+                0 0 0 1px rgba(102, 218, 201, .84),
+                0 0 8px 2px rgba(69, 188, 199, .58);
+        }
+
+        .sortie-container .s-node.boss.current {
+            filter:
+                drop-shadow(0 0 3px rgba(102, 218, 201, .84))
+                drop-shadow(0 0 8px rgba(69, 188, 199, .58));
         }
 
         .s-battle-row {
@@ -3169,19 +3505,20 @@
 
         .s-echip {
             display: flex;
-            flex: 1 1 0;
+            flex: 0 0 25px;
             flex-direction: column;
             justify-content: space-between;
             box-sizing: border-box;
             padding: 2px 5px;
-            min-height: 0;
+            min-height: 25px;
+            height: 25px;
             background: var(--panel);
             border-color: var(--line);
         }
 
         .s-echip-name {
             font-size: 10.5px;
-            line-height: 1.35;
+            line-height: 1.1;
         }
 
         .s-echip-hp {
@@ -3207,7 +3544,8 @@
             height: 181px;
             min-height: 181px;
             padding: 12px 7px 4px;
-            border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+            /* 左側資訊區保留底色，但不再用外框切開內容；Rank 內部分隔線仍保留層級。 */
+            border: 0;
             border-radius: 5px;
             background: color-mix(in srgb, var(--panel) 32%, transparent);
             box-sizing: border-box;
@@ -3277,9 +3615,9 @@
 
         .s-rank-result {
             display: grid;
-            grid-template-columns: 29px auto;
+            grid-template-columns: 18px minmax(0, 1fr);
             align-items: center;
-            column-gap: 7px;
+            column-gap: 2px;
             justify-content: center;
             min-width: 0;
             height: 100%;
@@ -3289,12 +3627,12 @@
             display: inline-flex;
             align-items: baseline;
             justify-content: center;
-            width: 28px;
-            height: 28px;
+            width: 18px;
+            height: 21px;
             box-sizing: border-box;
             color: var(--dim);
             font-family: Georgia, "Times New Roman", "Noto Serif TC", serif;
-            font-size: 28px;
+            font-size: 21px;
             font-style: italic;
             font-weight: 900;
             line-height: 1;
@@ -3327,10 +3665,13 @@
 
         .s-rank-name {
             min-width: 0;
+            overflow: hidden;
             color: var(--text);
-            font-size: 10.5px;
+            font-size: 9.5px;
+            letter-spacing: -.03em;
             font-weight: 650;
             line-height: 1.05;
+            text-overflow: ellipsis;
             white-space: nowrap;
         }
 
@@ -3486,6 +3827,7 @@
         .s-night-effect .g-icon { width: 20px; height: 20px; object-fit: contain; }
 
         .s-friendly-fleet {
+            position: relative;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -3494,6 +3836,8 @@
             margin-left: 2px;
             color: var(--dim);
             flex: 0 0 19px;
+            cursor: help;
+            outline: none;
         }
 
         .s-friendly-fleet img {
@@ -3505,6 +3849,36 @@
 
         .s-friendly-fleet.off { opacity: .32; filter: grayscale(100%); }
         .s-friendly-fleet.on { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sparkle) 65%, transparent)); }
+
+        /* 友軍提示沿用系統 tooltip，但把艦名拆成清單；每艘船各佔一行，避免
+           以斜線串接時被固定寬度裁切。title 仍保留作為原生提示的後備。 */
+        .s-friendly-hover {
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 4px);
+            z-index: 6;
+            display: none;
+            min-width: max-content;
+            max-width: calc(100vw - 16px);
+            padding: 3px 6px;
+            transform: translateX(-50%);
+            border: 1px solid #9b9b9b;
+            border-radius: 3px;
+            background: #f4f4f4;
+            color: #171717;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .28);
+            font-size: 9px;
+            font-weight: 500;
+            line-height: 1.25;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            pointer-events: none;
+        }
+
+        .s-friendly-hover > span { display: block; }
+        .s-friendly-fleet:hover .s-friendly-hover,
+        .s-friendly-fleet:focus-visible .s-friendly-hover { display: block; }
+        .s-friendly-fleet:focus-visible { outline: 1px solid var(--sparkle); outline-offset: 1px; }
 
         .s-night-entry-group {
             display: inline-flex;
@@ -3558,6 +3932,8 @@
         .s-night-entry-cell.active { color: var(--sparkle); font-weight: 700; }
         .s-night-entry-cell.active i { background: currentColor; opacity: 1; }
         .s-night-entry-group.unknown .s-night-entry-cell { opacity: .82; }
+        /* 沒有夜戰的日戰仍保留月亮／主隊／伴隨占位，與未發動夜戰裝備同樣轉暗。 */
+        .s-night-entry-group.unavailable { opacity: .34; }
 
         .s-action-rail.with-system {
             display: grid;
@@ -3569,14 +3945,29 @@
             border-top: 0;
         }
 
+        .s-action-rail.with-system > .s-system-rail,
+        .s-action-rail.with-system > .s-drop-slot {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .s-action-rail.with-system > .s-system-rail { grid-column: 1; }
+        .s-action-rail.with-system > .s-drop-slot { grid-column: 2; }
+
         .s-system-rail {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            column-gap: 4px;
+            /* 五格等寬並保留最小寬度；四字支援／陸航與 Typ n 都能完整顯示，
+               最後一格不會因吃掉剩餘寬度而侵入右側掉落模組。 */
+            grid-template-columns: repeat(5, minmax(35px, 1fr));
+            column-gap: 2px;
             width: 100%;
+            /* 與右側掉落格保留一個欄內安全邊界；420px 面板在放大顯示時，
+               對空 CI 的圖示與文案也不能越過左欄邊界。 */
+            box-sizing: border-box;
             height: 35px;
             min-height: 35px;
             padding: 0;
+            padding-inline-end: 8px;
             border: 0;
         }
 
@@ -3645,16 +4036,35 @@
             white-space: nowrap;
         }
 
-        .s-system-label { color: var(--dim); font-size: 8.5px; }
-        .s-system-val { color: currentColor; font-size: 8.5px; font-weight: 650; }
+        .s-system-label { color: var(--dim); font-size: 8.5px; font-weight: 500; }
+        .s-system-val { color: currentColor; font-size: 8.5px; font-weight: 500; }
         .s-system-signal.on { color: var(--sparkle); }
-        .s-system-signal.on .s-system-label { color: var(--sparkle); font-weight: 650; }
+        .s-system-signal.on .s-system-label { color: var(--sparkle); font-weight: 500; }
         /* 陸航到着／LBAS in 是固定狀態文案，不能被共用省略號裁成半個字。 */
         .s-system-signal.lbas .s-system-label {
             overflow: visible;
             text-overflow: clip;
             font-size: 8px;
             letter-spacing: -.04em;
+        }
+        .s-system-signal.support .s-system-label {
+            overflow: visible;
+            text-overflow: clip;
+            letter-spacing: -.04em;
+        }
+        /* 對空 CI 在未發動時顯示「對空 CI」、發動後顯示 Typ n；兩種長度都必須
+           保持完整，不能沿用其餘狀態欄的省略號。 */
+        .s-system-signal.aaci .s-system-label,
+        .s-system-signal.aaci .s-system-val {
+            overflow: visible;
+            text-overflow: clip;
+            letter-spacing: -.06em;
+            font-size: 7.5px;
+        }
+        /* 最右格在固定雙模組中保留內縮，避免 Typ n 貼住掉落框線。 */
+        .s-system-signal.aaci {
+            padding-inline-end: 6px;
+            box-sizing: border-box;
         }
         .s-system-signal.off .s-system-glyph { opacity: .38; filter: grayscale(100%); }
         .s-system-signal.off .s-system-copy { color: var(--dim); }
@@ -3686,6 +4096,19 @@
         .s-system-hover i { color: var(--dmg-major); font-style: normal; font-weight: 700; }
         .s-system-signal:hover .s-system-hover,
         .s-system-signal:focus-within .s-system-hover { display: flex; }
+
+        /* AACI 裝備逐項換行；長裝備名在面板寬度內折行，不讓整串內容被右緣裁掉。 */
+        .s-system-signal.aaci .s-system-hover {
+            min-width: 0;
+            width: max-content;
+            max-width: calc(100vw - 16px);
+            white-space: normal;
+            overflow-wrap: anywhere;
+            line-height: 1.25;
+        }
+
+        .s-system-signal.aaci .s-system-hover > span { display: block; }
+        .s-system-signal.aaci .s-aaci-gear { padding-left: 4px; }
 
         .s-system-glyph.contact-both {
             display: inline-flex;
@@ -3778,22 +4201,28 @@
             background: color-mix(in srgb, var(--panel) 30%, transparent);
         }
 
-        .s-drop-slot.empty {
-            border-style: dashed;
-            color: var(--dim);
-            font-size: 10px;
-            line-height: 1.05;
-            text-align: center;
-            letter-spacing: .08em;
+        /* 已有掉落內容只保留底色；空欄同樣保留底色，但不再用外框搶占注意力。 */
+        .s-drop-slot.filled {
+            border: 0;
         }
 
-        .s-drop-slot.empty b { font-size: 9px; font-weight: 600; letter-spacing: 0; }
+        .s-drop-slot.empty {
+            border: 0;
+            color: var(--dim);
+            font-size: 10px;
+            line-height: 1;
+            text-align: center;
+            letter-spacing: 0;
+        }
         .s-drop-chip.sakura-drop { display: inline-flex; align-items: center; justify-content: center; gap: 5px; max-width: 100%; min-width: 0; }
         .sakura-drop-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; }
-        .s-sakura-anchor { display: block; width: 24px; height: 24px; color: #8b9dad; overflow: visible; }
-        .s-sakura-anchor .sakura-flower { color: #dfb95f; fill: color-mix(in srgb, var(--sparkle) 72%, var(--panel)); stroke: #e2bb67; stroke-width: 1.1; }
-        .s-sakura-anchor.owned { color: #5a6878; opacity: .88; }
-        .s-sakura-anchor.owned .sakura-flower { color: #8ea0b3; fill: color-mix(in srgb, #8ea0b3 20%, var(--panel)); stroke: #8ea0b3; }
+        .s-sakura-anchor { display: block; width: 24px; height: 24px; object-fit: contain; }
+        .s-sakura-anchor.new {
+            filter:
+                drop-shadow(0 0 5px rgba(255, 218, 105, .92))
+                drop-shadow(0 0 13px rgba(236, 169, 42, .62));
+        }
+        .s-sakura-anchor.owned { opacity: .88; }
         .sakura-drop-name { max-width: calc(100% - 29px); overflow: hidden; color: #e2bb67; font-size: 9.5px; font-weight: 600; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
         .sakura-drop.owned .sakura-drop-name { color: #8ea0b0; }
 
@@ -4337,9 +4766,9 @@
             </div>
         </div>
         <div id="tab-exped" style="display:none">
-            <div class="exped-controls">
-                <span id="exped-fleet-label" class="badge"></span>
-                <select id="exped-select"></select>
+            <div class="exped-header">
+                <span id="exped-fleet-label" class="exped-fleet-lbl"></span>
+                <select id="exped-select" class="exped-select"></select>
             </div>
             <div id="exped-check"></div>
         </div>

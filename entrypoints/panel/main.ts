@@ -4,7 +4,7 @@ import { diffLabel, isEventWorld, mapLabel } from '@/utils/sortie-detail';
 import { EventProjector, projectEventAndAdvance } from '@/utils/event-projector';
 import { advanceProjectionCursor, readProjectionCursor } from '@/utils/projection-cursor';
 import {
-    GameState,
+    GameState, isBossNode,
     type ShipView, type GearView, type FleetView, type BattleEnemyShipView,
 } from '@/utils/state';
 import {
@@ -18,7 +18,9 @@ import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-esca
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { sortieGaugeBarHtml } from './sortie-gauge';
-import { maxObservedBossHp } from '@/utils/boss-hp';
+import { bossHpReplaySpecificity, observedBossHp } from '@/utils/boss-hp';
+import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
+import { formationRects } from '@/utils/formation-geometry';
 import { mountOrder, renderOrder } from './order';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
@@ -109,7 +111,7 @@ const searchRadarHtml = () => `<svg class="s-system-glyph search" viewBox="0 0 2
     <circle class="search-blip" cx="17.2" cy="8.4" r="1.15" />
     <circle class="search-center" cx="12" cy="12" r="1.3" />
   </svg>`;
-const aaciGunHtml = () => `<span class="s-system-glyph aaci" title="對空 CI"><img class="aaci-gun-raster" src="${tacticalIcon('bofors-40mm-aaci-mirrored.png')}" alt="對空 CI" /></span>`;
+const aaciGunHtml = () => `<span class="s-system-glyph aaci"><img class="aaci-gun-raster" src="${tacticalIcon('bofors-40mm-aaci-mirrored.png')}" alt="對空 CI" /></span>`;
 const lbasAircraftHtml = () => `<span class="s-system-glyph lbas" title="基地航空隊"><img class="lbas-aircraft-raster" src="${tacticalIcon('b25-lbas-support.png')}" alt="基地航空隊" /></span>`;
 const supportAircraftHtml = (kind: 'air' | 'shell' | 'torpedo' | 'asw' | 'none') => {
     if (kind === 'air') return `<span class="s-system-glyph support-air" title="航空支援"><img class="support-aircraft-raster" src="${tacticalIcon('comet-air-support.png')}" alt="航空支援" /></span>`;
@@ -119,33 +121,15 @@ const supportAircraftHtml = (kind: 'air' | 'shell' | 'torpedo' | 'asw' | 'none')
 };
 const crescentHtml = () => `<img class="s-night-moon" src="${tacticalIcon('brass-crescent.png')}" alt="" aria-hidden="true" />`;
 const formationSvgHtml = (id: number) => {
-    const points: Record<number, Array<[number, number]>> = {
-        1: [[31, 8], [31, 17], [31, 26], [31, 35], [31, 44], [31, 53]],
-        2: [[22, 14], [40, 14], [22, 30], [40, 30], [22, 46], [40, 46]],
-        3: [[31, 10], [31, 23], [31, 38], [31, 50], [12, 30], [50, 30]],
-        4: [[45, 13], [38, 20], [31, 27], [24, 34], [17, 41], [10, 48]],
-        5: [[8, 30], [17, 30], [26, 30], [35, 30], [44, 30], [53, 30]],
-        11: [[7, 23], [7, 33], [18, 14], [18, 23], [18, 33], [18, 42], [29, 28], [35, 10], [35, 46], [43, 19], [43, 37], [49, 28]],
-        12: [[7, 24], [7, 34], [15, 24], [15, 34], [23, 24], [23, 34], [31, 24], [31, 34], [39, 29], [47, 19], [47, 29], [47, 39]],
-        13: [[6, 29], [19, 26], [19, 32], [20, 17], [20, 41], [27, 26], [27, 32], [34, 17], [34, 41], [35, 26], [35, 32], [48, 29]],
-        14: [[7, 24], [7, 34], [15, 24], [15, 34], [21, 29], [29, 29], [35, 24], [35, 34], [42, 29], [43, 21], [43, 37], [50, 29]],
-    };
-    const dots = points[id] ?? points[1];
-    return `<svg class="s-formation-icon" viewBox="0 0 62 62" role="img" aria-label="陣形" focusable="false"><circle cx="31" cy="31" r="27" fill="none" stroke="currentColor" stroke-width="3" /><g transform="translate(31 31) scale(.82) translate(-31 -31)">${dots.map(([x, y]) => `<rect x="${x - 3}" y="${y - 3}" width="6" height="6" rx="1" />`).join('')}</g></svg>`;
+    const dots = formationRects(id);
+    const marks = `<g transform="translate(31 31) scale(.82) translate(-31 -31)">${dots.map(([x, y]) => `<rect x="${x}" y="${y}" width="6" height="6" rx="1" />`).join('')}</g>`;
+    return `<svg class="s-formation-icon" viewBox="0 0 62 62" role="img" aria-label="陣形" focusable="false"><circle cx="31" cy="31" r="27" fill="none" stroke="currentColor" stroke-width="3" />${marks}</svg>`;
 };
-const sakuraAnchorHtml = (isNew: boolean) => `<svg class="s-sakura-anchor ${isNew ? 'new' : 'owned'}" viewBox="0 0 48 48" role="img" aria-label="${isNew ? '新掉落櫻錨' : '已有船櫻錨'}" focusable="false">
-    <g class="anchor-shape" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M25.5 10.15c-3.25 1.15-5.8-1.85-4.55-4.75 1.05-2.45 4.62-2.6 5.85-.35 1.06 1.96-.42 4.68-2.55 4.12" stroke-width="2.65" />
-      <path d="M12.6 13.3h22.8M22.15 14.55h3.7v19.25h-3.7zM24 40c-9.8-.2-16.6-5.5-18.2-15.9l4.4 2.6c2.45 5.5 7.25 8.7 13.8 9zM24 40c9.8-.2 16.6-5.5 18.2-15.9l-4.4 2.6c-2.45 5.5-7.25 8.7-13.8 9z" stroke-width="2.4" />
-    </g>
-    <g class="sakura-flower" transform="translate(24 25)"><circle r="3" />
-      <path d="M0 0C-3-1-5-4-4-7-3-9-1-10 0-8 1-10 3-9 4-7 5-4 3-1 0 0Z" transform="rotate(0)" />
-      <path d="M0 0C-3-1-5-4-4-7-3-9-1-10 0-8 1-10 3-9 4-7 5-4 3-1 0 0Z" transform="rotate(72)" />
-      <path d="M0 0C-3-1-5-4-4-7-3-9-1-10 0-8 1-10 3-9 4-7 5-4 3-1 0 0Z" transform="rotate(144)" />
-      <path d="M0 0C-3-1-5-4-4-7-3-9-1-10 0-8 1-10 3-9 4-7 5-4 3-1 0 0Z" transform="rotate(216)" />
-      <path d="M0 0C-3-1-5-4-4-7-3-9-1-10 0-8 1-10 3-9 4-7 5-4 3-1 0 0Z" transform="rotate(288)" />
-    </g>
-  </svg>`;
+const sakuraAnchorHtml = (isNew: boolean) => {
+    const label = isNew ? '新掉落櫻錨' : '已有船櫻錨';
+    const file = isNew ? 'sakura-anchor-new.png' : 'sakura-anchor-owned.png';
+    return `<img class="s-sakura-anchor ${isNew ? 'new' : 'owned'}" src="${tacticalIcon(file)}" alt="${label}" draggable="false" />`;
+};
 // 任務內容原文換行用字面 <br> 標籤（非 \n，見 api_no
 // 637/643/861 等）；先跳脫全文防 XSS，再把跳脫後的 &lt;br&gt; 還原成真正換行。
 // 不做任何翻譯，玩家自行用其他工具查照原文即可。escDetail 留在 panel（組合 esc）。
@@ -244,6 +228,7 @@ function setTab(next: typeof tab, manual: boolean) {
     orderEl.style.display = tab === 'order' ? 'flex' : 'none';
     tabpanelEl.classList.toggle('has-general', tab === 'general');
     tabpanelEl.classList.toggle('has-order', tab === 'order');
+    tabpanelEl.classList.toggle('has-exped', tab === 'exped');
     activityEl.style.display = tab === 'activity' && isDebugUiEnabled() ? '' : 'none';
     renderTabs(); renderExped(); renderSortie();
     if (tab === 'factory') renderFactory();
@@ -617,9 +602,9 @@ function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string; mark: st
 }
 function renderExped() {
     if (tab !== 'exped') return;
-    expedFleetLabel.textContent = t('exped.checkTarget', { n: currentExpedFleet() + 1 });
-    // 選單只在圖鑑載入後、且尚未建立時填充；語言換了也要重建（遠征名與海域標籤都在
-    // 選項文字裡，不重建的話整個下拉會停在切換前的語言）。
+    expedFleetLabel.textContent = t('fleet.default', { n: currentExpedFleet() + 1 });
+    // 選單只在圖鑑載入後、且尚未建立時填充；語言換了也要重建（遠征名、海域標籤與
+    // 時間都在選項文字裡，不重建的話整個下拉會停在切換前的語言）。
     if (expedSel.options.length === 0 || expedSelLang !== getLang()) {
         const cat = state.expedCatalog();
         if (cat.length === 0) { expedCheckEl.innerHTML = `<div class="empty">${t('exped.masterNotLoaded')}</div>`; return; }
@@ -630,7 +615,8 @@ function renderExped() {
                 area = m.maparea;
                 html += `<optgroup label="${esc(t('exped.area', { n: area }))}">`;
             }
-            html += `<option value="${m.id}">[${esc(m.dispNo)}] ${esc(expedDisplayName(m.id, m.name))}</option>`;
+            const timeStr = m.time ? ` (${Math.floor(m.time / 60)}:${String(m.time % 60).padStart(2, '0')})` : '';
+            html += `<option value="${m.id}">[${esc(m.dispNo)}] ${esc(expedDisplayName(m.id, m.name))}${timeStr}</option>`;
         }
         expedSel.innerHTML = html + '</optgroup>';
         expedSelLang = getLang();
@@ -653,56 +639,84 @@ function renderExped() {
         }
     }
     if (expedId === null) return;
-    const { rows, gsRows, known, time, rewards, greatSuccess } = state.expedCheck(currentExpedFleet(), expedId);
-    const head = time ? `<div class="dim">${t('exped.timeRequired')} ${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}</div>` : '';
+    const { rows, gsRows, known, rewards, greatSuccess } = state.expedCheck(currentExpedFleet(), expedId);
     const allOk = rows.length > 0 && rows.every(r => r.ok);
     const successMark = allOk
-        ? `<span style="color:#58a55c">${t('exped.successMet')}</span>`
-        : `<span style="color:var(--dmg-major)">${t('exped.successNotMet')}</span>`;
+        ? `<span class="exped-status ok">${t('exped.successMet')}</span>`
+        : `<span class="exped-status ng">${t('exped.successNotMet')}</span>`;
     // 大成功率は全遠征で公式値（16 + 15×戰意高昂 + √Lv + Lv/10）。成功条件を満たす場合のみ有効。
-    const gsMark = !greatSuccess ? ''
+    const gsMark = !greatSuccess
+        ? '<span class="exped-status dim">-</span>'
         : !allOk
-            ? `<span style="color:var(--dmg-major)">${t('exped.gsExcluded')}</span>`
-            : `<span style="color:var(--sparkle)" title="${esc(greatSuccess.note)}">${t('exped.gsRate', { rate: greatSuccess.rate })}</span>`;
-    // 有大発動艇系裝備加成時，資源數字整段變色標示（sparkle 金色＝「有加成」語意色，不挪用
-    // 資源紀錄的 --res-gain/--res-drain——那組是餘額消長語意，混用會稀釋意義）；title 註明
-    // 估算來源，不影響版面。
-    const bonusWrap = (s: string) => rewards?.bonusActive
-        ? `<span style="color:var(--sparkle)" title="${esc(t('exped.bonusHint'))}">${s}</span>` : s;
-    // rewardAmountsUnverified 的遠征（出擊條件已知、燃彈鋼鋁數字尚無可信來源）：不把佔位 0
-    // 當真數字顯示，只留成功/大成功判定與（封包事實的）道具，另加一行明講缺什麼。
-    const itemsLine = rewards?.items.length ? `<div class="dim">${t('exped.items')} ${rewards.items.map(it =>
-        `${esc(it.name)}×${it.max}${it.guaranteed
-            ? `<span style="color:var(--sparkle)">${t('exped.gsOnly')}</span>`
-            : `<span style="color:var(--dim)">${t('exped.randomOnSuccess')}</span>`}`).join('　')}</div>` : '';
-    const resLine = !rewards ? '' : !rewards.amountsVerified ? `
-        <div class="dim">${t('exped.success')}　${successMark}</div>
-        <div class="dim">${t('exped.greatSuccess')}　${gsMark}</div>
-        ${itemsLine}
-        <div class="dim">${t('exped.rewardAmountUnverified')}</div>
-    ` : `
-        <div class="dim">${t('exped.success')}　${bonusWrap(`${t('mat.fuel')}${rewards.normal.fuel} ${t('mat.ammo')}${rewards.normal.bullet} ${t('mat.steel')}${rewards.normal.steel} ${t('mat.bauxite')}${rewards.normal.alum}`)}　${successMark}</div>
-        <div class="dim">${t('exped.greatSuccess')}　${bonusWrap(`${t('mat.fuel')}${rewards.great.fuel} ${t('mat.ammo')}${rewards.great.bullet} ${t('mat.steel')}${rewards.great.steel} ${t('mat.bauxite')}${rewards.great.alum}`)}
-            　${gsMark}</div>
-        ${itemsLine}
-    `;
-    const warn = known ? '' : `<div class="dim">${t('exped.notRecorded')}</div>`;
-    expedCheckEl.innerHTML = head + resLine + warn + rows.map(r => `
-      <div class="check-row ${r.ok ? 'ok' : 'ng'}">
-        <span class="mark">${r.ok ? '✓' : '✕'}</span>
-        <span class="grow">${esc(r.label)}</span>
-        ${r.cur ? `<span class="num">${t('exped.current')} ${esc(r.cur)}</span>` : ''}
-      </div>`).join('') + gsRows.map(r => `
-      <div class="check-row ${r.ok ? 'ok' : 'ng'}">
-        <span class="mark">${r.ok ? '✓' : '✕'}</span>
-        <span class="grow">${esc(r.label)}</span>
-        ${r.cur ? `<span class="num">${t('exped.current')} ${esc(r.cur)}</span>` : ''}
-      </div>`).join('');
+            ? `<span class="exped-status ng">${t('exped.gsExcluded')}</span>`
+            : `<span class="exped-status gs" title="${esc(greatSuccess.note)}">${t('exped.gsRate', { rate: greatSuccess.rate })}</span>`;
+
+    const resItems = (r: { fuel: number; bullet: number; steel: number; alum: number }) => {
+        const mats: [string, number][] = [
+            ['mat.fuel', r.fuel],
+            ['mat.ammo', r.bullet],
+            ['mat.steel', r.steel],
+            ['mat.bauxite', r.alum],
+        ];
+        const nonZero = mats.filter(([, v]) => v > 0);
+        const items = nonZero.length > 0 ? nonZero : mats;
+        return items.map(([k, v]) => `<span class="res-item">${matIconHtml(k)} ${v}</span>`).join('');
+    };
+
+    // 有大発動艇系裝備加成時，資源數字整段變色標示（sparkle 金色＝「有加成」語意色）；
+    // 獲得量靠右對齊，放置於第三欄。
+    const normalRes = rewards?.amountsVerified ? `
+        <div class="exped-res-line${rewards.bonusActive ? ' bonus' : ''}" title="${esc(rewards.bonusActive ? t('exped.bonusHint') : '')}">
+            ${resItems(rewards.normal)}
+        </div>` : rewards ? `<div class="exped-res-line"><span class="item-note dim">${t('exped.rewardAmountUnverified')}</span></div>` : '<div class="exped-res-line"></div>';
+
+    const greatRes = rewards?.amountsVerified ? `
+        <div class="exped-res-line${rewards.bonusActive ? ' bonus' : ''}" title="${esc(rewards.bonusActive ? t('exped.bonusHint') : '')}">
+            ${resItems(rewards.great)}
+        </div>` : '<div class="exped-res-line"></div>';
+
+    const itemsText = rewards?.items.map(it => `${it.name}×${it.max}${it.guaranteed ? ` ${t('exped.gsOnly')}` : ` ${t('exped.randomOnSuccess')}`}`).join(' ') ?? '';
+    const itemsHtml = rewards?.items.length ? `
+        <span class="exped-lbl">${t('exped.items')}</span>
+        <div class="exped-items-line" title="${esc(itemsText)}">
+            ${rewards.items.map(it => `<span class="item-name">${esc(it.name)}×${it.max}</span>${it.guaranteed
+                ? `<span class="item-note gs">${t('exped.gsOnly')}</span>`
+                : `<span class="item-note dim">${t('exped.randomOnSuccess')}</span>`}`).join(' ')}
+        </div>` : '';
+
+    const yieldGridHtml = `
+        <div class="exped-yield-grid">
+            <span class="exped-lbl">${t('exped.success')}</span>
+            ${successMark}
+            ${normalRes}
+
+            <span class="exped-lbl">${t('exped.greatSuccess')}</span>
+            ${gsMark}
+            ${greatRes}
+
+            ${itemsHtml}
+        </div>`;
+
+    const allRows = [...rows, ...gsRows];
+    const warn = known ? '' : `<div class="check-row ng"><span class="mark">!</span><span class="grow">${t('exped.notRecorded')}</span></div>`;
+    const isMultiCol = allRows.length > 8;
+    const checkListHtml = `
+        <div class="exped-check-list${isMultiCol ? ' is-multi-col' : ''}">
+            ${warn}
+            ${allRows.map(r => `
+                <div class="check-row ${r.ok ? 'ok' : 'ng'}">
+                    <span class="mark">${r.ok ? '✓' : '✕'}</span>
+                    <span class="grow" title="${esc(r.label)}">${esc(r.label)}</span>
+                    ${r.cur ? `<span class="num${r.ok ? '' : ' ng'}">${esc(r.cur)}</span>` : ''}
+                </div>`).join('')}
+        </div>`;
+
+    expedCheckEl.innerHTML = yieldGridHtml + checkListHtml;
 }
 expedSel.addEventListener('change', () => { expedId = Number(expedSel.value); renderExped(); });
 // 聯合艦隊檢視專用的精簡艦列：420px 硬約束下兩隊左右並排，每欄只剩約 190px，
 // 塞不下單隊檢視原尺寸的裝備 chip 列（含 r-col 熟練/改修兩行的完整結構太寬、
-// 排起來又跟單隊檢視幾乎一樣，聯合檢視應該要更精簡）。取捨後只留出擊當下真正
+    // 排起來又跟單隊檢視幾乎一樣，聯合檢視應該要更精簡）。取捨後只留出擊當下真正
 // 要盯的五件事：艦種＋艦名（辨識）、HP 條與數值（大破判斷）、cond（疲勞）、
 // 燃彈殘量（補給）、裝備圖示＋搭載數（辨識制空/雷裝來源）。改修★／熟練度不
 // 顯示於列面，收進 title 供 hover 查看即可。
@@ -720,10 +734,9 @@ function compactGearRow(s: ShipView) {
         `<span class="cg-item cg-empty${ex ? ' ex' : ''}"><span class="g-icon-slot"></span>${capacity ? `<em>${capacity}</em>` : ''}</span>`;
     const slots = s.gears.map((g, i) => g ? cgItem(g) : cgBlank(s.slotCapacity[i]));
     // 補強增設格獨立於一般槽位流之外、固定靠右對齊（同單隊檢視 shipRow 的 exChip
-    // 排法）：一般槽位數因艦而異（2-5 格），若跟一般槽位混在同一個 flex-wrap 裡，
-    // 打洞格的水平位置會逐艦亂跳（有時緊接在最後一格後面、有時因換行掉到下一行
-    // 開頭）。用外層 flex（.c-gear）分兩塊：.c-gear-slots（flex:1，一般槽位自己
-    // 允許換行）＋打洞格（flex:none，天然被推到最右）。 */
+    // 排法）：一般槽位數因艦而異（2-5 格），但五格空母的搭載數也必須保持同一列，
+    // 不能讓額外換行把該艦列撐高。用外層 flex（.c-gear）分兩塊：.c-gear-slots
+    // 固定單列＋打洞格（flex:none，天然被推到最右）。 */
     const exItem = s.exGear ? cgItem(s.exGear, true) : s.exEmpty ? cgBlank(undefined, true) : '';
     if (slots.length === 0 && !exItem) return '';
     return `<div class="c-gear"><span class="c-gear-slots">${slots.join('')}</span>${exItem}</div>`;
@@ -810,7 +823,9 @@ function renderFleets() {
             ${ops ? `<div class="fs-ops">${ops}</div>` : ''}
             ${fleetMetricsHtml(sum)}
           </div>` : '';
-        const fleetClass = f.ships.length >= 7 ? ' fleet-seven' : '';
+        const fleetClass = f.ships.length >= 7
+            ? ` fleet-seven${ops ? ' fleet-seven-ops' : ''}`
+            : '';
         return `<section class="fleet${fleetClass}">${summary}${f.ships.map((s, idx) => shipRow(s, maxSlots, repairMarks(idx, rep, mor))).join('')}</section>`;
     }).join('');
 }
@@ -951,6 +966,26 @@ function getEdgeLetter(mapArea: number, mapNo: number, edgeId: number) {
     // 封包 edge 編號沒有可驗證的字母推導規則，故查不到對照時顯示遊戲的 cell 編號，不推算。
     return nodeLabel(`${mapArea}-${mapNo}`, edgeId);
 }
+
+// 節點顏色只使用已有封包語意：能動分歧明確為白色，其餘已驗證的非戰鬥節點為藍色。
+// 沒有 event_id／event_kind 的舊紀錄不補猜，維持原本的戰鬥節點樣式。
+const NON_BATTLE_NODE_KINDS = new Set<string>([
+    NODE_KIND_KEYS.resource,
+    NODE_KIND_KEYS.maelstrom,
+    NODE_KIND_KEYS.noEnemy,
+    NODE_KIND_KEYS.nothing,
+    NODE_KIND_KEYS.airRecon,
+    NODE_KIND_KEYS.escortSuccess,
+    NODE_KIND_KEYS.landing,
+]);
+function sortieNodeClass(node: { eventId?: number; eventKind?: number }, current: boolean) {
+    const kind = nodeKindKey(node.eventId, node.eventKind);
+    const classes = ['s-node', 'visited'];
+    if (kind === NODE_KIND_KEYS.branch) classes.push('branch');
+    else if (kind && NON_BATTLE_NODE_KINDS.has(kind)) classes.push('no-battle');
+    if (current) classes.push('current');
+    return classes.join(' ');
+}
 // 未出擊時的關卡量表列。**刻意共用 sortieGaugeBarHtml 與出擊中完全同一組 title／斬殺期
 // 判定**——兩處各寫一份遲早會漂移成「出擊中說斬殺期、母港說還要兩次」。沒有任何未攻略的
 // HP 量表海域（例如平時只打一般圖）時整塊不出現，不佔版面。
@@ -1015,15 +1050,14 @@ function renderSortie() {
     const isEvent = isEventWorld(sortie.mapArea);
     const mapStr = mapLabel({ event: isEvent, mapnum: sortie.mapNo, map: mapCode });
     const diff = isEvent ? diffLabel(gauge?.selectedRank ?? 0) : '';
-    const lastNode = sortie.nodes[sortie.nodes.length - 1];
-    const atBoss = !!lastNode && lastNode.color === 5;
     let nodeDots = '';
-    for (const n of sortie.nodes) {
+    for (const [index, n] of sortie.nodes.entries()) {
         const letter = getEdgeLetter(sortie.mapArea, sortie.mapNo, n.id);
-        const isBoss = n.color === 5; // usually 5 is boss in KC
+        const isBoss = isBossNode(n);
+        const nodeClass = sortieNodeClass(n, index === sortie.nodes.length - 1);
         nodeDots += isBoss
-            ? `<div class="s-node visited boss">${bossNodeSvg(letter)}</div>`
-            : `<div class="s-node visited">${esc(letter)}</div>`;
+            ? `<div class="${nodeClass} boss">${bossNodeSvg(letter)}</div>`
+            : `<div class="${nodeClass}">${esc(letter)}</div>`;
     }
     let gaugeHtml = '';
     // 量表本體：一顆圓矩 pill，殘量條當背景、**剩餘實數直接寫在條子裡**。
@@ -1054,8 +1088,8 @@ function renderSortie() {
         const hint = r != null
             ? t('sortie.hintEstRuns', { n: r, kind: t('sortie.kindDefeat') })
             : isTpGauge ? '' : t('sortie.hintNeedBoss');
-        // boss 撃破型殘量嚴格小於 boss HP → 進入斬殺期；TP 輸送型不適用。
-        // 不用 `r === 1`：ceil(殘量 / boss HP) 在兩者相等時也是 1，但那還沒進斬殺線。
+        // boss 撃破型殘量小於或等於最終形態 Boss HP → 進入斬殺期；TP 輸送型不適用。
+        // 不用 `r === 1`：這裡直接沿用 mapInFinalPhase 的血條／Boss 證據判定。
         const zansatsu = !isTpGauge && state.mapInFinalPhase();
         const title = [
             t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint }),
@@ -1073,7 +1107,6 @@ function renderSortie() {
             <div class="s-map-id" title="${esc(diff ? `${mapCode}・${diff}` : mapCode)}">${esc(mapStr)}${diff ? `<i>${esc(diff)}</i>` : ''}</div>
             ${gaugeHtml}
             <div class="s-nodes">${nodeDots}</div>
-            <div class="s-phase${atBoss ? ' active' : ''}">${atBoss ? t('sortie.boss') : t('sortie.advancing')}</div>
         </div>
     `;
     if (info) {
@@ -1172,7 +1205,7 @@ function renderSortie() {
         const seikuStr = hasAirBattle && seikuKeys[info.seiku] ? t(seikuKeys[info.seiku]) : t('sortie.none');
         const seikuBad = hasAirBattle && (info.seiku === 3 || info.seiku === 4);
         const formationKeys: Record<number, string> = {
-            1: 'form.single', 2: 'form.double', 3: 'form.ring', 4: 'form.ladder', 5: 'form.abreast',
+            1: 'form.single', 2: 'form.double', 3: 'form.ring', 4: 'form.ladder', 5: 'form.abreast', 6: 'form.vigilant',
             11: 'form.cruise1', 12: 'form.cruise2', 13: 'form.cruise3', 14: 'form.cruise4',
         };
         const enFormShort = t(formationKeys[info.formation[1]] || 'form.unknown');
@@ -1190,22 +1223,45 @@ function renderSortie() {
             <span class="s-formation-readout">${formationSvgHtml(info.formation[1])}<b>${esc(enFormShort)}</b></span>
         </div>`;
         const night = info.nightEffects;
-        // api_midnight_flag 只代表夜戰選項／夜戰流程存在；真正「已進入夜戰」要看
-        // timeline 是否有 nightShelling。這樣在夜戰選項尚未實際結算時，三個裝備不會被
-        // 誤畫成「未發動」而遮掉「尚未確認」的狀態。
-        const nightObserved = !!info.timeline?.phases.some(phase => phase.kind === 'nightShelling');
+        // `api_active_deck[1]` 是連合艦隊夜戰主／伴隊的權威來源；舊資料沒有此欄位時，
+        // 才退回交戰事件作為相容顯示，不能把「沒有造成傷害」誤畫成另一個艦隊。
+        const nightObserved = info.nightObserved
+            ?? !!info.timeline?.phases.some(phase => phase.kind === 'nightShelling');
         const nightTargetIndices = (info.timeline?.phases ?? [])
             .filter(phase => phase.kind === 'nightShelling')
             .flatMap(phase => phase.events)
             .filter(event => event.defenderSide === 'enemy' && Number.isSafeInteger(event.defenderIndex))
             .map(event => event.defenderIndex as number);
-        const nightTargetMain = nightTargetIndices.some(index => index < 6);
-        const nightTargetEscort = nightTargetIndices.some(index => index >= 6);
-        const nightTargetKnown = nightTargetMain || nightTargetEscort;
+        const fallbackNightTargetMain = nightTargetIndices.some(index => index < 6);
+        const fallbackNightTargetEscort = nightTargetIndices.some(index => index >= 6);
+        const nightTargetMain = info.nightTarget
+            ? info.nightTarget === 'main' : fallbackNightTargetMain;
+        const nightTargetEscort = info.nightTarget
+            ? info.nightTarget === 'escort' : fallbackNightTargetEscort;
+        const nightTargetKnown = info.nightTarget
+            ? info.nightTarget !== 'unknown' : fallbackNightTargetMain || fallbackNightTargetEscort;
+        const nightTargetEstimated = !!info.nightTargetEstimated && !nightObserved;
+        // 月亮與主隊／伴隨是固定欄位，和夜偵、探照燈、照明彈一樣不能因為本節點沒有
+        // 夜戰而移除；沒有夜戰時只轉暗，避免日戰畫面改變欄位位置。
+        const showNightEntry = true;
+        const nightEntryUnavailable = !info.midnightFlag && !nightObserved && !info.nightTarget;
+        const nightEntryTitle = nightEntryUnavailable
+            ? '本節點沒有夜戰；月亮與主隊／伴隨指示以暗色顯示'
+            : nightTargetEstimated
+                ? '依日戰結果推測夜戰目標；實際隊伍以夜戰封包為準'
+                : !nightObserved
+                    ? '夜戰尚未由戰鬥封包確認'
+                    : !nightTargetKnown
+                        ? '夜戰已發生；敵方目標隊伍未由現有傷害事件確認'
+                        : '夜戰目標隊伍已由戰鬥事件確認';
         const nightEffectHtml = (kind: string, mst: number, short: string, label: string, active: boolean | undefined) =>
             `<span class="s-night-effect ${kind} ${active === undefined ? 'unknown' : active ? 'on' : 'off'}" title="${esc(`${label}：${active === undefined ? '狀態未知' : active ? '發動' : '未發動'}`)}">${gearIconHtml(state.gearIconId(mst), short)}</span>`;
-        const nightEntryHtml = !info.midnightFlag ? '' : `<span class="s-night-entry-group${!nightTargetKnown ? ' unknown' : ''}"
-            title="${esc(!nightObserved ? '夜戰尚未由戰鬥封包確認' : !nightTargetKnown ? '夜戰已發生；敵方目標隊伍未由現有傷害事件確認' : '夜戰目標隊伍已由戰鬥事件確認')}" role="group" aria-label="夜戰主隊與伴隨指示">
+        // 夜間觸接沿用該場夜戰封包明示的我方飛機 master；未觸接或舊資料缺欄位時，
+        // 才退回夜偵通用圖示。這樣不同夜偵不會被錯畫成固定 102。
+        const nightReconMst = info.nightTouchPlane && info.nightTouchPlane > 0
+            ? info.nightTouchPlane : 102;
+        const nightEntryHtml = !showNightEntry ? '' : `<span class="s-night-entry-group${!nightTargetKnown ? ' unknown' : ''}${nightTargetEstimated ? ' estimated' : ''}${nightEntryUnavailable ? ' unavailable' : ''}"
+            title="${esc(nightEntryTitle)}" role="group" aria-label="夜戰主隊與伴隨指示">
             <span class="s-night-entry-moon">${crescentHtml()}</span>
             <span class="s-night-entry-cells">
               <span class="s-night-entry-cell main${nightTargetMain ? ' active' : ''}"><i></i><span>主隊</span></span>
@@ -1213,15 +1269,23 @@ function renderSortie() {
             </span>
           </span>`;
         const friendlyFleet = info.friendlyFleetIds?.length ? info.friendlyFleetIds : null;
-        const friendlyFleetNames = friendlyFleet?.map(id => state.shipName(id)).filter(Boolean).join('／') || '';
-        const friendlyFleetHtml = `<span class="s-friendly-fleet${friendlyFleet ? ' on' : ' off'}"
+        const friendlyFleetShipNames = friendlyFleet?.map(id => state.shipName(id)).filter(Boolean) ?? [];
+        // KC3Kai 的友軍提示是清單而非單行字串；每艘船獨立一行，長艦名才不會把同一格
+        // 撐寬或與夜戰目標重疊。title 仍保留換行，沒有自訂 tooltip 時也能取得同樣資訊。
+        const friendlyFleetNames = friendlyFleetShipNames.join('\n');
+        const friendlyFleetHover = friendlyFleet
+            ? `<span class="s-friendly-hover" aria-hidden="true">${friendlyFleetShipNames.map(name => `<span>${esc(name)}</span>`).join('')}</span>`
+            : '';
+        const friendlyFleetHtml = `<span class="s-friendly-fleet${friendlyFleet ? ' on' : ' off'}" tabindex="0"
+            role="img" aria-label="${esc(friendlyFleet ? t('sortie.friendlyFleetTitle', { ships: friendlyFleetNames }) : t('sortie.friendlyFleetNone'))}"
             title="${esc(friendlyFleet ? t('sortie.friendlyFleetTitle', { ships: friendlyFleetNames }) : t('sortie.friendlyFleetNone'))}">
-            <img src="${tacticalIcon('friendly-anchor.png')}" alt="${esc(t('sortie.friendlyFleet'))}" />
+            <img src="${tacticalIcon('friendly-anchor.png')}" alt="" aria-hidden="true" />
+            ${friendlyFleetHover}
           </span>`;
         const nightHtml = `<div class="s-night-effects" aria-label="夜戰裝備與夜戰目標">
             <div class="s-night-equipment-list">
               ${nightEffectHtml('searchlight', 74, '探', '探照燈', nightObserved ? night?.searchlight : undefined)}
-              ${nightEffectHtml('night-contact', 102, '夜偵', '夜偵', nightObserved ? night?.nightRecon : undefined)}
+              ${nightEffectHtml('night-contact', nightReconMst, '夜偵', '夜偵', nightObserved ? night?.nightRecon : undefined)}
               ${nightEffectHtml('star-shell', 101, '照', '照明彈', nightObserved ? night?.starShell : undefined)}
               ${friendlyFleetHtml}
             </div>${nightEntryHtml}
@@ -1257,19 +1321,60 @@ function renderSortie() {
                 : hasEnemyContact
                     ? `<span class="s-system-glyph contact-single enemy" role="img" aria-label="${esc(contactEnemyHover)}" title="${esc(contactEnemyHover)}"><img class="deepsea-aircraft-raster" src="${tacticalIcon('deepsea-carrier-aircraft.png')}" alt="深海艦載機" /><span class="s-contact-hover">${esc(contactEnemyHover)}</span></span>`
                     : '<span class="s-system-glyph contact-none" aria-hidden="true">—</span>';
-        const systemSignal = (kind: string, glyph: string, label: string, value: string, stateName: 'on' | 'off' | 'warn', title: string, hover = '') =>
-            `<div class="s-system-signal ${kind} ${stateName}" title="${esc(title)}">${glyph}${kind === 'contact' ? '' : `<span class="s-system-copy"><span class="s-system-label">${esc(label)}</span>${value ? `<b class="s-system-val">${esc(value)}</b>` : ''}</span>`}${hover ? `<span class="s-system-hover">${hover}</span>` : ''}</div>`;
+        const systemSignal = (kind: string, glyph: string, label: string, value: string, stateName: 'on' | 'off' | 'warn', title: string, hover = '') => {
+            // AACI 明細只保留自訂白色 tooltip；外層原生 title 會再開一個黑色提示，
+            // 內容重複且長裝備名會被瀏覽器重新排成單行。
+            const titleAttr = kind === 'aaci' || !title ? '' : ` title="${esc(title)}"`;
+            return `<div class="s-system-signal ${kind} ${stateName}"${titleAttr}>${glyph}${kind === 'contact' ? '' : `<span class="s-system-copy"><span class="s-system-label">${esc(label)}</span>${value ? `<b class="s-system-val">${esc(value)}</b>` : ''}</span>`}${hover ? `<span class="s-system-hover">${hover}</span>` : ''}</div>`;
+        };
         const searchState = info.search === 'success' ? 'on' : info.search === 'failed' ? 'warn' : 'off';
         const searchValue = info.search === 'success' ? t('sortie.searchSuccess')
             : info.search === 'failed' ? t('sortie.searchFailed') : '';
         const searchTitle = info.search === 'success' ? t('sortie.searchSuccessTitle')
             : info.search === 'failed' ? t('sortie.searchFailedTitle') : t('sortie.detection');
+        const supportRailLabel = support
+            ? t(support.kind === 'air' ? 'sortie.supportRailAir' : support.kind === 'asw' ? 'sortie.supportRailAsw' : support.kind === 'torpedo' ? 'sortie.supportRailTorpedo' : 'sortie.supportRailShelling')
+            : t('sortie.supportRailNone');
+        const aaciValue = info.aaci > 0 ? `Typ ${info.aaci}` : '';
+        const aaciDetails = info.aaciDetails ?? [];
+        const aaciShipLabel = (detail: typeof aaciDetails[number]): string => {
+            const ship = detail.shipId ? state.ships.get(detail.shipId) : undefined;
+            const localized = ship?.api_ship_id ? state.shipName(ship.api_ship_id) : detail.shipMst ? state.shipName(detail.shipMst) : '';
+            if (localized) return localized;
+            if (detail.position > 0) {
+                return t(detail.fleet === 'escort' ? 'sortie.aaciEscortPosition' : 'sortie.aaciMainPosition', { n: detail.position });
+            }
+            return t('sortie.aaciUnknownShip');
+        };
+        const aaciGearLabel = (detail: typeof aaciDetails[number]): string => {
+            if (!detail.gearMst.length) return t('sortie.aaciUnknownEquipment');
+            return detail.gearMst.map(mst => state.gearName(mst) || t('sortie.aaciGearUnknown', { n: mst })).join(' ＋ ');
+        };
+        const aaciGearHoverHtml = (detail: typeof aaciDetails[number]): string => {
+            if (!detail.gearMst.length) return `<span class="s-aaci-equipment-label">${esc(t('sortie.aaciUnknownEquipment'))}</span>`;
+            return [
+                `<span class="s-aaci-equipment-label">${esc(t('sortie.aaciEquipment'))}</span>`,
+                ...detail.gearMst.map(mst => `<span class="s-aaci-gear">・${esc(state.gearName(mst) || t('sortie.aaciGearUnknown', { n: mst }))}</span>`),
+            ].join('');
+        };
+        const aaciHoverHtml = info.aaci > 0 && aaciDetails.length
+            ? aaciDetails.map(detail => `<span class="s-aaci-header"><b>${esc(aaciShipLabel(detail))}</b>・Typ ${detail.type}</span>${aaciGearHoverHtml(detail)}`).join('')
+            : '';
+        const aaciHoverTitle = info.aaci > 0
+            ? [
+                `${t('sortie.aaciTitlePrefix')}: ${aaciValue}`,
+                ...aaciDetails.flatMap(detail => [
+                    `${aaciShipLabel(detail)}・Typ ${detail.type}`,
+                    `${t('sortie.aaciEquipment')}${aaciGearLabel(detail)}`,
+                ]),
+            ].join('\n')
+            : t('sortie.none');
         const systemRailHtml = `<div class="s-system-rail" aria-label="支援、陸航、索敵、觸接與對空 CI 狀態">
-            ${systemSignal('support', supportAircraftHtml(supportKind), support?.kind === 'air' ? '航空支援' : support?.kind === 'asw' ? '對潛支援' : support?.kind === 'torpedo' ? '雷擊支援' : support ? '砲擊支援' : '支援', '', support ? 'on' : 'off', supportTitle)}
+            ${systemSignal('support', supportAircraftHtml(supportKind), supportRailLabel, '', support ? 'on' : 'off', supportTitle)}
             ${systemSignal('lbas', lbasAircraftHtml(), lbas ? t('sortie.lbasArrived') : '陸航', '', lbas ? 'on' : 'off', lbasTitle, lbasHover)}
             ${systemSignal('search', searchRadarHtml(), '', searchValue, searchState, searchTitle)}
             ${systemSignal('contact', contactGlyph, '觸接', '', contactState, hasFriendlyContact && hasEnemyContact ? '敵我雙方觸接' : hasFriendlyContact ? contactFriendHover : hasEnemyContact ? contactEnemyHover : '未觸接')}
-            ${systemSignal('aaci', aaciGunHtml(), info.aaci > 0 ? '' : '對空 CI', info.aaci > 0 ? `Type ${info.aaci}` : '', info.aaci > 0 ? 'on' : 'off', info.aaci > 0 ? `${t('sortie.aaciTitlePrefix')}: ${info.aaci}` : t('sortie.none'))}
+            ${systemSignal('aaci', aaciGunHtml(), info.aaci > 0 ? '' : '對空 CI', aaciValue, info.aaci > 0 ? 'on' : 'off', aaciHoverTitle, aaciHoverHtml)}
           </div>`;
         html += `
                 <div class="s-priority-row">
@@ -1297,7 +1402,7 @@ function renderSortie() {
         html += `<div class="s-action-rail with-system">
             ${systemRailHtml}
             <div class="s-drop-slot ${dropChip ? 'filled' : 'empty'}">
-              ${dropChip || '<span class="s-drop-empty">DROP<br><b>No drop</b></span>'}
+              ${dropChip || '<span class="s-drop-empty">No Drop</span>'}
             </div>
           </div>`;
     }
@@ -1495,7 +1600,8 @@ const isSortieBattlePath = (path: string) =>
     path.startsWith('api_req_sortie/battle')
     || path.includes('airbattle')
     || path.startsWith('api_req_combined_battle/')
-    || path.startsWith('api_req_battle_midnight/');
+    || path.startsWith('api_req_battle_midnight/')
+    || path.endsWith('/night_to_day');
 const isNewBattlePacket = (path: string) =>
     isSortieBattlePath(path) && !path.endsWith('result') && !path.endsWith('/goback_port');
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
@@ -1686,19 +1792,20 @@ setNotice('loading', t('panel.loading'));
 // **時機是「出擊開始」不是「面板啟動」**：sortieInfo 在 api_port/port 會被清空，面板
 // 幾乎都是在母港開的，只在啟動時查等於永遠查不到，斬殺線要等這次 session 自己再打一次
 // Boss 才會出現——那正是這支要修的問題。故啟動與每次 api_req_map/start 都跑一次。
-// 也刻意不用「已知就略過」當快門：同一活動海域可能有多個 Boss 節點，本次 session 先
-// 觀測到的可能是 HP 較低的旁支 Boss，紀錄裡的較高門檻仍必須併進來（observeMapBossHp
-// 取最大值）。頻率是每次出擊一次，成本可接受。
+// 也刻意不用「已知就略過」當快門：目前 gauge 的有效 Boss 可能換成較低 HP 的最終形態；
+// 新重播以 bossCellNo 排除破甲路線上的舊 Boss，再交給 observeMapBossHp 向下更新。
+// 頻率是每次出擊一次，成本可接受。
 //
 // **不以 sortieInfo 為前提**：斬殺線的兩個材料在母港就到齊了——量表值來自 mapinfo（點開
 // 出擊海域選單即送來），Boss HP 來自本機出擊紀錄。把補撈綁在「正在出擊中」會逼使用者
 // 花一次出擊的資源才看得到結果，而那次出擊本身正是要靠這條線去決定要不要打的。
 //
-// 一張圖／難度只掃一次 DB（bossHpScanned）。**不可改用「mapBossHp 已有值就跳過」當快門**：
-// 本次 session live 觀測到的可能是 HP 較低的旁支 Boss，紀錄裡的較高門檻仍必須併進來。
+// 一張圖／難度／血條只掃一次 DB（bossHpScanned）。**不可改用「mapBossHp 已有值就跳過」當快門**：
+// 本次 session live 觀測到的可能是不同形態，掃描結果先以目標 Boss 身分分級，再交給
+// observeMapBossHp 依目前血條同一目標 Boss 的 baseHp 觀測值向下更新。
 const bossHpScanned = new Set<string>();
 
-async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number): Promise<boolean> {
+async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number, gaugeNum?: number): Promise<boolean> {
     const mapId = mapArea * 10 + mapNo;
     const before = state.mapBossHp.get(mapId);
     const map = `${mapArea}-${mapNo}`;
@@ -1707,16 +1814,38 @@ async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number): P
         .filter(row => row.map === map && !!row.boss && !row.imported)
         .toArray();
     let scanned = 0;
+    let bestSpecificity = -1;
+    let exactBaseHp: number | null = null;
+    let legacyBaseHp: number | null = null;
     if (bossRows.length > 0) {
         // 逐列串流而不是 toArray()：一張活動海域的重播可能有數十場、每場數則原始戰鬥封包，
         // 整批載入會把幾十 MB 搬進面板記憶體。每次只留一列，交給同一支純函式算。
         await db.replays.where('world').equals(mapArea).each(row => {
             if (row.mapnum !== mapNo || row.imported) return;
             scanned++;
-            const hp = maxObservedBossHp([row], bossRows, mapArea, mapNo, diff);
-            if (hp != null) state.observeMapBossHp(mapArea, mapNo, hp);
+            const specificity = bossHpReplaySpecificity(row, diff, gaugeNum);
+            if (specificity == null || specificity < bestSpecificity) return;
+            const hp = observedBossHp([row], bossRows, mapArea, mapNo, diff, gaugeNum);
+            if (hp == null) return;
+            // 先完整保留身分較精確的候選；只有沒有精確證據時，才使用舊資料回退。
+            // 這個優先序必須跨整個串流維持，不能在每一列單獨判斷後再混合最大／最小值。
+            if (specificity > bestSpecificity) {
+                bestSpecificity = specificity;
+                exactBaseHp = null;
+                legacyBaseHp = null;
+            }
+            const bossCellNo = Number(row.bossCellNo);
+            if (Number.isSafeInteger(bossCellNo) && bossCellNo > 0) {
+                exactBaseHp = exactBaseHp == null ? hp : Math.min(exactBaseHp, hp);
+            } else {
+                legacyBaseHp = legacyBaseHp == null ? hp : Math.max(legacyBaseHp, hp);
+            }
         });
     }
+    // 有目標 Boss 身分的新紀錄時完全忽略舊式無身分推導；沒有時才用舊版最大值相容，
+    // 避免舊階段較低 HP Boss 再次污染目前血條。
+    const recoveredBaseHp = exactBaseHp ?? legacyBaseHp;
+    if (recoveredBaseHp != null) state.observeMapBossHp(mapArea, mapNo, recoveredBaseHp, gaugeNum);
     const after = state.mapBossHp.get(mapId);
     console.log(`[KC-Monitor] bossHp ${map}: 重播=${scanned} Boss紀錄=${bossRows.length} `
         + `記憶體=${before ?? '無'}→${after ?? '無'}`);
@@ -1728,14 +1857,27 @@ async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number): P
 async function restoreGaugeBossHp(): Promise<boolean> {
     let changed = false;
     for (const { mapId, mapArea, mapNo, gauge } of state.unclearedHpGaugeMaps()) {
-        const key = `${mapId}:${gauge.selectedRank}`;
-        if (bossHpScanned.has(key)) continue;
-        bossHpScanned.add(key);
-        try {
-            if (await restoreMapBossHp(mapArea, mapNo, gauge.selectedRank)) changed = true;
-        } catch (e) {
-            bossHpScanned.delete(key);   // 失敗不算掃過，下次 mapinfo 再試
-            console.warn('[KC-Monitor] Boss HP 恢復失敗', key, e);
+        // 同一活動圖切換血條後，當前 mapinfo 只保留一個 gauge；從既有 replay
+        // 的 gaugeNum 收集其他已觀測血條，才能像 KC3Kai 一樣切回時恢復各自 baseHp。
+        const gaugeNums = new Set<number | undefined>([gauge.gaugeNum]);
+        if (gauge.gaugeNum !== undefined) {
+            await db.replays.where('world').equals(mapArea).each(row => {
+                const n = row.gaugeNum;
+                if (row.mapnum === mapNo && !row.imported
+                    && (row.diff === gauge.selectedRank || row.diff === 0)
+                    && typeof n === 'number' && Number.isSafeInteger(n) && n > 0) gaugeNums.add(n);
+            });
+        }
+        for (const gaugeNum of gaugeNums) {
+            const key = `${mapId}:${gauge.selectedRank}:${gaugeNum ?? '?'}`;
+            if (bossHpScanned.has(key)) continue;
+            bossHpScanned.add(key);
+            try {
+                if (await restoreMapBossHp(mapArea, mapNo, gauge.selectedRank, gaugeNum)) changed = true;
+            } catch (e) {
+                bossHpScanned.delete(key);   // 失敗不算掃過，下次 mapinfo 再試
+                console.warn('[KC-Monitor] Boss HP 恢復失敗', key, e);
+            }
         }
     }
     return changed;
