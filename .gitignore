@@ -10,3 +10,4 @@ __pycache__/
 /fleet-combined-before.png
 /sortie-diagnosis.png
 tools/icons/out/
+.agents/skills/
