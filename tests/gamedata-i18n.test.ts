@@ -11,4 +11,11 @@ describe('艦娘名稱本地化', () => {
         setDisplayLang('ja');
         expect(localizeShip(147, 'Верный')).toBe('Верный');
     });
+
+    it('Phoenix 艦線使用台灣慣用的 General Belgrano 譯名', () => {
+        setDisplayLang('zh-TW');
+        expect(localizeShip(952, 'フェニックス')).toBe('鳳凰城');
+        expect(localizeShip(734, 'Phoenix改')).toBe('鳳凰城改');
+        expect(localizeShip(957, 'General Belgrano')).toBe('貝爾格蘭諾將軍號');
+    });
 });

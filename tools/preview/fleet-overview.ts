@@ -13,9 +13,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { GameState } from '../../utils/state';
+import { airBaseKey, GameState } from '../../utils/state';
 import { fleetHtml, baseHtml } from '../../entrypoints/overview/sections/fleet-overview';
-import { airBaseAreaLabel } from '../../entrypoints/overview/lib';
+import { airBaseAreaLabel, esc } from '../../entrypoints/overview/lib';
 import { setLang, t } from '../../utils/ui-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -99,6 +99,46 @@ const areaCounts = new Map(areaIds.map(id => [id, basesAll.filter(b => b.areaId 
 
 const fleetsHtml = fleetsAll.map((f, i) => fleetHtml(f, i, state.fleetSummary(i, 1))).join('');
 const lbasHtml = basesAll.map(b => baseHtml(b, areaLabels.get(b.areaId) ?? '')).join('');
+const codeFleetChoices = fleetsAll.map((fleet, index) => fleet.ships.length
+    ? `<label class="fo-code-fleet-choice"><input type="checkbox" checked><span>${esc(t('ov.fleetN', { n: index + 1 }))} — ${esc(fleet.name)} <span class="fo-area">×${fleet.ships.length}</span></span></label>`
+    : '').join('');
+const codeAirBaseChoices = basesAll
+    .filter(base => base.squadrons.some(squadron => squadron.state === 1 && squadron.mst > 0))
+    .map(base => `<label class="fo-code-fleet-choice fo-code-air-base-choice"><input type="checkbox" checked data-fleet-code-air-base-selection="sortie" data-air-base-key="${esc(airBaseKey(base))}"><span>${esc(t('ov.fleetCodesAirBaseChoice', {
+        name: base.name, area: areaLabels.get(base.areaId) ?? '', rid: base.rid,
+    }))}</span></label>`)
+    .join('');
+const codeDialog = `
+    <dialog class="fo-code-dialog" open>
+        <form class="fo-code-form">
+            <h2 class="fo-code-title">${t('ov.fleetCodesTitle')}</h2>
+            <p class="fo-code-intro">${t('ov.fleetCodesIntro')}</p>
+            <section class="fo-code-section">
+                <h3>${t('ov.fleetCodesOwnedTitle')}</h3>
+                <p>${t('ov.fleetCodesOwnedHint')}</p>
+                <textarea class="fo-code-output" readonly spellcheck="false">[{"id":361,"lv":8}]</textarea>
+                <button type="button" class="ov-btn">${t('ov.fleetCodesCopyOwned')}</button>
+            </section>
+            <section class="fo-code-section">
+                <h3>${t('ov.fleetCodesSortieTitle')}</h3>
+                        <p>${t('ov.fleetCodesFleetHint')}</p>
+                        <div class="fo-code-fleet-choices">${codeFleetChoices}</div>
+                        <p class="fo-code-subtitle">${t('ov.fleetCodesAirBaseTitle')}</p>
+                        <p>${t('ov.fleetCodesAirBaseHint')}</p>
+                <div class="fo-code-fleet-choices" data-fleet-code-air-base-choices="sortie">${codeAirBaseChoices}</div>
+                        <textarea class="fo-code-output" readonly spellcheck="false">{"version":4,"f1":{"s1":{"id":101,"lv":90,"items":{}}},"a1":{"mode":1,"items":{"i1":{"id":169,"rf":0,"mas":0}}}}</textarea>
+                <button type="button" class="ov-btn">${t('ov.fleetCodesCopySortie')}</button>
+            </section>
+            <section class="fo-code-section">
+                <h3>${t('ov.fleetCodesSupportTitle')}</h3>
+                <p>${t('ov.fleetCodesFleetHint')}</p>
+                <div class="fo-code-fleet-choices">${codeFleetChoices}</div>
+                <textarea class="fo-code-output" readonly spellcheck="false">{"version":4,"f1":{"s1":{"id":101,"lv":90,"items":{}}}}</textarea>
+                <button type="button" class="ov-btn">${t('ov.fleetCodesCopySupport')}</button>
+            </section>
+            <div class="fo-code-actions"><button type="button" class="ov-btn">${t('ov.fleetCodesClose')}</button></div>
+        </form>
+    </dialog>`;
 
 // 顯示範圍摺疊區塊：markup 與 render() 手寫的那份一致，僅供預覽外觀比對用
 // （這塊只供預覽外觀比對，不透過額外 export 共用）。
@@ -115,6 +155,7 @@ const shell = `
         <button class="ov-btn">${t('ov.downloadPng')}</button>
         <button class="ov-btn">${t('ov.exportImgBuilder')}</button>
         <button class="ov-btn">${t('ov.exportAirCalc')}</button>
+        <button class="ov-btn">${t('ov.fleetCodesButton')}</button>
     </div>
     <p class="fo-note">${t('ov.exportExternalNote')}</p>
     <details class="fo-scope" open>
@@ -127,7 +168,8 @@ const shell = `
     <div class="fo-body">
         <div class="fo-fleets">${fleetsHtml}</div>
         <div class="fo-lbas-row">${lbasHtml}</div>
-    </div>`;
+    </div>
+    ${codeDialog}`;
 
 // overview 的 <style> 原封取用——預覽要驗的就是那份 CSS 在真實資料下的樣子。
 // body 是 grid（header/nav/content 三區，見 index.html 的 `body { grid-template-areas }`），
@@ -135,7 +177,7 @@ const shell = `
 // 少了 #nav 這個佔位元素，預覽算出來的可用寬度會比真實頁面寬 200px，欄數會多算。
 const overviewHtml = readFileSync(resolve(root, 'entrypoints/overview/index.html'), 'utf8');
 const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml.indexOf('</style>'));
-// 圖示是 root-relative（擴充內為 /icons/…），預覽走 file:// 故改指向 public/
+// 圖示是 root-relative（擴充內為 /icons/…），本機 HTTP 預覽改指向專案根目錄下的 public/。
 const page = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8">
 <title>艦隊全覽版面預覽</title><style>${css}</style></head>
 <body>
@@ -143,7 +185,7 @@ const page = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8">
     <nav id="nav"></nav>
     <main id="content">${shell}</main>
 </body></html>`
-    .replace(/src="\/icons\//g, `src="${resolve(root, 'public/icons')}/`);
+    .replace(/src="\/icons\//g, 'src="/public/icons/');
 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
 const out = resolve(root, '.preview/fleet-overview.html');

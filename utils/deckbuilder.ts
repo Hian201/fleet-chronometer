@@ -19,7 +19,8 @@
 //     顯示 fp/tp/aa/ar/asw/ev/los 皆為選填（缺席時該工具會自己用 master+等級回推），
 //     故本檔案在附不到精確素質時省略該欄位並非未完成，而是兩個消費端都容許的行為。
 // 兩者吃同一種 schema（f1~f4 艦隊、a1~a3 基地航空隊），故只需一份轉換器共用。
-import type { GameState } from './state';
+import { airBaseKey } from './state';
+import type { AirBaseView, FleetView, GameState, GearView, ShipView } from './state';
 import type { ReplayLbas, ReplayRow, ReplayShip, ReplaySupportShip } from './db';
 
 // lbas：以**海域（maparea id）**為鍵的開關表（`String(areaId)`），缺席＝送出，見
@@ -27,12 +28,198 @@ import type { ReplayLbas, ReplayRow, ReplayShip, ReplaySupportShip } from './db'
 // （各海域都有自己的第一/第二/第三基地航空隊，會撞號）。
 export interface DeckBuilderScope { fleets: boolean[]; lbas: Record<string, boolean> }
 
-interface DeckBuilderItem { id: number; rf: number; mas: number; count?: number }
+interface DeckBuilderItem { id: number; rf: number; mas?: number; count?: number }
 type DeckBuilderItems = Record<string, DeckBuilderItem>;
 
 // 補強增設槽位的 key：kc-web 的 convert.ts 認得 'ix' 這個固定字串（另一種
 // `i${槽數+1}` 寫法對可變槽數艦娘不好算，'ix' 兩邊都吃得下，故固定用它）。
 const EX_ITEM_KEY = 'ix';
+
+type FleetCodeState = Pick<GameState, 'hqLv' | 'fleets'> & Partial<Pick<GameState, 'airBases_'>>;
+type OwnedEquipmentCodeState = Pick<GameState, 'ownedGears'>;
+
+const MAX_DECK_BUILDER_AIR_BASES = 3;
+
+function requireNonNegativeInteger(value: unknown, where: string): number {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+        throw new Error(`${where} 不是可安全輸出的非負整數。`);
+    }
+    return value;
+}
+
+function requirePositiveInteger(value: unknown, where: string): number {
+    const number = requireNonNegativeInteger(value, where);
+    if (number === 0) throw new Error(`${where} 不是可安全輸出的正整數。`);
+    return number;
+}
+
+function deckBuilderItem(gear: Pick<GearView, 'mst' | 'level' | 'alv'>, where: string): DeckBuilderItem {
+    return {
+        id: requirePositiveInteger(gear.mst, `${where}.id`),
+        rf: requireNonNegativeInteger(gear.level, `${where}.rf`),
+        mas: requireNonNegativeInteger(gear.alv, `${where}.mas`),
+    };
+}
+
+function selectedFleetNumbers(state: FleetCodeState, fleetNos: readonly number[]): number[] {
+    if (fleetNos.length === 0) throw new Error('至少需要選擇一隊艦隊。');
+    const fleets = state.fleets();
+    const unique = new Set<number>();
+    for (const fleetNo of fleetNos) {
+        const number = requirePositiveInteger(fleetNo, 'fleetNo');
+        if (unique.has(number)) throw new Error(`艦隊 ${number} 被重複選取。`);
+        if (!fleets[number - 1]?.ships.length) throw new Error(`艦隊 ${number} 沒有可輸出的編成資料。`);
+        unique.add(number);
+    }
+    return [...unique].sort((a, b) => a - b);
+}
+
+function selectedFleet(fleet: FleetView, fleetNo: number): Record<string, unknown> {
+    if (fleet.ships.length > 7) throw new Error(`艦隊 ${fleetNo} 超過 DeckBuilder 可安全輸出的七艘艦。`);
+    const output: Record<string, unknown> = {};
+    fleet.ships.forEach((ship, shipIndex) => {
+        output[`s${shipIndex + 1}`] = deckBuilderShip(ship, `fleet${fleetNo}.s${shipIndex + 1}`);
+    });
+    return output;
+}
+
+function deckBuilderShip(ship: ShipView, where: string): Record<string, unknown> {
+    const items: DeckBuilderItems = {};
+    if (!Array.isArray(ship.gears)) throw new Error(`${where}.gears 不是可輸出的裝備槽陣列。`);
+    ship.gears.forEach((gear, gearIndex) => {
+        if (gear) items[`i${gearIndex + 1}`] = deckBuilderItem(gear, `${where}.items.i${gearIndex + 1}`);
+    });
+    if (ship.exGear) items[EX_ITEM_KEY] = deckBuilderItem(ship.exGear, `${where}.items.${EX_ITEM_KEY}`);
+    return {
+        id: requirePositiveInteger(ship.mst, `${where}.id`),
+        lv: requireNonNegativeInteger(ship.lv, `${where}.lv`),
+        luck: requireNonNegativeInteger(ship.luck, `${where}.luck`),
+        // DeckBuilder／らくらく支援編成読込使用的增設開放旗標；有裝備或明確的空孔都代表已開放。
+        exa: ship.exGear !== null || ship.exEmpty,
+        hp: requireNonNegativeInteger(ship.hp, `${where}.hp`),
+        items,
+    };
+}
+
+function supportDeckBuilderItem(
+    gear: Pick<GearView, 'mst' | 'level'>,
+    where: string,
+): Omit<DeckBuilderItem, 'mas'> {
+    return {
+        id: requirePositiveInteger(gear.mst, `${where}.id`),
+        rf: requireNonNegativeInteger(gear.level, `${where}.rf`),
+    };
+}
+
+function supportDeckBuilderShip(ship: ShipView, where: string): Record<string, unknown> {
+    const items: Record<string, Omit<DeckBuilderItem, 'mas'>> = {};
+    if (!Array.isArray(ship.gears)) throw new Error(`${where}.gears 不是可輸出的裝備槽陣列。`);
+    ship.gears.forEach((gear, gearIndex) => {
+        if (gear) items[`i${gearIndex + 1}`] = supportDeckBuilderItem(gear, `${where}.items.i${gearIndex + 1}`);
+    });
+    if (ship.exGear) items[EX_ITEM_KEY] = supportDeckBuilderItem(ship.exGear, `${where}.items.${EX_ITEM_KEY}`);
+    return {
+        id: String(requirePositiveInteger(ship.mst, `${where}.id`)),
+        lv: requireNonNegativeInteger(ship.lv, `${where}.lv`),
+        luck: requireNonNegativeInteger(ship.luck, `${where}.luck`),
+        exa: ship.exGear !== null || ship.exEmpty,
+        items,
+    };
+}
+
+function selectedSupportFleet(fleet: FleetView, fleetNo: number): Record<string, unknown> {
+    if (fleet.ships.length > 6) throw new Error(`支援艦隊 ${fleetNo} 超過らくらく支援編成可讀取的六艘艦。`);
+    const output: Record<string, unknown> = {};
+    fleet.ships.forEach((ship, shipIndex) => {
+        output[`s${shipIndex + 1}`] = supportDeckBuilderShip(ship, `fleet${fleetNo}.s${shipIndex + 1}`);
+    });
+    return output;
+}
+
+function deckBuilderAirBase(base: AirBaseView, where: string): Record<string, unknown> {
+    if (!Array.isArray(base.squadrons)) throw new Error(`${where}.squadrons 不是可輸出的中隊陣列。`);
+    const items: DeckBuilderItems = {};
+    base.squadrons.forEach((squadron, squadronIndex) => {
+        if (squadron.state !== 1) return;
+        items[`i${squadronIndex + 1}`] = deckBuilderItem(squadron, `${where}.items.i${squadronIndex + 1}`);
+    });
+    if (Object.keys(items).length === 0) throw new Error(`${where} 沒有可輸出的已配備中隊。`);
+    return {
+        mode: requireNonNegativeInteger(base.actionKind, `${where}.mode`),
+        items,
+    };
+}
+
+function selectedAirBases(state: FleetCodeState, airBaseKeys: readonly string[]): AirBaseView[] {
+    if (airBaseKeys.length === 0) return [];
+    if (airBaseKeys.length > MAX_DECK_BUILDER_AIR_BASES) {
+        throw new Error(`基地航空隊最多只能選擇 ${MAX_DECK_BUILDER_AIR_BASES} 隊。`);
+    }
+    const airBases = state.airBases_?.();
+    if (!airBases) throw new Error('目前狀態沒有可輸出的基地航空隊資料。');
+
+    const requested = new Set<string>();
+    for (const key of airBaseKeys) {
+        if (typeof key !== 'string' || key.length === 0) throw new Error('基地航空隊選取鍵無效。');
+        if (requested.has(key)) throw new Error(`基地航空隊 ${key} 被重複選取。`);
+        requested.add(key);
+    }
+    const selected = airBases.filter(base => requested.has(airBaseKey(base)));
+    if (selected.length !== requested.size) throw new Error('選取的基地航空隊不存在於目前狀態。');
+    return selected;
+}
+
+/**
+ * 將鎮守府目前所有裝備轉成可手動貼上的裝備代碼。
+ * 這裡只取 `ownedGears()` 的 master id 與改修值，不輸出裝備實例 id 或名稱。
+ */
+export function buildOwnedEquipmentCode(state: OwnedEquipmentCodeState): string {
+    const code = state.ownedGears().map((gear, index) => ({
+        id: requirePositiveInteger(gear.mst, `owned[${index}].id`),
+        lv: requireNonNegativeInteger(gear.level, `owned[${index}].lv`),
+    }));
+    return JSON.stringify(code);
+}
+
+/**
+ * 將使用者選取的艦隊與基地航空隊轉成 DeckBuilder v4 JSON。輸出艦隊會依原艦隊編號
+ * 排序後連續填入 f1、f2…；出擊與支援兩組選取因此可以彼此獨立，且不保留原始艦隊空洞。
+ * 基地航空隊使用複合鍵選取並依 areaId／rid 順序填入 a1、a2、a3；DeckBuilder 只支援
+ * 三個基地欄位，超過時拒絕輸出而不靜默截斷。
+ */
+export function buildSelectedDeckBuilder(
+    state: FleetCodeState,
+    fleetNos: readonly number[],
+    airBaseKeys: readonly string[] = [],
+): object {
+    const deck: Record<string, unknown> = { version: 4 };
+    if (Number.isSafeInteger(state.hqLv) && state.hqLv > 0) deck.hqlv = state.hqLv;
+    const fleets = state.fleets();
+    selectedFleetNumbers(state, fleetNos).forEach((fleetNo, index) => {
+        deck[`f${index + 1}`] = selectedFleet(fleets[fleetNo - 1]!, fleetNo);
+    });
+    selectedAirBases(state, airBaseKeys).forEach((base, index) => {
+        deck[`a${index + 1}`] = deckBuilderAirBase(base, `airBase${airBaseKey(base)}`);
+    });
+    return deck;
+}
+
+/**
+ * 將選取的支援艦隊轉成らくらく「編成出力」相同的 DeckBuilder v4 形狀。
+ * 支援頁的編成資料不保存艦娘 HP 或裝備熟練度，因此這裡只輸出其可接受的欄位。
+ * `items` 仍保留在代碼中，供會讀取支援艦隊裝備的 DeckBuilder 工具使用。
+ */
+export function buildSelectedSupportDeckBuilder(
+    state: FleetCodeState,
+    fleetNos: readonly number[],
+): object {
+    const deck: Record<string, unknown> = { version: 4 };
+    const fleets = state.fleets();
+    selectedFleetNumbers(state, fleetNos).forEach((fleetNo, index) => {
+        deck[`f${index + 1}`] = selectedSupportFleet(fleets[fleetNo - 1]!, fleetNo);
+    });
+    return deck;
+}
 
 export function buildDeckBuilder(state: GameState, scope: DeckBuilderScope): object {
     // ownedShips() 已含裝備加成的精確素質（見該方法註解），用艦實例 id 反查——

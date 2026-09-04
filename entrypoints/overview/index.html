@@ -3976,6 +3976,103 @@
             margin-top: 12px;
         }
 
+        /* 本機代碼複製對話框：只整理目前 view 並把結果寫入剪貼簿，不需要網站權限。 */
+        .fo-code-dialog {
+            width: min(760px, calc(100vw - 32px));
+            max-height: min(88vh, 820px);
+            overflow: auto;
+            border: 1px solid var(--brass);
+            border-radius: 8px;
+            padding: 16px;
+            background: var(--panel);
+            color: var(--text);
+        }
+
+        .fo-code-dialog::backdrop {
+            background: color-mix(in srgb, black 60%, transparent);
+        }
+
+        .fo-code-title {
+            margin: 0 0 6px;
+            font-size: 16px;
+            color: var(--sparkle);
+        }
+
+        .fo-code-intro,
+        .fo-code-section p {
+            margin: 4px 0 8px;
+            font-size: 12px;
+        }
+
+        .fo-code-section {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid var(--line);
+        }
+
+        .fo-code-section h3 {
+            margin: 0;
+            font-size: 13px;
+            color: var(--sparkle);
+        }
+
+        .fo-code-subtitle {
+            font-weight: 700;
+            color: var(--sparkle);
+        }
+
+        .fo-code-fleet-choices {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .fo-code-fleet-choice {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            min-height: 30px;
+            padding: 5px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--bg);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .fo-code-fleet-choice:has(input:checked) {
+            border-color: var(--accent);
+            color: var(--sparkle);
+        }
+
+        .fo-code-output {
+            display: block;
+            width: 100%;
+            min-height: 140px;
+            margin: 8px 0;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            background: var(--bg);
+            color: var(--text);
+            font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            resize: vertical;
+        }
+
+        .fo-code-error {
+            margin: 8px 0;
+            color: var(--dmg-major);
+            font-size: 12px;
+        }
+
+        .fo-code-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
         .g-icon {
             width: 16px;
             height: 16px;

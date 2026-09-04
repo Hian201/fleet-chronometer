@@ -797,7 +797,7 @@ export const SHIP_NAMES: NameTable = {
     954: { 'en': 'Haruna Kai Ni C', 'zh-TW': '榛名改二丙' },
     955: { 'en': 'Kiyoshimo Kai Ni', 'zh-TW': '清霜改二' },
     956: { 'en': 'Hayashimo Kai Ni', 'zh-TW': '早霜改二' },
-    957: { 'en': 'General Belgrano', 'zh-TW': 'General Belgrano' },
+    957: { 'en': 'General Belgrano', 'zh-TW': '貝爾格蘭諾將軍號' },
     958: { 'en': 'Asahi Kai', 'zh-TW': '朝日改' },
     959: { 'en': 'Miyuki Kai Ni', 'zh-TW': '深雪改二' },
     960: { 'en': 'Kiyoshimo Kai Ni D', 'zh-TW': '清霜改二丁' },

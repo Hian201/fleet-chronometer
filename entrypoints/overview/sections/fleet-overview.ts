@@ -6,7 +6,8 @@
 //     同一份 markup／CSS 同時支援不同寬度，無須另維護窄欄圖示版。
 //   · 艦隊與基地航空隊的顯示範圍以 `<details>` 管理，控制項以 sticky 固定在捲動區頂端。
 //   · 傳給 KanColleImgBuilder／制空権シミュレータ的範圍獨立於畫面顯示範圍；使用者在
-//     `<dialog>` 中選取後才組 DeckBuilder JSON 開新分頁。
+//     `<dialog>` 中選取後才組 DeckBuilder JSON 開新分頁。艦隊代碼工具則只在本機整理
+//     裝備與選定艦隊的 JSON，提供分項複製。
 //   · 不繪製立繪，因為本擴充不處理遊戲美術資源；艦載機搭載數不佔此區欄寬，熟練度以
 //     三段顏色與 `»` 表示，完整階級放在 title。出擊監控仍提供搭載實數。
 //   · 艦欄使用 `flex: 0 1 var(--fo-col-w)` 靠左排列；滿編時才平均收縮，避免單艘艦時
@@ -24,13 +25,17 @@
 //     不會載外部資源，含 <img> 會變空白；純文字＋內聯 CSS 則能穩定點陣化，不需任何權限。
 //   · DeckBuilder（KanColleImgBuilder／制空権シミュレータ）：見 utils/deckbuilder.ts。
 import type { OverviewSection } from './types';
+import { airBaseKey } from '@/utils/state';
 import type { GameState, FleetView, AirBaseView, ShipView, GearView, SquadronView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
 import {
     AIR_ACTION_KEYS, airBaseAreaLabel, esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, gearMarkdown,
     loadJsonPrefs, saveJsonPrefs, shipGearsMarkdown, type FleetMarkdownScope,
 } from '../lib';
-import { buildDeckBuilder, imgBuilderUrl, airCalcUrl } from '@/utils/deckbuilder';
+import {
+    buildDeckBuilder, buildOwnedEquipmentCode, buildSelectedDeckBuilder, buildSelectedSupportDeckBuilder,
+    imgBuilderUrl, airCalcUrl,
+} from '@/utils/deckbuilder';
 
 // ── 顯示範圍偏好（localStorage）──────────────────────────────
 // lbas 偏好以海域 id 為鍵的表儲存；缺少海域資訊的舊格式無法安全轉換，故不套用其值，
@@ -262,6 +267,10 @@ export const fleetOverviewSection: OverviewSection = {
         const areaCounts = new Map(areaIds.map(id => [id, basesAll.filter(b => b.areaId === id).length]));
         const lbasShown = (b: AirBaseView) => prefs.lbas[String(b.areaId)] !== false;
         const existingFleets = fleetsAll.filter(f => f.ships.length).length;
+        const codeFleets = fleetsAll
+            .map((fleet, index) => ({ fleet, fleetNo: index + 1 }))
+            .filter(({ fleet }) => fleet.ships.length > 0);
+        const codeAirBases = basesAll.filter(base => base.squadrons.some(squadron => squadron.state === 1 && squadron.mst > 0));
 
         // 摺疊起來的「顯示範圍」summary：不展開也看得出目前篩著什麼（同 ships.ts
         // 「生效條件 chip 列常駐」的精神），不然摺起來就變成一個看不出內容的黑盒子。
@@ -287,6 +296,7 @@ export const fleetOverviewSection: OverviewSection = {
                 <button class="ov-btn" id="fo-png">${esc(t('ov.downloadPng'))}</button>
                 <button class="ov-btn" id="fo-imgbuilder">${esc(t('ov.exportImgBuilder'))}</button>
                 <button class="ov-btn" id="fo-aircalc">${esc(t('ov.exportAirCalc'))}</button>
+                <button class="ov-btn" id="fo-fleet-codes">${esc(t('ov.fleetCodesButton'))}</button>
             </div>
             <p class="fo-note">${esc(t('ov.exportExternalNote'))}</p>
             <details class="fo-scope">
@@ -304,6 +314,61 @@ export const fleetOverviewSection: OverviewSection = {
                     <div class="fo-export-actions">
                         <button type="button" class="ov-btn" data-export-cancel>${esc(t('ov.fleetOverviewExportCancel'))}</button>
                         <button type="submit" class="ov-btn" data-export-go>${esc(t('ov.fleetOverviewExportGo'))}</button>
+                    </div>
+                </form>
+            </dialog>
+            <dialog class="fo-code-dialog">
+                <form method="dialog" class="fo-code-form">
+                    <h2 class="fo-code-title">${esc(t('ov.fleetCodesTitle'))}</h2>
+                    <p class="fo-code-intro">${esc(t('ov.fleetCodesIntro'))}</p>
+                    <section class="fo-code-section">
+                        <h3>${esc(t('ov.fleetCodesOwnedTitle'))}</h3>
+                        <p>${esc(t('ov.fleetCodesOwnedHint'))}</p>
+                        <textarea class="fo-code-output" data-fleet-code="owned" readonly spellcheck="false" aria-label="${esc(t('ov.fleetCodesOwnedTitle'))}"></textarea>
+                        <p class="fo-code-error" data-fleet-code-error="owned" role="alert" hidden></p>
+                        <button type="button" class="ov-btn" data-copy-fleet-code="owned">${esc(t('ov.fleetCodesCopyOwned'))}</button>
+                    </section>
+                    <section class="fo-code-section">
+                        <h3>${esc(t('ov.fleetCodesSortieTitle'))}</h3>
+                        <p>${esc(t('ov.fleetCodesFleetHint'))}</p>
+                        <div class="fo-code-fleet-choices" data-fleet-code-choices="sortie">
+                            ${codeFleets.map(({ fleet, fleetNo }) => `<label class="fo-code-fleet-choice">
+                                <input type="checkbox" data-fleet-code-selection="sortie" data-fleet-no="${fleetNo}">
+                                <span>${esc(t('ov.fleetN', { n: fleetNo }))} — ${esc(fleet.name)} <span class="fo-area">×${fleet.ships.length}</span></span>
+                            </label>`).join('')}
+                        </div>
+                        ${codeAirBases.length ? `
+                        <p class="fo-code-subtitle">${esc(t('ov.fleetCodesAirBaseTitle'))}</p>
+                        <p>${esc(t('ov.fleetCodesAirBaseHint'))}</p>
+                        <div class="fo-code-fleet-choices" data-fleet-code-air-base-choices="sortie">
+                            ${codeAirBases.map(base => `<label class="fo-code-fleet-choice fo-code-air-base-choice">
+                                <input type="checkbox" data-fleet-code-air-base-selection="sortie" data-air-base-key="${esc(airBaseKey(base))}">
+                                <span>${esc(t('ov.fleetCodesAirBaseChoice', {
+                                    name: base.name,
+                                    area: areaLabels.get(base.areaId) ?? '',
+                                    rid: base.rid,
+                                }))}</span>
+                            </label>`).join('')}
+                        </div>` : ''}
+                        <textarea class="fo-code-output" data-fleet-code="sortie" readonly spellcheck="false" aria-label="${esc(t('ov.fleetCodesSortieTitle'))}"></textarea>
+                        <p class="fo-code-error" data-fleet-code-error="sortie" role="alert" hidden></p>
+                        <button type="button" class="ov-btn" data-copy-fleet-code="sortie">${esc(t('ov.fleetCodesCopySortie'))}</button>
+                    </section>
+                    <section class="fo-code-section">
+                        <h3>${esc(t('ov.fleetCodesSupportTitle'))}</h3>
+                        <p>${esc(t('ov.fleetCodesSupportHint'))}</p>
+                        <div class="fo-code-fleet-choices" data-fleet-code-choices="support">
+                            ${codeFleets.map(({ fleet, fleetNo }) => `<label class="fo-code-fleet-choice">
+                                <input type="checkbox" data-fleet-code-selection="support" data-fleet-no="${fleetNo}">
+                                <span>${esc(t('ov.fleetN', { n: fleetNo }))} — ${esc(fleet.name)} <span class="fo-area">×${fleet.ships.length}</span></span>
+                            </label>`).join('')}
+                        </div>
+                        <textarea class="fo-code-output" data-fleet-code="support" readonly spellcheck="false" aria-label="${esc(t('ov.fleetCodesSupportTitle'))}"></textarea>
+                        <p class="fo-code-error" data-fleet-code-error="support" role="alert" hidden></p>
+                        <button type="button" class="ov-btn" data-copy-fleet-code="support">${esc(t('ov.fleetCodesCopySupport'))}</button>
+                    </section>
+                    <div class="fo-code-actions">
+                        <button type="button" class="ov-btn" data-fleet-codes-close>${esc(t('ov.fleetCodesClose'))}</button>
                     </div>
                 </form>
             </dialog>`;
@@ -382,5 +447,102 @@ export const fleetOverviewSection: OverviewSection = {
         });
         el.querySelector('#fo-imgbuilder')!.addEventListener('click', () => openExportDialog('imgbuilder'));
         el.querySelector('#fo-aircalc')!.addEventListener('click', () => openExportDialog('aircalc'));
+
+        // ── 本機代碼複製 ──
+        const codeDialog = el.querySelector<HTMLDialogElement>('.fo-code-dialog')!;
+        const codeGroups = ['sortie', 'support'] as const;
+        type CodeGroup = (typeof codeGroups)[number];
+
+        function selectedFleetNos(group: CodeGroup): number[] {
+            return [...codeDialog.querySelectorAll<HTMLInputElement>(
+                `input[data-fleet-code-selection="${group}"]:checked`,
+            )]
+                .map(input => Number(input.dataset.fleetNo))
+                .filter(Number.isSafeInteger);
+        }
+
+        function selectedAirBaseKeys(): string[] {
+            return [...codeDialog.querySelectorAll<HTMLInputElement>(
+                'input[data-fleet-code-air-base-selection="sortie"]:checked',
+            )]
+                .map(input => input.dataset.airBaseKey ?? '')
+                .filter(Boolean);
+        }
+
+        function refreshCode(group: CodeGroup): void {
+            const output = codeDialog.querySelector<HTMLTextAreaElement>(`textarea[data-fleet-code="${group}"]`)!;
+            const error = codeDialog.querySelector<HTMLElement>(`[data-fleet-code-error="${group}"]`)!;
+            const copy = codeDialog.querySelector<HTMLButtonElement>(`[data-copy-fleet-code="${group}"]`)!;
+            const fleetNos = selectedFleetNos(group);
+            const airBaseKeys = group === 'sortie' ? selectedAirBaseKeys() : [];
+            if (fleetNos.length === 0) {
+                output.value = '';
+                error.hidden = false;
+                error.textContent = t('ov.fleetCodesNeedFleet');
+                copy.disabled = true;
+                return;
+            }
+            if (airBaseKeys.length > 3) {
+                output.value = '';
+                error.hidden = false;
+                error.textContent = t('ov.fleetCodesTooManyAirBases');
+                copy.disabled = true;
+                return;
+            }
+            try {
+                const deck = group === 'support'
+                    ? buildSelectedSupportDeckBuilder(state, fleetNos)
+                    : buildSelectedDeckBuilder(state, fleetNos, airBaseKeys);
+                output.value = JSON.stringify(deck, null, 2);
+                error.hidden = true;
+                error.textContent = '';
+                copy.disabled = false;
+            } catch (cause) {
+                output.value = '';
+                error.hidden = false;
+                error.textContent = t('ov.fleetCodesInvalid');
+                copy.disabled = true;
+                console.warn('[KC-Monitor] 艦隊代碼整理失敗', cause);
+            }
+        }
+
+        function refreshOwnedCode(): void {
+            const output = codeDialog.querySelector<HTMLTextAreaElement>('textarea[data-fleet-code="owned"]')!;
+            const error = codeDialog.querySelector<HTMLElement>('[data-fleet-code-error="owned"]')!;
+            const copy = codeDialog.querySelector<HTMLButtonElement>('[data-copy-fleet-code="owned"]')!;
+            try {
+                output.value = buildOwnedEquipmentCode(state);
+                error.hidden = true;
+                error.textContent = '';
+                copy.disabled = false;
+            } catch (cause) {
+                output.value = '';
+                error.hidden = false;
+                error.textContent = t('ov.fleetCodesInvalid');
+                copy.disabled = true;
+                console.warn('[KC-Monitor] 所持裝備代碼整理失敗', cause);
+            }
+        }
+
+        codeDialog.querySelectorAll<HTMLInputElement>(
+            'input[data-fleet-code-selection], input[data-fleet-code-air-base-selection]',
+        ).forEach(input => {
+            input.addEventListener('change', () => refreshCode(
+                (input.dataset.fleetCodeSelection ?? input.dataset.fleetCodeAirBaseSelection) as CodeGroup,
+            ));
+        });
+        codeDialog.querySelectorAll<HTMLButtonElement>('[data-copy-fleet-code]').forEach(button => {
+            button.addEventListener('click', () => {
+                const key = button.dataset.copyFleetCode;
+                const output = codeDialog.querySelector<HTMLTextAreaElement>(`textarea[data-fleet-code="${key}"]`);
+                if (output?.value) void copyWithFeedback(button, output.value, t('ov.fleetCodesCopied'));
+            });
+        });
+        codeDialog.querySelector('[data-fleet-codes-close]')!.addEventListener('click', () => codeDialog.close());
+        el.querySelector<HTMLButtonElement>('#fo-fleet-codes')!.addEventListener('click', () => {
+            refreshOwnedCode();
+            codeGroups.forEach(refreshCode);
+            codeDialog.showModal();
+        });
     },
 };
