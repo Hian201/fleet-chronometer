@@ -299,10 +299,26 @@ export interface BattlePhaseView extends BattleHpSnapshot {
 export interface BattleNightEffectsView {
     /** `api_flare_pos[0]` 指向我方照明彈使用位置。 */
     starShell: boolean;
-    /** 夜戰封包的我方 `api_touch_plane[0]` 是夜偵 master id。 */
+    /** 夜戰封包已明示我方 `api_touch_plane[0]` 為正值（夜間觸接成功）。 */
     nightRecon: boolean;
     /** 探照燈已由出擊快照與夜戰時機確認，或攻擊欄明確帶出。 */
     searchlight: boolean;
+}
+
+/** 對空 CI 的封包明細；`api_use_items` 保留發動當下的裝備 master id。 */
+export interface BattleAaciView {
+    /** 封包 `api_air_fire.api_kind`，對照對空 CI 種別值。 */
+    type: number;
+    /** 發動艦所在的艦隊；封包位置無法判定時為 unknown。 */
+    fleet: 'main' | 'escort' | 'unknown';
+    /** 發動艦在主隊／隨伴中的 1-based 位置；0＝封包沒有可辨識位置。 */
+    position: number;
+    /** 出擊快照能對上的艦實例 id；歷史資料沒有快照時缺席。 */
+    shipId?: number;
+    /** 出擊快照中的艦 master id；缺席時不補猜。 */
+    shipMst?: number;
+    /** 封包 `api_air_fire.api_use_items` 的裝備 master id，順序照原始封包。 */
+    gearMst: number[];
 }
 
 export interface BattleInfoView {
@@ -338,9 +354,19 @@ export interface BattleInfoView {
     dropIsNew: boolean;
     supportFlag: number;
     aaci: number; // 0 if none, else AACI kind ID
+    /** 對空 CI 發動艦、Type 與實際使用的裝備組合；沒有發動時為空陣列。 */
+    aaciDetails: BattleAaciView[];
     midnightFlag: boolean;
     /** 夜戰裝備發動標記；舊手捏測資可能沒有此欄位。 */
     nightEffects?: BattleNightEffectsView;
+    /** 夜戰封包是否已實際抵達；`midnightFlag` 只代表可進入夜戰，兩者不可混用。 */
+    nightObserved?: boolean;
+    /** 夜戰封包明示的我方夜間觸接機體 master id；只在夜戰觸接成功時存在。 */
+    nightTouchPlane?: number;
+    /** 連合艦隊夜戰交戰的敵方艦隊；實戰依 `api_active_deck[1]`，日戰後可標示 KC3Kai 式推測。 */
+    nightTarget?: 'main' | 'escort' | 'unknown';
+    /** `true` 表示只有日戰結果推測，收到夜戰封包後改為 `false`。 */
+    nightTargetEstimated?: boolean;
     /** `enemyIds` 中每個 master id 在封包 `api_ship_ke` 的原始位置；供逐筆事件反查名稱。 */
     enemyPositions?: number[];
     /** `enemyIdsEscort` 對應 `api_ship_ke_combined` 的原始位置。 */
@@ -431,10 +457,97 @@ export function sortieNodeOf(api: any): SortieNode {
         ...(Number.isSafeInteger(api?.api_event_kind) ? { eventKind: api.api_event_kind } : {}),
     };
 }
+
+/**
+ * Boss 節點判定比照 KC3Kai：有 `api_event_id` 時只認 5；只有舊封包沒有該欄位時，
+ * 才回退既有的 `api_color_no=5` 事實，避免重播／舊資料被新規則洗掉。
+ */
+export function isBossNode(node: SortieNode | undefined): boolean {
+    if (!node) return false;
+    return node.eventId !== undefined ? node.eventId === 5 : node.color === 5;
+}
+
+/**
+ * 目前血條的有效 Boss。`bossCellNo` 缺席只用於舊封包相容；有明示目標時，其他同樣
+ * `api_event_id=5` 的節點仍是 Boss 戰，但不能拿來更新這條 gauge 的 baseHp。
+ */
+export function isGaugeBossNode(
+    node: SortieNode | undefined,
+    bossCellNo: number | undefined,
+    requireBossCell = false,
+): boolean {
+    if (!isBossNode(node)) return false;
+    if (bossCellNo === undefined) return !requireBossCell;
+    return node?.id === bossCellNo;
+}
+
+/**
+ * 夜戰接續封包常只重送 HP 與夜戰階段，白天的陣形／制空／索敵欄位則留在前一包。
+ * 這些欄位是同一節點的上下文，不應因 reducer 只收到夜戰包而被 0 洗掉；只有在
+ * 夜戰包確實帶出新值時才覆蓋。此合併不碰 resultFleets，避免把夜戰後血量回退。
+ */
+function mergeNightBattleContext(
+    next: BattleInfoView,
+    previous: BattleInfoView | null,
+    packets: any[],
+    isNight: boolean,
+): BattleInfoView {
+    if (!isNight) return next;
+    const hasSearch = packets.some(api => Array.isArray(api?.api_search));
+    const hasAir = packets.some(api => !!api?.api_kouku?.api_stage1
+        || !!api?.api_kouku?.api_stage2
+        || !!api?.api_kouku2?.api_stage1
+        || !!api?.api_kouku2?.api_stage2);
+    const formation = next.formation.map((value, index) => {
+        const n = Number(value);
+        if (Number.isSafeInteger(n) && n > 0) return n;
+        const old = Number(previous?.formation?.[index]);
+        return Number.isSafeInteger(old) && old > 0 ? old : value;
+    });
+    const touchPlane = next.touchPlane.map((value, index) => {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return n;
+        const old = Number(previous?.touchPlane?.[index]);
+        return Number.isFinite(old) && old > 0 ? old : value;
+    });
+    return {
+        ...next,
+        ...(previous ? { formation } : {}),
+        ...(previous && !hasSearch && previous.search ? { search: previous.search } : {}),
+        ...(previous && !hasAir ? {
+            seiku: previous.seiku,
+            planes: previous.planes,
+            aaci: previous.aaci,
+        } : {}),
+        ...(previous && (next.aaciDetails?.length ?? 0) === 0 && previous.aaciDetails?.length ? {
+            aaci: previous.aaci,
+            aaciDetails: previous.aaciDetails,
+        } : {}),
+        ...(previous ? { touchPlane } : {}),
+    };
+}
+
+/** `api_gauge_num` 只保存為血條身分鍵，不對數字本身作語意推論。 */
+function rawGaugeNum(value: unknown): number | undefined {
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+}
+
+/** 只接受封包明示的正整數難度；欄位缺席與明示 0 必須由呼叫端分開處理。 */
+function positiveRank(value: unknown): number | undefined {
+    // mapinfo 的這個欄位已驗證為 number；字串即使看起來像數字也保留為不可考，
+    // 不把未確認的型別轉換成難度事實。
+    const n = typeof value === 'number' ? value : NaN;
+    return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+}
+
 export interface SortieInfoView {
     mapArea: number;
     mapNo: number;
     nodes: SortieNode[];
+    // map/start／next 明示的目前血條目標 Boss 節點。活動破甲路線可能回到另一個同樣
+    // api_event_id=5 的舊 Boss，該節點仍是 Boss 戰，但不得更新目前 gauge 的 baseHp。
+    bossCellNo?: number;
 }
 // 關卡進度。已用 api_get_member/mapinfo、api_req_map/select_eventmap_rank
 // 與 api_req_map/start 的封包結構驗證兩種量表類型：
@@ -452,6 +565,9 @@ export interface MapGaugeView {
     // api_eventmap.api_selected_rank；由選難度請求的 api_rank 與 mapinfo 同步。沒有這兩者
     // 的有效值時一律為 0，不能從其他 event-map 欄位推測。
     selectedRank: number;
+    // `api_gauge_num` 的原始整數，只作同一張活動圖不同血條的識別鍵；不解讀其數字語意。
+    // 一般海域或舊封包缺席時維持 undefined。
+    gaugeNum?: number;
 }
 // ── 工廠（開發/建造/改修）──────────────────────────────
 // createitem 回應結構已用真實封包驗證（samples/kousyou_1.json 單發失敗、
@@ -788,9 +904,12 @@ export class GameState {
     // 第三十一戦隊駆逐艦の出撃」。**活動期間 start2 就會帶當次活動的全部海域**，比 runtime
     // 的 api_get_member/mapinfo 更早可用（後者要玩家開過海域畫面才有）。
     masterMapInfo = new Map<number, { area: number; no: number; name: string; opetext: string }>();
-    // 同一活動海域可能有多個 Boss 節點；保存已實戰觀測到的最高旗艦 HP，避免後打到的
-    // 較低 HP 旁支 Boss 把斬殺線覆蓋掉。面板重開時會由持久化 replays＋sorties 恢復。
-    mapBossHp = new Map<number, number>();          // key 同上：已觀測 Boss 旗艦最大HP
+    // 同一活動海域可能有多個 Boss 節點與多條血條；以
+    // map／難度／gaugeNum 分開保存 baseHp，並只讓目前 gauge 的有效 Boss 節點更新。
+    // 同一有效 Boss 遇到較低的最終形態時才向下更新。
+    // `mapBossHp` 是目前 gauge 的相容快取；完整歷史放在下表，切回前一條血條時可恢復。
+    mapBossHp = new Map<number, number>();
+    private mapBossHpByGauge = new Map<string, number>();
     private sallyKeySampleCount = 0;  // 未知 sally 系欄位樣本擷取次數上限（標籤名驗證鉤子）
     private maelstromUnknownCount = 0; // 渦潮表外節點樣本上限（查表未收錄時才抓）
     // 工廠分頁的「最新結果」看板（開發/改修/建造發起）。EventProjector 在對應事件到達時
@@ -1032,7 +1151,7 @@ export class GameState {
         return true;
     }
 
-    /** 只接受帶 api_id 的艦娘局部資料；Map key 正規化，payload 本身保留原始欄位。 */
+    /** 接受帶 api_id 的艦娘資料；局部更新只合併實際送出的欄位，保留既有槽位關聯。 */
     private ingestShips(value: unknown, opts?: { requireMaster?: boolean }): boolean {
         const list = GameState.recordList(value);
         if (!list || !list.every((s: any) => s && typeof s === 'object'
@@ -1040,7 +1159,10 @@ export class GameState {
             && (!opts?.requireMaster || GameState.positiveId(s.api_ship_id) != null))) return false;
         for (const s of list) {
             const id = GameState.positiveId(s.api_id);
-            if (id != null) this.ships.set(id, s);
+            if (id != null) {
+                const previous = this.ships.get(id);
+                this.ships.set(id, previous ? { ...previous, ...s } : s);
+            }
         }
         return true;
     }
@@ -1195,7 +1317,8 @@ export class GameState {
             || path === 'api_get_member/ship2') {
             // KC3Kai／EO：ship3 的 `api_slot_data`＝**未裝備清單（等同 unsetslot）**，不是
             // 裝備實例＋alv。熟練度刷新只靠 require_info／slot_item。這裡只合併船／艦隊。
-            // 要求每筆帶 api_ship_id，才不把「只有 api_id」的局部物件蓋掉完整狀態。
+            // 要求每筆帶 api_ship_id，才不把「只有 api_id」的局部物件寫入狀態；
+            // ingestShips 會保留封包未送出的 api_slot／其他欄位，明確送出的欄位則照原值更新。
             // ship2 的 decks 在我們的 api_data 邊界外（KC3Kai 讀 response.api_data_deck），
             // 本管線拿不到就略過，等 port／ship3 校正。
             if (path === 'api_get_member/ship2') {
@@ -1438,18 +1561,27 @@ export class GameState {
                 && Number.isSafeInteger(maxHp) && maxHp > 0) {
                 const mapId = area * 10 + mapNo;
                 const previous = this.mapGauges.get(mapId);
-                // 斬殺線依難度而異；切換難度後，舊難度的 Boss HP 不得沿用到新量表。
-                if (previous && previous.selectedRank !== rank) this.mapBossHp.delete(mapId);
+                const gaugeNum = rawGaugeNum(maphp?.api_gauge_num)
+                    ?? rawGaugeNum(maphp?.api_eventmap?.api_gauge_num)
+                    ?? previous?.gaugeNum;
+                const nextGaugeType = Number.isSafeInteger(gaugeType) && gaugeType >= 0
+                    ? gaugeType : (previous?.gaugeType ?? 0);
+                // 斬殺線依難度／血條而異；切換到另一條血條時只切換目前快取，
+                // 其他 gauge 的 baseHp 證據仍保留。
+                if (previous && (previous.selectedRank !== rank
+                    || previous.gaugeType !== nextGaugeType
+                    || previous.gaugeNum !== gaugeNum)) this.clearMapBossHp(mapId);
                 this.mapGauges.set(mapId, {
                     cleared: previous?.cleared ?? false,
-                    gaugeType: Number.isSafeInteger(gaugeType) && gaugeType >= 0
-                        ? gaugeType : (previous?.gaugeType ?? 0),
+                    gaugeType: nextGaugeType,
                     defeatCount: previous?.defeatCount ?? 0,
                     requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
                     nowHp,
                     maxHp,
                     selectedRank: rank,
+                    ...(gaugeNum === undefined ? {} : { gaugeNum }),
                 });
+                this.syncMapBossHp(mapId);
             }
         } else if (path === 'api_req_map/start' && req) {
             this.currentSortieFleetId = Number(req.api_deck_id) - 1;
@@ -1471,10 +1603,12 @@ export class GameState {
             this.snapshotSortieOnslot();
             this.bossEntryTaiha = null;
             const startNode = sortieNodeOf(api);
+            const bossCellNo = Number(api?.api_bosscell_no);
             this.sortieInfo = {
                 mapArea: api.api_maparea_id,
                 mapNo: api.api_mapinfo_no,
                 nodes: [startNode],
+                ...(Number.isSafeInteger(bossCellNo) && bossCellNo > 0 ? { bossCellNo } : {}),
             };
             const eventmap = api?.api_eventmap;
             const nowHp = Number(eventmap?.api_now_maphp);
@@ -1483,15 +1617,32 @@ export class GameState {
                 && Number.isSafeInteger(maxHp) && maxHp > 0) {
                 const mapId = api.api_maparea_id * 10 + api.api_mapinfo_no;
                 const previous = this.mapGauges.get(mapId);
+                const gaugeNum = rawGaugeNum(api?.api_gauge_num)
+                    ?? rawGaugeNum(eventmap?.api_gauge_num)
+                    ?? previous?.gaugeNum;
+                const eventmapGaugeType = Number(eventmap?.api_gauge_type ?? api?.api_gauge_type);
+                const gaugeType = Number.isSafeInteger(eventmapGaugeType) && eventmapGaugeType >= 0
+                    ? eventmapGaugeType : previous?.gaugeType ?? 0;
+                const selectedRank = positiveRank(eventmap?.api_selected_rank)
+                    ?? positiveRank(api?.api_selected_rank)
+                    ?? previous?.selectedRank ?? 0;
+                const fullGaugeReset = !!previous && previous.nowHp < previous.maxHp && nowHp === maxHp;
+                if (previous && (previous.selectedRank !== selectedRank
+                    || previous.gaugeType !== gaugeType
+                    || previous.gaugeNum !== gaugeNum || fullGaugeReset)) {
+                    this.clearMapBossHp(mapId, fullGaugeReset && previous.gaugeNum === gaugeNum);
+                }
                 this.mapGauges.set(mapId, {
                     cleared: previous?.cleared ?? false,
-                    gaugeType: previous?.gaugeType ?? 0,
+                    gaugeType,
                     defeatCount: previous?.defeatCount ?? 0,
                     requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
                     nowHp,
                     maxHp,
-                    selectedRank: previous?.selectedRank ?? 0,
+                    selectedRank,
+                    ...(gaugeNum === undefined ? {} : { gaugeNum }),
                 });
+                this.syncMapBossHp(mapId);
             }
             this.noteBossEntry(startNode);
             this.applyMaelstromIfAny(api, startNode.id);
@@ -1500,6 +1651,10 @@ export class GameState {
             if (this.sortieInfo) {
                 const node = sortieNodeOf(api);
                 this.sortieInfo.nodes.push(node);
+                const bossCellNo = Number(api?.api_bosscell_no);
+                if (Number.isSafeInteger(bossCellNo) && bossCellNo > 0) {
+                    this.sortieInfo.bossCellNo = bossCellNo;
+                }
                 // 血量此刻＝上一個節點戰鬥寫回後的值（戰鬥封包就即時寫回，見 applyEvent
                 // 的戰鬥分支），故這裡量到的正是「踏進這個節點時」的狀態。
                 this.noteBossEntry(node);
@@ -1753,21 +1908,53 @@ export class GameState {
                 for (const m of mapList) {
                     if (!m?.api_id) continue;
                     const ev = m.api_eventmap;
-                    const selectedRank = Number.isSafeInteger(ev?.api_selected_rank) && ev.api_selected_rank > 0
-                        ? ev.api_selected_rank
-                        : 0;
                     const previous = this.mapGauges.get(m.api_id);
-                    // mapinfo 可能在換難度後先於出擊到達；同樣清掉舊難度的斬殺線。
-                    if (previous && previous.selectedRank !== selectedRank) this.mapBossHp.delete(m.api_id);
+                    // mapinfo 不是固定欄位集合：活動圖在部分更新／已攻略狀態可能省略
+                    // api_selected_rank。欄位缺席不代表未選難度，必須保留上一筆已驗證值；
+                    // 只有封包明示 0 才清成「未選」。
+                    const hasSelectedRank = !!ev && typeof ev === 'object'
+                        && Object.prototype.hasOwnProperty.call(ev, 'api_selected_rank');
+                    const selectedRank = positiveRank(ev?.api_selected_rank)
+                        ?? (hasSelectedRank ? 0 : previous?.selectedRank ?? 0);
+                    const gaugeNum = rawGaugeNum(m?.api_gauge_num)
+                        ?? rawGaugeNum(ev?.api_gauge_num)
+                        ?? previous?.gaugeNum;
+                    const gaugeTypeValue = Number(m.api_gauge_type);
+                    const gaugeType = Number.isSafeInteger(gaugeTypeValue) && gaugeTypeValue >= 0
+                        ? gaugeTypeValue : previous?.gaugeType ?? 0;
+                    const hasCleared = Object.prototype.hasOwnProperty.call(m, 'api_cleared');
+                    const cleared = hasCleared
+                        ? (m.api_cleared === '1' || m.api_cleared === 1)
+                        : (previous?.cleared ?? false);
+                    const nowValue = Number(ev?.api_now_maphp);
+                    const maxValue = Number(ev?.api_max_maphp);
+                    const nowHp = Number.isSafeInteger(nowValue) && nowValue >= 0
+                        ? nowValue : previous?.nowHp ?? 0;
+                    const maxHp = Number.isSafeInteger(maxValue) && maxValue > 0
+                        ? maxValue : previous?.maxHp ?? 0;
+                    // mapinfo 可能在換難度／血條後先於出擊到達；只切換目前快取。
+                    // `api_gauge_num` 只當血條身分鍵，不解讀其數字。
+                    const fullGaugeReset = !!previous && previous.nowHp < previous.maxHp
+                        && maxHp > 0 && nowHp === maxHp;
+                    const identityChanged = !!previous && (previous.selectedRank !== selectedRank
+                        || previous.gaugeType !== gaugeType
+                        || previous.gaugeNum !== gaugeNum
+                        || (previous.cleared && !cleared));
+                    if (identityChanged || fullGaugeReset) {
+                        this.clearMapBossHp(m.api_id, fullGaugeReset && !identityChanged
+                            && previous?.gaugeNum === gaugeNum);
+                    }
                     this.mapGauges.set(m.api_id, {
-                        cleared: m.api_cleared === '1' || m.api_cleared === 1,
-                        gaugeType: m.api_gauge_type ?? 0,
+                        cleared,
+                        gaugeType,
                         defeatCount: m.api_defeat_count ?? 0,
                         requiredDefeatCount: m.api_required_defeat_count ?? 0,
-                        nowHp: ev?.api_now_maphp ?? 0,
-                        maxHp: ev?.api_max_maphp ?? 0,
+                        nowHp,
+                        maxHp,
                         selectedRank,
+                        ...(gaugeNum === undefined ? {} : { gaugeNum }),
                     });
+                    this.syncMapBossHp(m.api_id);
                 }
             }
         } else if (path === 'api_req_air_corps/set_plane' && req) {
@@ -1839,6 +2026,7 @@ export class GameState {
                 || path.includes('airbattle')   // api_req_sortie/(ld_)airbattle・api_req_combined_battle/(ld_)airbattle 航空戰/空襲節點
                 || path.startsWith('api_req_combined_battle/')
                 || path.startsWith('api_req_battle_midnight/')
+                || path.endsWith('/night_to_day')
                 || path.startsWith('api_req_practice/battle'))
             && !path.endsWith('result')   // 排除 battleresult：startsWith('...battle') 會誤吞它
             && api?.api_f_nowhps          // 只處理帶有戰鬥血量的封包（現行格式），避免 goback_port 等把 battleInfo 洗空
@@ -1855,7 +2043,14 @@ export class GameState {
                     this.currentSortieFleetId = battleDeckIdx;
                 }
                 const isNightOnly = path.includes('sp_midnight');
-                const isNight = path.includes('midnight');
+                // `night_to_day` 是完整的「夜戰起始＋日戰收尾」封包：雖然名稱沒有
+                // midnight，KC3Kai／poi 都把它當夜戰流程處理，且其中的 api_n_hougeki*
+                // 不能遺失。它已自帶整場 HP，不能再和前一則白天封包重放一次。
+                const isNightToDay = path.endsWith('/night_to_day') || path.endsWith('/ec_night_to_day');
+                const isNight = path.includes('midnight') || isNightToDay;
+                // 夜轉日的資材消耗規則沒有在本專案驗證；先維持原本將該端點視為
+                // 普通日戰的消耗路徑，僅把它納入夜戰資料解析，不自行推算雙階段費用。
+                const isNightContinuation = isNight && !isNightToDay;
                 // 演習「挑戰次數」在晝戰當下就算一次，不必等結果——夜戰接續是同一場
                 // 演習的延續，不會重複觸發 api_req_practice/battle。
                 if (path === 'api_req_practice/battle') this.bumpQuestProgress('practiceAttempt');
@@ -1864,22 +2059,74 @@ export class GameState {
                 const playerDamecons = this.getPlayerDamecons(api);
                 // 退避艦的位置旗標（與 damecons 同序）：已退避者不列入大破警告與 rank。
                 const escaped = this.getEscapedFlags(api);
-                const opts = { escapedMain: escaped.main, escapedEscort: escaped.escort };
+                // 夜戰裝備是否發動需要出擊當下的 master id；只把目前出擊的主／隨伴
+                // 位置送進純解析器，不能用 `fleets()` 的顯示 view 反推槽位。
+                const gearRows = (deck: any): number[][] => (deck?.api_ship ?? [])
+                    .filter((id: number) => id > 0)
+                    .map((id: number) => {
+                        const ship = this.ships.get(id);
+                        const slots = [...(ship?.api_slot ?? []), ship?.api_slot_ex > 0 ? ship.api_slot_ex : -1];
+                        return slots.map((slotId: number) => this.slotItems.get(slotId)?.mst ?? 0)
+                            .filter((mst: number) => mst > 0);
+                    });
+                const aaciShipRows = (deck: any): ({ id: number; masterId?: number } | null)[] =>
+                    (deck?.api_ship ?? []).map((id: number) => {
+                        if (!(id > 0)) return null;
+                        const ship = this.ships.get(id);
+                        return {
+                            id,
+                            ...(ship?.api_ship_id > 0 ? { masterId: ship.api_ship_id } : {}),
+                        };
+                    });
+                const opts = {
+                    escapedMain: escaped.main,
+                    escapedEscort: escaped.escort,
+                    playerGearIds: {
+                        main: gearRows(this.decks[this.currentSortieFleetId]),
+                        escort: GameState.hasEscortFleet(api) && this.currentSortieFleetId === 0
+                            ? gearRows(this.decks[1]) : [],
+                    },
+                    playerAaciShips: {
+                        main: aaciShipRows(this.decks[this.currentSortieFleetId]),
+                        escort: GameState.hasEscortFleet(api) && this.currentSortieFleetId === 0
+                            ? aaciShipRows(this.decks[1]) : [],
+                    },
+                };
 
                 // 實際餵給 analyzeBattle 的損管狀態。**必須與 apiList 的第一包同一時刻**：
                 // 夜戰接續是把晝戰整場重放一次，用當下重算的 playerDamecons 會讓晝戰已觸發
                 // 損管的艦在重放時無損管可用 → 誤報轟沈（見 lastDayDamecons 宣告處）。
                 let usedDamecons = playerDamecons;
+                const previousBattleInfo = this.battleInfo;
+                let analyzedPackets: any[] = [api];
                 // Record daytime battle data for MVP prediction if needed
-                if (!isNight) {
+                if (isNightToDay) {
+                    analyzedPackets = [api];
+                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
+                    // 夜轉日已是一個完整節點；不要把它留成下一則夜戰的白天基準。
+                    this.lastDayBattle = null;
+                    this.lastDayDamecons = null;
+                } else if (!isNight) {
                     this.lastDayBattle = api;
                     this.lastDayDamecons = playerDamecons;
-                    this.battleInfo = analyzeBattle([api], usedDamecons, opts);
+                    analyzedPackets = [api];
+                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
                 } else if (this.lastDayBattle && isNight && !isNightOnly) {
                     usedDamecons = this.lastDayDamecons ?? playerDamecons;
-                    this.battleInfo = analyzeBattle([this.lastDayBattle, api], usedDamecons, opts);
+                    analyzedPackets = [this.lastDayBattle, api];
+                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
                 } else {
-                    this.battleInfo = analyzeBattle([api], usedDamecons, opts);
+                    analyzedPackets = [api];
+                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
+                }
+                if (this.battleInfo && isNight) {
+                    // 端點名稱本身已證實夜戰流程開始；即使該包沒有重送
+                    // api_midnight_flag／夜戰效果欄位，入口圖示仍須保留，並把白天上下文
+                    // 交給合併器補回，不讓 gauge／重播起點造成「陣形 ?」或整列消失。
+                    this.battleInfo = {
+                        ...mergeNightBattleContext(this.battleInfo, isNightOnly ? null : previousBattleInfo, analyzedPackets, true),
+                        midnightFlag: true,
+                    };
                 }
                 // 把戰鬥模擬後的 HP 寫回 this.ships，讓編成面板即時反映受損
                 if (this.battleInfo?.resultFleets) {
@@ -1897,7 +2144,7 @@ export class GameState {
                 let fuelRate: number, bullRate: number;
                 let nightAmmoBoost = false;
                 const map = this.sortieInfo;
-                const atBoss = map ? map.nodes[map.nodes.length - 1]?.color === 5 : false;
+                const atBoss = map ? isBossNode(map.nodes[map.nodes.length - 1]) : false;
                 if (path.includes('ld_airbattle')) {
                     // 空襲戰（單向）：6-4/6-5 = 4/8；其他（5-2/7-2/活動圖）= 6/4
                     const is64or65 = map?.mapArea === 6 && (map.mapNo === 4 || map.mapNo === 5);
@@ -1907,13 +2154,13 @@ export class GameState {
                     fuelRate = 0.20; bullRate = 0.20;
                 } else if (isNightOnly) {                      // 開幕夜戰點
                     fuelRate = 0.10; bullRate = 0.10;
-                } else if (isNight) {
+                } else if (isNightContinuation) {
                     // 夜戰接續：燃料不追加；彈藥補到 ceil(晝彈×1.5)（差額在 applyConsumption 算）
                     fuelRate = 0; bullRate = 0; nightAmmoBoost = true;
                 } else {                                       // 普通水上晝戰
                     fuelRate = 0.20; bullRate = 0.20;
                     // 反潛點（敵主隊全為潛水艦）→ 8/0。
-                    // 例外仍 20/20：boss 節點（color=5）、4-1 D/4-3 C（wiki 明載的道中潛水例外）
+                    // 例外仍 20/20：Boss 節點、4-1 D/4-3 C（wiki 明載的道中潛水例外）
                     const eIds = this.battleInfo?.enemyIds ?? [];
                     const allSubs = eIds.length > 0 && eIds.every(id => {
                         const st = this.master.get(id)?.stype ?? 0;
@@ -1925,10 +2172,11 @@ export class GameState {
                 // 燃彈消耗延後到結算（battleresult）才寫回：出擊途中面板顯示的油彈維持戰前值，
                 // 與遊戲戰鬥畫面一致（油彈餘量會影響戰鬥傷害，過早顯示會誤導）。此處只記錄待套用費率。
                 this.pendingConsumption.push({ fuelRate, bullRate, nightAmmoBoost, hasEscort: GameState.hasEscortFleet(api) });
-                // Boss 節點（color=5）：記錄已觀測到的最高 boss 旗艦 HP，供 HP量表式關卡
-                // （gaugeType 2）估剩餘次數與斬殺線。同一活動海域可能有多個 Boss 節點，
-                // 較低 HP 的旁支 Boss 不得覆蓋已知的較高門檻。
-                if (atBoss && map) {
+                // 只有目前 gauge 的目標 Boss 節點可更新 baseHp。破甲路線回打舊階段 Boss
+                // 時 api_event_id 仍是 5；若只用 atBoss，舊 Boss HP 會污染現行斬殺線。
+                const currentNode = map?.nodes[map.nodes.length - 1];
+                const atGaugeBoss = isGaugeBossNode(currentNode, map?.bossCellNo, (map?.mapArea ?? 0) >= 10);
+                if (atGaugeBoss && map) {
                     const bossHp = this.battleInfo?.resultFleets?.enemyMain?.[0]?.maxHp ?? 0;
                     this.observeMapBossHp(map.mapArea, map.mapNo, bossHp);
                 }
@@ -1955,7 +2203,7 @@ export class GameState {
             const map = this.sortieInfo;
             const battleCtx = {
                 area: map ? map.mapArea * 10 + map.mapNo : undefined,
-                boss: map ? map.nodes[map.nodes.length - 1]?.color === 5 : false,
+                boss: map ? isBossNode(map.nodes[map.nodes.length - 1]) : false,
                 rank: api?.api_win_rank,
             };
             this.bumpQuestProgress('battleEngage', 1, battleCtx);
@@ -2420,12 +2668,12 @@ export class GameState {
     }
 
     /**
-     * 抵達某節點時，若它是 boss（`api_color_no === 5`）就把當下的大破狀態拍進
+     * 抵達某節點時，若它是 Boss（依 `isBossNode` 的封包事實）就把當下的大破狀態拍進
      * `bossEntryTaiha`。同一次出擊只拍第一次抵達（`!== null` 即跳過）——重複抵達
      * boss 節點在機制上不會發生，但夜戰接續等封包不該把已拍好的快照覆蓋掉。
      */
     private noteBossEntry(node: SortieNode) {
-        if (node.color !== 5 || this.bossEntryTaiha !== null) return;
+        if (!isBossNode(node) || this.bossEntryTaiha !== null) return;
         this.bossEntryTaiha = this.sortieFleetHasTaiha();
     }
 
@@ -2590,9 +2838,14 @@ export class GameState {
         return (mstId == null ? undefined : this.masterGears.get(mstId)?.name) || this.gearName(mstId);
     }
 
-    private gearOf(instId: number): GearView | null {
-        if (instId <= 0) return null;
-        const it = this.slotItems.get(instId);
+    /** 以數字鍵查找裝備實例；部分編成端點會把 api_slot 的 ID 序列化成字串。 */
+    private slotItemOf(instId: unknown): { mst: number; level: number; alv: number } | undefined {
+        const id = GameState.positiveId(instId);
+        return id == null ? undefined : this.slotItems.get(id);
+    }
+
+    private gearOf(instId: unknown): GearView | null {
+        const it = this.slotItemOf(instId);
         if (!it) return null;
         const m = this.masterGears.get(it.mst);
         const icon = GEAR_ICON[m?.icon ?? 0] ?? { s: '装', c: 'c-etc' };
@@ -2624,9 +2877,9 @@ export class GameState {
 
     // ── 遠征需求檢查 ──────────────────────────────
     // 遠征カタログ(選択メニュー用):海域→表示番号順
-    expedCatalog(): { id: number; dispNo: string; name: string; maparea: number }[] {
+    expedCatalog(): { id: number; dispNo: string; name: string; maparea: number; time: number }[] {
         return [...this.masterMissions.entries()]
-            .map(([id, m]) => ({ id, dispNo: m.dispNo, name: m.name, maparea: m.maparea }))
+            .map(([id, m]) => ({ id, dispNo: m.dispNo, name: m.name, maparea: m.maparea, time: m.time }))
             .sort((a, b) => a.maparea - b.maparea ||
                 a.dispNo.localeCompare(b.dispNo, 'ja', { numeric: true }));
     }
@@ -3178,7 +3431,7 @@ export class GameState {
                             // （可能 undefined，見上方註解）。出擊途中的 api_onslot 已由
                             // spreadPlaneLoss 依封包的合計損失估算調整過，故一併標 countEst。
                             if (gv) {
-                                const it = this.slotItems.get(gid);
+                                const it = this.slotItemOf(gid);
                                 const mg = it && this.masterGears.get(it.mst);
                                 if (mg && AIRCRAFT_CATS.has(mg.cat)) {
                                     gv.count = s.api_onslot?.[idx] ?? 0;
@@ -3711,12 +3964,54 @@ export class GameState {
         return this.mapGauges.get(id) ?? null;
     }
 
-    /** 累積某海域已實戰觀測到的最高 Boss 旗艦 HP。 */
-    observeMapBossHp(mapArea: number, mapNo: number, bossHp: number): void {
+    private mapBossHpKey(mapId: number, gauge: MapGaugeView | undefined): string {
+        return `${mapId}:${gauge?.selectedRank ?? 0}:${gauge?.gaugeNum ?? '?'}`;
+    }
+
+    /** 將目前 mapinfo 所指的 gauge baseHp 載入相容快取；不碰其他 gauge 的紀錄。 */
+    private syncMapBossHp(mapId: number): void {
+        const stored = this.mapBossHpByGauge.get(this.mapBossHpKey(mapId, this.mapGauges.get(mapId)));
+        if (stored != null && stored > 0) this.mapBossHp.set(mapId, stored);
+        else this.mapBossHp.delete(mapId);
+    }
+
+    /** 清掉目前顯示用快取；`forgetGauge` 只用於封包明示同一 gauge 已重置。 */
+    private clearMapBossHp(mapId: number, forgetGauge = false): void {
+        if (forgetGauge) {
+            this.mapBossHpByGauge.delete(this.mapBossHpKey(mapId, this.mapGauges.get(mapId)));
+        }
+        this.mapBossHp.delete(mapId);
+    }
+
+    /**
+     * 只有同一條血條觀測到的 Boss HP 才能拿來判斷斬殺線。
+     * 舊的一般圖沒有 gaugeNum，沿用目前 mapBossHp 的相容快取；活動圖有 gaugeNum 時若沒有
+     * 同 gaugeNum 的實戰證據，保持不可考，不拿其他血條的 HP 猜測。
+     */
+    private bossHpForGauge(mapId: number, gauge: MapGaugeView): number | null {
+        // 活動圖的 `gaugeNum` 是血條身分；有明示身分時不能退回舊的單一 map 快取，
+        // 否則上一條血條的 Boss HP 會把新血條提前標成 Final。只有沒有 gaugeNum 的
+        // 舊一般圖資料才沿用相容快取。
+        const bossHp = this.mapBossHpByGauge.get(this.mapBossHpKey(mapId, gauge))
+            ?? (gauge.gaugeNum === undefined ? this.mapBossHp.get(mapId) : undefined);
+        if (!bossHp || bossHp <= 0) return null;
+        return bossHp;
+    }
+
+    /** 累積同一 map／難度／血條有效 Boss 的 baseHp（同 Boss 取最低形態 HP）。 */
+    observeMapBossHp(mapArea: number, mapNo: number, bossHp: number, gaugeNum?: number): void {
         if (!Number.isFinite(bossHp) || bossHp <= 0) return;
         const mapId = mapArea * 10 + mapNo;
-        const known = this.mapBossHp.get(mapId) ?? 0;
-        if (bossHp > known) this.mapBossHp.set(mapId, bossHp);
+        const currentGauge = this.mapGauges.get(mapId);
+        const gauge: MapGaugeView | undefined = gaugeNum === undefined
+            || gaugeNum === currentGauge?.gaugeNum
+            ? currentGauge
+            : currentGauge ? { ...currentGauge, gaugeNum } : undefined;
+        const key = this.mapBossHpKey(mapId, gauge);
+        const known = this.mapBossHpByGauge.get(key);
+        const baseHp = known == null ? bossHp : Math.min(known, bossHp);
+        this.mapBossHpByGauge.set(key, baseHp);
+        if (key === this.mapBossHpKey(mapId, currentGauge)) this.mapBossHp.set(mapId, baseHp);
     }
 
     // 目前出擊海域的 mapId；沒在出擊時為 null。下面兩支的預設對象。
@@ -3748,15 +4043,15 @@ export class GameState {
         const g = this.mapGauges.get(id);
         if (!g || g.maxHp <= 0 || g.maxHp === 9999) return null;
         if (g.gaugeType === 2) {
-            const bossHp = this.mapBossHp.get(id);
+            const bossHp = this.bossHpForGauge(id, g);
             if (!bossHp || bossHp <= 0) return null;
             return Math.max(0, Math.ceil(g.nowHp / bossHp));
         }
         return null;
     }
 
-    // boss 撃破型量表是否已進入斬殺期。遊戲機制的門檻是「殘量嚴格小於 boss 旗艦 HP」；
-    // 兩者相等時 ceil(殘量 / boss HP) 雖然也是 1，仍不可提早標成斬殺期。
+    // boss 撃破型量表是否已進入斬殺期。poi 的活動解謎工具與遊戲中的「最後一場」
+    // 語意一致：殘量小於或等於最終形態 Boss 旗艦 HP 時，下一次到王就是斬殺期。
     // 同上：mapId 省略＝目前出擊海域，帶入即可在母港查任一海域。
     mapInFinalPhase(mapId?: number): boolean {
         const id = mapId ?? this.currentMapId();
@@ -3772,8 +4067,8 @@ export class GameState {
         // 所以 nowHp===1 這個值本身就是「已在最終段」的封包事實——只要 boss 旗艦 HP > 1
         // 就必然成立，不必知道它到底是多少。零紀錄的新環境在最後一場也能標出斬殺期。
         if (g.nowHp === 1) return true;
-        const bossHp = this.mapBossHp.get(id);
-        return bossHp != null && bossHp > 0 && g.nowHp < bossHp;
+        const bossHp = this.bossHpForGauge(id, g);
+        return bossHp != null && bossHp > 0 && g.nowHp <= bossHp;
     }
 
     // ── 待驗證封包自動偵測 ──────────────────────────────

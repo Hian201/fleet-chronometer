@@ -288,7 +288,19 @@ describe('交戰記錄時間線', () => {
         }], { main: [], escort: [] }, {
             playerGearIds: { main: [[122]], escort: [] },
         });
-        expect(noEffect.nightEffects).toEqual({ starShell: false, nightRecon: false, searchlight: false });
+        // 夜戰封包已明示正的 api_touch_plane[0]；即使本機尚未載入該裝備 master，
+        // 仍應沿用 KC3Kai 的「已觸接」事實。
+        expect(noEffect.nightEffects).toEqual({ starShell: false, nightRecon: true, searchlight: false });
+
+        // 新夜偵不應被固定 master id 名單擋掉；正的 api_touch_plane 即可亮燈。
+        const dynamicNightRecon = analyzeBattle([{
+            ...packet,
+            api_flare_pos: [-1, -1], api_touch_plane: [471, -1],
+            api_hougeki: { ...packet.api_hougeki, api_si_list: [[122]] },
+        }], { main: [], escort: [] }, {
+            playerGearIds: { main: [[471]], escort: [] },
+        });
+        expect(dynamicNightRecon.nightEffects?.nightRecon).toBe(true);
 
         const taihaSearchlight = analyzeBattle([{
             ...packet,
@@ -308,6 +320,106 @@ describe('交戰記錄時間線', () => {
             },
         });
         expect(striking.nightEffects?.starShell).toBe(true);
+    });
+
+    it('讀取 KC3Kai phaseParserMap 對應的 api_n_* 夜戰欄位與夜戰支援', () => {
+        const packet = {
+            api_f_nowhps: [20], api_f_maxhps: [20],
+            api_e_nowhps: [30], api_e_maxhps: [30], api_ship_ke: [1501],
+            api_n_support_flag: 2,
+            api_n_support_info: {
+                api_support_airatack: null,
+                api_support_hourai: { api_deck_id: 4, api_ship_id: [101], api_damage: [7] },
+            },
+            api_n_hougeki1: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]],
+                api_damage: [[5]], api_si_list: [[74]],
+            },
+            api_flare_pos: [0, -1], api_touch_plane: [102, -1],
+        };
+        const view = analyzeBattle([packet], { main: [], escort: [] }, {
+            playerGearIds: { main: [[101, 102, 74]], escort: [] },
+        });
+        expect(view.nightObserved).toBe(true);
+        expect(view.nightTarget).toBe('main');
+        expect(view.nightTouchPlane).toBe(102);
+        expect(view.nightEffects).toEqual({ starShell: true, nightRecon: true, searchlight: true });
+        expect(view.support).toMatchObject({ kind: 'shelling', damage: 7 });
+        expect(view.timeline!.phases.map(phase => phase.kind)).toEqual(['supportShell', 'nightShelling']);
+    });
+
+    it('連合艦隊夜戰依 api_active_deck[1] 把敵方局部索引對到隨伴艦隊', () => {
+        const packet = {
+            api_f_nowhps: [20], api_f_maxhps: [20],
+            api_e_nowhps: [30], api_e_maxhps: [30], api_ship_ke: [1501],
+            api_e_nowhps_combined: [40], api_e_maxhps_combined: [40],
+            api_ship_ke_combined: [1502], api_active_deck: [1, 2],
+            api_hougeki: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]],
+                api_damage: [[5]],
+            },
+        };
+        const view = analyzeBattle([packet], { main: [], escort: [] });
+        expect(view.nightTarget).toBe('escort');
+        const phase = view.timeline!.phases.find(item => item.kind === 'nightShelling')!;
+        expect(phase.events[0]).toMatchObject({ defenderSide: 'enemy', defenderIndex: 6, damage: 5 });
+        expect(view.resultFleets!.enemyMain[0].hp).toBe(30);
+        expect(view.resultFleets!.enemyEscort[0].hp).toBe(35);
+    });
+
+    it('日戰尚未收到夜戰封包時，比照 KC3Kai 分數規則預測敵方夜戰隊伍', () => {
+        const escortPrediction = analyzeBattle([{
+            api_midnight_flag: 1,
+            api_f_nowhps: [20], api_f_maxhps: [20],
+            api_e_nowhps: [20], api_e_maxhps: [20],
+            api_e_nowhps_combined: [10, 10], api_e_maxhps_combined: [10, 10],
+            api_ship_ke_combined: [1502, 1503],
+            api_hougeki1: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]], api_damage: [[20]],
+            },
+        }], { main: [], escort: [] });
+        expect(escortPrediction.nightObserved).toBe(false);
+        expect(escortPrediction.nightTarget).toBe('escort');
+        expect(escortPrediction.nightTargetEstimated).toBe(true);
+
+        const mainPrediction = analyzeBattle([{
+            api_midnight_flag: 1,
+            api_f_nowhps: [20], api_f_maxhps: [20],
+            api_e_nowhps: [20], api_e_maxhps: [20],
+            api_e_nowhps_combined: [10, 3], api_e_maxhps_combined: [10, 10],
+            api_ship_ke_combined: [1502, 1503],
+        }], { main: [], escort: [] });
+        expect(mainPrediction.nightTarget).toBe('main');
+        expect(mainPrediction.nightTargetEstimated).toBe(true);
+
+        const singleFleet = analyzeBattle([{
+            api_midnight_flag: 1,
+            api_f_nowhps: [20], api_f_maxhps: [20],
+            api_e_nowhps: [20], api_e_maxhps: [20],
+            api_ship_ke: [1501],
+        }], { main: [], escort: [] });
+        expect(singleFleet.nightTarget).toBe('main');
+        expect(singleFleet.nightTargetEstimated).toBeUndefined();
+    });
+
+    it('敵方隨伴只在同節點後續封包出現時，日戰仍能預測夜戰目標', () => {
+        const splitContext = analyzeBattle([
+            {
+                api_midnight_flag: 1,
+                api_f_nowhps: [20], api_f_maxhps: [20],
+                api_e_nowhps: [20], api_e_maxhps: [20],
+                api_ship_ke: [1501],
+            },
+            {
+                api_e_nowhps_combined: [10, 10], api_e_maxhps_combined: [10, 10],
+                api_ship_ke_combined: [1502, 1503],
+            },
+        ], { main: [], escort: [] });
+        expect(splitContext.enemyIdsEscort).toEqual([1502, 1503]);
+        expect(splitContext.resultFleets?.enemyEscort).toHaveLength(2);
+        expect(splitContext.nightObserved).toBe(false);
+        expect(splitContext.nightTarget).toBe('escort');
+        expect(splitContext.nightTargetEstimated).toBe(true);
     });
 });
 

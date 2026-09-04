@@ -111,6 +111,19 @@ describe('裝備位置與面板視圖', () => {
         expect(state.decks[0].api_ship[0]).toBe(100);
     });
 
+    it('編成局部更新缺少 api_slot 時保留既有裝備，DeckBuilder 仍輸出 items', () => {
+        const state = stateWithSlots([9202, -1, -1, -1], [4, 0, 0, 0], [scRadar.api_id]);
+
+        state.applyEvent('api_get_member/ship_deck', {
+            // 編成同步只更新艦娘摘要；不能因缺席 api_slot 就把母港快照的裝備關聯洗掉。
+            api_ship_data: [{ api_id: 100, api_ship_id: 182, api_lv: 2, api_nowhp: 31 }],
+            api_deck_data: [{ api_ship: [100, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
+        });
+
+        expect(state.ships.get(100)?.api_lv).toBe(2);
+        expect(state.fleets()[0].ships[0].gears[0]?.mst).toBe(scRadar.api_id);
+    });
+
     it('只有未確認語意的任務獎勵 api_bounus 不會被誤當裝備實例', () => {
         const state = stateWithSlots([-1, -1, -1, -1]);
         state.applyEvent('api_req_quest/clearitemget', {

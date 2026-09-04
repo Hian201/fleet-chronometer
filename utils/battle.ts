@@ -85,14 +85,15 @@ export interface BattleAnalyzeOptions {
     escapedEscort?: boolean[];
     /** 出擊快照中的我方裝備 master id，依主隊／隨伴與艦位對齊。 */
     playerGearIds?: { main: number[][]; escort: number[][] };
+    /** 出擊快照中的我方艦實例／master id，保留主隊與隨伴的原始位置。 */
+    playerAaciShips?: {
+        main: ({ id: number; masterId?: number } | null)[];
+        escort: ({ id: number; masterId?: number } | null)[];
+    };
 }
 
-// 這些 master id 來自目前專案的 start2 主資料／樣本：
-//   74 探照灯、101 照明弾、102 九八式水上偵察機(夜偵)、140 96式150cm探照灯、
-//   469 零式水上偵察機11型乙改(夜偵)。敵方 1560 深海探照灯 不列入我方判定。
-// 夜偵先以夜戰封包明示的 master id 辨識；探照燈另外接受攻擊欄明示的 id。
-const NIGHT_STAR_SHELL_MST = 101;
-const NIGHT_RECON_MST = new Set([102, 469]);
+// 探照燈的 master id 來自目前專案的 start2 主資料／樣本：74、140。
+// 夜偵與照明彈的「是否發動」以夜戰封包明示欄位為準，避免固定 id 名單漏掉新裝備。
 const SEARCHLIGHT_MST = new Set([74, 140]);
 
 /**
@@ -134,9 +135,22 @@ export function analyzeBattle(
 ): BattleInfoView {
     const initialApi = apiList[0] ?? {};
 
+    // 夜戰接續、空襲先行與舊重播的封包不一定在第一包重送所有白天欄位。
+    // 傷害重放仍以第一包作為 HP 起點；顯示上下文則逐欄尋找同一場中第一個
+    // 明確帶值的封包，避免把「欄位缺席」誤當成 0／未知。
+    const packetWith = (has: (api: any) => boolean): any =>
+        apiList.find(api => api && has(api)) ?? initialApi;
+    const hasFleetHp = (api: any): boolean =>
+        Array.isArray(api?.api_f_nowhps) && Array.isArray(api?.api_f_maxhps)
+        && Array.isArray(api?.api_e_nowhps) && Array.isArray(api?.api_e_maxhps);
+    const contextApi = packetWith(hasFleetHp);
+
     // 建立位置索引（含 null 佔位）的艦隊陣列
     const mkFleet = (nowKey: string, maxKey: string, damecons: number[], escaped: boolean[] = []): (BattleShipView | null)[] => {
-        const now = initialApi[nowKey], max = initialApi[maxKey];
+        // 夜戰接續／夜轉日封包可能才補送 *_combined；逐隊找欄位，不能只沿用
+        // 第一個帶主隊 HP 的封包，否則敵聯合艦隊會被錯當成單艦隊而失去夜戰預測。
+        const fleetApi = packetWith(api => Array.isArray(api?.[nowKey]) && Array.isArray(api?.[maxKey]));
+        const now = fleetApi[nowKey], max = fleetApi[maxKey];
         const arr: (BattleShipView | null)[] = [];
         if (!Array.isArray(now) || !Array.isArray(max)) return arr;
         for (let i = 0; i < now.length; i++) {
@@ -206,6 +220,14 @@ export function analyzeBattle(
         return Number.isSafeInteger(n) && n >= 0 ? n : null;
     };
 
+    /**
+     * 連合艦隊夜戰的敵方攻擊／受擊位置以當前艦隊為基準 0–5；本引擎的敵艦陣列
+     * 則固定為主隊 0–5、隨伴 6–11。只對尚未帶全域偏移的局部位置補 6，避免
+     * 一般主隊位置或已是全域位置的資料被重複偏移。
+     */
+    const alignNightEnemyIndex = (index: number, enemyOffset: number): number =>
+        enemyOffset > 0 && index >= 0 && index < 6 ? index + enemyOffset : index;
+
     /** api_si_list 的一格通常是陣列，舊格式也可能直接給單一數字。 */
     const attackSlotIds = (value: unknown): number[] => {
         const values = Array.isArray(value) ? value : [value];
@@ -224,66 +246,102 @@ export function analyzeBattle(
     });
 
     const nightEffects = { starShell: false, nightRecon: false, searchlight: false };
+    let nightObserved = false;
+    let nightTouchPlane: number | undefined;
+    let nightTarget: 'main' | 'escort' | 'unknown' | undefined;
+    let nightTargetEstimated = false;
     const playerGearIds = opts.playerGearIds;
+    /**
+     * 夜戰有兩套同時存在的欄位命名：一般夜戰延續使用 `api_hougeki`，
+     * 夜轉日／部分連合艦隊流程則使用 `api_n_hougeki1/2`。KC3Kai 的
+     * phaseParserMap 將它們全部視為夜戰砲擊階段，不能只看單一欄位。
+     */
+    const nightHougekiPhases = (api: any): any[] => [
+        api?.api_hougeki,
+        api?.api_n_hougeki1,
+        api?.api_n_hougeki2,
+        api?.api_n_hougeki3,
+    ].filter(Boolean);
+    const hasNightPayload = (api: any): boolean =>
+        nightHougekiPhases(api).length > 0
+        || !!api?.api_n_support_info
+        || Array.isArray(api?.api_flare_pos)
+        || Array.isArray(api?.api_touch_plane)
+        || Array.isArray(api?.api_active_deck);
 
-    /** 將封包的 0-based 位置轉成出擊快照的主隊／隨伴艦位。 */
-    const playerGearRowAt = (position: number): number[] | undefined => {
-        if (!playerGearIds) return undefined;
-        if (!Number.isSafeInteger(position) || position < 0) return [];
-        // 連合艦隊的 api_flare_pos 以主隊 6 格為界；7 艘遊撃部隊則仍全部屬於主隊。
-        const hasEscort = pEsc.length > 0;
-        const escort = hasEscort && position >= 6;
-        const row = (escort ? playerGearIds.escort : playerGearIds.main)[escort ? position - 6 : position];
-        return Array.isArray(row) ? row : [];
+    /**
+     * KC3Kai CalculatorManager.estimateNightActiveCombinedEnemy 的 clean-room 對應：
+     * 日戰預測只在判斷條件足夠時給出主隊／隨伴；其餘保持未知，不用傷害位置硬猜。
+     * 隨伴存活分數是 KC3Kai 的公開規則：旗艦存活先加 1，HP 比例 >50% 再加 1，
+     * >25% 再加 0.7；總分 <3 進主隊，否則進隨伴。主隊全滅時直接進隨伴。
+     */
+    const estimateNightTarget = (): 'main' | 'escort' | undefined => {
+        const main = eMain.filter((ship): ship is BattleShipView => !!ship);
+        if (!main.length || !eEsc.some(Boolean)) return undefined;
+        if (main.every(ship => ship.sunk || ship.hp <= 0)) return 'escort';
+        let score = 0;
+        // 保留原始 0–5 位置；KC3Kai 的旗艦加分只適用 escort[0]，不能先 compact
+        // 再因空位左移而把第二艘誤當旗艦。
+        eEsc.forEach((ship, index) => {
+            if (!ship || ship.sunk || ship.hp <= 0 || ship.maxHp <= 0) return;
+            if (index === 0) score += 1;
+            const ratio = ship.hp / ship.maxHp;
+            if (ratio > 0.5) score += 1;
+            else if (ratio > 0.25) score += 0.7;
+        });
+        return score < 3 ? 'main' : 'escort';
     };
-    const playerHasGear = (mst: number): boolean => {
-        if (!playerGearIds) return true;
-        return [...playerGearIds.main, ...playerGearIds.escort].some(row => row.includes(mst));
-    };
-    const playerHasSearchlightAtNight = (): boolean => {
+
+    const playerHasSearchlightAtNight = (activeFleet?: number): boolean => {
         if (!playerGearIds) return false;
         const fleets = [
-            { rows: playerGearIds.main, ships: pMain },
-            { rows: playerGearIds.escort, ships: pEsc },
+            ...(activeFleet === 2 ? [] : [{ rows: playerGearIds.main, ships: pMain }]),
+            ...(activeFleet === 1 ? [] : [{ rows: playerGearIds.escort, ships: pEsc }]),
         ];
         return fleets.some(({ rows, ships }) => rows.some((gears, index) => {
             const ship = ships[index];
             return !!ship && ship.hp > 1 && gears.some(mst => SEARCHLIGHT_MST.has(mst));
         }));
     };
-    const hougekiShowsPlayerSearchlight = (phase: any): boolean => {
+    const hougekiShowsPlayerSearchlight = (phase: any, activeFleet?: number): boolean => {
         if (!Array.isArray(phase?.api_si_list) || !Array.isArray(phase?.api_at_eflag)
             || !Array.isArray(phase?.api_at_list)) return false;
         return phase.api_si_list.some((slots: unknown, index: number) => {
             // 只有 `api_at_eflag[i] = 0` 才能把攻擊欄歸屬我方；敵方裝備不能替我方亮燈。
             if (phase.api_at_eflag[index] !== 0) return false;
             const attackerIndex = Number(phase.api_at_list[index]);
-            const attacker = Number.isSafeInteger(attackerIndex)
-                ? sideShip('player', attackerIndex) : null;
+            const playerIndex = activeFleet === 2 && attackerIndex >= 0 && attackerIndex < 6
+                ? attackerIndex + 6 : attackerIndex;
+            const attacker = Number.isSafeInteger(playerIndex)
+                ? sideShip('player', playerIndex) : null;
             // 營運規則：裝備探照燈的艦只有 HP > 1 才會發動；攻擊欄 fallback 也要遵守。
             if (!attacker || attacker.hp <= 1) return false;
             return attackSlotIds(slots).some(mst => SEARCHLIGHT_MST.has(mst));
         });
     };
     const noteNightEffects = (api: any): void => {
-        const phase = api?.api_hougeki;
-        if (!phase) return;
-
+        const phases = nightHougekiPhases(api);
+        const activePlayerFleet = Array.isArray(api.api_active_deck)
+            ? Number(api.api_active_deck[0]) : undefined;
         const flarePosition = Array.isArray(api.api_flare_pos) ? Number(api.api_flare_pos[0]) : -1;
         if (Number.isSafeInteger(flarePosition) && flarePosition >= 0) {
-            // 有出擊快照時還要核對該位置真的帶照明彈；沒有快照才退回封包的發動訊號。
-            const row = playerGearRowAt(flarePosition);
-            if (row === undefined || row.includes(NIGHT_STAR_SHELL_MST)) nightEffects.starShell = true;
+            // KC3Kai 直接把 api_flare_pos[0] 當作照明彈發動位置；這是夜戰封包的發動
+            // 事實，不因本機裝備快照尚未載入而把圖示錯畫成未發動。
+            nightEffects.starShell = true;
         }
 
         const touchPlane = Array.isArray(api.api_touch_plane) ? Number(api.api_touch_plane[0]) : -1;
-        if (NIGHT_RECON_MST.has(touchPlane) && playerHasGear(touchPlane)) {
+        // KC3Kai 的 Node.engageNight 以正的 api_touch_plane[0] 記錄夜間觸接機體；
+        // 不需要再用固定 master id 或本機裝備表二次否定這個封包事實。
+        if (Number.isSafeInteger(touchPlane) && touchPlane > 0) {
             nightEffects.nightRecon = true;
+            nightTouchPlane ??= touchPlane;
         }
 
         // 探照燈目前沒有獨立的 API 發動旗標：依營運規則，夜戰開始時裝備艦 HP > 1
         // 且確實攜帶探照燈就會發動；攻擊欄 fallback 同樣核對攻擊艦 HP > 1。
-        nightEffects.searchlight = playerHasSearchlightAtNight() || hougekiShowsPlayerSearchlight(phase);
+        nightEffects.searchlight = playerHasSearchlightAtNight(activePlayerFleet)
+            || phases.some(phase => hougekiShowsPlayerSearchlight(phase, activePlayerFleet));
     };
 
     const takeDamage = (s: BattleShipView | null, dmg: number, isPlayer: boolean) => {
@@ -368,6 +426,7 @@ export function analyzeBattle(
         phase: any,
         attackerSide: 'player' | 'enemy',
         defenderSide: 'player' | 'enemy',
+        enemyOffset = 0,
     ): { detailed: boolean; total: number; events: BattleDamageEvent[] } => {
         const isPlayer = attackerSide === 'player';
         const targetValues = phase?.[isPlayer ? 'api_frai' : 'api_erai'];
@@ -394,14 +453,18 @@ export function analyzeBattle(
                 : [Array.isArray(criticalValues) ? criticalValues[attackerIndex] : undefined];
             const hitCount = Math.max(targets.length, damages.length, criticals.length);
             for (let hitIndex = 0; hitIndex < hitCount; hitIndex++) {
-                const defenderIndex = targetIndex(targets[hitIndex]);
+                const rawDefenderIndex = targetIndex(targets[hitIndex]);
                 // -1／null 是「沒有發動這艘艦的雷擊」，不製造虛構的目標列。
-                if (defenderIndex === null) continue;
+                if (rawDefenderIndex === null) continue;
+                const defenderIndex = defenderSide === 'enemy'
+                    ? alignNightEnemyIndex(rawDefenderIndex, enemyOffset) : rawDefenderIndex;
                 const damage = Math.max(0, Math.floor(Number(damages[hitIndex] ?? 0)));
                 total += damage;
-                const attacker = sideShip(attackerSide, attackerIndex);
+                const alignedAttackerIndex = attackerSide === 'enemy'
+                    ? alignNightEnemyIndex(attackerIndex, enemyOffset) : attackerIndex;
+                const attacker = sideShip(attackerSide, alignedAttackerIndex);
                 events.push(damageEvent(
-                    'torpedo', attackerSide, attackerIndex, defenderSide, defenderIndex, damage,
+                    'torpedo', attackerSide, alignedAttackerIndex, defenderSide, defenderIndex, damage,
                     criticalFromFlag(criticals[hitIndex]),
                 ));
                 if (attacker) attacker.dealtDamage += damage;
@@ -411,7 +474,7 @@ export function analyzeBattle(
     };
 
     // 砲擊戰／夜戰：api_at_eflag[i] 為攻擊方（0=我方,1=敵方）
-    const processHougeki = (phase: any): PhaseResult => {
+    const processHougeki = (phase: any, enemyOffset = 0): PhaseResult => {
         const damage = noDamage();
         const events: BattleDamageEvent[] = [];
         if (!phase || !Array.isArray(phase.api_at_list)) return { damage, events };
@@ -423,7 +486,8 @@ export function analyzeBattle(
             const at = atList[i];
             if (at < 0) continue;
             const atkPlayer = eflag ? eflag[i] === 0 : true;   // 無 eflag 時預設我方
-            const attacker = sideShip(atkPlayer ? 'player' : 'enemy', at);
+            const alignedAttackerIndex = atkPlayer ? at : alignNightEnemyIndex(at, enemyOffset);
+            const attacker = sideShip(atkPlayer ? 'player' : 'enemy', alignedAttackerIndex);
             const defenders = dfList?.[i], damages = dmgList?.[i];
             const criticals = phase.api_cl_list?.[i];
             const recordCount = Math.max(
@@ -446,15 +510,16 @@ export function analyzeBattle(
                 : Math.max(Array.isArray(damages) ? damages.length : 0, 1);
             const defPlayer = !atkPlayer;
             for (let j = 0; j < hitCount; j++) {
-                const dfIndex = targetIndexes[multiTarget ? j : 0] ?? null;
-                if (dfIndex === null) continue;
+                const rawDfIndex = targetIndexes[multiTarget ? j : 0] ?? null;
+                if (rawDfIndex === null) continue;
+                const dfIndex = defPlayer ? rawDfIndex : alignNightEnemyIndex(rawDfIndex, enemyOffset);
                 const rawDamage = Array.isArray(damages) ? damages[j] : undefined;
                 // -1 是連續攻擊陣列的填充值；明確的 0 仍保留為一次未造成傷害。
                 if (rawDamage !== undefined && Number(rawDamage) < 0) continue;
                 const dmg = Math.max(0, Math.floor(rawDamage ?? 0));
                 const cl = Array.isArray(criticals) ? criticals[j] : criticals;
                 events.push(damageEvent(
-                    'ship', atkPlayer ? 'player' : 'enemy', at,
+                    'ship', atkPlayer ? 'player' : 'enemy', alignedAttackerIndex,
                     defPlayer ? 'player' : 'enemy', dfIndex, dmg,
                     criticalFromFlag(cl), metadata,
                 ));
@@ -493,15 +558,15 @@ export function analyzeBattle(
             if (s) for (const d of items) s.dealtDamage += Math.max(0, Math.floor(d ?? 0));
         }
     };
-    const processRaigeki = (phase: any): PhaseResult => {
+    const processRaigeki = (phase: any, enemyOffset = 0): PhaseResult => {
         const damage = noDamage();
         const events: BattleDamageEvent[] = [];
         if (!phase) return { damage, events };
-        const playerAttacks = torpedoAttackEvents(phase, 'player', 'enemy');
-        const enemyAttacks = torpedoAttackEvents(phase, 'enemy', 'player');
+        const playerAttacks = torpedoAttackEvents(phase, 'player', 'enemy', enemyOffset);
+        const enemyAttacks = torpedoAttackEvents(phase, 'enemy', 'player', enemyOffset);
         const own = playerAttacks.detailed
             ? playerAttacks
-            : targetDamage('torpedo', phase.api_edam, 'player', 'enemy');
+            : targetDamage('torpedo', phase.api_edam, 'player', 'enemy', enemyOffset);
         const enemy = enemyAttacks.detailed
             ? enemyAttacks
             : targetDamage('torpedo', phase.api_fdam, 'enemy', 'player');
@@ -550,7 +615,7 @@ export function analyzeBattle(
     //   api_at_eflag[i]: 0=友軍攻擊（防御方=敵方）、1=敵方攻擊（防御方=友軍，不影響玩家）
     //   api_df_list[i]: 防御方局部索引（0-5 主隊、6-11 隨伴）
     // 已用真實 61-3 甲 boss 夜戰封包驗證（samples/61-3.json node53 yasen）。
-    const processFriendlyHougeki = (phase: any): PhaseResult => {
+    const processFriendlyHougeki = (phase: any, enemyOffset = 0): PhaseResult => {
         const damage = noDamage();
         const events: BattleDamageEvent[] = [];
         if (!phase || !Array.isArray(phase.api_at_list)) return { damage, events };
@@ -578,14 +643,18 @@ export function analyzeBattle(
             const attackerSide: BattleEventSide = friendlyAttacks ? 'friendly' : 'enemy';
             const defenderSide: BattleEventSide | null = friendlyAttacks ? 'enemy' : 'friendly';
             for (let j = 0; j < hitCount; j++) {
-                const dfIndex = targetIndexes[multiTarget ? j : 0] ?? null;
-                if (dfIndex === null) continue;
+                const rawDfIndex = targetIndexes[multiTarget ? j : 0] ?? null;
+                if (rawDfIndex === null) continue;
+                const dfIndex = friendlyAttacks
+                    ? alignNightEnemyIndex(rawDfIndex, enemyOffset) : rawDfIndex;
                 const rawDamage = Array.isArray(damages) ? damages[j] : undefined;
                 if (rawDamage !== undefined && Number(rawDamage) < 0) continue;
                 const dmg = Math.max(0, Math.floor(rawDamage ?? 0));
                 const cl = Array.isArray(criticals) ? criticals[j] : criticals;
                 events.push(damageEvent(
-                    'ship', attackerSide, phase.api_at_list[i], defenderSide, dfIndex,
+                    'ship', attackerSide,
+                    friendlyAttacks ? phase.api_at_list[i] : alignNightEnemyIndex(phase.api_at_list[i], enemyOffset),
+                    defenderSide, dfIndex,
                     dmg, criticalFromFlag(cl), metadata,
                 ));
                 if (friendlyAttacks) damage.enemyDamage += dmg;
@@ -596,11 +665,11 @@ export function analyzeBattle(
     };
     // 友軍艦隊雷擊（api_friendly_battle.api_raigeki）。
     // api_edam = 友軍雷擊對敵方造成的傷害，索引為敵方位置。
-    const processFriendlyRaigeki = (phase: any): PhaseResult => {
+    const processFriendlyRaigeki = (phase: any, enemyOffset = 0): PhaseResult => {
         const damage = noDamage();
         const events: BattleDamageEvent[] = [];
         if (!phase) return { damage, events };
-        const enemy = targetDamage('torpedo', phase.api_edam, 'friendly', 'enemy');
+        const enemy = targetDamage('torpedo', phase.api_edam, 'friendly', 'enemy', enemyOffset);
         damage.enemyDamage = enemy.total;
         events.push(...enemy.events);
         // api_fdam 是敵方雷擊對友軍的傷害，不影響玩家，故不處理
@@ -616,7 +685,11 @@ export function analyzeBattle(
     // 支援艦隊戰果（見 BattleSupportView）。
     let supportDamage = 0;
     let supportSource: Omit<BattleSupportView, 'damage'> | null = null;
-    let supportFlag = Number(initialApi.api_support_flag) || Number(initialApi.api_support_info?.api_support_flag) || 0;
+    let supportFlag = Number(initialApi.api_support_flag)
+        || Number(initialApi.api_support_info?.api_support_flag)
+        || Number(initialApi.api_n_support_flag)
+        || Number(initialApi.api_n_support_info?.api_support_flag)
+        || 0;
 
     /**
      * 支援傷害陣列的原始索引正規化：單艦隊封包多一個第 0 格佔位，聯合艦隊則直接是
@@ -630,10 +703,70 @@ export function analyzeBattle(
             && (first === null || first === undefined || first === 0 || first === -1) ? -1 : 0;
     };
 
+    /** 支援欄位在白天與夜戰封包只差一個 `api_n_` 前綴，傷害與編成語意相同。 */
+    const processSupport = (sup: any, flagValue: unknown, packet: number): void => {
+        if (!sup) return;
+        const air = sup.api_support_airatack;
+        const hourai = sup.api_support_hourai;
+        const packetSupportFlag = Number(flagValue) || Number(sup.api_support_flag) || 0;
+        if (packetSupportFlag) supportFlag = packetSupportFlag;
+        const airEdam = air?.api_stage3?.api_edam;
+        const houraiDamageValues = hourai?.api_damage;
+        const airDamage = targetDamage(
+            'support', airEdam, 'player', 'enemy', supportTargetOffset(airEdam),
+        );
+        const houraiDamage = targetDamage(
+            'support', houraiDamageValues, 'player', 'enemy', supportTargetOffset(houraiDamageValues),
+            hourai?.api_cl_list,
+        );
+        const src = air ?? hourai;
+        if (!src) return;
+        const supportKind = supportKindFromFlag(packetSupportFlag, Boolean(air));
+        const phaseDamage = airDamage.total + houraiDamage.total;
+        supportDamage += phaseDamage;
+        recordPhase(
+            supportKind === 'asw' ? 'supportAsw'
+                : supportKind === 'torpedo' ? 'supportTorpedo'
+                    : supportKind === 'air' ? 'supportAir' : 'supportShell',
+            packet,
+            {
+                damage: { ownDamage: 0, enemyDamage: phaseDamage },
+                events: [...airDamage.events, ...houraiDamage.events],
+            },
+        );
+        // 同一節點即使先有白天支援、再有夜戰支援，也只保留第一份編成摘要，
+        // 避免面板把同一類支援重複畫成兩個系統欄位。
+        supportSource ??= {
+            kind: supportKind,
+            deckId: Number.isSafeInteger(src.api_deck_id) ? src.api_deck_id : 0,
+            shipIds: Array.isArray(src.api_ship_id)
+                ? src.api_ship_id.filter((v: number) => Number.isSafeInteger(v) && v > 0) : [],
+        };
+    };
+
     // 依序走訪所有戰鬥封包與階段。除了產生最終結果，也在每個已存在的階段後留快照，
     // 供出擊紀錄的「交戰記錄」顯示；這裡與既有傷害套用共用同一條路徑，避免兩邊數字漂移。
     for (const [packet, api] of apiList.entries()) {
         if (!api) continue;
+        if (hasNightPayload(api)) {
+            nightObserved = true;
+            const hasEnemyCombined = eEsc.length > 0
+                || Array.isArray(api.api_ship_ke_combined)
+                || Array.isArray(api.api_e_nowhps_combined)
+                || Array.isArray(api.api_e_maxhps_combined);
+            if (!hasEnemyCombined) {
+                nightTarget = 'main';
+            } else if (Array.isArray(api.api_active_deck)) {
+                const activeEnemyFleet = Number(api.api_active_deck[1]);
+                if (activeEnemyFleet === 1) nightTarget = 'main';
+                else if (activeEnemyFleet === 2) nightTarget = 'escort';
+                else if (!nightTarget) nightTarget = 'unknown';
+            } else if (!nightTarget) {
+                // 連合艦隊但封包沒有權威 active-deck 值時，不從傷害位置倒推。
+                nightTarget = 'unknown';
+            }
+        }
+        const nightEnemyOffset = nightTarget === 'escort' ? 6 : 0;
         // 遊戲順序：基地航空隊噴式強襲 → 空母噴式強襲 → 基地航空隊一般波次 → 航空戰。
         // `api_air_base_injection` 是基地噴式強襲（KC3Kai／七四式均單獨解析），
         // `api_injection_kouku` 是空母噴式強襲；兩者不應合併成一個「未辨識航空隊」來源。
@@ -685,39 +818,8 @@ export function analyzeBattle(
         if (api.api_kouku) recordPhase('air', packet, processKouku(api.api_kouku));
         if (api.api_kouku2) recordPhase('airSecond', packet, processKouku(api.api_kouku2));
         // 支援艦隊（對敵）。彙總與套用讀同一批欄位，數字不會兩套（見 BattleSupportView）。
-        const sup = api.api_support_info;
-        if (sup) {
-            const air = sup.api_support_airatack;
-            const hourai = sup.api_support_hourai;
-            const packetSupportFlag = Number(api.api_support_flag) || Number(sup.api_support_flag) || 0;
-            if (packetSupportFlag) supportFlag = packetSupportFlag;
-            const airEdam = air?.api_stage3?.api_edam;
-            const houraiDamageValues = hourai?.api_damage;
-            const airDamage = targetDamage(
-                'support', airEdam, 'player', 'enemy', supportTargetOffset(airEdam),
-            );
-            const houraiDamage = targetDamage(
-                'support', houraiDamageValues, 'player', 'enemy', supportTargetOffset(houraiDamageValues),
-                hourai?.api_cl_list,
-            );
-            const src = air ?? hourai;
-            if (src) {
-                const supportKind = supportKindFromFlag(packetSupportFlag, Boolean(air));
-                const phaseDamage = airDamage.total + houraiDamage.total;
-                supportDamage += phaseDamage;
-                recordPhase(supportKind === 'asw' ? 'supportAsw' : supportKind === 'torpedo' ? 'supportTorpedo' : supportKind === 'air' ? 'supportAir' : 'supportShell', packet, {
-                    damage: { ownDamage: 0, enemyDamage: phaseDamage },
-                    events: [...airDamage.events, ...houraiDamage.events],
-                });
-                // 編組資訊取第一則帶支援的封包（同一節點的道中／決戰支援不會兩次出動）。
-                supportSource ??= {
-                    kind: supportKind,
-                    deckId: Number.isSafeInteger(src.api_deck_id) ? src.api_deck_id : 0,
-                    shipIds: Array.isArray(src.api_ship_id)
-                        ? src.api_ship_id.filter((v: number) => Number.isSafeInteger(v) && v > 0) : [],
-                };
-            }
-        }
+        processSupport(api.api_support_info, api.api_support_flag, packet);
+        processSupport(api.api_n_support_info, api.api_n_support_flag, packet);
         // 開幕
         if (api.api_opening_taisen) {
             recordPhase('openingAntiSub', packet, processHougeki(api.api_opening_taisen));
@@ -734,17 +836,19 @@ export function analyzeBattle(
         // 友軍艦隊（活動海域 boss 夜戰，api_friendly_battle 在夜戰封包中）
         const fb = api.api_friendly_battle;
         if (fb) {
-            if (fb.api_hougeki) recordPhase('friendlyShelling', packet, processFriendlyHougeki(fb.api_hougeki));
-            if (fb.api_raigeki) recordPhase('friendlyTorpedo', packet, processFriendlyRaigeki(fb.api_raigeki));
+            if (fb.api_hougeki) recordPhase('friendlyShelling', packet, processFriendlyHougeki(fb.api_hougeki, nightEnemyOffset));
+            if (fb.api_raigeki) recordPhase('friendlyTorpedo', packet, processFriendlyRaigeki(fb.api_raigeki, nightEnemyOffset));
         }
         const fi = api.api_friendly_info;
         if (fi && Array.isArray(fi.api_ship_id)) {
             friendlyFleetIds = fi.api_ship_id.filter((id: number) => id > 0);
         }
-        // 夜戰
-        if (api.api_hougeki) {
-            noteNightEffects(api);
-            recordPhase('nightShelling', packet, processHougeki(api.api_hougeki));
+        // 夜戰：一般延續與夜轉日的 api_n_hougeki* 都是同一套攻擊資料。
+        const nightPhases = nightHougekiPhases(api);
+        if (hasNightPayload(api)) noteNightEffects(api);
+        if (nightPhases.length) {
+            for (const phase of nightPhases)
+                recordPhase('nightShelling', packet, processHougeki(phase, nightEnemyOffset));
         }
     }
 
@@ -779,7 +883,8 @@ export function analyzeBattle(
     // **保留原始位置索引**——等級／素質／裝備三個平行陣列都以原始位置對齊，
     // 過濾後直接用新索引去查會在中間有空格時整排錯位。
     const pickEnemies = (keKey: string): { ids: number[]; at: number[] } => {
-        const ke = initialApi[keKey];
+        const enemyApi = packetWith(api => Array.isArray(api?.[keKey]));
+        const ke = enemyApi[keKey];
         const ids: number[] = [], at: number[] = [];
         if (Array.isArray(ke)) ke.forEach((id: number, i: number) => {
             if (id > 0) { ids.push(id); at.push(i); }
@@ -801,7 +906,11 @@ export function analyzeBattle(
     const readEnemyDetail = (
         pick: { ids: number[]; at: number[] }, lvKey: string, paramKey: string, slotKey: string,
     ): BattleEnemyShipView[] => {
-        const lvs = initialApi[lvKey], params = initialApi[paramKey], slots = initialApi[slotKey];
+        // 詳細欄位與艦名同樣可能只在後續封包出現；每個平行陣列各自找第一份
+        // 明確存在的資料，缺席仍維持不可考，不補 0。
+        const lvs = packetWith(api => Array.isArray(api?.[lvKey]))[lvKey];
+        const params = packetWith(api => Array.isArray(api?.[paramKey]))[paramKey];
+        const slots = packetWith(api => Array.isArray(api?.[slotKey]))[slotKey];
         const at = (arr: any, i: number) => (Array.isArray(arr) ? arr[i] : undefined);
         return pick.at.map(i => {
             const lv = at(lvs, i);
@@ -816,10 +925,17 @@ export function analyzeBattle(
         });
     };
 
-    const formation = Array.isArray(initialApi.api_formation) ? initialApi.api_formation : [0, 0, 0];
+    const formation = [0, 1, 2].map(index => {
+        for (const api of apiList) {
+            const value = Number(api?.api_formation?.[index]);
+            if (Number.isSafeInteger(value) && value > 0) return value;
+        }
+        return 0;
+    });
     // `api_search` 的兩個值分別是我方／敵方結果。依 sortie-detail.ts 已驗證的分組，
     // 只有 1–3 可稱「發現」、4–6 可稱「未發現」；其餘值保留未知，不能硬畫成成功。
-    const ownSearch = Array.isArray(initialApi.api_search) ? Number(initialApi.api_search[0]) : 0;
+    const searchApi = packetWith(api => Array.isArray(api?.api_search));
+    const ownSearch = Array.isArray(searchApi.api_search) ? Number(searchApi.api_search[0]) : 0;
     const search = ownSearch >= 1 && ownSearch <= 3 ? 'success'
         : ownSearch >= 4 && ownSearch <= 6 ? 'failed' : 'unknown';
     let seiku = 0;
@@ -828,23 +944,124 @@ export function analyzeBattle(
         playerFighter: { count: 0, lost: 0 }, playerBomber: { count: 0, lost: 0 },
         enemyFighter: { count: 0, lost: 0 }, enemyBomber: { count: 0, lost: 0 },
     };
-    const midnightFlag = initialApi.api_midnight_flag === 1;
+    // KC3Kai Node.yasenFlag 使用 api_midnight_flag > 0；不要把未定義的 0
+    // 與其他正值混成只有恰好等於 1 才能進夜戰。
+    const midnightFlag = apiList.some(api => Number(api?.api_midnight_flag) > 0 || hasNightPayload(api));
+    const enemyCombined = eEsc.some(Boolean) || apiList.some(api =>
+        Array.isArray(api?.api_ship_ke_combined)
+        || Array.isArray(api?.api_e_nowhps_combined)
+        || Array.isArray(api?.api_e_maxhps_combined),
+    );
+    // 日戰封包沒有 `api_active_deck`；只有 KC3Kai 的日戰後分數規則能提供聯合艦隊的
+    // 「預測」。單一敵艦隊沒有可切換的隨伴隊，結構上可直接標成主隊；這兩種日戰
+    // 判斷都明確標成預測，實際夜戰封包稍後到達時會覆蓋它。
+    if (!nightObserved && midnightFlag) {
+        const estimated = enemyCombined ? estimateNightTarget() : 'main';
+        if (estimated) {
+            nightTarget = estimated;
+            // 單一敵艦隊的主隊不是依 HP 分數推測，而是由「沒有隨伴隊」的封包結構
+            // 直接確定；只有聯合艦隊才需要把這個欄位標成 KC3Kai 式日戰預測。
+            if (enemyCombined) nightTargetEstimated = true;
+        }
+    }
     let aaci = 0;
+    const aaciDetails: BattleInfoView['aaciDetails'] = [];
+    const aaciSeen = new Set<string>();
+    /**
+     * `api_idx` 是目前封包使用的 0-based 我方艦位；連合艦隊前六位為主隊、後六位為隨伴。
+     * 單艦隊快照若含七艘，則依快照長度將位置留在主隊，避免把遊擊部隊第七艦誤當隨伴。
+     * 欄位缺席或超出可辨識範圍時，只保留 Type／裝備，不自行猜艦名。
+     * 這個索引規則與 KC3Kai／公開封包樣本一致：單艦隊首艦以 `api_idx: 0` 表示，
+     * 聯合艦隊則以全隊 0–11 的位置表示；因此不可再當成 1-based 位置直接取值。
+     */
+    const aaciShipContext = (rawIndex: unknown): Pick<BattleInfoView['aaciDetails'][number], 'fleet' | 'position' | 'shipId' | 'shipMst'> => {
+        const n = rawAttackCode(rawIndex);
+        if (n === null || n < 0) return { fleet: 'unknown', position: 0 };
+        const main = opts.playerAaciShips?.main ?? [];
+        const escort = opts.playerAaciShips?.escort ?? [];
+        // 沒有出擊快照時，`api_idx` 只有封包位置、沒有足夠上下文判斷是單艦隊
+        // 第七艦還是連合艦隊隨伴；保留未知，避免把舊重播的艦位硬套錯誤隊伍。
+        if (!opts.playerAaciShips || (main.length === 0 && escort.length === 0)) {
+            return { fleet: 'unknown', position: 0 };
+        }
+        if (escort.length === 0 && main.length > 0) {
+            if (n >= main.length) return { fleet: 'unknown', position: 0 };
+            const ship = main[n];
+            return {
+                fleet: 'main', position: n + 1,
+                ...(ship && ship.id > 0 ? { shipId: ship.id } : {}),
+                ...(ship && ship.masterId && ship.masterId > 0 ? { shipMst: ship.masterId } : {}),
+            };
+        }
+        const global = n;
+        if (global < 6) {
+            const ship = main[global];
+            return {
+                fleet: 'main', position: global + 1,
+                ...(ship && ship.id > 0 ? { shipId: ship.id } : {}),
+                ...(ship && ship.masterId && ship.masterId > 0 ? { shipMst: ship.masterId } : {}),
+            };
+        }
+        if (global < 12) {
+            const pos = global - 6;
+            const ship = escort[pos];
+            return {
+                fleet: 'escort', position: pos + 1,
+                ...(ship && ship.id > 0 ? { shipId: ship.id } : {}),
+                ...(ship && ship.masterId && ship.masterId > 0 ? { shipMst: ship.masterId } : {}),
+            };
+        }
+        return { fleet: 'unknown', position: 0 };
+    };
+    const collectAaci = (stage2: any): void => {
+        const fire = stage2?.api_air_fire;
+        if (!fire) return;
+        const type = rawAttackCode(fire.api_kind);
+        if (type === null || type <= 0) return;
+        const gearMst = attackSlotIds(fire.api_use_items);
+        const context = aaciShipContext(fire.api_idx);
+        const key = [type, context.fleet, context.position, context.shipId ?? 0, gearMst.join(',')].join('|');
+        if (aaciSeen.has(key)) return;
+        aaciSeen.add(key);
+        aaciDetails.push({ type, gearMst, ...context });
+        aaci = type;
+    };
 
-    const s1 = initialApi.api_kouku?.api_stage1;
+    const setTouchPlane = (pair: unknown): void => {
+        if (!Array.isArray(pair)) return;
+        for (let i = 0; i < 2; i++) {
+            const value = Number(pair[i]);
+            if (!Number.isFinite(value)) continue;
+            // 保留第一個有效接觸；夜戰封包常在白天航空戰後才補上 top-level 值，
+            // 負值只作「沒有接觸」的事實，不覆蓋先前已辨識的機體。
+            if (value > 0 || touchPlane[i] === 0) touchPlane[i] = value;
+        }
+    };
+    const airApi = packetWith(api => !!api?.api_kouku?.api_stage1 || !!api?.api_kouku2?.api_stage1);
+    const s1 = airApi.api_kouku?.api_stage1 ?? airApi.api_kouku2?.api_stage1;
     if (s1) {
         seiku = s1.api_disp_seiku ?? 0;
-        if (Array.isArray(s1.api_touch_plane)) touchPlane = s1.api_touch_plane;
+        setTouchPlane(s1.api_touch_plane);
         planes.playerFighter = { count: s1.api_f_count ?? 0, lost: s1.api_f_lostcount ?? 0 };
         planes.enemyFighter = { count: s1.api_e_count ?? 0, lost: s1.api_e_lostcount ?? 0 };
     }
-    const s2 = initialApi.api_kouku?.api_stage2;
+    const s2 = airApi.api_kouku?.api_stage2 ?? airApi.api_kouku2?.api_stage2;
     if (s2) {
         planes.playerBomber = { count: s2.api_f_count ?? 0, lost: s2.api_f_lostcount ?? 0 };
         planes.enemyBomber = { count: s2.api_e_count ?? 0, lost: s2.api_e_lostcount ?? 0 };
-        if (s2.api_air_fire?.api_kind) aaci = s2.api_air_fire.api_kind;
+        collectAaci(s2);
+    }
+    // 夜戰封包可能是同一場中唯一帶有對空 CI 結果的封包；不要只看第一包。
+    for (const api of apiList) {
+        const stage2 = api?.api_kouku?.api_stage2 ?? api?.api_kouku2?.api_stage2;
+        collectAaci(stage2);
+    }
+    for (const api of apiList) {
+        setTouchPlane(api?.api_touch_plane);
+        setTouchPlane(api?.api_kouku?.api_stage1?.api_touch_plane);
     }
 
+    const finalSupportSource = supportSource as Omit<BattleSupportView, 'damage'> | null;
     return {
         resultFleets: fleets,
         rank,
@@ -869,8 +1086,13 @@ export function analyzeBattle(
         dropIsNew: false,
         supportFlag,
         aaci,
+        aaciDetails,
         midnightFlag,
         nightEffects,
+        nightObserved,
+        ...(nightTouchPlane === undefined ? {} : { nightTouchPlane }),
+        nightTarget: nightObserved ? (nightTarget ?? 'unknown') : nightTarget,
+        ...(nightObserved || !nightTargetEstimated ? {} : { nightTargetEstimated: true }),
         friendlyFleetIds,
         // 沒有任何一波＝這節點基地航空隊沒出動，回 null 讓面板整段不顯示
         // （0/0/0 會被讀成「出擊了但毫無戰果」，那是另一回事）。
@@ -880,7 +1102,12 @@ export function analyzeBattle(
             damage: lbasWaves.reduce((n, w) => n + w.damage, 0),
             waves: lbasWaves,
         } : null,
-        support: supportSource ? { ...supportSource, damage: supportDamage } : null,
+        support: finalSupportSource ? {
+            kind: finalSupportSource.kind,
+            deckId: finalSupportSource.deckId,
+            shipIds: finalSupportSource.shipIds,
+            damage: supportDamage,
+        } : null,
         hasResult: false,
         timeline: { initial: initialSnapshot, phases },
     };

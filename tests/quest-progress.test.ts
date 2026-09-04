@@ -156,7 +156,7 @@ describe('任務本機進度：出擊任務 id 白名單（僅無條件任務，
     });
 });
 
-// 出擊到 area/mapNo，走一節點戰鬥並結算，回傳結算 rank；boss 用 color=5 表示。
+// 出擊到 area/mapNo，走一節點戰鬥並結算，回傳結算 rank；測試節點沿用舊封包的 color=5 Boss 回退。
 function sortieAndBattleresult(state: GameState, mapArea: number, mapNo: number, boss: boolean, rank: string) {
     state.applyEvent('api_req_map/start', { api_maparea_id: mapArea, api_mapinfo_no: mapNo, api_no: 1, api_color_no: boss ? 5 : 1 }, { api_deck_id: '1' });
     state.applyEvent('api_req_sortie/battleresult', { api_win_rank: rank }, {});

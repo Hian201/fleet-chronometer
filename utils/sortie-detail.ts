@@ -312,9 +312,13 @@ function analyzeNode(entry: ReplayNode, replay: ReplayRow): BattleInfoView | nul
             main: replay.fleet1.map(gearMasterIds),
             escort: replay.fleet2.map(gearMasterIds),
         };
+        const playerAaciShips = {
+            main: replay.fleet1.map(ship => ({ id: 0, masterId: ship.mst_id })),
+            escort: replay.fleet2.map(ship => ({ id: 0, masterId: ship.mst_id })),
+        };
         return entry.yasen
-            ? analyzeBattle([day, entry.yasen], damecons, { playerGearIds })
-            : analyzeBattle([day], damecons, { playerGearIds });
+            ? analyzeBattle([day, entry.yasen], damecons, { playerGearIds, playerAaciShips })
+            : analyzeBattle([day], damecons, { playerGearIds, playerAaciShips });
     } catch {
         return null;
     }

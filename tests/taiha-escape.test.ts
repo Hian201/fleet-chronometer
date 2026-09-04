@@ -280,6 +280,76 @@ describe('損管與夜戰接續（GameState 端）', () => {
         }));
         expect(state.battleInfo!.resultFleets!.playerMain[1]).toMatchObject({ sunk: true, hp: 0 });
     });
+
+    it('夜戰包缺少白天欄位時保留陣形／制空／索敵，且仍標示夜戰入口', () => {
+        const state = stateWithFleets([[{ mst: MUTSUKI }, { mst: MUTSUKI }]]);
+        sortie(state);
+        state.applyEvent('api_req_sortie/battle', {
+            ...battlePacket({ fHp: [40, 40], fMax: [40, 40], hits: [] }),
+            api_formation: [1, 5, 3],
+            api_search: [1, 1],
+            api_kouku: {
+                api_stage1: {
+                    api_f_count: 12, api_f_lostcount: 0,
+                    api_e_count: 8, api_e_lostcount: 0,
+                    api_disp_seiku: 2,
+                },
+            },
+            api_midnight_flag: 1,
+        });
+        // 模擬從保留事件中途重建：夜戰包本身仍有 HP／夜戰傷害，但白天基準不在
+        // lastDayBattle；這是面板最容易把陣形洗成 [0,0,0] 的路徑。
+        state.lastDayBattle = null;
+        state.applyEvent('api_req_battle_midnight/battle', {
+            api_f_nowhps: [40, 40], api_f_maxhps: [40, 40],
+            api_e_nowhps: [90], api_e_maxhps: [90], api_ship_ke: [1501],
+            api_hougeki: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]], api_damage: [[0]],
+            },
+        });
+        expect(state.battleInfo?.formation).toEqual([1, 5, 3]);
+        expect(state.battleInfo?.seiku).toBe(2);
+        expect(state.battleInfo?.search).toBe('success');
+        expect(state.battleInfo?.midnightFlag).toBe(true);
+        expect(state.battleInfo?.nightObserved).toBe(true);
+    });
+
+    it('日戰聯合敵艦尚未進夜戰時，把 KC3Kai 式主／伴隊預測留在正式 BattleInfo', () => {
+        const state = stateWithFleets([
+            [{ mst: MUTSUKI }],
+            [{ mst: MUTSUKI }],
+        ], 1);
+        sortie(state);
+        state.applyEvent('api_req_combined_battle/battle', {
+            api_f_nowhps: [40], api_f_maxhps: [40],
+            api_f_nowhps_combined: [40], api_f_maxhps_combined: [40],
+            api_e_nowhps: [20], api_e_maxhps: [20],
+            api_e_nowhps_combined: [10, 10], api_e_maxhps_combined: [10, 10],
+            api_ship_ke: [1501], api_ship_ke_combined: [1502, 1503],
+            api_midnight_flag: 1,
+        });
+        expect(state.battleInfo?.nightObserved).toBe(false);
+        expect(state.battleInfo?.nightTarget).toBe('escort');
+        expect(state.battleInfo?.nightTargetEstimated).toBe(true);
+    });
+});
+
+describe('夜轉日封包的夜戰解析', () => {
+    it('api_req_sortie/night_to_day 不被當成普通白天戰鬥，保留 api_n_hougeki* 與夜戰狀態', () => {
+        const state = stateWithFleets([[{ mst: MUTSUKI }]]);
+        sortie(state);
+        state.applyEvent('api_req_sortie/night_to_day', {
+            api_f_nowhps: [40], api_f_maxhps: [40],
+            api_e_nowhps: [30], api_e_maxhps: [30], api_ship_ke: [1501],
+            api_n_hougeki1: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]], api_damage: [[4]],
+            },
+            api_day_flag: 1,
+        });
+        expect(state.battleInfo?.nightObserved).toBe(true);
+        expect(state.battleInfo?.nightTarget).toBe('main');
+        expect(state.battleInfo?.timeline?.phases.map(phase => phase.kind)).toContain('nightShelling');
+    });
 });
 
 describe('艦隊司令部退避', () => {
