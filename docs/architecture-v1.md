@@ -12,6 +12,8 @@
 > - 現行權限契約與本原始設計不同：正式 manifest 的 `host_permissions` 為空；目前的
 >   `permissions` 與 `optional_host_permissions` 以 `wxt.config.ts` 及
 >   `tests/manifest.test.ts` 為準。
+> - L1 擷取不再 hook 原生 fetch／XHR：改觀察遊戲 `window.axios` 的 response interceptor
+>   （不取代原生網路 API，以免 DevTools `getContent` 對其他擴充變空）。仍只觀察、不改寫、不重放。
 
 ---
 

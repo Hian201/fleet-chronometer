@@ -21,7 +21,9 @@
 
 ## 設計原則（硬約束）
 
-1. **被動擷取**：只攔截遊戲自身流量，絕不重放/修改/代發請求（帳號安全紅線）。
+1. **被動擷取**：只觀察遊戲自身流量，絕不重放/修改/代發請求（帳號安全紅線）。
+   kcsapi 觀察點是遊戲 `window.axios` 的 response interceptor；禁止取代原生 fetch／XHR。
+   契約鎖在 `tests/interceptor-capture.test.ts`。
 2. **token 不落地**：`api_token` 在 bridge 層剔除，永不寫入 DB、不出境；不上傳任何資料。
 3. **擷取與 UI 解耦**：資料落地於 SW 寫入的 IndexedDB 事件日誌；面板只是訂閱者+重放者，
    關閉期間不漏資料。SW 視為隨時會死，不持跨事件狀態。
@@ -74,7 +76,7 @@ npx tsc --skipLibCheck --target ES2020 --module ES2020 --moduleResolution bundle
 
 ```
 遊戲頁(*.kancolle-server.com, iframe)
-  ▼ hook fetch/XHR
+  ▼ 觀察 window.axios response（不取代原生 fetch/XHR）
 interceptor.content.ts (MAIN world, document_start)
   · 剝 svdata= → postMessage；[debug] __kcLastBattle/__kcLastResult
   ▼ window.postMessage
@@ -98,7 +100,7 @@ panel/main.ts
 ```
 
 **Provider 合約**：`ApiEventRow`（`utils/db.ts`）是擷取來源與下游的正式邊界。MAIN world
-interceptor 被動觀察 fetch/XHR，在 idle queue 中依序送出已去 `/kcsapi/`／`svdata=` 前綴的
+interceptor 被動觀察遊戲 `window.axios` 的 kcsapi 回應（不取代原生 fetch／XHR，以免 DevTools `getContent` 對其他擴充變空），在 idle queue 中依序送出已去 `/kcsapi/`／`svdata=` 前綴的
 path、原始 response text 與 request body；ISOLATED bridge 驗證同源訊息、移除
 `api_token`／`api_verno`，建立一次固定 envelope（UUID `captureId`、timestamp、path、req、
 `apiText`）後送 runtime message。retry **只一次**，且重用同一 envelope；第二次仍失敗時該筆
@@ -112,7 +114,8 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | 檔案 | 職責 |
 |------|------|
 | `wxt.config.ts` | manifest（permissions: activeTab, alarms, notifications, scripting, tabs；`optional_host_permissions` 為 DMM 遊戲頁）＋剝除 WXT 自動加上的 `host_permissions` 的 build hook |
-| `entrypoints/interceptor.content.ts` | MAIN world 攔封包 + debug 擷取 ＋**遊戲靜音 hook 的安裝點**（`installAudioMute`，必須早於遊戲建立音訊圖，故掛在 document_start） |
+| `entrypoints/interceptor.content.ts` | MAIN world 以 axios response interceptor 觀察 kcsapi（不取代 fetch／XHR）+ debug 擷取 ＋**遊戲靜音 hook 的安裝點**（`installAudioMute`，必須早於遊戲建立音訊圖，故掛在 document_start） |
+| `utils/axios-capture.ts` | 等 `window.axios`、掛 response interceptor、序列化後交 idle queue；無 chrome.* |
 | `entrypoints/bridge.content.ts` | 轉發到 background，去 token；另接**靜音狀態長連線**（`runtime.connect`，故不需要對遊戲分頁的 host permission）與**劇場模式的互動意圖轉發**（Alt+滾輪／Esc，一律 passive、不 stopPropagation）；**關閉分頁前警示**（`beforeunload`，manifest 靜態注入、無需任何權限、涵蓋新舊 DMM 入口——刻意不放在需要 optional permission 的頂層 DMM 頁，見「關閉分頁前警示」一節） |
 | `entrypoints/theater.content.ts` | 劇場模式（DMM 遊戲頁）：把遊戲框放到整個視窗、滾輪縮放、平移、隨時還原。**動態註冊**（`registration: 'runtime'`），不在 manifest 的 content_scripts 裡。詳見「劇場模式」 |
 | `utils/theater.ts` | 劇場模式的純函式核心（遊戲框辨識／縮放平移幾何／注入用 CSS），無 chrome.*、無 DOM 依賴，node 可測 |
@@ -148,7 +151,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `utils/drop-log-import.ts` | 打撈紀錄 CSV 匯出入：`dropLogCsvText()` 固定欄位匯出、`parseDropLogCsv()` 辨識自家格式或航海日誌拡張版戦績／ドロップ報告書、`importDropLogRows()` 借 event ID 寫入 `db.sorties`（不寫 raw event，逐列去重不整批 rollback）。詳見「打撈紀錄／建造紀錄的 CSV 匯出入」 |
 | `utils/build-log-import.ts` | 建造紀錄 CSV 匯出入，設計同 drop-log-import.ts；相容航海日誌拡張版建造報告書，艦名／秘書艦名查不到 master id 時存 `importedShipName`／`importedSecretaryName` 供顯示 |
 | `utils/sortie-detail.ts` | 出擊紀錄「一次出擊」的重建（純函式，無 chrome.*，node 可測）：`buildSortieDetail()` 把 `db.sorties` 摘要 × `db.replays` 原始封包合成逐節點的作戰資訊，並把支援艦隊／基地航空隊波次彙整到出擊層級；`lbasWaves()`／`supportUse()` 解封包欄位、`numberSorties()` 算「該海域第幾次出擊」、`isEventWorld()` 分通常／活動。戰鬥細節**不另寫解析**，直接餵 `battle.ts` 的 `analyzeBattle()`（與面板同一支）。詳見「出擊紀錄的展開檢視」 |
-| `utils/deckbuilder.ts` | 兩種外部工具格式的輸出：`buildDeckBuilder()` 產生母港艦隊 JSON，`buildReplayDeckBuilder()` 產生出擊快照的標準 DeckBuilder JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()`；DeckBuilder 格式與出擊模擬器格式分開維護 |
+| `utils/deckbuilder.ts` | DeckBuilder 與出擊模擬器格式分開維護：`buildDeckBuilder()`／`buildReplayDeckBuilder()` 產生艦隊與基地航空隊 JSON，`buildOwnedEquipmentCode()` 產生全持有裝備代碼，`buildSelectedDeckBuilder()` 產生出擊／支援選取艦隊（出擊可含最多三隊基地航空隊）的 DeckBuilder v4 JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()` |
 | `utils/sortie-simulator.ts` | `buildSortieSimulator()`／`toSortieSimulatorUrl()` 產生 KC3Kai 出擊模擬器使用的 `fleetF`／`nodes` 格式，含支援艦隊與基地航空隊資料；不與 DeckBuilder 格式混用 |
 | `tools/preview/resource-log.ts` | 資源紀錄版面的**離線預覽產生器**（開發用，不進 bundle）。`samples/` 裡沒有現成的餘額歷史（那要跑好幾週才生得出來），故用**有依據的合成序列**——起訖水位、每場出擊的消耗量級、活動的關卡數與里程碑順序都照 `samples/61-*.json` 那次活動的形狀；合成的是時間軸，欄位語意仍走與分區完全相同的那份程式碼 |
 | `tools/preview/sortie-log.ts` | 出擊紀錄版面的**離線預覽產生器**（開發用，不進 bundle）：拿 `samples/` 的 KC3Kai logger 匯出當真實資料、套 overview 的同一份 CSS，產出 `.preview/sortie-log.html`（深／亮兩色）供瀏覽器檢視或 headless 截圖。不連遊戲、不需登入 |
@@ -354,7 +357,7 @@ EventProjector 與 state recovery 必須傳入原始 `event.ts`，live 呼叫未
 - **gaugeType 2（HP量表式）擊破機制**（使用者提供，2026-07-19，已用 `samples/61-5-jibun-rengou-node52.json`
   數字對照：總量表 8400、boss 旗艦 HP 1200＝`api_e_maxhps[0]`、入場 `now_maphp=809`）：
   量表**每場依「對 boss 旗艦造成的傷害」遞減**（非整刀），例如某場僅打 500 傷害＝8400→7900。
-  進入「最終段」（殘量 < boss 旗艦 HP，如 809<1200）後，**傷害不會把量表打到 0——會 floor 在 1**
+  進入「最終段」（殘量 ≤ boss 旗艦 HP，如 809≤1200）後，**傷害不會把量表打到 0——會 floor 在 1**
   （`now_maphp=1` 表「最終段、還差一沉」）；**唯有該場實際把 boss 旗艦沉沒，量表才真的變 0＝通關**
   （打了 900 但沒沉 1200 仍是失敗，量表停在 1）。**推論（斬殺偵測的機制保證）**：`now_maphp===0`
   在機制上唯一等價於「這場斬殺（沉 boss）成功」，故 `detectClear`／`isGaugeBroken` 只認 ===0

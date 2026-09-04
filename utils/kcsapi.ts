@@ -27,6 +27,48 @@ export function serializeRequestBody(body: BodyInit | null | undefined): string 
     return '';
 }
 
+/**
+ * axios `config.data` → bridge 用的 `application/x-www-form-urlencoded` 字串。
+ * 無法安全表示的型別（檔案、巢狀物件）略過該欄，不猜。
+ */
+export function serializeAxiosRequestBody(data: unknown): string {
+    if (data == null) return '';
+    if (typeof data === 'string') return data;
+    if (data instanceof URLSearchParams) return data.toString();
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+        const params = new URLSearchParams();
+        data.forEach((value, key) => {
+            if (typeof value === 'string') params.append(key, value);
+        });
+        return params.toString();
+    }
+    if (typeof data === 'object' && !Array.isArray(data)) {
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+            if (value == null || typeof value === 'object') continue;
+            params.append(key, String(value));
+        }
+        return params.toString();
+    }
+    return '';
+}
+
+/**
+ * axios `response.data` → 與 XHR `responseText` 同形的 `svdata=` 文字，供 `parseKcsapiResponse`。
+ * 字串原樣通過（遊戲預設就是 `svdata=...`）；已 parse 的物件再包一層前綴。
+ */
+export function serializeAxiosResponseText(data: unknown): string | null {
+    if (typeof data === 'string') return data;
+    if (data != null && typeof data === 'object') {
+        try {
+            return `svdata=${JSON.stringify(data)}`;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 /** 讀取 Request clone，任何無法讀取的 body 都安全降級為空字串。 */
 export async function readRequestBody(request: Pick<Request, 'clone'>): Promise<string> {
     try {

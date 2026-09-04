@@ -1,4 +1,5 @@
-import { getKcsapiPath, parseKcsapiResponse, readFetchRequestBody } from '../utils/kcsapi';
+import { attachAxiosResponseCapture, waitForAxios } from '../utils/axios-capture';
+import { parseKcsapiResponse } from '../utils/kcsapi';
 import { IdleCaptureQueue, type IdleDeadlineLike } from '../utils/idle-capture-queue';
 import { installAudioMute } from '../utils/audio-mute';
 import { MUTE_MARK, type MuteBridgeMessage } from '../utils/game-page';
@@ -57,8 +58,8 @@ export default defineContentScript({
         };
 
         // 初始登入會連續回傳 start2／port／require_info 等大封包。不能只把 postMessage
-        // 包在 setTimeout(0)：XHR load callback 仍會同步 materialize responseText，下一輪
-        // task 又會一次送完所有待處理封包。改在 idle slice 一次處理一筆，讓遊戲 UI 優先。
+        // 包在 setTimeout(0)：axios 已在遊戲路徑 materialize 回應，下一輪 task 若一次送完
+        // 所有待處理封包仍會卡住繪製。改在 idle slice 一次處理一筆，讓遊戲 UI 優先。
         const requestIdle = (callback: (deadline: IdleDeadlineLike) => void) => {
             if (typeof globalThis.requestIdleCallback === 'function') {
                 globalThis.requestIdleCallback(callback, { timeout: 1000 });
@@ -94,72 +95,21 @@ export default defineContentScript({
             },
         );
 
-        // 攔 fetch
-        const origFetch = window.fetch;
-        window.fetch = async function (...args) {
-            const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-            const p = getKcsapiPath(url);
-            // Request 必須在原始 fetch 消耗前 clone；只啟動非同步讀取，絕不 await，
-            // 因此不會延後或改變原始 fetch 的回應／錯誤傳遞。
-            const reqBody = p ? readFetchRequestBody(args[0], args[1]) : null;
-            const res = await origFetch.apply(this, args as Parameters<typeof fetch>);
-            if (p && reqBody) {
-                // clone 必須在原始 Response 被遊戲讀取前完成；但 .text() 會 materialize 大型
-                // 字串，交給 idle queue 再做。完成後也會等下一個 idle 才跨 world 傳輸。
-                try {
-                    const responseCopy = res.clone();
-                    void reqBody.then((body) => captureQueue.enqueue(p, body, () => responseCopy.text()));
-                } catch (error) {
-                    // 擷取失敗只能略過該筆，絕不能改變遊戲可取得的 Response。
-                    console.warn('[KC-Monitor] 無法複製 fetch 回應，略過此筆', p, error);
-                }
-            }
-            return res;
-        };
-
-        // 攔 XHR
-        const origOpen = XMLHttpRequest.prototype.open;
-        const origSend = XMLHttpRequest.prototype.send;
-        XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...rest: any[]) {
-            // 正常情況每個 API 都是新 XHR，responseText 會留到 idle 才讀。若遊戲重用同一
-            // 個 XHR，open 會清掉上一筆 response，故此時才強制把尚未讀取的舊回應 materialize，
-            // 寧可極少數重用情境有成本，也不能靜默遺失擷取事件。
-            try {
-                (this as any).__kcPendingResponse?.read();
-            } catch (error) {
-                // 這層防護不可讓擷取例外冒到遊戲自己的 open()。
-                console.warn('[KC-Monitor] 無法保留被重用 XHR 的前一筆回應，略過此筆', error);
-            }
-            (this as any).__kcPath = getKcsapiPath(String(url));
-            return (origOpen as any).call(this, method, url, ...rest);
-        };
-        XMLHttpRequest.prototype.send = function (body?: any) {
-            const p = (this as any).__kcPath;
-            // { once: true }：若遊戲重用同一個 XHR 實例送出下一筆請求，這個 listener 不能
-            // 留著——留著的話下一次 load 事件會被這個「舊」listener 跟這次新註冊的一起觸發，
-            // 屆時 this.responseText 已經是新請求的內容，卻會被舊 listener 標成舊的 path
-            // 重複入列。每個 send() 呼叫只該對應它自己
-            // 那一次 load。
-            if (p) this.addEventListener('load', () => {
-                // 不在 load callback 讀 this.responseText；取得大型字串與 postMessage 都留給
-                // idle queue。read() 具快取，只有 XHR 被重用時才可能提早執行一次。
-                let read = false;
-                let text = '';
-                const pendingResponse = {
-                    read: () => {
-                        if (!read) {
-                            read = true;
-                            if ((this as any).__kcPendingResponse === pendingResponse)
-                                delete (this as any).__kcPendingResponse;
-                            text = this.responseText;
-                        }
-                        return text;
-                    },
-                };
-                (this as any).__kcPendingResponse = pendingResponse;
-                captureQueue.enqueue(p, String(body ?? ''), pendingResponse.read);
-            }, { once: true });
-            return origSend.call(this, body);
-        };
+        // 不可取代 window.fetch／XMLHttpRequest.prototype：Edge 152 起頁面腳本一旦包住
+        // 原生網路 API，Network 面板仍可能顯示 svdata，但 chrome.devtools.network.getContent
+        // 會對其他擴充（KC3Kai 開發人員介面）回傳空內容。kcs2 的 kcsapi 走全域 axios，
+        // 只在 response interceptor 觀察、絕不 reject／改寫 config。
+        waitForAxios(
+            () => (window as any).axios,
+            (axios) => {
+                attachAxiosResponseCapture(
+                    axios,
+                    (path, reqBody, readText) => captureQueue.enqueue(path, reqBody, readText),
+                    (path, error) => console.warn('[KC-Monitor] axios 擷取失敗，略過此筆', path, error),
+                );
+                console.log('[KC-Monitor] 已掛上 axios 觀察');
+            },
+            (callback, delayMs) => { setTimeout(callback, delayMs); },
+        );
     },
 });

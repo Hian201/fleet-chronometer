@@ -48,7 +48,7 @@ export default defineConfig({
         // 擴充」（點圖示開 popup／快捷鍵／右鍵選單）當下，對「那個分頁」暫時授予，分頁換頁
         // 或關閉即失效——與拍照「按下當下要看到的畫面」的使用情境完全吻合。
         permissions: ['activeTab', 'alarms', 'notifications', 'scripting', 'tabs'],
-        optional_host_permissions: [...GAME_PAGE_MATCHES],
+        optional_host_permissions: GAME_PAGE_MATCHES,
     },
     hooks: {
         // WXT 對 `registration: 'runtime'` 的 content script 會**自動把 matches 塞進

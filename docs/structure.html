@@ -232,8 +232,12 @@
   <li>注入遊戲指令、自動化玩家操作</li>
   <li>延遲、重排、重送遊戲請求</li>
 </ul>
-<p>唯一允許的介入是<strong>觀察</strong>：<code>Response.clone()</code> 取副本、<code>XMLHttpRequest</code> 的
-<code>load</code> 事件讀 <code>responseText</code>。連讀取大字串都刻意延到 idle slice，避免與遊戲 renderer 競爭
+<p>唯一允許的介入是<strong>觀察</strong>：掛上遊戲 <code>window.axios</code> 的
+<code>interceptors.response</code>，讀取已經發生的回應，原樣 <code>return response</code>，不
+<code>reject</code>、不改 <code>config</code>。不取代 <code>window.fetch</code> 或
+<code>XMLHttpRequest.prototype</code>——頁面一旦包住原生網路 API，Network 面板仍可能顯示
+<code>svdata=</code>，但 <code>chrome.devtools.network.getContent</code> 會對其他擴充（例如 KC3Kai
+開發人員介面）回傳空內容。大字串的跨 world 傳輸仍延到 idle slice
 （見 <a href="#s4">§4</a>）。</p>
 
 <h3>未驗證資料的處理原則</h3>
@@ -325,7 +329,7 @@
 
     <rect x="44" y="62" width="380" height="82" rx="8" fill="#2a3548" stroke="#4a5468"/>
     <text x="58" y="84" fill="#e6ebf4" font-weight="700">interceptor.content.ts — MAIN world</text>
-    <text x="58" y="104" fill="#b7c0d0">hook fetch / XHR → res.clone() → IdleCaptureQueue</text>
+    <text x="58" y="104" fill="#b7c0d0">觀察 window.axios response → IdleCaptureQueue</text>
     <text x="58" y="122" fill="#b7c0d0">installAudioMute()（document_start，須早於遊戲建立音訊圖）</text>
     <text x="58" y="138" fill="#8a94a8" font-size="11.5">[debug] __kcLastBattle / __kcLastResult / __kcAudio</text>
 
@@ -432,10 +436,11 @@ ingestion 完成後的廣播。<strong>所有箭頭都是單向觀察或本機�
 
 <div class="box hard">
   <span class="tag">為什麼是兩支 content script</span>
-  <p>MAIN world 才能改寫 <code>window.fetch</code> 與 <code>XMLHttpRequest.prototype</code>（ISOLATED world
-  的改寫看不到遊戲的呼叫）；但 MAIN world <strong>沒有 <code>browser.*</code> API</strong>。
-  故必須拆成「MAIN 攔截 → 同源 <code>postMessage</code> → ISOLATED 轉 runtime message」兩段。
-  token 剝除刻意放在 ISOLATED 這一段，讓 MAIN world 那支完全不碰持久化語意。</p>
+  <p>MAIN world 才能碰到遊戲的 <code>window.axios</code>（ISOLATED world 看到的是另一份
+  <code>window</code>）；但 MAIN world <strong>沒有 <code>browser.*</code> API</strong>。
+  故必須拆成「MAIN 觀察 → 同源 <code>postMessage</code> → ISOLATED 轉 runtime message」兩段。
+  token 剝除刻意放在 ISOLATED 這一段，讓 MAIN world 那支完全不碰持久化語意。
+  靜音 hook 仍必須 MAIN＋<code>document_start</code>，與擷取路徑無關。</p>
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
@@ -443,52 +448,27 @@ ingestion 完成後的廣播。<strong>所有箭頭都是單向觀察或本機�
 
 <h3>4.1 interceptor（MAIN world）</h3>
 
-<h4>fetch hook</h4>
-<pre><code>const origFetch = window.fetch;
-window.fetch = async function (...args) {
-    const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-    const p = getKcsapiPath(url);
-    // Request 必須在原始 fetch 消耗前 clone；只啟動非同步讀取，絕不 await，
-    // 因此不會延後或改變原始 fetch 的回應／錯誤傳遞。
-    const reqBody = p ? readFetchRequestBody(args[0], args[1]) : null;
-    const res = await origFetch.apply(this, args as Parameters&lt;typeof fetch&gt;);
-    if (p &amp;&amp; reqBody) {
-        try {
-            const responseCopy = res.clone();               // 必須在遊戲讀取前 clone
-            void reqBody.then(body =&gt;
-                captureQueue.enqueue(p, body, () =&gt; responseCopy.text()));  // .text() 留到 idle
-        } catch (error) {
-            console.warn('[KC-Monitor] 無法複製 fetch 回應，略過此筆', p, error);
-        }
-    }
-    return res;                                              // 原封不動回傳
-};</code></pre>
+<h4>axios response 觀察（<code>utils/axios-capture.ts</code>）</h4>
+<p>kcs2 的 kcsapi 走全域 <code>window.axios</code>。interceptor 在 MAIN world 等到該物件出現後，
+只掛 <code>interceptors.response</code>：辨識 <code>/kcsapi/</code>、把 <code>config.data</code>／
+<code>response.data</code> 排進 idle queue，然後<strong>原樣回傳同一個 <code>response</code></strong>。
+擷取路徑上的例外只 <code>console.warn</code> 並略過該筆，不可冒到遊戲的 axios 鏈。
+不掛 request interceptor、不 <code>Cancel</code>、不改寫即將送出的請求。</p>
 
 <div class="box hard">
   <span class="tag">不變量</span>
   <ul>
-    <li>遊戲拿到的 <code>Response</code> 物件與沒有擴充時完全相同（回傳的是 <code>res</code>，不是 clone）。</li>
-    <li>擷取路徑上的任何例外都只 <code>console.warn</code> 並略過該筆，<strong>絕不可</strong>冒到遊戲的 <code>fetch</code>。</li>
-    <li><code>reqBody</code> 只啟動、不 await；<code>.text()</code> 延到 idle slice。</li>
+    <li>遊戲送出的請求與拿到的回應，與沒有本擴充時相同。</li>
+    <li>不取代 <code>window.fetch</code>／<code>XMLHttpRequest.prototype</code>。</li>
+    <li>字串化與 <code>postMessage</code> 延到 idle slice，不在 interceptor 同步路徑做大拷貝。</li>
+    <li>若頁面始終沒有全域 <code>axios</code>，本擴充會抄不到封包；不得因此退回原生 API 包裝。</li>
   </ul>
 </div>
 
-<h4>XHR hook</h4>
-<p>兩個無法直接從 hook 看出的必要約束：</p>
-<ol>
-  <li><strong><code>{ once: true }</code> 是必要的</strong>。若遊戲重用同一個 XHR 實例送出下一筆請求，
-    留著的舊 listener 會在下一次 <code>load</code> 時與新 listener 一起觸發，
-    此時 <code>this.responseText</code> 已是新請求的內容，卻會被標上舊的 <code>path</code> 重複入列。</li>
-  <li><strong><code>open()</code> 時要先 flush 上一筆未讀的 response</strong>。
-    正常情況每個 API 都是新 XHR、<code>responseText</code> 可留到 idle 才讀；
-    但遊戲若重用 XHR，<code>open()</code> 會清掉上一筆 response。故 <code>open()</code> 先呼叫
-    <code>this.__kcPendingResponse?.read()</code>（該 read 具快取）強制 materialize。</li>
-</ol>
-
 <h4>IdleCaptureQueue（<code>utils/idle-capture-queue.ts</code>）</h4>
 <p>存在理由：初始登入會連續回傳 <code>start2</code>／<code>port</code>／<code>require_info</code> 等多 MB 封包。
-<strong>不能只把 <code>postMessage</code> 包在 <code>setTimeout(0)</code></strong>——XHR 的 load callback 仍會同步
-materialize <code>responseText</code>，下一輪 task 又會一次送完所有待處理封包。</p>
+<strong>不能只把 <code>postMessage</code> 包在 <code>setTimeout(0)</code></strong>——axios 已在遊戲路徑
+materialize 回應，下一輪 task 若一次送完所有待處理封包仍會卡住繪製。</p>
 <ul>
   <li>每個 idle slice <strong>只處理一筆</strong>，保序。</li>
   <li>排程用 <code>requestIdleCallback(cb, { timeout: 1000 })</code>；不支援時 fallback 為

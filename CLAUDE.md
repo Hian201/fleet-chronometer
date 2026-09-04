@@ -17,7 +17,10 @@
 1. **註釋與變更說明最高原則**：註釋只寫無法直接從程式碼看出的原因、約束或風險，禁止保留
    中間嘗試、除錯歷程、未合入狀態、舊實作或遭否決方案。PR 描述只寫最終行為與 diff 看不出的
    取捨，不得提及從未合入的狀態。維護文件記錄規則時，以「現行規則＋理由」表達，不敘述演變過程。
-2. **被動擷取**：只攔截遊戲自身流量，絕不重放/修改/代發請求（帳號安全紅線）。
+2. **被動擷取**：只觀察遊戲自身流量，絕不重放/修改/代發請求（帳號安全紅線）。
+   kcsapi 觀察點是遊戲 `window.axios` 的 **response** interceptor；**禁止**取代
+   `window.fetch`／`XMLHttpRequest.prototype`（否則 DevTools `getContent` 會讓並行的
+   KC3Kai 開發人員介面變空）。契約鎖在 `tests/interceptor-capture.test.ts`。
 3. **token 不落地**：`api_token` 在 bridge 層剔除，永不寫入 DB、不出境；不上傳任何資料。
 4. **擷取與 UI 解耦**：資料落地於 SW 寫入的 IndexedDB 事件日誌；面板只是訂閱者+重放者，
    關閉期間不漏資料。SW 視為隨時會死，不持跨事件狀態。
@@ -27,11 +30,11 @@
    （`tabs` 僅供 `tabs.update({muted})` 遊戲分頁靜音保底使用，見劇場模式一節），且
    **host permission 一律為空**。`scripting` 不授予任何網站存取權；劇場模式/拍照需要的
    dmm.com 存取權走 `optional_host_permissions`，使用者按下按鈕才跳一次原生授權。
- `tests/manifest.test.ts` 常駐斷言**正式建置**的 `host_permissions` 為空——WXT 對
- `registration: 'runtime'` 的 content script 會自動把 matches 塞進 host_permissions，
- `wxt.config.ts` 的 `build:manifestGenerated` hook 負責剝掉。開發模式（`npm run
-dev`）則保留 `localhost`，否則擴充頁載入 Vite `@vite/client` 會被 CORS 擋下。任何新增
- 權限都要有明確且無法從 manifest 看出的理由。
+   `tests/manifest.test.ts` 常駐斷言**正式建置**的 `host_permissions` 為空——WXT 對
+   `registration: 'runtime'` 的 content script 會自動把 matches 塞進 host_permissions，
+   `wxt.config.ts` 的 `build:manifestGenerated` hook 負責剝掉。開發模式（`npm run
+   dev`）則保留 `localhost`，否則擴充頁載入 Vite `@vite/client` 會被 CORS 擋下。任何新增
+   權限都要有明確且無法從 manifest 看出的理由。
 7. **不要重複資訊**（UI 最高原則）：同一事實只在一個位置完整呈現。別處若需要狀態訊號，
    只標「是什麼」、不把數字／倒數／明細再抄一遍。例：入渠倒數只在一般分頁入渠欄；編成列
    只寫「入渠」。已有完整呈現的地方再抄一次，等於讓使用者對照兩處是否一致，也浪費編成
@@ -76,7 +79,7 @@ npx tsc --skipLibCheck --target ES2020 --module ES2020 --moduleResolution bundle
 
 ```
 遊戲頁(*.kancolle-server.com, iframe)
-  ▼ hook fetch/XHR
+  ▼ 觀察 window.axios response（不取代原生 fetch/XHR）
 interceptor.content.ts (MAIN world, document_start)
   · 剝 svdata= → postMessage；[debug] __kcLastBattle/__kcLastResult
   ▼ window.postMessage
@@ -98,7 +101,7 @@ panel/main.ts
 ```
 
 **Provider 合約**：`ApiEventRow`（`utils/db.ts`）是擷取來源與下游的正式邊界。MAIN world
-interceptor 被動觀察 fetch/XHR，依序送出已去 `/kcsapi/`／`svdata=` 前綴的 path、原始
+interceptor 被動觀察遊戲 `window.axios` 的 kcsapi 回應（不取代原生 fetch／XHR，以免 DevTools `getContent` 對其他擴充變空），依序送出已去 `/kcsapi/`／`svdata=` 前綴的 path、原始
 response text 與 request body；ISOLATED bridge 驗證同源訊息、移除 `api_token`／
 `api_verno`，建立一次固定 envelope（UUID `captureId`、timestamp、path、req、`apiText`）後送
 runtime message。retry **只一次**，且重用同一 envelope。background 才解析大型 `apiText` 成
@@ -144,7 +147,8 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | 檔案 | 職責 |
 |------|------|
 | `wxt.config.ts` | manifest（permissions: alarms, notifications, scripting, tabs, activeTab；`optional_host_permissions` 為 DMM 遊戲頁）＋剝除 WXT 自動加上的 `host_permissions` 的 build hook＋`build.modulePreload: false`（必須關閉模組預載：Vite 一律替 `<link rel="modulepreload">` 加 `crossorigin`，擴充頁載入自家 chrome-extension:// 資源的 fetch 模式對不上，Chrome 每頁吐一則 `cross-world extension resource mismatch` 警告並白抓一次檔案。chunk 都是本機檔案、預載零價值，模組仍由 `<script type="module">` 的 import 圖載入） |
-| `entrypoints/interceptor.content.ts` | MAIN world 攔封包 + debug 擷取 ＋遊戲靜音 hook 安裝點（`installAudioMute`，須早於遊戲建立音訊圖，掛在 document_start） |
+| `entrypoints/interceptor.content.ts` | MAIN world 以 axios response interceptor 觀察 kcsapi（不取代 fetch／XHR；契約鎖在 `tests/interceptor-capture.test.ts`）+ debug 擷取 ＋遊戲靜音 hook 安裝點（`installAudioMute`，須早於遊戲建立音訊圖，掛在 document_start） |
+| `utils/axios-capture.ts` | 掛上 axios 觀察的純函式（等 `window.axios`、序列化後交 idle queue）；無 chrome.* |
 | `entrypoints/bridge.content.ts` | 轉發到 background，去 token；靜音狀態長連線（`runtime.connect`）；視窗適應互動意圖轉發（僅 Esc，一律 passive、不 stopPropagation）；關閉分頁前警示（`beforeunload`，manifest 靜態注入、無需權限） |
 | `entrypoints/theater.content.ts` | 視窗適應（DMM 遊戲頁）：遊戲畫面等比填滿瀏覽器視窗、拉邊框自動 refit、隨時還原。動態註冊（`registration: 'runtime'`），不在 manifest 的 content_scripts 裡 |
 | `utils/theater.ts` | 視窗適應的純函式核心（遊戲框辨識／fit 幾何／注入用 CSS），無 chrome.*、無 DOM 依賴，node 可測 |
@@ -152,7 +156,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/game-page.ts` | 遊戲頁相關共用常數（新遊戲網址、注入範圍、訊息型別），theater／bridge／background／popup 共用 |
 | `entrypoints/background.ts` | `ingestEvent()`＝provider 合約唯一入口；以 `BackgroundIngestionLifecycle` 串行 recovery／ingestion，完成後才廣播、寫 snapshot、裁剪與排程通知；`MSG_CAPTURE_TAB` 經此轉手截圖 |
 | `entrypoints/popup/` | 擴充圖示點擊後的快捷選單：開面板／開遊戲（DMM）／視窗適應／遊戲分頁靜音／開鎮守府情報總括分頁／拍照。**不提供另開或替換遊戲視窗**，避免產生第二個遊戲執行個體——「開遊戲」以 `tabs.query(GAME_TAB_MATCHES)` 聚焦既有分頁，找不到才 `tabs.create`。視窗適應與靜音不關閉 popup（失敗時亦不關，見 `bind()`）。視窗適應／拍照**先同步判斷目前分頁是否為遊戲頁再 `permissions.request()`**：分頁資訊在 popup 開啟當下就查好（點擊後才 await 會失去手勢資格），查詢尚未回來時不擋 |
-| `entrypoints/overview/` | 「鎮守府情報總括」獨立分頁；艦隊、艦娘、裝備、活動作戰板、出擊、遠征、建造／開發／改修、資源、LLM、備份分區皆已實作（無 stub 分區） |
+| `entrypoints/overview/` | 「鎮守府情報總括」獨立分頁；艦隊、艦娘、裝備、活動作戰板、出擊、遠征、建造／開發／改修、資源、LLM、備份分區皆已實作（無 stub 分區）；艦隊全覽另提供本機裝備、出擊（可含基地航空隊）與支援艦隊代碼複製 |
 | `entrypoints/overview/ship-picker.ts` | 鎮守府全船篩選清單的共用 UI 元件（見「反覆出現的設計慣例」全量重繪陷阱） |
 | `entrypoints/overview/sections/ships.ts` | 艦娘全覽：工具列＋篩選抽屜＋條件 chip 列＋詳細表格＋分頁。欄位開關／每頁筆數／排序／素質模式存 localStorage（`kc-ships-view`），不進 Dexie、不進備份 |
 | `entrypoints/overview/sections/equipment.ts` | 裝備全覽：圖示篩選架（既有裝備圖示即篩選鈕）＋圖磚／詳細清單雙模式＋逐顆實例展開。模式／排序存 localStorage（`kc-equip-view`） |
@@ -183,7 +187,7 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/csv.ts` | CSV／TSV 最小共用解析與序列化（純函式） |
 | `utils/drop-log-import.ts` / `utils/build-log-import.ts` | 打撈／建造紀錄 CSV 匯出入，借 event ID 寫入 derived tables（不寫 raw event，逐列去重不整批 rollback） |
 | `utils/sortie-detail.ts` | 出擊紀錄「一次出擊」的重建（純函式）：`buildSortieDetail()` 把 `db.sorties` 摘要 × `db.replays` 原始封包合成逐節點作戰資訊。戰鬥細節直接餵 `battle.ts` 的 `analyzeBattle()`（與面板同一支） |
-| `utils/deckbuilder.ts` | 兩種外部工具格式的輸出：`buildDeckBuilder()` 產生母港艦隊 JSON，`buildReplayDeckBuilder()` 產生出擊快照的標準 DeckBuilder JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()`；DeckBuilder 格式與出擊模擬器格式分開維護 |
+| `utils/deckbuilder.ts` | DeckBuilder 與出擊模擬器格式分開維護：`buildDeckBuilder()`／`buildReplayDeckBuilder()` 產生艦隊與基地航空隊 JSON，`buildOwnedEquipmentCode()` 產生全持有裝備代碼，`buildSelectedDeckBuilder()` 產生出擊／支援選取艦隊（出擊可含最多三隊基地航空隊）的 DeckBuilder v4 JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()` |
 | `utils/sortie-simulator.ts` | `buildSortieSimulator()`／`toSortieSimulatorUrl()` 產生 KC3Kai 出擊模擬器使用的 `fleetF`／`nodes` 格式，含支援艦隊與基地航空隊資料；不與 DeckBuilder 格式混用 |
 | `utils/resource-capture.ts` | 資源紀錄的擷取層（純函式）：`readMaterials()`／`readEventGauges()`／`captureResources()`。由 background 呼叫而非 EventProjector——資源序列不需要 GameState 上下文，價值在連續 |
 | `utils/resource-log.ts` | 資源紀錄分析核心（純函式）：`normalizeSamples()`／`bucketSamples()`／`downsample()`／`buildEventPeriods()`／`toCsv()`。餘額是封包事實、消長是差分，算不出來一律回 null |
@@ -240,6 +244,12 @@ projection cursor；safe pruning 只刪已投影的 retained raw events，metada
 
 **單場 JSON／CSV 匯入不是 raw ingestion**：在 transaction 內寫入 derived tables，借用 events
 key generator 後立即刪除 reservation，**不寫 raw event**。去重規則各自見對應檔案職責列。
+
+**艦隊全覽代碼複製**：只讀 `GameState` 已完成的 view，在本機組成全持有裝備 JSON 與兩份
+DeckBuilder v4 JSON；按鈕只複製到使用者的剪貼簿，不開啟外部網站、不傳送資料。出擊與支援
+兩組艦隊選取彼此獨立，出擊代碼另可選取最多三隊基地航空隊並填入 `a1`、`a2`、`a3`；
+艦隊依編號順序連續填入 `f1`、`f2`…。沒有選取艦隊或資料不完整時停止輸出並顯示原因，
+不以空資料或猜測值代替。
 
 **產品識別**：package 為 fleet-chronometer 1.1.0.3，權限 `alarms`、`notifications`、
 `scripting`、`activeTab`、`tabs`。品牌名走 i18n（`public/_locales/{en,ja,zh_TW}/messages.json`），
@@ -323,6 +333,12 @@ tooltip 語言。
   血量歸屬仍走既有的 `applyDmg`，兩者讀同一批欄位，不另立第二套解讀。
 - **自軍聯合艦隊**：已用真實 61-5 甲自軍水上部隊封包驗證，主隊/隨伴血量歸屬、局部
   0-11 索引、MVP、rank 皆與 logger 記錄完全一致。
+- **夜戰目標與夜戰效果**：比照 KC3Kai `Node.engageNight`，敵方連合艦隊實際交戰隊伍只
+  讀夜戰封包的 `api_active_deck[1]`（1=主隊、2=隨伴）；缺欄時維持未知，不從日戰傷害
+  位置猜測。`api_flare_pos[0]` 是照明彈實際發動位置，正的 `api_touch_plane[0]` 是夜間
+  觸接機體 master id；探照燈則依當時作用艦隊的可用裝備與夜戰攻擊欄判定。夜間觸接圖示
+  沿用封包明示的機體，不固定套用單一夜偵 id。日戰尚未收到夜戰封包時，才比照 KC3Kai
+  CalculatorManager 的隨伴存活分數顯示推測目標，並明確標成推測。
 - **友軍艦隊**（活動海域 boss 夜戰）：`api_friendly_info`＋`api_friendly_battle` 為夜戰
   封包 top-level 欄位。`processFriendlyHougeki` 只扣敵 HP（eflag=0 時 df_list 為敵方位置），
   eflag=1（敵方反擊友軍）不影響玩家艦——已用真封包數字逐筆核對，另用極端值驗證不會誤傷
@@ -455,7 +471,7 @@ tooltip 語言。
 | 航空戰(雙向) | `airbattle`(非 ld_) | 20% | 20% |
 | 空襲戰(單向) | `ld_airbattle`＋6-4/6-5 | 4% | 8% |
 | 空襲戰(單向) | `ld_airbattle` 其他(5-2/7-2/活動) | 6% | 4% |
-| 反潛點 | 敵主隊全潛水(stype13/14)；boss(color=5)與4-1/4-3例外仍20/20 | 8% | 0% |
+| 反潛點 | 敵主隊全潛水(stype13/14)；Boss 節點與4-1/4-3例外仍20/20 | 8% | 0% |
 
 > 未涵蓋：活動特殊點按普通處理。大漩渦燃彈另見 `utils/maelstrom.ts`（KC3Kai 查表＋
 > `api_happening`；表外不扣；連合 A／B 各隊分開計電探擱置）。
@@ -560,6 +576,15 @@ wiki 例題（對空10、24 搭載、熟練 >>）→ 74 已鎖進 `tests/plane-l
   任何「海域→敵艦」對照表（只有 `api_mst_maparea`／`api_mst_mapinfo` 兩張名稱表）。
   **敵艦 HP 只在戰鬥封包的 `api_e_maxhps` 出現＝必須實際打過**，故斬殺線只能靠本機
   `db.replays` 觀測值。唯一例外見下一條。
+- **同一活動海域可能同時存在多條血條**：`api_map_info[]` 外層的
+  `api_gauge_num`（部分工具會在 `api_eventmap.api_gauge_num` 暴露同一欄位）只作原始血條
+  身分鍵，不解讀數字語意。比照 KC3Kai，Boss HP baseHp
+  必須以 map／難度／同一個 `gaugeNum` 分開保存；並先以 map/start／next 的 `api_bosscell_no`
+  限定目前血條的目標 Boss 節點，再讓同一 Boss 的較低最終形態向下更新。**不能只看
+  `api_event_id=5` 就把整張圖所有 Boss 混在一起**：破甲路線回打舊階段 Boss 時仍是 Boss 戰，
+  但其 HP 不屬於目前血條。
+  舊重播沒有該欄時，只有在目前難度／血條沒有更精確紀錄時才作保守回退，避免前一條血條
+  把新的量表誤標成斬殺期。
 - **斬殺期的視覺標示不得改變量表尺寸**（`entrypoints/panel/sortie-gauge.ts`＋`.s-gauge-final`）：
   標籤併在量表條**之內**（`斬殺期 840/4840`），不是條子外的第二顆徽章——並排兩顆會把
   `.s-header`（flex-wrap）撐到換行，多一整列就把下面釘死的出擊資訊推到要捲動。高度兩態
@@ -572,15 +597,21 @@ wiki 例題（對空10、24 搭載、熟練 >>）→ 74 已鎖進 `tests/plane-l
 - **`nowHp === 1` 是唯一不需要 Boss HP 的斬殺期判定**：最終段的傷害會 floor 在 1（唯有沉沒
   boss 旗艦才變 0），故這個值本身就是「已在最終段」的機制事實，零紀錄的新環境也成立。
   **不可把這條推廣成「殘量很小就算斬殺期」**——多小算小需要 boss HP，那就回到猜測。
-- **斬殺期標示（`GameState.mapInFinalPhase()`）門檻是「殘量嚴格小於 boss 旗艦 HP」**，
-  不可改用 `mapRemainingRuns() === 1`——`ceil(殘量/bossHP)` 在兩者相等時也是 1，那還沒
-  進斬殺線。⚠️ **遊戲從不送 boss 旗艦 HP，`mapBossHp` 只能實戰觀測（`api_e_maxhps[0]`）
-  且只存在記憶體**，故「量表明明已在斬殺線內卻沒有標示」的第一嫌疑一律是**這張圖的
-  boss HP 沒載到**，不是判定式寫錯。`panel/main.ts` 的 `restoreGaugeBossHp()` 從
+- **斬殺期標示（`GameState.mapInFinalPhase()`）門檻是「殘量小於或等於同一條血條的 boss
+  旗艦 HP」**，
+  不可改用 `mapRemainingRuns() === 1`——`ceil(殘量/bossHP)` 在兩者相等時也是 1，不能
+  取代血條門檻。⚠️ **遊戲從不送 boss 旗艦 HP**，`mapBossHpByGauge` 只能以實戰觀測
+  （`api_e_maxhps[0]`）建立，並由 `panel/main.ts` 從保留的重播資料恢復；故「量表明明已在
+  斬殺線內卻沒有標示」的第一嫌疑一律是**這張圖的同血條 Boss HP 沒載到**，不是判定式寫錯。
+  `panel/main.ts` 的 `restoreGaugeBossHp()` 從
   `db.replays`＋`db.sorties`（保留規則護著的持久資料，核心在 `utils/boss-hp.ts`）撈回來，
   **時機是面板啟動＋每次 `api_req_map/start`**：`sortieInfo` 在 `api_port/port` 會被清空，
   面板幾乎都是在母港開的，只掛啟動那一次等於永遠查不到。同一活動海域可能有多個 boss
-  節點，故**不可用「已知就略過」當快門**，一律讓 `observeMapBossHp()` 取最大值。從未在
+  節點，故**不可用「已知就略過」當快門**；新重播必須保存 map/start／next 的
+  `bossCellNo` 排除舊階段 Boss；活動圖若尚未取得目標節點身分，寧可不建立新門檻，也不能
+  把任意 `api_event_id=5` 當成目前 gauge 的 Boss。確認節點身分後，再讓
+  `observeMapBossHp()` 取同一有效 Boss 的最低形態 HP。舊重播缺少 `bossCellNo` 時採最大
+  Boss HP 作保守相容，不能以全 Boss 最低值污染目前斬殺線。從未在
   面板開著時打過該圖 boss ⇒ 沒有斬殺線可標，這是機制限制不是 bug。
 
 ### 出擊重播（KC3Kai battleplayer 相容，`utils/replay.ts`＋`db.replays`）
@@ -1256,10 +1287,13 @@ Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 
      2. **七船**：窗高 850（`background.ts openPanelWindow`，實機截圖校準）。單隊把
      編成區多出來的高度還給列距／列內距（一般列 `.ship:has(.ship-body)` padding 4px、
      `.ship-body` `row-gap` 6px；七船 `.fleet-seven` 再收至 padding 1px、
-     `row-gap` 2px；艦隊 chip 圖示固定 16px，以免第 7 艘被裁切）。實機窗高 850
+     `row-gap` 2px；若摘要出現 `.fs-ops` 狀態列，另加 `.fleet-seven-ops` 並把
+     `.ship-vitals` 的 gap 收至 1px，以吸收狀態列高度；艦隊 chip 圖示固定 16px，
+     以免第 7 艘被裁切）。實機窗高 850
      **含標題列**，七船用掉必須落在離線預覽硬安全線 **≤740px**，否則第 7 艘會被裁掉。
      **不准加高視窗、
-     不准長出捲軸**；連合 compact 不吃這筆。要再收高度只准收 `#tabpanel` 或
+     不准長出捲軸**；連合 compact 不吃這筆，且 compact 的一般裝備槽（含搭載數）必須
+     維持單一 row，不得因五格空母而換行撐高艦列。要再收高度只准收 `#tabpanel` 或
      fleetnav／fleets／艦列 padding，
      七船由 `main.ts` 依 `f.ships.length >= 7` 加上 `.fleet-seven`，CSS 只對
      `.fleet.fleet-seven` 收緊；不可用 `.ship:nth-of-type(7)`，因為摘要 `.fsummary`
