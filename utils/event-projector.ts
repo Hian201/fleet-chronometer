@@ -1,6 +1,6 @@
 import { db, type ApiEventRow, type ExpeditionRow, type FactoryLogRow, type ReplayRow, type SortieLogRow } from './db';
 import { appendBattle, setDifficulty, startReplay } from './replay';
-import { GameState, type MapGaugeView } from './state';
+import { GameState, isBossNode, type MapGaugeView } from './state';
 
 export type EventProjectorMode = 'persist' | 'state-only';
 
@@ -113,7 +113,7 @@ export class EventProjector {
             const row: SortieLogRow = {
                 eventId: id, sortieKey: this.currentSortieKey, ts,
                 map: `${sortie.mapArea}-${sortie.mapNo}`,
-                node: last?.id ?? 0, boss: last?.color === 5,
+                node: last?.id ?? 0, boss: isBossNode(last),
                 // 節點類型：reducer 已從 map/start|next 存進 sortieInfo，缺席就不寫（見 db.ts）
                 ...(last?.eventId === undefined ? {} : { nodeEventId: last.eventId }),
                 ...(last?.eventKind === undefined ? {} : { nodeEventKind: last.eventKind }),
@@ -207,12 +207,35 @@ export class EventProjector {
             setDifficulty(this.currentReplay, gauge?.selectedRank ?? 0);
             return;
         }
+        // 回港＝這次出擊結束。reducer 已清掉 sortieInfo；若不關掉 replay，之後的
+        // `api_req_practice/midnight_battle` 仍含 midnight，會被當成出擊夜戰寫入，
+        // 節點又因沒有 sortieInfo 退成 0，KC3 battleplayer 無法播放。
+        if (path === 'api_port/port') {
+            this.currentReplay = null;
+            return;
+        }
         if (!this.currentReplay) return;
-        const nodes = this.state.sortieInfo?.nodes ?? [];
-        const node = nodes[nodes.length - 1]?.id ?? 0;
-        const isNight = path.includes('midnight') && !path.includes('sp_midnight');
+        if (path === 'api_req_map/next') {
+            const bossCellNo = Number(api?.api_bosscell_no);
+            if (Number.isSafeInteger(bossCellNo) && bossCellNo > 0) {
+                this.currentReplay.bossCellNo = bossCellNo;
+            }
+            return;
+        }
+        // 沒有正在進行的出擊節點就不寫戰鬥。缺席時不可退成 node 0——那不是海域格子。
+        const last = this.state.sortieInfo?.nodes[this.state.sortieInfo.nodes.length - 1];
+        if (!last) return;
+        const node = last.id;
+        const isNightToDay = path.endsWith('/night_to_day') || path.endsWith('/ec_night_to_day');
+        // 夜轉日回應仍以 `api_n_hougeki*` 表達夜戰；和一般 midnight 一樣併到
+        // 同一節點的 yasen，不能因 endpoint 名稱含 day 就另開白天節點。
+        // 演習夜戰路徑也含 midnight，但那不是出擊封包；回港事件若已被裁剪，sortieInfo
+        // 仍可能殘留，必須在這裡排除，否則會併進最後一個出擊節點。
+        const isPractice = path.startsWith('api_req_practice/');
+        const isNight = !isPractice
+            && ((path.includes('midnight') && !path.includes('sp_midnight')) || isNightToDay);
         const isResult = path.endsWith('battleresult');
-        const isDay = !isNight && !isResult
+        const isDay = !isNight && !isResult && !isPractice
             && (path.startsWith('api_req_sortie/battle') || path.startsWith('api_req_combined_battle/')
                 || path.startsWith('api_req_battle_midnight/') || path.includes('airbattle'))
             && api?.api_f_nowhps;

@@ -98,22 +98,27 @@ export function readEventGauges(path: string, api: unknown): EventGaugeState[] {
     const out: EventGaugeState[] = [];
     for (const raw of list) {
         const m = raw as Record<string, any> | null;
+        if (!m) continue;
         const mapKey = m?.api_id;
         if (!Number.isSafeInteger(mapKey) || Math.floor(mapKey / 10) < EVENT_AREA_MIN) continue;
-        const ev = m!.api_eventmap;
-        const cleared = m!.api_cleared === 1 || m!.api_cleared === '1';
-        const gaugeType = m!.api_gauge_type ?? 0;
+        const ev = m.api_eventmap;
+        const cleared = m.api_cleared === 1 || m.api_cleared === '1';
+        const gaugeType = m.api_gauge_type ?? 0;
         const nowHp = ev?.api_now_maphp ?? 0;
         const maxHp = ev?.api_max_maphp ?? 0;
-        const defeat = m!.api_defeat_count ?? 0;
-        const required = m!.api_required_defeat_count ?? 0;
+        const defeat = m.api_defeat_count ?? 0;
+        const required = m.api_required_defeat_count ?? 0;
         const broken = cleared
             || (gaugeType === 2 && maxHp > 0 && nowHp === 0)
             || (gaugeType === 1 && required > 0 && defeat >= required);
         out.push({
             mapKey,
             broken,
-            ...(Number.isSafeInteger(ev?.api_gauge_num) ? { gaugeNum: ev.api_gauge_num } : {}),
+            // mapinfo 正常回應把 gauge_num 放在海域列；select_eventmap_rank 則包在
+            // api_maphp／eventmap 物件。兩種端點都保存原值，不能因讀錯層級而把多血條合併。
+            ...(Number.isSafeInteger(m?.api_gauge_num)
+                ? { gaugeNum: m.api_gauge_num }
+                : Number.isSafeInteger(ev?.api_gauge_num) ? { gaugeNum: ev.api_gauge_num } : {}),
         });
     }
     return out;

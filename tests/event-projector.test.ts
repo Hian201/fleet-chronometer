@@ -114,6 +114,7 @@ function mockBattleInfo(): NonNullable<GameState['battleInfo']> {
         dropIsNew: false,
         supportFlag: 0,
         aaci: 0,
+        aaciDetails: [],
         midnightFlag: false,
         friendlyFleetIds: null,
         lbas: null,
@@ -152,6 +153,24 @@ afterEach(async () => {
 });
 
 describe('EventProjector persist 模式', () => {
+    it('map/next 補回目前血條目標 Boss 節點並保存到 replay 上下文', async () => {
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: mockTables() });
+        await projector.project(row(1, 'api_req_map/start', {
+            api_maparea_id: 62, api_mapinfo_no: 2, api_no: 1, api_color_no: 4,
+        }, { api_deck_id: '1' }));
+        expect(projector.state.sortieInfo?.bossCellNo).toBeUndefined();
+        expect(projector.currentReplay?.bossCellNo).toBeUndefined();
+
+        await projector.project(row(2, 'api_req_map/next', {
+            api_maparea_id: 62, api_mapinfo_no: 2, api_no: 55,
+            api_color_no: 5, api_event_id: 5, api_event_kind: 5,
+            api_bosscell_no: 32,
+        }));
+
+        expect(projector.state.sortieInfo?.bossCellNo).toBe(32);
+        expect(projector.currentReplay?.bossCellNo).toBe(32);
+    });
+
     it('維持 sorties、factory、expeditions 與 replay 的既有主鍵、row shape 與累積順序', async () => {
         const database = createDb();
         const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });
@@ -335,6 +354,71 @@ describe('EventProjector persist 模式', () => {
 
         const saved = tables.sorties.put.mock.calls[0][0] as SortieLogRow;
         expect(saved).not.toHaveProperty('dropMst');
+    });
+});
+
+describe('EventProjector 出擊 replay 不含演習', () => {
+    function practiceNight(marker: string) {
+        return {
+            api_deck_id: 1,
+            api_formation: [1, 1, 1],
+            api_f_nowhps: [2, 1, 16, 2, 7, 15],
+            api_f_maxhps: [27, 107, 60, 19, 17, 17],
+            api_ship_ke: [364, 733, 713, 397, 698, 488],
+            api_e_effect_list: [[0], [0], [0], [0], [0], [0]],
+            api_touch_plane: [-1, -1],
+            api_flare_pos: [-1, -1],
+            api_hougeki: { marker },
+        };
+    }
+
+    it('回港後的演習夜戰不追加 node 0，也不覆寫已存的出擊 replay', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        const battle = fixture('6-5-ec_battle.json');
+        const result = fixture('6-5-ec_result.json');
+
+        await projector.project(row(1, 'api_get_member/require_info', {
+            api_slot_item: [{ api_id: 201, api_slotitem_id: 301, api_level: 6, api_alv: 7 }],
+        }));
+        await projector.project(row(2, 'api_port/port', portApi()));
+        await projector.project(row(3, 'api_req_map/start', {
+            api_maparea_id: 6, api_mapinfo_no: 5, api_no: 42, api_color_no: 5,
+        }, { api_deck_id: '1' }));
+        await projector.project(row(4, 'api_req_combined_battle/ec_battle', battle));
+        await projector.project(row(5, 'api_req_battle_midnight/battle', { ...battle, marker: 'night' }));
+        await projector.project(row(6, 'api_req_combined_battle/battleresult', result));
+        await projector.project(row(7, 'api_port/port', portApi()));
+        await projector.project(row(8, 'api_req_practice/midnight_battle', practiceNight('practice-1')));
+        await projector.project(row(9, 'api_req_practice/midnight_battle', practiceNight('practice-2')));
+
+        expect(projector.currentReplay).toBeNull();
+        const replay = await database.replays.get(3);
+        expect(replay?.battles).toHaveLength(1);
+        expect(replay?.battles[0]).toMatchObject({ node: 42, rank: 'S' });
+        expect(replay?.battles[0].yasen).toMatchObject({ marker: 'night' });
+        expect(replay?.battles.some(battle => battle.node === 0)).toBe(false);
+    });
+
+    it('出擊尚未回港時，演習夜戰也不併進最後一個出擊節點', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        const battle = fixture('6-5-ec_battle.json');
+
+        await projector.project(row(1, 'api_get_member/require_info', {
+            api_slot_item: [{ api_id: 201, api_slotitem_id: 301, api_level: 6, api_alv: 7 }],
+        }));
+        await projector.project(row(2, 'api_port/port', portApi()));
+        await projector.project(row(3, 'api_req_map/start', {
+            api_maparea_id: 6, api_mapinfo_no: 5, api_no: 42, api_color_no: 5,
+        }, { api_deck_id: '1' }));
+        await projector.project(row(4, 'api_req_combined_battle/ec_battle', battle));
+        await projector.project(row(5, 'api_req_practice/midnight_battle', practiceNight('practice')));
+
+        const replay = await database.replays.get(3);
+        expect(replay?.battles).toHaveLength(1);
+        expect(replay?.battles[0]).toMatchObject({ node: 42 });
+        expect(replay?.battles[0].yasen).toBeUndefined();
     });
 });
 

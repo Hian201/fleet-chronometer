@@ -340,6 +340,8 @@ function validateReplay(value: unknown, index: number): ReplayRow {
         world: integer(row.world, `${where}.world`),
         mapnum: integer(row.mapnum, `${where}.mapnum`),
         diff: integer(row.diff, `${where}.diff`),
+        ...(row.gaugeNum === undefined ? {} : { gaugeNum: integer(row.gaugeNum, `${where}.gaugeNum`, 1) }),
+        ...(row.bossCellNo === undefined ? {} : { bossCellNo: integer(row.bossCellNo, `${where}.bossCellNo`, 1) }),
         combined: integer(row.combined, `${where}.combined`),
         fleetnum: integer(row.fleetnum, `${where}.fleetnum`, 1),
         fleet1: arrayAt(row.fleet1, `${where}.fleet1`).map((ship, shipIndex) => validateReplayShip(ship, `${where}.fleet1[${shipIndex}]`)),

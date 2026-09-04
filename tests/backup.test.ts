@@ -36,7 +36,7 @@ function restoreTables() {
 function replayTables() {
     return {
         replays: [{
-            sortieKey: 1, ts: TS, world: 6, mapnum: 5, diff: 4, combined: 0, fleetnum: 1,
+            sortieKey: 1, ts: TS, world: 6, mapnum: 5, diff: 4, bossCellNo: 3, combined: 0, fleetnum: 1,
             fleet1: [{ mst_id: 100, lv: 99, equip: [-1], stars: [0], ace: [0], exequip: -1, nowhp: 30, maxhp: 30, cond: 49 }],
             fleet2: [], battles: [{ node: 3, data: { opaque: ['do not', 'interpret'] }, rank: 'S' }],
         }],
@@ -149,6 +149,7 @@ describe('備份 envelope runtime validation', () => {
         expect(full.kind).toBe('full');
         expect(full.tables.sorties).toHaveLength(1);
         expect(full.tables.replays).toHaveLength(1);
+        expect(full.tables.replays?.[0].bossCellNo).toBe(3);
 
         expect(() => validateBackupEnvelope({ ...v6Full(), kind: 'restore' }))
             .toThrow(BackupValidationError);

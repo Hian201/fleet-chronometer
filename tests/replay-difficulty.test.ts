@@ -60,6 +60,43 @@ describe('海域難度 reducer', () => {
         expect([1, 2, 3, 4, 5].map(id => state.mapGauges.get(id)?.selectedRank)).toEqual([0, 0, 0, 0, 0]);
     });
 
+    it('部分 mapinfo 更新省略難度時，保留先前已驗證的難度', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/mapinfo', fixture('6-5-mapinfo-2.json'));
+        expect(state.mapGauges.get(621)?.selectedRank).toBe(4);
+
+        state.applyEvent('api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: 621,
+                api_cleared: 0,
+                api_gauge_type: 2,
+                api_gauge_num: 3,
+                api_eventmap: { api_now_maphp: 840, api_max_maphp: 4_840 },
+            }],
+        });
+
+        expect(state.mapGauges.get(621)?.selectedRank).toBe(4);
+    });
+
+    it('mapinfo 的血條編號位於 eventmap 時也保存血條身分', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: 622,
+                api_cleared: 0,
+                api_gauge_type: 2,
+                api_eventmap: {
+                    api_now_maphp: 840,
+                    api_max_maphp: 4_840,
+                    api_selected_rank: 4,
+                    api_gauge_num: 3,
+                },
+            }],
+        });
+
+        expect(state.mapGauges.get(622)).toMatchObject({ selectedRank: 4, gaugeNum: 3 });
+    });
+
     it('選定活動難度時，以選擇回應立即更新難度與實際量表', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/mapinfo', fixture('6-5-mapinfo.json'));
@@ -87,6 +124,20 @@ describe('海域難度 reducer', () => {
 
         expect(state.mapGauges.get(621)).toMatchObject({
             selectedRank: 0, nowHp: 540, maxHp: 600,
+        });
+    });
+
+    it('出擊起點省略難度時，保留先前已選定的活動難度', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/mapinfo', fixture('6-5-mapinfo-2.json'));
+
+        state.applyEvent('api_req_map/start', {
+            api_maparea_id: 62, api_mapinfo_no: 1, api_no: 1, api_color_no: 1,
+            api_eventmap: { api_now_maphp: 300, api_max_maphp: 354 },
+        }, { api_deck_id: '1' });
+
+        expect(state.mapGauges.get(621)).toMatchObject({
+            selectedRank: 4, gaugeNum: 1, nowHp: 300, maxHp: 354,
         });
     });
 });

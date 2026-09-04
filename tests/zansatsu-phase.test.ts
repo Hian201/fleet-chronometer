@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { sortieGaugeBarHtml } from '../entrypoints/panel/sortie-gauge';
-import { GameState } from '../utils/state';
-import { maxObservedBossHp } from '../utils/boss-hp';
+import { GameState, isGaugeBossNode } from '../utils/state';
+import { bossHpReplaySpecificity, observedBossHp } from '../utils/boss-hp';
 import type { ReplayRow, SortieLogRow } from '../utils/db';
 
 const MAP_ID = 622;
@@ -10,7 +10,7 @@ const BOSS_HP = 880;
 const MAX_HP = 4_840;
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 
-function stateAt(nowHp: number, options: { cleared?: boolean; gaugeType?: number; selectedRank?: number } = {}) {
+function stateAt(nowHp: number, options: { cleared?: boolean; gaugeType?: number; selectedRank?: number; gaugeNum?: number } = {}) {
     const state = new GameState();
     state.sortieInfo = { mapArea: 62, mapNo: 2, nodes: [] };
     state.mapGauges.set(MAP_ID, {
@@ -21,16 +21,24 @@ function stateAt(nowHp: number, options: { cleared?: boolean; gaugeType?: number
         nowHp,
         maxHp: MAX_HP,
         selectedRank: options.selectedRank ?? 4,
+        ...(options.gaugeNum === undefined ? {} : { gaugeNum: options.gaugeNum }),
     });
-    state.mapBossHp.set(MAP_ID, BOSS_HP);
+    if (options.gaugeNum === undefined) state.mapBossHp.set(MAP_ID, BOSS_HP);
     return state;
 }
 
 describe('斬殺期判定', () => {
+    it('目前血條只接受 map/start 明示的目標 Boss 節點', () => {
+        expect(isGaugeBossNode({ id: 32, color: 5, eventId: 5 }, 32)).toBe(true);
+        expect(isGaugeBossNode({ id: 55, color: 5, eventId: 5 }, 32)).toBe(false);
+        expect(isGaugeBossNode({ id: 55, color: 5, eventId: 5 }, undefined)).toBe(true);
+        expect(isGaugeBossNode({ id: 55, color: 5, eventId: 5 }, undefined, true)).toBe(false);
+    });
+
     it.each([
         [840, true],
         [879, true],
-        [880, false],
+        [880, true],
         [881, false],
         [0, false],
     ])('nowHp=%i（bossHp=880）時回傳 %s', (nowHp, expected) => {
@@ -65,6 +73,22 @@ describe('斬殺期判定', () => {
         expect(state.mapRemainingRuns()).toBe(null);
     });
 
+    it('已恢復斬殺門檻時，進入海域尚未看到 Boss 也立即判定 Final', () => {
+        const state = new GameState();
+        state.mapGauges.set(MAP_ID, {
+            cleared: false, gaugeType: 2, defeatCount: 0, requiredDefeatCount: 0,
+            nowHp: 840, maxHp: MAX_HP, selectedRank: 4, gaugeNum: 2,
+        });
+        state.observeMapBossHp(62, 2, BOSS_HP, 2);
+        state.applyEvent('api_req_map/start', {
+            api_maparea_id: 62, api_mapinfo_no: 2, api_no: 1, api_color_no: 4,
+            api_bosscell_no: 32,
+            api_eventmap: { api_now_maphp: 840, api_max_maphp: MAX_HP },
+        }, { api_deck_id: '1' });
+        expect(state.sortieInfo?.nodes).toHaveLength(1);
+        expect(state.mapInFinalPhase()).toBe(true);
+    });
+
     it('已通關量表不標成斬殺期', () => {
         expect(stateAt(840, { cleared: true }).mapInFinalPhase()).toBe(false);
     });
@@ -83,12 +107,69 @@ describe('斬殺期判定', () => {
         expect(stateAt(840, { selectedRank: 0 }).mapInFinalPhase()).toBe(false);
     });
 
+    it('有明示血條身分時不沿用舊的單一 map Boss HP 快取', () => {
+        const state = stateAt(2_765, { gaugeNum: 3 });
+        state.mapBossHp.set(MAP_ID, 3_000); // 舊版單一快取，不能代表 gauge 3
+        const fresh = new GameState();
+        fresh.sortieInfo = state.sortieInfo;
+        fresh.mapGauges.set(MAP_ID, state.mapGauges.get(MAP_ID)!);
+        fresh.mapBossHp.set(MAP_ID, 3_000);
+        expect(fresh.mapInFinalPhase()).toBe(false);
+    });
+
     it('切換活動難度時清除舊難度的 Boss HP 門檻', () => {
         const state = stateAt(840);
         state.applyEvent('api_req_map/select_eventmap_rank', {
             api_maphp: { api_now_maphp: 4_840, api_max_maphp: 4_840, api_gauge_type: 2 },
         }, { api_maparea_id: '62', api_map_no: '2', api_rank: '3' });
         expect(state.mapBossHp.get(MAP_ID)).toBeUndefined();
+    });
+
+    it('同一張活動圖切換血條時不沿用前一條血條的 Boss HP', () => {
+        const state = stateAt(2_765, { gaugeNum: 2 });
+        state.observeMapBossHp(62, 2, 2_766);
+        expect(state.mapInFinalPhase()).toBe(true);
+
+        state.applyEvent('api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: MAP_ID,
+                api_cleared: 0,
+                api_gauge_type: 2,
+                api_gauge_num: 3,
+                api_eventmap: {
+                    api_now_maphp: 2_765,
+                    api_max_maphp: MAX_HP,
+                    api_selected_rank: 4,
+                },
+            }],
+        });
+
+        expect(state.mapInFinalPhase()).toBe(false);
+        expect(state.mapRemainingRuns()).toBe(null);
+
+        state.observeMapBossHp(62, 2, 1_100);
+        expect(state.mapBossHp.get(MAP_ID)).toBe(1_100);
+        state.applyEvent('api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: MAP_ID,
+                api_cleared: 0,
+                api_gauge_type: 2,
+                api_gauge_num: 2,
+                api_eventmap: {
+                    api_now_maphp: 2_765,
+                    api_max_maphp: MAX_HP,
+                    api_selected_rank: 4,
+                },
+            }],
+        });
+        expect(state.mapBossHp.get(MAP_ID)).toBe(2_766);
+        expect(state.mapInFinalPhase()).toBe(true);
+    });
+
+    it('同一條活動血條的 Boss HP 證據仍可判定斬殺期', () => {
+        const state = stateAt(2_765, { gaugeNum: 3 });
+        state.observeMapBossHp(62, 2, 2_766);
+        expect(state.mapInFinalPhase()).toBe(true);
     });
 
     // 斬殺線的兩個材料（mapinfo 的量表值、出擊紀錄的 Boss HP）在母港就到齊，判定不得
@@ -113,12 +194,12 @@ describe('斬殺期判定', () => {
         expect(state.unclearedHpGaugeMaps()[1]).toMatchObject({ mapArea: 63, mapNo: 4 });
     });
 
-    it('同海域後遇到較低 HP 的 Boss 不會覆蓋既有斬殺線', () => {
+    it('同一血條的有效 Boss 遇到較低 HP 最終形態會依 KC3Kai baseHp 向下更新', () => {
         const state = stateAt(840);
         state.observeMapBossHp(62, 2, 920);
         state.observeMapBossHp(62, 2, 670);
-        expect(state.mapBossHp.get(MAP_ID)).toBe(920);
-        expect(state.mapInFinalPhase()).toBe(true);
+        expect(state.mapBossHp.get(MAP_ID)).toBe(670);
+        expect(state.mapInFinalPhase()).toBe(false);
     });
 });
 
@@ -134,24 +215,56 @@ describe('從持久化出擊紀錄恢復 Boss HP', () => {
         drop: null, taiha: false, imported,
     });
 
-    it('E2 多個 Boss 節點取本機實戰觀測到的最高 HP', () => {
+    it('候選身分精確度優先使用血條編號，再使用難度', () => {
+        const current = replay(1, 55, 880, false, 4);
+        expect(bossHpReplaySpecificity({ ...current, gaugeNum: 3 }, 4, 3)).toBe(6);
+        expect(bossHpReplaySpecificity({ ...current, gaugeNum: 3, diff: 0 }, 4, 3)).toBe(4);
+        expect(bossHpReplaySpecificity(current, 4, 3)).toBe(2);
+        expect(bossHpReplaySpecificity({ ...current, diff: 0 }, 4, 3)).toBe(0);
+        expect(bossHpReplaySpecificity({ ...current, gaugeNum: 2 }, 4, 3)).toBe(null);
+        expect(bossHpReplaySpecificity({ ...current, gaugeNum: 3 }, 3, 3)).toBe(null);
+        expect(bossHpReplaySpecificity({ ...current, gaugeNum: 3 }, 4)).toBe(null);
+    });
+
+    it('舊重播無目標 Boss 身分時採最大值，不讓較低 HP 舊 Boss 污染斬殺線', () => {
         const replays = [replay(1, 32, 670), replay(2, 55, 880), replay(3, 43, 920)];
         const sorties = [sortie(1, 32, true), sortie(2, 55, true), sortie(3, 43, true)];
-        expect(maxObservedBossHp(replays, sorties, 62, 2)).toBe(920);
+        expect(observedBossHp(replays, sorties, 62, 2)).toBe(920);
+    });
+
+    it('破甲回打舊 Boss 時只採 map/start 明示的目前血條目標節點', () => {
+        const currentGauge = { ...replay(1, 32, 920), bossCellNo: 32 };
+        const oldBossRoute = { ...replay(2, 55, 670), bossCellNo: 32 };
+        const sorties = [sortie(1, 32, true), sortie(2, 55, true)];
+        expect(observedBossHp([currentGauge, oldBossRoute], sorties, 62, 2)).toBe(920);
+    });
+
+    it('同一目標 Boss 的較低 HP 最終形態仍會向下更新 baseHp', () => {
+        const normal = { ...replay(1, 32, 920), bossCellNo: 32 };
+        const final = { ...replay(2, 32, 880), bossCellNo: 32 };
+        const sorties = [sortie(1, 32, true), sortie(2, 32, true)];
+        expect(observedBossHp([normal, final], sorties, 62, 2)).toBe(880);
+    });
+
+    it('有目標 Boss 身分的新紀錄優先於無身分舊紀錄', () => {
+        const legacy = replay(1, 55, 1_500);
+        const exact = { ...replay(2, 32, 880), bossCellNo: 32 };
+        const sorties = [sortie(1, 55, true), sortie(2, 32, true)];
+        expect(observedBossHp([legacy, exact], sorties, 62, 2)).toBe(880);
     });
 
     it('不採用非 Boss 節點或外部匯入資料', () => {
         const replays = [replay(1, 32, 670), replay(2, 55, 9999, true), replay(3, 43, 5000)];
         const sorties = [sortie(1, 32, true), sortie(2, 55, true, true), sortie(3, 43, false)];
-        expect(maxObservedBossHp(replays, sorties, 62, 2)).toBe(670);
+        expect(observedBossHp(replays, sorties, 62, 2)).toBe(670);
     });
 
     it('api_e_maxhps 不是陣列或首值不是正整數時不猜 Boss HP', () => {
         const malformed = replay(1, 32, 670);
         malformed.battles[0].data = { api_e_maxhps: '999' };
-        expect(maxObservedBossHp([malformed], [sortie(1, 32, true)], 62, 2)).toBe(null);
+        expect(observedBossHp([malformed], [sortie(1, 32, true)], 62, 2)).toBe(null);
         malformed.battles[0].data = { api_e_maxhps: [12.5] };
-        expect(maxObservedBossHp([malformed], [sortie(1, 32, true)], 62, 2)).toBe(null);
+        expect(observedBossHp([malformed], [sortie(1, 32, true)], 62, 2)).toBe(null);
     });
 
     it('不同難度的 Boss HP 不會互相污染斬殺線', () => {
@@ -159,8 +272,39 @@ describe('從持久化出擊紀錄恢復 Boss HP', () => {
         const rank3Replay = replay(2, 55, 670, false, 3);
         const rank4Sortie = sortie(1, 55, true);
         const rank3Sortie = sortie(2, 55, true);
-        expect(maxObservedBossHp([rank4Replay, rank3Replay], [rank4Sortie, rank3Sortie], 62, 2, 4)).toBe(920);
-        expect(maxObservedBossHp([rank4Replay, rank3Replay], [rank4Sortie, rank3Sortie], 62, 2, 3)).toBe(670);
+        expect(observedBossHp([rank4Replay, rank3Replay], [rank4Sortie, rank3Sortie], 62, 2, 4)).toBe(920);
+        expect(observedBossHp([rank4Replay, rank3Replay], [rank4Sortie, rank3Sortie], 62, 2, 3)).toBe(670);
+    });
+
+    it('舊重播未保存難度時，只有在目前難度沒有精確證據才作相容回退', () => {
+        const legacy = replay(1, 55, 880, false, 0);
+        const exact = replay(2, 55, 920, false, 4);
+        const sorties = [sortie(1, 55, true), sortie(2, 55, true)];
+        expect(observedBossHp([legacy], sorties, 62, 2, 4)).toBe(880);
+        expect(observedBossHp([legacy, exact], sorties, 62, 2, 4)).toBe(920);
+    });
+
+    it('已知血條優先於未標記血條，舊難度資料仍可恢復同一血條', () => {
+        const legacy = replay(1, 55, 1_500, false, 0);
+        const sameGauge = { ...replay(2, 55, 880, false, 0), gaugeNum: 3 };
+        const otherGauge = { ...replay(3, 55, 670, false, 0), gaugeNum: 2 };
+        const sorties = [sortie(1, 55, true), sortie(2, 55, true), sortie(3, 55, true)];
+        expect(observedBossHp([legacy, sameGauge, otherGauge], sorties, 62, 2, 4, 3)).toBe(880);
+    });
+
+    it('不同血條的 Boss HP 不會互相污染', () => {
+        const gauge2Replay = replay(1, 55, 2_766);
+        const gauge3Replay = { ...replay(2, 55, 1_200), gaugeNum: 3 };
+        const gauge2Sortie = sortie(1, 55, true);
+        const gauge3Sortie = sortie(2, 55, true);
+        expect(observedBossHp([gauge2Replay, gauge3Replay], [gauge2Sortie, gauge3Sortie], 62, 2, 4, 3)).toBe(1_200);
+    });
+
+    it('目前血條身分未知時，不混入已標記其他血條的舊觀測', () => {
+        const legacy = replay(1, 55, 2_766);
+        const labelled = { ...replay(2, 55, 1_200), gaugeNum: 3 };
+        expect(observedBossHp([legacy, labelled], [sortie(1, 55, true), sortie(2, 55, true)], 62, 2, 4))
+            .toBe(2_766);
     });
 });
 

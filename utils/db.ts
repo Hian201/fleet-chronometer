@@ -194,6 +194,13 @@ export interface ReplayRow {
     world: number;           // 海域 area（api_maparea_id）
     mapnum: number;          // 海域 no（api_mapinfo_no）
     diff: number;            // 難度 api_selected_rank（0=未選/一般圖）
+    // `api_gauge_num` 的原始整數，只作同一張活動圖不同血條的識別鍵；不解讀其數字語意。
+    // 舊重播沒有這欄，不能拿來推導目前血條。
+    gaugeNum?: number;
+    // api_req_map/start／next 的 `api_bosscell_no`。同一張活動圖在破甲等路線上仍可能抵達
+    // api_event_id=5 的舊階段 Boss；只有這個目前血條的目標 Boss 節點可以更新 baseHp。
+    // 舊重播沒有這欄，恢復時走保守相容規則，不能假裝知道當時的目標節點。
+    bossCellNo?: number;
     combined: number;        // 0=單艦隊, 1=機動, 2=水上, 3=輸送（api_combined_flag）
     fleetnum: number;        // 出擊艦隊編號（1-4；聯合時為 1）
     fleet1: ReplayShip[];    // 主隊（聯合時第一艦隊）
@@ -288,7 +295,10 @@ export interface GamePageMetaRow {
     updatedAt: number;
 }
 
-export type DatabaseMetaRow = ProjectionMetaRow | BackupRestoreMetaRow | GamePageMetaRow;
+export type DatabaseMetaRow =
+    | ProjectionMetaRow
+    | BackupRestoreMetaRow
+    | GamePageMetaRow;
 
 // 艦娘入手紀錄（收藏日誌）。遊戲 API 的艦娘物件**沒有入手日期欄位**——只有 api_id
 // （艦實例 id，單調遞增、不重用）代表「首次進入鎮守府的順序」，沒有時間戳。故本表補記

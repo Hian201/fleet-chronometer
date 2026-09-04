@@ -77,7 +77,7 @@ describe('基地航空隊快照', () => {
 });
 
 describe('出擊快照', () => {
-    const mapStart = { api_maparea_id: 62, api_mapinfo_no: 3 };
+    const mapStart = { api_maparea_id: 62, api_mapinfo_no: 3, api_bosscell_no: 32 };
 
     it('單艦隊出擊：fleet2 為空，第3/4艦隊仍作為支援候補快照', () => {
         const state = buildState();
@@ -91,6 +91,7 @@ describe('出擊快照', () => {
         expect(replay.fleet3?.map(s => s.mst_id)).toEqual([300]);
         expect(replay.fleet4?.map(s => s.mst_id)).toEqual([400]);
         expect(replay.lbas?.map(b => b.rid)).toEqual([1, 2]);
+        expect(replay.bossCellNo).toBe(32);
     });
 
     it('無補強增設時不寫 exstars／exace（缺席＝不可考，不是 ★0）', () => {

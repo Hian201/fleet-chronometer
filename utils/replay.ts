@@ -97,14 +97,18 @@ export function startReplay(gs: GameState, sortieKey: number, ts: number, mapSta
     // 本次 api_deck_id 不是第一艦隊時，必須記成該隊的單艦隊出擊。
     const combined = mainDeck === 0 ? (gs.combinedFlag ?? 0) : 0;
     const world = mapStartApi?.api_maparea_id ?? 0;
+    const gauge = gs.currentMapGauge();
     const fleet3 = snapshotDeck(gs, 2);
     const fleet4 = snapshotDeck(gs, 3);
     const lbas = snapshotLbas(gs, world);
+    const bossCellNo = Number(mapStartApi?.api_bosscell_no);
     return {
         sortieKey, ts,
         world,
         mapnum: mapStartApi?.api_mapinfo_no ?? 0,
         diff: 0,   // api_selected_rank 不在 map/start，回填見 setDifficulty()
+        ...(gauge?.gaugeNum === undefined ? {} : { gaugeNum: gauge.gaugeNum }),
+        ...(Number.isSafeInteger(bossCellNo) && bossCellNo > 0 ? { bossCellNo } : {}),
         combined,
         fleetnum: mainDeck + 1,
         fleet1: snapshotDeck(gs, combined > 0 ? 0 : mainDeck),
