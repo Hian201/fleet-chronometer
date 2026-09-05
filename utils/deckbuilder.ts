@@ -14,14 +14,18 @@
 //     依 gkcoi 函式庫 https://github.com/Nishisonic/gkcoi 的 DeckBuilder schema）：
 //     builder.component.ts 用 `JSON.parse(decodeURI(route.fragment))` 讀網址 hash。
 //   · 制空権シミュレータ（noro6/kc-web，https://noro6.github.io/kc-web/）：
-//     App.vue 的 created() 讀 `document.location.search` 的 `predeck` 參數，
-//     餵進 `Convert.loadDeckBuilder()`；convert.ts 的 DeckBuilderShip interface
+//     App.vue 讀 query `predeck` 或 hash `#import:{predeck}`，餵進
+//     `Convert.loadDeckBuilder()`。出擊資料會超過 GitHub Pages 的 request URI
+//     上限，跳轉一律走 hash（fragment 不上伺服器）。convert.ts 的 DeckBuilderShip interface
 //     顯示 fp/tp/aa/ar/asw/ev/los 皆為選填（缺席時該工具會自己用 master+等級回推），
 //     故本檔案在附不到精確素質時省略該欄位並非未完成，而是兩個消費端都容許的行為。
-// 兩者吃同一種 schema（f1~f4 艦隊、a1~a3 基地航空隊），故只需一份轉換器共用。
+// 兩者吃同一種 schema（f1~f4 艦隊、a1~a3 基地航空隊），故艦隊／陸航轉換器共用。
+// kc-web 另認 `s`（出擊各格敵編成）與陸航 `sp`（派遣格），出擊紀錄跳轉見
+// `buildReplayAirCalcDeck()`；標準複製 JSON 不加這兩欄，以免其他 DeckBuilder 消費端
+// 把未知欄位當錯誤。
 import { airBaseKey } from './state';
 import type { AirBaseView, FleetView, GameState, GearView, ShipView } from './state';
-import type { ReplayLbas, ReplayRow, ReplayShip, ReplaySupportShip } from './db';
+import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip } from './db';
 
 // lbas：以**海域（maparea id）**為鍵的開關表（`String(areaId)`），缺席＝送出，見
 // entrypoints/overview/lib.ts 的 FleetMarkdownScope 同一份註解——**不可用 rid 當鍵**
@@ -273,9 +277,9 @@ export function buildDeckBuilder(state: GameState, scope: DeckBuilderScope): obj
 /**
  * 將一場出擊開始時保存的快照轉成標準 DeckBuilder JSON。
  *
- * 出擊模擬器網址使用的是它自己的 `fleetF`／`nodes` 輸入格式；但 KC3Kai 的「從文字
- * 載入」會呼叫 DeckBuilder converter，只認得 `f1`～`f4`／`a1`～`a3`。兩種格式不可
- * 混用：網址可載入不代表複製的 JSON 可貼進 DeckBuilder。
+ * 出擊模擬器網址使用模擬器自己的設定備份（`#backup=`），不是這份 f1～f4 編成卡。
+ * KC3Kai 的「從文字載入」只認得 `f1`～`f4`／`a1`～`a3`。兩種格式不可混用：
+ * 網址可載入不代表複製的 JSON 可貼進 DeckBuilder。
  */
 export function buildReplayDeckBuilder(row: ReplayRow): object {
     const deck: Record<string, unknown> = { version: 4 };
@@ -336,14 +340,155 @@ function replayLbas(base: ReplayLbas): object | undefined {
     return Object.keys(items).length ? { mode: base.action, items } : undefined;
 }
 
+/** 摘要列中的節點，供沒有原始戰鬥封包的空襲／未結算節點補敵艦 id。 */
+export interface AirCalcRouteNode {
+    node: number;
+    enemyIds?: readonly number[];
+    enemyIdsEscort?: readonly number[];
+}
+
+export interface AirCalcOptions {
+    routeNodes?: readonly AirCalcRouteNode[];
+}
+
+/** 制空権シミュレータ首頁。超長 predeck 改開此頁並複製 JSON。 */
+export const AIR_CALC_PAGE_URL = 'https://noro6.github.io/kc-web/';
+/** URL 過長時改開空白頁並複製 JSON，沿用重播匯出的瀏覽器安全界線。 */
+export const AIR_CALC_DIRECT_URL_LIMIT = 30_000;
+
+/**
+ * 出擊紀錄 → kc-web 可讀的 DeckBuilder（含各節點敵艦隊）。
+ *
+ * 標準複製用的 `buildReplayDeckBuilder()` 只給 f1～f4／a1～a3；kc-web 另認
+ * `s`（海域＋逐格敵編成）與陸航 `sp`（派遣格）。`f1.t` 必須帶連合旗標，否則
+ * convert.ts 會把 f1／f2 當兩支單艦隊。支援艦隊不進 f3／f4——kc-web 會把它們
+ * 算進我方制空。`s.c[].c` 與 `sp` 用的是出擊 edge id（`api_no`）；對得上
+ * kc-web 的 MasterCell.i 才會補節點名／半徑並讓 `sp` 對到該格，對不上時敵艦隊
+ * 仍會匯入、陸航改打最後一格。敵艦 id 用封包原值，不加 KC3Kai 的 +1000。
+ * 敵艦裝備不輸出：loadDeckBuilder 只讀 id，裝備改走他們的 master。
+ */
+export function buildReplayAirCalcDeck(row: ReplayRow, options: AirCalcOptions = {}): object {
+    const deck = buildReplayDeckBuilder(row) as Record<string, unknown>;
+    delete deck.f3;
+    delete deck.f4;
+    if (row.combined > 0 && isPlainObject(deck.f1)) {
+        deck.f1 = { t: row.combined, ...deck.f1 };
+    }
+    const cells = airCalcCells(row, options);
+    if (cells.length) deck.s = { a: row.world, i: row.mapnum, c: cells };
+    for (const [rid, nodes] of lbasStrikeCells(row)) {
+        const key = `a${rid}`;
+        const airbase = deck[key];
+        if (isPlainObject(airbase) && nodes.length) deck[key] = { ...airbase, sp: nodes };
+    }
+    return deck;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function integer(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
+    if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+        const parsed = Number(value);
+        if (Number.isSafeInteger(parsed)) return parsed;
+    }
+    return undefined;
+}
+
+function battleApi(entry: ReplayNode): Record<string, unknown> | undefined {
+    for (const raw of [entry.data, entry.yasen]) {
+        if (!isPlainObject(raw)) continue;
+        if (Object.keys(raw).some(key => key.startsWith('api_'))) return raw;
+    }
+    return undefined;
+}
+
+function enemyFleet(ids: unknown): { s: { id: number }[] } | undefined {
+    if (!Array.isArray(ids)) return undefined;
+    const ships = ids.flatMap(raw => {
+        const id = integer(raw);
+        return id !== undefined && id > 0 ? [{ id }] : [];
+    });
+    return ships.length ? { s: ships } : undefined;
+}
+
+function cellFromPacket(entry: ReplayNode): Record<string, unknown> | undefined {
+    const api = battleApi(entry);
+    if (!api) return undefined;
+    const f1 = enemyFleet(api.api_ship_ke);
+    if (!f1) return undefined;
+    const f2 = enemyFleet(api.api_ship_ke_combined);
+    const formation = Array.isArray(api.api_formation) ? api.api_formation : [];
+    const pf = integer(formation[0]);
+    const ef = integer(formation[1]);
+    return {
+        c: entry.node,
+        ...(pf === undefined ? {} : { pf }),
+        ...(ef === undefined ? {} : { ef }),
+        f1,
+        ...(f2 ? { f2 } : {}),
+    };
+}
+
+function cellFromSummary(route: AirCalcRouteNode): Record<string, unknown> | undefined {
+    const f1 = enemyFleet(route.enemyIds);
+    if (!f1) return undefined;
+    const f2 = enemyFleet(route.enemyIdsEscort);
+    return { c: route.node, f1, ...(f2 ? { f2 } : {}) };
+}
+
+function airCalcCells(row: ReplayRow, options: AirCalcOptions): Record<string, unknown>[] {
+    const byNode = new Map<number, Record<string, unknown>>();
+    for (const battle of row.battles) {
+        const cell = cellFromPacket(battle);
+        if (cell) byNode.set(battle.node, cell);
+    }
+    for (const route of options.routeNodes ?? []) {
+        if (byNode.has(route.node)) continue;
+        const cell = cellFromSummary(route);
+        if (cell) byNode.set(route.node, cell);
+    }
+    const order: number[] = [];
+    const seen = new Set<number>();
+    for (const node of options.routeNodes?.map(route => route.node) ?? row.battles.map(battle => battle.node)) {
+        if (seen.has(node) || !byNode.has(node)) continue;
+        seen.add(node);
+        order.push(node);
+    }
+    for (const node of byNode.keys()) {
+        if (seen.has(node)) continue;
+        order.push(node);
+    }
+    return order.map(node => byNode.get(node)!);
+}
+
+function lbasStrikeCells(row: ReplayRow): Map<number, number[]> {
+    const byBase = new Map<number, number[]>();
+    for (const battle of row.battles) {
+        const api = battleApi(battle);
+        const waves = api?.api_air_base_attack;
+        if (!Array.isArray(waves)) continue;
+        for (const wave of waves) {
+            const rid = integer(isPlainObject(wave) ? wave.api_base_id : undefined);
+            if (rid === undefined || rid < 1 || rid > 3) continue;
+            const nodes = byBase.get(rid) ?? [];
+            nodes.push(battle.node);
+            byBase.set(rid, nodes);
+        }
+    }
+    return byBase;
+}
+
 // KanColleImgBuilder：網址 hash 用 encodeURI/decodeURI 這一對（非 encodeURIComponent），
 // 見 kancolle-builder.component.ts 的 `JSON.parse(decodeURI(route.fragment))`。
 export function imgBuilderUrl(deck: object): string {
     return `https://kancolleimgbuilder.web.app/builder#${encodeURI(JSON.stringify(deck))}`;
 }
 
-// 制空権シミュレータ：query string 用 encodeURIComponent/decodeURIComponent 這一對，
-// 見 App.vue 的 `getUrlParams()`。
+// 制空権シミュレータ：出擊 predeck 走 hash `#import:`（App.vue setUrlFragments）。
+// `?predeck=` 會整段進 HTTP request，GitHub Pages 超過約 8KB 就 414。
 export function airCalcUrl(deck: object): string {
-    return `https://noro6.github.io/kc-web/?predeck=${encodeURIComponent(JSON.stringify(deck))}`;
+    return `${AIR_CALC_PAGE_URL}#import:${encodeURIComponent(JSON.stringify({ predeck: deck }))}`;
 }

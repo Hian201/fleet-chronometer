@@ -1,8 +1,10 @@
-// 出擊紀錄 → KC3Kai kancolle-replay simulator 的輸入格式。
+// 出擊紀錄 → KC3Kai kancolle-replay simulator 的中間輸入。
 //
-// 這裡使用的是 simulator.html 的 `fleetF`／`fleetSupportN`／`fleetSupportB`／`lbas`／
-// `nodes` 格式，不是 utils/deckbuilder.ts 的 f1～f4 編成卡格式。兩者都常被稱作
-// DeckBuilder JSON，但消費端與欄位契約不同，刻意分成兩個轉換器避免互相污染。
+// 中間物件仍用 simulator 的 fleetF／nodes 語意組裝敵我艦隊與節點旗標，但跳轉網址
+// 必須走 `#backup=`（見 sortie-simulator-settings.ts）。直接把 `{ fleetF, nodes }`
+// 放進 hash 會呼叫 initSimImport，隱藏編成介面並立刻開跑；`{ fleet1, battles }`
+// 的重播匯入與 `#backup=` 才會停在可編輯畫面。#backup= 另能帶補強增設與 subOnly，
+// 並用 LZMA 壓進 fragment 上限。這不是 utils/deckbuilder.ts 的 f1～f4 編成卡。
 //
 // 出擊時的主隊、隨伴、支援與基地航空隊來自 ReplayRow 在 map/start 保存的快照；
 // 每個敵艦隊、陣形、夜戰與陸航波次則來自該節點的原始戰鬥封包。沒有快照或封包的
@@ -69,6 +71,7 @@ export interface SortieSimulatorNode {
     NBOnly?: boolean;
     airOnly?: boolean;
     airRaid?: boolean;
+    noAmmo?: boolean;
     formationOverride?: number;
     lbas?: number[];
     useNormalSupport?: boolean;
@@ -87,6 +90,8 @@ export interface SortieSimulatorRouteNode {
 }
 
 export interface SortieSimulatorOptions {
+    /** 只用已載入的 master 艦種辨識純潛水艦節點，不以艦船編號猜艦種。 */
+    masterShips?: ReadonlyMap<number, { stype: number }>;
     /** 依出擊摘要判定 boss；沒有傳入時才退回 ReplayNode.boss。 */
     bossNodes?: ReadonlySet<number>;
     /** 完整路線摘要，包含沒有原始戰鬥封包的空襲／未結算節點。 */
@@ -179,14 +184,17 @@ function appendHpStats(stats: NonNullable<SortieSimulatorShip['stats']>, maxHp: 
 
 function shipEquips(ship: ReplayShip | ReplaySupportShip): SortieSimulatorEquip[] {
     const equips: SortieSimulatorEquip[] = [];
-    (ship.equip ?? []).forEach((masterId, index) => {
-        if (masterId <= 0) return;
+    // 模擬器玩家艦固定 5 一般槽＋第 6 格增設。空槽也要佔位，否則後面的裝備與增設會左移。
+    const regular = ship.equip ?? [];
+    const regularCount = Math.max(regular.length, 5);
+    for (let index = 0; index < regularCount; index++) {
+        const masterId = regular[index] ?? -1;
         equips.push({
-            masterId,
+            masterId: Math.max(0, masterId),
             improve: Math.max(0, ship.stars?.[index] ?? 0),
             proficiency: Math.max(0, ship.ace?.[index] ?? 0),
         });
-    });
+    }
     // 補強增設不在 stars／ace 陣列裡（與 KC3Kai logger／本專案快照同契約），改讀獨立欄。
     // 快照缺 exstars／exace 時退回 0；來源沒有欄位時不能用現在母港狀態回填歷史。
     if (ship.exequip > 0) {
@@ -231,6 +239,36 @@ function supportFleet(row: ReplayRow, deckId: number): SortieSimulatorFleet | un
 /** simulator 的事件海域敵艦 master id 與 KC3Kai 轉換器相同。 */
 function simulatorEnemyShipId(mst: number, world: number): number {
     return world !== 0 && world !== 1 && mst < 1000 ? mst + 1000 : mst;
+}
+
+/** start2 的艦種表用封包原 id；simulator 可能已 +1000，兩邊都查才不漏潛艦點。 */
+function masterStype(
+    id: number,
+    master?: ReadonlyMap<number, { stype: number }>,
+): number | undefined {
+    if (!master) return undefined;
+    return master.get(id)?.stype
+        ?? (id >= 1000 ? master.get(id - 1000)?.stype : undefined)
+        ?? master.get(id + 1000)?.stype;
+}
+
+function isSubmarineStype(stype: number | undefined): boolean {
+    return stype === 13 || stype === 14;
+}
+
+function isSubOnlyEnemy(
+    api: ApiObject,
+    world: number,
+    master?: ReadonlyMap<number, { stype: number }>,
+): boolean {
+    const main = Array.isArray(api.api_ship_ke) ? api.api_ship_ke : [];
+    const escort = Array.isArray(api.api_ship_ke_combined) ? api.api_ship_ke_combined : [];
+    const mainIds = main.map(integer).filter((id): id is number => id !== undefined && id > 0);
+    if (!mainIds.length) return false;
+    if (escort.map(integer).some(id => id !== undefined && id > 0)) return false;
+    return mainIds.every(id => isSubmarineStype(
+        masterStype(id, master) ?? masterStype(simulatorEnemyShipId(id, world), master),
+    ));
 }
 
 /** simulator 的 abyssal 裝備 id 轉換與 KC3Kai 公開轉換器相同。 */
@@ -411,6 +449,9 @@ export function buildSortieSimulator(row: ReplayRow, options: SortieSimulatorOpt
             ...nodeFlags(api, hasDay, hasNight),
             node: entry.node,
         };
+        if (!enemyMain.some(ship => ship.isFaraway) && isSubOnlyEnemy(api, row.world, options.masterShips)) {
+            node.noAmmo = true;
+        }
         const playerFormation = formationAt(api, 0);
         if (playerFormation !== undefined) node.formationOverride = playerFormation;
         const enemyFormation = formationAt(api, 1);
@@ -453,3 +494,4 @@ export function buildSortieSimulator(row: ReplayRow, options: SortieSimulatorOpt
 export function toSortieSimulatorUrl(row: ReplayRow, options: SortieSimulatorOptions = {}): string {
     return `${KC3_SORTIE_SIMULATOR_URL}#${encodeURIComponent(JSON.stringify(buildSortieSimulator(row, options)))}`;
 }
+

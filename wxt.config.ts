@@ -11,6 +11,19 @@ export default defineConfig({
             // 反射任意 Origin（含 chrome-extension://）；正式建置不走此路徑。
             cors: true,
         },
+        plugins: [{
+            // lzma_worker.js 把 API 掛在 CJS `this` 上，沒有 ESM export。套件入口
+            // 又用 Node `path`＋`require`，不能給擴充頁用。改成具名匯出時必須拿掉
+            // `this.LZMA = …`：ESM 嚴格模式的 this 是 undefined，一載入就丟錯，
+            // 情報總括整頁模組圖會一起掛掉。
+            name: 'lzma-worker-esm',
+            transform(code, id) {
+                if (!id.replace(/\\/g, '/').endsWith('/lzma/src/lzma_worker.js')) return;
+                const stripped = code.replace(/this\.LZMA = this\.LZMA_WORKER = LZMA;/, '');
+                if (stripped.includes('export { LZMA }')) return { code: stripped, map: null };
+                return { code: `${stripped}\nexport { LZMA };\n`, map: null };
+            },
+        }],
         build: {
             // 不產 `<link rel="modulepreload">`。Vite 一律替預載標籤加上 `crossorigin`，
             // 但擴充頁載入自家 chrome-extension:// 資源時的 fetch 模式對不上，Chrome 會在
