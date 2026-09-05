@@ -13,10 +13,14 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { GameState } from '../../utils/state';
 import type { ReplayLbas, ReplayRow, ReplayShip, SortieLogRow } from '../../utils/db';
-import { buildSortieDetail, groupSorties, numberSorties } from '../../utils/sortie-detail';
+import {
+    buildSortieDetail, groupSorties, isEventWorld, numberSorties, parseMapCode,
+    planEventMapFilter,
+} from '../../utils/sortie-detail';
 import { battleLogHtml, detailHtml, headHtml, shellHtml, type Entry } from '../../entrypoints/overview/sections/sortie-log';
+import { eventDisplayName, eventFilterSelectHtml, eventTermForFilter, mapFilterSelectHtml } from '../../entrypoints/overview/lib';
 import { parseSortieImport } from '../../utils/sortie-import';
-import { setLang } from '../../utils/ui-i18n';
+import { setLang, t } from '../../utils/ui-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const readJson = (rel: string) => JSON.parse(readFileSync(resolve(root, rel), 'utf8'));
@@ -136,10 +140,29 @@ const cards = groups.slice().reverse().map(g => {
     </article>`;
 }).join('');
 
+const catalog = groups.map(g => {
+    const parsed = parseMapCode(g.rows[0].map);
+    return { map: g.rows[0].map, world: parsed.world, mapnum: parsed.mapnum, event: isEventWorld(parsed.world) };
+});
+const filterPlan = planEventMapFilter(catalog, {
+    category: 'event',
+    eventFilter: 'all',
+    mapFilter: 'all',
+    pinLatestEvent: true,
+    worldLabel: world => eventDisplayName(world, state.masterMapAreas.get(world)),
+    eventTerm: eventTermForFilter,
+    normalGroupLabel: t('ov.slCatNormal'),
+});
+
 // 工具列與匯入面板用分區自己的 markup（同一份，不另抄），並把匯入面板攤開來看
 // 預覽強制帶匯入面板（版面驗收用）；正式建置的 overview 預設不顯示（見 debug-ui.ts）。
 const shell = shellHtml({ includeImport: true })
     .replace('<div class="sl-import" hidden>', '<div class="sl-import">')
+    .replace('class="sl-inline sl-event-wrap" hidden', 'class="sl-inline sl-event-wrap"')
+    .replace('<select class="sl-event-sel"></select>',
+        `<select class="sl-event-sel">${eventFilterSelectHtml(filterPlan.eventGroups, filterPlan.eventFilter, t('ov.slEventAll'))}</select>`)
+    .replace('<select class="sl-map-sel"></select>',
+        `<select class="sl-map-sel">${mapFilterSelectHtml(filterPlan.mapGroups, filterPlan.mapFilter, t('ov.slMapAll'))}</select>`)
     .replace('<div class="sl-body ov-list"></div>', `<div class="sl-body ov-list">${cards}</div>`);
 
 // overview 的 <style> 原封取用——預覽要驗的就是那份 CSS 在真實資料下的樣子

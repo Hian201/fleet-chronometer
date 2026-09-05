@@ -5,7 +5,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ReplayRow, ReplayShip, SortieLogRow } from '../utils/db';
 import {
-    buildSortieDetail, groupSorties, isEventWorld, lbasWaves, numberSorties, parseMapCode, supportUse,
+    buildSortieDetail, eventStageLabel, eventWorldLabel, groupEventWorlds, groupSorties,
+    isEventWorld, lbasWaves, numberSorties, parseMapCode, planEventMapFilter,
+    qualifiedEventMapLabel, supportUse,
 } from '../utils/sortie-detail';
 
 const load = (name: string) => JSON.parse(readFileSync(new URL(`../samples/${name}`, import.meta.url), 'utf8'));
@@ -54,7 +56,104 @@ describe('海域分類與編號', () => {
     it('parseMapCode 解析摘要的 map 字串，解不出時 world 為 0', () => {
         expect(parseMapCode('6-5')).toEqual({ world: 6, mapnum: 5 });
         expect(parseMapCode('61-3')).toEqual({ world: 61, mapnum: 3 });
+        expect(parseMapCode('62-7')).toEqual({ world: 62, mapnum: 7 });
         expect(parseMapCode('')).toEqual({ world: 0, mapnum: 0 });
+    });
+
+    it('活動關卡標籤不設五關上限，跨活動並列才補 area id', () => {
+        expect(eventStageLabel(1)).toBe('E1');
+        expect(eventStageLabel(7)).toBe('E7');
+        expect(qualifiedEventMapLabel({ world: 61, mapnum: 3 })).toBe('E3 · #61');
+        expect(qualifiedEventMapLabel({ world: 61, mapnum: 3 }, '2025秋季')).toBe('2025秋季 E3');
+        expect(eventWorldLabel(62, '反撃！第三十一戦隊の戦い', '活動海域'))
+            .toBe('反撃！第三十一戦隊の戦い');
+        expect(eventWorldLabel(61, undefined, '活動海域')).toBe('活動海域 #61');
+        expect(eventWorldLabel(61, '  ', '活動海域')).toBe('活動海域 #61');
+    });
+
+    it('活動篩選依 area 分組、關卡跟資料走，切到活動分類預設最新一次', () => {
+        const item = (map: string, n = 1): { map: string; world: number; mapnum: number; event: boolean }[] => {
+            const { world, mapnum } = parseMapCode(map);
+            return Array.from({ length: n }, () => ({
+                map, world, mapnum, event: isEventWorld(world),
+            }));
+        };
+        const items = [
+            ...item('6-5', 2),
+            ...item('61-1', 3),
+            ...item('61-3', 1),
+            ...item('62-1', 4),
+            ...item('62-7', 2),
+        ];
+        const groups = groupEventWorlds(items);
+        expect(groups.map(g => g.world)).toEqual([62, 61]);
+        expect(groups[0]!.stages.map(s => s.mapnum)).toEqual([1, 7]);
+        expect(groups[0]!.count).toBe(6);
+
+        const worldLabel = (world: number) => world === 62 ? '當次活動' : `舊活動 #${world}`;
+        const pinned = planEventMapFilter(items, {
+            category: 'event', eventFilter: 'all', mapFilter: 'all',
+            pinLatestEvent: true, worldLabel, normalGroupLabel: '通常海域',
+        });
+        expect(pinned.eventFilter).toBe(62);
+        expect(pinned.showEventSelect).toBe(true);
+        expect(pinned.qualifyEventWorld).toBe(false);
+        expect(pinned.mapGroups).toEqual([{
+            label: null,
+            options: [
+                { map: '62-1', label: 'E1', count: 4 },
+                { map: '62-7', label: 'E7', count: 2 },
+            ],
+        }]);
+
+        const allEvents = planEventMapFilter(items, {
+            category: 'event', eventFilter: 'all', mapFilter: '61-3',
+            pinLatestEvent: false, worldLabel, normalGroupLabel: '通常海域',
+        });
+        expect(allEvents.eventFilter).toBe('all');
+        expect(allEvents.mapFilter).toBe('61-3');
+        expect(allEvents.qualifyEventWorld).toBe(true);
+        expect(allEvents.mapGroups.map(g => g.label)).toEqual(['當次活動', '舊活動 #61']);
+        expect(allEvents.mapGroups[0]!.options.map(o => o.label)).toEqual(['E1', 'E7']);
+
+        const normal = planEventMapFilter(items, {
+            category: 'normal', eventFilter: 62, mapFilter: '62-1',
+            pinLatestEvent: false, worldLabel, normalGroupLabel: '通常海域',
+        });
+        expect(normal.showEventSelect).toBe(false);
+        expect(normal.eventFilter).toBe('all');
+        expect(normal.mapFilter).toBe('all');
+        expect(normal.mapGroups).toEqual([{
+            label: null,
+            options: [{ map: '6-5', label: '6-5', count: 2 }],
+        }]);
+
+        const terms: Record<number, { year: number; seasonLabel: string }> = {
+            62: { year: 2026, seasonLabel: '夏季' },
+            61: { year: 2025, seasonLabel: '秋季' },
+        };
+        const byYear = planEventMapFilter(items, {
+            category: 'event', eventFilter: 'all', mapFilter: 'all',
+            pinLatestEvent: false, worldLabel,
+            eventTerm: world => terms[world] ?? null,
+            normalGroupLabel: '通常海域',
+        });
+        expect(byYear.eventGroups).toEqual([
+            { label: '2026', options: [{ world: 62, label: '夏季', count: 6 }] },
+            { label: '2025', options: [{ world: 61, label: '秋季', count: 4 }] },
+        ]);
+        expect(byYear.mapGroups.map(g => g.label)).toEqual(['當次活動', '舊活動 #61']);
+
+        const oneYear = planEventMapFilter(items.filter(item => item.world === 62), {
+            category: 'event', eventFilter: 'all', mapFilter: 'all',
+            pinLatestEvent: false, worldLabel,
+            eventTerm: world => terms[world] ?? null,
+            normalGroupLabel: '通常海域',
+        });
+        expect(oneYear.eventGroups).toEqual([{
+            label: null,
+            options: [{ world: 62, label: '當次活動', count: 6 }],
+        }]);
     });
 
     it('「第幾次」逐海域各自計數，且不受其他海域穿插影響', () => {

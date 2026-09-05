@@ -189,7 +189,7 @@ describe('newShipDropKeys（打撈紀錄的新船篩選）', () => {
         // 匯入列的 eventId 是匯入當下借的（很大），但 ts 是真實的歷史時間。
         const rows = [drop({ sortieKey: 1, eventId: 99999, ts: T + 10, dropMst: 1, imported: true })];
         const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1, obtainedTs: T + 100 })], baseOf);
-        expect([...keys]).toEqual([1]);
+        expect([...keys]).toEqual([99999]);
     });
 
     it('同毫秒混合本機與匯入列時不拿借來的 event ID 猜入手來源', () => {
@@ -208,7 +208,7 @@ describe('newShipDropKeys（打撈紀錄的新船篩選）', () => {
             drop({ sortieKey: 2, eventId: 11, ts: T + 10, dropMst: 1 }),
         ];
         const keys = newShipDropKeys(rows, [owned({ id: 500, mst: 1, obtainedTs: T + 100 })], baseOf);
-        expect([...keys]).toEqual([2]);
+        expect([...keys]).toEqual([11]);
     });
 
     it('沒有 dropMst 的舊資料一律跳過，不由艦名反推', () => {
@@ -217,5 +217,17 @@ describe('newShipDropKeys（打撈紀錄的新船篩選）', () => {
             rank: 'S', seiku: null, enemyIds: [], enemyIdsEscort: [], drop: '吹雪', taiha: false,
         }];
         expect(newShipDropKeys(rows, [owned({ id: 500, mst: 1 })], baseOf).size).toBe(0);
+    });
+
+    it('同一場出擊的多筆掉落各自判定，不共用 sortieKey', () => {
+        const rows = [
+            drop({ sortieKey: 7, eventId: 101, ts: T + 10, dropMst: 1 }),
+            drop({ sortieKey: 7, eventId: 102, ts: T + 20, dropMst: 10 }),
+        ];
+        const keys = newShipDropKeys(rows, [
+            owned({ id: 500, mst: 1 }),
+            owned({ id: 501, mst: 10 }),
+        ], baseOf);
+        expect([...keys]).toEqual([101, 102]);
     });
 });

@@ -1017,6 +1017,18 @@
             letter-spacing: var(--track-tag);
         }
         .tb-colhead .tb-meta b { color: var(--text); font-weight: 600; }
+        .tb-map-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+        .tb-map-chip {
+            padding: 0 5px; height: 18px; border-radius: 4px; font-size: 9px; font-weight: 700;
+            letter-spacing: var(--track-tag); border: 1px solid var(--line);
+            background: transparent; color: var(--dim); cursor: pointer;
+        }
+        .tb-map-chip.on {
+            color: var(--text);
+            border-color: color-mix(in srgb, var(--c, var(--sparkle)) 55%, var(--line));
+            background: color-mix(in srgb, var(--c, var(--sparkle)) 18%, transparent);
+        }
+        .tb-map-chip:disabled { opacity: .7; cursor: default; }
         .tb-colhead.dimmed { opacity: .38; }
         .tb-colhead.tb-placeholder {
             text-align: center;
@@ -1427,6 +1439,11 @@
             font-size: 12px;
         }
 
+        /* 活動名來自 start2，可以很長；關卡下拉維持短標籤 E{n}。 */
+        .sl-event-sel {
+            max-width: min(280px, 42vw);
+        }
+
         .sl-count {
             font-size: 11px;
             color: var(--dim);
@@ -1834,6 +1851,41 @@
         .sl-actions .battle-log-open {
             border-color: var(--brass);
             color: var(--sparkle);
+        }
+
+        /* 下載出擊記錄：選單釘在這顆按鈕下，不像欄位下拉錨整條工具列。 */
+        .sl-export {
+            position: relative;
+        }
+
+        .sl-detail details.sl-export > summary::before,
+        .sl-detail details.sl-export[open] > summary::before {
+            content: none;
+        }
+
+        .sl-export > summary.ov-btn {
+            list-style: none;
+        }
+
+        .sl-export-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 8;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 220px;
+            padding: 6px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: 0 6px 18px rgb(0 0 0 / .28);
+        }
+
+        .sl-export-menu .ov-btn {
+            width: 100%;
+            justify-content: flex-start;
         }
 
         /* 交戰記錄：原生 dialog 置於 top layer，內容區獨立捲動，避免長戰鬥把總括頁一起撐高。 */
@@ -3327,6 +3379,21 @@
             font-size: 11px;
             letter-spacing: var(--track-label);
             font-variant-numeric: tabular-nums;
+        }
+
+        .dl-bar select {
+            min-height: 28px;
+            padding: 3px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            font-size: 12px;
+        }
+
+        .dl-event-sel {
+            max-width: min(280px, 42vw);
         }
 
         /* 欄位下拉的錨點是「工具列」不是按鈕本身（見 .rs-colbox）。六個分區的工具列**都已經
@@ -5676,6 +5743,7 @@
             .eq-seg button,
             .eq-icon,
             .sl-bar select,
+            .dl-bar select,
             .sl-pill,
             .sl-ec,
             .sl-battle-dialog,

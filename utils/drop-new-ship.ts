@@ -22,7 +22,7 @@ function isPositiveSafeInteger(value: unknown): value is number {
 }
 
 /**
- * 回傳「是新船」的那些打撈場次 key（`SortieLogRow.sortieKey`）。
+ * 回傳「是新船」的那些打撈記錄 event id（`SortieLogRow.eventId`）。
  *
  * @param rows          打撈紀錄列（已篩成有掉落艦的結算列即可，順序不拘）
  * @param shipObtained  `db.shipObtained` 全量
@@ -71,7 +71,11 @@ export function newShipDropKeys(
         const newestAtSameMs = eligible.filter(drop => drop.ts === newestTs);
         const sameSortieKeys = new Set(newestAtSameMs.map(drop => drop.sortieKey));
         if (sameSortieKeys.size === 1) {
-            keys.add(newestAtSameMs[0].sortieKey);
+            // 同一場出擊可能有多筆掉落列；每列仍以自己的 eventId 識別，避免修正一筆時
+            // 把同場其他艦娘一併排除。
+            for (const drop of newestAtSameMs) {
+                if (Number.isSafeInteger(drop.eventId)) keys.add(drop.eventId);
+            }
             continue;
         }
         // 同毫秒有多場時，只有全部都是本機擷取且 eventId 都有效，才能用 raw event 順序
@@ -82,7 +86,7 @@ export function newShipDropKeys(
         if (withEventId.length !== newestAtSameMs.length) continue;
         const newestEventId = Math.max(...withEventId.map(drop => drop.eventId as number));
         const eventWinners = withEventId.filter(drop => drop.eventId === newestEventId);
-        if (new Set(eventWinners.map(drop => drop.sortieKey)).size === 1) keys.add(eventWinners[0].sortieKey);
+        if (eventWinners.length === 1) keys.add(eventWinners[0].eventId);
     }
     return keys;
 }

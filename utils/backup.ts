@@ -223,6 +223,10 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         drop,
         taiha: booleanValue(row.taiha, `${where}.taiha`),
         ...(row.dropMst === undefined ? {} : { dropMst: integer(row.dropMst, `${where}.dropMst`, 1) }),
+        ...(row.newShipOverride === undefined ? {} : {
+            newShipOverride: row.newShipOverride === 'old'
+                ? 'old' as const : invalid(`${where}.newShipOverride 必須是 old。`),
+        }),
         ...(row.raidLostKind === undefined ? {} : { raidLostKind: integer(row.raidLostKind, `${where}.raidLostKind`) }),
         ...(row.cleared === undefined ? {} : { cleared: booleanValue(row.cleared, `${where}.cleared`) }),
         // battleresult 追加欄位（2026-07-22）：舊備份沒有這些鍵，缺席即維持缺席，不補預設值。
@@ -461,6 +465,11 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
             color = integer(tag.color, `${w}.color`, 1);
             if (color > 13) invalid(`${w}.color 必須是 1–13。`);
         }
+        let columnMaps: number[] | undefined;
+        if (tag.columnMaps !== undefined) {
+            columnMaps = arrayAt(tag.columnMaps, `${w}.columnMaps`)
+                .map((v, j) => integer(v, `${w}.columnMaps[${j}]`, 1));
+        }
         return {
             sallyArea: integer(tag.sallyArea, `${w}.sallyArea`, 1),
             name: typeof tag.name === 'string' ? tag.name : invalid(`${w}.name 必須是字串。`),
@@ -470,6 +479,7 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
                     ? tag.manualName : invalid(`${w}.manualName 必須是字串。`),
             }),
             ...(color === undefined ? {} : { color }),
+            ...(columnMaps === undefined ? {} : { columnMaps }),
         };
     });
     const stages = arrayAt(row.stages, `${where}.stages`).map((raw, i) => {
@@ -497,7 +507,7 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
             ...(st.phase === undefined ? {} : { phase: booleanValue(st.phase, `${w}.phase`) }),
         };
     });
-    // sallySnapshot：活動結束後 api_sally_area 會被清 0，故留一份當時的貼標快照。
+    // sallySnapshot：活動進行中的貼標快照（結束後計畫會刪，舊備份仍可能帶此欄）。
     // key＝艦實例 id（JSON 物件鍵一律是字串，此處驗證其數值形式）。
     let sallySnapshot: Record<number, number> | undefined;
     if (row.sallySnapshot !== undefined) {

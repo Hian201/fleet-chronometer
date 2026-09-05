@@ -47,6 +47,33 @@ export function parseMapCode(map: string): { world: number; mapnum: number } {
     return m ? { world: Number(m[1]), mapnum: Number(m[2]) } : { world: 0, mapnum: 0 };
 }
 
+/** 活動關卡的玩家說法。關卡數不設上限——每次活動關數不同，寫死 E1–E5 會過期。 */
+export function eventStageLabel(mapnum: number): string {
+    return `E${mapnum}`;
+}
+
+/**
+ * 活動（maparea）查不到年表時的退路：有 master 標題就用標題，否則補 area id。
+ * start2 只帶當次活動，舊活動名本來就會消失；年份／季節見 `event-calendar.ts`，
+ * 不從出擊時間戳反推。
+ */
+export function eventWorldLabel(world: number, masterName: string | undefined, unknownFallback: string): string {
+    const name = masterName?.trim();
+    return name ? name : `${unknownFallback} #${world}`;
+}
+
+/**
+ * 跨活動並列時的關卡寫法。`E{n}` 只在同一次活動內不衝突；混在一起時帶活動標籤
+ * （有年表用「2026夏季 E3」，沒有才退回 `#area`）。完整作戰名留給 title。
+ */
+export function qualifiedEventMapLabel(
+    entry: { mapnum: number; world: number },
+    eventLabel?: string,
+): string {
+    const stage = eventStageLabel(entry.mapnum);
+    return eventLabel ? `${eventLabel} ${stage}` : `${stage} · #${entry.world}`;
+}
+
 /**
  * 海域代號的顯示寫法：活動用玩家的說法 `E{n}`，一般海域維持 `6-5`。完整編號（62-1）
  * 留給 title。
@@ -54,16 +81,191 @@ export function parseMapCode(map: string): { world: number; mapnum: number } {
  * `map` 是原始字串，解析不出 world/mapnum 時原樣顯示它（不用 `${world}-${mapnum}`
  * 反組，那樣會把不可考的紀錄顯示成「0-0」）。
  *
- * **面板與出擊紀錄分區共用同一支**：兩邊寫法必須一致，日後改活動海域的表記法也只有
- * 一處要動。難度徽章（`diffLabel`）同理。
+ * **面板與出擊紀錄分區共用同一支**：兩邊寫法必須一致。篩選列把「哪一次活動」與
+ * 「該活動第幾關」拆開，不把所有活動的 En 混成同一組選項。難度徽章（`diffLabel`）同理。
  */
 export function mapLabel(entry: { event: boolean; mapnum: number; map: string }): string {
-    return entry.event ? `E${entry.mapnum}` : entry.map;
+    return entry.event ? eventStageLabel(entry.mapnum) : entry.map;
 }
 
-/** 活動關卡短標：卡片與篩選共用 `E{n}`，完整編號留給 title。 */
-export function eventStageLabel(mapnum: number): string {
-    return `E${mapnum}`;
+export type EventWorldFilter = 'all' | number;
+
+export interface MapCatalogItem {
+    map: string;
+    world: number;
+    mapnum: number;
+    event: boolean;
+}
+
+export interface EventWorldGroup {
+    world: number;
+    count: number;
+    stages: { map: string; mapnum: number; count: number }[];
+}
+
+/** 依活動 area id 分組。新活動 id 較大，最新的排前面。關卡依 mapnum 升冪，不假設只有五關。 */
+export function groupEventWorlds(items: readonly MapCatalogItem[]): EventWorldGroup[] {
+    const byWorld = new Map<number, {
+        count: number;
+        stages: Map<string, { map: string; mapnum: number; count: number }>;
+    }>();
+    for (const item of items) {
+        if (!item.event) continue;
+        let group = byWorld.get(item.world);
+        if (!group) {
+            group = { count: 0, stages: new Map() };
+            byWorld.set(item.world, group);
+        }
+        group.count++;
+        const stage = group.stages.get(item.map);
+        if (stage) stage.count++;
+        else group.stages.set(item.map, { map: item.map, mapnum: item.mapnum, count: 1 });
+    }
+    return [...byWorld.entries()]
+        .map(([world, group]) => ({
+            world,
+            count: group.count,
+            stages: [...group.stages.values()].sort((a, b) => a.mapnum - b.mapnum || a.map.localeCompare(b.map)),
+        }))
+        .sort((a, b) => b.world - a.world);
+}
+
+export interface EventMapFilterPlan {
+    eventFilter: EventWorldFilter;
+    mapFilter: string;
+    showEventSelect: boolean;
+    eventGroups: { label: string | null; options: { world: number; label: string; count: number }[] }[];
+    mapGroups: { label: string | null; options: { map: string; label: string; count: number }[] }[];
+    /** 目前清單可能含兩次以上活動時，列上的 En 要帶活動標籤，否則看起來像同一關。 */
+    qualifyEventWorld: boolean;
+}
+
+/**
+ * 出擊／打撈紀錄共用的活動＋關卡篩選。分類仍是通常／活動（＋出擊的「全部」）；
+ * 活動側再拆「哪一次活動」與「該活動第幾關」。選項只列目前分類裡實際有紀錄的，
+ * 關卡數跟資料走。
+ *
+ * 切到活動分類時 `pinLatestEvent` 會落到最新一次活動：玩家當下多半看這次，
+ * 且預設不把歷次活動的 E1 混在同一組。
+ */
+export function planEventMapFilter(
+    items: readonly MapCatalogItem[],
+    args: {
+        category: 'all' | 'normal' | 'event';
+        eventFilter: EventWorldFilter;
+        mapFilter: string;
+        pinLatestEvent: boolean;
+        worldLabel: (world: number) => string;
+        /** 年表命中時給年份＋季節短標；跨年才把活動下拉依年份分組。表外不猜。 */
+        eventTerm?: (world: number) => { year: number; seasonLabel: string } | null;
+        normalGroupLabel: string;
+    },
+): EventMapFilterPlan {
+    const scoped = items.filter(item =>
+        args.category === 'all' || (args.category === 'event' ? item.event : !item.event));
+    const eventGroups = groupEventWorlds(scoped);
+    const showEventSelect = args.category !== 'normal' && eventGroups.length > 0;
+
+    let eventFilter: EventWorldFilter = showEventSelect ? args.eventFilter : 'all';
+    if (showEventSelect) {
+        const known = eventFilter === 'all' || eventGroups.some(group => group.world === eventFilter);
+        if (args.pinLatestEvent) eventFilter = eventGroups[0]!.world;
+        else if (!known) eventFilter = args.category === 'event' ? eventGroups[0]!.world : 'all';
+    }
+
+    const visible = scoped.filter(item => eventFilter === 'all' || item.world === eventFilter);
+    const eventInView = groupEventWorlds(visible);
+    const qualifyEventWorld = eventFilter === 'all' && eventInView.length > 1;
+
+    const tally = (list: MapCatalogItem[]) => {
+        const byMap = new Map<string, { item: MapCatalogItem; count: number }>();
+        for (const item of list) {
+            const hit = byMap.get(item.map);
+            if (hit) hit.count++;
+            else byMap.set(item.map, { item, count: 1 });
+        }
+        return [...byMap.values()];
+    };
+    const eventOptionsOf = (world: number) => tally(visible.filter(item => item.event && item.world === world))
+        .sort((a, b) => a.item.mapnum - b.item.mapnum || a.item.map.localeCompare(b.item.map))
+        .map(({ item, count }) => ({ map: item.map, label: eventStageLabel(item.mapnum), count }));
+    const normalOptions = tally(visible.filter(item => !item.event))
+        .sort((a, b) => a.item.map.localeCompare(b.item.map, undefined, { numeric: true }))
+        .map(({ item, count }) => ({ map: item.map, label: item.map, count }));
+
+    const mapGroups: EventMapFilterPlan['mapGroups'] = [];
+    const useGroups = eventInView.length + (normalOptions.length ? 1 : 0) > 1;
+    if (useGroups) {
+        for (const group of eventInView) {
+            const options = eventOptionsOf(group.world);
+            if (options.length) mapGroups.push({ label: args.worldLabel(group.world), options });
+        }
+        if (normalOptions.length) mapGroups.push({ label: args.normalGroupLabel, options: normalOptions });
+    } else if (eventInView.length === 1) {
+        mapGroups.push({ label: null, options: eventOptionsOf(eventInView[0]!.world) });
+    } else if (normalOptions.length) {
+        mapGroups.push({ label: null, options: normalOptions });
+    }
+
+    const allowed = new Set(mapGroups.flatMap(group => group.options.map(option => option.map)));
+    const mapFilter = args.mapFilter !== 'all' && allowed.has(args.mapFilter) ? args.mapFilter : 'all';
+
+    return {
+        eventFilter,
+        mapFilter,
+        showEventSelect,
+        eventGroups: buildEventSelectGroups(eventGroups, args.worldLabel, args.eventTerm),
+        mapGroups,
+        qualifyEventWorld,
+    };
+}
+
+function buildEventSelectGroups(
+    groups: EventWorldGroup[],
+    worldLabel: (world: number) => string,
+    eventTerm?: (world: number) => { year: number; seasonLabel: string } | null,
+): EventMapFilterPlan['eventGroups'] {
+    const rows = groups.map(group => ({
+        world: group.world,
+        count: group.count,
+        term: eventTerm?.(group.world) ?? null,
+        fullLabel: worldLabel(group.world),
+    }));
+    const years = new Set(rows.flatMap(row => row.term ? [row.term.year] : []));
+    if (years.size <= 1) {
+        return [{
+            label: null,
+            options: rows.map(row => ({ world: row.world, label: row.fullLabel, count: row.count })),
+        }];
+    }
+    const byYear = new Map<number, typeof rows>();
+    const unknown: typeof rows = [];
+    for (const row of rows) {
+        if (!row.term) {
+            unknown.push(row);
+            continue;
+        }
+        const list = byYear.get(row.term.year) ?? [];
+        list.push(row);
+        byYear.set(row.term.year, list);
+    }
+    const grouped: EventMapFilterPlan['eventGroups'] = [...byYear.entries()]
+        .sort((a, b) => b[0] - a[0])
+        .map(([year, list]) => ({
+            label: String(year),
+            options: list.map(row => ({
+                world: row.world,
+                label: row.term!.seasonLabel,
+                count: row.count,
+            })),
+        }));
+    if (unknown.length) {
+        grouped.push({
+            label: null,
+            options: unknown.map(row => ({ world: row.world, label: row.fullLabel, count: row.count })),
+        });
+    }
+    return grouped;
 }
 
 // 活動難度 api_selected_rank：1丁 2丙 3乙 4甲（0＝一般圖或尚未選難度）。

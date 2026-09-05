@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ReplayRow, ReplayShip, ReplaySupportShip } from '../utils/db';
+import { buildSortieSimulator } from '../utils/sortie-simulator';
 import {
-    buildSortieSimulator, toSortieSimulatorUrl,
-} from '../utils/sortie-simulator';
+    buildSimulatorSettings, decodeSimulatorSettingsUrl, toSortieSimulatorUrl,
+} from '../utils/sortie-simulator-settings';
 import { buildReplayDeckBuilder } from '../utils/deckbuilder';
 
 const ship = (mst_id: number, lv: number, ex = -1, exstars?: number, exace?: number): ReplayShip => ({
@@ -89,6 +91,10 @@ describe('出擊記錄 simulator JSON', () => {
         });
         expect(input.fleetF.ships[0].equips).toEqual([
             { masterId: 11, improve: 2, proficiency: 7 },
+            { masterId: 0, improve: 0, proficiency: 0 },
+            { masterId: 0, improve: 0, proficiency: 0 },
+            { masterId: 0, improve: 0, proficiency: 0 },
+            { masterId: 0, improve: 0, proficiency: 0 },
             { masterId: 42, improve: 4, proficiency: 0 },
         ]);
         expect(input.fleetF.shipsC?.[0]).toMatchObject({ masterId: 102, stats: { FP: 70 } });
@@ -123,21 +129,51 @@ describe('出擊記錄 simulator JSON', () => {
         ]);
     });
 
-    it('URL fragment 可解碼成同一份 simulator JSON', () => {
+    it('跳轉 URL 使用 #backup=，解壓後是可編輯設定而非立刻開跑的 fleetF／nodes', () => {
         const row = replay();
         const url = toSortieSimulatorUrl(row);
-        const encoded = url.slice(url.indexOf('#') + 1);
-        const decoded = JSON.parse(decodeURIComponent(encoded));
-        expect(decoded.fleetF.ships[0].masterId).toBe(101);
-        expect(decoded.nodes).toHaveLength(row.battles.length);
-        expect(decoded.world).toBe(61);
-        expect(decoded.mapnum).toBe(5);
+        expect(url).toContain('simulator.html#backup=');
+        expect(url).not.toContain('fleetF');
+        const decoded = decodeSimulatorSettingsUrl(url);
+        expect(decoded.version).toBe(2);
+        expect(decoded.fleetFMain.ships[0].mstId).toBe(101);
+        expect(decoded.battles).toHaveLength(row.battles.length);
+        expect(decoded.fleetChronometer.world).toBe(61);
+        expect(decoded.fleetChronometer.mapnum).toBe(5);
+        expect(decoded).not.toHaveProperty('fleetF');
+        expect(decoded).not.toHaveProperty('nodes');
+    });
+
+    it('純潛水艦節點輸出 noAmmo／subOnly；艦種依封包原 id 查表，不因 +1000 漏判', () => {
+        const row = replay();
+        row.battles[0] = {
+            node: 11,
+            data: {
+                api_name: 'battle', api_formation: [1, 1, 1],
+                api_fParam: [[100, 0, 80, 90]],
+                api_ship_ke: [601, 602], api_ship_lv: [1, 1], api_e_maxhps: [19, 19],
+                api_eParam: [[0, 80, 0, 10], [0, 80, 0, 10]],
+                api_eSlot: [[-1], [-1]],
+            },
+        };
+        const input = buildSortieSimulator(row, {
+            masterShips: new Map([
+                [601, { stype: 13 }],
+                [602, { stype: 14 }],
+            ]),
+        });
+        expect(input.nodes[0].fleetE.ships.map(ship => ship.masterId)).toEqual([1601, 1602]);
+        expect(input.nodes[0].noAmmo).toBe(true);
+        expect(input.nodes[1].noAmmo).toBeUndefined();
+        expect(buildSimulatorSettings(input).battles[0].subOnly).toBe(true);
+        expect(buildSimulatorSettings(input).battles[1].subOnly).toBe(false);
     });
 
     it('複製用的 DeckBuilder JSON 與網址用的模擬器 JSON 是不同且各自正確的契約', () => {
         const deck = buildReplayDeckBuilder(replay()) as Record<string, any>;
         expect(deck).toMatchObject({ version: 4, f1: { s1: { id: 101, lv: 140 } } });
         expect(deck).not.toHaveProperty('fleetF');
+        expect(deck).not.toHaveProperty('s');
         expect(deck.f2.s1.id).toBe(102);
         expect(deck.f3.s1.id).toBe(103);
         expect(deck.f4.s1.id).toBe(104);
@@ -150,7 +186,20 @@ describe('出擊記錄 simulator JSON', () => {
         const input = buildSortieSimulator(row);
         expect(input.fleetF.ships[0].equips).toEqual([
             { masterId: 11, improve: 2, proficiency: 7 },
+            { masterId: 0, improve: 0, proficiency: 0 },
+            { masterId: 0, improve: 0, proficiency: 0 },
+            { masterId: 0, improve: 0, proficiency: 0 },
+            { masterId: 0, improve: 0, proficiency: 0 },
             { masterId: 42, improve: 0, proficiency: 0 },
         ]);
+    });
+
+    it('情報總括與中間轉換的啟動路徑不靜態載入 LZMA', () => {
+        const log = readFileSync(new URL('../entrypoints/overview/sections/sortie-log.ts', import.meta.url), 'utf8');
+        const core = readFileSync(new URL('../utils/sortie-simulator.ts', import.meta.url), 'utf8');
+        expect(log).not.toMatch(/from ['"][^'"]*sortie-simulator-settings['"]/);
+        expect(log).toContain("await import('@/utils/sortie-simulator-settings')");
+        expect(core).not.toMatch(/from ['"][^'"]*sortie-simulator-settings['"]/);
+        expect(core).not.toMatch(/from ['"]lzma/);
     });
 });

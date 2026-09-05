@@ -1,17 +1,24 @@
 // 打撈紀錄：只讀 db.sorties 的結算摘要。掉落艦、節點、Boss 與 rank 都是既有歸檔欄位，
 // 不需要為了這份清單新增資料表或重新解析重播封包。
-import type { SortieLogRow } from '@/utils/db';
+// 活動篩選與出擊紀錄共用 planEventMapFilter：歷次活動以年份＋季節區分，關卡數跟紀錄走。
+import type { ShipObtainedRow, SortieLogRow } from '@/utils/db';
 import { db } from '@/utils/db';
 import { nodeLabel } from '@/utils/map-node-letters';
 import { newShipDropKeys } from '@/utils/drop-new-ship';
 import {
     dropLogCsvText, DropLogImportError, importDropLogRows, parseDropLogCsv, reverseShipLookup,
 } from '@/utils/drop-log-import';
+import {
+    isEventWorld, mapLabel, parseMapCode, planEventMapFilter,
+    qualifiedEventMapLabel, type EventMapFilterPlan, type EventWorldFilter,
+} from '@/utils/sortie-detail';
 import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import {
-    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtTs, fuzzyMatch,
-    loadJsonPrefs, paginate, rankClassSuffix, saveJsonPrefs,
+    copyWithFeedback, dateEnd, dateStart, downloadText, esc, eventDisplayName,
+    eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter, fmtTs,
+    fuzzyMatch, loadJsonPrefs, mapFilterSelectHtml, paginate, rankClassSuffix,
+    readEventWorldFilter, saveJsonPrefs,
 } from '../lib';
 import type { OverviewSection, SectionContext } from './types';
 
@@ -24,23 +31,37 @@ type PageSize = typeof PAGE_SIZES[number];
 
 interface Prefs { cat: Category; cols: ColumnId[]; size: PageSize; }
 
+interface MapView { qualifyEventWorld: boolean }
+
 interface Column {
     id: ColumnId;
     labelKey: string;
-    cell(row: SortieLogRow, ctx: SectionContext): string;
+    cell(row: SortieLogRow, ctx: SectionContext, view: MapView): string;
 }
 
 function dropName(row: SortieLogRow, ctx: SectionContext): string | null {
     return row.drop || (row.dropMst ? ctx.state.shipName(row.dropMst) : null);
 }
 
-function isEvent(row: SortieLogRow): boolean {
-    return Number(row.map.split('-')[0]) >= 10;
+function catalogItem(row: SortieLogRow) {
+    const parsed = parseMapCode(row.map);
+    return { map: row.map, world: parsed.world, mapnum: parsed.mapnum, event: isEventWorld(parsed.world) };
 }
 
-function mapLabel(row: SortieLogRow): string {
-    const [, mapNo] = row.map.split('-');
-    return isEvent(row) ? `E${mapNo}` : row.map;
+function eventNameOf(world: number, ctx: SectionContext): string {
+    return eventDisplayName(world, ctx.state.masterMapAreas.get(world));
+}
+
+export function dropMapLabel(row: SortieLogRow, qualifyEventWorld: boolean): string {
+    const item = catalogItem(row);
+    if (item.event && qualifyEventWorld) return qualifiedEventMapLabel(item, eventDisplayName(item.world, undefined));
+    return mapLabel(item);
+}
+
+export function dropMapTitle(row: SortieLogRow, ctx: SectionContext): string {
+    const item = catalogItem(row);
+    if (!item.event) return row.map;
+    return `${eventDisplayTitle(item.world, ctx.state.masterMapAreas.get(item.world))}（${row.map}）`;
 }
 
 // 匯入徽章只標示「非本機擷取」，同 sortie-log.ts 的 sl-flag.imported 慣例。
@@ -49,7 +70,8 @@ const importedBadge = (row: SortieLogRow) => row.imported
 
 const COLUMNS: Column[] = [
     { id: 'time', labelKey: 'ov.dropColTime', cell: row => `<time>${esc(fmtTs(row.ts))}</time>${importedBadge(row)}` },
-    { id: 'map', labelKey: 'ov.dropColMap', cell: row => `<span class="dl-map" title="${esc(row.map)}">${esc(mapLabel(row))}</span>` },
+    { id: 'map', labelKey: 'ov.dropColMap', cell: (row, ctx, view) =>
+        `<span class="dl-map" title="${esc(dropMapTitle(row, ctx))}">${esc(dropMapLabel(row, view.qualifyEventWorld))}</span>` },
     { id: 'drop', labelKey: 'ov.dropColDrop', cell: (row, ctx) => `<b>${esc(dropName(row, ctx) ?? t('ov.dropUnknown'))}</b>` },
     {
         id: 'node', labelKey: 'ov.dropColNode',
@@ -84,10 +106,15 @@ function savePrefs(prefs: Prefs) {
     saveJsonPrefs(PREFS_KEY, prefs);
 }
 
-export function dropTableHtml(rows: SortieLogRow[], cols: Column[], ctx: SectionContext): string {
+export function dropTableHtml(
+    rows: SortieLogRow[],
+    cols: Column[],
+    ctx: SectionContext,
+    view: MapView = { qualifyEventWorld: false },
+): string {
     return `<div class="dl-table-wrap"><table class="dl-table"><thead><tr>${cols.map(c =>
         `<th class="dl-c-${c.id}">${esc(t(c.labelKey))}</th>`).join('')}</tr></thead><tbody>${rows.map(row =>
-        `<tr>${cols.map(c => `<td class="dl-c-${c.id}">${c.cell(row, ctx)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        `<tr>${cols.map(c => `<td class="dl-c-${c.id}">${c.cell(row, ctx, view)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 export const dropLogSection: OverviewSection = {
@@ -103,6 +130,8 @@ export const dropLogSection: OverviewSection = {
                     <button type="button" data-cat="normal">${esc(t('ov.dropNormal'))}</button>
                     <button type="button" data-cat="event">${esc(t('ov.dropEvent'))}</button>
                 </div>
+                <label class="rs-inline dl-event-wrap" hidden><span>${esc(t('ov.slEvent'))}</span><select class="dl-event-sel"></select></label>
+                <label class="rs-inline"><span>${esc(t('ov.slMap'))}</span><select class="dl-map-sel"></select></label>
                 <div class="rs-seg dl-newship">
                     <button type="button" data-new="all">${esc(t('ov.dropShipAll'))}</button>
                     <button type="button" data-new="new">${esc(t('ov.dropShipNew'))}</button>
@@ -135,29 +164,67 @@ export const dropLogSection: OverviewSection = {
         const count = el.querySelector<HTMLElement>('.dl-count')!;
         const pager = el.querySelector<HTMLElement>('.dl-pager')!;
         const cats = el.querySelectorAll<HTMLButtonElement>('.dl-cat button');
+        const eventWrap = el.querySelector<HTMLLabelElement>('.dl-event-wrap')!;
+        const eventSel = el.querySelector<HTMLSelectElement>('.dl-event-sel')!;
+        const mapSel = el.querySelector<HTMLSelectElement>('.dl-map-sel')!;
         const newShipButtons = el.querySelectorAll<HTMLButtonElement>('.dl-newship button');
         const keyword = el.querySelector<HTMLInputElement>('.dl-keyword')!;
         const fromFilter = el.querySelector<HTMLInputElement>('.dl-from')!;
         const toFilter = el.querySelector<HTMLInputElement>('.dl-to')!;
         let newShip: NewShipFilter = 'all';
+        let eventFilter: EventWorldFilter = 'all';
+        let mapFilter = 'all';
+        let pinLatestEvent = prefs.cat === 'event';
+        let filterPlan: EventMapFilterPlan | null = null;
         let rows: SortieLogRow[] = [];
-        let newShipKeys = new Set<number>();
+        let shipObtained: ShipObtainedRow[] = [];
+        let newShipEventIds = new Set<number>();
+
+        const recalculateNewShipEventIds = () => {
+            newShipEventIds = newShipDropKeys(rows, shipObtained, mst => ctx.state.baseShipId(mst));
+        };
+
+        const matchesRow = (row: SortieLogRow) => {
+            const item = catalogItem(row);
+            const from = dateStart(fromFilter.value);
+            const to = dateEnd(toFilter.value);
+            return item.event === (prefs.cat === 'event')
+                && (eventFilter === 'all' || item.world === eventFilter)
+                && (mapFilter === 'all' || item.map === mapFilter)
+                && fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
+                && (from == null || row.ts >= from) && (to == null || row.ts <= to)
+                && (newShip === 'all' || (newShipEventIds.has(row.eventId) === (newShip === 'new')));
+        };
+
+        const drawFilters = () => {
+            const plan = planEventMapFilter(rows.map(catalogItem), {
+                category: prefs.cat,
+                eventFilter,
+                mapFilter,
+                pinLatestEvent,
+                worldLabel: world => eventNameOf(world, ctx),
+                eventTerm: eventTermForFilter,
+                normalGroupLabel: t('ov.dropNormal'),
+            });
+            pinLatestEvent = false;
+            eventFilter = plan.eventFilter;
+            mapFilter = plan.mapFilter;
+            filterPlan = plan;
+            eventWrap.hidden = !plan.showEventSelect;
+            eventSel.innerHTML = eventFilterSelectHtml(plan.eventGroups, plan.eventFilter, t('ov.slEventAll'));
+            mapSel.innerHTML = mapFilterSelectHtml(plan.mapGroups, plan.mapFilter, t('ov.slMapAll'));
+        };
 
         const draw = () => {
             cats.forEach(button => button.classList.toggle('on', button.dataset.cat === prefs.cat));
             newShipButtons.forEach(button => button.classList.toggle('on', button.dataset.new === newShip));
-            const from = dateStart(fromFilter.value);
-            const to = dateEnd(toFilter.value);
-            const filtered = rows.filter(row => isEvent(row) === (prefs.cat === 'event')
-                && fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
-                && (from == null || row.ts >= from) && (to == null || row.ts <= to)
-                && (newShip === 'all' || (newShipKeys.has(row.sortieKey) === (newShip === 'new'))));
+            const filtered = rows.filter(matchesRow);
             const cols = COLUMNS.filter(c => prefs.cols.includes(c.id));
             const p = paginate(filtered, prefs.size, page);
             page = p.page;
             count.textContent = t('ov.dropCount', { n: filtered.length, total: rows.length });
             body.innerHTML = p.rows.length
-                ? dropTableHtml(p.rows, cols, ctx)
+                ? dropTableHtml(p.rows, cols, ctx, { qualifyEventWorld: filterPlan?.qualifyEventWorld === true })
                 : `<div class="ov-empty">${esc(t('ov.dropNone'))}</div>`;
             pager.innerHTML = p.pageCount > 1 ? `
                 <button type="button" class="ov-btn dl-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button>
@@ -170,8 +237,17 @@ export const dropLogSection: OverviewSection = {
         cats.forEach(button => button.addEventListener('click', () => {
             prefs.cat = button.dataset.cat === 'event' ? 'event' : 'normal';
             savePrefs(prefs);
+            pinLatestEvent = prefs.cat === 'event';
+            if (prefs.cat !== 'event') eventFilter = 'all';
+            drawFilters();
             changed();
         }));
+        eventSel.addEventListener('change', () => {
+            eventFilter = readEventWorldFilter(eventSel.value);
+            drawFilters();
+            changed();
+        });
+        mapSel.addEventListener('change', () => { mapFilter = mapSel.value; changed(); });
         newShipButtons.forEach(button => button.addEventListener('click', () => {
             newShip = (button.dataset.new as NewShipFilter) ?? 'all';
             changed();
@@ -198,14 +274,7 @@ export const dropLogSection: OverviewSection = {
         });
 
         // ── CSV 匯出 ──────────────────────────────────────────────────
-        const visibleRows = () => {
-            const from = dateStart(fromFilter.value);
-            const to = dateEnd(toFilter.value);
-            return rows.filter(row => isEvent(row) === (prefs.cat === 'event')
-                && fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
-                && (from == null || row.ts >= from) && (to == null || row.ts <= to)
-                && (newShip === 'all' || (newShipKeys.has(row.sortieKey) === (newShip === 'new'))));
-        };
+        const visibleRows = () => rows.filter(matchesRow);
         el.querySelector<HTMLButtonElement>('.dl-csv')!.addEventListener('click', () =>
             downloadText('kanmusu-drops.csv', dropLogCsvText(visibleRows()), 'text/csv'));
         el.querySelector<HTMLButtonElement>('.dl-copy')!.addEventListener('click', e =>
@@ -234,6 +303,7 @@ export const dropLogSection: OverviewSection = {
                         added: result.added, dup: result.duplicates, skipped: parsed.skipped.length,
                     }));
                     await load();
+                    drawFilters();
                     draw();
                 } catch (error) {
                     setStatus('bad', t('ov.dropImportBad', { msg: String((error as Error)?.message ?? error) }));
@@ -245,15 +315,15 @@ export const dropLogSection: OverviewSection = {
         async function load() {
             try {
                 // 打撈紀錄只列有確定掉落艦的結算列；中途撤退或「無掉落」不混入。
-                const [sorties, shipObtained] = await Promise.all([
+                const [sorties, obtained] = await Promise.all([
                     db.sorties.orderBy('ts').reverse().toArray(),
                     db.shipObtained.toArray(),
                 ]);
                 rows = sorties.filter(row => row.kind === 'battle' && !!dropName(row, ctx));
-                // 新船判準與面板出擊資訊的 Drop 晶片同一條：比對鎮守府全艦娘（以基礎形態
-                // 比對）後，這一撈才讓它第一次成為成員才算新船。**不要改用 retention.ts 的
-                // firstOwnedDropKeys**——那支是重播裁剪的保護判定，刻意更嚴格（見該檔說明）。
-                newShipKeys = newShipDropKeys(rows, shipObtained, mst => ctx.state.baseShipId(mst));
+                shipObtained = obtained;
+                // 依歷史上的首次自動入手觀測定位「入手那一撈」，並以 eventId 對應單筆掉落。
+                // 這樣同一場出擊內的多筆掉落不會互相影響。
+                recalculateNewShipEventIds();
                 const drops = [...new Set(rows.map(row => dropName(row, ctx)).filter((n): n is string => !!n))];
                 el.querySelector('#dl-drops')?.remove();
                 el.querySelector('.dl-keyword')!.insertAdjacentHTML('afterend',
@@ -266,6 +336,7 @@ export const dropLogSection: OverviewSection = {
         }
         try {
             await load();
+            drawFilters();
             draw();
         } catch { /* load() 已顯示錯誤 */ }
     },

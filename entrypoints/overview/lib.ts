@@ -3,6 +3,8 @@
 // 啟動流程）——讀取用途，不寫任何 DB（擷取/歸檔是面板的職責，見 panel/main.ts）。
 import { db } from '@/utils/db';
 import { esc, gearIconHtml, matIconHtml } from '@/utils/html-escape';
+import { eventTermLabel, eventTermSeasonLabel } from '@/utils/event-calendar';
+import { eventWorldLabel, type EventMapFilterPlan, type EventWorldFilter } from '@/utils/sortie-detail';
 import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
 import { t } from '@/utils/ui-i18n';
@@ -29,6 +31,56 @@ export function loadJsonPrefs<T>(key: string, fallback: T, parse: (raw: unknown)
 
 export function saveJsonPrefs(key: string, prefs: unknown): void {
     try { localStorage.setItem(key, JSON.stringify(prefs)); } catch { /* 隱私模式等：靜默 */ }
+}
+
+/** 活動下拉：`all`＋各次活動。跨年時依年份 optgroup，組內只寫季節以免重複年份。 */
+export function eventFilterSelectHtml(
+    groups: EventMapFilterPlan['eventGroups'],
+    selected: EventWorldFilter,
+    allLabel: string,
+): string {
+    const body = groups.map(group => {
+        const options = group.options.map(option =>
+            `<option value="${option.world}"${option.world === selected ? ' selected' : ''}>${esc(option.label)}（${option.count}）</option>`).join('');
+        return group.label ? `<optgroup label="${esc(group.label)}">${options}</optgroup>` : options;
+    }).join('');
+    return `<option value="all"${selected === 'all' ? ' selected' : ''}>${esc(allLabel)}</option>${body}`;
+}
+
+/** 活動主標：年表命中用「2026夏季」；表外才退 master 標題或 `#id`。 */
+export function eventDisplayName(world: number, masterName: string | undefined): string {
+    return eventTermLabel(world, t) ?? eventWorldLabel(world, masterName, t('area.event'));
+}
+
+/** title 才併官方作戰名；下拉與徽章不重複那串長標題。 */
+export function eventDisplayTitle(world: number, masterName: string | undefined): string {
+    const name = eventDisplayName(world, masterName);
+    const official = masterName?.trim();
+    return official && official !== name ? `${name}　${official}` : name;
+}
+
+export function eventTermForFilter(world: number): { year: number; seasonLabel: string } | null {
+    return eventTermSeasonLabel(world, t);
+}
+
+/** 關卡／海域下拉。跨活動時用 optgroup，組內仍是 E{n}，避免兩個 E1 看起來像同一關。 */
+export function mapFilterSelectHtml(
+    groups: EventMapFilterPlan['mapGroups'],
+    selected: string,
+    allLabel: string,
+): string {
+    const body = groups.map(group => {
+        const options = group.options.map(option =>
+            `<option value="${esc(option.map)}"${option.map === selected ? ' selected' : ''}>${esc(option.label)}（${option.count}）</option>`).join('');
+        return group.label ? `<optgroup label="${esc(group.label)}">${options}</optgroup>` : options;
+    }).join('');
+    return `<option value="all"${selected === 'all' ? ' selected' : ''}>${esc(allLabel)}</option>${body}`;
+}
+
+export function readEventWorldFilter(value: string): EventWorldFilter {
+    if (value === 'all' || value === '') return 'all';
+    const world = Number(value);
+    return Number.isSafeInteger(world) && world > 0 ? world : 'all';
 }
 
 /** `<input type="date">` → 本地日開始時間戳；空字串／無效回 null。 */

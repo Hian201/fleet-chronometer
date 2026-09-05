@@ -261,6 +261,15 @@ describe('備份 envelope runtime validation', () => {
         expect(tables.sorties![0].imported).toBe(true);
     });
 
+    it('舊版打撈新船標記可保留於備份，避免還原時遺失既有資料', () => {
+        const input = v3Restore() as unknown as { tables: { sorties: Array<Record<string, unknown>> } };
+        input.tables.sorties[0].newShipOverride = 'old';
+        expect(validateBackupEnvelope(input).tables.sorties![0].newShipOverride).toBe('old');
+
+        input.tables.sorties[0].newShipOverride = 'new';
+        expect(() => validateBackupEnvelope(input)).toThrow(BackupValidationError);
+    });
+
     it('replays 的巢狀結構同樣只保留已驗證欄位', () => {
         const input = v3Replays() as unknown as {
             tables: { replays: Array<Record<string, any>> };

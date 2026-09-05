@@ -490,8 +490,3 @@ export function buildSortieSimulator(row: ReplayRow, options: SortieSimulatorOpt
         },
     };
 }
-
-export function toSortieSimulatorUrl(row: ReplayRow, options: SortieSimulatorOptions = {}): string {
-    return `${KC3_SORTIE_SIMULATOR_URL}#${encodeURIComponent(JSON.stringify(buildSortieSimulator(row, options)))}`;
-}
-

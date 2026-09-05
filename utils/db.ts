@@ -53,6 +53,8 @@ export interface SortieLogRow {
     drop: string | null;
     // battle-result 已驗證的 api_get_ship.api_ship_id。舊資料可能沒有；不得由 drop 名稱反推。
     dropMst?: number;
+    // 舊版曾用於打撈新船篩選修正；保留以相容既有備份，現行判定不讀取此欄位。
+    newShipOverride?: 'old';
     taiha: boolean;
     raidLostKind?: number;     // 基地空襲損失種別（api_lost_kind；1–4 見 air-raid-lost-kind.ts）
     // 斬殺旗標：這場 boss 出擊擊破了該海域量表（api_cleared 由 0→1／HP量表歸 0／擊破數達標）。
@@ -331,12 +333,11 @@ export interface EventPlanRow {
     updatedTs: number;
     // 解除鎖定。預設 undefined／false＝鎖定生效：**已確立的標籤**（遊戲裡實際已有船帶著它）
     // 其名稱與相關關卡的標籤約束一律唯讀——實際貼標是不可逆的事實，計畫端再去改只會讓
-    // 兩邊對不上。活動結束後由使用者明確按下「解除鎖定」才可再編輯（見 tag-board 分區）。
+    // 兩邊對不上。僅當次活動進行中可暫時解除；活動結束後整份計畫刪除，不留到下一檔。
     unlocked?: boolean;
-    // 活動結束後遊戲會把 api_sally_area 全部清 0，屆時 groupBySally 會算出空結果。
-    // 故在活動仍存在於目前 master、且即時名冊有非零標籤且內容改變時，才更新一份
-    // 「當時誰帶什麼標籤」的快照；活動結束或沒有可確認即時標籤時不覆寫，供事後回顧。
-    // key＝艦實例 id（api_id），value＝標籤 id。
+    // 活動仍在目前 master、且即時名冊有非零標籤且內容改變時，才更新「當時誰帶什麼標籤」。
+    // 活動結束（該 area 從 master 消失）會刪除整份計畫，快照也不沿用——標籤分類是單次
+    // 活動限定。key＝艦實例 id（api_id），value＝標籤 id。
     sallySnapshot?: Record<number, number>;
     /**
      * 配船板的計畫歸屬：艦實例 id → 計畫標籤 id（≥1）。

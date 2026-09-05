@@ -16,6 +16,7 @@
 //
 // 兩大分類（通常海域／活動海域）做成分段控制而非下拉：這是本分區最常切的維度，
 // 有幾個選項、現在在哪一邊，不展開就該看得到（同 ships.ts 的分段控制取捨）。
+// 活動側再拆「哪一次活動」與「該活動第幾關」：歷次活動各自一組 En，關卡數跟紀錄走。
 //
 // ── 資料來源與分工 ────────────────────────────────────────────────────
 // 節點序列與勝負來自 db.sorties（摘要，永久保留）；敵艦等級／制空詳情／基地航空隊組成／
@@ -32,12 +33,14 @@ import {
     repairLegacyReplayFleet, toKc3Replay, toKc3ReplayUrl,
 } from '@/utils/replay';
 import {
-    buildSortieDetail, diffLabel, groupSorties, isEventWorld, mapLabel, numberSorties, parseMapCode,
-    sortieTime, type LbasWave, type NodeDetail, type SortieDetail, type SortieShip,
+    buildSortieDetail, diffLabel, groupSorties, isEventWorld, mapLabel,
+    numberSorties, parseMapCode, planEventMapFilter, qualifiedEventMapLabel, sortieTime,
+    type EventMapFilterPlan, type EventWorldFilter, type LbasWave, type NodeDetail,
+    type SortieDetail, type SortieShip,
 } from '@/utils/sortie-detail';
 import {
     buildSortieSimulator, KC3_SORTIE_SIMULATOR_DIRECT_URL_LIMIT, KC3_SORTIE_SIMULATOR_URL,
-    toSortieSimulatorUrl, type SortieSimulatorInput,
+    type SortieSimulatorInput,
 } from '@/utils/sortie-simulator';
 import {
     importSortie, parseSortieImport, SortieImportDuplicateError, SortieImportError,
@@ -45,7 +48,12 @@ import {
 import { hasNodeLetters, nodeLabel as letterOf } from '@/utils/map-node-letters';
 import { nodeKindKey } from '@/utils/map-node-kind';
 import { airRaidLostKindLabel } from '@/utils/air-raid-lost-kind';
-import { buildReplayDeckBuilder } from '@/utils/deckbuilder';
+import { replayExportStem } from '@/utils/replay-card';
+import {
+    AIR_CALC_DIRECT_URL_LIMIT, AIR_CALC_PAGE_URL, airCalcUrl, buildReplayAirCalcDeck,
+    buildReplayDeckBuilder,
+} from '@/utils/deckbuilder';
+import { downloadReplayPng } from '../replay-png';
 import type {
     BattleDamageEvent, BattleDamageKind, BattleHpSnapshot, BattleHpView, BattleInfoView, BattlePhaseKind, BattlePhaseView,
     BattleShipView,
@@ -55,7 +63,8 @@ import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-pa
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
-    loadJsonPrefs, saveJsonPrefs,
+    eventDisplayName, eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter,
+    loadJsonPrefs, mapFilterSelectHtml, readEventWorldFilter, saveJsonPrefs,
 } from '../lib';
 
 const SEIKU_KEYS = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
@@ -196,7 +205,26 @@ function nodePill(row: SortieLogRow, night: boolean): string {
         + `${row.rank ? `<span class="sl-pill-rank">${esc(row.rank)}</span>` : ''}${mark}</span>`;
 }
 
-export function headHtml(entry: Entry, state: SectionContext['state'], open: boolean): string {
+function eventNameOf(world: number, state: SectionContext['state']): string {
+    return eventDisplayName(world, state.masterMapAreas.get(world));
+}
+
+function mapDisplayLabel(entry: Entry, qualifyEventWorld: boolean, state: SectionContext['state']): string {
+    if (entry.event && qualifyEventWorld) return qualifiedEventMapLabel(entry, eventNameOf(entry.world, state));
+    return mapLabel(entry);
+}
+
+function mapTitle(entry: Entry, state: SectionContext['state']): string {
+    if (!entry.event) return entry.map;
+    return `${eventDisplayTitle(entry.world, state.masterMapAreas.get(entry.world))}（${entry.map}）`;
+}
+
+export function headHtml(
+    entry: Entry,
+    state: SectionContext['state'],
+    open: boolean,
+    opts?: { qualifyEventWorld?: boolean },
+): string {
     const nightNodes = new Set((entry.replay?.battles ?? []).filter(b => b.yasen).map(b => b.node));
     const track = entry.rows.map(r => nodePill(r, nightNodes.has(r.node))).join('<i class="sl-arrow">›</i>');
     const drops = entry.rows.map(r => dropName(r, state)).filter(Boolean) as string[];
@@ -212,6 +240,7 @@ export function headHtml(entry: Entry, state: SectionContext['state'], open: boo
         dropFlags,
     ].filter(Boolean).join('');
     const diff = diffLabel(entry.replay?.diff ?? 0);
+    const shown = mapDisplayLabel(entry, opts?.qualifyEventWorld === true, state);
     // 匯入徽章只標示「非本機擷取」。Fleet Chronometer 自身的重播匯出通常沒有結算摘要，
     // KC3Kai logger 匯出則可能帶 rating／drop／MVP／EXP；不可由 imported 反推欄位缺席。
     const imported = entry.replay?.imported
@@ -219,8 +248,8 @@ export function headHtml(entry: Entry, state: SectionContext['state'], open: boo
     return `
         <button type="button" class="sl-head" aria-expanded="${open}" aria-controls="sl-d-${entry.key}">
             <span class="sl-l1">
-                <span class="sl-nth" title="${esc(t('ov.slNthTip', { map: mapLabel(entry), n: entry.nth }))}">#${entry.nth}</span>
-                <span class="sl-map${entry.event ? ' ev' : ''}" title="${esc(entry.map)}">${esc(mapLabel(entry))}${diff ? `<i>${esc(diff)}</i>` : ''}</span>
+                <span class="sl-nth" title="${esc(t('ov.slNthTip', { map: shown, n: entry.nth }))}">#${entry.nth}</span>
+                <span class="sl-map${entry.event ? ' ev' : ''}" title="${esc(mapTitle(entry, state))}">${esc(shown)}${diff ? `<i>${esc(diff)}</i>` : ''}</span>
                 ${imported}
                 <span class="sl-fleet">${flagshipChip(entry.replay, state)}</span>
                 <span class="sl-meta">
@@ -1105,11 +1134,18 @@ export function battleLogHtml(detail: SortieDetail, state: SectionContext['state
 
 export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, state: SectionContext['state']): string {
     const actions = replay
-        ? `<button type="button" class="ov-btn" data-replay-copy="${detail.sortieKey}">${esc(t('ov.replayCopy'))}</button>
-           <button type="button" class="ov-btn" data-replay-dl="${detail.sortieKey}">${esc(t('ov.replayDownload'))}</button>
-           <button type="button" class="ov-btn" data-replay-open="${detail.sortieKey}">${esc(t('ov.replayOpen'))} ↗</button>
+        ? `<details class="sl-export">
+             <summary class="ov-btn">${esc(t('ov.replayExport'))}</summary>
+             <div class="sl-export-menu">
+               <button type="button" class="ov-btn" data-replay-copy="${detail.sortieKey}">${esc(t('ov.replayCopy'))}</button>
+               <button type="button" class="ov-btn" data-replay-dl="${detail.sortieKey}">${esc(t('ov.replayDownload'))}</button>
+               <button type="button" class="ov-btn" data-replay-png="${detail.sortieKey}">${esc(t('ov.replayPng'))}</button>
+               <button type="button" class="ov-btn" data-replay-open="${detail.sortieKey}">${esc(t('ov.replayOpen'))}</button>
+             </div>
+           </details>
            ${replay.battles.length
         ? `<button type="button" class="ov-btn" data-deckbuilder-copy="${detail.sortieKey}">${esc(t('ov.deckbuilderCopy'))}</button>
+           <button type="button" class="ov-btn" data-aircalc-open="${detail.sortieKey}">${esc(t('ov.exportAirCalc'))} ↗</button>
            <button type="button" class="ov-btn" data-simulator-open="${detail.sortieKey}">${esc(t('ov.sortieSimulatorOpen'))} ↗</button>`
         : ''}
            <button type="button" class="ov-btn battle-log-open" data-battle-log="${detail.sortieKey}" aria-haspopup="dialog">${esc(t('ov.slBattleLog'))}</button>
@@ -1222,6 +1258,7 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
                     <button type="button" data-cat="normal">${esc(t('ov.slCatNormal'))}</button>
                     <button type="button" data-cat="event">${esc(t('ov.slCatEvent'))}</button>
                 </div>
+                <label class="sl-inline sl-event-wrap" hidden><span>${esc(t('ov.slEvent'))}</span><select class="sl-event-sel"></select></label>
                 <label class="sl-inline"><span>${esc(t('ov.slMap'))}</span><select class="sl-map-sel"></select></label>
                 <span class="grow"></span>
                 <span class="sl-count"></span>
@@ -1255,7 +1292,10 @@ export const sortieLogSection: OverviewSection = {
 
         const prefs = loadPrefs();
         let entries: Entry[] = [];
+        let eventFilter: EventWorldFilter = 'all';
         let mapFilter = 'all';
+        let pinLatestEvent = prefs.cat === 'event';
+        let filterPlan: EventMapFilterPlan | null = null;
         const open = new Set<number>();
         const detailCache = new Map<number, string>();
         const simulatorCache = new Map<number, SortieSimulatorInput>();
@@ -1264,6 +1304,8 @@ export const sortieLogSection: OverviewSection = {
         let replayCache = new Map<number, ReplayRow>();
 
         const catBtns = el.querySelectorAll<HTMLButtonElement>('.sl-cat button');
+        const eventWrap = el.querySelector<HTMLLabelElement>('.sl-event-wrap')!;
+        const eventSel = el.querySelector<HTMLSelectElement>('.sl-event-sel')!;
         const mapSel = el.querySelector<HTMLSelectElement>('.sl-map-sel')!;
         const countEl = el.querySelector<HTMLSpanElement>('.sl-count')!;
         const body = el.querySelector<HTMLDivElement>('.sl-body')!;
@@ -1295,32 +1337,39 @@ export const sortieLogSection: OverviewSection = {
             if (event.target === battleDialog) closeBattleDialog();
         });
 
-        const byCategory = () => entries.filter(e =>
-            prefs.cat === 'all' || (prefs.cat === 'event' ? e.event : !e.event));
-        const visible = () => byCategory().filter(e => mapFilter === 'all' || e.map === mapFilter);
+        const visible = () => entries.filter(e =>
+            (prefs.cat === 'all' || (prefs.cat === 'event' ? e.event : !e.event))
+            && (eventFilter === 'all' || e.world === eventFilter)
+            && (mapFilter === 'all' || e.map === mapFilter));
 
-        // 海域下拉只列**目前分類裡實際有紀錄的**海域（同 equipment 的圖示架：選項隨資料收斂）
-        function drawMapOptions() {
-            const seen = new Map<string, { label: string; count: number }>();
-            for (const e of byCategory()) {
-                const hit = seen.get(e.map) ?? { label: mapLabel(e), count: 0 };
-                hit.count++;
-                seen.set(e.map, hit);
-            }
-            if (!seen.has(mapFilter)) mapFilter = 'all';
-            const opts = [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
-            mapSel.innerHTML = `<option value="all">${esc(t('ov.slMapAll'))}</option>`
-                + opts.map(([map, v]) => `<option value="${esc(map)}" ${map === mapFilter ? 'selected' : ''}>${esc(v.label)}（${v.count}）</option>`).join('');
+        function drawFilters() {
+            const plan = planEventMapFilter(entries, {
+                category: prefs.cat,
+                eventFilter,
+                mapFilter,
+                pinLatestEvent,
+                worldLabel: world => eventNameOf(world, ctx.state),
+                eventTerm: eventTermForFilter,
+                normalGroupLabel: t('ov.slCatNormal'),
+            });
+            pinLatestEvent = false;
+            eventFilter = plan.eventFilter;
+            mapFilter = plan.mapFilter;
+            filterPlan = plan;
+            eventWrap.hidden = !plan.showEventSelect;
+            eventSel.innerHTML = eventFilterSelectHtml(plan.eventGroups, plan.eventFilter, t('ov.slEventAll'));
+            mapSel.innerHTML = mapFilterSelectHtml(plan.mapGroups, plan.mapFilter, t('ov.slMapAll'));
         }
 
         function drawList() {
             catBtns.forEach(b => b.classList.toggle('on', b.dataset.cat === prefs.cat));
             const list = visible();
+            const qualify = filterPlan?.qualifyEventWorld === true;
             countEl.textContent = t('ov.slCount', { n: list.length, total: entries.length });
             body.innerHTML = list.length
                 ? list.map(e => `<article class="sl-card" data-key="${e.key}">
                     <div class="sl-row">
-                        ${headHtml(e, ctx.state, open.has(e.key))}
+                        ${headHtml(e, ctx.state, open.has(e.key), { qualifyEventWorld: qualify })}
                         <button type="button" class="ov-btn pin ${e.replay?.pinned ? 'on' : ''}" data-replay-pin="${e.key}"
                             title="${esc(t('ov.replayPinTip'))}" ${e.replay ? '' : 'disabled'}>${e.replay?.pinned ? '★' : '☆'}</button>
                     </div>
@@ -1341,6 +1390,7 @@ export const sortieLogSection: OverviewSection = {
                 detailCache.set(entry.key, html);
                 if (entry.replay?.battles.length) {
                     simulatorCache.set(entry.key, buildSortieSimulator(entry.replay, {
+                        masterShips: ctx.state.master,
                         bossNodes: new Set(detail.nodes.filter(node => node.boss).map(node => node.node)),
                         routeNodes: detail.nodes.map(node => ({
                             node: node.node, boss: node.boss, kind: node.kind,
@@ -1359,6 +1409,7 @@ export const sortieLogSection: OverviewSection = {
             if (cached) return cached;
             const detail = buildSortieDetail(entry.rows, entry.replay);
             const payload = buildSortieSimulator(entry.replay, {
+                        masterShips: ctx.state.master,
                 bossNodes: new Set(detail.nodes.filter(node => node.boss).map(node => node.node)),
                 routeNodes: detail.nodes.map(node => ({
                     node: node.node, boss: node.boss, kind: node.kind,
@@ -1372,9 +1423,16 @@ export const sortieLogSection: OverviewSection = {
         catBtns.forEach(btn => btn.addEventListener('click', () => {
             prefs.cat = (btn.dataset.cat as Category) ?? 'all';
             savePrefs(prefs);
-            drawMapOptions();
+            pinLatestEvent = prefs.cat === 'event';
+            if (prefs.cat !== 'event') eventFilter = 'all';
+            drawFilters();
             drawList();
         }));
+        eventSel.addEventListener('change', () => {
+            eventFilter = readEventWorldFilter(eventSel.value);
+            drawFilters();
+            drawList();
+        });
         mapSel.addEventListener('change', () => { mapFilter = mapSel.value; drawList(); });
         expandBtn.addEventListener('click', () => {
             const list = visible();
@@ -1460,7 +1518,21 @@ export const sortieLogSection: OverviewSection = {
             const dl = target.closest<HTMLButtonElement>('button[data-replay-dl]');
             if (dl) {
                 const r = replayCache.get(Number(dl.dataset.replayDl));
-                if (r) downloadText(`replay-${r.world}-${r.mapnum}-${r.sortieKey}.json`, JSON.stringify(toKc3Replay(r)), 'application/json');
+                if (r) downloadText(`${replayExportStem(r)}.json`, JSON.stringify(toKc3Replay(r)), 'application/json');
+                return;
+            }
+            const png = target.closest<HTMLButtonElement>('button[data-replay-png]');
+            if (png) {
+                const r = replayCache.get(Number(png.dataset.replayPng));
+                if (r) {
+                    try {
+                        await downloadReplayPng(r, mst => ctx.state.shipName(mst));
+                    } catch {
+                        const orig = png.textContent ?? '';
+                        png.textContent = t('ov.replayPngFail');
+                        setTimeout(() => { png.textContent = orig; }, 1500);
+                    }
+                }
                 return;
             }
             const replayOpen = target.closest<HTMLButtonElement>('button[data-replay-open]');
@@ -1471,7 +1543,7 @@ export const sortieLogSection: OverviewSection = {
                     if (url.length < KC3_REPLAY_DIRECT_URL_LIMIT) {
                         window.open(url, '_blank', 'noopener');
                     } else {
-                        // 先在使用者手勢內開頁，避免 await clipboard 後被 popup blocker 擋下。
+                        // 壓縮後仍超過瀏覽器 fragment 上限：開空白播放器並複製 JSON。
                         window.open(KC3_REPLAY_PLAYER_URL, '_blank', 'noopener');
                         await copyWithFeedback(replayOpen, JSON.stringify(toKc3Replay(r)), t('ov.replayCopied'));
                     }
@@ -1491,6 +1563,28 @@ export const sortieLogSection: OverviewSection = {
                 }
                 return;
             }
+            const airCalcOpen = target.closest<HTMLButtonElement>('button[data-aircalc-open]');
+            if (airCalcOpen) {
+                const key = Number(airCalcOpen.dataset.aircalcOpen);
+                const entry = entries.find(item => item.key === key);
+                if (!entry?.replay?.battles.length) return;
+                const detail = buildSortieDetail(entry.rows, entry.replay);
+                const deck = buildReplayAirCalcDeck(entry.replay, {
+                    routeNodes: detail.nodes.map(node => ({
+                        node: node.node,
+                        enemyIds: node.enemyIds,
+                        enemyIdsEscort: node.enemyIdsEscort,
+                    })),
+                });
+                const url = airCalcUrl(deck);
+                if (url.length < AIR_CALC_DIRECT_URL_LIMIT) {
+                    window.open(url, '_blank', 'noopener');
+                } else {
+                    window.open(AIR_CALC_PAGE_URL, '_blank', 'noopener');
+                    await copyWithFeedback(airCalcOpen, JSON.stringify(deck), t('ov.airCalcCopied'));
+                }
+                return;
+            }
             const simulatorOpen = target.closest<HTMLButtonElement>('button[data-simulator-open]');
             if (simulatorOpen) {
                 const key = Number(simulatorOpen.dataset.simulatorOpen);
@@ -1498,16 +1592,21 @@ export const sortieLogSection: OverviewSection = {
                 if (!entry?.replay) return;
                 const payload = simulatorPayload(entry);
                 if (!payload) return;
-                const url = toSortieSimulatorUrl(entry.replay, {
-                    bossNodes: new Set(payload.fleetChronometer.routeNodes.filter(node => node.boss).map(node => node.node)),
-                    routeNodes: payload.fleetChronometer.routeNodes,
-                });
-                if (url.length < KC3_SORTIE_SIMULATOR_DIRECT_URL_LIMIT) {
-                    window.open(url, '_blank', 'noopener');
-                } else {
-                    // 先在使用者手勢內開頁，避免 await clipboard 後被 popup blocker 擋下。
-                    window.open(KC3_SORTIE_SIMULATOR_URL, '_blank', 'noopener');
-                    await copyWithFeedback(simulatorOpen, JSON.stringify(payload, null, 2), t('ov.sortieSimulatorCopied'));
+                try {
+                    const { buildSimulatorSettings, simulatorSettingsUrl } = await import('@/utils/sortie-simulator-settings');
+                    const settings = buildSimulatorSettings(payload);
+                    const url = simulatorSettingsUrl(settings);
+                    if (url.length < KC3_SORTIE_SIMULATOR_DIRECT_URL_LIMIT) {
+                        window.open(url, '_blank', 'noopener');
+                    } else {
+                        // 超長設定改下載模擬器原生備份檔，仍可從 Backup 匯入可編輯介面。
+                        window.open(KC3_SORTIE_SIMULATOR_URL, '_blank', 'noopener');
+                        downloadText(`${replayExportStem(entry.replay)}-simulator.json`, JSON.stringify(settings), 'application/json');
+                        simulatorOpen.textContent = t('ov.sortieSimulatorDownloaded');
+                    }
+                } catch (error) {
+                    console.error('[sortie-log] 開啟出擊模擬器失敗', error);
+                    simulatorOpen.title = String((error as Error)?.message ?? error);
                 }
                 return;
             }
@@ -1579,7 +1678,7 @@ export const sortieLogSection: OverviewSection = {
             return;
         }
 
-        drawMapOptions();
+        drawFilters();
         drawList();
     },
 };

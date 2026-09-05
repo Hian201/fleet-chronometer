@@ -107,10 +107,15 @@ describe('展開內容', () => {
         // 節點卡五張，boss 那張有 rank 與敵隨伴
         expect(html.match(/class="sl-node[ "]/g)).toHaveLength(5);
         expect(html).toContain(t('sortie.escortFleet'));
+        expect(html).toContain(t('ov.replayExport'));
         expect(html).toContain(t('ov.replayCopy'));
         expect(html).toContain('data-replay-open="500"');
+        expect(html).toContain('data-replay-png="500"');
         expect(html).toContain(t('ov.replayOpen'));
+        expect(html).toContain(t('ov.replayPng'));
         expect(html).toContain(t('ov.deckbuilderCopy'));
+        expect(html).toContain(t('ov.exportAirCalc'));
+        expect(html).toContain('data-aircalc-open="500"');
         expect(html).toContain(t('ov.sortieSimulatorOpen'));
         expect(html).toContain('data-simulator-open="500"');
         expect(html).not.toContain('data-deckbuilder-open');
@@ -123,6 +128,7 @@ describe('展開內容', () => {
         const html = detailHtml(detail, undefined, state);
         expect(html).toContain(t('ov.slNoPacket'));
         expect(html).not.toContain(t('ov.slLbas'));
+        expect(html).not.toContain(t('ov.replayExport'));
         expect(html).not.toContain(t('ov.replayCopy'));
         expect(html.match(/class="sl-node[ "]/g)).toHaveLength(5);   // 節點序列仍在
     });
@@ -319,6 +325,14 @@ describe('沒有結算資訊的紀錄（本專案 toKc3Replay 匯出的重播、
         expect(headHtml(marked, state, false)).toContain(t('ov.slImported'));
         expect(headHtml(entry(), state, false)).not.toContain(t('ov.slImported'));
     });
+
+    it('跨活動並列時關卡徽章帶年份季節，單次活動維持 E{n}', () => {
+        const html = headHtml(entry(), state, false, { qualifyEventWorld: true });
+        expect(html).toContain('2025秋季 E3');
+        expect(html).toContain('（61-3）');
+        expect(headHtml(entry(), state, false)).toContain('E3');
+        expect(headHtml(entry(), state, false)).not.toContain('2025秋季 E3');
+    });
 });
 
 describe('匯入 UI 說明', () => {
@@ -333,6 +347,8 @@ describe('匯入 UI 說明', () => {
         // 強制帶匯入面板驗文案；正式建置預設不顯示匯入 UI（見 utils/debug-ui.ts）
         expect(shellHtml({ includeImport: true })).not.toContain('**');
         expect(shellHtml({ includeImport: false })).not.toContain('sl-import');
+        expect(shellHtml()).toContain('sl-event-sel');
+        expect(shellHtml()).toContain('sl-event-wrap');
         setLang('zh-TW');
     });
 
