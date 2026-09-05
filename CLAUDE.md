@@ -258,7 +258,7 @@ DeckBuilder v4 JSON；按鈕只複製到使用者的剪貼簿，不開啟外部�
 艦隊依編號順序連續填入 `f1`、`f2`…。沒有選取艦隊或資料不完整時停止輸出並顯示原因，
 不以空資料或猜測值代替。
 
-**產品識別**：package 為 fleet-chronometer 1.1.0.3，權限 `alarms`、`notifications`、
+**產品識別**：package 為 fleet-chronometer 1.1.0.4，權限 `alarms`、`notifications`、
 `scripting`、`activeTab`、`tabs`。品牌名走 i18n（`public/_locales/{en,ja,zh_TW}/messages.json`），
 manifest 只放 `__MSG_extName__`／`__MSG_extShortName__`／`__MSG_extDescription__`
 （`default_locale: en`）；頁面標題另由 panel/popup/overview 執行期以 `ov.brandShort` 改寫
