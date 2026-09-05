@@ -61,6 +61,11 @@ export function mapLabel(entry: { event: boolean; mapnum: number; map: string })
     return entry.event ? `E${entry.mapnum}` : entry.map;
 }
 
+/** 活動關卡短標：卡片與篩選共用 `E{n}`，完整編號留給 title。 */
+export function eventStageLabel(mapnum: number): string {
+    return `E${mapnum}`;
+}
+
 // 活動難度 api_selected_rank：1丁 2丙 3乙 4甲（0＝一般圖或尚未選難度）。
 const DIFF_KEYS = ['', 'ov.slDiff1', 'ov.slDiff2', 'ov.slDiff3', 'ov.slDiff4'];
 

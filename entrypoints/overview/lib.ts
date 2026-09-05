@@ -88,12 +88,16 @@ export async function loadGameState(): Promise<GameState> {
 }
 
 // 檔案下載（Blob + 臨時 <a download>）；純前端、不需任何權限。
-export function downloadText(filename: string, text: string, mime = 'text/plain') {
-    const url = URL.createObjectURL(new Blob([text], { type: mime }));
+export function downloadBlob(filename: string, blob: Blob) {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function downloadText(filename: string, text: string, mime = 'text/plain') {
+    downloadBlob(filename, new Blob([text], { type: mime }));
 }
 
 // 剪貼簿複製＋按鈕暫態回饋（複製成功把按鈕文字換成 doneLabel 1.5 秒）。

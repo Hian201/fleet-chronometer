@@ -12,6 +12,7 @@
 // （與 samples/61-5-jibun-rengou-node52.json 同格式，該樣本本身即 KC3Kai logger 匯出）。
 import type { GameState } from './state';
 import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip } from './db';
+import { compressToEncodedURIComponent } from './lz-string-uri';
 
 /** KC3Kai 公開播放器；URL fragment 可在不經伺服器上傳資料的情況下自動載入重播。 */
 export const KC3_REPLAY_PLAYER_URL = 'https://kc3kai.github.io/kancolle-replay/battleplayer.html';
@@ -192,11 +193,19 @@ export function toKc3Replay(row: ReplayRow): object {
 }
 
 /**
- * 建立點擊後可直接播放的 KC3Kai URL。
+ * 把 battleplayer 可貼上的 JSON 編成可直接導航的 URL。
  *
- * KC3Kai battleplayer 原生支援 `#<encodeURIComponent(JSON)>`；fragment 不會隨 HTTP request
- * 傳給 GitHub Pages，播放器載入後才在瀏覽器端解碼。這也避免依賴 KC3Kai 的第三方分享 API。
+ * 連合艦隊（以及多節點活動）的原始 JSON 經 encodeURIComponent 後經常超過
+ * {@link KC3_REPLAY_DIRECT_URL_LIMIT}，直接塞 hash 只會開空白播放器。
+ * battleplayer 原生支援 `#fromLZString=`（與官方 reader/lz-string.js 1.4.4、
+ * poi-plugin-kc3-replay 相同）；壓縮後 fragment 才進得了上限。
+ * 不走 kcrdb／tinyurl——那些要把出擊資料上傳到第三方。
  */
+export function kc3ReplayPlayerUrl(json: string): string {
+    return `${KC3_REPLAY_PLAYER_URL}#fromLZString=${compressToEncodedURIComponent(json)}`;
+}
+
+/** 建立點擊後可直接播放的 KC3Kai URL。 */
 export function toKc3ReplayUrl(row: ReplayRow): string {
-    return `${KC3_REPLAY_PLAYER_URL}#${encodeURIComponent(JSON.stringify(toKc3Replay(row)))}`;
+    return kc3ReplayPlayerUrl(JSON.stringify(toKc3Replay(row)));
 }

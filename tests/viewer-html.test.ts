@@ -77,7 +77,8 @@ describe('viewerHtml 內嵌腳本與 helper 對齊', () => {
         expect(src).toContain('lv: s.lv, level: s.lv');
         expect(src).toContain('sourceFleetnum: row.fleetnum');
         expect(src).toContain('time: Math.floor(row.ts / 1000)');
-        expect(src).toContain('var url = BATTLEPLAYER + "#" + payload');
+        expect(src).toContain('var url = BATTLEPLAYER + "#fromLZString=" + compressToEncodedURIComponent(JSON.stringify(obj))');
+        expect(src).toContain('function compressToEncodedURIComponent(input)');
         expect(src).toContain('window.open(url, "_blank", "noopener")');
         expect(src).toContain('url.length < 30000');
         expect(src).toContain('window.open(BATTLEPLAYER, "_blank", "noopener")');

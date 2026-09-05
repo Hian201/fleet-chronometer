@@ -12,6 +12,8 @@
 // 內嵌 esc 必須涵蓋屬性語境；rank 進 class 前必須白名單。下方匯出的 helper 與
 // HTML 內嵌腳本必須語意一致（tests/viewer-html.test.ts 雙邊把關）。
 
+import { LZ_STRING_URI_BROWSER_SRC } from '../../utils/lz-string-uri';
+
 /** 文字節點與屬性值皆安全的 HTML 跳脫（& < > " '）。 */
 export function viewerEsc(s: unknown): string {
     return String(s)
@@ -88,6 +90,7 @@ export function viewerHtml(): string {
 "use strict";
 var BATTLEPLAYER = "https://kc3kai.github.io/kancolle-replay/battleplayer.html";
 var DIFF = { 1: "甲", 2: "乙", 3: "丙", 4: "丁" };
+${LZ_STRING_URI_BROWSER_SRC}
 
 // utils/replay.ts toKc3Replay() 的內聯版（欄位命名對齊 KC3Kai）。
 function repairLegacyFleet(row) {
@@ -171,9 +174,9 @@ function render() {
   out.querySelectorAll("button[data-open]").forEach(function (b) {
     b.addEventListener("click", function () {
       var obj = toKc3(rows[+b.getAttribute("data-open")]);
-      // battleplayer 原生支援以 URL hash 帶入重播資料；fragment 不會隨 HTTP request 上傳。
-      var payload = encodeURIComponent(JSON.stringify(obj));
-      var url = BATTLEPLAYER + "#" + payload;
+      // battleplayer 原生 fromLZString hash（與官方 reader/lz-string.js 1.4.4 相同）。
+      // 連合艦隊原始 JSON 經 encodeURIComponent 後常超過 30000，直接塞 hash 只會開空白頁。
+      var url = BATTLEPLAYER + "#fromLZString=" + compressToEncodedURIComponent(JSON.stringify(obj));
       if (url.length < 30000) { window.open(url, "_blank", "noopener"); return; }
       // 先在使用者手勢內開頁，避免等待剪貼簿後被 popup blocker 擋下。
       window.open(BATTLEPLAYER, "_blank", "noopener");

@@ -131,9 +131,61 @@
 
 ---
 
+## 7. LZ-String URI 安全壓縮
+
+- **用途**：`utils/lz-string-uri.ts` 把 KC3Kai battleplayer 可貼上的 JSON 編成
+  `#fromLZString=` fragment，讓連合艦隊等較大重播能直接播放。
+- **來源**：Pieroxy lz-string 1.4.4——https://github.com/pieroxy/lz-string
+  與 KC3Kai kancolle-replay 內建的 `reader/lz-string.js` 同一版。只保留
+  `compressToEncodedURIComponent`／`decompressFromEncodedURIComponent`。
+- **授權**：WTFPL Version 2
+- **版權**：Copyright (c) 2013 Pieroxy
+
+```
+DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+Version 2, December 2004
+
+Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>
+
+Everyone is permitted to copy and distribute verbatim or modified
+copies of this license document, and changing it is allowed as long
+as the name is changed.
+
+DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+0. You just DO WHAT THE FUCK YOU WANT TO.
+```
+
+---
+
+## 7b. LZMA-JS（模擬器設定備份壓縮）
+
+- **用途**：`utils/sortie-simulator-settings.ts` 把模擬器可編輯設定編成
+  `#backup=` fragment，與 KC3Kai kancolle-replay 的 Backup／分享網址同一契約。
+- **來源**：Nathan Rugg lzma-js 2.3.2——https://github.com/LZMA-JS/LZMA-JS
+  （npm 套件 `lzma`）。
+- **授權**：MIT License
+- **版權**：Copyright (c) 2016 Nathan Rugg
+
+---
+
+## 8. PNG alpha 藏字（steganography.js 演算法）
+
+- **用途**：`utils/steganography.ts` 把 `toKc3Replay()` JSON 寫進出擊分享卡 PNG 的
+  alpha，讓 KC3Kai battleplayer 的 Upload image 能解出同一份重播。
+- **來源演算法**：Peter Eigenschink steganography.js v1.0.1——
+  https://github.com/petereigenschink/steganography.js
+  與 KC3Kai kancolle-replay 內建的 `reader/steganography.js` 同一套預設
+  （t=3、threshold=1、codeUnitSize=16）。本專案只保留 ImageData 編解碼，無 DOM。
+- **授權**：MIT License
+- **版權**：Copyright (C) 2012, Peter Eigenschink
+
+---
+
 ## MIT License 全文
 
-上述第 1、2、5、5b、6 項均採用 MIT License，
+上述第 1、2、5、5b、6、7b、8 項均採用 MIT License，
 其條款內容相同，全文如下：
 
 ```
