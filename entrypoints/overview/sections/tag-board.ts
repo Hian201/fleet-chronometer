@@ -6,14 +6,17 @@ import type { OverviewSection, SectionContext } from './types';
 import type { GameState, OwnedShipView } from '@/utils/state';
 import { db, type EventPlanRow } from '@/utils/db';
 import {
-    ensureUniqueStageKeys, establishedTags, grantedTagsOf, newStageKey, nextSallySnapshot,
-    observeGrantedTags, reconcileStages, resolveSallyRoster,
+    ensureUniqueStageKeys, establishedTags, grantedTagsOf, isEventBoardExpired, liveEventAreas,
+    newStageKey, nextSallySnapshot, observeGrantedTags, observeUsedOnMaps, reconcileStages,
+    resolveSallyRoster,
     type GrantObservation, type PlanStage, type SallyObservationInput, type SallyShip,
 } from '@/utils/event-plan';
 import {
-    DEFAULT_STYPE_GROUPS, TAG_COLOR_COUNT, applyObservedTagBindings, assignPlanTag, boardBudget,
+    DEFAULT_STYPE_GROUPS, TAG_COLOR_COUNT, applyColumnMapObservations,
+    applyObservedTagBindings, assignPlanTag, boardBudget,
     bindUnboundEstablishedTags, cardState, checkRoute, columnGroupsWithMaps, columnOf,
     defaultColorForTag, deletePlanTag, grantTagsOnMap, isPlanByShipEmpty, knownTagIds, mapsForTag,
+    setTagColumnMaps,
     mergeObservedGrants, migrateSlotsToPlanByShip, resolveTagColor, setMapGrantTags,
     stagesHaveShipSlots, stypeGroupKey, syncPlanFromActual, unbindTagFromMap,
 } from '@/utils/tag-board';
@@ -63,16 +66,21 @@ interface BoardShip {
 const toSallyShips = (ships: OwnedShipView[]): SallyShip[] =>
     ships.map(s => ({ id: s.id, name: s.name, sallyArea: s.sallyArea }));
 
-function detectEventAreas(state: GameState): number[] {
-    const areas = new Set<number>();
+function detectEventAreas(state: GameState, fallbackAreaIds: number[] = []): number[] {
+    const masterAreas: number[] = [];
     for (const m of state.masterMapInfo.values()) {
-        if (m.area >= EVENT_AREA_MIN) areas.add(m.area);
+        if (m.area >= EVENT_AREA_MIN) masterAreas.push(m.area);
     }
+    const gauges: number[] = [];
     for (const key of state.mapGauges.keys()) {
         const area = Math.floor(key / 10);
-        if (area >= EVENT_AREA_MIN) areas.add(area);
+        if (area >= EVENT_AREA_MIN) gauges.push(area);
     }
-    return [...areas].sort((a, b) => a - b);
+    return liveEventAreas(
+        masterAreas,
+        state.masterMapInfo.size > 0,
+        [...gauges, ...fallbackAreaIds],
+    );
 }
 
 const blankPlan = (areaId: number): EventPlanRow => ({
@@ -99,27 +107,74 @@ const tagName = (plan: EventPlanRow, id: number): string =>
 
 const tagFull = (plan: EventPlanRow, id: number) => `#${id} ${tagName(plan, id)}`;
 
-async function loadObservations(): Promise<Map<number, GrantObservation[]>> {
-    const rows = await db.events.where('path')
-        .anyOf(['api_port/port', 'api_req_map/start']).sortBy('id');
+function sameObservedGrants(
+    a: Record<number, number[]> | undefined,
+    b: Record<number, number[]>,
+): boolean {
+    const aKeys = Object.keys(a ?? {}).map(Number).sort((x, y) => x - y);
+    const bKeys = Object.keys(b).map(Number).sort((x, y) => x - y);
+    if (aKeys.length !== bKeys.length || aKeys.some((k, i) => k !== bKeys[i])) return false;
+    return aKeys.every(k => {
+        const av = (a ?? {})[k] ?? [];
+        const bv = b[k] ?? [];
+        return av.length === bv.length && av.every((v, i) => v === bv[i]);
+    });
+}
+
+function readPortDecks(api: any): Map<number, number[]> | undefined {
+    const list = api?.api_deck_port ?? api?.api_deck;
+    if (!Array.isArray(list)) return undefined;
+    const decks = new Map<number, number[]>();
+    for (const d of list) {
+        const id = Number(d?.api_id);
+        if (!Number.isInteger(id) || id < 1) continue;
+        const ships = Array.isArray(d.api_ship)
+            ? (d.api_ship as unknown[]).map(Number).filter(n => Number.isSafeInteger(n) && n > 0)
+            : [];
+        decks.set(id, ships);
+    }
+    return decks.size ? decks : undefined;
+}
+
+function loadSallyInputs(
+    rows: { path: string; ts: number; api: unknown; req?: Record<string, unknown> }[],
+): SallyObservationInput[] {
     const inputs: SallyObservationInput[] = [];
     for (const row of rows) {
         const api = row.api as any;
+        const req = row.req ?? {};
         if (row.path === 'api_req_map/start') {
-            const area = Number(api?.api_maparea_id);
-            const no = Number(api?.api_mapinfo_no);
+            const area = Number(api?.api_maparea_id ?? req.api_maparea_id);
+            const no = Number(api?.api_mapinfo_no ?? req.api_mapinfo_no);
+            const deckId = Number(req.api_deck_id ?? api?.api_deck_id);
             if (Number.isInteger(area) && Number.isInteger(no)) {
-                inputs.push({ kind: 'sortie', ts: row.ts, mapKey: area * 10 + no });
+                inputs.push({
+                    kind: 'sortie', ts: row.ts, mapKey: area * 10 + no,
+                    ...(Number.isInteger(deckId) && deckId > 0 ? { deckId } : {}),
+                });
             }
         } else if (Array.isArray(api?.api_ship)) {
+            const decks = readPortDecks(api);
             inputs.push({
                 kind: 'port', ts: row.ts,
                 tags: new Map(api.api_ship.map((sh: any) =>
                     [Number(sh.api_id), Number(sh.api_sally_area) || 0])),
+                ...(decks ? { decks } : {}),
+                combined: Number(api?.api_combined_flag) > 0,
             });
         }
     }
-    return observeGrantedTags(inputs);
+    return inputs;
+}
+
+async function loadObservations(): Promise<{
+    grants: Map<number, GrantObservation[]>;
+    used: Map<number, number[]>;
+}> {
+    const rows = await db.events.where('path')
+        .anyOf(['api_port/port', 'api_req_map/start']).sortBy('id');
+    const inputs = loadSallyInputs(rows);
+    return { grants: observeGrantedTags(inputs), used: observeUsedOnMaps(inputs) };
 }
 
 function ensureTagEntries(plan: EventPlanRow, ids: number[]): boolean {
@@ -209,18 +264,35 @@ export const tagBoardSection: OverviewSection = {
 
         let saved: EventPlanRow[];
         let observations: Map<number, GrantObservation[]>;
+        let usedOn: Map<number, number[]>;
         try {
             saved = await db.eventPlans.toArray();
-            observations = await loadObservations();
+            const sally = await loadObservations();
+            observations = sally.grants;
+            usedOn = sally.used;
         } catch (error) {
             topEl.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
             return;
         }
 
-        const areas = [...new Set([...detectEventAreas(state), ...saved.map(p => p.areaId)])]
-            .sort((a, b) => a - b);
+        const masterPresent = state.masterMapInfo.size > 0;
+        if (masterPresent) {
+            const live = detectEventAreas(state);
+            const stale = saved.filter(p => isEventBoardExpired(true, live.includes(p.areaId)));
+            if (stale.length) {
+                await db.eventPlans.bulkDelete(stale.map(p => p.areaId));
+                saved = saved.filter(p => !stale.includes(p));
+            }
+        }
+        const areas = detectEventAreas(state, saved.map(p => p.areaId));
 
         if (!areas.length) {
+            if (masterPresent) {
+                el.innerHTML = `<div class="ov-empty">
+                    <p>${esc(t('ov.eoEventEnded'))}</p>
+                </div>`;
+                return;
+            }
             el.innerHTML = `<div class="ov-empty">
                 <p>${esc(t('ov.eoNoEvent'))}</p>
                 <p class="dim">${esc(t('ov.eoCreateHint'))}</p>
@@ -262,7 +334,9 @@ export const tagBoardSection: OverviewSection = {
         const areaIsCurrentInMaster = () => state.mapsOfArea(areaId).length > 0;
 
         const refreshRoster = () => {
-            const roster = resolveSallyRoster(liveShips, plan.sallySnapshot, areaIsCurrentInMaster());
+            const roster = resolveSallyRoster(
+                liveShips, plan.sallySnapshot, areaIsCurrentInMaster(), masterPresent,
+            );
             ships = roster.ships;
             byId = new Map(ships.map(s => [s.id, s]));
             established = establishedTags(ships);
@@ -307,38 +381,49 @@ export const tagBoardSection: OverviewSection = {
             await savePlan(plan);
         };
 
-        /** 出擊觀測到的「關卡→標籤」自動寫入計畫（釘死事實；並持久化以免 events 裁剪後遺失）。 */
+        /** 出擊觀測到的「關卡→標籤」自動寫入計畫。只認 live 0→N，不沿用已貼標艦再出寫進的舊 cache。 */
         const applyObservations = async () => {
+            if (isEventBoardExpired(masterPresent, areaIsCurrentInMaster())) return;
             syncStages();
             const masterNos = state.mapsOfArea(areaId).map(m => m.no);
-            const merged = mergeObservedGrants(plan.observedGrants, observations);
+            // 只持久化本次 raw events 看得到的 0→N，避免舊的「已貼標再出」把共用標籤鎖在 E1。
+            const liveStored = mergeObservedGrants(undefined, observations).stored;
             let dirty = false;
-            if (merged.changed) {
-                plan.observedGrants = merged.stored;
+            if (!sameObservedGrants(plan.observedGrants, liveStored)) {
+                plan.observedGrants = liveStored;
                 dirty = true;
             }
             const bound = applyObservedTagBindings(
-                plan.stages, plan.tags, areaId, masterNos, merged.observations,
+                plan.stages, plan.tags, areaId, masterNos, observations,
             );
             if (bound.changed) {
                 plan.stages = bound.stages;
                 plan.tags = bound.tags;
                 dirty = true;
             }
-            // restore／無 raw：船上已有卻未綁、觀測也沒提到的標籤 → 掛到已有 grants 的最早關當多階段
-            const observedTagIds = new Set<number>();
-            for (const list of merged.observations.values()) {
-                for (const o of list) observedTagIds.add(o.tagId);
+            const liveByMap = new Map<number, number[]>();
+            for (const mapNo of masterNos) {
+                liveByMap.set(mapNo, grantedTagsOf(observations, areaId * 10 + mapNo));
             }
             const establishedIds = [...new Set(
                 ships.filter(s => s.sallyArea > 0).map(s => s.sallyArea),
             )];
             const unbound = bindUnboundEstablishedTags(
-                plan.stages, plan.tags, establishedIds, masterNos, observedTagIds,
+                plan.stages, plan.tags, establishedIds, masterNos, liveByMap,
             );
             if (unbound.changed) {
                 plan.stages = unbound.stages;
                 plan.tags = unbound.tags;
+                dirty = true;
+            }
+            const usedByMapNo = new Map<number, number[]>();
+            for (const [mapKey, ids] of usedOn) {
+                if (Math.floor(mapKey / 10) !== areaId) continue;
+                usedByMapNo.set(mapKey - areaId * 10, ids);
+            }
+            const cols = applyColumnMapObservations(plan.tags, plan.stages, usedByMapNo);
+            if (cols.changed) {
+                plan.tags = cols.tags;
                 dirty = true;
             }
             if (dirty) await savePlan(plan);
@@ -392,7 +477,10 @@ export const tagBoardSection: OverviewSection = {
 
         const layoutTags = () => {
             const ids = tagIds();
-            return ids.map(id => ({ id, maps: mapsForTag(plan.stages, id) }));
+            return ids.map(id => ({
+                id,
+                maps: mapsForTag(plan.stages, id, plan.tags.find(tg => tg.sallyArea === id)),
+            }));
         };
 
         const matchShip = (s: BoardShip, query: string) => {
@@ -918,10 +1006,11 @@ export const tagBoardSection: OverviewSection = {
             const tags = layoutTags();
             const masterNos = state.mapsOfArea(areaId).map(m => m.no);
             const groups = columnGroupsWithMaps(masterNos, tags);
-            type Col = { kind: 'tag'; id: number } | { kind: 'placeholder'; mapNo: number };
+            type Col = { kind: 'tag'; id: number; mapId: 'SHARED' | number }
+                | { kind: 'placeholder'; mapNo: number };
             const cols: Col[] = [];
             for (const g of groups) {
-                for (const id of g.tags) cols.push({ kind: 'tag', id });
+                for (const id of g.tags) cols.push({ kind: 'tag', id, mapId: g.mapId });
                 // 尚無標籤的關卡才保留整欄入口；已有欄位時改由關卡名稱旁的小入口新增。
                 if (typeof g.mapId === 'number' && !g.tags.length) {
                     cols.push({ kind: 'placeholder', mapNo: g.mapId });
@@ -967,12 +1056,33 @@ export const tagBoardSection: OverviewSection = {
                     if (cardState(planMap()[s.id] ?? 0, s.sallyArea) === 'stamped') stampedN++;
                     else plannedN++;
                 }
-                const maps = mapsForTag(plan.stages, id);
-                const mapHint = maps.length > 1 ? maps.map(n => `E${n}`).join('·') : '';
-                const singleMap = maps.length === 1 ? maps[0]! : null;
-                const canUnbind = singleMap != null && !locked;
+                const maps = mapsForTag(plan.stages, id, tg);
+                const grantObs = new Set(
+                    masterNos.filter(n => grantedTagsOf(observations, areaId * 10 + n).includes(id)),
+                );
+                const usedObs = new Set<number>();
+                for (const [mapKey, ids] of usedOn) {
+                    if (Math.floor(mapKey / 10) === areaId && ids.includes(id)) {
+                        usedObs.add(mapKey - areaId * 10);
+                    }
+                }
+                const home = maps.length ? Math.min(...maps) : null;
+                const chipLocked = (n: number) => grantObs.has(n)
+                    || (home != null && usedObs.has(n) && n >= home);
+                const colMap = col.mapId === 'SHARED' ? null : col.mapId;
+                const canUnbind = colMap != null && !chipLocked(colMap) && !locked;
                 const onShip = ships.some(s => s.sallyArea === id);
-                const canDelete = !locked && !onShip;
+                const canDelete = col.mapId === 'SHARED' && !locked && !onShip && !maps.length;
+                const chips = masterNos.length
+                    ? `<div class="tb-map-chips">${masterNos.map(n => {
+                        const on = maps.includes(n);
+                        const freeze = chipLocked(n);
+                        return `<button type="button" class="tb-map-chip${on ? ' on' : ''}"
+                            data-col-tag="${id}" data-col-map="${n}"
+                            ${freeze ? 'disabled' : ''}
+                            title="${esc(t('ov.tbAssignMap', { n }))}">E${n}</button>`;
+                    }).join('')}</div>`
+                    : '';
                 tagRow += `<th class="tb-colhead tagcol${dim}" style="--c:${colorVar(plan, id)}" data-tag="${id}">
                     <div class="tb-banner">
                         <button type="button" class="tb-swatch" data-color="${id}" title="${esc(t('ov.tbColorPick'))}"
@@ -980,16 +1090,16 @@ export const tagBoardSection: OverviewSection = {
                         <input class="tb-name" data-rename="${id}" value="${esc(tg?.name ?? '')}"
                             placeholder="${esc(t('ov.eoTagUnnamed', { n: id }))}" ${locked ? 'readonly' : ''}>
                         ${locked ? '<span title="locked">🔒</span>' : ''}
-                        ${canUnbind ? `<button type="button" class="tb-tag-x" data-unbind-tag="${id}" data-unbind-map="${singleMap}"
+                        ${canUnbind ? `<button type="button" class="tb-tag-x" data-unbind-tag="${id}" data-unbind-map="${colMap}"
                             title="${esc(t('ov.tbUnbindTag'))}">×</button>` : ''}
-                        ${!canUnbind && canDelete ? `<button type="button" class="tb-tag-x" data-delete-tag="${id}"
+                        ${canDelete ? `<button type="button" class="tb-tag-x" data-delete-tag="${id}"
                             title="${esc(t('ov.tbDeleteTag'))}">×</button>` : ''}
                     </div>
                     <div class="tb-meta">
                         <span>${esc(t('ov.tbColPlanned'))} <b>${plannedN}</b></span>
                         <span>${esc(t('ov.tbColStamped'))} <b>${stampedN}</b></span>
-                        ${mapHint ? `<span>${esc(mapHint)}</span>` : ''}
                     </div>
+                    ${chips}
                     <div class="tb-col-hint">${esc(t('ov.tbColHint'))}</div>
                 </th>`;
             }
@@ -1100,10 +1210,43 @@ export const tagBoardSection: OverviewSection = {
             boardEl.querySelectorAll<HTMLElement>('th.tb-colhead[data-tag]').forEach(th => {
                 th.addEventListener('click', e => {
                     if ((e.target as HTMLElement).closest(
-                        '[data-color], input, [data-rename], [data-unbind-tag], [data-delete-tag]',
+                        '[data-color], input, [data-rename], [data-unbind-tag], [data-delete-tag], [data-col-map]',
                     )) return;
                     if (!selected.size) return;
                     moveShips([...selected], Number(th.dataset.tag));
+                });
+            });
+            boardEl.querySelectorAll<HTMLButtonElement>('[data-col-tag][data-col-map]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const tagId = Number(btn.dataset.colTag);
+                    const mapNo = Number(btn.dataset.colMap);
+                    if (!(tagId >= 1) || !(mapNo > 0)) return;
+                    const tg = plan.tags.find(x => x.sallyArea === tagId);
+                    const cur = mapsForTag(plan.stages, tagId, tg);
+                    const on = !cur.includes(mapNo);
+                    if (on) {
+                        const hasGrant = plan.stages.some(s => s.grantsTag === tagId);
+                        const col = setTagColumnMaps(plan.tags, tagId, [...cur, mapNo]);
+                        plan.tags = col.tags;
+                        if (!hasGrant) {
+                            syncStages();
+                            const out = setMapGrantTags(
+                                plan.stages, plan.tags, mapNo,
+                                [...grantTagsOnMap(plan.stages, mapNo), tagId],
+                            );
+                            plan.stages = out.stages;
+                            plan.tags = out.tags;
+                        }
+                    } else {
+                        const out = unbindTagFromMap(
+                            plan.stages, plan.tags, plan.planByShip, ships, mapNo, tagId,
+                        );
+                        if (!out.changed) return;
+                        plan.stages = out.stages;
+                        plan.tags = out.tags;
+                    }
+                    void commit().then(() => { fillRoutes(); drawBoardVisual(); drawRules(); });
                 });
             });
             boardEl.querySelectorAll<HTMLButtonElement>('[data-unbind-tag]').forEach(btn => {

@@ -2,10 +2,11 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanStage, SallyShip } from '../utils/event-plan';
 import {
-    TAG_COLOR_COUNT, applyObservedTagBindings, assignPlanTag, boardBudget, bindUnboundEstablishedTags,
-    cardState, checkRoute, columnGroups, columnGroupsWithMaps, columnOf, defaultColorForTag,
-    deletePlanTag, grantTagsOnMap, knownTagIds, mapsForTag, mergeObservedGrants,
-    migrateSlotsToPlanByShip, setMapGrantTags, stypeGroupKey, syncPlanFromActual, unbindTagFromMap,
+    TAG_COLOR_COUNT, applyColumnMapObservations, applyObservedTagBindings, assignPlanTag, boardBudget,
+    bindUnboundEstablishedTags, cardState, checkRoute, columnGroups, columnGroupsWithMaps, columnOf,
+    defaultColorForTag, deletePlanTag, grantTagsOnMap, knownTagIds, mapsForTag, mergeObservedGrants,
+    migrateSlotsToPlanByShip, setMapGrantTags, setTagColumnMaps, stypeGroupKey, syncPlanFromActual,
+    unbindTagFromMap,
 } from '../utils/tag-board';
 
 const stage = (o: Partial<PlanStage> & { key: string }): PlanStage => ({
@@ -92,16 +93,16 @@ describe('checkRoute', () => {
 });
 
 describe('columnGroups / knownTagIds / budget / color', () => {
-    it('跨關與未綁 → SHARED 置前；單關依 mapNo 升冪', () => {
+    it('已歸類出現在各關底下；未歸類才進 SHARED', () => {
         expect(columnGroups([
             { id: 3, maps: [2] },
             { id: 1, maps: [1, 2] },
             { id: 4, maps: [] },
             { id: 2, maps: [1] },
         ])).toEqual([
-            { mapId: 'SHARED', tags: [1, 4] },
-            { mapId: 1, tags: [2] },
-            { mapId: 2, tags: [3] },
+            { mapId: 'SHARED', tags: [4] },
+            { mapId: 1, tags: [1, 2] },
+            { mapId: 2, tags: [3, 1] },
         ]);
     });
     it('knownTagIds 合併三來源', () => {
@@ -135,6 +136,12 @@ describe('columnGroups / knownTagIds / budget / color', () => {
             stage({ key: 'c', grantsTag: 1, mapNo: 1 }),
         ];
         expect(mapsForTag(stages, 2)).toEqual([1, 3]);
+        expect(mapsForTag(stages, 2, {
+            sallyArea: 2, name: '', nameSource: 'manual', columnMaps: [1, 2, 3],
+        })).toEqual([1, 2, 3]);
+        expect(mapsForTag([
+            stage({ key: 'e5', mapNo: 5, grantsTag: null, allowedTags: [9] }),
+        ], 9)).toEqual([]);
         expect(assignPlanTag({ 1: 2 }, 1, 0)).toEqual({});
         expect(assignPlanTag({}, 5, 3)).toEqual({ 5: 3 });
         expect(stypeGroupKey(11)).toBe('CV');
@@ -154,6 +161,13 @@ describe('columnGroups / knownTagIds / budget / color', () => {
         ]);
         expect(columnGroupsWithMaps([], [{ id: 1, maps: [5] }]))
             .toEqual(columnGroups([{ id: 1, maps: [5] }]));
+        expect(columnGroupsWithMaps([1, 2, 5], [
+            { id: 9, maps: [1, 5] },
+        ])).toEqual([
+            { mapId: 1, tags: [9] },
+            { mapId: 2, tags: [] },
+            { mapId: 5, tags: [9] },
+        ]);
     });
     it('applyObservedTagBindings：觀測到的標籤自動綁關卡；第二標籤開新階段', () => {
         const stages = [
@@ -187,20 +201,131 @@ describe('columnGroups / knownTagIds / budget / color', () => {
         expect(out.stages.find(s => s.mapNo === 2)?.grantsTag).toBe(2);
         expect(out.stages.some(s => s.key === 'p')).toBe(false); // 空 phase 刪除
     });
-    it('bindUnboundEstablishedTags：未觀測的已貼標籤掛到已有 grants 的最早關', () => {
+    it('bindUnboundEstablishedTags：前面連續關都已分類、後面只剩一關時掛到那一關', () => {
         const stages = [
             stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
-            stage({ key: 'm2', mapNo: 2, grantsTag: null, allowedTags: [] }),
+            stage({ key: 'm2', mapNo: 2, grantsTag: 3, allowedTags: [3] }),
+            stage({ key: 'm3', mapNo: 3, grantsTag: 5, allowedTags: [5] }),
+            stage({ key: 'm4', mapNo: 4, grantsTag: 7, allowedTags: [7] }),
+            stage({ key: 'm5', mapNo: 5, grantsTag: null, allowedTags: [] }),
         ];
         const tags = [
             { sallyArea: 1, name: 'a', nameSource: 'manual' as const },
-            { sallyArea: 2, name: 'b', nameSource: 'manual' as const },
+            { sallyArea: 3, name: 'b', nameSource: 'manual' as const },
+            { sallyArea: 5, name: 'c', nameSource: 'manual' as const },
+            { sallyArea: 7, name: 'd', nameSource: 'manual' as const },
         ];
-        const out = bindUnboundEstablishedTags(stages, tags, [1, 2], [1, 2, 3], new Set());
+        const live = new Map<number, number[]>([[1, [1]], [2, [3]], [3, [5]], [4, [7]]]);
+        const out = bindUnboundEstablishedTags(
+            stages, tags, [1, 3, 5, 7, 9, 10, 11], [1, 2, 3, 4, 5], live,
+        );
         expect(out.changed).toBe(true);
-        expect(grantTagsOnMap(out.stages, 1)).toEqual([1, 2]);
-        // 觀測已提到的不瞎猜
-        expect(bindUnboundEstablishedTags(stages, tags, [1, 2], [1], new Set([2])).changed).toBe(false);
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1]);
+        expect(grantTagsOnMap(out.stages, 4)).toEqual([7]);
+        expect(grantTagsOnMap(out.stages, 5)).toEqual([9, 10, 11]);
+        expect(bindUnboundEstablishedTags(
+            out.stages, out.tags, [1, 3, 5, 7, 9, 10, 11], [1, 2, 3, 4, 5], live,
+        ).changed).toBe(false);
+
+        // 三關活動：前面兩關已分類 → 剩下一關是 3，不是寫死 5
+        const three = bindUnboundEstablishedTags([
+            stage({ key: 'a', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'b', mapNo: 2, grantsTag: 2, allowedTags: [2] }),
+            stage({ key: 'c', mapNo: 3, grantsTag: null, allowedTags: [] }),
+        ], tags, [1, 2, 8], [1, 2, 3]);
+        expect(grantTagsOnMap(three.stages, 3)).toEqual([8]);
+        expect(grantTagsOnMap(three.stages, 2)).toEqual([2]);
+    });
+    it('bindUnboundEstablishedTags：誤掛在第一關的共用／後段色清掉，不新增進 E1', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'p3', mapNo: 1, phase: true, grantsTag: 3, allowedTags: [3], label: '' }),
+            stage({ key: 'p4', mapNo: 1, phase: true, grantsTag: 4, allowedTags: [4], label: '' }),
+            stage({ key: 'p9', mapNo: 1, phase: true, grantsTag: 9, allowedTags: [9], label: '' }),
+            stage({ key: 'm2', mapNo: 2, grantsTag: 3, allowedTags: [3] }),
+            stage({ key: 'm3', mapNo: 3, grantsTag: 5, allowedTags: [5] }),
+            stage({ key: 'm4', mapNo: 4, grantsTag: 7, allowedTags: [7] }),
+            stage({ key: 'm5', mapNo: 5, grantsTag: null, allowedTags: [] }),
+        ];
+        const tags = [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' as const },
+            { sallyArea: 3, name: 'b', nameSource: 'manual' as const },
+            { sallyArea: 4, name: 'c', nameSource: 'manual' as const },
+            { sallyArea: 5, name: 'd', nameSource: 'manual' as const },
+            { sallyArea: 7, name: 'e', nameSource: 'manual' as const },
+            { sallyArea: 9, name: 'f', nameSource: 'manual' as const },
+        ];
+        const out = bindUnboundEstablishedTags(
+            stages, tags, [1, 3, 4, 5, 7, 9, 10], [1, 2, 3, 4, 5],
+            new Map([[1, [1]], [2, [3]], [3, [5]], [4, [7]]]),
+        );
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1]);
+        expect(grantTagsOnMap(out.stages, 2)).toEqual([3]);
+        expect(grantTagsOnMap(out.stages, 5)).toEqual([9, 10]);
+        expect(mapsForTag(out.stages, 4)).toEqual([]);
+        expect(grantTagsOnMap(
+            bindUnboundEstablishedTags(
+                [
+                    stage({ key: 'm1', mapNo: 1, grantsTag: null, allowedTags: [] }),
+                    stage({ key: 'm2', mapNo: 2, grantsTag: null, allowedTags: [] }),
+                    stage({ key: 'm5', mapNo: 5, grantsTag: null, allowedTags: [] }),
+                ],
+                tags, [1, 9], [1, 2, 3, 4, 5],
+            ).stages, 1,
+        )).toEqual([]);
+    });
+    it('bindUnboundEstablishedTags：最後一關已有 grants 時補同段未出擊的色', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'm5', mapNo: 5, grantsTag: 9, allowedTags: [9] }),
+        ];
+        const tags = [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' as const },
+            { sallyArea: 9, name: 'e5', nameSource: 'manual' as const },
+        ];
+        const out = bindUnboundEstablishedTags(
+            stages, tags, [1, 2, 9, 10, 11], [1, 2, 5], new Map([[1, [1]], [5, [9]]]),
+        );
+        expect(out.changed).toBe(true);
+        expect(out.tags.map(t => t.sallyArea).sort((a, b) => a - b)).toEqual([1, 2, 9, 10, 11]);
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1]);
+        expect(grantTagsOnMap(out.stages, 5)).toEqual([9, 10, 11]);
+
+        const polluted = bindUnboundEstablishedTags([
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'p', mapNo: 1, phase: true, grantsTag: 10, allowedTags: [10], label: '' }),
+            stage({ key: 'm5', mapNo: 5, grantsTag: 9, allowedTags: [9] }),
+        ], tags, [1, 9, 10], [1, 2, 5], new Map([[1, [1]], [5, [9]]]));
+        expect(grantTagsOnMap(polluted.stages, 1)).toEqual([1]);
+        expect(grantTagsOnMap(polluted.stages, 5)).toEqual([9, 10]);
+    });
+    it('bindUnboundEstablishedTags：前段關還沒齊且最後一關尚無 grants 不猜', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'm2', mapNo: 2, grantsTag: null, allowedTags: [] }),
+            stage({ key: 'm3', mapNo: 3, grantsTag: null, allowedTags: [] }),
+            stage({ key: 'm4', mapNo: 4, grantsTag: null, allowedTags: [] }),
+            stage({ key: 'm5', mapNo: 5, grantsTag: null, allowedTags: [] }),
+        ];
+        const tags = [{ sallyArea: 1, name: 'a', nameSource: 'manual' as const }];
+        const out = bindUnboundEstablishedTags(stages, tags, [1, 2, 9], [1, 2, 3, 4, 5]);
+        expect(out.tags.map(t => t.sallyArea).sort((a, b) => a - b)).toEqual([1, 2, 9]);
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1]);
+        expect(grantTagsOnMap(out.stages, 5)).toEqual([]);
+    });
+    it('applyObservedTagBindings：某關已有 0→N 時清掉多掛上去的共用標籤', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'p3', mapNo: 1, phase: true, grantsTag: 3, allowedTags: [3], label: 'E1#1' }),
+            stage({ key: 'p4', mapNo: 1, phase: true, grantsTag: 4, allowedTags: [4], label: 'E1#2' }),
+        ];
+        const out = applyObservedTagBindings(stages, [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' },
+            { sallyArea: 3, name: 'b', nameSource: 'manual' },
+            { sallyArea: 4, name: 'c', nameSource: 'manual' },
+        ], 62, [1, 5], new Map([[621, [{ tagId: 1 }]]]));
+        expect(grantTagsOnMap(out.stages, 1)).toEqual([1]);
+        expect(out.stages.find(s => s.key === 'm1')?.allowedTags).toEqual([1]);
     });
     it('setMapGrantTags：複選會貼標籤＝多階段', () => {
         const stages = [stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] })];
@@ -245,5 +370,31 @@ describe('columnGroups / knownTagIds / budget / color', () => {
             changed: true,
         });
         expect(syncPlanFromActual({ 1: 4, 3: 2 }, ships).changed).toBe(false);
+    });
+    it('setTagColumnMaps／applyColumnMapObservations：跨關只往後補，不把後段札寫進 E1', () => {
+        const tags = [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' as const, columnMaps: [1] },
+            { sallyArea: 9, name: 'e5', nameSource: 'manual' as const },
+        ];
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'm5', mapNo: 5, grantsTag: 9, allowedTags: [9] }),
+        ];
+        const used = new Map<number, number[]>([
+            [1, [1, 9]],
+            [2, [1]],
+            [3, [1]],
+            [5, [9]],
+        ]);
+        const out = applyColumnMapObservations(tags, stages, used);
+        expect(out.tags.find(t => t.sallyArea === 1)?.columnMaps).toEqual([1, 2, 3]);
+        expect(out.tags.find(t => t.sallyArea === 9)?.columnMaps).toEqual([5]);
+        expect(setTagColumnMaps(out.tags, 9, [4, 5]).tags.find(t => t.sallyArea === 9)?.columnMaps)
+            .toEqual([4, 5]);
+        expect(applyColumnMapObservations(
+            [{ sallyArea: 11, name: '', nameSource: 'manual' }],
+            [stage({ key: 'm1', mapNo: 1, grantsTag: null })],
+            new Map([[1, [11]]]),
+        ).tags.find(t => t.sallyArea === 11)?.columnMaps).toBeUndefined();
     });
 });

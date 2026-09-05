@@ -59,6 +59,7 @@ UI 版面離線預覽（真實封包資料＋overview 的同一份 CSS，不連�
 
 ```bash
 npx vite-node --config vitest.config.ts tools/preview/sortie-log.ts     # → .preview/sortie-log{,-light}.html
+npx vite-node --config vitest.config.ts tools/preview/drop-log-filter.ts # → .preview/drop-log-filter{,-light}.html
 npx vite-node --config vitest.config.ts tools/preview/resource-log.ts   # → .preview/resource-log{,-light}.html
 npx vite-node --config vitest.config.ts tools/preview/fleet-overview.ts # → .preview/fleet-overview{,-light}.html
 npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts   # → .preview/panel-sortie{,-light}.html
@@ -160,9 +161,9 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `entrypoints/overview/ship-picker.ts` | 鎮守府全船篩選清單的共用 UI 元件（見「反覆出現的設計慣例」全量重繪陷阱） |
 | `entrypoints/overview/sections/ships.ts` | 艦娘全覽：工具列＋篩選抽屜＋條件 chip 列＋詳細表格＋分頁。欄位開關／每頁筆數／排序／素質模式存 localStorage（`kc-ships-view`），不進 Dexie、不進備份 |
 | `entrypoints/overview/sections/equipment.ts` | 裝備全覽：圖示篩選架（既有裝備圖示即篩選鈕）＋圖磚／詳細清單雙模式＋逐顆實例展開。模式／排序存 localStorage（`kc-equip-view`） |
-| `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄：通常／活動兩大分類＋海域下拉＋單場 JSON 匯入，一次出擊一張卡（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊；提供標準 DeckBuilder JSON 複製與 KC3Kai 出擊模擬器開啟／貼上。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板 markup 由 `shellHtml()` 提供，離線預覽共用 |
-| `entrypoints/overview/sections/drop-log.ts` | 打撈紀錄：通常／活動分類＋新船／非新船篩選＋關鍵字／時間篩選＋分頁＋CSV 匯出入。CSV 邏輯全在 `utils/drop-log-import.ts`；新船判定走 `utils/drop-new-ship.ts`（**不是** retention 那支） |
-| `utils/drop-new-ship.ts` | 打撈紀錄「新船」判定（純函式）：`newShipDropKeys()`。判準與面板 Drop 晶片同一條——比對鎮守府全艦娘（**以基礎形態**）後這一撈才讓它第一次成為成員才算。**與 `retention.ts` 的 `firstOwnedDropKeys()` 是兩支，別合併**（見該檔說明） |
+| `entrypoints/overview/sections/sortie-log.ts` | 出擊紀錄：通常／活動兩大分類＋活動下拉（年份＋季節為主標，跨年依年份分組；關卡數跟紀錄走）＋關卡下拉＋單場 JSON 匯入，一次出擊一張卡（#第幾次・關卡代號・出擊編成・節點軌跡），展開才是編成／支援艦隊／基地航空隊／逐節點作戰資訊；提供標準 DeckBuilder JSON 複製、制空権シミュレータ跳轉（含各節點敵編成）與 KC3Kai 出擊模擬器開啟／貼上。分類存 localStorage（`kc-sortie-view`）。工具列＋匯入面板 markup 由 `shellHtml()` 提供，離線預覽共用 |
+| `entrypoints/overview/sections/drop-log.ts` | 打撈紀錄：通常／活動分類＋活動下拉（與出擊紀錄同一套 `planEventMapFilter`）＋關卡下拉＋新船／非新船篩選＋關鍵字／時間篩選＋分頁＋CSV 匯出入。CSV 邏輯全在 `utils/drop-log-import.ts`；新船判定走 `utils/drop-new-ship.ts`（**不是** retention 那支） |
+| `utils/drop-new-ship.ts` | 打撈紀錄「新船」判定（純函式）：`newShipDropKeys()` 依 `shipObtained` 的首次自動入手觀測與基礎形態定位歷史上的入手那一撈，並以 `SortieLogRow.eventId` 區分同一場出擊的各筆掉落。**與 `retention.ts` 的 `firstOwnedDropKeys()` 是兩支，別合併**（見該檔說明） |
 | `entrypoints/overview/sections/exped-log.ts` | 遠征紀錄：**主體是逐筆明細**（一趟回來拿了什麼／多少／成功還是失敗，可選欄位＋分頁，編成欄預設收合）；上方一行期間總計，下方收合的「各遠征次數與收穫」為次要查詢工具。期間捷徑／自訂起訖日／活動期間捷徑＋明細／彙總兩份 CSV。彙總核心在 `utils/expedition-stats.ts` |
 | `entrypoints/overview/sections/build-log.ts` | 建造紀錄：可選欄位詳細清單＋分頁＋CSV 匯出入。匯入來源查不到 master id 時顯示 `FactoryLogRow.importedShipName`／`importedSecretaryName` |
 | `entrypoints/overview/sections/event-ops.ts` | 活動作戰板：標籤總帳（自動）＋計畫疊層＋關卡表。直接讀寫 `db.eventPlans`——使用者手輸的攻略意圖、非從 events 投影的衍生資料 |
@@ -179,7 +180,11 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/gamedata-coverage.ts` / `utils/gamedata-known-ids.ts` | 翻譯缺漏偵測：純函式差集 `findUnknownShips`/`findUnknownGears` ＋ `tools/gamedata-coverage/generate.py` 產生的已知 id 集合，供 LLM 分區「匯出翻譯缺漏」使用 |
 | `utils/maelstrom-data.ts`／`utils/maelstrom.ts` | 渦潮比例表（KC3Kai `fud_weekly.json#maelstromLoss`）＋`planMaelstromLosses`（純函式）；`GameState` 在 map start/next 套用 |
 | `utils/air-raid-lost-kind.ts` | 基地空襲 `api_lost_kind` 1–4 文案對照（inspired by KC3Kai） |
-| `utils/replay.ts` | 出擊重播組裝（純函式，無 chrome.*）：`snapshotDeck`/`startReplay`/`appendBattle` 累積成 `ReplayRow`、`toKc3Replay()` 輸出 KC3Kai battleplayer 可貼上物件 |
+| `utils/replay.ts` | 出擊重播組裝（純函式，無 chrome.*）：`snapshotDeck`/`startReplay`/`appendBattle` 累積成 `ReplayRow`、`toKc3Replay()` 輸出 KC3Kai battleplayer 可貼上物件；`toKc3ReplayUrl()` 走 `#fromLZString=` |
+| `utils/replay-card.ts` | 出擊分享卡可見層（提督名／編成艦名／節點），純函式；不放編號、等級、rank、艦種 |
+| `utils/steganography.ts` | PNG alpha 藏字（steganography.js v1.0.1 預設，與 battleplayer Upload image 同一套）；無 DOM |
+| `entrypoints/overview/replay-png.ts` | canvas 畫分享卡＋把 JSON 寫進 PNG 後下載 |
+| `utils/lz-string-uri.ts` | LZ-String 1.4.4 URI 安全壓縮（與 battleplayer `reader/lz-string.js` 同一套），供直接播放 URL |
 | `utils/map-node-kind.ts` | 節點類型（`api_event_id`／`api_event_kind` → 資源／渦潮／能動分歧／空襲戰／敵連合…）。封包事實，語意轉寫自航海日誌拡張版（MIT） |
 | `utils/map-node-letters.ts` | 節點字母查表（純函式）：`nodeLabel(map, edge)` 有對照給字母、沒有給原始 edge 編號。節點字母沒有符合真實資料的可靠推算規則，因此只能查表 |
 | `utils/map-edge-letters.ts` | 上表的資料本體（193 張海域、5904 條 edge）。**產生物、勿手改**——改 `tools/map-edges/edges.json` 後重跑 `tools/map-edges/generate.py` |
@@ -187,14 +192,16 @@ runtime message。retry **只一次**，且重用同一 envelope。background �
 | `utils/csv.ts` | CSV／TSV 最小共用解析與序列化（純函式） |
 | `utils/drop-log-import.ts` / `utils/build-log-import.ts` | 打撈／建造紀錄 CSV 匯出入，借 event ID 寫入 derived tables（不寫 raw event，逐列去重不整批 rollback） |
 | `utils/sortie-detail.ts` | 出擊紀錄「一次出擊」的重建（純函式）：`buildSortieDetail()` 把 `db.sorties` 摘要 × `db.replays` 原始封包合成逐節點作戰資訊。戰鬥細節直接餵 `battle.ts` 的 `analyzeBattle()`（與面板同一支） |
-| `utils/deckbuilder.ts` | DeckBuilder 與出擊模擬器格式分開維護：`buildDeckBuilder()`／`buildReplayDeckBuilder()` 產生艦隊與基地航空隊 JSON，`buildOwnedEquipmentCode()` 產生全持有裝備代碼，`buildSelectedDeckBuilder()` 產生出擊／支援選取艦隊（出擊可含最多三隊基地航空隊）的 DeckBuilder v4 JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()` |
-| `utils/sortie-simulator.ts` | `buildSortieSimulator()`／`toSortieSimulatorUrl()` 產生 KC3Kai 出擊模擬器使用的 `fleetF`／`nodes` 格式，含支援艦隊與基地航空隊資料；不與 DeckBuilder 格式混用 |
+| `utils/deckbuilder.ts` | DeckBuilder 與出擊模擬器格式分開維護：`buildDeckBuilder()`／`buildReplayDeckBuilder()` 產生艦隊與基地航空隊 JSON，`buildReplayAirCalcDeck()` 另加 kc-web 的 `s`（各節點敵編成）與陸航 `sp`，`buildOwnedEquipmentCode()` 產生全持有裝備代碼，`buildSelectedDeckBuilder()` 產生出擊／支援選取艦隊（出擊可含最多三隊基地航空隊）的 DeckBuilder v4 JSON，另提供 `imgBuilderUrl()`／`airCalcUrl()` |
+| `utils/sortie-simulator.ts` | `buildSortieSimulator()` 組出擊模擬器中間資料（含支援／基地／純潛艦 `noAmmo`）。不載入 LZMA，避免情報總括啟動被壓縮函式拖垮 |
+| `utils/sortie-simulator-settings.ts` | 中間資料 → `#backup=` 可編輯設定；`toSortieSimulatorUrl()` 只在按下模擬器鈕時載入 |
 | `utils/resource-capture.ts` | 資源紀錄的擷取層（純函式）：`readMaterials()`／`readEventGauges()`／`captureResources()`。由 background 呼叫而非 EventProjector——資源序列不需要 GameState 上下文，價值在連續 |
 | `utils/resource-log.ts` | 資源紀錄分析核心（純函式）：`normalizeSamples()`／`bucketSamples()`／`downsample()`／`buildEventPeriods()`／`toCsv()`。餘額是封包事實、消長是差分，算不出來一律回 null |
 | `utils/line-chart.ts` | 折線圖幾何（純函式，無 DOM）：`multiChartGeometry()`／`niceTicks()`／`nearestIndex()`。y 值域只看傳進來的序列 |
 | `utils/retention.ts` | 重播保留規則引擎（純函式）：`planRetention()` 依保護規則＋裁剪窗決定 `db.replays` 去留、`firstOwnedDropKeys()` 算新船場 |
 | `utils/event-plan.ts` | 活動作戰板核心（純函式）：`groupBySally()`／`checkStage()`／`findPlanConflicts()`／`sallyBudget()` |
 | `utils/ship-filter.ts` | 鎮守府全船篩選（純函式）：航速／艦種／國籍／可裝備／出擊標籤／關鍵字。由活動作戰板與艦娘全覽共用；`matchSpeed`／`matchEquip` 另行匯出給活動配船板自由池借用（那邊有自己的艦種分組與關鍵字邏輯，只借這兩項語意，不得各自複製門檻） |
+| `utils/event-calendar.ts` | 活動年份／季節年表，鍵＝maparea id（world）。遊戲 API 不送西元年與季節，人工維護；表外不從出擊時間戳反推，退回 master 標題或 `活動海域 #id` |
 | `utils/ship-nationality.ts` | 艦娘基本國籍（建造國）參照表，鍵＝艦型 `api_ctype`。遊戲 API 不提供國籍，人工維護；篩選層 `nationsOf` 可依已確認的活動機制為特殊艦加掛額外陣營標籤（目前 Верный 同時列入日本／蘇聯）；未列出的一律日本 |
 | `utils/ship-roster.ts` | 艦娘全覽詳細清單的篩選／排序／分頁核心（純函式）。先制對潛是全檔唯一的推算值（遊戲不送旗標） |
 | `utils/gear-inventory.ts` | 裝備全覽的彙總／篩選／排序核心（純函式）：`groupGears()` 把裝備實例依 master 彙總成種類。素質一律是 master 基礎值、**不含改修 ★ 加成** |
@@ -620,9 +627,13 @@ wiki 例題（對空10、24 搭載、熟練 >>）→ 74 已鎖進 `tests/plane-l
 world, mapnum, diff, time}`；**每個 `battles[i].data` 是一則原封不動的原始 kcsapi 戰鬥封包**。
 沒有夜戰時 `yasen` 仍須輸出 `{}`，不可輸出 `null`：KC3Kai player.js 會直接呼叫
 `Object.keys(battle.yasen)`。`ReplayRow.ts` 的毫秒時間戳在輸出時須轉為 KC3Kai 使用的 UNIX 秒；
-`toKc3ReplayUrl()` 使用 battleplayer 原生的 JSON URL fragment 建立一鍵播放連結，不經第三方
-重播資料庫上傳；超過 30,000 字元時不直接導航，改為開啟空白播放器並複製 JSON，避免瀏覽器
-截斷長 fragment。
+`toKc3ReplayUrl()` 使用 battleplayer 原生的 `#fromLZString=` fragment（與官方
+`reader/lz-string.js` 1.4.4、poi-plugin-kc3-replay 相同）建立一鍵播放連結，不經
+kcrdb／tinyurl 上傳。連合艦隊與多節點活動的原始 JSON 經 `encodeURIComponent` 後經常
+超過 30,000 字元，直接塞 hash 只會開空白播放器；壓縮後才進得了上限。仍超過時才複製
+JSON＋開空白播放器，避免瀏覽器截斷長 fragment。出擊紀錄的「下載出擊記錄」另提供複製
+JSON、下載 JSON、下載 PNG 重播圖（可見層為本專案卡片，JSON 寫在 alpha，battleplayer
+Upload image 可解）與直接播放。PNG 不用官方立繪；JSON 太長時依 400²×3/16 容量放大畫布。
 ship 等級同時輸出本專案再匯入用的 `lv` 與 KC3Kai 艦隊詳情使用的 `level`，stats 由
 battleplayer 自算不帶。單艦隊第2～4隊獨立出擊時，KC3Kai 播放格式以 `fleetnum:1`＋`fleet1`
 表達，另以 `sourceFleetnum` 保存原編號供本專案再匯入還原（KC3Kai 會依 `fleetnum` 直接索引
@@ -636,6 +647,10 @@ battleplayer 自算不帶。單艦隊第2～4隊獨立出擊時，KC3Kai 播放�
 展開才給細節（出擊編成／支援艦隊／基地航空隊／逐節點，各自可獨立折疊，一律用
 `<details>`）。與 KC3Kai 參照圖的差異：節點字母走對照表；「基礎經驗值」不在遊戲封包裡
 （只有 KC3Kai 匯入紀錄才有）。
+
+**活動辨識**：遊戲不送西元年與季節。年表在 `utils/event-calendar.ts`，鍵＝`api_maparea_id`；
+表外不從出擊時間戳反推（冬季活動跨 12／1 月）。下拉與跨活動徽章用「2026夏季」；官方
+作戰名只在 title。跨年時活動下拉依年份 `<optgroup>`，組內只寫季節以免重複年份。
 
 為此擴充的擷取層欄位（皆為 optional、非索引，不需升 schema 版本，皆已用真封包驗證）：
 `SortieLogRow.getExp`（battleresult `api_get_exp`）、`mvp`／`mvpEscort`（`api_mvp`／
@@ -1000,11 +1015,20 @@ ElectronicObserver（MIT）`Data/MissionClearCondition.cs`，轉換規則見下�
 要列出已被實際貼標的艦並標警示（`pending`/`fulfilled`/`conflict`）。`plannedByTag()`
 **刻意不去重**（同艦排進兩個關卡要在兩邊都看得到）；計數用 `sallyBudget()`（那支有去重）。
 
-**實際貼標觀測**（`observeGrantedTags()`）：只認 `0→N` 的轉變，`N→M` 不採信（更可能是漏收
-封包）；只警示＋一鍵套用，**絕不自動覆寫**；使用者按「套用」時不受鎖定限制。
+**實際貼標觀測**（`observeGrantedTags()`）：只認 `0→N`（該圖會新貼的標籤），`N→M` 不採信。
+已貼標艦再出不改 grants，否則前段關會被寫成會蓋後段章。跨關使用寫進
+`PlanTag.columnMaps`，且只往編號 ≥ 已歸類最小關的方向補——第三十一戦隊可同時出現在
+E1／E2／E3，E5 札回打 E1 不會進 E1。尚未歸類的札留在「未歸類」，由欄頭 E1–En 鈕手指定。
+從海域清單開頭連續已有 grants 的關算已分類；其後若只剩一關未分類，船上已有、尚未入欄、
+且編號高於前段已分類區間的標籤掛到那一關（不寫死 E5，也不等 0→N）。後面還有兩關以上
+未分類時不猜。多關活動第一關只留該關 0→N（無觀測則只留比後面已分類最小 id 更小的
+色），剩餘已貼標不寫進第一關。某一關已有 grants 時，id ≥ 該關最小 grants 的未出擊色
+仍補到那一關。
 
 **鎖定規則**：標籤一旦「已確立」（實際已有船帶著它），其名稱與牽涉該標籤的關卡之
-`allowedTags`／`grantsTag` 即轉為唯讀，活動結束後使用者明確按「解除鎖定」才可再編輯。
+`allowedTags`／`grantsTag` 即轉為唯讀；僅當次活動進行中可暫時解除。標籤對應關卡是
+**單次活動限定**，該 `areaId` 從 master 消失＝活動結束，配船板的標籤、關卡、觀測與
+快照整份刪除，留空等下一檔，不沿用。
 
 `mapKey = areaId * 10 + mapNo`；`api_mst_maparea[].api_name`＝活動標題，
 `api_mst_mapinfo[].api_name`／`api_opetext`＝海域名／作戰名，存進

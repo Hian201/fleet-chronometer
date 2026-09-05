@@ -20,7 +20,10 @@
 //   第三方工具（KC3Kai／poi）都手維護標籤名表，通常也代表 API 給不出字串。
 //   因此 PlanTag.name 目前一律手動命名；auto 分支（nameSource='auto'）預留但**永遠不會
 //   被寫入**，直到 state.ts wantedTag 的標籤驗證鉤子在活動期間撈到真封包為止。
-// · allowedTags／grantsTag 是攻略情報，API 不提供，只能手輸。
+// · allowedTags／grantsTag 是攻略情報，API 不提供完整表；手輸之外，出擊觀測只把 0→N
+//   寫成「這張圖會新貼的標籤」。已貼標艦再出不改 grants——後段船回打前段時，會把後段
+//   標籤誤掛成 E1 會蓋章。跨關使用改寫 PlanTag.columnMaps（且只往編號 ≥ 已歸類最小關
+//   的方向補），讓第三十一戦隊這類札能出現在 E2／E3，卻不會把 E5 札塞進 E1。
 
 // ── 輸入 view ──────────────────────────────────────────────────────────
 /** 檢查所需的最小艦娘資訊。取自 GameState.ownedShips()，此處刻意不依賴完整 OwnedShipView。 */
@@ -70,6 +73,45 @@ export function sameSallySnapshot(
         && aEntries.every(([id, area]) => b[Number(id)] === area);
 }
 
+const EVENT_AREA_MIN = 10;
+
+/** master 已載入、且該 area 已不在海域清單 → 本次活動結束。 */
+export function isEventBoardExpired(masterPresent: boolean, areaInMaster: boolean): boolean {
+    return masterPresent && !areaInMaster;
+}
+
+/**
+ * 配船板要列出的活動 area。master 在時只認目前海域清單裡的活動圖——標籤分類是單次
+ * 活動限定，結束後不沿用 gauge／舊計畫。master 還沒到才退回 fallback（gauge、已存計畫）。
+ */
+export function liveEventAreas(
+    masterEventAreaIds: number[],
+    masterPresent: boolean,
+    fallbackAreaIds: number[] = [],
+): number[] {
+    const clean = (ids: number[]) => [...new Set(ids.filter(n => Number.isSafeInteger(n) && n >= EVENT_AREA_MIN))]
+        .sort((a, b) => a - b);
+    const live = clean(masterEventAreaIds);
+    if (masterPresent) return live;
+    return clean([...live, ...fallbackAreaIds]);
+}
+
+export function eventPlanHasBoardData(plan: {
+    title: string;
+    tags: unknown[];
+    stages: unknown[];
+    planByShip?: Record<number, number>;
+    observedGrants?: Record<number, number[]>;
+    sallySnapshot?: Record<number, number>;
+    unlocked?: boolean;
+}): boolean {
+    if (plan.title.trim() || plan.tags.length || plan.stages.length || plan.unlocked) return true;
+    if (Object.keys(plan.planByShip ?? {}).length) return true;
+    if (Object.keys(plan.observedGrants ?? {}).length) return true;
+    if (Object.keys(plan.sallySnapshot ?? {}).length) return true;
+    return false;
+}
+
 /**
  * 決定是否以目前即時資料更新某個活動計畫的快照。
  *
@@ -89,15 +131,25 @@ export function nextSallySnapshot(
 
 /**
  * 選擇活動作戰板的完整標籤名冊。即時資料與歷史快照互斥，絕不混成一份看似即時的資料：
- * 只有「選定 area 仍在目前 master 且有非零標籤」才使用 live；其餘情況才回退該計畫快照。
+ * 只有「選定 area 仍在目前 master 且有非零標籤」才使用 live。
+ * master 已載入但該 area 已不在海域清單＝本次活動結束：不讀快照，配船板留空等下一檔。
+ * master 尚未載入時才回退快照，避免 start2 還沒到就把當次計畫洗掉。
  */
 export function resolveSallyRoster(
     liveShips: SallyShip[],
     snapshot: Record<number, number> | undefined,
     areaIsCurrentInMaster: boolean,
+    masterPresent = false,
 ): SallyRosterResolution {
     if (areaIsCurrentInMaster && Object.keys(sallySnapshotFrom(liveShips)).length > 0) {
         return { source: 'live', ships: liveShips, missingShipIds: [] };
+    }
+    if (isEventBoardExpired(masterPresent, areaIsCurrentInMaster)) {
+        return {
+            source: 'none',
+            ships: liveShips.map(ship => ({ ...ship, sallyArea: 0 })),
+            missingShipIds: [],
+        };
     }
 
     const usableSnapshot = Object.entries(snapshot ?? {})
@@ -132,6 +184,12 @@ export interface PlanTag {
      * 缺省時 UI 用 `defaultColorForTag(sallyArea)`（見 utils/tag-board.ts）。
      */
     color?: number;
+    /**
+     * 配船板欄位歸屬的關卡（E1＝1…）。空＝未歸類。
+     * 與 grantsTag 分開：grants 是「這關會新蓋章」；這裡是「這張札用在哪些關」。
+     * 第三十一戦隊這類跨關札會同時出現在 E1／E2／E3，不該整疊進未歸類。
+     */
+    columnMaps?: number[];
 }
 
 /** 編成一格：綁具體艦，或只填角色文字（「二線戰艦」「大發驅逐」）待日後指定。 */
@@ -474,20 +532,26 @@ export function plannedByTag(
 }
 
 // ── 實際貼標觀測 ───────────────────────────────────────────────────────
-// 「出擊結果才是唯一依歸」，故計畫裡的 grantsTag（無標籤船會被貼上哪個標籤）必須能被實際
-// 觀測校正。推論方式：某艦出擊前無標籤、回港後帶著標籤 N ⇒ 該次出擊的海域貼出了 N。
+// 「出擊結果才是唯一依歸」，故計畫裡的 grantsTag 必須能被實際觀測校正。
+// 推論法＝某艦出擊前無標籤、回港後帶著標籤 N ⇒ 該次出擊的海域會貼出 N。
 //
-// **只認 0 → N 的轉變**。N → M（換標籤）在遊戲機制上不會發生，若真的觀測到也不採信——
-// 那更可能是我們漏收了中間的封包，拿來當證據會污染判定。
+// **只認 0 → N** 寫進 grants。已貼標艦再出不改 grants：後段船回打前段時，編成裡會
+// 帶著後段標籤，把它們算成該圖會蓋章會把 E1 塞滿。N → M 亦不採信。
+// 跨關使用另見 observeUsedOnMaps：只補 columnMaps，且不把未歸類札的第一次歸類寫成
+// 出擊過的那張圖。
 //
 // 已知限制（UI 必須如實呈現，別假裝這是完整答案）：
-//   · 粒度只到「海域」。標籤由**海域＋路線**決定，同一張圖不同路線可貼不同標籤（使用者的
-//     E2 就同時有兩個標籤），故觀測只能回答「這張圖貼出過哪些標籤」，無法指定是哪一階段。
-//     **因此只做警示與一鍵套用，不自動覆寫**——多路線的圖會被改錯，而那是鎖定值。
+//   · 粒度只到「海域」。標籤由**海域＋路線**決定，同一張圖不同路線可貼不同標籤。
 //   · 資料來源是 raw events，會被 M6 裁剪（約兩個登入世代），只涵蓋近期出擊。
 export type SallyObservationInput =
-    | { kind: 'sortie'; ts: number; mapKey: number }   // mapKey＝mapArea*10+mapNo
-    | { kind: 'port'; ts: number; tags: Map<number, number> };   // shipId → sallyArea
+    | { kind: 'sortie'; ts: number; mapKey: number; deckId?: number }
+    | {
+        kind: 'port';
+        ts: number;
+        tags: Map<number, number>;
+        decks?: Map<number, number[]>;
+        combined?: boolean;
+    };
 
 export interface GrantObservation {
     tagId: number;
@@ -506,10 +570,13 @@ export function observeGrantedTags(
 ): Map<number, GrantObservation[]> {
     const out = new Map<number, GrantObservation[]>();
     let prev: Map<number, number> | null = null;
-    let sinceLastPort: { ts: number; mapKey: number }[] = [];
+    let sinceLastPort: Extract<SallyObservationInput, { kind: 'sortie' }>[] = [];
 
     for (const input of inputs) {
-        if (input.kind === 'sortie') { sinceLastPort.push(input); continue; }
+        if (input.kind === 'sortie') {
+            sinceLastPort.push(input);
+            continue;
+        }
 
         // 第一筆母港只建立基準線——沒有「之前」就無從判斷轉變。
         if (prev) {
@@ -521,11 +588,13 @@ export function observeGrantedTags(
                 if (list) list.push(shipId); else byTag.set(tag, [shipId]);
             }
             const source = sinceLastPort[sinceLastPort.length - 1];
-            if (byTag.size && source) {
-                const ambiguous = sinceLastPort.length > 1;
+            if (byTag.size && source && source.mapKey > 0) {
                 for (const [tagId, shipIds] of byTag) {
                     const list = out.get(source.mapKey) ?? [];
-                    list.push({ tagId, shipIds, ts: input.ts, ambiguous });
+                    list.push({
+                        tagId, shipIds, ts: input.ts,
+                        ambiguous: sinceLastPort.length > 1,
+                    });
                     out.set(source.mapKey, list);
                 }
             }
@@ -541,6 +610,49 @@ export function grantedTagsOf(
     observations: Map<number, GrantObservation[]>, mapKey: number,
 ): number[] {
     return [...new Set((observations.get(mapKey) ?? []).map(o => o.tagId))].sort((a, b) => a - b);
+}
+
+/**
+ * 已貼標艦實際出過哪些圖。key＝mapKey，值＝當時編成身上的標籤。
+ * 只讀出擊前一次母港的艦隊；缺 deck 或 deckId 就不猜。連合且從第 1 艦隊出擊時
+ * 才併入第 2 艦隊。這不是 grants——後段札回打 E1 不得因此變成「E1 會蓋章」。
+ */
+export function observeUsedOnMaps(
+    inputs: SallyObservationInput[],
+): Map<number, number[]> {
+    const used = new Map<number, Set<number>>();
+    let prevTags: Map<number, number> | null = null;
+    let prevDecks: Map<number, number[]> | null = null;
+    let prevCombined = false;
+
+    for (const input of inputs) {
+        if (input.kind === 'port') {
+            prevTags = input.tags;
+            prevDecks = input.decks ?? null;
+            prevCombined = !!input.combined;
+            continue;
+        }
+        const deckId = input.deckId;
+        if (!prevTags || !prevDecks || !(input.mapKey > 0)
+            || !Number.isSafeInteger(deckId) || !(deckId! > 0)) continue;
+        const shipIds = [...(prevDecks.get(deckId!) ?? [])];
+        if (deckId === 1 && prevCombined) shipIds.push(...(prevDecks.get(2) ?? []));
+        const tags = new Set<number>();
+        for (const shipId of shipIds) {
+            const tag = prevTags.get(shipId) ?? 0;
+            if (tag >= 1) tags.add(tag);
+        }
+        if (!tags.size) continue;
+        const have = used.get(input.mapKey) ?? new Set<number>();
+        for (const tag of tags) have.add(tag);
+        used.set(input.mapKey, have);
+    }
+
+    const out = new Map<number, number[]>();
+    for (const [mapKey, ids] of used) {
+        out.set(mapKey, [...ids].sort((a, b) => a - b));
+    }
+    return out;
 }
 
 /**

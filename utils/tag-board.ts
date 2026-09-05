@@ -99,14 +99,15 @@ export function knownTagIds(
 }
 
 export interface ColumnGroup {
-    /** 跨關／未綁定 → 'SHARED'；否則為單一 mapNo。 */
+    /** 未歸類 → 'SHARED'；否則為單一 mapNo。跨關札會在多個 map 群組各出現一次。 */
     mapId: 'SHARED' | number;
     tags: number[];
 }
 
 /**
- * 欄位群組：maps.length≠1（跨關或多關／未綁）→ SHARED 置前；其餘依單一 mapNo 升冪。
- * tags 陣列內的標籤順序維持輸入順序。
+ * 欄位群組：已歸類的標籤出現在**每一個**對應關卡底下（跨關札如第三十一戦隊
+ * 在 E1／E2／E3 各出現一次）。未歸類（maps 空）才進 SHARED。
+ * tags 陣列內順序維持輸入順序。
  * 無 master 海域清單時用這支；有 master 時改用 `columnGroupsWithMaps`，確保 E1–En 空關也出現。
  */
 export function columnGroups(
@@ -115,12 +116,13 @@ export function columnGroups(
     const shared: number[] = [];
     const byMap = new Map<number, number[]>();
     for (const t of tags) {
-        if (t.maps.length === 1) {
-            const mapNo = t.maps[0]!;
+        if (!t.maps.length) {
+            shared.push(t.id);
+            continue;
+        }
+        for (const mapNo of t.maps) {
             const list = byMap.get(mapNo);
             if (list) list.push(t.id); else byMap.set(mapNo, [t.id]);
-        } else {
-            shared.push(t.id);
         }
     }
     const groups: ColumnGroup[] = [];
@@ -133,8 +135,8 @@ export function columnGroups(
 
 /**
  * 依遊戲海域清單固定排出 E1…En（可為空欄），再把標籤歸入對應關卡。
- * - maps 恰為 1 且該 mapNo 在 master 內 → 該關
- * - 其餘（未綁／跨關／orphan mapNo）→ SHARED（僅在有此類標籤時出現）
+ * - 已歸類 → 在每一個對應 mapNo 底下各出現一次
+ * - 未歸類、或只綁到 master 以外的 orphan → SHARED（僅在有此類標籤時出現）
  * master 為空時退回 `columnGroups(tags)`。
  */
 export function columnGroupsWithMaps(
@@ -148,11 +150,12 @@ export function columnGroupsWithMaps(
     const shared: number[] = [];
     const byMap = new Map<number, number[]>(maps.map(n => [n, []]));
     for (const t of tags) {
-        if (t.maps.length === 1 && known.has(t.maps[0]!)) {
-            byMap.get(t.maps[0]!)!.push(t.id);
-        } else {
+        const here = t.maps.filter(n => known.has(n));
+        if (!here.length) {
             shared.push(t.id);
+            continue;
         }
+        for (const mapNo of here) byMap.get(mapNo)!.push(t.id);
     }
     const groups: ColumnGroup[] = [];
     if (shared.length) groups.push({ mapId: 'SHARED', tags: shared });
@@ -306,15 +309,117 @@ export function resolveTagColor(tag: PlanTag): number {
 }
 
 /**
- * 從 stages 推各標籤綁定的 mapNo（只認 grantsTag＋有 mapNo 的列）。
- * 多個 mapNo → 跨關；空 → 未綁定（columnGroups 會歸 SHARED）。
+ * 配船板欄位歸屬：grantsTag（這關會新蓋章）∪ PlanTag.columnMaps（跨關使用／手指定）。
+ * allowedTags 是路線規則，不算進欄位——否則「E2 可帶 E1 札」會把所有允許色複製進該關。
+ * 空 → 未歸類（columnGroups 進 SHARED）。
  */
-export function mapsForTag(stages: PlanStage[], tagId: number): number[] {
+export function mapsForTag(stages: PlanStage[], tagId: number, tag?: PlanTag | null): number[] {
     const maps = new Set<number>();
     for (const st of stages) {
         if (st.grantsTag === tagId && st.mapNo != null && st.mapNo > 0) maps.add(st.mapNo);
     }
+    for (const mapNo of tag?.columnMaps ?? []) {
+        if (Number.isSafeInteger(mapNo) && mapNo > 0) maps.add(mapNo);
+    }
     return [...maps].sort((a, b) => a - b);
+}
+
+function normalizeColumnMaps(mapNos: readonly number[]): number[] {
+    return [...new Set(mapNos.filter(n => Number.isSafeInteger(n) && n > 0))]
+        .sort((a, b) => a - b);
+}
+
+/** 指定標籤的欄位關卡（全量覆寫）。 */
+export function setTagColumnMaps(
+    tags: PlanTag[],
+    tagId: number,
+    mapNos: number[],
+): { tags: PlanTag[]; changed: boolean } {
+    if (!(tagId >= 1)) return { tags, changed: false };
+    const next = normalizeColumnMaps(mapNos);
+    const copy = tags.map(tg => ({ ...tg, columnMaps: tg.columnMaps ? [...tg.columnMaps] : undefined }));
+    let tg = copy.find(t => t.sallyArea === tagId);
+    if (!tg) {
+        copy.push({
+            sallyArea: tagId, name: '', nameSource: 'manual',
+            color: defaultColorForTag(tagId),
+            columnMaps: next.length ? next : undefined,
+        });
+        return { tags: copy, changed: true };
+    }
+    const prev = normalizeColumnMaps(tg.columnMaps ?? []);
+    if (prev.length === next.length && prev.every((n, i) => n === next[i])) {
+        return { tags: copy, changed: false };
+    }
+    tg.columnMaps = next.length ? next : undefined;
+    return { tags: copy, changed: true };
+}
+
+export function addTagColumnMaps(
+    tags: PlanTag[],
+    tagId: number,
+    mapNos: number[],
+): { tags: PlanTag[]; changed: boolean } {
+    const have = tags.find(t => t.sallyArea === tagId)?.columnMaps ?? [];
+    return setTagColumnMaps(tags, tagId, [...have, ...mapNos]);
+}
+
+/**
+ * 把 grants 與「已貼標再出」寫進 columnMaps。
+ * 已貼標再出只往編號 ≥ 已歸類最小關的方向補——E5 札回打 E1 不會因此出現在 E1。
+ * 尚未歸類的札不靠出擊編成做第一次歸類，留給使用者指定。
+ */
+export function applyColumnMapObservations(
+    tags: PlanTag[],
+    stages: PlanStage[],
+    usedByMapNo: ReadonlyMap<number, readonly number[]>,
+): { tags: PlanTag[]; changed: boolean } {
+    let next: PlanTag[] = tags.map(tg => ({
+        ...tg, columnMaps: tg.columnMaps ? [...tg.columnMaps] : undefined,
+    }));
+    let changed = false;
+    const grantMaps = new Map<number, Set<number>>();
+    for (const st of stages) {
+        if (st.grantsTag == null || st.grantsTag < 1 || st.mapNo == null || st.mapNo < 1) continue;
+        const set = grantMaps.get(st.grantsTag) ?? new Set<number>();
+        set.add(st.mapNo);
+        grantMaps.set(st.grantsTag, set);
+    }
+    const usedMaps = new Map<number, Set<number>>();
+    for (const [mapNo, ids] of usedByMapNo) {
+        if (!(mapNo > 0)) continue;
+        for (const tagId of ids) {
+            if (!(tagId >= 1)) continue;
+            const set = usedMaps.get(tagId) ?? new Set<number>();
+            set.add(mapNo);
+            usedMaps.set(tagId, set);
+        }
+    }
+    const ids = new Set<number>([
+        ...next.map(t => t.sallyArea),
+        ...grantMaps.keys(),
+        ...usedMaps.keys(),
+    ]);
+    for (const tagId of ids) {
+        const grant = grantMaps.get(tagId) ?? new Set<number>();
+        const used = usedMaps.get(tagId) ?? new Set<number>();
+        const have = new Set(next.find(t => t.sallyArea === tagId)?.columnMaps ?? []);
+        const homeCandidates = [...have, ...grant];
+        const home = homeCandidates.length ? Math.min(...homeCandidates) : null;
+        const add = new Set<number>(have);
+        for (const mapNo of grant) add.add(mapNo);
+        if (home != null) {
+            for (const mapNo of used) {
+                if (mapNo >= home) add.add(mapNo);
+            }
+        }
+        const out = setTagColumnMaps(next, tagId, [...add]);
+        if (out.changed) {
+            next = out.tags;
+            changed = true;
+        }
+    }
+    return { tags: next, changed };
 }
 
 /** 把 live 觀測併入計畫內持久化的 observedGrants（只增不減）。 */
@@ -428,14 +533,18 @@ export function applyObservedTagBindings(
         changed = true;
     };
 
-    /** 本活動內：標籤 → 曾觀測到貼標的 mapNo 集合 */
+    /** 本活動內：標籤 → 曾觀測到 0→N 的 mapNo 集合 */
     const observedMapsByTag = new Map<number, Set<number>>();
+    const liveOnMap = new Map<number, Set<number>>();
+    let anyLive = false;
     for (const mapNo of masterMapNos) {
         if (!(mapNo > 0)) continue;
         const mapKey = areaId * 10 + mapNo;
         const observed = [...new Set((observations.get(mapKey) ?? []).map(o => o.tagId))]
             .filter(id => Number.isSafeInteger(id) && id >= 1)
             .sort((a, b) => a - b);
+        liveOnMap.set(mapNo, new Set(observed));
+        if (observed.length) anyLive = true;
         for (const tagId of observed) {
             ensureTag(tagId);
             const set = observedMapsByTag.get(tagId) ?? new Set<number>();
@@ -445,17 +554,33 @@ export function applyObservedTagBindings(
         }
     }
 
-    // 有觀測證據的標籤：清掉不在觀測地圖上的 grants，避免未觀測的關卡保留標籤。
+    const dropGrant = (st: PlanStage, tag: number) => {
+        st.grantsTag = null;
+        st.allowedTags = st.allowedTags.filter(id => id !== tag);
+        changed = true;
+    };
+
+    // 有 0→N 證據的標籤：清掉不在觀測地圖上的 grants。
+    // 某關自己有 0→N 時，也清掉該關「不是這次觀測到的」grants，避免已貼標艦再出
+    // 把共用標籤寫進前段關。
     for (const st of nextStages) {
         const tag = st.grantsTag;
         if (tag == null || tag < 1 || st.mapNo == null || st.mapNo < 1) continue;
         const maps = observedMapsByTag.get(tag);
-        if (!maps || maps.has(st.mapNo)) continue;
-        st.grantsTag = null;
-        changed = true;
+        if (maps && !maps.has(st.mapNo)) {
+            dropGrant(st, tag);
+            continue;
+        }
+        const onMap = liveOnMap.get(st.mapNo);
+        if (anyLive && onMap && onMap.size && !onMap.has(tag)) dropGrant(st, tag);
     }
-    // 清掉因此變成空殼的 phase 列（主列保留）
-    const kept = nextStages.filter(st => {
+    const kept = dropEmptyPhases(nextStages);
+    if (kept.length !== nextStages.length) changed = true;
+    return { stages: kept, tags: nextTags, changed };
+}
+
+function dropEmptyPhases(stages: PlanStage[]): PlanStage[] {
+    return stages.filter(st => {
         if (!st.phase) return true;
         if (st.grantsTag != null) return true;
         if (st.allowedTags.length > 0) return true;
@@ -463,58 +588,149 @@ export function applyObservedTagBindings(
         if (st.label && st.label.trim()) return true;
         return false;
     });
-    if (kept.length !== nextStages.length) changed = true;
-    return { stages: kept, tags: nextTags, changed };
 }
 
 /**
- * 船上已有、卻尚無任何 grants 綁定、且觀測也沒提到的標籤：
- * 掛到「已有貼標綁定的最早關」當第二／三…階段（restore／裁剪後常見：E1 兩路線貼了 1 與 2，
- * 但計畫只寫了 grants=1）。**不猜**觀測已寫明在別關的標籤。
+ * 船上已有的標籤：補 tags 條目；已分類關卡之後若只剩一關未入欄，把還沒掛上的已貼標
+ * 掛到那一關。不寫死某一關，也不等 0→N。
+ *
+ * 從海域清單開頭往後數，連續已有 grants 的是「前面已分類」；其後的是「後面未分類」。
+ * 後面只剩一關時，未綁到已分類關的已貼標只能是那一關。後面還有兩關以上時不猜。
+ * 某一關自己已有 grants 時，id ≥ 該關最小 grants 的未出擊色仍補到那一關。
+ *
+ * 多關活動第一關只留該關自己的色（有 0→N 只留觀測；否則只留比後面已分類最小 id
+ * 更小的）。剩餘已貼標不寫進第一關，已誤掛的共用／後段色從第一關清掉。
  */
 export function bindUnboundEstablishedTags(
     stages: PlanStage[],
     tags: PlanTag[],
     establishedIds: number[],
     fallbackMapNos: number[],
-    observedTagIds: ReadonlySet<number> = new Set(),
+    liveByMap: ReadonlyMap<number, readonly number[]> = new Map(),
 ): { stages: PlanStage[]; tags: PlanTag[]; changed: boolean } {
     let changed = false;
-    const nextStages = stages.map(s => ({
+    let nextStages = stages.map(s => ({
         ...s,
         allowedTags: [...s.allowedTags],
         slots: s.slots.map(sl => ({ ...sl })),
     }));
-    const nextTags = tags.map(tg => ({ ...tg }));
+    let nextTags: PlanTag[] = tags.map(tg => ({
+        ...tg,
+        columnMaps: tg.columnMaps ? [...tg.columnMaps] : undefined,
+    }));
     const haveTag = new Set(nextTags.map(tg => tg.sallyArea));
-    const bound = new Set(
-        nextStages.map(s => s.grantsTag).filter((x): x is number => x != null && x >= 1),
-    );
-    const mapsWithGrant = [...new Set(
-        nextStages.filter(s => s.grantsTag != null && s.mapNo != null && s.mapNo > 0)
-            .map(s => s.mapNo!),
-    )].sort((a, b) => a - b);
-    const fallback = fallbackMapNos.find(n => Number.isSafeInteger(n) && n > 0);
-    const targetMap = mapsWithGrant[0] ?? fallback;
-    if (targetMap == null) return { stages: nextStages, tags: nextTags, changed: false };
+    const established = [...new Set(establishedIds)].filter(id => id >= 1).sort((a, b) => a - b);
 
-    for (const tagId of [...new Set(establishedIds)].filter(id => id >= 1).sort((a, b) => a - b)) {
-        if (bound.has(tagId)) continue;
-        if (observedTagIds.has(tagId)) continue; // 觀測會／已負責，不瞎猜關卡
-        if (!haveTag.has(tagId)) {
-            nextTags.push({
-                sallyArea: tagId, name: '', nameSource: 'manual',
-                color: defaultColorForTag(tagId),
-            });
-            haveTag.add(tagId);
-            changed = true;
+    for (const tagId of established) {
+        if (haveTag.has(tagId)) continue;
+        nextTags.push({
+            sallyArea: tagId, name: '', nameSource: 'manual',
+            color: defaultColorForTag(tagId),
+        });
+        haveTag.add(tagId);
+        changed = true;
+    }
+
+    const maps = fallbackMapNos.filter(n => Number.isSafeInteger(n) && n > 0);
+    if (!maps.length) return { stages: nextStages, tags: nextTags, changed };
+
+    const grantsOn = (mapNo: number) => nextStages
+        .filter(s => s.mapNo === mapNo && s.grantsTag != null && s.grantsTag >= 1)
+        .map(s => s.grantsTag!);
+    const dropGrant = (st: PlanStage, tag: number) => {
+        st.grantsTag = null;
+        st.allowedTags = st.allowedTags.filter(id => id !== tag);
+        changed = true;
+    };
+
+    let prefixEnd = 0;
+    for (const mapNo of maps) {
+        if (grantsOn(mapNo).length) prefixEnd = mapNo;
+        else break;
+    }
+    const firstMap = maps[0]!;
+    const lastMap = maps[maps.length - 1]!;
+    const laterMaps = maps.filter(n => n > prefixEnd);
+    const soleLater = laterMaps.length === 1 ? laterMaps[0] : null;
+    const lastGrants = grantsOn(lastMap);
+    const lastMin = lastGrants.length ? Math.min(...lastGrants) : null;
+    const laterPrefixGrants = maps
+        .filter(n => n > firstMap && n <= prefixEnd)
+        .flatMap(m => grantsOn(m));
+    const laterPrefixMin = laterPrefixGrants.length ? Math.min(...laterPrefixGrants) : null;
+    const liveFirst = new Set(
+        (liveByMap.get(firstMap) ?? []).filter(id => Number.isSafeInteger(id) && id >= 1),
+    );
+
+    const keepOnFirst = new Set<number>();
+    if (maps.length === 1) {
+        for (const id of grantsOn(firstMap)) keepOnFirst.add(id);
+    } else if (liveFirst.size) {
+        for (const id of liveFirst) keepOnFirst.add(id);
+    } else if (laterPrefixMin != null) {
+        for (const id of grantsOn(firstMap)) {
+            if (id < laterPrefixMin) keepOnFirst.add(id);
         }
-        if (bindTagToMap(nextStages, targetMap, tagId)) {
-            bound.add(tagId);
+    } else {
+        for (const id of grantsOn(firstMap)) {
+            if (lastMin != null && lastMap !== firstMap && id >= lastMin) continue;
+            keepOnFirst.add(id);
+        }
+    }
+
+    if (maps.length > 1) {
+        for (const st of nextStages) {
+            if (st.mapNo !== firstMap || st.grantsTag == null || st.grantsTag < 1) continue;
+            if (keepOnFirst.has(st.grantsTag)) continue;
+            const dropped = st.grantsTag;
+            dropGrant(st, dropped);
+            const col = setTagColumnMaps(
+                nextTags, dropped,
+                (nextTags.find(t => t.sallyArea === dropped)?.columnMaps ?? [])
+                    .filter(n => n !== firstMap),
+            );
+            if (col.changed) nextTags = col.tags;
+        }
+        const kept = dropEmptyPhases(nextStages);
+        if (kept.length !== nextStages.length) changed = true;
+        nextStages = kept;
+    }
+
+    const bound = new Set(maps.flatMap(m => grantsOn(m)));
+    const prefixMax = (() => {
+        const ids = maps.filter(n => n <= prefixEnd).flatMap(m => grantsOn(m));
+        return ids.length ? Math.max(...ids) : null;
+    })();
+    const attachTo = (tagId: number): number | null => {
+        if (bound.has(tagId)) return null;
+        if (soleLater != null && (maps.length === 1 || soleLater !== firstMap)) {
+            // 編號仍落在前段已分類區間＝共用色，進 SHARED，不塞進後段關。
+            if (prefixMax != null && tagId <= prefixMax) return null;
+            return soleLater;
+        }
+        if (lastMin != null && tagId >= lastMin && (maps.length === 1 || lastMap !== firstMap)) {
+            return lastMap;
+        }
+        return null;
+    };
+
+    for (const tagId of established) {
+        const target = attachTo(tagId);
+        if (target == null) continue;
+        for (const st of nextStages) {
+            if (st.mapNo === target || st.grantsTag !== tagId) continue;
+            dropGrant(st, tagId);
+        }
+        if (bindTagToMap(nextStages, target, tagId)) changed = true;
+        const col = addTagColumnMaps(nextTags, tagId, [target]);
+        if (col.changed) {
+            nextTags = col.tags;
             changed = true;
         }
     }
-    return { stages: nextStages, tags: nextTags, changed };
+    const pruned = dropEmptyPhases(nextStages);
+    if (pruned.length !== nextStages.length) changed = true;
+    return { stages: pruned, tags: nextTags, changed };
 }
 
 /**
@@ -548,6 +764,11 @@ export function setMapGrantTags(
             changed = true;
         }
         if (bindTagToMap(nextStages, mapNo, tagId)) changed = true;
+        const col = addTagColumnMaps(nextTags, tagId, [mapNo]);
+        if (col.changed) {
+            nextTags = col.tags;
+            changed = true;
+        }
     }
     const wantSet = new Set(want);
     for (const st of nextStages) {
@@ -593,15 +814,20 @@ export function unbindTagFromMap(
         return { stages, tags, changed: false };
     }
     const cur = grantTagsOnMap(stages, mapNo);
-    if (!cur.includes(tagId)) return { stages, tags, changed: false };
-    const out = setMapGrantTags(stages, tags, mapNo, cur.filter(x => x !== tagId));
-    // 也從該關各階段的 allowedTags 拿掉（僅本關）
+    const out = cur.includes(tagId)
+        ? setMapGrantTags(stages, tags, mapNo, cur.filter(x => x !== tagId))
+        : { stages, tags, changed: false };
+    // 也從該關各階段的 allowedTags、以及欄位歸屬拿掉（僅本關）
     let stages2 = out.stages.map(s => {
         if (s.mapNo !== mapNo || !s.allowedTags.includes(tagId)) return s;
         return { ...s, allowedTags: s.allowedTags.filter(x => x !== tagId) };
     });
-    let tags2 = out.tags;
-    let changed = out.changed || stages2.some((s, i) => s !== out.stages[i]);
+    const col = setTagColumnMaps(
+        out.tags, tagId,
+        (out.tags.find(t => t.sallyArea === tagId)?.columnMaps ?? []).filter(n => n !== mapNo),
+    );
+    let tags2 = col.tags;
+    let changed = out.changed || col.changed || stages2.some((s, i) => s !== out.stages[i]);
 
     const stillGranted = stages2.some(s => s.grantsTag === tagId);
     const stillAllowed = stages2.some(s => s.allowedTags.includes(tagId));

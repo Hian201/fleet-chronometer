@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     checkStage, ensureUniqueStageKeys, establishedTags, findPlanConflicts, freeShips,
-    grantedTagsOf, groupBySally, guessMapNo, newStageKey, nextSallySnapshot, observeGrantedTags,
+    eventPlanHasBoardData, grantedTagsOf, groupBySally, guessMapNo, isEventBoardExpired,
+    liveEventAreas, newStageKey, nextSallySnapshot, observeGrantedTags, observeUsedOnMaps,
     plannedByTag, reconcileStages, removeStageAt, resolveSallyRoster, sallyBudget,
     type PlanStage, type SallyObservationInput, type SallyShip,
 } from '../utils/event-plan';
@@ -58,11 +59,16 @@ describe('標籤快照：即時資料優先與安全更新', () => {
         expect(nextSallySnapshot(historical, ships.map(ship => ({ ...ship, sallyArea: 0 })), true)).toBeNull();
     });
 
-    it('歷史活動以快照恢復分群與鎖定判定', () => {
-        const out = resolveSallyRoster(ships.map(ship => ({ ...ship, sallyArea: 0 })), historical, false);
-        expect(out.source).toBe('snapshot');
-        expect(groupBySally(out.ships).map(g => [g.sallyArea, g.ships.map(ship => ship.id)])).toEqual([[8, [208]], [9, [101]]]);
-        expect([...establishedTags(out.ships)].sort()).toEqual([8, 9]);
+    it('master 尚未載入時才用快照；活動已結束不沿用', () => {
+        const cleared = ships.map(ship => ({ ...ship, sallyArea: 0 }));
+        const pending = resolveSallyRoster(cleared, historical, false, false);
+        expect(pending.source).toBe('snapshot');
+        expect(groupBySally(pending.ships).map(g => [g.sallyArea, g.ships.map(ship => ship.id)])).toEqual([[8, [208]], [9, [101]]]);
+        expect([...establishedTags(pending.ships)].sort()).toEqual([8, 9]);
+
+        const ended = resolveSallyRoster(cleared, historical, false, true);
+        expect(ended.source).toBe('none');
+        expect(groupBySally(ended.ships)).toEqual([]);
     });
 
     it('現行活動的標籤不會寫進另一個已不在 master 的歷史 area', () => {
@@ -74,9 +80,24 @@ describe('標籤快照：即時資料優先與安全更新', () => {
         expect(none.source).toBe('none');
         expect(groupBySally(none.ships)).toEqual([]);
 
-        const historicalOnly = resolveSallyRoster(ships.map(ship => ({ ...ship, sallyArea: 0 })), historical, false);
+        const historicalOnly = resolveSallyRoster(ships.map(ship => ({ ...ship, sallyArea: 0 })), historical, false, false);
         expect(historicalOnly.missingShipIds).toEqual([999]);
         expect(historicalOnly.ships.some(ship => ship.id === 999)).toBe(false);
+    });
+
+    it('liveEventAreas：master 在只列當次活動，結束後不沿用 fallback', () => {
+        expect(isEventBoardExpired(true, false)).toBe(true);
+        expect(isEventBoardExpired(true, true)).toBe(false);
+        expect(isEventBoardExpired(false, false)).toBe(false);
+        expect(liveEventAreas([62], true, [61, 62])).toEqual([62]);
+        expect(liveEventAreas([], true, [61, 62])).toEqual([]);
+        expect(liveEventAreas([], false, [61, 62])).toEqual([61, 62]);
+        expect(eventPlanHasBoardData({
+            title: '', tags: [{ sallyArea: 1 }], stages: [],
+        })).toBe(true);
+        expect(eventPlanHasBoardData({
+            title: '', tags: [], stages: [], planByShip: {},
+        })).toBe(false);
     });
 });
 
@@ -264,6 +285,38 @@ describe('實際貼標觀測', () => {
     });
 
     it('空輸入', () => expect([...observeGrantedTags([]).keys()]).toEqual([]));
+
+    it('已貼標艦再出不算進該圖', () => {
+        const obs = observeGrantedTags([
+            { kind: 'port', ts: 1, tags: new Map([[401, 9], [402, 10]]) },
+            { kind: 'sortie', ts: 2, mapKey: 625 },
+            { kind: 'port', ts: 3, tags: new Map([[401, 9], [402, 10]]) },
+        ]);
+        expect(grantedTagsOf(obs, 625)).toEqual([]);
+    });
+    it('observeUsedOnMaps：讀出擊前編成的已貼標，連合才併第 2 艦隊', () => {
+        const decks = new Map([[1, [401, 402]], [2, [403]]]);
+        const used = observeUsedOnMaps([
+            {
+                kind: 'port', ts: 1,
+                tags: new Map([[401, 1], [402, 0], [403, 5]]),
+                decks, combined: true,
+            },
+            { kind: 'sortie', ts: 2, mapKey: 623, deckId: 1 },
+            {
+                kind: 'port', ts: 3,
+                tags: new Map([[401, 1], [402, 0], [403, 5]]),
+                decks, combined: false,
+            },
+            { kind: 'sortie', ts: 4, mapKey: 621, deckId: 1 },
+        ]);
+        expect(used.get(623)).toEqual([1, 5]);
+        expect(used.get(621)).toEqual([1]);
+        expect(observeUsedOnMaps([
+            { kind: 'port', ts: 1, tags: new Map([[401, 9]]) },
+            { kind: 'sortie', ts: 2, mapKey: 625, deckId: 1 },
+        ]).size).toBe(0);
+    });
 });
 
 describe('關卡名 → 海域序號', () => {
