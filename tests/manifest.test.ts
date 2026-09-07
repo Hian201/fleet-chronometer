@@ -161,6 +161,16 @@ describe('正式版 manifest', () => {
         expect(html).not.toContain('KC Monitor');
     });
 
+    // isDebugUiEnabled 的後備旗標必須是 WXT COMMAND，不能跟 NODE_ENV 走。
+    // vitest 子行程常帶 NODE_ENV=test，若誤用 import.meta.env.DEV，這裡會編成 return!0。
+    it('正式產物預設關閉 debug UI', () => {
+        const js = outputFiles(outputRoot)
+            .filter(path => path.endsWith('.js'))
+            .map(path => readFileSync(path, 'utf8'))
+            .join('\n');
+        expect(js).toMatch(/getItem\(`kc-debug-ui`\)===`1`\)return!0\}catch\{\}return!1/);
+    });
+
     // manifest 的 `__MSG_*` 只有在 `_locales/<default_locale>/messages.json` 補齊時才成立：
     // 預設語系少一個 key，Chrome 會直接拒載整個擴充（其他語系缺 key 只是回退，不致命）。
     it('三個語系都提供完整的 messages，且預設語系必須齊全', () => {

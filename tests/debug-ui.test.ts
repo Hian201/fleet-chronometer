@@ -24,7 +24,7 @@ describe('isDebugUiEnabled', () => {
         expect(isDebugUiEnabled()).toBe(true);
     });
 
-    it('無 localStorage 時退回 import.meta.env.DEV（vitest 為 true、正式 build 為 false）', () => {
-        expect(isDebugUiEnabled()).toBe(import.meta.env.DEV);
+    it('無 localStorage 時只有 WXT serve（npm run dev）才開啟', () => {
+        expect(isDebugUiEnabled()).toBe(import.meta.env.COMMAND === 'serve');
     });
 });
