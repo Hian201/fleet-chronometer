@@ -15,7 +15,7 @@ import {
 import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import {
-    copyWithFeedback, dateEnd, dateStart, downloadText, esc, eventDisplayName,
+    copyWithFeedback, dateEnd, dateStart, downloadText, dropDisplayName, esc, eventDisplayName,
     eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter, fmtTs,
     fuzzyMatch, loadJsonPrefs, mapFilterSelectHtml, paginate, rankClassSuffix,
     readEventWorldFilter, saveJsonPrefs,
@@ -40,7 +40,7 @@ interface Column {
 }
 
 function dropName(row: SortieLogRow, ctx: SectionContext): string | null {
-    return row.drop || (row.dropMst ? ctx.state.shipName(row.dropMst) : null);
+    return dropDisplayName(row, mst => ctx.state.shipName(mst));
 }
 
 function catalogItem(row: SortieLogRow) {
@@ -191,7 +191,8 @@ export const dropLogSection: OverviewSection = {
             return item.event === (prefs.cat === 'event')
                 && (eventFilter === 'all' || item.world === eventFilter)
                 && (mapFilter === 'all' || item.map === mapFilter)
-                && fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
+                && (fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
+                    || fuzzyMatch(row.drop ?? '', keyword.value))
                 && (from == null || row.ts >= from) && (to == null || row.ts <= to)
                 && (newShip === 'all' || (newShipEventIds.has(row.eventId) === (newShip === 'new')));
         };

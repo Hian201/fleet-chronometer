@@ -167,10 +167,10 @@ const STRINGS: Record<Lang, Dict> = {
         'exped.masterNotLoaded': '圖鑑未載入（請先回到母港）',
         'exped.area': '海域 {n}',
         'exped.timeRequired': '所要時間',
-        'exped.successMet': '✓ 成功條件達成',
-        'exped.successNotMet': '✕ 成功條件未達成',
-        'exped.gsExcluded': '✕ 成功條件未達成，不列入計算',
-        'exped.gsRate': '大成功 目安 {rate}%',
+        'exped.successMet': '✓ 條件達成',
+        'exped.successNotMet': '✕ 條件未達成',
+        'exped.gsExcluded': '✕ 不列入計算',
+        'exped.gsRate': '~{rate}%',
         'exped.success': '成功',
         'exped.greatSuccess': '大成功',
         'exped.items': '道具',
@@ -958,6 +958,9 @@ const STRINGS: Record<Lang, Dict> = {
         'node.branch': '能動分歧', 'node.nothing': '無事發生', 'node.airRecon': '航空偵察',
         'node.airBattle': '航空戰', 'node.escortSuccess': '船團護衛成功', 'node.landing': '揚陸地點',
         'node.airRaid': '空襲戰', 'node.enemyCombined': '敵連合艦隊',
+        'node.submarine': '潛水', 'node.subAir': '潛空', 'node.night': '夜戰',
+        'node.boss': '王點', 'node.battle': '一般戰鬥', 'node.unknown': '節點類型不可考',
+        'ov.slNewShipTip': '新船掉落：{list}',
         'ov.slBaseExp': '基礎經驗值',
         'ov.slBaseExpTip': '基礎經驗值不在遊戲封包裡；此值來自匯入的 KC3Kai 紀錄，本機擷取的紀錄不會有。',
         // 展開內容的折疊控制
@@ -1216,10 +1219,10 @@ const STRINGS: Record<Lang, Dict> = {
         'exped.masterNotLoaded': '図鑑未読込(母港へ戻ってください)',
         'exped.area': '海域 {n}',
         'exped.timeRequired': '所要時間',
-        'exped.successMet': '✓ 成功条件達成',
-        'exped.successNotMet': '✕ 成功条件未達成',
-        'exped.gsExcluded': '✕ 成功条件未達成のため対象外',
-        'exped.gsRate': '大成功 目安 {rate}%',
+        'exped.successMet': '✓ 条件達成',
+        'exped.successNotMet': '✕ 条件未達成',
+        'exped.gsExcluded': '✕ 対象外',
+        'exped.gsRate': '目安 {rate}%',
         'exped.success': '成功',
         'exped.greatSuccess': '大成功',
         'exped.items': 'アイテム',
@@ -1992,6 +1995,9 @@ const STRINGS: Record<Lang, Dict> = {
         'node.branch': '能動分岐', 'node.nothing': '気のせい', 'node.airRecon': '航空偵察',
         'node.airBattle': '航空戦', 'node.escortSuccess': '船団護衛成功', 'node.landing': '揚陸地点',
         'node.airRaid': '空襲戦', 'node.enemyCombined': '敵連合艦隊',
+        'node.submarine': '潜水', 'node.subAir': '潜空', 'node.night': '夜戦',
+        'node.boss': 'ボスマス', 'node.battle': '通常戦闘', 'node.unknown': 'マス種別不明',
+        'ov.slNewShipTip': '新艦ドロップ：{list}',
         'ov.slBaseExp': '基礎経験値',
         'ov.slBaseExpTip': '基礎経験値はゲームのパケットに含まれません。この値はインポートした KC3Kai の記録由来で、自前で取得した記録には付きません。',
         // 展開表示の折りたたみ操作
@@ -2245,10 +2251,10 @@ const STRINGS: Record<Lang, Dict> = {
         'exped.masterNotLoaded': 'Ship data not loaded (return to port)',
         'exped.area': 'Area {n}',
         'exped.timeRequired': 'Time Required',
-        'exped.successMet': '✓ Success Condition Met',
-        'exped.successNotMet': '✕ Success Condition Not Met',
-        'exped.gsExcluded': '✕ Excluded (success condition not met)',
-        'exped.gsRate': 'Great Success ~{rate}%',
+        'exped.successMet': '✓ Condition Met',
+        'exped.successNotMet': '✕ Condition Not Met',
+        'exped.gsExcluded': '✕ Excluded',
+        'exped.gsRate': '~{rate}%',
         'exped.success': 'Success',
         'exped.greatSuccess': 'Great Success',
         'exped.items': 'Items',
@@ -3023,6 +3029,9 @@ const STRINGS: Record<Lang, Dict> = {
         'node.branch': 'Compass choice', 'node.nothing': 'Nothing', 'node.airRecon': 'Air recon',
         'node.airBattle': 'Air battle', 'node.escortSuccess': 'Escort success', 'node.landing': 'Landing',
         'node.airRaid': 'Air raid', 'node.enemyCombined': 'Enemy combined',
+        'node.submarine': 'Submarine', 'node.subAir': 'Submarine + air', 'node.night': 'Night battle',
+        'node.boss': 'Boss', 'node.battle': 'Battle', 'node.unknown': 'Node type unknown',
+        'ov.slNewShipTip': 'New ship drop: {list}',
         'ov.slBaseExp': 'Base EXP',
         'ov.slBaseExpTip': 'Base EXP is not in any game packet; this value comes from an imported KC3Kai record and never appears on locally captured ones.',
         // Collapsible controls in the expanded view
@@ -3168,8 +3177,107 @@ export function expedSupportNote(missionId: number): string | null {
     return key ? t(key) : null;
 }
 
-/** 遠征顯示名：活動支援遠征補上白話註記，其餘原樣回傳封包名稱。 */
+// 使用者提供的 `Expeditions - Kancolle Wiki.html` 英文欄位，依 samples/start2-master.json
+// 的 api_id／api_disp_no 對回面板收到的 mission master id。英文頁只有顯示編號，執行期仍以
+// master id 為鍵；未列入表內的未來或未知遠征保留封包原名，不猜翻譯。
+const EXPEDITION_NAMES_EN: Readonly<Record<number, string>> = {
+    1: 'Navigation Practice',
+    2: 'Long Distance Navigation Practice',
+    3: 'Defense Mission',
+    4: 'Anti-Submarine Mission',
+    5: 'Maritime Escort Mission',
+    6: 'Air Defense Shooting Practice',
+    7: 'Naval Review Rehearsal',
+    8: 'Naval Review',
+    9: 'Tanker Escort Mission',
+    10: 'Enforced Reconnaissance Mission',
+    11: 'Bauxite Transport Mission',
+    12: 'Resource Transport Mission',
+    13: 'Rat Transport Operation',
+    14: 'Marine Siege Evacuation Operation',
+    15: 'Decoy Naval Task Force Support Operation',
+    16: 'Decisive Battle Fleet Support Operation',
+    17: 'Enemy Territory Reconnaissance Operation',
+    18: 'Aircraft Transport Operation',
+    19: 'Operation Kita',
+    20: 'Submarine Patrol Operation',
+    21: 'Northern Rat Transport Operation',
+    22: 'Fleet Exercise',
+    23: 'Aviation Battleship Exercise Operation',
+    24: 'Northern Maritime Sea Passage Escort',
+    25: 'Commerce Raid Operation',
+    26: 'Enemy Homeport Air-Raid Operation',
+    27: 'Submarine Commerce Raid Operation',
+    28: 'Western Waters Blockade Operation',
+    29: 'Submarine Dispatch Exercise',
+    30: 'Submarine Dispatch Operation',
+    31: 'Contact with Foreign Ships',
+    32: 'High Seas Practice',
+    33: 'Vanguard Support Mission',
+    34: 'Decisive Battle Fleet Support Mission',
+    35: 'Operation MO',
+    36: 'Seaplane Base Construction',
+    37: 'Tokyo Express',
+    38: 'Tokyo Express (2)',
+    39: 'Deep Sea Submarine Operation',
+    40: 'Seaplane Front Line Transport',
+    41: 'Brunei Anchorage Patrol',
+    42: 'Mi Convoy Escort (Fleet No.1)',
+    43: 'Mi Convoy Escort (Fleet No.2)',
+    44: 'Aircraft Equipment Transport Mission',
+    45: 'Bauxite Convoy Escort',
+    46: 'Southwestern Sea Combat Patrols',
+    100: 'Supply Line Strengthening Mission',
+    101: 'Strait Defense Line',
+    102: 'Long Term Anti-Submarine Mission',
+    103: 'SouthWestern Connection Line Patrol',
+    104: 'Ogasawara Coastal Patrol Line',
+    105: 'Ogasawara Coastal Combat Patrol',
+    110: 'South Western Air Reconnaissance Operation',
+    111: 'Enemy Harbor Assault Counter Attack Operation',
+    112: 'Nansei Island Remote Island Patrolling Operation',
+    113: 'Nansei Island Remote Island Defense Operation',
+    114: 'Nansei Island Search and Destroy Mission',
+    115: 'Elite Destroyer Squadron Night Raid',
+    131: 'Western Sea Reconnaissance Operation',
+    132: 'Western Submarine Operation',
+    133: 'Contact with Friendly European Forces',
+    141: 'Rabaul District Fleet Advance',
+    142: 'Enforced Rat Transport Operation',
+    // 301/302 的封包原名與 Wiki 的 33/34 相同，故沿用同一英文名稱；支援註記仍由上表補上。
+    301: 'Vanguard Support Mission',
+    302: 'Decisive Battle Fleet Support Mission',
+};
+
+// 使用者提供的遠征 Wiki HTML 以圖片 alt 文字列出獎勵物品英文名；short 是 panel 的可見文字，
+// full 保留 Wiki 原名供 title 查閱，避免長名稱把固定寬度的獎勵列撐爆。
+const EXPEDITION_ITEM_NAMES_EN: Readonly<Record<number, { full: string; short: string }>> = {
+    1: { full: 'Instant Repair Material', short: 'Repair Bucket' },
+    2: { full: 'Instant Construction Material', short: 'Instant Build' },
+    3: { full: 'Development Material', short: 'Dev. Mat.' },
+    4: { full: 'Furniture Box (Small)', short: 'Furn. Box S' },
+    5: { full: 'Furniture Box (Medium)', short: 'Furn. Box M' },
+    6: { full: 'Furniture Box (Large)', short: 'Furn. Box L' },
+    7: { full: 'Improvement Material', short: 'Imp. Mat.' },
+    10: { full: 'Furniture Box (Small)', short: 'Furn. Box S' },
+    11: { full: 'Furniture Box (Medium)', short: 'Furn. Box M' },
+    12: { full: 'Furniture Box (Large)', short: 'Furn. Box L' },
+    59: { full: 'Food Supply Ship Irako', short: 'Irako' },
+};
+
+/** 遠征獎勵物品的英文短名；非英文或未知 itemtype 維持原始名稱。 */
+export function expedItemDisplayName(itemType: number, rawName: string): string {
+    return lang === 'en' ? EXPEDITION_ITEM_NAMES_EN[itemType]?.short ?? rawName : rawName;
+}
+
+/** 遠征獎勵物品的完整英文名稱，供可見短名的 title 查閱。 */
+export function expedItemFullName(itemType: number, rawName: string): string {
+    return lang === 'en' ? EXPEDITION_ITEM_NAMES_EN[itemType]?.full ?? rawName : rawName;
+}
+
+/** 遠征顯示名：英文介面翻譯已知遠征，並為活動支援遠征補上白話註記。 */
 export function expedDisplayName(missionId: number, name: string): string {
+    const displayName = lang === 'en' ? EXPEDITION_NAMES_EN[missionId] ?? name : name;
     const note = expedSupportNote(missionId);
-    return note ? `${name}（${note}）` : name;
+    return note ? `${displayName}（${note}）` : displayName;
 }

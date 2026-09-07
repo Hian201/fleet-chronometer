@@ -1580,7 +1580,7 @@
         .sl-l2 {
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 6px;
             min-width: 0;
         }
@@ -1647,6 +1647,49 @@
 
         .sl-fleet {
             flex: 1 1 auto;
+        }
+
+        /* 新船摘要與旗艦同屬行1；只保留圖示與艦名，節點已在行2路線。 */
+        .sl-newship-summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex: 0 1 auto;
+            min-width: 0;
+            max-width: min(32vw, 300px);
+            color: var(--sparkle);
+            font-size: 12px;
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .sl-newship-summary > img {
+            width: 18px;
+            height: 18px;
+            flex: none;
+            object-fit: contain;
+        }
+
+        .sl-newship-list {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 7px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sl-newship-item {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sl-newship-item + .sl-newship-item::before {
+            content: '／';
+            color: var(--dim);
         }
 
         .sl-ship {
@@ -1728,22 +1771,115 @@
             color: var(--dim);
         }
 
-        /* 節點軌跡：一顆藥丸一個節點，箭頭串起來 */
+        /* 節點軌跡：每個節點保留同一個窄欄位，箭頭串起來；細線是類型提示，詳情在 hover。 */
         .sl-track {
+            flex: 1 1 auto;
+            min-width: 0;
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 2px;
+            flex-wrap: nowrap;
+            gap: 1px;
+            overflow-x: auto;
+            scrollbar-width: thin;
         }
 
         .sl-arrow {
+            flex: none;
+            margin: 0 3px;
             color: var(--stub);
             font-style: normal;
             font-size: 11px;
         }
 
-        /* 節點藥丸：**節點標籤是主角**（14px、主要文字色、粗體），rank 用一條分隔線推開，
-           兩者字級與顏色不同，避免分不清節點與戰果。 */
+        /* 路線節點不是膠囊：只保留節點名稱與類型訊號，固定窄欄位搭配底線色／樣式提示。 */
+        .sl-route-node {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            flex: none;
+            min-width: 28px;
+            min-height: 22px;
+            padding: 0 2px 4px;
+            color: var(--text);
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+            cursor: help;
+        }
+
+        .sl-route-node-label {
+            min-width: 20px;
+            text-align: center;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .sl-route-node-signal {
+            position: absolute;
+            right: 2px;
+            bottom: 1px;
+            left: 2px;
+            height: 2px;
+            border-bottom: 2px solid var(--line);
+            pointer-events: none;
+        }
+
+        .sl-route-node.type-branch .sl-route-node-signal {
+            border-bottom-style: dashed;
+            border-bottom-color: var(--sparkle);
+        }
+
+        .sl-route-node.type-submarine .sl-route-node-signal {
+            border-bottom-style: dotted;
+            border-bottom-width: 3px;
+            border-bottom-color: #82ccdd;
+        }
+
+        .sl-route-node.type-subAir .sl-route-node-signal {
+            border-bottom-style: double;
+            border-bottom-width: 3px;
+            border-bottom-color: #82ccdd;
+        }
+
+        .sl-route-node.type-airRecon .sl-route-node-signal,
+        .sl-route-node.type-airBattle .sl-route-node-signal,
+        .sl-route-node.type-airRaid .sl-route-node-signal {
+            border-bottom-color: #82ccdd;
+        }
+
+        .sl-route-node.type-resource .sl-route-node-signal,
+        .sl-route-node.type-maelstrom .sl-route-node-signal,
+        .sl-route-node.type-noEnemy .sl-route-node-signal,
+        .sl-route-node.type-nothing .sl-route-node-signal,
+        .sl-route-node.type-escortSuccess .sl-route-node-signal,
+        .sl-route-node.type-landing .sl-route-node-signal {
+            border-bottom-color: var(--dim);
+        }
+
+        .sl-route-node.type-enemyCombined .sl-route-node-signal {
+            border-bottom-color: var(--dmg-major);
+        }
+
+        .sl-route-node.type-night .sl-route-node-signal {
+            border-bottom-color: #b7a6e8;
+        }
+
+        .sl-route-node.boss .sl-route-node-label {
+            color: var(--dmg-major);
+        }
+
+        .sl-route-node.boss .sl-route-node-signal {
+            border-bottom-color: var(--dmg-major);
+            border-bottom-width: 3px;
+        }
+
+        .sl-route-node.raid .sl-route-node-signal {
+            border-bottom-style: dashed;
+        }
+
+        /* 舊展開內容仍使用膠囊式 sl-pill；只把收合路線換成上面的平面節點。 */
         .sl-pill {
             display: inline-flex;
             align-items: center;
@@ -5014,7 +5150,7 @@
 
         /* ── 詳細清單模式 ── */
         .eq-table-wrap {
-            /* 橫向：十四個欄位的捲動一律關在這個容器裡，頁面本身永不橫捲。
+            /* 橫向：裝備欄位的捲動一律關在這個容器裡，頁面本身永不橫捲。
                縱向：給一個上限讓容器自己成為捲動區，thead 的 sticky 才有作用。 */
             overflow: auto;
             max-height: min(70vh, 760px);
@@ -5023,7 +5159,7 @@
         }
 
         .eq-table {
-            /* max-content 讓十四個欄位各依內容寬度排；min-width 保證列少時仍撐滿容器 */
+            /* max-content 讓欄位各依內容寬度排；min-width 保證列少時仍撐滿容器 */
             width: max-content;
             min-width: 100%;
             border-collapse: separate;

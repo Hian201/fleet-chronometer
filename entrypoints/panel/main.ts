@@ -80,6 +80,7 @@ let showLbas = false;
 let selectedLbasArea: number | null = null;
 const expandedQuests = new Set<number>();   // 使用者展開查看內容的任務編號
 const expandedExped = new Set<number>();    // 使用者展開查看遠征名稱；重繪／倒數不應收回
+let renderedQuestSignature = '';
 // 一般大破卡點擊後只隱藏文字，紅框仍固定覆蓋航空戰欄，不另設會擠壓版面的收縮態。
 let taihaDetailsHidden = false;
 // 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
@@ -203,7 +204,7 @@ function renderTabs() {
     // 工廠分頁仍保留（只留「當下」看板：最新開發/改修結果＋建造中渠倒數，見
     // renderFactoryLive）——歷史清單移出不代表即時資訊要跟著消失。
     // 紀錄的擷取/歸檔仍在 consume() 進行（與是否顯示無關），總括頁讀 db 呈現歷史。
-    // 「動態」分頁僅開發用 UI（見 utils/debug-ui.ts），上架建置不顯示。
+    // 「動態」分頁僅開發用 UI（見 utils/debug-ui.ts），正式建置不顯示。
     const activityBtn = isDebugUiEnabled()
         ? `<button data-t="activity" class="${tab === 'activity' ? 'on' : ''}">${t('tab.activity')}</button>`
         : '';
@@ -277,7 +278,7 @@ function renderGeneral() {
         <div class="g-chip" data-exped-fleet="${esc(mm.fleet)}" title="${esc(name)}" aria-expanded="${open}">
           <span class="fleet-box">${esc(mm.fleet)}</span>
           <span class="g-eta grow">${esc(mm.dispNo)}</span>
-          <span class="g-eta">${fmt(mm.completeAt)}</span>
+          <span class="g-eta" data-countdown-at="${esc(String(mm.completeAt))}">${fmt(mm.completeAt)}</span>
         </div>
         <div class="exped-detail"${open ? '' : ' hidden'}>${esc(name)}</div>
       </div>`;
@@ -287,7 +288,7 @@ function renderGeneral() {
     ndocksEl.innerHTML = state.ndocks().map(n => `
       <div class="g-chip">
         <span class="g-name" title="${esc(n.ship)}">${esc(n.ship)}</span>
-        <span class="g-eta">${fmt(n.completeAt)}</span>
+        <span class="g-eta" data-countdown-at="${esc(String(n.completeAt))}">${fmt(n.completeAt)}</span>
       </div>`).join('') || `<div class="g-empty">${t('common.empty')}</div>`;
     // kdock 只有實際點進工廠「建造」分頁才會送封包，單純被動擷取拿不到就是拿不到（見 CLAUDE.md
     // 設計原則1）。跟「有資料但目前沒建造中」區分開來，避免使用者誤以為是顯示 bug；
@@ -295,26 +296,35 @@ function renderGeneral() {
     kdocksEl.innerHTML = state.kdocks().map(k => `
       <div class="g-chip${k.state === 3 ? ' done' : ''}">
         <span class="g-name" title="${esc(k.ship)}">${esc(k.ship)}</span>
-        <span class="g-eta">${k.state === 3 ? t('kdock.complete') : fmt(k.completeAt)}</span>
+        <span class="g-eta"${k.state === 3 ? '' : ` data-countdown-at="${esc(String(k.completeAt))}"`}>${k.state === 3 ? t('kdock.complete') : fmt(k.completeAt)}</span>
       </div>`).join('') || `<div class="g-empty" title="${esc(state.kdockData.length === 0 ? t('kdock.notOpened') : t('common.empty'))}">${state.kdockData.length === 0 ? t('kdock.notOpenedShort') : t('common.empty')}</div>`;
     // 任務區吃掉資訊區剩餘高度並自行捲動；不可截斷清單，否則第 9 筆以後的受注任務會
     // 完全消失。每個任務包成 cell，展開說明只影響任務區，不會推動上方資訊抬頭。
     const quests = state.quests_();
-    questsEl.innerHTML = quests.map(q => {
-        const open = expandedQuests.has(q.no);
-        // 有解析出目標次數才顯示「已完成/目標」；解不出來（單次型任務、以「隻」為單位者）
-        // 無法解析進度時顯示受注中／達成（見 utils/quest-progress.ts）。
-        const progressLabel = !q.done && q.progress
-            ? `<span class="q-prog" title="${esc(t('quest.progressHint'))}">${q.progress.count}/${q.progress.target}</span>`
-            : `<span class="q-st">${q.done ? t('quest.done') : t('quest.inProgress')}</span>`;
-        return `
-      <div class="quest-cell">
-        <div class="quest-row ${q.done ? 'done' : ''}" data-no="${q.no}">
-          <span class="grow" title="${esc(q.name)}">${esc(q.name)}</span>
-          ${progressLabel}
-        </div>${open ? `<div class="quest-detail">${q.detail ? escDetail(q.detail) : t('quest.noDetail')}</div>` : ''}
-      </div>`;
-    }).join('') || `<div class="empty">${t('common.empty')}</div>`;
+    const questSignature = JSON.stringify([
+        getLang(),
+        quests.map(q => [q.no, q.name, q.detail, q.done, q.progress?.count ?? null, q.progress?.target ?? null, expandedQuests.has(q.no)]),
+    ]);
+    if (questSignature !== renderedQuestSignature) {
+        const scrollTop = questsEl.scrollTop;
+        questsEl.innerHTML = quests.map(q => {
+            const open = expandedQuests.has(q.no);
+            // 有解析出目標次數才顯示「已完成/目標」；解不出來（單次型任務、以「隻」為單位者）
+            // 無法解析進度時顯示受注中／達成（見 utils/quest-progress.ts）。
+            const progressLabel = !q.done && q.progress
+                ? `<span class="q-prog" title="${esc(t('quest.progressHint'))}">${q.progress.count}/${q.progress.target}</span>`
+                : `<span class="q-st">${q.done ? t('quest.done') : t('quest.inProgress')}</span>`;
+            return `
+          <div class="quest-cell">
+            <div class="quest-row ${q.done ? 'done' : ''}" data-no="${q.no}">
+              <span class="grow" title="${esc(q.name)}">${esc(q.name)}</span>
+              ${progressLabel}
+            </div>${open ? `<div class="quest-detail">${q.detail ? escDetail(q.detail) : t('quest.noDetail')}</div>` : ''}
+          </div>`;
+        }).join('') || `<div class="empty">${t('common.empty')}</div>`;
+        questsEl.scrollTop = scrollTop;
+        renderedQuestSignature = questSignature;
+    }
 }
 missionsEl.addEventListener('click', e => {
     const row = (e.target as HTMLElement).closest('[data-exped-fleet]') as HTMLElement | null;
@@ -603,11 +613,14 @@ function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string; mark: st
 function renderExped() {
     if (tab !== 'exped') return;
     expedFleetLabel.textContent = t('fleet.default', { n: currentExpedFleet() + 1 });
+    const cat = state.expedCatalog();
     // 選單只在圖鑑載入後、且尚未建立時填充；語言換了也要重建（遠征名、海域標籤與
     // 時間都在選項文字裡，不重建的話整個下拉會停在切換前的語言）。
     if (expedSel.options.length === 0 || expedSelLang !== getLang()) {
-        const cat = state.expedCatalog();
-        if (cat.length === 0) { expedCheckEl.innerHTML = `<div class="empty">${t('exped.masterNotLoaded')}</div>`; return; }
+        if (cat.length === 0) {
+            expedCheckEl.innerHTML = `<div class="empty">${t('exped.masterNotLoaded')}</div>`;
+            return;
+        }
         let area = -1, html = '';
         for (const m of cat) {
             if (m.maparea !== area) {
@@ -638,7 +651,9 @@ function renderExped() {
             expedSel.value = String(last);
         }
     }
-    if (expedId === null) return;
+    if (expedId === null) {
+        return;
+    }
     const { rows, gsRows, known, rewards, greatSuccess } = state.expedCheck(currentExpedFleet(), expedId);
     const allOk = rows.length > 0 && rows.every(r => r.ok);
     const successMark = allOk
@@ -675,11 +690,11 @@ function renderExped() {
             ${resItems(rewards.great)}
         </div>` : '<div class="exped-res-line"></div>';
 
-    const itemsText = rewards?.items.map(it => `${it.name}×${it.max}${it.guaranteed ? ` ${t('exped.gsOnly')}` : ` ${t('exped.randomOnSuccess')}`}`).join(' ') ?? '';
+    const itemsText = rewards?.items.map(it => `${it.fullName}×${it.max}${it.guaranteed ? ` ${t('exped.gsOnly')}` : ` ${t('exped.randomOnSuccess')}`}`).join(' ') ?? '';
     const itemsHtml = rewards?.items.length ? `
         <span class="exped-lbl">${t('exped.items')}</span>
         <div class="exped-items-line" title="${esc(itemsText)}">
-            ${rewards.items.map(it => `<span class="item-name">${esc(it.name)}×${it.max}</span>${it.guaranteed
+            ${rewards.items.map(it => `<span class="item-name" title="${esc(it.fullName)}">${esc(it.name)}×${it.max}</span>${it.guaranteed
                 ? `<span class="item-note gs">${t('exped.gsOnly')}</span>`
                 : `<span class="item-note dim">${t('exped.randomOnSuccess')}</span>`}`).join(' ')}
         </div>` : '';
@@ -1696,8 +1711,19 @@ function tickLbasCond() {
     renderFleetNav();
     if (showLbas) renderAirBases();
 }
+// 一般分頁的倒數只更新既有文字節點，避免每秒重建任務說明的 DOM，讓文字選取與翻譯工具
+// 可以持續指向同一份內容。
+function tickGeneralCountdowns() {
+    if (tab !== 'general') return;
+    for (const el of generalEl.querySelectorAll<HTMLElement>('[data-countdown-at]')) {
+        const completeAt = Number(el.dataset.countdownAt);
+        if (!Number.isFinite(completeAt)) continue;
+        const text = fmt(completeAt);
+        if (el.textContent !== text) el.textContent = text;
+    }
+}
 setInterval(() => {
-    if (tab === 'general') renderGeneral();
+    tickGeneralCountdowns();
     if (tab === 'factory') renderFactoryLive();   // 建造渠倒數
     tickRepairCountdowns();                       // 泊地修理/給糧倒數（艦隊區塊常駐顯示）
     tickLbasCond();                               // 基地航空隊疲勞回復（無封包可觸發）

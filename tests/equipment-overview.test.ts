@@ -56,10 +56,11 @@ describe('詳細清單', () => {
     it('欄序即使用者指定的順序；「裝備中艦娘」在其中但預設關閉（平常看展開列）', () => {
         expect(COLUMNS.map(c => c.id)).toEqual([
             'name', 'count', 'star', 'holder',
-            'houg', 'houm', 'leng', 'luck', 'houk', 'baku', 'raig', 'saku', 'tais', 'tyku', 'souk',
+            'houg', 'houm', 'leng', 'houk', 'baku', 'raig', 'saku', 'tais', 'tyku', 'souk',
         ]);
         expect(COLUMNS.find(c => c.id === 'holder')!.on).toBe(false);
         expect(tableHtml(groups, view())).not.toContain('eq-c-holder');
+        expect(tableHtml(groups, view())).not.toContain('eq-c-luck');
     });
 
     it('欄位開關：關掉的欄不出現，打開的欄照 COLUMNS 順序插回原位', () => {
@@ -205,5 +206,13 @@ describe('多語系', () => {
         expect(tableHtml(groups, view())).toContain('Count');
         setLang('zh-TW');
         expect(tableHtml(groups, view())).toContain('數量');
+    });
+
+    it('英文介面顯示裝備 API 分類的英文名稱', () => {
+        setLang('en');
+        const groups = groupGears(gears([{ id: 1, mst: GUN_41 }]));
+        expect(groups[0].catName).toBe('Large Caliber Main Gun');
+        expect(tableHtml(groups, view())).toContain('Large Caliber Main Gun');
+        setLang('ja');
     });
 });

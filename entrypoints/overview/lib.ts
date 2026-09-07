@@ -226,6 +226,21 @@ export function shipGearsMarkdown(s: {
     return parts.join(' / ');
 }
 
+/**
+ * 掉落艦顯示名。有 master id 時走當前語言譯名；沒有 id 的舊列才用擷取當下存的字串。
+ * 名稱是顯示層的事，不能把封包日文名當成已翻譯結果。
+ */
+export function dropDisplayName(
+    row: { drop: string | null; dropMst?: number },
+    shipName: (mst: number) => string,
+): string | null {
+    if (row.dropMst) {
+        const named = shipName(row.dropMst);
+        if (named && named !== '?') return named;
+    }
+    return row.drop || null;
+}
+
 export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownScope): string {
     const lines: string[] = [];
     state.fleets().forEach((f, i) => {

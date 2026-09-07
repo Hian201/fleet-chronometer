@@ -248,7 +248,8 @@ body { display: block; min-height: 0; padding: 16px; }
 /* 視覺第一與第二層級：收益預算與判定狀態 HUD */
 .pv-prop .exped-yield-grid {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  /* 第一欄依語系標籤取寬；中間欄可收縮，避免英文長字串溢出到相鄰欄位。 */
+  grid-template-columns: max-content minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 8px;
   row-gap: 2px;
@@ -267,11 +268,13 @@ body { display: block; min-height: 0; padding: 16px; }
 }
 /* 第一層級：判定結論（排在標籤後方第二欄，左對齊） */
 .pv-prop .exped-status {
+  min-width: 0;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .pv-prop .exped-status.ok {
   color: #58a55c;
@@ -492,14 +495,14 @@ const SCENES = [
         <div id="exped-check">
           <div class="exped-yield-grid">
             <span class="exped-lbl">成功</span>
-            <span class="exped-status ok">成功條件達成</span>
+            <span class="exped-status ok">條件達成</span>
             <div class="exped-res-line bonus" title="含大発動艇系裝備加成">
               <span class="res-item">${matIconHtml('fuel')} 504</span>
               <span class="res-item">${matIconHtml('steel')} 240</span>
             </div>
 
             <span class="exped-lbl">大成功</span>
-            <span class="exped-status gs" title="桶型滿載+戰意高昂">大成功 目安 100%</span>
+            <span class="exped-status gs" title="桶型滿載+戰意高昂">~100%</span>
             <div class="exped-res-line bonus" title="含大発動艇系裝備加成">
               <span class="res-item">${matIconHtml('fuel')} 756</span>
               <span class="res-item">${matIconHtml('steel')} 360</span>
@@ -564,7 +567,7 @@ const SCENES = [
             </div>
 
             <span class="exped-lbl">大成功</span>
-            <span class="exped-status ng">條件未達（排除）</span>
+            <span class="exped-status ng">✕ 不列入計算</span>
             <div class="exped-res-line">
               <span class="res-item">${matIconHtml('fuel')} 750</span>
               <span class="res-item">${matIconHtml('bauxite')} 600</span>
@@ -664,6 +667,45 @@ const SCENES = [
             <div class="check-row ok"><span class="mark">✓</span><span class="grow">対潜値合計 240 以上</span><span class="num">280</span></div>
             <div class="check-row ok"><span class="mark">✓</span><span class="grow">索敵値合計 180 以上</span><span class="num">210</span></div>
             <div class="check-row ok"><span class="mark">✓</span><span class="grow">火力合計 360 以上</span><span class="num">410</span></div>
+          </div>
+        </div>`,
+    },
+    {
+        id: 'english-long-name',
+        label: 'English: full long expedition name',
+        note: 'The native selector keeps the full English expedition name in its option list and uses the panel dark-menu colours.',
+        current: `<div class="exped-controls">
+          <span id="exped-fleet-label" class="badge">Fleet 2</span>
+          <select id="exped-select"><option selected>[111] Enemy Harbor Assault Counter Attack Operation (8:00)</option></select>
+        </div>
+        <div id="exped-check">
+          <div class="dim">Success　<span style="color:#58a55c">✓ Condition Met</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">6+ Ships</span><span class="num">7</span></div>
+        </div>`,
+        proposed: `<div class="exped-header">
+          <span class="exped-fleet-lbl">Fleet 2</span>
+          <select id="exped-select" class="exped-select">
+            <option selected>[111] Enemy Harbor Assault Counter Attack Operation (8:00)</option>
+          </select>
+        </div>
+        <div id="exped-check">
+          <div class="exped-yield-grid">
+            <span class="exped-lbl">Success</span>
+            <span class="exped-status ok">✓ Condition Met</span>
+            <div class="exped-res-line"><span class="res-item">F 0</span></div>
+            <span class="exped-lbl">Great Success</span>
+            <span class="exped-status gs">~100%</span>
+            <div class="exped-res-line"><span class="res-item">F 0</span></div>
+            <span class="exped-lbl">Items</span>
+            <div class="exped-items-line" title="Improvement Material ×1 (Great Success Only)">
+              <span class="item-name" title="Improvement Material">Imp. Mat.×1</span>
+              <span class="item-note gs">Great Success Only</span>
+            </div>
+          </div>
+          <div class="exped-check-list">
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">6+ Ships</span><span class="num">7</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">Flagship Lv 50+</span><span class="num">94</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">Total Firepower 200+</span><span class="num">312</span></div>
           </div>
         </div>`,
     },

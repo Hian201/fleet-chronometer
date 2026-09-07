@@ -6,8 +6,8 @@
 // 基地航空隊與逐節點作戰資訊。這讓摘要可快速掃讀，詳細戰鬥資料也不必在進入分區時全部解析。
 //
 //   摺疊列（一次出擊一列，兩行）：
-//     行1　#第幾次 ・ 關卡代號（活動顯示 E{n}＋難度）・ 出擊編成成員 ・ 展開箭頭
-//     行2　節點軌跡（一個節點一顆藥丸，rank 上色／boss／夜戰／空襲各有記號）・ 結果標記
+//     行1　#第幾次 ・ 關卡代號（活動顯示 E{n}＋難度）・ 旗艦／編成 ・ 新船摘要 ・ 展開箭頭
+//     行2　節點軌跡（每個節點等寬、用細線提示類型；完整分類放在 hover）・ 結果標記
 //   展開　編成（含裝備圖示）／支援艦隊編組／基地航空隊各波組成與制空／逐節點作戰資訊
 //        （敵編成＋殘血、rank、制空、交戰形態、陣形、触接、機數、掉落）
 //
@@ -46,8 +46,9 @@ import {
     importSortie, parseSortieImport, SortieImportDuplicateError, SortieImportError,
 } from '@/utils/sortie-import';
 import { hasNodeLetters, nodeLabel as letterOf } from '@/utils/map-node-letters';
-import { nodeKindKey } from '@/utils/map-node-kind';
+import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
 import { airRaidLostKindLabel } from '@/utils/air-raid-lost-kind';
+import { newShipDropKeys } from '@/utils/drop-new-ship';
 import { replayExportStem } from '@/utils/replay-card';
 import {
     AIR_CALC_DIRECT_URL_LIMIT, AIR_CALC_PAGE_URL, airCalcUrl, buildReplayAirCalcDeck,
@@ -65,6 +66,7 @@ import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
     eventDisplayName, eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter,
     loadJsonPrefs, mapFilterSelectHtml, readEventWorldFilter, saveJsonPrefs,
+    dropDisplayName,
 } from '../lib';
 
 const SEIKU_KEYS = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
@@ -123,6 +125,8 @@ export interface Entry {
     event: boolean;
     rows: SortieLogRow[];
     replay?: ReplayRow;
+    /** 此次出擊中被嚴格判定為「新船」的掉落列 eventId。缺席代表沒有新船摘要。 */
+    newShipEventIds?: ReadonlySet<number>;
 }
 
 const seikuLabel = (v: number | null) => (v == null ? '' : t(SEIKU_KEYS[v] ?? 'seiku.even'));
@@ -132,12 +136,10 @@ const alertIcon = () =>
     `<img class="sl-alert" src="/icons/ui/airraid.svg" alt="${esc(t('history.raid'))}" title="${esc(t('history.raid'))}">`;
 
 /**
- * 掉落艦名：紀錄可能只存了 master id（匯入的 KC3Kai JSON 給的是 id），
- * 此時用當前語言的艦名補上——名字是顯示層的事，不必回頭改 DB。
+ * 掉落艦名：有 master id 就依當前語言解析；只有舊資料缺 id 時才用擷取當下存的字串。
  */
 function dropName(row: { drop: string | null; dropMst?: number }, state: SectionContext['state']): string | null {
-    if (row.drop) return row.drop;
-    return row.dropMst ? state.shipName(row.dropMst) : null;
+    return dropDisplayName(row, mst => state.shipName(mst));
 }
 // class 只吃白名單後綴；文字節點另走 esc（匯入／異常 rank 不得進 class）。
 const rankClass = (rank: string) => {
@@ -180,29 +182,62 @@ function flagshipChip(replay: ReplayRow | undefined, state: SectionContext['stat
  */
 const nodeLabel = (map: string, edge: number) => letterOf(map, edge);
 
-/** 節點藥丸：rank 上色、boss 加框、空襲與夜戰各有記號。 */
-function nodePill(row: SortieLogRow, night: boolean): string {
-    const cls = ['sl-pill'];
+type NodeTypeSource = Pick<SortieLogRow, 'kind' | 'boss' | 'enemyIds' | 'enemyIdsEscort' | 'nodeEventId' | 'nodeEventKind'>;
+
+// master 的艦種 id 13／14 是本專案已使用的潛水艦／潛水空母分類。只有在所有已知敵艦
+// 都能對上這兩類時才標「潛水」，缺少 master 對照就不猜；這也讓舊紀錄自然退回未知。
+function isSubmarineNode(row: NodeTypeSource, state: SectionContext['state']): boolean {
+    const ids = [...row.enemyIds, ...row.enemyIdsEscort]
+        .filter(id => Number.isSafeInteger(id) && id > 0);
+    if (!ids.length) return false;
+    return ids.every(id => {
+        const stype = state.master.get(id)?.stype;
+        return stype === 13 || stype === 14;
+    });
+}
+
+/** 每個節點 hover 的完整類型集合；複合節點保留「潛空／王點／夜戰」等多重事實。 */
+function nodeTypeKeys(row: NodeTypeSource, night: boolean, state: SectionContext['state']): string[] {
+    const kindKey = nodeKindKey(row.nodeEventId, row.nodeEventKind);
+    const isAirNode = row.kind === 'raid'
+        || kindKey === NODE_KIND_KEYS.airRaid
+        || kindKey === NODE_KIND_KEYS.airBattle;
+    const keys: string[] = [];
+    if (isSubmarineNode(row, state) && isAirNode) keys.push('node.subAir');
+    else if (isSubmarineNode(row, state)) keys.push('node.submarine');
+    else if (kindKey) keys.push(kindKey);
+    else if (row.kind === 'raid') keys.push('node.airRaid');
+    if (row.boss) keys.push('node.boss');
+    if (night) keys.push('node.night');
+    if (!keys.length && row.kind === 'battle') keys.push('node.battle');
+    if (!keys.length) keys.push('node.unknown');
+    return keys;
+}
+
+function nodeTypeTitle(row: NodeTypeSource, night: boolean, state: SectionContext['state']): string {
+    return nodeTypeKeys(row, night, state).map(key => t(key)).join('・');
+}
+
+/** 路線節點：不再使用膠囊或 RANK；文字等寬，底線只作為可掃讀的類型提示。 */
+function nodePill(row: SortieLogRow, night: boolean, state: SectionContext['state']): string {
+    const types = nodeTypeKeys(row, night, state);
+    const cls = ['sl-route-node', ...types.map(key => `type-${key.replace('node.', '')}`)];
     if (row.boss) cls.push('boss');
     if (row.kind === 'raid') cls.push('raid');
-    if (row.rank) cls.push(rankClass(row.rank));
-    const kindKey = nodeKindKey(row.nodeEventId, row.nodeEventKind);
+    const kindLabel = types.map(key => t(key)).join('・');
     const tip = [
         t('ov.slNodeN', { n: nodeLabel(row.map, row.node) }),
         // 字母是查表得來的，原始 cell 編號一律留在 tooltip（對不上時才有辦法回頭查）
         nodeLabel(row.map, row.node) !== String(row.node) ? `edge ${row.node}` : '',
-        kindKey ? t(kindKey) : '',
-        row.kind === 'raid' ? t('history.raid') : '',
-        row.rank ? `rank ${row.rank}` : '',
+        kindLabel,
         row.seiku !== null ? seikuLabel(row.seiku) : '',
-        row.boss ? t('sortie.boss') : '',
     ].filter(Boolean).join('・');
     const mark = row.kind === 'raid'
         ? alertIcon()
         : night ? `<b class="sl-mark" title="${esc(t('sortie.midnight'))}">☾</b>` : '';
-    return `<span class="${cls.join(' ')}" title="${esc(tip)}">`
-        + `<span class="sl-pill-node">${esc(nodeLabel(row.map, row.node))}</span>`
-        + `${row.rank ? `<span class="sl-pill-rank">${esc(row.rank)}</span>` : ''}${mark}</span>`;
+    return `<span class="${cls.join(' ')}" title="${esc(tip)}" aria-label="${esc(`${t('ov.slNodeN', { n: nodeLabel(row.map, row.node) })}・${kindLabel}`)}">`
+        + `<span class="sl-route-node-label">${esc(nodeLabel(row.map, row.node))}</span>`
+        + `<span class="sl-route-node-signal" aria-hidden="true"></span>${mark}</span>`;
 }
 
 function eventNameOf(world: number, state: SectionContext['state']): string {
@@ -219,6 +254,25 @@ function mapTitle(entry: Entry, state: SectionContext['state']): string {
     return `${eventDisplayTitle(entry.world, state.masterMapAreas.get(entry.world))}（${entry.map}）`;
 }
 
+/** 收合列只顯示真正判定為新船的掉落艦名；節點已在行2路線，不在艦名後再標一次。 */
+function newShipSummary(entry: Entry, state: SectionContext['state']): string {
+    const eventIds = entry.newShipEventIds;
+    if (!eventIds?.size) return '';
+    const drops = entry.rows
+        .filter(row => eventIds.has(row.eventId))
+        .map(row => ({
+            name: dropName(row, state),
+            node: nodeLabel(row.map, row.node),
+        }))
+        .filter((drop): drop is { name: string; node: string } => !!drop.name);
+    if (!drops.length) return '';
+    const list = drops.map(drop => `${drop.name}・${drop.node}`).join('／');
+    return `<span class="sl-newship-summary" title="${esc(t('ov.slNewShipTip', { list }))}">
+        <img src="/icons/tactical/sakura-anchor-new.png" alt="" aria-hidden="true">
+        <span class="sl-newship-list">${drops.map(drop => `<span class="sl-newship-item">${esc(drop.name)}</span>`).join('')}</span>
+    </span>`;
+}
+
 export function headHtml(
     entry: Entry,
     state: SectionContext['state'],
@@ -226,18 +280,12 @@ export function headHtml(
     opts?: { qualifyEventWorld?: boolean },
 ): string {
     const nightNodes = new Set((entry.replay?.battles ?? []).filter(b => b.yasen).map(b => b.node));
-    const track = entry.rows.map(r => nodePill(r, nightNodes.has(r.node))).join('<i class="sl-arrow">›</i>');
-    const drops = entry.rows.map(r => dropName(r, state)).filter(Boolean) as string[];
-    // 掉落**有無都要顯示**：結算過卻沒掉船就是「無掉落」，那是結果不是資料缺席；
-    // 但完全沒有結算紀錄（rank 全空，例如中途撤退）時不顯示——那才是真的不知道。
-    const settled = entry.rows.some(r => r.kind === 'battle' && r.rank);
-    const dropFlags = drops.length
-        ? drops.map(d => `<span class="sl-flag drop" title="${esc(t('sortie.dropTitle'))}">${esc(t('ov.slDrop'))} ${esc(d)}</span>`).join('')
-        : settled ? `<span class="sl-flag nodrop">${esc(t('ov.slNoDrop'))}</span>` : '';
+    const track = entry.rows.map(r => nodePill(r, nightNodes.has(r.node), state)).join('<i class="sl-arrow">›</i>');
+    // 收合列只保留「新船」摘要；一般掉落與無掉落留在展開的逐節點資訊，避免結果標記
+    // 變成第三排，也避免把舊船誤當成新船。
     const flags = [
         entry.rows.some(r => r.cleared) ? `<span class="sl-flag clear">${esc(t('history.cleared'))}</span>` : '',
         entry.rows.some(r => r.taiha) ? `<span class="sl-flag taiha">${esc(t('fleet.heavyDamage'))}</span>` : '',
-        dropFlags,
     ].filter(Boolean).join('');
     const diff = diffLabel(entry.replay?.diff ?? 0);
     const shown = mapDisplayLabel(entry, opts?.qualifyEventWorld === true, state);
@@ -252,6 +300,7 @@ export function headHtml(
                 <span class="sl-map${entry.event ? ' ev' : ''}" title="${esc(mapTitle(entry, state))}">${esc(shown)}${diff ? `<i>${esc(diff)}</i>` : ''}</span>
                 ${imported}
                 <span class="sl-fleet">${flagshipChip(entry.replay, state)}</span>
+                ${newShipSummary(entry, state)}
                 <span class="sl-meta">
                     <span class="sl-time" title="${esc(fmtTs(entry.ts))}">${esc(fmtShortTs(entry.ts))}</span>
                     <span class="sl-caret">${open ? '▾' : '▸'}</span>
@@ -494,8 +543,12 @@ function kindTag(n: NodeDetail): string {
 
 function nodeCard(detail: SortieDetail, n: NodeDetail, state: SectionContext['state']): string {
     const label = nodeLabel(detail.map, n.node);
-    // 字母是查表得來的，原始 cell 編號留在 tooltip（對不上時才有辦法回頭查）
-    const cellTip = label !== String(n.node) ? ` title="edge ${n.node}"` : '';
+    // 字母是查表得來的，原始 cell 編號與完整節點類型留在 tooltip（對不上時才有辦法回頭查）
+    const cellTip = ` title="${esc([
+        t('ov.slNodeN', { n: label }),
+        label !== String(n.node) ? `edge ${n.node}` : '',
+        nodeTypeTitle(n, n.night, state),
+    ].filter(Boolean).join('・'))}"`;
     if (n.kind === 'raid') {
         return `<article class="sl-node raid">
             <div class="sl-node-head">
@@ -1645,10 +1698,12 @@ export const sortieLogSection: OverviewSection = {
         // 資料載入：失敗／卡住都只影響清單區，工具列與匯入面板照常可用，並如實說明原因。
         body.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         try {
-            const [rows, replays] = await Promise.all([
+            const [rows, replays, shipObtained] = await Promise.all([
                 db.sorties.orderBy('eventId').toArray(),      // 升冪＝時序，「第幾次」據此計數
                 db.replays.toArray(),
+                db.shipObtained.toArray(),
             ]);
+            const newShipEventIds = newShipDropKeys(rows, shipObtained, mst => ctx.state.baseShipId(mst));
             // 對 legacy replay 的艦隊編號只在對應艦隊完整快照仍在時於讀取層修復；不覆寫
             // IndexedDB，也不對證據不足的匯入資料猜編成。
             const replayByKey = new Map(replays.map(raw => {
@@ -1665,7 +1720,7 @@ export const sortieLogSection: OverviewSection = {
                 return {
                     key: g.sortieKey, nth: nth.get(g.sortieKey) ?? 0, ts: first.ts,
                     map: first.map, world, mapnum, event: isEventWorld(world),
-                    rows: g.rows, replay,
+                    rows: g.rows, replay, newShipEventIds,
                 };
             });
             // 顯示一律新→舊。**依時間排，不依 event ID**——匯入的紀錄拿的是當下最大的 ID，

@@ -1,6 +1,7 @@
 // 打撈紀錄的海域欄：單次活動用 E{n}，跨活動並列才帶年份季節。
 import { describe, expect, it } from 'vitest';
 import { dropMapLabel, dropMapTitle } from '../entrypoints/overview/sections/drop-log';
+import { dropDisplayName } from '../entrypoints/overview/lib';
 import type { SortieLogRow } from '../utils/db';
 import { GameState } from '../utils/state';
 import type { SectionContext } from '../entrypoints/overview/sections/types';
@@ -24,5 +25,19 @@ describe('打撈紀錄海域欄', () => {
         expect(dropMapLabel(row('62-7'), false)).toBe('E7');
         expect(dropMapLabel(row('61-3'), true)).toBe('2025秋季 E3');
         expect(dropMapTitle(row('61-3'), ctx)).toBe('2025秋季（61-3）');
+    });
+});
+
+describe('掉落艦顯示名', () => {
+    it('有 master id 時走譯名，不沿用擷取當下的日文名', () => {
+        expect(dropDisplayName({ drop: '雪風', dropMst: 20 }, () => 'Yukikaze')).toBe('Yukikaze');
+    });
+
+    it('沒有 master id 的舊列才用存下來的字串', () => {
+        expect(dropDisplayName({ drop: '雪風' }, () => 'Yukikaze')).toBe('雪風');
+    });
+
+    it('譯名解析失敗時回退存下來的字串', () => {
+        expect(dropDisplayName({ drop: '雪風', dropMst: 20 }, () => '?')).toBe('雪風');
     });
 });

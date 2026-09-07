@@ -76,6 +76,9 @@ function toReplay(sample: any, sortieKey: number): ReplayRow {
 
 /** 由 replay 反推「摘要列」，模擬 EventProjector 歸檔的結果（含新欄位）。 */
 function toRows(replay: ReplayRow, opts: { boss: number; drop?: string; exp?: number }): SortieLogRow[] {
+    const dropMst = opts.drop
+        ? [...shipMaster.values()].find(s => s.api_name === opts.drop)?.api_id
+        : undefined;
     return replay.battles.map((b, i) => {
         const api: any = b.data;
         const boss = b.node === opts.boss;
@@ -88,6 +91,7 @@ function toRows(replay: ReplayRow, opts: { boss: number; drop?: string; exp?: nu
             enemyIds: (api.api_ship_ke ?? []).filter((v: number) => v > 0),
             enemyIdsEscort: (api.api_ship_ke_combined ?? []).filter((v: number) => v > 0),
             drop: boss ? (opts.drop ?? null) : null,
+            ...(boss && dropMst ? { dropMst } : {}),
             taiha: false,
             getExp: boss ? (opts.exp ?? 3520) : 260,
             mvp: 1 + (i % 6),
@@ -123,6 +127,11 @@ allRows.push(...imported.rows);
 const groups = groupSorties(allRows.sort((a, b) => a.eventId - b.eventId));
 const nth = numberSorties(groups);
 const replayByKey = new Map([...replays, imported.replay].map(r => [r.sortieKey, r]));
+// 預覽只用來驗證版面，明確把兩筆示例掉落當作新船摘要；正式版改由
+// newShipDropKeys 依 db.shipObtained 與 dropMst 判定，不把這個示例旗標帶進產品邏輯。
+const previewNewShipEventIds = new Set(
+    allRows.filter(row => row.drop === '雪風' || row.drop === '天霧').map(row => row.eventId),
+);
 
 const cards = groups.slice().reverse().map(g => {
     const first = g.rows[0];
@@ -130,7 +139,7 @@ const cards = groups.slice().reverse().map(g => {
     const entry: Entry = {
         key: g.sortieKey, nth: nth.get(g.sortieKey) ?? 0, ts: first.ts, map: first.map,
         world: Number(first.map.split('-')[0]), mapnum: Number(first.map.split('-')[1]),
-        event: true, rows: g.rows, replay,
+        event: true, rows: g.rows, replay, newShipEventIds: previewNewShipEventIds,
     };
     const detail = buildSortieDetail(g.rows, replay);
     return `<article class="sl-card">
@@ -168,11 +177,11 @@ const shell = shellHtml({ includeImport: true })
 // overview 的 <style> 原封取用——預覽要驗的就是那份 CSS 在真實資料下的樣子
 const overviewHtml = readFileSync(resolve(root, 'entrypoints/overview/index.html'), 'utf8');
 const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml.indexOf('</style>'));
-// 圖示是 root-relative（擴充內為 /icons/…），預覽走 file:// 故改指向 public/
+// 圖示在擴充內由 public/ 複製到 root；離線預覽直接從專案的 public/ 目錄提供。
 const page = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8">
 <title>出擊紀錄版面預覽</title><style>${css}</style></head>
 <body><main id="content" style="padding:16px">${shell}</main></body></html>`
-    .replace(/src="\/icons\//g, `src="${resolve(root, 'public/icons')}/`);
+    .replace(/src="\/icons\//g, 'src="/public/icons/');
 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
 const out = resolve(root, '.preview/sortie-log.html');
@@ -202,7 +211,7 @@ const battlePage = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8
         <div class="sl-battle-dialog-body">${battleMarkup}</div>
     </div>
 </dialog></body></html>`
-    .replace(/src="\/icons\//g, `src="${resolve(root, 'public/icons')}/`);
+    .replace(/src="\/icons\//g, 'src="/public/icons/');
 const battleOut = resolve(root, '.preview/sortie-battle-log.html');
 const battleLight = resolve(root, '.preview/sortie-battle-log-light.html');
 writeFileSync(battleOut, battlePage);

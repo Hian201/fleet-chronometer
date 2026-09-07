@@ -1,7 +1,7 @@
 import RAW_EXPED from './expedition-data';
 import { analyzeBattle, taihaFlags } from './battle';
-import { localizeShip, localizeGear } from './gamedata-i18n';
-import { t } from './ui-i18n';
+import { localizeShip, localizeGear, localizeEquipmentType } from './gamedata-i18n';
+import { expedItemDisplayName, expedItemFullName, t } from './ui-i18n';
 import { resolveQuestGoal, meetsRank, type QuestActionKind, type QuestGoal } from './quest-progress';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
@@ -87,7 +87,7 @@ export interface ShipView {
 }
 
 // 裝備自身的基礎素質（api_mst_slotitem 的同名欄位，全 741 顆皆有值、非可選欄位）。
-// 欄位順序＝「裝備全覽」的欄位順序，改這裡等於改那張表的欄序。
+// 裝備全覽不顯示 luck；該欄仍保留在共用模型，供艦娘裸素質扣除裝備加成時使用。
 //   houg 火力／houm 命中／leng 射程（0無 1短 2中 3長 4超長）／luck 運／houk 迴避／
 //   baku 爆裝／raig 雷裝／saku 索敵／tais 對潛／tyku 對空／souk 裝甲
 export interface GearStats {
@@ -2894,7 +2894,7 @@ export class GameState {
         rewards: {
             normal: { fuel: number; bullet: number; steel: number; alum: number };
             great: { fuel: number; bullet: number; steel: number; alum: number };
-            items: { name: string; max: number; guaranteed: boolean }[];
+            items: { name: string; fullName: string; max: number; guaranteed: boolean }[];
             /** 是否套用了大発動艇系裝備加成（面板據此決定資源數字要不要變色標示）。 */
             bonusActive: boolean;
             /** false＝出擊條件已知，但 fuel/bullet/steel/alum 尚無可信來源（面板須改顯示
@@ -3019,14 +3019,18 @@ export class GameState {
         const rewardNames: Record<number, string> = {
             1: '高速修復材', 2: '高速建造材', 3: '開発資材',
             4: '家具箱(小)', 5: '家具箱(中)', 6: '家具箱(大)',
-            7: '改修資材', 11: '家具箱(中)', 12: '家具箱(大)',
+            7: '改修資材', 10: '家具箱(小)', 11: '家具箱(中)', 12: '家具箱(大)',
             59: '給糧艦「伊良湖」',
         };
-        const items = (data.reward_items ?? []).map((it: any, i: number, arr: any[]) => ({
-            name: rewardNames[it.itemtype] ?? `種別${it.itemtype}`,
-            max: it.max_number,
-            guaranteed: arr.length >= 2 && i === arr.length - 1,   // 推測:複数ある場合、最後は大成功限定
-        }));
+        const items = (data.reward_items ?? []).map((it: any, i: number, arr: any[]) => {
+            const rawName = rewardNames[it.itemtype] ?? `種別${it.itemtype}`;
+            return {
+                name: expedItemDisplayName(it.itemtype, rawName),
+                fullName: expedItemFullName(it.itemtype, rawName),
+                max: it.max_number,
+                guaranteed: arr.length >= 2 && i === arr.length - 1,   // 推測:複数ある場合、最後は大成功限定
+            };
+        });
         // 大発動艇系裝備的資源加成（社群機制轉寫，非封包驗證，見 expedition-bonus.ts）。
         const bonus = computeExpeditionBonus(collectLandingCraftGears(ships, this.slotItems));
         const rewards = {
@@ -3578,7 +3582,7 @@ export class GameState {
                 name: localizeGear(it.mst, m?.name),
                 icon: m?.icon ?? 0,
                 catId: m?.cat ?? 0,
-                catName: this.masterEquipTypes.get(m?.cat ?? 0) ?? '',
+                catName: localizeEquipmentType(m?.cat, this.masterEquipTypes.get(m?.cat ?? 0) ?? ''),
                 sortNo: m?.sortNo ?? 0,
                 consumable: this.consumableGearIds.has(it.mst),
                 level: it.level,

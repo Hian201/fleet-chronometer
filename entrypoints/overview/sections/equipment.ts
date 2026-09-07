@@ -8,7 +8,7 @@
 // 讓「我有什麼」這個第一眼問題淹沒在一整面沒有的東西裡。
 //
 // 兩種瀏覽模式共用同一組篩選、排序與欄位開關（切換模式不會重置，那會讓人以為東西不見了）：
-//   · 詳細清單（**預設**）：十四欄表格（數量／改修星數＋十一項素質），表頭可排序。
+//   · 詳細清單（**預設**）：十三欄表格（數量／改修星數＋十項素質），表頭可排序。
 //     這個分區真正要回答的是「我有幾個、改修到哪、哪個素質最高」——那是逐欄比較的問題，
 //     表格一次看得到十幾種裝備，故它才是預設。
 //   · 圖磚：一種裝備一張卡，responsive grid。適合瀏覽而非比較——「我有什麼、有幾個、
@@ -45,7 +45,7 @@ const LENG_KEYS = ['', 'ov.rsLengShort', 'ov.rsLengMedium', 'ov.rsLengLong', 'ov
 /** 射程：0＝無（用弱化的「·」表示，與素質 0 一致），1–4 為短/中/長/超長。 */
 const lengLabel = (leng: number) => (LENG_KEYS[leng] ? t(LENG_KEYS[leng]) : '');
 
-/** 素質 0 一律畫成弱化的點：讓非零值在十一個數值欄裡跳出來，掃描時不必逐格讀數字。 */
+/** 素質 0 一律畫成弱化的點：讓非零值在十個數值欄裡跳出來，掃描時不必逐格讀數字。 */
 const statCell = (v: number) => (v === 0 ? '<span class="eq-zero">·</span>' : String(v));
 
 /**
@@ -95,7 +95,7 @@ function instancesHtml(group: GearGroup): string {
 }
 
 // ── 詳細清單的欄位定義 ──────────────────────────────────────────────────
-// 欄序即使用者指定的順序：數量、改修星數，其後十一項素質（裝備中艦娘見檔頭說明）。
+// 欄序即使用者指定的順序：數量、改修星數，其後十項素質（裝備中艦娘見檔頭說明）。
 
 interface EqColumn {
     id: string;
@@ -145,7 +145,6 @@ export const COLUMNS: EqColumn[] = [
         cell: g => (g.stats.leng ? esc(lengLabel(g.stats.leng)) : '<span class="eq-zero">·</span>'),
         text: g => lengLabel(g.stats.leng),
     },
-    statCol('luck', 'ov.rsColLuck'),
     statCol('houk', 'ov.rsColEvasion'),
     statCol('baku', 'ov.eqColBaku'),
     statCol('raig', 'ov.rsColTorp'),
@@ -199,7 +198,7 @@ export function tableHtml(groups: GearGroup[], view: View): string {
         return row + `<tr class="eq-subrow"><td colspan="${cols.length}">${instancesHtml(g)}</td></tr>`;
     }).join('');
 
-    // 表格自己的橫向捲動容器：十四個欄位一定會超出寬度，頁面本身永不橫捲。
+    // 表格自己的橫向捲動容器：欄位一定會超出寬度，頁面本身永不橫捲。
     return `<div class="eq-table-wrap"><table class="eq-table">`
         + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }

@@ -62,7 +62,6 @@ const GEAR_COLS: { key: GearSortKey; labelKey: string }[] = [
     { key: 'houg', labelKey: 'ov.rsColFire' },
     { key: 'houm', labelKey: 'ov.eqColHoum' },
     { key: 'leng', labelKey: 'ov.rsLeng' },
-    { key: 'luck', labelKey: 'ov.rsColLuck' },
     { key: 'houk', labelKey: 'ov.rsColEvasion' },
     { key: 'baku', labelKey: 'ov.eqColBaku' },
     { key: 'raig', labelKey: 'ov.rsColTorp' },
@@ -340,7 +339,7 @@ function paintTable(): void {
         const head = SHIP_COLS.map(c => {
             const on = shipSort.key === c.key;
             const arrow = on ? (shipSort.dir === 'asc' ? '▲' : '▼') : '';
-            return `<th class="${c.key === 'name' ? 'n' : ''} ${on ? 'on' : ''}" data-sort="${c.key}">${esc(t(c.labelKey))}<span class="od-arrow">${arrow}</span></th>`;
+            return `<th class="${c.key === 'name' ? 'n' : ''} ${on ? 'on' : ''}" data-sort="${c.key}"><span class="od-head"><span class="od-label">${esc(t(c.labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
         }).join('');
         const body = rows.map(s => {
             const picked = selected.has(s.id);
@@ -377,7 +376,7 @@ function paintTable(): void {
         const head = GEAR_COLS.map(c => {
             const on = gearSort.key === c.key;
             const arrow = on ? (gearSort.dir === 'asc' ? '▲' : '▼') : '';
-            return `<th class="${c.key === 'name' ? 'n' : ''} ${on ? 'on' : ''}" data-sort="${c.key}">${esc(t(c.labelKey))}<span class="od-arrow">${arrow}</span></th>`;
+            return `<th class="${c.key === 'name' ? 'n' : ''} ${on ? 'on' : ''}" data-sort="${c.key}"><span class="od-head"><span class="od-label">${esc(t(c.labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
         }).join('');
         const body = rows.map(g => `<tr>
           <td class="n" title="${esc(state.gearNameJa(g.mst))}">${esc(g.name)}</td>
@@ -386,7 +385,6 @@ function paintTable(): void {
           <td>${statOrDot(g.stats.houg)}</td>
           <td>${statOrDot(g.stats.houm)}</td>
           <td>${lengLabel(g.stats.leng)}</td>
-          <td>${statOrDot(g.stats.luck)}</td>
           <td>${statOrDot(g.stats.houk)}</td>
           <td>${statOrDot(g.stats.baku)}</td>
           <td>${statOrDot(g.stats.raig)}</td>

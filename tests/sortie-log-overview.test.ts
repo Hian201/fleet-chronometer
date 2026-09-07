@@ -71,9 +71,10 @@ describe('摺疊列', () => {
         expect(html).toContain('E3');
         expect(html).toContain(t('ov.slDiff4'));        // 甲
         expect(html).toContain(state.shipName(YUKIKAZE));
-        // 節點軌跡：五個節點各一顆藥丸，boss 節點帶 boss class
-        expect(html.match(/class="sl-pill[ "]/g)).toHaveLength(5);
-        expect(html).toContain('sl-pill boss');
+        // 節點軌跡：五個節點各一個平面節點，boss 節點帶 boss class；收合列不顯示 RANK
+        expect(html.match(/class="sl-route-node(?: |")/g)).toHaveLength(5);
+        expect(html).toContain('sl-route-node type-boss');
+        expect(html).not.toContain('sl-pill-rank');
         // 夜戰接續的節點（61-3 的 53）帶記號
         expect(html).toContain('☾');
         expect(html).toContain('aria-expanded="false"');
@@ -87,10 +88,45 @@ describe('摺疊列', () => {
         expect(html).toContain('aria-expanded="true"');
     });
 
+    it('節點 hover 可完整辨識已支援的節點分類，複合節點保留多個分類', () => {
+        const subEnemyIds = rows().find(row => row.node === 52)?.enemyIds ?? [];
+        const make = (node: number, eventId: number, eventKind: number, over: Partial<SortieLogRow> = {}): SortieLogRow => ({
+            ...rows()[0], eventId: 1000 + node, node, nodeEventId: eventId, nodeEventKind: eventKind,
+            enemyIds: [], enemyIdsEscort: [], drop: null, boss: false, ...over,
+        });
+        const special = [
+            make(101, 6, 2),                         // 能動分歧
+            make(102, 7, 0),                         // 航空偵察
+            make(103, 7, 1),                         // 航空戰
+            make(104, 4, 6),                         // 空襲
+            make(105, 4, 6, { enemyIds: subEnemyIds }), // 潛空
+            make(106, 5, 5),                         // 敵連合
+            make(107, 2, 0),                         // 資源
+            make(108, 3, 0),                         // 渦潮
+            make(109, 6, 1),                         // 未遇敵
+            make(110, 6, 9),                         // 無事發生
+            make(111, 8, 0),                         // 護衛
+            make(112, 9, 0),                         // 揚陸
+            make(113, 5, 0, { boss: true }),          // 王點
+            make(114, 4, 1, { enemyIds: subEnemyIds }), // 潛水
+        ];
+        const night = make(115, 4, 1);
+        const html = headHtml(entry({
+            rows: [...special, night],
+            replay: { ...replay(), battles: [{ node: 115, data: {}, yasen: { api_n_hougeki: [] } }] },
+        }), state, false);
+        for (const key of [
+            'node.branch', 'node.submarine', 'node.airRecon', 'node.airBattle', 'node.airRaid',
+            'node.subAir', 'node.night', 'node.enemyCombined', 'node.resource', 'node.maelstrom',
+            'node.noEnemy', 'node.nothing', 'node.escortSuccess', 'node.landing', 'node.boss',
+        ]) expect(html).toContain(t(key));
+    });
+
     it('掉落等封包字串一律逸出，不得直接進 DOM', () => {
-        const html = headHtml(entry(), state, false);
+        const html = detailHtml(buildSortieDetail(rows(), replay()), replay(), state);
         expect(html).toContain('&lt;b&gt;試作艦&lt;/b&gt;');
         expect(html).not.toContain('<b>試作艦');
+        expect(headHtml(entry(), state, false)).not.toContain('試作艦');
     });
 });
 
@@ -272,15 +308,20 @@ describe('展開內容（KC3Kai 級的資訊密度）', () => {
         expect(html).toContain('1,300');                   // 260 × 5 節點
     });
 
-    it('掉落有無都顯示：有掉落列艦名，結算過沒掉列「無掉落」', () => {
+    it('展開內容保留掉落結果，收合列只顯示新船摘要', () => {
         const r = replay();
         const html = detailHtml(buildSortieDetail(rows(), r), r, state);
         expect(html).toContain(t('ov.slDrop'));            // boss 節點有掉落
         expect(html).toContain(t('ov.slNoDrop'));          // 其餘結算過的節點
-        // 摺疊列也要有（使用者要求「有無掉落船也要包含進去」）
-        expect(headHtml(entry(), state, false)).toContain(t('ov.slDrop'));
+        // 收合列不再顯示一般掉落或無掉落，避免把路線撐成第三排
+        expect(headHtml(entry(), state, false)).not.toContain(t('ov.slDrop'));
         const noDrop = entry({ rows: rows().map(row => ({ ...row, drop: null })) });
-        expect(headHtml(noDrop, state, false)).toContain(t('ov.slNoDrop'));
+        expect(headHtml(noDrop, state, false)).not.toContain(t('ov.slNoDrop'));
+        const newShip = entry({ newShipEventIds: new Set([rows()[4].eventId]) });
+        const summary = headHtml(newShip, state, false);
+        expect(summary).toContain('sakura-anchor-new.png');
+        expect(summary).toContain('試作艦');
+        expect(summary).not.toMatch(/sl-newship-item">[^<]*· /);
     });
 
     it('完全沒有結算紀錄時不顯示「無掉落」（那是不可考，不是沒掉）', () => {
@@ -317,7 +358,28 @@ describe('沒有結算資訊的紀錄（本專案 toKc3Replay 匯出的重播、
             ? { ...row, drop: null, dropMst: YUKIKAZE } : row));
         const html = detailHtml(buildSortieDetail(mstOnly, r), r, state);
         expect(html).toContain(`${t('ov.slDrop')} ${state.shipName(YUKIKAZE)}`);
-        expect(headHtml(entry({ rows: mstOnly }), state, false)).toContain(state.shipName(YUKIKAZE));
+        expect(headHtml(entry({ rows: mstOnly }), state, false)).not.toContain('sakura-anchor-new.png');
+        expect(headHtml(entry({ rows: mstOnly, newShipEventIds: new Set([mstOnly[4].eventId]) }), state, false))
+            .toContain('sakura-anchor-new.png');
+    });
+
+    it('有 dropMst 時以當前語言顯示艦名，不沿用擷取當下的日文名', () => {
+        const withMst = rows().map(row => (row.node === 53
+            ? { ...row, drop: '雪風', dropMst: YUKIKAZE } : row));
+        setLang('en');
+        try {
+            const summary = headHtml(entry({
+                rows: withMst,
+                newShipEventIds: new Set([withMst[4].eventId]),
+            }), state, false);
+            expect(summary).toContain('Yukikaze');
+            expect(summary).not.toContain('雪風');
+            const html = detailHtml(buildSortieDetail(withMst, replay()), replay(), state);
+            expect(html).toContain(`${t('ov.slDrop')} Yukikaze`);
+            expect(html).not.toContain(`${t('ov.slDrop')} 雪風`);
+        } finally {
+            setLang('zh-TW');
+        }
     });
 
     it('摺疊列標示「匯入」徽章', () => {

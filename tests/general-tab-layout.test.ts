@@ -78,6 +78,18 @@ describe('一般分頁版面', () => {
         expect(css).toMatch(/\.quest-row \.q-st\s*\{[^}]*color:\s*var\(--dim\)/);
     });
 
+    it('任務說明保留 DOM，倒數更新不會洗掉反白／翻譯目標', () => {
+        expect(panelMain).toContain('let renderedQuestSignature');
+        expect(panelMain).toContain('const questSignature = JSON.stringify');
+        expect(panelMain).toContain('if (questSignature !== renderedQuestSignature)');
+        expect(panelMain).toContain('const scrollTop = questsEl.scrollTop');
+        expect(panelMain).toContain('questsEl.scrollTop = scrollTop');
+        expect(panelMain).toContain('function tickGeneralCountdowns()');
+        expect(panelMain).toContain('data-countdown-at');
+        expect(panelMain).toContain('if (el.textContent !== text) el.textContent = text');
+        expect(panelMain).not.toContain("if (tab === 'general') renderGeneral();");
+    });
+
     it('遠征名稱靠 hover／點列展開，展開狀態撐過重繪', () => {
         expect(panelMain).toContain('expandedExped');
         expect(panelMain).toContain('data-exped-fleet');
