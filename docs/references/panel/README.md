@@ -4,7 +4,7 @@
 它不是執行時載入的資產；正式 panel 的編成 DOM 與 CSS 仍以
 `entrypoints/panel/main.ts`、`entrypoints/panel/index.html` 為準。
 
-編成定版採 `.ship-body` 雙欄結構：左欄放艦種、艦名與裝備，右欄固定 `96px` 放 HP、狀態、
-燃料與彈藥；裝備列維持單行，普通裝備 chip 為 `40px`、增設槽為 `34px`，圖示為 `16px`。
-七艘滿編時只收緊艦列內距與 row-gap，不能把補給資訊塞回裝備列，也不能回復成舊的
-`.ship-row`／`supply-combo` 版面。
+編成定版採 `.ship-body`：32px 艦種莖＋主欄兩 sweep。首列 Lv 貼艦名、燃彈殘量與
+有狀態才出現的 34px 狀態槽；次列 HP 與 221px 裝備（普通 chip `36px`、增設槽 `31px`，圖示
+`14px`）。七艘滿編時只收緊艦列內距與 `.ship-main` row-gap，不能把補給資訊塞回裝備列，
+也不能回復成舊的 `.ship-row`／`supply-combo` 或 96px 右欄儀器版面。

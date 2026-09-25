@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { formationRects } from '../utils/formation-geometry';
+import { setLang, t } from '../utils/ui-i18n';
 
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const panelMain = readFileSync(new URL('../entrypoints/panel/main.ts', import.meta.url), 'utf8');
@@ -216,5 +217,59 @@ describe('出擊面板的固定資訊密度', () => {
         expect(panelHtml).toMatch(/\.s-drop-slot\.filled\s*\{[^}]*border:\s*0;/);
         expect(preview).toMatch(/\.s-action-rail\.with-system \.s-drop-slot\.filled\s*\{[^}]*border:\s*0;/);
         expect(preview).not.toContain('<div class="s-phase active">BOSS</div>');
+        expect(panelHtml).toMatch(/\.s-rank-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) max-content/);
+        expect(preview).toMatch(/\.pv-prop \.s-rank-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) max-content/);
+        expect(panelHtml).toMatch(/\.s-rank-name\s*\{[\s\S]*?-webkit-line-clamp:\s*2/);
+        expect(preview).toMatch(/\.pv-prop \.s-rank-name\s*\{[\s\S]*?-webkit-line-clamp:\s*2/);
+        expect(panelHtml).toMatch(/\.s-formation-compact\s*\{[\s\S]*?width:\s*max-content/);
+        expect(preview).toMatch(/\.pv-prop \.s-formation-compact\s*\{[\s\S]*?width:\s*max-content/);
+    });
+
+    it('英文制空／航向用社群短稱，且兩欄不得互相覆蓋', () => {
+        expect(panelHtml).toMatch(/\.s-priority-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+        expect(panelHtml).toMatch(/\.s-priority-item\s*\{[\s\S]*?flex-direction:\s*column/);
+        expect(panelHtml).toMatch(/\.s-priority-item b\s*\{[\s\S]*?text-overflow:\s*ellipsis/);
+        expect(preview).toMatch(/\.pv-prop \.s-priority-item\s*\{[\s\S]*?flex-direction:\s*column/);
+        expect(preview).toMatch(/\.pv-prop \.s-priority-item b\s*\{[\s\S]*?text-overflow:\s*ellipsis/);
+        expect(panelMain).toContain("S: 'rank.s', A: 'rank.a'");
+        expect(panelMain).toContain("t('sortie.mainFleet')");
+        expect(panelMain).toContain("t('sortie.escortFleet')");
+        expect(panelMain).toContain("t('sortie.lbas')");
+        expect(panelMain).toContain("t('sortie.aaciRail')");
+        expect(panelMain).not.toContain('<span>主隊</span>');
+        expect(panelMain).not.toContain('<span>伴隨</span>');
+        expect(panelMain).not.toContain("info.aaci > 0 ? '' : '對空 CI'");
+        expect(panelMain).not.toContain("lbas ? t('sortie.lbasArrived') : '陸航'");
+        setLang('en');
+        expect(t('seiku.secured')).toBe('AS+');
+        expect(t('seiku.superior')).toBe('AS');
+        expect(t('seiku.even')).toBe('AP');
+        expect(t('eng.tAdvantage')).toBe('T-Adv');
+        expect(t('eng.tDisadvantage')).toBe('T-Dis');
+        expect(t('rank.a')).toBe('Victory');
+        expect(t('rank.s')).toBe('Perfect Victory');
+        expect(t('sortie.lbas')).toBe('LBAS');
+        expect(t('sortie.aaciRail')).toBe('AACI');
+        expect(t('sortie.mainFleet')).toBe('Main');
+        expect(t('sortie.escortFleet')).toBe('Escort');
+        expect(t('fleet.heavyDamage')).toBe('Taiha');
+        expect(t('sortie.taihaWarning')).toBe('Taiha!');
+        expect(t('sortie.taihaRetreatNoEscort')).toBe('No retreat');
+        expect(t('sortie.taihaRetreatHint')).toBe('Retreat available');
+        setLang('zh-TW');
+        expect(t('rank.a')).toBe('勝利');
+        expect(t('sortie.aaciRail')).toBe('對空 CI');
+        expect(t('fleet.heavyDamage')).toBe('大破');
+        expect(t('sortie.taihaWarning')).toBe('大破！');
+        setLang('ja');
+    });
+
+    it('大破警告釘在 44px 航空戰格內，英文短句走 i18n', () => {
+        expect(panelHtml).toMatch(/min-height:\s*44px;\s*margin:\s*0;\s*overflow:\s*hidden;/);
+        expect(panelHtml).toMatch(/\.s-taiha\.open\s*\{[\s\S]*?display:\s*flex;[\s\S]*?overflow:\s*hidden;/);
+        expect(preview).toContain('.preview/panel-taiha-en.html');
+        expect(preview).toContain("t('sortie.taihaWarning')");
+        expect(preview).toContain("t('sortie.taihaRetreatNoEscort')");
+        expect(preview).toContain("t('sortie.taihaRetreatHint')");
     });
 });

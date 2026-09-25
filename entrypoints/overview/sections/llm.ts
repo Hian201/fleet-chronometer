@@ -81,7 +81,10 @@ async function buildFullReport(state: GameState): Promise<string> {
             }
             lines.push('');
         }
-    } else lines.push(t('ov.fleetOverviewNone'));
+    } else {
+        lines.push(t('ov.fleetOverviewNone'));
+        lines.push(t('ov.fleetOverviewNoneHint'));
+    }
     lines.push('');
 
     // 全裝備：依裝備種類（api_mst_slotitem_equiptype 的 catName）分類，種類內再依

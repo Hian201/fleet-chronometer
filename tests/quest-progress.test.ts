@@ -296,6 +296,26 @@ describe('任務清單同步：完整 tab 缺席清除（2020-03-27 起 API 不�
         expect(state.questProgress.size).toBe(0);
     });
 
+    it('tab 9 不得把 tab 0 看到的可接受任務清掉', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [
+                { api_no: 101, api_state: 1, api_title: '可接受', api_detail: '內容' },
+                { api_no: 201, api_state: 2, api_title: '任務201', api_detail: '補給15回を達成せよ！' },
+            ],
+        }, { api_tab_id: '0' });
+        expect(state.availableQuests_().map(q => q.no)).toEqual([101]);
+        expect(state.questOnceCatalogNos_()).toEqual([101, 201]);
+
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [{ api_no: 201, api_state: 2, api_title: '任務201', api_detail: '補給15回を達成せよ！' }],
+        }, { api_tab_id: '9' });
+
+        expect(state.quests_().map(q => q.no)).toEqual([201]);
+        expect(state.availableQuests_().map(q => q.no)).toEqual([101]);
+        expect(state.questOnceCatalogNos_()).toEqual([101, 201]);
+    });
+
     it('子集 tab（例如每日）缺席不得誤刪其他分類的任務', () => {
         const state = new GameState();
         seedActive(state, [201, 210]);

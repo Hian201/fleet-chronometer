@@ -4,6 +4,7 @@ import {
     BackupDestinationError, BackupValidationError, backupFileName, combineBackupEnvelopes,
     countBackupRecords, highestReferencedEventId, isEmptyBackup, MAX_RESTORABLE_SOURCE_EVENT_ID,
     parseBackupJson, restoreBackup, unusedBackupFileName, validateBackupEnvelope,
+    BACKUP_SCHEMA_VERSION, type BackupTables,
 } from '../utils/backup';
 import { KcDb, type ExpeditionRow } from '../utils/db';
 
@@ -162,10 +163,11 @@ describe('備份 envelope runtime validation', () => {
         const normal = combineBackupEnvelopes([v3Restore(), v3Replays()]);
         const reverse = combineBackupEnvelopes([v3Replays(), v3Restore()]);
 
-        expect(normal).toMatchObject({ schemaVersion: 6, kind: 'full' });
+        expect(normal).toMatchObject({ schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'full' });
         expect(reverse.tables).toEqual(normal.tables);
         expect(normal.tables.eventPlans).toEqual([]);
         expect(normal.tables.resources).toEqual([]);
+        expect(normal.tables.questObserved).toEqual([]);
         expect(normal.tables.replays).toHaveLength(1);
     });
 
@@ -339,6 +341,7 @@ describe('備份 envelope runtime validation', () => {
             ['expeditions.eventId', tables => { tables.expeditions![0].eventId = 106; }, 106],
             ['wanted.eventId', tables => { tables.wanted![0].eventId = 107; }, 107],
             ['shipObtained.observedEventId', tables => { tables.shipObtained![1].observedEventId = 108; }, 108],
+            ['questObserved.eventId', tables => { tables.questObserved = [{ eventId: 109, questNo: 201, ts: TS }]; }, 109],
         ];
 
         for (const [where, mutate, expected] of cases) {

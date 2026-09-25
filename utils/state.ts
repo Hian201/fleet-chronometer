@@ -806,6 +806,8 @@ export class GameState {
         slotNum?: number; maxeq?: number[]; sortno?: number;
         // 以下四項為「艦娘全覽」的篩選所需，見 api_start2/getData 分支的逐欄說明。
         ctype: number; afterLv: number; afterShipId: number; kyoukaMax: number[];
+        // 基礎耐久 api_taik[0]。配裝參考的戰艦 A/B 群分界用它，不能用實例 maxhp（結婚會加）。
+        taik0: number;
     }>();
     // 改造形態 → 基礎形態的反解來源（皆由 api_start2/getData 建立，見 baseShipId()）：
     //   upgradeOriginal：api_mst_shipupgrade 的 api_id → api_original_ship_id，**主要解法**
@@ -861,6 +863,13 @@ export class GameState {
     masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number }>();
     ships = new Map<number, any>();
     slotItems = new Map<number, { mst: number; level: number; alv: number }>();
+    masterUseItems = new Map<number, string>();
+    // 道具清單是最近一次觀測到的完整快照；null 代表尚未收到，空 Map 代表收到空清單。
+    useItemCounts: Map<number, number> | null = null;
+    payItemCounts: Map<number, number> | null = null;
+    // 最近一次改修確認畫面（slotlist_detail）的 useitem 需求，等 remodel_slot 對上才扣。
+    pendingRemodelUseItems: { recipeId: string; slotId: string; items: [unknown, unknown][] } | null = null;
+    slotItemInventoryKnown = false;
     decks: any[] = [];
     ndockData: any[] = [];
     kdockData: any[] = [];
@@ -868,10 +877,20 @@ export class GameState {
     materials: number[] = [];
     maxChara = 0; maxSlotitem = 0;
     quests = new Map<number, { name: string; detail: string; done: boolean }>();
+    // state 1 是遊戲清單當下可接受的任務；與受注中／達成待領取分開保存，讓總括能誠實
+    // 區分「目前看得到但尚未接受」和「本機沒有看過」。
+    availableQuests = new Map<number, { name: string; detail: string }>();
     // 任務本機進度追蹤：key＝api_no，只有 resolveQuestGoal() 解得出目標的任務才有條目。
     // count 從「本機首次觀測到該任務」起算（baseline 誠實原則，見 quest-progress.ts）。
     // area/bossOnly/minRank/missionIds 為選填過濾條件，沿用 QuestGoal 的欄位（見該檔說明）。
     questProgress = new Map<number, QuestGoal & { count: number }>();
+    // clearitemget 是本機確實觀測到領取獎勵的證據。仍在 raw events 裡的領獎由 applyEvent
+    // 記入；已裁剪或只存在備份 derived table 的列經 ingestArchivedQuestClaim 補回。
+    questObservedCompletions = new Map<number, { count: number; lastTs: number }>();
+    // 最近一次「全部」或「單發」tab 看到的 api_no。這兩個 tab 才是該分類當下的完整清單，
+    // 可用來對「沒出現的單發任務」做缺席推論；遂行中／每日等子集 tab 不得寫入。
+    // null＝尚未觀測到這類完整清單，與空陣列（當時 0 件）不同。
+    questOnceCatalogNos: number[] | null = null;
     consumableGearIds = new Set<number>();
     airBases = new Map<string, any>();   // key: `${area_id}_${rid}`
     // `api_get_member/mapinfo.api_air_base_expanded_info[]`：以海域 area_id 為單位的
@@ -1146,9 +1165,109 @@ export class GameState {
         if (replace) {
             this.slotItems.clear();
             this.alvStaleGears.clear();
+            this.slotItemInventoryKnown = true;
         }
         for (const it of list) this.upsertSlotItem(it);
         return true;
+    }
+
+    private static itemCountMap(value: unknown, idKey: string): Map<number, number> | null | undefined {
+        if (value === null) return new Map();
+        if (!Array.isArray(value)) return undefined;
+        const result = new Map<number, number>();
+        for (const row of value) {
+            const id = row?.[idKey];
+            const count = row?.api_count;
+            if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(count) || count < 0
+                || result.has(id)) return undefined;
+            result.set(id, count);
+        }
+        return result;
+    }
+
+    private observeUseItems(value: unknown) {
+        const counts = GameState.itemCountMap(value, 'api_id');
+        if (counts !== undefined) this.useItemCounts = counts;
+    }
+
+    private observePayItems(value: unknown) {
+        const counts = GameState.itemCountMap(value, 'api_payitem_id');
+        if (counts !== undefined) this.payItemCounts = counts;
+    }
+
+    private changeUseItemCount(idValue: unknown, deltaValue: unknown) {
+        if (!this.useItemCounts) return;
+        const id = Number(idValue), delta = Number(deltaValue);
+        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(delta)) return;
+        this.useItemCounts.set(id, Math.max(0, (this.useItemCounts.get(id) ?? 0) + delta));
+    }
+
+    private applyUseItemDelta(path: string, api: any, req?: Record<string, string>) {
+        // slotlist_detail 是打開改修確認畫面就會送的封包，玩家可能看完取消；remodel_slot
+        // 回應又不帶道具欄位。故 detail 只記下需求，等同配方＋同裝備的 remodel_slot 才扣
+        // （成敗都會消耗），扣完即清，避免重複嘗試或只看不改時多扣。
+        if (path === 'api_req_kousyou/remodel_slotlist_detail') {
+            const recipeId = req?.api_id, slotId = req?.api_slot_id;
+            this.pendingRemodelUseItems = recipeId && slotId ? {
+                recipeId, slotId,
+                items: [
+                    [api?.api_req_useitem_id, api?.api_req_useitem_num],
+                    [api?.api_req_useitem_id2, api?.api_req_useitem_num2],
+                ],
+            } : null;
+            return;
+        }
+        if (path === 'api_req_kousyou/remodel_slot') {
+            const pending = this.pendingRemodelUseItems;
+            this.pendingRemodelUseItems = null;
+            if (pending && req?.api_id === pending.recipeId && req?.api_slot_id === pending.slotId) {
+                for (const [id, num] of pending.items) this.changeUseItemCount(id, -Number(num));
+            }
+            return;
+        }
+        if (path === 'api_req_mission/result') {
+            const reward = api?.api_get_item1;
+            if (Number(reward?.api_useitem_id) > 0)
+                this.changeUseItemCount(reward.api_useitem_id, reward.api_useitem_count);
+            return;
+        }
+        if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') {
+            const reward = api?.api_get_useitem;
+            if (Number(reward?.api_useitem_id) > 0) this.changeUseItemCount(reward.api_useitem_id, 1);
+            const extra = Number(api?.api_get_exmap_useitem_id);
+            if (Number.isSafeInteger(extra) && extra > 0) this.changeUseItemCount(extra, 1);
+        }
+    }
+
+    useItemCount(id: number): number | null {
+        return this.useItemCounts === null ? null : this.useItemCounts.get(id) ?? 0;
+    }
+
+    payItemCount(id: number): number | null {
+        return this.payItemCounts === null ? null : this.payItemCounts.get(id) ?? 0;
+    }
+
+    materialCount(apiId: number): number | null {
+        const value = this.materials[apiId - 1];
+        return Number.isFinite(value) ? value : null;
+    }
+
+    slotItemCountByJapaneseName(name: string): number | null {
+        if (!this.slotItemInventoryKnown) return null;
+        const masterIds = new Set([...this.masterGears.entries()]
+            .filter(([, master]) => master.name === name)
+            .map(([id]) => id));
+        if (!masterIds.size) return null;
+        return [...this.slotItems.values()].filter(item => masterIds.has(item.mst)).length;
+    }
+
+    useItemName(id: number): string | undefined {
+        return this.masterUseItems.get(id);
+    }
+
+    observedUseItems_(): { id: number; count: number }[] | null {
+        return this.useItemCounts === null ? null : [...this.useItemCounts]
+            .map(([id, count]) => ({ id, count }));
     }
 
     /** 接受帶 api_id 的艦娘資料；局部更新只合併實際送出的欄位，保留既有槽位關聯。 */
@@ -1170,9 +1289,11 @@ export class GameState {
     // ts：該封包的擷取時間戳。replay 時必須帶入原始 event.ts，否則泊地修理計時器會被
     // 重播當下的時間污染；live 事件未帶時退回 Date.now()。
     applyEvent(path: string, api: any, req?: Record<string, string>, ts: number = Date.now()) {
+        this.applyUseItemDelta(path, api, req);
         if (path === 'api_start2/getData') {
             this.remodelPrev.clear();
             this.baseShipIdCache.clear();   // 反解來源要重建了，舊答案一律作廢
+            this.masterUseItems.clear();
             for (const s of api.api_mst_ship) {
                 this.master.set(s.api_id, {
                     name: s.api_name, stype: s.api_stype ?? 0,
@@ -1207,6 +1328,7 @@ export class GameState {
                     // ＝長門/陸奥/伊勢/日向/雪風/赤城/加賀/蒼龍/飛龍/島風，與 samples/
                     // ship-debut-dates.json 的排列完全一致）。0/缺 = 不在図鑑（深海棲艦等）。
                     sortno: s.api_sortno,
+                    taik0: Number(s.api_taik?.[0]) || 0,
                 });
                 // api_aftershipid 是**字串**（真封包實證，例 睦月 '254'），'0' 代表無後續改造。
                 // 當 number 比對會靜默失效，務必先 Number() 解析。
@@ -1236,6 +1358,11 @@ export class GameState {
                     },
                 });
                 if (CONSUMABLE_NAMES.has(g.api_name)) this.consumableGearIds.add(g.api_id);
+            }
+            for (const item of api.api_mst_useitem ?? []) {
+                const id = GameState.positiveId(item?.api_id);
+                if (id != null && typeof item?.api_name === 'string' && item.api_name.length > 0)
+                    this.masterUseItems.set(id, item.api_name);
             }
             // 補強增設三張表（見宣告處的欄位說明）。任一缺席就維持空集合，呼叫端需可降級。
             this.exSlotTypes = new Set(
@@ -1310,9 +1437,14 @@ export class GameState {
             // 回港封包根本不帶裝備資料，歸在那裡等於謊稱已校正（見 alvStaleGears）。
             // ingestSlotItems 只有整批形狀完整時才會清 map，並同時清掉整批過時標記。
             this.ingestSlotItems(list, true);
+            if (path === 'api_get_member/require_info') this.observeUseItems(api.api_useitem ?? []);
             // 登入必送的 require_info 也帶 api_kdock（KC3/poi 一登入就能顯示建造渠的資料源）。
             // 防禦性讀取：欄位存在才覆蓋，避免 slot_item 端點（無此欄位）誤清空。
             if (Array.isArray(api.api_kdock)) this.kdockData = api.api_kdock;
+        } else if (path === 'api_get_member/useitem') {
+            this.observeUseItems(api);
+        } else if (path === 'api_get_member/payitem') {
+            this.observePayItems(api);
         } else if (path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
             || path === 'api_get_member/ship2') {
             // KC3Kai／EO：ship3 的 `api_slot_data`＝**未裝備清單（等同 unsetslot）**，不是
@@ -1435,18 +1567,26 @@ export class GameState {
             // 2020-03-27 起 API 不再分頁：單一 tab 回傳該分類的**全部**任務（遊戲 UI 仍
             // 可能分頁顯示）。api_tab_id：0=全て／1=デイリー／2=ウィークリー／3=マンスリー／
             // 4=単発／5=他／9=遂行中（EO apilist／KC3Kai QuestManager.definePage）。
-            // tab 0 與 9 是完整集合——缺席＝已不在受注中／達成（領獎後消失、或過期重置），
-            // 必須刪除本機追蹤；其餘 tab 只是子集，只能更新出現的列，不能因缺席而刪。
+            // 受注中／達成只在 tab 0 與 9 缺席時刪除；可接受任務只有 tab 0 才是完整集合，
+            // tab 9 本來就不含未受注列，缺席不得清掉「全部」剛看到的可接受任務。
+            // 單發缺席推論只採 tab 0／4：這兩個才是該範圍當下的完整清單。
             const tabId = Number(req?.api_tab_id);
-            const completeTab = tabId === 0 || tabId === 9;
+            const syncActive = tabId === 0 || tabId === 9;
+            const syncAvailable = tabId === 0;
+            const catalogTab = tabId === 0 || tabId === 4;
             const list = api.api_list;
-            // api_list 為 null：該 tab 目前 0 件（EO：任務完遂時會變 null）。完整 tab
-            // 才可清掉本機清單；子集 tab 的 null 不代表其他分類也空了。
+            const recordOnceCatalog = (nos: number[]) => {
+                this.questOnceCatalogNos = nos;
+            };
+            // api_list 為 null：該 tab 目前 0 件（EO：任務完遂時會變 null）。
+            // 子集 tab 的 null 不代表其他分類也空了。
             if (list == null) {
-                if (completeTab) {
+                if (syncActive) {
                     this.quests.clear();
                     this.questProgress.clear();
                 }
+                if (syncAvailable) this.availableQuests.clear();
+                if (catalogTab) recordOnceCatalog([]);
             } else if (Array.isArray(list)) {
                 const seen = new Set<number>();
                 for (const q of list) {
@@ -1459,6 +1599,7 @@ export class GameState {
                             detail: q.api_detail ?? '',
                             done: q.api_state === 3,
                         });
+                        this.availableQuests.delete(q.api_no);
                         // 進度只在「本機第一次看到這個任務編號」時初始化——重複的 questlist
                         // 不得把已累積的計數洗回 0。
                         if (!this.questProgress.has(q.api_no)) {
@@ -1469,15 +1610,24 @@ export class GameState {
                         // state 1=未受注：若已追蹤過（例如放棄後），從面板拿掉。
                         this.quests.delete(q.api_no);
                         this.questProgress.delete(q.api_no);
+                        this.availableQuests.set(q.api_no, {
+                            name: q.api_title ?? '', detail: q.api_detail ?? '',
+                        });
                     }
                 }
-                if (completeTab) {
+                if (syncActive) {
                     for (const no of [...this.quests.keys()]) {
                         if (seen.has(no)) continue;
                         this.quests.delete(no);
                         this.questProgress.delete(no);
                     }
                 }
+                if (syncAvailable) {
+                    for (const no of [...this.availableQuests.keys()]) {
+                        if (!seen.has(no)) this.availableQuests.delete(no);
+                    }
+                }
+                if (catalogTab) recordOnceCatalog([...seen].sort((a, b) => a - b));
             }
         } else if ((path === 'api_req_quest/clearitemget' || path === 'api_req_quest/stop') && req) {
             // 達成後領取獎勵（clearitemget）或放棄任務（stop）：該任務即從清單消失。
@@ -1490,6 +1640,13 @@ export class GameState {
             this.ingestSlotItems(api?.api_slot_item);
             const questId = Number(req.api_quest_id);
             if (Number.isFinite(questId) && questId > 0) {
+                if (path === 'api_req_quest/clearitemget') {
+                    const previous = this.questObservedCompletions.get(questId);
+                    this.questObservedCompletions.set(questId, {
+                        count: (previous?.count ?? 0) + 1,
+                        lastTs: ts,
+                    });
+                }
                 this.quests.delete(questId);
                 this.questProgress.delete(questId);
             }
@@ -2873,6 +3030,40 @@ export class GameState {
                 progress: p ? { count: p.count, target: p.target } : null,
             };
         });
+    }
+
+    /** 任務清單中目前可接受、但尚未受注的任務；與 quests_() 分開避免狀態混淆。 */
+    availableQuests_(): QuestView[] {
+        return [...this.availableQuests.entries()].map(([no, q]) => ({
+            no,
+            name: q.name,
+            detail: q.detail,
+            done: false,
+            progress: null,
+        }));
+    }
+
+    /** 本機確實觀測到領取獎勵的任務；回傳副本避免顯示層改動核心狀態。 */
+    questObservedCompletions_(): ReadonlyMap<number, { count: number; lastTs: number }> {
+        return new Map(this.questObservedCompletions);
+    }
+
+    /** 已裁剪或不在本次重播範圍的領獎列；同一 eventId 不得由呼叫端重複送入。 */
+    ingestArchivedQuestClaim(questNo: number, ts: number): void {
+        if (!Number.isSafeInteger(questNo) || questNo < 1 || !Number.isFinite(ts) || ts < 0) return;
+        const previous = this.questObservedCompletions.get(questNo);
+        this.questObservedCompletions.set(questNo, {
+            count: (previous?.count ?? 0) + 1,
+            lastTs: Math.max(previous?.lastTs ?? 0, ts),
+        });
+    }
+
+    /**
+     * 最近一次「全部」或「單發」tab 的完整 api_no 清單。
+     * null＝還沒看過這類 tab，不能把缺席當成完成。
+     */
+    questOnceCatalogNos_(): readonly number[] | null {
+        return this.questOnceCatalogNos === null ? null : [...this.questOnceCatalogNos];
     }
 
     // ── 遠征需求檢查 ──────────────────────────────

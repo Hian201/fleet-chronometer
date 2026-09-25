@@ -257,7 +257,11 @@ export const fleetOverviewSection: OverviewSection = {
         const basesAll = state.airBases_();
         // 艦隊空船但已有基地航空隊時仍要顯示／匯出，不能當「無資料」。
         const hasData = fleetsAll.some(f => f.ships.length) || basesAll.length > 0;
-        if (!hasData) { el.innerHTML = `<div class="ov-empty">${esc(t('ov.fleetOverviewNone'))}</div>`; return; }
+        if (!hasData) {
+            el.innerHTML = `<div class="ov-empty"><p>${esc(t('ov.fleetOverviewNone'))}</p>`
+                + `<p class="dim">${esc(t('ov.fleetOverviewNoneHint'))}</p></div>`;
+            return;
+        }
         const prefs = loadPrefs(fleetsAll.length);
         // 基地航空隊**以海域為單位**開關：一個海域最多
         // 三個基地、平常整組一起看，逐基地一顆 checkbox 只是讓那排 chip 更長。海域名在

@@ -225,10 +225,9 @@ export const CSS_TY = '--kc-theater-ty';
 export const CSS_CLIP = '--kc-theater-clip';
 /**
  * 工具列預留的底部條高度：工具列**不覆蓋遊戲畫面**，fit 計算會扣掉這一條。
- * 加了拍照鈕後從 26 調到 38——26px 只夠塞下縮放群組＋靜音，按鈕擠在一起難點；
  * 這是唯一要改的常數，`viewport()`／`fitTheaterWindow()`／CSS 全部從它推導。
  */
-export const BAR_HEIGHT = 38;
+export const BAR_HEIGHT = 19;
 
 /**
  * 劇場模式樣式。三個要點：

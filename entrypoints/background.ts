@@ -9,6 +9,7 @@ import { createEventNotificationId } from '@/utils/event-notification';
 import { pruneRawEventsBefore } from '@/utils/event-pruning';
 import { parseKcsapiResponse } from '@/utils/kcsapi';
 import { captureResources } from '@/utils/resource-capture';
+import { captureQuestObserved } from '@/utils/quest-observed';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
 
@@ -26,6 +27,8 @@ const SNAPSHOT_PATHS = new Set([
   'api_start2/getData',
   'api_port/port',
   'api_get_member/require_info',
+  'api_get_member/useitem',
+  'api_get_member/payitem',
   'api_get_member/slot_item',
   'api_get_member/base_air_corps',
   'api_get_member/mapinfo',
@@ -278,13 +281,12 @@ async function openPanelWindow() {
   }
   await browser.windows.create({
     url: browser.runtime.getURL('/panel.html'),
-    // width 420 是內容區目標（與預覽 .pv-app 相同）。create 的 width 含外框，
-    // 面板啟動時 fitPanelInnerWidth 會把 popup 補到內寬 420，視窗仍須維持此內容寬度。
+    // create 的 width 含外框；面板啟動時 fitPanelInnerWidth 會調整 popup，將內容區補到 370px。
     // height 850 須容納標題列、固定 270px 資訊區、固定 165px 戰鬥列與七艘單行編成；
     // 這個高度已按面板 CSS 的實際列高保留少量餘裕。
     // ⚠️ 此高度假設裝備列單行。若 .chips wrap 成兩行，單艘變高，第 7 艘會被裁掉——
     // 見 panel/index.html .chips／.chip 寬度預算註解，勿靠加高視窗掩蓋換行。
-    type: 'popup', width: 420, height: 850,
+    type: 'popup', width: 370, height: 850,
   });
 }
 
@@ -301,6 +303,7 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   // 資源時間序列＋活動特殊時間點。與 snapshot 同層（不需 GameState、面板沒開也要累積），
   // 全部 put/add-if-absent，故 recovery 重跑同一筆事件不會重複記錄（見 utils/resource-capture.ts）。
   await captureResources(db, { id, ts, path, api });
+  await captureQuestObserved(db, { id, ts, path, req });
   // M6 事件裁剪：登入封包（start2）到達 = 遊戲即將重送全量狀態，更早的事件可安全清除
   if (path === 'api_start2/getData') await pruneEvents(id);
   // 超長單一 session（不重登）保險裁剪：不等 start2，events 數量過大就主動修剪一次。

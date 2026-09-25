@@ -1,6 +1,6 @@
 # 圖示生成器
 
-`public/icons/**.svg`（76 顆：裝備 61＋資源 8＋UI 7）**全部由此產生**，不要手改 SVG——改生成器再重跑。
+`public/icons/**.svg`（93 顆：裝備 61＋資源 8＋UI 7＋數值 17）**全部由此產生**，不要手改 SVG——改生成器再重跑。
 
 ```bash
 cd tools/icons
@@ -8,14 +8,16 @@ python3 gen_icons.py  out/equipment out/resource     # 全 61 顆＋資源 8 顆
 rm -rf all3d && python3 gen_planes.py                # 飛機族 3D：只產「有徽章」的 21 顆
 cp all3d/*.svg out/equipment/                        # 覆蓋這 21 顆
 python3 gen_ui.py out/ui                             # UI 圖示（入渠／建造／遠征／任務／艦數／裝備數／空襲警報）
-python3 normalize.py out/equipment out/resource out/ui   # 尺寸正規化（必跑，見下）
+python3 gen_stats.py out/stat                        # 數值圖示 17 顆（耐久／火力／…／制空）
+python3 normalize.py out/equipment out/resource out/ui out/stat   # 尺寸正規化（必跑，見下）
 cp out/equipment/*.svg ../../public/icons/equipment/
 cp out/resource/*.svg  ../../public/icons/resource/
 cp out/ui/*.svg        ../../public/icons/ui/
+cp out/stat/*.svg      ../../public/icons/stat/
 ```
 > 先清理 `all3d`：`gen_planes.py` 只寫出當前應產生的檔案，清理可避免過時檔案被 `cp` 一併複製。
 
-### 描邊（`normalize.py` 自動注入，全 76 顆一致）
+### 描邊（`normalize.py` 自動注入，全圖示一致）
 
 遊戲原圖的所有圖示都有描邊（貼紙風格）。除了風格一致，描邊有**功能性理由**：
 面板圖示以 `<img src>` 載入，SVG 是獨立文件、**吃不到外部 CSS**，無法靠主題 CSS 改色；
@@ -56,6 +58,9 @@ cp out/ui/*.svg        ../../public/icons/ui/
 `public/icons/ui/` 為面板自身的 UI 圖示（非裝備）：`dock`（入渠＝沿用艦艇修理施設的吊臂造型）、
 `build`（建造＝造船鎚 `#feea74`＋金銀 Solid Rivets）、`exped`（遠征＝羅盤，參照 `samples/compass.jpg`）、
 `quest`（任務＝通達用紙＋朱印，不是勾選框）。
+
+`public/icons/stat/` 為艦娘數值圖示（`gen_stats.py`）：遊戲 12 項＋命中／爆裝／士氣／夜戰／制空。
+語意微彩定版；火力＝大和 46cm 三連裝、對空＝Bofors 綠、索敵折線與夜戰星月＝黃、射程＝30° 徹甲彈＋平行粗箭。
 
 ## 設計約束（改動前務必先讀）
 

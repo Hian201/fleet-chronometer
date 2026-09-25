@@ -398,6 +398,14 @@ export interface ResourceMarkRow {
     gaugeNum?: number;
 }
 
+// 本機觀測到的任務領獎。raw `clearitemget` 會被 M6 裁剪，備份也不帶走 events，
+// 故獨立永久表；主鍵 eventId + put ⇒ 冪等。還原後用 ts 對任務週期邊界比對，不另存旗標。
+export interface QuestObservedRow {
+    eventId: number;
+    questNo: number;
+    ts: number;
+}
+
 // 已提前通知過的遠征（防重複通知）。狀態必須持久化，才能跨 service worker 重啟維持
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
 export interface NotifiedRow {
@@ -419,6 +427,7 @@ export class KcDb extends Dexie {
     eventPlans!: Table<EventPlanRow, number>;
     resources!: Table<ResourceRow, number>;
     resourceMarks!: Table<ResourceMarkRow, string>;
+    questObserved!: Table<QuestObservedRow, number>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -538,6 +547,33 @@ export class KcDb extends Dexie {
             resources: 'eventId, ts',
             resourceMarks: 'key, mapKey, ts',
             meta: 'key',
+        });
+        // v13：任務領獎觀測（見 QuestObservedRow）。純新增表。升級時只把**當時仍保留**
+        // 的 clearitemget raw events 抄進新表；已被裁剪的歷史不回填、不猜測。
+        this.version(13).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            meta: 'key',
+        }).upgrade(async trans => {
+            const events = trans.table('events');
+            const observed = trans.table('questObserved');
+            const rows = await events.where('path').equals('api_req_quest/clearitemget').toArray();
+            for (const event of rows as ApiEventRow[]) {
+                const questNo = Number(event.req?.api_quest_id);
+                if (event.id === undefined || !Number.isSafeInteger(questNo) || questNo < 1) continue;
+                await observed.put({ eventId: event.id, questNo, ts: event.ts });
+            }
         });
     }
 }

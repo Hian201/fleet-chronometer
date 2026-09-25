@@ -7,6 +7,7 @@ import { eventTermLabel, eventTermSeasonLabel } from '@/utils/event-calendar';
 import { eventWorldLabel, type EventMapFilterPlan, type EventWorldFilter } from '@/utils/sortie-detail';
 import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
+import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { t } from '@/utils/ui-i18n';
 
 export { esc, gearIconHtml, matIconHtml };
@@ -131,11 +132,18 @@ export function paginate<T>(rows: T[], size: number, page: number): Page<T> {
 // overview 僅套用 reducer，不經 EventProjector，因此不寫任何 derived tables。
 export async function loadGameState(): Promise<GameState> {
     const gs = new GameState();
-    const [snapshots, events] = await Promise.all([
+    const [snapshots, events, observed] = await Promise.all([
         db.snapshot.toArray(),
         db.events.orderBy('id').toArray(),
+        db.questObserved.toArray(),
     ]);
-    applyStateRecoveryPlan(gs, planStateRecovery(snapshots, events));
+    const plan = planStateRecovery(snapshots, events);
+    applyStateRecoveryPlan(gs, plan);
+    applyArchivedQuestObservations(
+        gs,
+        observed,
+        new Set(plan.rawEvents.flatMap(event => event.id === undefined ? [] : [event.id])),
+    );
     return gs;
 }
 

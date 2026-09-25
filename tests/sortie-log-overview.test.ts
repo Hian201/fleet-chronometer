@@ -414,6 +414,15 @@ describe('匯入 UI 說明', () => {
         setLang('zh-TW');
     });
 
+    it('工具列提供與打撈紀錄相同的每頁筆數選項與分頁容器', () => {
+        const html = shellHtml({ includeImport: false });
+        expect(html).toContain('class="sl-size"');
+        for (const size of [10, 20, 50, 100, 0]) {
+            expect(html).toContain(`<option value="${size}"`);
+        }
+        expect(html).toContain('class="rs-pager sl-pager" hidden');
+    });
+
     it('節點提示指向實際的 map-node-letters 模組', () => {
         setLang('zh-TW');
         expect(t('ov.slNoLetterTip')).toContain('utils/map-node-letters.ts');

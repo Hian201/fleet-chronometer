@@ -75,6 +75,12 @@ The agent must not add code that:
 
 The extension may only observe existing traffic and derive local state.
 
+## 370px fleet preview reference
+
+* The accepted 370px fleet reference is the `試排｜七船、原位加高 HP＋油彈條` scene in `.preview/panel-width-hp-resource-zh.html`; use the matching English preview when checking English text.
+* Preserve the original ship-type badge design and placement, and keep the full enhancement equipment chip inside the fleet row bounds.
+* When adding another panel-tab preview, reuse this scene’s fleet markup and styling so the fleet remains visually consistent.
+
 ## Unverified game data
 
 Do not invent or assume the meaning of unverified Kancolle API fields.
@@ -110,3 +116,4 @@ Before declaring a task complete:
 3. Report any validation that could not be performed.
 4. Provide manual browser verification steps when live-game testing would otherwise be required.
 5. Do not claim that live Kancolle behaviour was verified unless the developer supplied the relevant logs, screenshots, or packet captures.
+6. UI, visible copy, or fixed-width style changes must be inspected in at least Taiwan Traditional Chinese (`zh-TW`) and English. Latin strings are usually longer than the matching CJK in the same column, so a layout that fits one language can overflow, overlap, or clip in the other. Also check Japanese when its length is clearly different. Do not declare the layout correct from a single-language screenshot. Pass criteria are in `docs/design-guidelines.md` §2.4.

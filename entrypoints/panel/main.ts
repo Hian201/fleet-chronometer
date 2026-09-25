@@ -13,6 +13,7 @@ import {
     type AnchorageRepairPlan, type MoralePlan,
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
+import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
@@ -22,9 +23,10 @@ import { bossHpReplaySpecificity, observedBossHp } from '@/utils/boss-hp';
 import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
 import { formationRects } from '@/utils/formation-geometry';
 import { mountOrder, renderOrder } from './order';
+import { mountGeneral } from './general';
+import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
-    resline = $('resline'), missionsEl = $('missions'), ndocksEl = $('ndocks'), kdocksEl = $('kdocks'), questsEl = $('quests'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
     wantedEl = $('wanted'),
     facLiveEl = $('factory-live'),
@@ -32,11 +34,20 @@ const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), genera
     tabpanelEl = $('tabpanel');
 const state = new GameState();
 const projector = new EventProjector({ state, mode: 'persist', tables: db });
-const PANEL_INNER_WIDTH = 420;
-function fitPanelInnerWidth() {
-    document.documentElement.style.setProperty('--panel-inner-width', `${PANEL_INNER_WIDTH}px`);
+const PANEL_INNER_WIDTH = 370;
+async function fitPanelInnerWidth() {
+    const inner = document.documentElement.clientWidth;
+    const delta = PANEL_INNER_WIDTH - inner;
+    if (Math.abs(delta) < 1) return;
+    try {
+        const win = await browser.windows.getCurrent();
+        if (typeof win.id !== 'number' || typeof win.width !== 'number') return;
+        await browser.windows.update(win.id, { width: Math.round(win.width + delta) });
+    } catch {
+        /* 側欄等無法改寬的載體維持現有寬。 */
+    }
 }
-fitPanelInnerWidth();
+void fitPanelInnerWidth();
 // 面板顯示語言＋主題：持久化／偵測／跨頁同步抽到 utils/ui-prefs.ts（panel/popup/overview
 // 三頁共用；utils/ui-i18n.ts 仍只放純函式，維持 state.ts 可獨立編譯）。
 // 語言/主題以「鎮守府情報總括」為控制中心，但任一頁切換都會經 storage 事件廣播到其他
@@ -54,6 +65,7 @@ onPrefsChange(() => {
 });
 // 靜態 HTML（index.html 內非 JS 產生的標題文字）的翻譯套用點：切語言時連同動態渲染一起重跑。
 function applyStaticI18n() {
+    document.documentElement.lang = getLang() === 'zh-TW' ? 'zh-Hant-TW' : getLang();
     document.title = t('ov.brandShort');   // 面板彈出視窗的標題也用在地化品牌短名
     document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
         el.textContent = t(el.dataset.i18n!);
@@ -74,13 +86,11 @@ let tab: 'general' | 'exped' | 'activity' | 'sortie' | 'factory' | 'order' = 'ge
 let manualOverride = false;          // 使用者手動切過分頁後暫停自動切換
 let currentContext: string | null = null;  // 目前情境（port / sortie / exped）
 let expedId: number | null = null;
+const selectedExpedByFleet = new Map<number, number>();
 let view: number[] = [0];
 let cn = 1;
 let showLbas = false;
 let selectedLbasArea: number | null = null;
-const expandedQuests = new Set<number>();   // 使用者展開查看內容的任務編號
-const expandedExped = new Set<number>();    // 使用者展開查看遠征名稱；重繪／倒數不應收回
-let renderedQuestSignature = '';
 // 一般大破卡點擊後只隱藏文字，紅框仍固定覆蓋航空戰欄，不另設會擠壓版面的收縮態。
 let taihaDetailsHidden = false;
 // 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
@@ -88,6 +98,10 @@ let taihaDetailsHidden = false;
 // 不吐數字（數字寬度隨值變動、破壞對齊），確切等級留在 chip 的 title 提示。'>' 需轉義。
 const alvMark = (alv: number) =>
     ['', '|', '||', '|||', '/', '//', '///', '&gt;&gt;'][Math.min(7, Math.max(0, alv))];
+const alvU = (alv: number) => {
+    const cls = alv >= 7 ? 'alv-ace' : alv >= 1 && alv <= 3 ? 'alv-lo' : '';
+    return `<u${cls ? ` class="${cls}"` : ''}>${alvMark(alv)}</u>`;
+};
 // 改修：+1~+9 顯示數字，+10（滿改修）顯示五角星、不顯示數字；未改修回空字串。
 const impMark = (level: number) =>
     level >= 10 ? '★' : level > 0 ? String(level) : '';
@@ -102,7 +116,7 @@ const bossNodeSvg = (letter: string) => `<svg class="s-boss-node-svg" viewBox="0
     <path class="s-boss-head" d="M 50 114 C 23 114 5 95 5 66 C 5 44 16 29 29 22 C 26 15 20 8 14 3 C 27 6 37 16 42 28 C 45 27 48 26 50 26 C 52 26 55 27 58 28 C 63 16 73 6 86 3 C 80 8 74 15 71 22 C 84 29 95 44 95 66 C 95 95 77 114 50 114 Z" />
     <text class="s-boss-letter" x="50" y="86" text-anchor="middle">${esc(letter)}</text>
   </svg>`;
-const searchRadarHtml = () => `<svg class="s-system-glyph search" viewBox="0 0 24 24" role="img" aria-label="索敵雷達" focusable="false">
+const searchRadarHtml = () => `<svg class="s-system-glyph search" viewBox="0 0 24 24" role="img" aria-label="${esc(t('sortie.detection'))}" focusable="false">
     <circle class="search-ring outer" cx="12" cy="12" r="10" />
     <circle class="search-ring middle" cx="12" cy="12" r="6.8" />
     <circle class="search-ring inner" cx="12" cy="12" r="3.6" />
@@ -112,13 +126,13 @@ const searchRadarHtml = () => `<svg class="s-system-glyph search" viewBox="0 0 2
     <circle class="search-blip" cx="17.2" cy="8.4" r="1.15" />
     <circle class="search-center" cx="12" cy="12" r="1.3" />
   </svg>`;
-const aaciGunHtml = () => `<span class="s-system-glyph aaci"><img class="aaci-gun-raster" src="${tacticalIcon('bofors-40mm-aaci-mirrored.png')}" alt="對空 CI" /></span>`;
-const lbasAircraftHtml = () => `<span class="s-system-glyph lbas" title="基地航空隊"><img class="lbas-aircraft-raster" src="${tacticalIcon('b25-lbas-support.png')}" alt="基地航空隊" /></span>`;
+const aaciGunHtml = () => `<span class="s-system-glyph aaci"><img class="aaci-gun-raster" src="${tacticalIcon('bofors-40mm-aaci-mirrored.png')}" alt="${esc(t('sortie.aaciRail'))}" /></span>`;
+const lbasAircraftHtml = () => `<span class="s-system-glyph lbas" title="${esc(t('sortie.lbas'))}"><img class="lbas-aircraft-raster" src="${tacticalIcon('b25-lbas-support.png')}" alt="${esc(t('sortie.lbas'))}" /></span>`;
 const supportAircraftHtml = (kind: 'air' | 'shell' | 'torpedo' | 'asw' | 'none') => {
-    if (kind === 'air') return `<span class="s-system-glyph support-air" title="航空支援"><img class="support-aircraft-raster" src="${tacticalIcon('comet-air-support.png')}" alt="航空支援" /></span>`;
-    if (kind === 'asw') return `<span class="s-system-glyph support-asw" title="對潛支援"><img class="support-asw-raster" src="${tacticalIcon('ka2-asw-support.png')}" alt="對潛支援" /></span>`;
-    if (kind === 'torpedo') return `<span class="s-system-glyph support-torpedo" title="雷擊支援"><img class="support-torpedo-raster" src="${tacticalIcon('knox-torpedo-support.png')}" alt="雷擊支援" /></span>`;
-    return `<span class="s-system-glyph support-shell" title="砲擊支援"><img class="support-ship-raster" src="${tacticalIcon('yamato-north-style.png')}" alt="砲擊支援" /></span>`;
+    if (kind === 'air') return `<span class="s-system-glyph support-air" title="${esc(t('sortie.supportKindAir'))}"><img class="support-aircraft-raster" src="${tacticalIcon('comet-air-support.png')}" alt="${esc(t('sortie.supportKindAir'))}" /></span>`;
+    if (kind === 'asw') return `<span class="s-system-glyph support-asw" title="${esc(t('sortie.supportKindAsw'))}"><img class="support-asw-raster" src="${tacticalIcon('ka2-asw-support.png')}" alt="${esc(t('sortie.supportKindAsw'))}" /></span>`;
+    if (kind === 'torpedo') return `<span class="s-system-glyph support-torpedo" title="${esc(t('sortie.supportKindTorpedo'))}"><img class="support-torpedo-raster" src="${tacticalIcon('knox-torpedo-support.png')}" alt="${esc(t('sortie.supportKindTorpedo'))}" /></span>`;
+    return `<span class="s-system-glyph support-shell" title="${esc(t('sortie.supportKindShelling'))}"><img class="support-ship-raster" src="${tacticalIcon('yamato-north-style.png')}" alt="${esc(t('sortie.supportKindShelling'))}" /></span>`;
 };
 const crescentHtml = () => `<img class="s-night-moon" src="${tacticalIcon('brass-crescent.png')}" alt="" aria-hidden="true" />`;
 const formationSvgHtml = (id: number) => {
@@ -131,10 +145,6 @@ const sakuraAnchorHtml = (isNew: boolean) => {
     const file = isNew ? 'sakura-anchor-new.png' : 'sakura-anchor-owned.png';
     return `<img class="s-sakura-anchor ${isNew ? 'new' : 'owned'}" src="${tacticalIcon(file)}" alt="${label}" draggable="false" />`;
 };
-// 任務內容原文換行用字面 <br> 標籤（非 \n，見 api_no
-// 637/643/861 等）；先跳脫全文防 XSS，再把跳脫後的 &lt;br&gt; 還原成真正換行。
-// 不做任何翻譯，玩家自行用其他工具查照原文即可。escDetail 留在 panel（組合 esc）。
-const escDetail = (s: string) => esc(s).replace(/&lt;br\s*\/?&gt;/gi, '<br>');
 const fmt = (t: number) => {
     const s = Math.max(0, Math.floor((t - Date.now()) / 1000));
     return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -185,7 +195,7 @@ function renderHeader() {
     const stat = (kind: string, label: string, cur: number, max: number, margin: number) =>
         `<span class="stat ${max > 0 && cur >= max - margin ? 'warn' : ''}" title="${esc(label)}">` +
         `<img class="h-icon" src="/icons/ui/${kind}.svg" alt="${esc(label)}"> <b>${cur}/${max || '?'}</b></span>`;
-    // 提督名＋等級成組共用一個 title：遊戲限定名稱最長 12 文字，但 12 個全角字在 420px
+    // 提督名＋等級成組共用一個 title：遊戲限定名稱最長 12 文字，但 12 個全角字在 370px
     // 面板仍會擠掉右側統計，故名稱過長仍以省略號截斷；hover 一次補回「全名　Lv等級」。
     const nick = state.nickname || '???';
     headerEl.innerHTML =
@@ -258,89 +268,7 @@ document.getElementById('battle-content')!.addEventListener('click', e => {
     taihaDetailsHidden = !taihaDetailsHidden;
     renderSortie();
 });
-function renderGeneral() {
-    // 資源抬頭固定為 4×2；資源圖示與數字成組靠左，避免在窄面板被欄內對齊拉開。
-    const m = state.materials;
-    const res = (key: string, v: number | undefined, sec = false) =>
-        `<span class="res-item${sec ? ' sec' : ''}" title="${esc(t(key + '.full'))}">${matIconHtml(key)} <b>${(v ?? 0).toLocaleString()}</b></span>`;
-    resline.innerHTML = m.length ? [
-        res('mat.fuel', m[0]), res('mat.ammo', m[1]), res('mat.steel', m[2]), res('mat.bauxite', m[3]),
-        res('mat.torch', m[4], true), res('mat.drum', m[5], true), res('mat.devmat', m[6], true), res('mat.screw', m[7], true),
-    ].join('') : '';
-    // 三欄資料列不再把身分圖示塞進每一列：欄頂的固定圖示負責辨識種類；遠征列只留
-    // 艦隊、任務編號、倒數。名稱以 hover／點列展開，避免長字串壓縮倒數欄。
-    missionsEl.innerHTML = state.missions().map(mm => {
-        const name = expedDisplayName(mm.missionId, mm.name);
-        const fleet = Number(mm.fleet);
-        const open = Number.isSafeInteger(fleet) && expandedExped.has(fleet);
-        return `
-      <div class="g-item">
-        <div class="g-chip" data-exped-fleet="${esc(mm.fleet)}" title="${esc(name)}" aria-expanded="${open}">
-          <span class="fleet-box">${esc(mm.fleet)}</span>
-          <span class="g-eta grow">${esc(mm.dispNo)}</span>
-          <span class="g-eta" data-countdown-at="${esc(String(mm.completeAt))}">${fmt(mm.completeAt)}</span>
-        </div>
-        <div class="exped-detail"${open ? '' : ' hidden'}>${esc(name)}</div>
-      </div>`;
-    }).join('') || `
-      <div class="g-empty">${t('common.empty')}</div>`;
-    // 入渠／建造沿用同一種 chip，欄頂固定圖示已在 HTML 中提供身分，不重複塞進資料列。
-    ndocksEl.innerHTML = state.ndocks().map(n => `
-      <div class="g-chip">
-        <span class="g-name" title="${esc(n.ship)}">${esc(n.ship)}</span>
-        <span class="g-eta" data-countdown-at="${esc(String(n.completeAt))}">${fmt(n.completeAt)}</span>
-      </div>`).join('') || `<div class="g-empty">${t('common.empty')}</div>`;
-    // kdock 只有實際點進工廠「建造」分頁才會送封包，單純被動擷取拿不到就是拿不到（見 CLAUDE.md
-    // 設計原則1）。跟「有資料但目前沒建造中」區分開來，避免使用者誤以為是顯示 bug；
-    // 短標籤放 title 收全文，避免在窄欄內爆版。
-    kdocksEl.innerHTML = state.kdocks().map(k => `
-      <div class="g-chip${k.state === 3 ? ' done' : ''}">
-        <span class="g-name" title="${esc(k.ship)}">${esc(k.ship)}</span>
-        <span class="g-eta"${k.state === 3 ? '' : ` data-countdown-at="${esc(String(k.completeAt))}"`}>${k.state === 3 ? t('kdock.complete') : fmt(k.completeAt)}</span>
-      </div>`).join('') || `<div class="g-empty" title="${esc(state.kdockData.length === 0 ? t('kdock.notOpened') : t('common.empty'))}">${state.kdockData.length === 0 ? t('kdock.notOpenedShort') : t('common.empty')}</div>`;
-    // 任務區吃掉資訊區剩餘高度並自行捲動；不可截斷清單，否則第 9 筆以後的受注任務會
-    // 完全消失。每個任務包成 cell，展開說明只影響任務區，不會推動上方資訊抬頭。
-    const quests = state.quests_();
-    const questSignature = JSON.stringify([
-        getLang(),
-        quests.map(q => [q.no, q.name, q.detail, q.done, q.progress?.count ?? null, q.progress?.target ?? null, expandedQuests.has(q.no)]),
-    ]);
-    if (questSignature !== renderedQuestSignature) {
-        const scrollTop = questsEl.scrollTop;
-        questsEl.innerHTML = quests.map(q => {
-            const open = expandedQuests.has(q.no);
-            // 有解析出目標次數才顯示「已完成/目標」；解不出來（單次型任務、以「隻」為單位者）
-            // 無法解析進度時顯示受注中／達成（見 utils/quest-progress.ts）。
-            const progressLabel = !q.done && q.progress
-                ? `<span class="q-prog" title="${esc(t('quest.progressHint'))}">${q.progress.count}/${q.progress.target}</span>`
-                : `<span class="q-st">${q.done ? t('quest.done') : t('quest.inProgress')}</span>`;
-            return `
-          <div class="quest-cell">
-            <div class="quest-row ${q.done ? 'done' : ''}" data-no="${q.no}">
-              <span class="grow" title="${esc(q.name)}">${esc(q.name)}</span>
-              ${progressLabel}
-            </div>${open ? `<div class="quest-detail">${q.detail ? escDetail(q.detail) : t('quest.noDetail')}</div>` : ''}
-          </div>`;
-        }).join('') || `<div class="empty">${t('common.empty')}</div>`;
-        questsEl.scrollTop = scrollTop;
-        renderedQuestSignature = questSignature;
-    }
-}
-missionsEl.addEventListener('click', e => {
-    const row = (e.target as HTMLElement).closest('[data-exped-fleet]') as HTMLElement | null;
-    if (!row) return;
-    const fleet = Number(row.dataset.expedFleet);
-    if (!Number.isSafeInteger(fleet)) return;
-    if (expandedExped.has(fleet)) expandedExped.delete(fleet); else expandedExped.add(fleet);
-    renderGeneral();
-});
-questsEl.addEventListener('click', e => {
-    const row = (e.target as HTMLElement).closest('.quest-row') as HTMLElement | null;
-    if (!row) return;
-    const no = Number(row.dataset.no);
-    if (expandedQuests.has(no)) expandedQuests.delete(no); else expandedQuests.add(no);
-    renderGeneral();
-});
+const renderGeneral = mountGeneral(state, fmt);
 // 目前是否為聯合檢視（恰好第一＋第二艦隊）——view 無序，故用集合語意判斷。
 function isCombinedView() {
     return view.length === 2 && view.includes(0) && view.includes(1);
@@ -478,7 +406,7 @@ function gearChip(g: NonNullable<ShipView['exGear']>, ex = false) {
     if (ex) return `<span class="chip ${g.cat} ex" title="${title}">${gearIconHtml(g.icon, g.short)}<b>${impMark(g.level)}</b></span>`;
     const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
     return `<span class="chip ${g.cat}" title="${title}">` +
-        `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top"><u>${alvMark(g.alv)}</u><b>${impMark(g.level)}</b></span>` +
+        `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top">${alvU(g.alv)}<b>${impMark(g.level)}</b></span>` +
         `<em class="oc ${ocCls}">${g.count ?? ''}</em></span></span>`;
 }
 // 泊地修理／給糧：算出該艦隊的兩份計畫＋摘要 badge。
@@ -489,53 +417,53 @@ function repairPlansOf(f: FleetView) {
     const rep = planAnchorageRepair(f, f.repairAnchor == null ? undefined : now - f.repairAnchor);
     const mor = planMoraleSupply(f, f.moraleAnchor == null ? undefined : now - f.moraleAnchor);
     // 倒數獨立成 .rcd 元素並把錨點/週期存進 data-*，讓每秒 tick 只改這顆的文字；
-    // 整塊重繪會重建裝備圖示並關閉使用者正打開的索敵倍率 select。
-    const countdown = (anchor: number | null | undefined, interval: number) => {
+    // 這裡顯示的是共享的結算週期，不把配對修理的 5/6 速度倍率誤套到 20 分鐘計時器。
+    const countdown = (anchor: number | null | undefined, interval: number, tone: string) => {
         const ms = nextSettlementIn(anchor, interval);
         if (ms === undefined) return '';
-        return ` <span class="rcd" data-anchor="${anchor}" data-interval="${interval}">${countdownText(ms)}</span>`;
+        return `<span class="fs-op-time rcd ${tone}" data-anchor="${anchor}" data-interval="${interval}">${countdownText(ms)}</span>`;
     };
-    const badges =
-        (rep.active
-            ? `<span class="badge-tag repair" title="${esc(t('repair.repairTitle'))}">${t('repair.repairBadge', { n: rep.coverage })}${rep.accelerated ? t('repair.accelSuffix') : ''}${countdown(f.repairAnchor, REPAIR_INTERVAL_MS)}</span>`
-            : '') +
-        (mor.active
-            ? `<span class="badge-tag morale" title="${esc(t('repair.moraleTitle'))}">${t('repair.moraleBadge', { n: mor.slots.filter(s => s.willRecover).length })}${countdown(f.moraleAnchor, MORALE_INTERVAL_MS)}</span>`
-            : '') +
-        // 範圍成立但計時錨點不可考時，明講「倒數不可考」而不是默默不顯示——
-        // 否則使用者會以為是功能壞了。
-        ((rep.active && f.repairAnchor === undefined) || (mor.active && f.moraleAnchor === undefined)
-            ? `<span class="badge-tag est" title="${esc(t('repair.unknownAnchorTitle'))}">${t('repair.unknownAnchor')}</span>`
-            : '');
-    return { rep, mor, badges };
+    const ops = f.mission
+        ? `<span class="fs-op mission">${t('fleet.onMission')}</span>`
+        : [
+            rep.active
+                ? `<span class="fs-op repair" data-accelerated="${rep.accelerated}" title="${esc(t('repair.repairTitle'))}">
+                    <img class="fs-op-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">
+                    <span class="fs-op-label">${t('repair.repairBadge', { n: rep.coverage })}</span>
+                    ${rep.accelerated ? `<span class="fs-op-mode">${t('repair.accelLabel')}</span>` : ''}
+                    ${countdown(f.repairAnchor, REPAIR_INTERVAL_MS, rep.accelerated ? 'accelerated' : 'normal')}
+                  </span>`
+                : '',
+            mor.active
+                ? `<span class="fs-op supply" title="${esc(t('repair.moraleTitle'))}">
+                    <span class="fs-op-label">${t('repair.moraleBadge', { n: mor.slots.filter(s => s.willRecover).length })}</span>
+                    ${countdown(f.moraleAnchor, MORALE_INTERVAL_MS, 'normal')}
+                  </span>`
+                : '',
+            // 範圍成立但計時錨點不可考時，明講「倒數不可考」而不是默默不顯示；
+            // 否則使用者會以為是功能壞了。
+            ((rep.active && f.repairAnchor === undefined) || (mor.active && f.moraleAnchor === undefined))
+                ? `<span class="fs-op-unknown" title="${esc(t('repair.unknownAnchorTitle'))}">${t('repair.unknownAnchor')}</span>`
+                : '',
+        ].filter(Boolean).join('');
+    return { rep, mor, ops };
 }
 // 泊地修理／給糧的逐艦標記與左緣範圍軌。idx 為該艦在艦隊中的 0-based 位置。
-// 回傳 { cls, mark }：cls 疊到 .ship（畫軌條），mark 插進艦名列（說明會不會生效）。
+// 回傳艦列範圍樣式；逐艦維修／給糧標記不再佔用艦列空間。
 function repairMarks(idx: number, rep: AnchorageRepairPlan, mor: MoralePlan) {
     const cls: string[] = [];
-    const mark: string[] = [];
     const repSlot = rep.active ? rep.slots[idx] : undefined;
     if (repSlot) {
         cls.push('rail-rep');
-        if (repSlot.willRepair) {
-            mark.push(`<span class="rmark rep" title="${esc(t('repair.willRepair'))}">${t('repair.markRepair')}${repSlot.predictedHp != null ? `+${repSlot.predictedHp}` : ''}</span>`);
-        } else if (repSlot.skip && repSlot.skip !== 'full') {
-            mark.push(`<span class="rmark rep skip" title="${esc(t(`repair.skip.${repSlot.skip}`))}">${t('repair.markRepair')}</span>`);
-        }
     }
     const morSlot = mor.active ? mor.slots[idx] : undefined;
     if (morSlot && !(idx === mor.sourceIndex)) {
         cls.push('rail-mor');
-        if (morSlot.willRecover) {
-            mark.push(`<span class="rmark mor" title="${esc(t('repair.willMorale'))}">${t('repair.markMorale')}${morSlot.predictedCond != null ? morSlot.predictedCond : ''}</span>`);
-        } else if (morSlot.skip) {
-            mark.push(`<span class="rmark mor skip" title="${esc(t(`repair.skip.${morSlot.skip}`))}">${t('repair.markMorale')}</span>`);
-        }
     }
-    return { cls: cls.join(' '), mark: mark.join('') };
+    return { cls: cls.join(' ') };
 }
-// 退避艦標記：單隊／聯合兩種艦列共用。退避是「這艘已經不在艦隊裡了」的狀態，
-// 不是傷害等級，故用中性的灰標＋整列淡出，不佔用大破/中破的語意色。
+// 退避艦標記：單隊放在固定 32px 狀態槽（標籤本身不跟著列變暗）；聯合仍附在艦名旁並整列淡出。
+// 退避是「這艘已經不在艦隊裡了」的狀態，不是傷害等級，故用中性灰標，不佔用大破/中破語意色。
 function escapedTag(s: ShipView) {
     return s.escaped
         ? `<span class="esc-tag" title="${esc(t('fleet.escapedTitle'))}">${esc(t('fleet.escaped'))}</span>`
@@ -554,12 +482,14 @@ function condClass(s: ShipView) {
     return s.cond >= 50 ? 'sparkle' : s.cond <= 19 ? 'heavy' : s.cond <= 29 ? 'tired' : '';
 }
 const vitSupply = (s: ShipView) => {
-    const pct = (v: number, max: number) => max ? Math.round(100 * v / max) : 100;
+    const pct = (v: number, max: number) => max ? Math.max(0, Math.min(100, Math.round(100 * v / max))) : 100;
     const fp = pct(s.fuel, s.maxFuel), bp = pct(s.bull, s.maxBull);
-    return `<span class="vit-sup">` +
-        `<span class="sup-f" title="${esc(t('mat.fuel.full'))} ${fp}%">${matIconFile('fuel', t('mat.fuel.full'))}${fp}</span>` +
-        `<span class="sup-a" title="${esc(t('mat.ammo.full'))} ${bp}%">${matIconFile('ammo', t('mat.ammo.full'))}${bp}</span>` +
-        `</span>`;
+    const fTitle = `${esc(t('mat.fuel.full'))} ${s.fuel}/${s.maxFuel} (${fp}%)`;
+    const aTitle = `${esc(t('mat.ammo.full'))} ${s.bull}/${s.maxBull} (${bp}%)`;
+    const bar = (kind: 'fuel' | 'ammo', title: string, value: number) =>
+        `<span class="resource-bar ${kind}" role="img" aria-label="${title}" title="${title}">` +
+        `<i class="resource-fill" style="width:${value}%"></i><span class="resource-percent">${value}</span></span>`;
+    return `<span class="vit-sup resource-pair">${bar('fuel', fTitle, fp)}${bar('ammo', aTitle, bp)}</span>`;
 };
 const taihaMark = (s: ShipView) => {
     if (s.escaped || s.inDock || stClass(s) !== 'st-major') return '';
@@ -580,8 +510,12 @@ const dockMark = (s: ShipView) => {
     if (!s.inDock) return '';
     return `<span class="dock-mark" title="${esc(t('fleet.inDockTitle'))}">${esc(t('fleet.inDock'))}</span>`;
 };
+const shipStateSlot = (s: ShipView) => {
+    const inner = s.escaped ? escapedTag(s) : s.inDock ? dockMark(s) : taihaHpMark(s);
+    return inner ? `<span class="ship-state">${inner}</span>` : '';
+};
 const FLEET_REGULAR_SLOTS = 5;
-function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string; mark: string }) {
+function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string }) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = stClass(s);
     // ★改修與熟練恆佔固定寬度的槽（即使該裝備無改修/熟練也保留空槽），使不同艦艇的
@@ -590,23 +524,27 @@ function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string; mark: st
     // 不同的艦仍以相同槽數對齊（例如 4 格全裝 vs 4 格裝 2 個，兩者裝備列同寬）。飛機槽
     // 即使沒裝備艦載機，容量數字（slotCapacity）依然要顯示，不能因為空著就整個消失。
     const realChips = s.gears.map((g, i) => g ? gearChip(g) : blankChip('chip-empty', false, s.slotCapacity[i])).join('');
-    // 打洞格（補強增設）不混在一般裝備流裡，改置於列尾、靠右貼著燃彈 chip；未裝備時
+    // 打洞格（補強增設）不混在一般裝備流裡，改置於列尾、與狀態槽右緣對齊；未裝備時
     // 畫空格但與一般空裝備格區分（brass 虛線呼應已裝備的 .ex 樣式，見 CSS
-    // .chip-empty.ex）；該艦根本無打洞能力時放隱形補位格，讓打洞格／燃彈跨艦垂直對齊。
+    // .chip-empty.ex）；該艦根本無打洞能力時放隱形補位格，讓打洞格跨艦垂直對齊。
     const exChip = s.exGear ? gearChip(s.exGear, true)
         : s.exEmpty ? blankChip('chip-empty ex', true)
             : blankChip('chip-pad ex', true);
     const padCount = FLEET_REGULAR_SLOTS - s.gears.length;
     const chips = realChips + blankChip('chip-pad').repeat(Math.max(0, padCount));
-    const nameNow = `<span class="grow"${shipNameTitle(s)}>${esc(s.name)}${escapedTag(s)}</span>`;
+    const stateSlot = shipStateSlot(s);
     return `<div class="ship ${st} ${s.escaped ? 'escaped' : ''} ${s.inDock ? 'in-dock' : ''} ${marks?.cls ?? ''}">
       <div class="ship-body">
-        <div class="ship-id">${s.stype ? `<span class="stype">${esc(s.stype)}</span>` : ''}${nameNow}${marks?.mark ?? ''}${dockMark(s)}<span class="num">Lv${s.lv}</span></div>
-        <div class="ship-vitals">
-          <div class="vit-hp"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span>${taihaHpMark(s)}<span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span></div>
-          <div class="vit-aux"><span class="cond ${condClass(s)}">${s.cond}</span>${vitSupply(s)}</div>
+        <div class="ship-kind-status${stateSlot ? ' has-state' : ''}">
+          <span class="stype">${esc(s.stype)}</span>${stateSlot}
         </div>
-        <div class="sub-row"><div class="chips">${chips}${exChip}</div></div>
+        <div class="ship-main">
+          <div class="ship-identity-row">
+            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow"${shipNameTitle(s)}>${esc(s.name)}</span></div>
+          </div>
+          <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
+          <div class="ship-gear-row"><span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
+        </div>
       </div>
     </div>`;
 }
@@ -645,10 +583,18 @@ function renderExped() {
     const fleet = currentExpedFleet();
     if (fleet !== expedFleetShown) {
         expedFleetShown = fleet;
-        const last = state.lastMissionForDeck(fleet);
-        if (last !== null && expedSel.querySelector(`option[value="${last}"]`)) {
-            expedId = last;
-            expedSel.value = String(last);
+        const availableMissionIds = new Set(Array.from(expedSel.options, option => Number(option.value)));
+        const fallbackId = expedSel.options.length > 0 ? Number(expedSel.options[0].value) : null;
+        const selected = expeditionSelectionForDeck(
+            fleet,
+            state.lastMissionForDeck(fleet),
+            selectedExpedByFleet,
+            availableMissionIds,
+            fallbackId,
+        );
+        if (selected !== null) {
+            expedId = selected;
+            expedSel.value = String(selected);
         }
     }
     if (expedId === null) {
@@ -656,92 +602,112 @@ function renderExped() {
     }
     const { rows, gsRows, known, rewards, greatSuccess } = state.expedCheck(currentExpedFleet(), expedId);
     const allOk = rows.length > 0 && rows.every(r => r.ok);
-    const successMark = allOk
-        ? `<span class="exped-status ok">${t('exped.successMet')}</span>`
-        : `<span class="exped-status ng">${t('exped.successNotMet')}</span>`;
-    // 大成功率は全遠征で公式値（16 + 15×戰意高昂 + √Lv + Lv/10）。成功条件を満たす場合のみ有効。
-    const gsMark = !greatSuccess
-        ? '<span class="exped-status dim">-</span>'
+    const successStatus = allOk
+        ? `<span class="exped-outcome-status ok" aria-label="${esc(t('exped.successMet'))}" title="${esc(t('exped.successMet'))}">✓</span>`
+        : `<span class="exped-outcome-status ng" aria-label="${esc(t('exped.successNotMet'))}" title="${esc(t('exped.successNotMet'))}">✕</span>`;
+    const greatStatus = !greatSuccess
+        ? `<span class="exped-outcome-status dim">—</span>`
         : !allOk
-            ? `<span class="exped-status ng">${t('exped.gsExcluded')}</span>`
-            : `<span class="exped-status gs" title="${esc(greatSuccess.note)}">${t('exped.gsRate', { rate: greatSuccess.rate })}</span>`;
+            ? `<span class="exped-outcome-status dim" aria-label="${esc(t('exped.gsExcluded'))}" title="${esc(t('exped.gsExcluded'))}">—</span>`
+            : `<span class="exped-outcome-status gs" aria-label="${esc(t('exped.gsRate', { rate: greatSuccess.rate }))}" title="${esc(greatSuccess.note)}">${t('exped.gsRate', { rate: greatSuccess.rate })}</span>`;
 
-    const resItems = (r: { fuel: number; bullet: number; steel: number; alum: number }) => {
-        const mats: [string, number][] = [
-            ['mat.fuel', r.fuel],
-            ['mat.ammo', r.bullet],
-            ['mat.steel', r.steel],
-            ['mat.bauxite', r.alum],
-        ];
-        const nonZero = mats.filter(([, v]) => v > 0);
-        const items = nonZero.length > 0 ? nonZero : mats;
-        return items.map(([k, v]) => `<span class="res-item">${matIconHtml(k)} ${v}</span>`).join('');
+    type ExpeditionResourceAmounts = { fuel: number; bullet: number; steel: number; alum: number };
+    const resourceColumns: { file: string; label: string; value: (amounts: ExpeditionResourceAmounts) => number }[] = [
+        { file: 'fuel', label: t('mat.fuel.full'), value: amounts => amounts.fuel },
+        { file: 'ammo', label: t('mat.ammo.full'), value: amounts => amounts.bullet },
+        { file: 'steel', label: t('mat.steel.full'), value: amounts => amounts.steel },
+        { file: 'bauxite', label: t('mat.bauxite.full'), value: amounts => amounts.alum },
+    ];
+    const resourceHeaderHtml = resourceColumns.map(resource =>
+        `<th class="exped-resource-head" scope="col" aria-label="${esc(resource.label)}" title="${esc(resource.label)}">${matIconHtml(`mat.${resource.file}`)}</th>`,
+    ).join('');
+    const emptyResourceCells = () => resourceColumns.map(() =>
+        '<td class="exped-resource-value"><span class="exped-value-empty">—</span></td>',
+    ).join('');
+    const resourceCells = (amounts: ExpeditionResourceAmounts | undefined, showUnverifiedNote = false) => {
+        if (!rewards) return emptyResourceCells();
+        if (!rewards.amountsVerified) {
+            return showUnverifiedNote
+                ? `<td class="exped-reward-unverified" colspan="4">${t('exped.rewardAmountUnverified')}</td>`
+                : emptyResourceCells();
+        }
+        if (!amounts) return emptyResourceCells();
+        return resourceColumns.map(resource => {
+            const title = rewards.bonusActive ? ` title="${esc(t('exped.bonusHint'))}"` : '';
+            return `<td class="exped-resource-value"${title}>${resource.value(amounts)}</td>`;
+        }).join('');
     };
-
-    // 有大発動艇系裝備加成時，資源數字整段變色標示（sparkle 金色＝「有加成」語意色）；
-    // 獲得量靠右對齊，放置於第三欄。
-    const normalRes = rewards?.amountsVerified ? `
-        <div class="exped-res-line${rewards.bonusActive ? ' bonus' : ''}" title="${esc(rewards.bonusActive ? t('exped.bonusHint') : '')}">
-            ${resItems(rewards.normal)}
-        </div>` : rewards ? `<div class="exped-res-line"><span class="item-note dim">${t('exped.rewardAmountUnverified')}</span></div>` : '<div class="exped-res-line"></div>';
-
-    const greatRes = rewards?.amountsVerified ? `
-        <div class="exped-res-line${rewards.bonusActive ? ' bonus' : ''}" title="${esc(rewards.bonusActive ? t('exped.bonusHint') : '')}">
-            ${resItems(rewards.great)}
-        </div>` : '<div class="exped-res-line"></div>';
-
-    const itemsText = rewards?.items.map(it => `${it.fullName}×${it.max}${it.guaranteed ? ` ${t('exped.gsOnly')}` : ` ${t('exped.randomOnSuccess')}`}`).join(' ') ?? '';
+    const outcomeRow = (label: string, status: string, amounts: ExpeditionResourceAmounts | undefined, unverified = false) => `
+        <tr>
+            <th class="exped-outcome-label" scope="row"><span class="exped-outcome-name">${label}</span>${status}</th>
+            ${resourceCells(amounts, unverified)}
+        </tr>`;
+    const itemsText = rewards?.items.map(item => `${item.fullName}×${item.max}${item.guaranteed ? ` ${t('exped.gsOnly')}` : ` ${t('exped.randomOnSuccess')}`}`).join(' ') ?? '';
     const itemsHtml = rewards?.items.length ? `
-        <span class="exped-lbl">${t('exped.items')}</span>
-        <div class="exped-items-line" title="${esc(itemsText)}">
-            ${rewards.items.map(it => `<span class="item-name" title="${esc(it.fullName)}">${esc(it.name)}×${it.max}</span>${it.guaranteed
-                ? `<span class="item-note gs">${t('exped.gsOnly')}</span>`
-                : `<span class="item-note dim">${t('exped.randomOnSuccess')}</span>`}`).join(' ')}
+        <div class="exped-items-row" title="${esc(itemsText)}">
+            <span class="exped-items-label">${t('exped.items')}</span>
+            <div class="exped-items-line">${rewards.items.map(item => `
+                <span class="item-reward"><span class="item-name" title="${esc(item.fullName)}">${esc(item.name)}×${item.max}</span><span class="item-note ${item.guaranteed ? 'gs' : 'dim'}">${item.guaranteed ? t('exped.gsOnly') : t('exped.randomOnSuccess')}</span></span>`).join('')}
+            </div>
         </div>` : '';
-
     const yieldGridHtml = `
-        <div class="exped-yield-grid">
-            <span class="exped-lbl">${t('exped.success')}</span>
-            ${successMark}
-            ${normalRes}
-
-            <span class="exped-lbl">${t('exped.greatSuccess')}</span>
-            ${gsMark}
-            ${greatRes}
-
+        <div class="exped-yields">
+            <table class="exped-resource-matrix" aria-label="${esc(t('exped.rewardMatrixLabel'))}">
+                <colgroup><col class="exped-resource-stub">${resourceColumns.map(() => '<col>').join('')}</colgroup>
+                <thead><tr><th class="exped-resource-stub" scope="col"><span class="sr-only">${t('exped.outcome')}</span></th>${resourceHeaderHtml}</tr></thead>
+                <tbody>
+                    ${outcomeRow(t('exped.success'), successStatus, rewards?.normal, true)}
+                    ${outcomeRow(t('exped.greatSuccess'), greatStatus, rewards?.great)}
+                </tbody>
+            </table>
             ${itemsHtml}
         </div>`;
 
-    const allRows = [...rows, ...gsRows];
-    const warn = known ? '' : `<div class="check-row ng"><span class="mark">!</span><span class="grow">${t('exped.notRecorded')}</span></div>`;
-    const isMultiCol = allRows.length > 8;
-    const checkListHtml = `
-        <div class="exped-check-list${isMultiCol ? ' is-multi-col' : ''}">
-            ${warn}
-            ${allRows.map(r => `
-                <div class="check-row ${r.ok ? 'ok' : 'ng'}">
-                    <span class="mark">${r.ok ? '✓' : '✕'}</span>
-                    <span class="grow" title="${esc(r.label)}">${esc(r.label)}</span>
-                    ${r.cur ? `<span class="num${r.ok ? '' : ' ng'}">${esc(r.cur)}</span>` : ''}
-                </div>`).join('')}
+    const conditionRow = (row: typeof rows[number]) => `
+        <div class="check-row ${row.ok ? 'ok' : 'ng'}" role="listitem">
+            <span class="mark" aria-hidden="true">${row.ok ? '✓' : '✕'}</span>
+            <span class="sr-only">${row.ok ? t('exped.conditionMet') : t('exped.conditionNotMet')}</span>
+            <span class="grow" title="${esc(row.label)}">${esc(row.label)}</span>
+            ${row.cur ? `<span class="num${row.ok ? '' : ' ng'}">${esc(row.cur)}</span>` : ''}
+        </div>`;
+    const renderTier = (label: string, tierRows: typeof rows, includeNotice = false) => {
+        if (tierRows.length === 0 && !includeNotice) return '';
+        const unmet = tierRows.filter(row => !row.ok);
+        const met = tierRows.filter(row => row.ok);
+        const count = unmet.length > 0
+            ? t('exped.unmetCount', { n: unmet.length })
+            : t('exped.metCount', { n: met.length });
+        return `
+            <section class="exped-check-tier" aria-label="${esc(label)}">
+                <h3 class="exped-tier-heading"><span>${label}</span><span class="exped-tier-count${unmet.length ? ' has-unmet' : ''}">${count}</span></h3>
+                <div class="exped-check-group" role="list">
+                    ${includeNotice && !known ? `<div class="exped-warning" role="note"><span aria-hidden="true">!</span>${t('exped.notRecorded')}</div>` : ''}
+                    ${[...unmet, ...met].map(conditionRow).join('')}
+                </div>
+            </section>`;
+    };
+    const conditionsHtml = `
+        <div class="exped-conditions">
+            ${renderTier(t('exped.successThreshold'), rows, true)}
+            ${renderTier(t('exped.gsThreshold'), gsRows)}
         </div>`;
 
-    expedCheckEl.innerHTML = yieldGridHtml + checkListHtml;
+    expedCheckEl.innerHTML = yieldGridHtml + conditionsHtml;
 }
-expedSel.addEventListener('change', () => { expedId = Number(expedSel.value); renderExped(); });
-// 聯合艦隊檢視專用的精簡艦列：420px 硬約束下兩隊左右並排，每欄只剩約 190px，
-// 塞不下單隊檢視原尺寸的裝備 chip 列（含 r-col 熟練/改修兩行的完整結構太寬、
-    // 排起來又跟單隊檢視幾乎一樣，聯合檢視應該要更精簡）。取捨後只留出擊當下真正
-// 要盯的五件事：艦種＋艦名（辨識）、HP 條與數值（大破判斷）、cond（疲勞）、
-// 燃彈殘量（補給）、裝備圖示＋搭載數（辨識制空/雷裝來源）。改修★／熟練度不
-// 顯示於列面，收進 title 供 hover 查看即可。
-// 全槽展開：未裝備的槽位也畫空圖示佔位（含飛機槽的滿載容量數字），不像早前版本
-// 只列出已裝備者——使用者要一眼看出「這艘還有空格能塞裝備」，不必切回單隊檢視確認。
+expedSel.addEventListener('change', () => {
+    expedId = Number(expedSel.value);
+    selectedExpedByFleet.set(currentExpedFleet(), expedId);
+    renderExped();
+});
+// 聯合艦隊 370px 雙欄使用精簡裝備格：列面保留圖示與搭載數，改修／熟練度收在 title；
+// 增設格滿改另顯示 ★，以便在五格一般裝備加增設格的最窄案例中辨識完整狀態。
+// 未裝備槽位也保留空圖示與搭載容量，讓可用空格一眼可辨。
 function compactGearRow(s: ShipView) {
     const cgItem = (g: GearView, ex = false) => {
         const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${esc(slotCountTitle(g))}`;
         const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
-        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${g.count != null ? `<em class="${ocCls}">${g.count}</em>` : ''}</span>`;
+        const value = g.count != null ? g.count : ex && (g.level ?? 0) >= 10 ? '★' : '';
+        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${value !== '' ? `<em class="${ocCls}">${value}</em>` : ''}</span>`;
     };
     // class 用 cg-empty（非裸 empty）：面板全域 `.empty,.dim` 有水平 padding，會讓空格
     // 撐寬並使裝備列換行；命名空間化可避免樣式碰撞。
@@ -788,15 +754,27 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
 // GameState.alvStale）。虛線底線沿用面板既有的估算視覺語彙（.badge-tag.est）。
 function airPowerHtml(air: { min: number; max: number }, stale: boolean) {
     const v = air.min === air.max ? `${air.min}` : `${air.min}~${air.max}`;
-    return `<span class="fs-pri">${t('fleet.airPower')} <b${stale ? ` class="est" title="${esc(t('fleet.airPowerStaleTitle'))}"` : ''}>${v}</b></span>`;
+    return `<span class="fs-metric fs-air fs-pri"><span class="fs-label" title="${esc(t('fleet.airPower'))}">${t('fleet.airPowerShort')}</span><b class="fs-value${stale ? ' est' : ''}"${stale ? ` title="${esc(t('fleet.airPowerStaleTitle'))}"` : ''}>${v}</b></span>`;
+}
+function speedTone(speed: string) {
+    if (speed === t('speed.fastest')) return 'speed-fastest';
+    if (speed === t('speed.fastPlus')) return 'speed-fast-plus';
+    if (speed === t('speed.fast')) return 'speed-fast';
+    return 'speed-slow';
 }
 function fleetMetricsHtml(sum: { lvSum: number; air: { min: number; max: number }; airStale: boolean; f33: number; speed: string; tp?: { total: number; gear: number } }, combined = false) {
-    const los = `<span class="fs-pri">${t('fleet.scouting33')} <b>${sum.f33.toFixed(1)}</b>
-      <select class="cn">${[1, 2, 3, 4].map(x => `<option value="${x}" ${x === cn ? 'selected' : ''}>×${x}</option>`).join('')}</select></span>`;
-    const speed = `<span class="fs-sec"><b>${sum.speed}</b></span>`;
-    const level = `<span class="fs-sec">${combined ? t('fleet.lvTotal') : 'Lv'} <b>${sum.lvSum}</b></span>`;
-    const tp = sum.tp && sum.tp.gear > 0
-        ? `<span class="fs-sec" title="${esc(t('fleet.transportTPTitle'))}">${t('fleet.transportTP')} <b>${sum.tp.total}</b></span>` : '';
+    const los = `<span class="fs-metric fs-los fs-pri">
+        <span class="fs-readout"><span class="fs-label" title="${esc(t('fleet.scouting33'))}">${t('fleet.scouting33Short')}</span><b class="fs-value">${sum.f33.toFixed(1)}</b></span>
+        <label class="fs-scale" title="${esc(t('fleet.scoutingMultiplier'))}">
+          <span class="sr-only">${t('fleet.scoutingMultiplier')}</span>
+          <select class="cn" aria-label="${esc(t('fleet.scoutingMultiplier'))}">${[1, 2, 3, 4].map(x => `<option value="${x}" ${x === cn ? 'selected' : ''}>×${x}</option>`).join('')}</select>
+          <i class="fs-scale-chevron" aria-hidden="true"></i>
+        </label>
+      </span>`;
+    const speed = `<span class="fs-metric fs-speed fs-sec ${speedTone(sum.speed)}"><span class="fs-label" title="${esc(t('order.speed'))}">${t('order.speedShort')}</span><b class="fs-value">${sum.speed}</b></span>`;
+    const level = `<span class="fs-metric fs-level fs-sec"><span class="fs-label">${t('fleet.lvTotal')}</span><b class="fs-value">${sum.lvSum}</b></span>`;
+    const tp = sum.tp
+        ? `<span class="fs-metric fs-tp fs-sec" title="${esc(t('fleet.transportTPTitle'))}"><span class="fs-label">${t('fleet.transportTP')}</span><b class="fs-value">${sum.tp.total}</b></span>` : '';
     return `<div class="fs-metrics">${airPowerHtml(sum.air, sum.airStale)}${los}${speed}${level}${tp}</div>`;
 }
 function renderCombinedFleets() {
@@ -830,17 +808,12 @@ function renderFleets() {
         const sum = state.fleetSummary(i, cn);
         // 艦隊區塊不顯示額外的秘書艦／編成標題列，以保留七艘編成的垂直空間；出擊／大破等
         // 即時狀態併入 fsummary 第一行，未補給只用編成編號紅框提醒。
-        const { rep, mor, badges: repairBadges } = repairPlansOf(f);
-        const ops =
-            (f.mission ? `<span class="fs-tick mission">${t('fleet.onMission')}</span>` : '') +
-            (repairBadges ? `<span class="fs-tick repair-state">${repairBadges}</span>` : '');
+        const { rep, mor, ops } = repairPlansOf(f);
         const summary = sum ? `<div class="fsummary">
             ${ops ? `<div class="fs-ops">${ops}</div>` : ''}
             ${fleetMetricsHtml(sum)}
           </div>` : '';
-        const fleetClass = f.ships.length >= 7
-            ? ` fleet-seven${ops ? ' fleet-seven-ops' : ''}`
-            : '';
+        const fleetClass = `${f.ships.length === 6 ? ' fleet-six' : ''}${f.ships.length >= 7 ? ' fleet-seven' : ''}${ops ? ' fleet-ops' : ' fleet-no-ops'}`;
         return `<section class="fleet${fleetClass}">${summary}${f.ships.map((s, idx) => shipRow(s, maxSlots, repairMarks(idx, rep, mor))).join('')}</section>`;
     }).join('');
 }
@@ -954,7 +927,7 @@ function renderAirBases() {
             ].filter(Boolean).join('\n');
             const depleted = sq.count < sq.maxCount;
             html += `<div class="ab-sq">
-              <span class="sq-chip ${sq.cat}" title="${esc(sq.name)}${sq.level ? ` ★${sq.level}` : ''}${sq.alv ? ` »${sq.alv}` : ''}">${gearIconHtml(sq.icon, sq.short)}${sq.alv ? `<u>${alvMark(sq.alv)}</u>` : ''}${sq.level ? `<b>${impMark(sq.level)}</b>` : ''}</span>
+              <span class="sq-chip ${sq.cat}" title="${esc(sq.name)}${sq.level ? ` ★${sq.level}` : ''}${sq.alv ? ` »${sq.alv}` : ''}">${gearIconHtml(sq.icon, sq.short)}${sq.alv ? alvU(sq.alv) : ''}${sq.level ? `<b>${impMark(sq.level)}</b>` : ''}</span>
               <span class="sq-name" title="${esc(sq.name)}">${esc(sq.name)}</span>
               <span class="sq-count ${depleted ? 'depleted' : ''}">${sq.count}/${sq.maxCount}</span>
               ${condMarkHtml(condState, condLabel, condHint, condCertainty)}
@@ -1226,7 +1199,10 @@ function renderSortie() {
         const enFormShort = t(formationKeys[info.formation[1]] || 'form.unknown');
         const rankStr = info.rank && info.rank !== '?' ? info.rank : '?';
         const rankKey = rankStr.replace(/\?$/, '').toUpperCase();
-        const rankName = ({ S: '完全勝利', A: '勝利', B: '戰術的勝利', C: '戰術的敗北', D: '敗北' } as Record<string, string>)[rankKey] ?? '';
+        const rankNameKeys: Record<string, string> = {
+            S: 'rank.s', A: 'rank.a', B: 'rank.b', C: 'rank.c', D: 'rank.d', E: 'rank.e',
+        };
+        const rankName = rankNameKeys[rankKey] ? t(rankNameKeys[rankKey]) : '';
         const rnkClass = rankStr !== '?' ? `rank-${rankStr.toLowerCase().replace(/[^a-z]/g, '')}` : 'rank-unknown';
         const rankPredCls = info.hasResult ? '' : ' predicted';
         const rankTitle = info.hasResult ? t('sortie.ratingConfirmed') : t('sortie.ratingPredicted');
@@ -1279,8 +1255,8 @@ function renderSortie() {
             title="${esc(nightEntryTitle)}" role="group" aria-label="夜戰主隊與伴隨指示">
             <span class="s-night-entry-moon">${crescentHtml()}</span>
             <span class="s-night-entry-cells">
-              <span class="s-night-entry-cell main${nightTargetMain ? ' active' : ''}"><i></i><span>主隊</span></span>
-              <span class="s-night-entry-cell escort${nightTargetEscort ? ' active' : ''}"><i></i><span>伴隨</span></span>
+              <span class="s-night-entry-cell main${nightTargetMain ? ' active' : ''}"><i></i><span>${esc(t('sortie.mainFleet'))}</span></span>
+              <span class="s-night-entry-cell escort${nightTargetEscort ? ' active' : ''}"><i></i><span>${esc(t('sortie.escortFleet'))}</span></span>
             </span>
           </span>`;
         const friendlyFleet = info.friendlyFleetIds?.length ? info.friendlyFleetIds : null;
@@ -1386,10 +1362,10 @@ function renderSortie() {
             : t('sortie.none');
         const systemRailHtml = `<div class="s-system-rail" aria-label="支援、陸航、索敵、觸接與對空 CI 狀態">
             ${systemSignal('support', supportAircraftHtml(supportKind), supportRailLabel, '', support ? 'on' : 'off', supportTitle)}
-            ${systemSignal('lbas', lbasAircraftHtml(), lbas ? t('sortie.lbasArrived') : '陸航', '', lbas ? 'on' : 'off', lbasTitle, lbasHover)}
+            ${systemSignal('lbas', lbasAircraftHtml(), lbas ? t('sortie.lbasArrived') : t('sortie.lbas'), '', lbas ? 'on' : 'off', lbasTitle, lbasHover)}
             ${systemSignal('search', searchRadarHtml(), '', searchValue, searchState, searchTitle)}
-            ${systemSignal('contact', contactGlyph, '觸接', '', contactState, hasFriendlyContact && hasEnemyContact ? '敵我雙方觸接' : hasFriendlyContact ? contactFriendHover : hasEnemyContact ? contactEnemyHover : '未觸接')}
-            ${systemSignal('aaci', aaciGunHtml(), info.aaci > 0 ? '' : '對空 CI', aaciValue, info.aaci > 0 ? 'on' : 'off', aaciHoverTitle, aaciHoverHtml)}
+            ${systemSignal('contact', contactGlyph, t('sortie.contact'), '', contactState, hasFriendlyContact && hasEnemyContact ? '敵我雙方觸接' : hasFriendlyContact ? contactFriendHover : hasEnemyContact ? contactEnemyHover : '未觸接')}
+            ${systemSignal('aaci', aaciGunHtml(), info.aaci > 0 ? '' : t('sortie.aaciRail'), aaciValue, info.aaci > 0 ? 'on' : 'off', aaciHoverTitle, aaciHoverHtml)}
           </div>`;
         html += `
                 <div class="s-priority-row">
@@ -1911,10 +1887,11 @@ async function restoreGaugeBossHp(): Promise<boolean> {
 
 (async () => {
     try {
-        const [snapshots, events, storedProjectionCursor] = await Promise.all([
+        const [snapshots, events, storedProjectionCursor, observed] = await Promise.all([
             db.snapshot.toArray(),
             db.events.orderBy('id').toArray(),
             readProjectionCursor(db),
+            db.questObserved.toArray(),
         ]);
         const plan = planStateRecovery(snapshots, events);
         projectionThroughEventId = storedProjectionCursor;
@@ -1923,6 +1900,11 @@ async function restoreGaugeBossHp(): Promise<boolean> {
         for (const row of plan.rawEvents) {
             await consume(row.id!, row.ts, row.path, row.api, row.req);
         }
+        applyArchivedQuestObservations(
+            state,
+            observed,
+            new Set(plan.rawEvents.flatMap(row => row.id === undefined ? [] : [row.id])),
+        );
         // 重播完 events 後，mapGauges 已是最新一次 mapinfo 的內容，這裡把各未攻略海域的
         // 斬殺線一次補齊——面板一開（不論在母港或出擊中）就該看得到，不必等下一則封包。
         await restoreGaugeBossHp();

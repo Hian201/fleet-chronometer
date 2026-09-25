@@ -137,6 +137,12 @@ describe('KcDb 現行 schema 與 v9 相容遷移', () => {
             req: { api_port: '1' },
         });
         await v9.shipObtained.add({ id: 9001, mst: 100, obtainedTs: null, source: null });
+        const questEventId = await v9.events.add({
+            ts: 1_726_000_000_015,
+            path: 'api_req_quest/clearitemget',
+            api: {},
+            req: { api_quest_id: '210' },
+        });
 
         v9.close();
 
@@ -146,7 +152,11 @@ describe('KcDb 現行 schema 與 v9 相容遷移', () => {
         expect(await v10.events.toArray()).toEqual([
             { id: firstEventId, ts: 1_726_000_000_001, path: 'api_port/port', api: { marker: 'v9-event-1' }, req: { api_deck_id: '1' } },
             { id: secondEventId, ts: 1_726_000_000_002, path: 'api_port/port', api: { marker: 'v9-event-2' }, req: { api_deck_id: '2' } },
+            { id: questEventId, ts: 1_726_000_000_015, path: 'api_req_quest/clearitemget', api: {}, req: { api_quest_id: '210' } },
         ]);
+        expect(await v10.questObserved.get(questEventId)).toEqual({
+            eventId: questEventId, questNo: 210, ts: 1_726_000_000_015,
+        });
         expect(await v10.wanted.get(wantedId)).toMatchObject({ id: wantedId, eventId: firstEventId, tag: 'v9-wanted' });
         expect(await v10.sorties.get(firstEventId)).toMatchObject({ eventId: firstEventId, sortieKey: firstEventId, map: '6-5', drop: 'v9-drop' });
         expect(await v10.notified.get(2)).toMatchObject({ deckId: 2, completeAt: 1_726_000_600_000 });
@@ -183,7 +193,7 @@ describe('KcDb 現行 schema 與 v9 相容遷移', () => {
         });
         expect(await v10.events.where('captureId').equals('missing').count()).toBe(0);
         expect([firstEventId, secondEventId, thirdHistoricEventId]).toHaveLength(3);
-        expect(await v10.events.count()).toBe(3);
+        expect(await v10.events.count()).toBe(4);
 
         await v10.events.add({
             ts: 1_726_000_000_011,
@@ -215,15 +225,16 @@ describe('KcDb 現行 schema 與 v9 相容遷移', () => {
 
     // 這裡刻意寫死目前的版號與表清單：schema 一改就會紅，逼人回來確認「這次真的要改
     // 資料庫結構」而不是手滑。升版時把版號與清單一起更新即可
-    // （v11 新增 eventPlans、v12 新增 resources／resourceMarks）。
+    // （v11 新增 eventPlans、v12 新增 resources／resourceMarks、v13 新增 questObserved）。
     it('全新資料庫可直接建立目前的 schema 與 projection metadata', async () => {
         const database = track(new KcDb(databaseName('fresh-current')));
         await database.open();
 
-        expect(database.verno).toBe(12);
+        expect(database.verno).toBe(13);
         expect(database.tables.map(table => table.name).sort()).toEqual([
-            'eventPlans', 'events', 'expeditions', 'factory', 'meta', 'notified', 'replays',
-            'resourceMarks', 'resources', 'shipObtained', 'snapshot', 'sorties', 'wanted',
+            'eventPlans', 'events', 'expeditions', 'factory', 'meta', 'notified',
+            'questObserved', 'replays', 'resourceMarks', 'resources', 'shipObtained',
+            'snapshot', 'sorties', 'wanted',
         ]);
 
         await database.snapshot.put({

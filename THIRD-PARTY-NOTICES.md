@@ -183,9 +183,37 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 9. 裝備藍字加成表 (Equipment bonus table)
+
+- **用途**：`utils/equip-bonus-table.json`（由 `utils/equip-ref.ts` 讀取）——情報總括「配裝參考」列出特定艦×裝備的藍字補正。
+- **來源**：KC3Kai kancolle-replay `js/data/mst_slotitem_bonus.json`
+  —— https://github.com/KC3Kai/kancolle-replay （對應 wikiwiki.jp/kancolle 裝備ボーナス）
+- **授權**：MIT License
+- **版權**：Copyright (c) 2015-2026 dragonjet
+- **限制**：社群機讀表，**不是**遊戲封包驗證。UI 必須標明來源；欄位語意未以真封包核對者不自行命名或推導。
+
+## 9b. 主砲命中適性（fit）表
+
+- **用途**：`utils/equip-ref.ts` 的 `buildFitRules()`——配裝參考的晝戰命中項／過重。
+- **來源**：wikiwiki.jp/kancolle「命中と回避」#BBfit，轉寫為以 start2 日文原名解析的裝備 id 與艦級條件。
+- **性質**：遊戲機制數值（命中項），屬事實性資訊非著作權標的；Atlanta／大淀已從輕巡標準懲罰排除，避免與個別表疊加。未標 unverified 以外的新口徑不猜。
+
+## 10. 任務導覽目錄
+
+- **用途**：`utils/quest-catalog-data.ts`（由 `utils/quest-flow.ts` 讀取）——任務 `api_no`、週期、前置與開放邊，供情報總括任務導覽使用。
+- **來源**：
+  - 開放邊 `KC3_UNLOCKS_RAW`：KC3Kai 任務解鎖關係，只保留「前置 → 後續」的數字邊。
+    https://github.com/KC3Kai/KC3Kai
+  - 名稱、內文、wiki 代號、週期與前置清單：自社群任務目錄整理的事實欄位；來源網址不寫進資料檔。
+- **授權**：開放邊沿用 KC3Kai 的 MIT License（見下方全文）。
+- **版權**：KC3Kai 部分 Copyright (c) 2015-2026 dragonjet。任務名稱與內文屬遊戲原文（DMM／Kadokawa），本專案不主張其著作權。
+- **限制**：不是封包驗證。週期只用來判斷本機領獎是否仍屬本期；年任開始月未進目錄，不對齊年度。
+
+---
+
 ## MIT License 全文
 
-上述第 1、2、5、5b、6、7b、8 項均採用 MIT License，
+上述第 1、2、5、5b、6、7b、8、9、10 項均採用 MIT License，
 其條款內容相同，全文如下：
 
 ```

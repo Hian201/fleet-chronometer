@@ -65,7 +65,7 @@ import { isDebugUiEnabled } from '@/utils/debug-ui';
 import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
     eventDisplayName, eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter,
-    loadJsonPrefs, mapFilterSelectHtml, readEventWorldFilter, saveJsonPrefs,
+    loadJsonPrefs, mapFilterSelectHtml, paginate, readEventWorldFilter, saveJsonPrefs,
     dropDisplayName,
 } from '../lib';
 
@@ -100,16 +100,21 @@ const BATTLE_EVENT_KEYS: Record<BattleDamageKind, string> = {
 
 const PREFS_KEY = 'kc-sortie-view';
 type Category = 'all' | 'normal' | 'event';
+const PAGE_SIZES = [10, 20, 50, 100, 0] as const;
+type PageSize = typeof PAGE_SIZES[number];
 
-interface Prefs { cat: Category }
+interface Prefs { cat: Category; size: PageSize }
 
 function loadPrefs(): Prefs {
-    const fallback: Prefs = { cat: 'all' };
+    const fallback: Prefs = { cat: 'all', size: 20 };
     return loadJsonPrefs(PREFS_KEY, fallback, raw => {
-        const cat = raw && typeof raw === 'object'
-            && ((raw as { cat?: unknown }).cat === 'normal' || (raw as { cat?: unknown }).cat === 'event')
-            ? (raw as { cat: Category }).cat : 'all';
-        return { cat };
+        const value = raw as { cat?: unknown; size?: unknown } | null;
+        const cat = value
+            && (value.cat === 'normal' || value.cat === 'event')
+            ? value.cat : 'all';
+        const size = (PAGE_SIZES as readonly number[]).includes(value?.size as number)
+            ? value!.size as PageSize : fallback.size;
+        return { cat, size };
     });
 }
 const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
@@ -1313,6 +1318,8 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
                 </div>
                 <label class="sl-inline sl-event-wrap" hidden><span>${esc(t('ov.slEvent'))}</span><select class="sl-event-sel"></select></label>
                 <label class="sl-inline"><span>${esc(t('ov.slMap'))}</span><select class="sl-map-sel"></select></label>
+                <label class="sl-inline"><span>${esc(t('ov.rsPageSize'))}</span><select class="sl-size">${PAGE_SIZES.map(size =>
+                    `<option value="${size}" ${size === 20 ? 'selected' : ''}>${size === 0 ? esc(t('ov.rsAll')) : size}</option>`).join('')}</select></label>
                 <span class="grow"></span>
                 <span class="sl-count"></span>
                 <button type="button" class="ov-btn sl-expand">${esc(t('ov.slExpandAll'))}</button>
@@ -1320,6 +1327,7 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
             </div>
             ${importPanel}
             <div class="sl-body ov-list"></div>
+            <div class="rs-pager sl-pager" hidden></div>
             <dialog class="sl-battle-dialog" aria-labelledby="sl-battle-dialog-title">
                 <div class="sl-battle-dialog-shell">
                     <header class="sl-battle-dialog-head">
@@ -1349,6 +1357,7 @@ export const sortieLogSection: OverviewSection = {
         let mapFilter = 'all';
         let pinLatestEvent = prefs.cat === 'event';
         let filterPlan: EventMapFilterPlan | null = null;
+        let page = 1;
         const open = new Set<number>();
         const detailCache = new Map<number, string>();
         const simulatorCache = new Map<number, SortieSimulatorInput>();
@@ -1360,8 +1369,10 @@ export const sortieLogSection: OverviewSection = {
         const eventWrap = el.querySelector<HTMLLabelElement>('.sl-event-wrap')!;
         const eventSel = el.querySelector<HTMLSelectElement>('.sl-event-sel')!;
         const mapSel = el.querySelector<HTMLSelectElement>('.sl-map-sel')!;
+        const sizeSel = el.querySelector<HTMLSelectElement>('.sl-size')!;
         const countEl = el.querySelector<HTMLSpanElement>('.sl-count')!;
         const body = el.querySelector<HTMLDivElement>('.sl-body')!;
+        const pager = el.querySelector<HTMLDivElement>('.sl-pager')!;
         const expandBtn = el.querySelector<HTMLButtonElement>('.sl-expand')!;
         const battleDialog = el.querySelector<HTMLDialogElement>('.sl-battle-dialog')!;
         const battleDialogBody = el.querySelector<HTMLDivElement>('.sl-battle-dialog-body')!;
@@ -1417,10 +1428,12 @@ export const sortieLogSection: OverviewSection = {
         function drawList() {
             catBtns.forEach(b => b.classList.toggle('on', b.dataset.cat === prefs.cat));
             const list = visible();
+            const paged = paginate(list, prefs.size, page);
+            page = paged.page;
             const qualify = filterPlan?.qualifyEventWorld === true;
             countEl.textContent = t('ov.slCount', { n: list.length, total: entries.length });
-            body.innerHTML = list.length
-                ? list.map(e => `<article class="sl-card" data-key="${e.key}">
+            body.innerHTML = paged.rows.length
+                ? paged.rows.map(e => `<article class="sl-card" data-key="${e.key}">
                     <div class="sl-row">
                         ${headHtml(e, ctx.state, open.has(e.key), { qualifyEventWorld: qualify })}
                         <button type="button" class="ov-btn pin ${e.replay?.pinned ? 'on' : ''}" data-replay-pin="${e.key}"
@@ -1429,7 +1442,12 @@ export const sortieLogSection: OverviewSection = {
                     <div class="sl-detail" id="sl-d-${e.key}" ${open.has(e.key) ? '' : 'hidden'}></div>
                   </article>`).join('')
                 : `<div class="ov-empty">${esc(entries.length ? t('ov.slNoMatch') : t('history.none'))}</div>`;
-            for (const e of list) if (open.has(e.key)) fillDetail(e);
+            pager.innerHTML = paged.pageCount > 1 ? `
+                <button type="button" class="ov-btn sl-page" data-page="prev" ${page <= 1 ? 'disabled' : ''}>‹</button>
+                <span class="rs-pageno">${esc(t('ov.rsPageOf', { page, pages: paged.pageCount }))}</span>
+                <button type="button" class="ov-btn sl-page" data-page="next" ${page >= paged.pageCount ? 'disabled' : ''}>›</button>` : '';
+            pager.hidden = paged.pageCount <= 1;
+            for (const e of paged.rows) if (open.has(e.key)) fillDetail(e);
         }
 
         /** 展開時才解析封包（含戰鬥重放），同一次出擊只算一次。 */
@@ -1478,15 +1496,30 @@ export const sortieLogSection: OverviewSection = {
             savePrefs(prefs);
             pinLatestEvent = prefs.cat === 'event';
             if (prefs.cat !== 'event') eventFilter = 'all';
+            page = 1;
             drawFilters();
             drawList();
         }));
         eventSel.addEventListener('change', () => {
             eventFilter = readEventWorldFilter(eventSel.value);
+            page = 1;
             drawFilters();
             drawList();
         });
-        mapSel.addEventListener('change', () => { mapFilter = mapSel.value; drawList(); });
+        mapSel.addEventListener('change', () => { mapFilter = mapSel.value; page = 1; drawList(); });
+        sizeSel.value = String(prefs.size);
+        sizeSel.addEventListener('change', () => {
+            prefs.size = Number(sizeSel.value) as PageSize;
+            savePrefs(prefs);
+            page = 1;
+            drawList();
+        });
+        pager.addEventListener('click', event => {
+            const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.sl-page');
+            if (!button) return;
+            page += button.dataset.page === 'next' ? 1 : -1;
+            drawList();
+        });
         expandBtn.addEventListener('click', () => {
             const list = visible();
             const collapse = list.every(e => open.has(e.key));

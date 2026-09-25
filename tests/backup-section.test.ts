@@ -21,8 +21,8 @@ describe('情報總括資料備份寫檔', () => {
     });
 
     it('空備份在取得寫入權限／writeFileTo 之前就拒絕', () => {
-        expect(src).toContain('isEmptyBackup(env.tables)');
-        expect(src).toContain('isEmptyBackup(backup.tables)');
+        expect(src).toContain('isEmptyBackup(env.tables, env.questFlow)');
+        expect(src).toContain('isEmptyBackup(backup.tables, backup.questFlow)');
         expect(src).toContain("t('ov.backupEmptyRefuse')");
         const folderRun = src.slice(
             src.indexOf("querySelector('#backup-folder-run')"),

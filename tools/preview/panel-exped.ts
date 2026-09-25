@@ -12,13 +12,18 @@ import { setLang, t } from '../../utils/ui-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 setLang('zh-TW');
+const FLEET_LAYOUT_GOAL = 730;
 
 const panelHtml = readFileSync(resolve(root, 'entrypoints/panel/index.html'), 'utf8');
-const css = panelHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+export const css = panelHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
 
 // ── 7 船編成假資料（對齊正式 panel 編成資料）────────────────────────────────
 const alvMark = (alv: number) =>
     ['', '|', '||', '|||', '/', '//', '///', '&gt;&gt;'][Math.min(7, Math.max(0, alv))];
+const alvU = (alv: number) => {
+    const cls = alv >= 7 ? 'alv-ace' : alv >= 1 && alv <= 3 ? 'alv-lo' : '';
+    return `<u${cls ? ` class="${cls}"` : ''}>${alvMark(alv)}</u>`;
+};
 const impMark = (level: number) => (level >= 10 ? '★' : level > 0 ? String(level) : '');
 
 type Gear = {
@@ -54,17 +59,35 @@ const gearChip = (g: Gear, ex = false) => {
     }
     const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
     return `<span class="chip ${g.cat}" title="${title}">` +
-        `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top"><u>${alvMark(g.alv ?? 0)}</u><b>${impMark(g.level ?? 0)}</b></span>` +
+        `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top">${alvU(g.alv ?? 0)}<b>${impMark(g.level ?? 0)}</b></span>` +
         `<em class="oc ${ocCls}">${g.count ?? ''}</em></span></span>`;
 };
 
 const vitSupply = (s: Ship) => {
-    const pct = (v: number, max: number) => (max ? Math.round(100 * v / max) : 100);
+    const pct = (v: number, max: number) => max ? Math.max(0, Math.min(100, Math.round(100 * v / max))) : 100;
     const fp = pct(s.fuel, s.maxFuel), bp = pct(s.bull, s.maxBull);
-    return `<span class="vit-sup">` +
-        `<span class="sup-f" title="${esc(t('mat.fuel.full'))} ${fp}%">${matIconHtml('fuel')}${fp}</span>` +
-        `<span class="sup-a" title="${esc(t('mat.ammo.full'))} ${bp}%">${matIconHtml('ammo')}${bp}</span>` +
-        `</span>`;
+    const fTitle = `${esc(t('mat.fuel.full'))} ${s.fuel}/${s.maxFuel} (${fp}%)`;
+    const aTitle = `${esc(t('mat.ammo.full'))} ${s.bull}/${s.maxBull} (${bp}%)`;
+    const bar = (kind: 'fuel' | 'ammo', title: string, value: number) =>
+        `<span class="resource-bar ${kind}" role="img" aria-label="${title}" title="${title}">` +
+        `<i class="resource-fill" style="width:${value}%"></i><span class="resource-percent">${value}</span></span>`;
+    return `<span class="vit-sup resource-pair">${bar('fuel', fTitle, fp)}${bar('ammo', aTitle, bp)}</span>`;
+};
+
+const taihaHpMark = (s: Ship) => {
+    const st = s.maxhp ? s.hp / s.maxhp : 1;
+    if (s.escaped || s.inDock || st > 0.25) return '';
+    return `<span class="taiha-hp-mark">${esc(t('fleet.heavyDamage'))}</span>`;
+};
+const dockMark = (s: Ship) => s.inDock
+    ? `<span class="dock-mark" title="${esc(t('fleet.inDockTitle'))}">${esc(t('fleet.inDock'))}</span>`
+    : '';
+const escapedTag = (s: Ship) => s.escaped
+    ? `<span class="esc-tag" title="${esc(t('fleet.escapedTitle'))}">${esc(t('fleet.escaped'))}</span>`
+    : '';
+const shipStateSlot = (s: Ship) => {
+    const inner = s.escaped ? escapedTag(s) : s.inDock ? dockMark(s) : taihaHpMark(s);
+    return inner ? `<span class="ship-state">${inner}</span>` : '';
 };
 
 const shipRow = (s: Ship) => {
@@ -77,30 +100,17 @@ const shipRow = (s: Ship) => {
             : blankChip('chip-pad', true);
     const padCount = 5 - s.gears.length;
     const chips = realChips + blankChip('chip-pad').repeat(Math.max(0, padCount));
-    const taiha = !s.escaped && !s.inDock && st === 'st-major'
-        ? `<span class="taiha-mark">${esc(t('fleet.heavyDamage'))}</span>` : '';
-    const dock = s.inDock ? `<span class="dock-mark">${esc(t('fleet.inDock'))}</span>` : '';
+    const stateSlot = shipStateSlot(s);
 
     return `<div class="ship ${st} ${s.escaped ? 'escaped' : ''} ${s.inDock ? 'in-dock' : ''}">
       <div class="ship-body">
-        <div class="ship-id">
-          <span class="stype">${esc(s.stype)}</span>
-          <span class="grow" title="${esc(s.nameJa)}">${esc(s.name)}</span>
-          ${dock}${taiha}
-          <span class="num">Lv${s.lv}</span>
-        </div>
-        <div class="ship-vitals">
-          <div class="vit-hp">
-            <span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span>
-            <span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span>
+        <div class="ship-kind-status${stateSlot ? ' has-state' : ''}"><span class="stype">${esc(s.stype)}</span>${stateSlot}</div>
+        <div class="ship-main">
+          <div class="ship-identity-row">
+            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow" title="${esc(s.nameJa)}">${esc(s.name)}</span></div>
           </div>
-          <div class="vit-aux">
-            <span class="cond ${cond}">${s.cond}</span>
-            ${vitSupply(s)}
-          </div>
-        </div>
-        <div class="sub-row">
-          <span class="chips">${chips}</span>${exChip}
+          <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
+          <div class="ship-gear-row"><span class="cond ${cond}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
         </div>
       </div>
     </div>`;
@@ -144,15 +154,17 @@ const SEVEN_SHIPS: Ship[] = [
     },
 ];
 
-const SEVEN_FLEET_HTML = `<section class="fleet">
+const summaryMetrics = () => `<div class="fs-metrics">
+  <span class="fs-metric fs-air fs-pri"><span class="fs-label">${t('fleet.airPower')}</span><b class="fs-value">0</b></span>
+  <span class="fs-metric fs-los fs-pri"><span class="fs-readout"><span class="fs-label">${t('fleet.scouting33')}</span><b class="fs-value">12.4</b></span><label class="fs-scale" title="${t('fleet.scoutingMultiplier')}"><span class="sr-only">${t('fleet.scoutingMultiplier')}</span><select class="cn" aria-label="${t('fleet.scoutingMultiplier')}"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select><i class="fs-scale-chevron" aria-hidden="true"></i></label></span>
+  <span class="fs-metric fs-speed fs-sec speed-slow"><span class="fs-label">${t('order.speed')}</span><b class="fs-value">${t('speed.slow')}</b></span>
+  <span class="fs-metric fs-level fs-sec"><span class="fs-label">${t('fleet.lvTotal')}</span><b class="fs-value">547</b></span>
+  <span class="fs-metric fs-tp fs-sec"><span class="fs-label">${t('fleet.transportTP')}</span><b class="fs-value">38</b></span>
+</div>`;
+
+export const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven fleet-no-ops">
   <div class="fsummary">
-    <div class="fs-metrics">
-      <span class="fs-pri">${t('fleet.airPower')} <b>0</b></span>
-      <span class="fs-pri">${t('fleet.scouting33')} <b>12.4</b> <select class="cn"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select></span>
-      <span class="fs-sec"><b>低速</b></span>
-      <span class="fs-sec">${t('fleet.lvTotal')} <b>547</b></span>
-      <span class="fs-sec" title="輸送作戰 TP 貢獻值">${t('fleet.transportTP')} <b>38</b></span>
-    </div>
+    ${summaryMetrics()}
   </div>
   ${SEVEN_SHIPS.map(s => shipRow(s)).join('')}
 </section>`;
@@ -173,13 +185,13 @@ body { display: block; min-height: 0; padding: 16px; }
 }
 .pv-bar button.on { border-color: var(--brass); color: var(--sparkle); }
 .pv-wins { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
-.pv-win { width: 420px; }
+.pv-win { width: 370px; }
 .pv-win-label { font-size: 11px; letter-spacing: var(--track-label); color: var(--brass); margin-bottom: 6px; }
 .pv-measure { font-size: 11px; color: var(--dim); margin-top: 8px; font-variant-numeric: tabular-nums; }
 .pv-measure b { color: var(--text); }
 .pv-measure.over b { color: var(--dmg-major); }
 .pv-app {
-  width: 420px; height: 850px; background: var(--bg); border: 1px solid var(--line);
+  width: 370px; height: 850px; background: var(--bg); border: 1px solid var(--line);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .pv-app #tabs button, .pv-app #fleetnav button { pointer-events: none; }
@@ -358,23 +370,49 @@ body { display: block; min-height: 0; padding: 16px; }
   padding-right: 2px;
 }
 
-/* 當條件項目超過 8 項時（最高可達 15–16 項）：自動無縫切換為雙欄瀑布網格！ */
+/* 九項以上改成逐列雙欄；文字在欄內換行，保留完整條件名稱。 */
 .pv-prop .exped-check-list.is-multi-col,
 .pv-prop .exped-check-list:has(.check-row:nth-child(9)) {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-flow: column;
-  grid-template-rows: repeat(8, auto);
-  column-gap: 8px;
-  row-gap: 1.5px;
+  grid-auto-flow: row;
+  grid-template-rows: none;
+  grid-auto-rows: min-content;
+  align-content: start;
+  column-gap: 10px;
+  row-gap: 3px;
+  overflow: visible;
 }
 .pv-prop .exped-check-list.is-multi-col .check-row,
 .pv-prop .exped-check-list:has(.check-row:nth-child(9)) .check-row {
-  grid-template-columns: 12px 1fr auto;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) max-content;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
   font-size: 10.5px;
   line-height: 1.25;
-  padding: 1.5px 2px;
+  padding: 1px 2px;
   column-gap: 3px;
+  white-space: normal;
+}
+.pv-prop .exped-check-list.is-multi-col .check-row .grow,
+.pv-prop .exped-check-list:has(.check-row:nth-child(9)) .check-row .grow {
+  grid-column: 2;
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+}
+.pv-prop .exped-check-list.is-multi-col .check-row .num,
+.pv-prop .exped-check-list:has(.check-row:nth-child(9)) .check-row .num {
+  grid-column: 3;
+  white-space: nowrap;
+  font-size: 10px;
+  overflow: visible;
 }
 .pv-prop .exped-check-list.is-multi-col .check-row .mark,
 .pv-prop .exped-check-list:has(.check-row:nth-child(9)) .check-row .mark {
@@ -425,9 +463,11 @@ body { display: block; min-height: 0; padding: 16px; }
 .pv-prop .check-row .grow {
   color: var(--text);
   font-weight: 400;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
 }
 .pv-prop .check-row.ng .grow {
   color: var(--dmg-mid);
@@ -459,7 +499,7 @@ body { display: block; min-height: 0; padding: 16px; }
 }
 `;
 
-const SCENES = [
+export const SCENES = [
     {
         id: 'bonus-met',
         label: '遠征達成：東京急行(弐)（大發加成＋大成功・雙欄檢核）',
@@ -523,7 +563,7 @@ const SCENES = [
             <div class="check-row ok"><span class="mark">✓</span><span class="grow" title="驅逐 5艘以上">驅逐 5艘以上</span><span class="num">5艘</span></div>
             <div class="check-row ok"><span class="mark">✓</span><span class="grow" title="輸送桶 8個以上">輸送桶 8個以上</span><span class="num">10個</span></div>
             <div class="check-row ok"><span class="mark">✓</span><span class="grow" title="輸送桶搭載艦 4艘以上">輸送桶搭載艦 4艘以上</span><span class="num">4艘</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow" title="大成功 輸送桶10個/4艘">大成功 輸送桶10個/4艘</span><span class="num">10個/4艘</span></div>
+            <div class="check-row ok" data-tier="great"><span class="mark">✓</span><span class="grow" title="大成功 輸送桶10個/4艘">大成功 輸送桶10個/4艘</span><span class="num">10個/4艘</span></div>
           </div>
         </div>`,
     },
@@ -592,9 +632,9 @@ const SCENES = [
         </div>`,
     },
     {
-        id: 'extreme-15',
-        label: '極限 15 條件：南西海域戦闘哨戒（B4 雙欄零捲軸）',
-        note: '第 2 艦隊出擊南西海域戦闘哨戒：全遊戲最繁複之 15 項檢核條件。左窗單欄大量溢出；右窗 :has() 自動切換雙欄瀑布網格（8 列 × 2 欄），全部可見、零捲軸！',
+        id: 'max-12',
+        label: '12 項條件：雙欄、長文字換行',
+        note: '使用者提供的上限情境：12 項條件以逐列雙欄排列，長條件在欄內換行且完整保留，不截斷。',
         current: `<div class="exped-controls">
           <span id="exped-fleet-label" class="badge">檢查對象：第2艦隊</span>
           <select id="exped-select"><option>[B4] 南西海域戦闘哨戒</option></select>
@@ -604,21 +644,18 @@ const SCENES = [
           <div class="dim">成功　<span>燃料0 彈藥330 鋼材0 鋁土260</span>　<span style="color:var(--dmg-major)">條件未達成</span></div>
           <div class="dim">大成功　<span>燃料0 彈藥495 鋼材0 鋁土390</span>　<span style="color:var(--dmg-major)">未達成功條件（大成功除外）</span></div>
           <div class="dim">道具　高速修復材×1<span style="color:var(--dim)">（成功時隨機獲得）</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦數 6 艘</span><span class="num">目前 6</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦 Lv50 以上</span><span class="num">目前 94</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦隊 Lv 合計 264 以上</span><span class="num">目前 547</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦未中破・大破</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">燃彈全補給</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">重巡 1 艘以上</span><span class="num">目前 1</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">軽巡 1 艘以上</span><span class="num">目前 1</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">駆逐 2 艘以上</span><span class="num">目前 3</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">其他艦種 2 艘</span><span class="num">目前 2</span></div>
-          <div class="check-row ng"><span class="mark">✕</span><span class="grow">水上電探搭載艦 2 艘以上</span><span class="num">目前 1</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">小型電探 1 個以上</span><span class="num">目前 2</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">対空値合計 200 以上</span><span class="num">目前 312</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">対潜値合計 240 以上</span><span class="num">目前 280</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">索敵値合計 180 以上</span><span class="num">目前 210</span></div>
-          <div class="check-row ok"><span class="mark">✓</span><span class="grow">火力合計 360 以上</span><span class="num">目前 410</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦數至少 6 艘</span><span class="num">目前 6</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦等級至少 Lv50</span><span class="num">目前 94</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦隊等級合計至少 264</span><span class="num">目前 547</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦不得中破或大破</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">燃料與彈藥必須補滿</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">重巡至少 1 艘</span><span class="num">目前 1</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">輕巡至少 1 艘</span><span class="num">目前 1</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">驅逐至少 2 艘</span><span class="num">目前 3</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">其他艦種至少 2 艘</span><span class="num">目前 2</span></div>
+          <div class="check-row ng"><span class="mark">✕</span><span class="grow">至少 2 艘搭載水上電探</span><span class="num">目前 1</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">小型電探至少 1 個</span><span class="num">目前 2</span></div>
+          <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦隊對空值合計至少 200</span><span class="num">目前 312</span></div>
         </div>`,
         proposed: `<div class="exped-header">
           <span class="exped-fleet-lbl">第 2 艦隊</span>
@@ -652,21 +689,18 @@ const SCENES = [
             </div>
           </div>
           <div class="exped-check-list is-multi-col">
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦數 6 艘以上</span><span class="num">6</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦 Lv50 以上</span><span class="num">94</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦隊 Lv 合計 264 以上</span><span class="num">547</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦未中破・大破</span><span class="num">正常</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">燃彈全補給</span><span class="num">100%</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">重巡 1 艘以上</span><span class="num">1</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">軽巡 1 艘以上</span><span class="num">1</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">駆逐 2 艘以上</span><span class="num">3</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">其他艦種 2 艘</span><span class="num">2</span></div>
-            <div class="check-row ng"><span class="mark">✕</span><span class="grow">水上電探搭載艦 2 艘以上</span><span class="num ng">1</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">小型電探 1 個以上</span><span class="num">2</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">対空値合計 200 以上</span><span class="num">312</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">対潜値合計 240 以上</span><span class="num">280</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">索敵値合計 180 以上</span><span class="num">210</span></div>
-            <div class="check-row ok"><span class="mark">✓</span><span class="grow">火力合計 360 以上</span><span class="num">410</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦數至少 6 艘</span><span class="num">6</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦等級至少 Lv50</span><span class="num">94</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦隊等級合計至少 264</span><span class="num">547</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">旗艦不得中破或大破</span><span class="num">正常</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">燃料與彈藥必須補滿</span><span class="num">100%</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">重巡至少 1 艘</span><span class="num">1</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">輕巡至少 1 艘</span><span class="num">1</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">驅逐至少 2 艘</span><span class="num">3</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">其他艦種至少 2 艘</span><span class="num">2</span></div>
+            <div class="check-row ng"><span class="mark">✕</span><span class="grow">至少 2 艘搭載水上電探</span><span class="num ng">1</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">小型電探至少 1 個</span><span class="num">2</span></div>
+            <div class="check-row ok"><span class="mark">✓</span><span class="grow">艦隊對空值合計至少 200</span><span class="num">312</span></div>
           </div>
         </div>`,
     },
@@ -715,14 +749,14 @@ const page = `<!doctype html>
 <html lang="zh-TW">
 <head>
 <meta charset="utf-8">
-<title>遠征分頁預覽（420×850）</title>
+<title>遠征分頁預覽（370×850）</title>
 <style>${css}${extraCss}</style>
 </head>
 <body>
   <p class="pv-intro">
     <b>這是預覽，不是擴充本身。</b>
     左窗＝現況基準（或舊版）；右窗＝極簡高密度排版提案（No Border-Soup / No Bento / Zero Expansion）。
-    視窗外框 420×850，資訊區固定 270px。下方搭載真實單隊七船編成，量測安全線 ≤ 760px。
+    視窗內容 370×850，資訊區固定 270px。下方搭載三列艦身編成，目標 ≤ 730px，另留 10px 餘裕。
   </p>
   <div class="pv-notes">
     <b>遠征分頁極簡高密度重構原則（ui-ux-pro-max 瑞士風格）：</b>
@@ -730,7 +764,8 @@ const page = `<!doctype html>
       <li><b>嚴禁框線濫用（No Border-Soup）</b>：徹底移除卡片外框、斑馬紋（nth-child 交替底色）與無謂分隔線；資訊分群全依靠字級階層（10px/11px/12px）、字重（700/600/400）、色彩明暗（--text/--dim）與微邊距（2px/4px/8px）自然形成。</li>
       <li><b>拒絕 Bento 與過度裝飾</b>：移除 rounded 卡片容器、徽章膠囊框與裝飾陰影，資料直接在面板底層以等寬網格流暢排開，純粹呈現核心數值。</li>
       <li><b>遠征時間內嵌於選單（提高挑選決策效率）</b>：所需時間直接內嵌在下拉選單選項內（如 <code>[37] 東京急行 (2:45)</code>），不在外部重複顯示，讓提督在切換遠征時一眼依時間篩選；下拉選單寬度更充裕且不浪費垂直行距。</li>
-      <li><b>嚴格高度預算（Zero Expansion）</b>：收益預算壓縮至 3 行等寬 HUD 網格（標籤、狀態判定、資源獲得量三欄對齊）；清單免受卡片內外距浪費，170px 空間可直接容納 8–9 條檢核條件免捲動全覽！</li>
+      <li><b>嚴格高度預算</b>：收益區採三欄對齊；條件超過 8 項時改為逐列雙欄，條件名稱在欄內換行，避免截字。</li>
+      <li><b>12 項條件情境</b>：切換至 12 項條件場景，檢查雙欄排列與長文字換行是否完整。</li>
       <li><b>大發加成與狀態色</b>：有裝備加成時數值以 --sparkle 高亮標示；條件達成綠（#58a55c）與警示紅（--dmg-major）精準表達判斷。</li>
     </ul>
   </div>
@@ -803,16 +838,16 @@ function measure() {
     const n = fleets.querySelectorAll('.ship').length;
     const row = fleets.querySelector('.ship');
     const rowH = row ? Math.round(row.getBoundingClientRect().height * 10) / 10 : 0;
-    const over = used > 760 || hasPanelScroll || hasCheckScroll;
+    const over = used > ${FLEET_LAYOUT_GOAL} || hasPanelScroll || hasCheckScroll;
     el.classList.toggle('over', over);
-    el.innerHTML = '假窗 <b>' + appH + 'px</b>；七船用掉 <b>' + used + 'px</b> / 760px 安全線' +
+    el.innerHTML = '假窗 <b>' + appH + 'px</b>；七船用掉 <b>' + used + 'px</b> / ' + ${FLEET_LAYOUT_GOAL} + 'px 排版目標' +
       '（頂欄 ' + chromeH + '／遠征區 ' + panelH + '／nav ' + navH + '／fleets ' + fleetH +
       '，' + n + ' 艘、列高 ' + rowH + 'px）<br>' +
       '面板捲軸量測：#tabpanel 高 ' + panelClientH + 'px（內容 ' + panelScrollH + 'px · ' +
       (hasPanelScroll ? '⚠️ 出現捲軸！' : '✅ 無捲軸') + '）' +
       (checkList ? '；檢核清單高 ' + checkClientH + 'px（內容 ' + checkScrollH + 'px · ' +
       (hasCheckScroll ? '⚠️ 清單內部捲軸！' : '✅ 清單零捲軸全覽') + '）' : '') +
-      (over ? '　⚠️ 超標，存在捲軸或超過 760px' : '　✅ 全部安全線內');
+      (over ? '　⚠️ 超過 730px 排版目標或有內部捲軸' : '　✅ 保留 10px 安全餘裕');
   });
 }
 

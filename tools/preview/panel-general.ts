@@ -1,13 +1,13 @@
 // 面板「一般」分頁的可互動離線預覽（開發用，不進擴充 bundle）。
-// 套 panel/index.html 的同一份 CSS，產出 420×850 實窗：資源抬頭＋遠征／入渠／建造
-// 三欄並排＋任務主面。嚴格鎖定標準 420px 寬度，高密度排版，無溢出捲軸。
+// 套 panel/index.html 的同一份 CSS，產出 370×850 面板內容區：資源抬頭＋遠征／入渠／建造
+// 三欄並排＋任務主面。尺寸與正式 panel 相同，避免用舊版寬度判斷溢位。
 //
 //   npx vite-node --config vitest.config.ts tools/preview/panel-general.ts
 //   → .preview/panel-general{,-light}.html
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { esc, matIconHtml } from '../../utils/html-escape';
+import { esc, gearIconHtml, matIconHtml } from '../../utils/html-escape';
 import { setLang, t } from '../../utils/ui-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -52,6 +52,42 @@ const QUESTS = [
     { no: 8, name: '装備開發任務', progress: '受注中', done: false, detail: '開發一次裝備。' },
 ];
 
+const PREVIEW_SHIPS = [
+    ['BB', '長門改二', 99, 77, 77, 49],
+    ['BB', '陸奥改二', 98, 75, 75, 85],
+    ['BB', '金剛改二丙', 96, 85, 85, 53],
+    ['BB', '比叡改二丙', 95, 83, 83, 34],
+    ['CL', '能代改二', 94, 53, 53, 70],
+    ['DD', '雪風改二', 99, 35, 35, 85],
+] as const;
+
+const DEMO_GEARS = [
+    { name: '大発動艇', short: '艇', icon: 24, level: 10 },
+    { name: 'ドラム缶(輸送用)', short: '缶', icon: 25, level: 0 },
+    { name: '九五式爆雷', short: '爆', icon: 17, level: 0 },
+    { name: '大発動艇', short: '艇', icon: 24, level: 6 },
+    { name: 'ドラム缶(輸送用)', short: '缶', icon: 25, level: 0 },
+];
+
+const demoGearChip = (gear: typeof DEMO_GEARS[number]) =>
+    `<span class="chip c-etc" title="${esc(gear.name)}${gear.level >= 10 ? ' ★' : gear.level ? ` ★${gear.level}` : ''}">` +
+    `${gearIconHtml(gear.icon, gear.short)}<span class="r-col"><span class="r-top"><u></u><b>${gear.level >= 10 ? '★' : gear.level || ''}</b></span><em class="oc"></em></span></span>`;
+
+const demoBlankGear = '<span class="chip chip-pad"><span class="g-icon-slot"></span><span class="r-col"><span class="r-top"><u></u><b></b></span><em class="oc"></em></span></span>';
+const demoExSlot = '<span class="chip chip-pad ex"><span class="g-icon-slot"></span><b></b></span>';
+const demoResourceBar = (kind: 'fuel' | 'ammo', value: number, title: string) =>
+    `<span class="resource-bar ${kind}" role="img" aria-label="${esc(title)}" title="${esc(title)}"><i class="resource-fill" style="width:${value}%"></i><span class="resource-percent">${value}</span></span>`;
+const demoFleetRows = PREVIEW_SHIPS.map(([stype, name, lv, hp, maxhp, cond], index) => {
+    const gears = DEMO_GEARS.slice(0, 2 + index % 4).map(demoGearChip).join('');
+    const padCount = 5 - Math.min(5, 2 + index % 4);
+    const hpPct = Math.round(hp / maxhp * 100);
+    const fuelPct = 100 - index * 8;
+    const ammoPct = 100 - index * 12;
+    const condition = cond >= 50 ? 'sparkle' : cond <= 19 ? 'heavy' : cond <= 29 ? 'tired' : '';
+    return `<div class="ship"><div class="ship-body"><div class="ship-kind-status"><span class="stype">${stype}</span></div><div class="ship-main"><div class="ship-identity-row"><div class="ship-id"><span class="num">Lv<span class="lv-n">${lv}</span></span><span class="grow" title="${esc(name)}">${esc(name)}</span></div></div><div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${hpPct}%"></i></span><span class="hp-pair"><span class="hp-num">${hp}</span><span class="hp-max">/${maxhp}</span></span></div><div class="ship-gear-row"><span class="cond ${condition}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${cond}</span></span><span class="vit-sup resource-pair">${demoResourceBar('fuel', fuelPct, `${t('mat.fuel.full')} ${fuelPct}%`)}${demoResourceBar('ammo', ammoPct, `${t('mat.ammo.full')} ${ammoPct}%`)}</span><div class="chips">${gears}${demoBlankGear.repeat(Math.max(0, padCount))}${demoExSlot}</div></div></div></div></div>`;
+}).join('');
+const demoFleet = `<section class="fleet fleet-six fleet-no-ops"><div class="fsummary"><div class="fs-metrics"><span class="fs-metric fs-air fs-pri"><span class="fs-label">${t('fleet.airPower')}</span><b class="fs-value">312</b></span><span class="fs-metric fs-los fs-pri"><span class="fs-readout"><span class="fs-label">${t('fleet.scouting33')}</span><b class="fs-value">18.6</b></span><label class="fs-scale"><span class="sr-only">${t('fleet.scoutingMultiplier')}</span><select class="cn"><option selected>×1</option></select><i class="fs-scale-chevron" aria-hidden="true"></i></label></span><span class="fs-metric fs-speed fs-sec"><span class="fs-label">${t('order.speed')}</span><b class="fs-value">${t('speed.fast')}</b></span><span class="fs-metric fs-level fs-sec"><span class="fs-label">${t('fleet.lvTotal')}</span><b class="fs-value">557</b></span><span class="fs-metric fs-tp fs-sec"><span class="fs-label">TP</span><b class="fs-value">0</b></span></div></div>${demoFleetRows}</section>`;
+
 const extraCss = `
 html, body { height: auto; overflow: auto; }
 body { display: block; min-height: 0; padding: 16px; font-family: system-ui, -apple-system, "Hiragino Sans", sans-serif; background: var(--bg); color: var(--text); }
@@ -69,7 +105,7 @@ body { display: block; min-height: 0; padding: 16px; font-family: system-ui, -ap
 .pv-bar button:hover { border-color: var(--brass); }
 .pv-bar button.on { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, var(--panel)); color: var(--sparkle); font-weight: 600; }
 .pv-wins { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
-.pv-win { width: 420px; flex: none; }
+.pv-win { width: 370px; flex: none; }
 .pv-win-label { font-size: 12px; font-weight: 600; letter-spacing: var(--track-label); color: var(--brass); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
 .pv-win-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); color: var(--sparkle); }
 .pv-measure { font-size: 11px; color: var(--dim); margin-top: 8px; font-variant-numeric: tabular-nums; }
@@ -77,25 +113,16 @@ body { display: block; min-height: 0; padding: 16px; font-family: system-ui, -ap
 .pv-measure.ok b { color: #58a55c; }
 .pv-measure.over b { color: var(--dmg-major); }
 .pv-app {
-  width: 420px; height: 850px; background: var(--bg); border: 1px solid var(--line);
+  width: 370px; height: 850px; background: var(--bg); border: 1px solid var(--line);
   border-radius: 8px; box-shadow: 0 4px 20px color-mix(in srgb, #000 25%, transparent);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .pv-app #tabs button, .pv-app #fleetnav button { pointer-events: none; }
 .pv-app #tabpanel { flex: none; height: 270px; box-sizing: border-box; }
-.pv-fleet { flex: 1; min-height: 0; overflow: hidden; padding: 4px 10px 8px; }
-.pv-ship {
-  display: flex; gap: 8px; align-items: baseline; padding: 6px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  font-size: 12px;
-}
-.pv-ship b { color: var(--dim); width: 1.2em; font-weight: 400; }
-.pv-ship span { flex: 1; }
-.pv-ship i, .pv-ship em { font-style: normal; color: var(--dim); font-variant-numeric: tabular-nums; }
-.pv-fleet-note { margin-top: 8px; font-size: 10px; color: var(--stub); letter-spacing: var(--track-tag); }
+.pv-fleet { flex: 1; min-height: 0; overflow: hidden; }
 .exped-detail[hidden], .quest-detail[hidden] { display: none; }
 
-/* ── 420px 高密度極簡現代化樣式（無框線濫用、依靠對比與間距） ────── */
+/* ── 370px 高密度資訊樣式 ────── */
 .pv-refined #tab-general {
   gap: 6px;
   padding: 0;
@@ -384,12 +411,12 @@ const page = `<!doctype html>
 <html lang="zh-TW">
 <head>
 <meta charset="utf-8">
-<title>一般分頁高密度重構預覽（標準 420px）</title>
+<title>一般分頁預覽（370×850）</title>
 <style>${css}${extraCss}</style>
 </head>
 <body>
   <div class="pv-intro">
-    <b>【一般資訊頁 · 極簡現代化 420px 重構預覽】</b><br>
+    <b>【一般資訊頁 · 370px 排版預覽】</b><br>
     落實「<b>減少框線濫用、依靠對比與間距區分資訊、零多餘特效與過度裝飾</b>」原則，專注工具本質：<br>
     1. <b>完全去除框線濫用</b>：徹底移除資材外框、運作 Chip 外框、任務列外框與藥丸框線，純化視覺焦點。<br>
     2. <b>對比與間距分級</b>：主資材（加粗高對比）／消耗材（調暗低對比）完整容納 <b>350,000 六位數</b>；區塊以精確間距自然聚合。<br>
@@ -425,7 +452,7 @@ const CAT_TITLE = ${JSON.stringify({
     build: t('section.build'),
     quest: t('section.quest'),
 })};
-const SHIPS = ['長門改二', '陸奥改二', '金剛改二丙', '比叡改二丙', '能代改二', '雪風改二'];
+const FLEET_HTML = ${JSON.stringify(demoFleet)};
 
 let scenario = 'full';
 let viewMode = 'compare';
@@ -510,9 +537,6 @@ function generalInner(isRefined) {
 function renderAppWin(isRefined, title, badge) {
   const inner = generalInner(isRefined);
   const cls = isRefined ? 'pv-refined' : 'pv-baseline';
-  const ships = SHIPS.map((n, i) =>
-    '<div class="pv-ship"><b>' + (i + 1) + '</b><span>' + n + '</span><i>Lv99</i><em>77/77</em></div>'
-  ).join('');
   return '<div class="pv-win">' +
     '<div class="pv-win-label">' +
       '<span>' + title + '</span>' +
@@ -539,9 +563,7 @@ function renderAppWin(isRefined, title, badge) {
         '<button type="button">連合艦隊</button><span class="grow"></span>' +
         '<button type="button">基地航空隊</button>' +
       '</div>' +
-      '<div class="pv-fleet">' + ships +
-        '<div class="pv-fleet-note">編成區（高度參照）</div>' +
-      '</div>' +
+      '<div id="fleets" class="pv-fleet">' + FLEET_HTML + '</div>' +
     '</div>' +
     '<div class="pv-measure"></div>' +
   '</div>';
@@ -550,12 +572,12 @@ function render() {
   const container = document.getElementById('wins');
   if (viewMode === 'compare') {
     container.innerHTML = 
-      renderAppWin(false, '方案 A · 現行基準 (Baseline)', '420px') +
-      renderAppWin(true, '方案 B · 全新精簡現代化排版 (Redesigned)', '420px 零捲軸');
+      renderAppWin(false, '方案 A · 現行基準 (Baseline)', '370px') +
+      renderAppWin(true, '方案 B · 精簡排版', '370px');
   } else if (viewMode === 'refined') {
-    container.innerHTML = renderAppWin(true, '方案 B · 全新精簡現代化排版 (Redesigned)', '420px 零捲軸');
+    container.innerHTML = renderAppWin(true, '方案 B · 精簡排版', '370px');
   } else {
-    container.innerHTML = renderAppWin(false, '方案 A · 現行基準 (Baseline)', '420px');
+    container.innerHTML = renderAppWin(false, '方案 A · 現行基準 (Baseline)', '370px');
   }
   bind();
 }

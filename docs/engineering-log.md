@@ -169,6 +169,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `utils/ship-filter.ts` | 鎮守府全船篩選（純函式，無 chrome.*，node 可測）：航速／艦種／**國籍**／可裝備／出擊標籤／關鍵字。`EquipFilter` 七選項＝「能裝大發系」與「能裝內火艇」兩個布林的組合（已對全 1751 艦驗算，七桶皆非空）。由活動作戰板與艦娘全覽共用（`ship-roster.ts` 委派共用維度、不重寫一份），UI 殼在 `entrypoints/overview/ship-picker.ts`。**國籍刻意不放進 `OwnedShipView`**——它是 `ship-nationality.ts` 的人工參照表查出來的，不是封包事實，混進 state 的 view 會讓兩層糊在一起；由呼叫端 `nationOf(ctype)` 補上 |
 | `utils/ship-nationality.ts` | 艦娘國籍（**建造國**）參照表，鍵＝艦型 `api_ctype`。**遊戲 API 不提供國籍**，人工維護；未列出的 ctype 一律日本。戰後移交他國並改名的形態歸建造國（見「艦娘全覽（詳細清單）」）|
 | `utils/ship-roster.ts` | 艦娘全覽**詳細清單**的篩選／排序／分頁核心（純函式，無 chrome.*，node 可測）。共用維度（航速／艦種／可裝備／標籤／關鍵字）委派 `ship-filter.ts`，本檔加上收藏視角專屬的婚艦・編入・鎖定・士氣・改造・近代化改修・射程・開幕・補強增設・多號機・等級範圍，外加十八個排序鍵與分頁。先制對潛是推算值（遊戲不送旗標），詳見「艦娘全覽（詳細清單）」 |
+| `utils/stype-label.ts` | 同名艦種消歧（純函式）。`api_mst_stype` 的 8／9 都叫「戰艦」；篩選晶片以名冊多數航速加註「高速」，逐艦欄用該艦自己的 `api_soku`。艦娘全覽與配裝參考共用，**不得用 stype id 當航速捷徑** |
 | `utils/gear-inventory.ts` | 裝備全覽的彙總／篩選／排序核心（純函式，無 chrome.*，node 可測）：`groupGears()` 把裝備**實例**依 master 彙總成種類（數量／改修分佈／裝備中艦娘），`filterGears()`／`sortGears()`／`iconOptions()`。素質一律是 master 基礎值、**不含改修 ★ 加成**（加成公式未經封包驗證，刻意不推導）。詳見「裝備全覽」 |
 | `utils/repair.ts` | 泊地修理（工作艦）＋母港給糧（補給艦野埼）的涵蓋範圍與結算預估（純函式，無 chrome.*，node 可測）：`planAnchorageRepair()`／`planMoraleSupply()`／`nextSettlementIn()`。詳見「泊地修理與母港給糧」 |
 | `utils/quest-progress.ts` | 任務「本機進度」推算（純函式，無 chrome.*，node 可測）：`parseQuestGoal()` 從任務標題/內文的「N回」字樣反推目標次數與動作種類（遠征/建造/開發/近代化改修/裝備改修/演習/出撃）。**遊戲封包完全不給精確完成次數**（只有 `api_state` 受注中/達成與粗略的 `api_progress_flag`），故計數只能是「自本機面板看到這個任務起算」，可能低於遊戲內實際值（同 ship-debut-data.ts 的 baseline 誠實原則）。解不出目標的任務（單次型、或以「隻」為單位）回傳 null，UI 回退顯示受注中/達成。詳見「任務本機進度追蹤」 |
@@ -182,7 +183,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `tools/ship-debut/generate.py` | 上表產生器：來源 JSON（艦名鍵）＋`samples/start2-master.json` → 以基礎形態 master id 為鍵的 TS。艦名拼法別名（`Samuel B. Roberts`→`Samuel B.Roberts`、`Kirov`→`Киров`、`島根丸`→`しまね丸` 等 5 筆）在**產生階段**一次解掉，執行期不帶別名表 |
 | `utils/expedition-data.ts` | poi 遠征需求資料（MIT，見 NOTICE） |
 | `utils/expedition-stats.ts` | 遠征紀錄的期間彙總核心（純函式，無 chrome.*，node 可測）：`filterByPeriod()`／`summarize()`／`groupByMission()`／`sortStats()`／`statsCsv()`。**收入是逐筆事件的獲得量、不是餘額差分**，故與資源紀錄刻意不共用輸出。詳見「遠征紀錄的期間彙總」 |
-| `public/icons/**.svg` | 裝備／資源／UI 圖示（原創向量，**由 `tools/icons/` 產生，勿手改**）；裝備檔名即 `api_type[3]`。`ui/airraid.svg` 為出擊紀錄的基地空襲標記（遊戲沒有這顆，本專案新造） |
+| `public/icons/**.svg` | 裝備／資源／UI／數值圖示（原創向量，**由 `tools/icons/` 產生，勿手改**）；裝備檔名即 `api_type[3]`。`ui/airraid.svg` 為出擊紀錄的基地空襲標記（遊戲沒有這顆，本專案新造）。`stat/` 為艦娘數值 17 顆（`gen_stats.py`） |
 | `tools/icons/` | 圖示生成器＋設計約束（視角／明度下限／描邊／徽章規則），改圖示前先讀其 README |
 | `samples/` | 真實封包樣本（驗證 fixture）＋機體／UI 參照圖（`kanmusu_filter.png` 艦娘篩選、`KC3kai_sortie_log.png` 出擊紀錄展開檢視） |
 | `docs/architecture-v1.md` | 原始架構書（設計對照基準） |
@@ -907,7 +908,12 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 （2026-07-22 為出擊紀錄新增的 optional 欄位——`SortieLogRow.getExp`／`mvp`／`mvpEscort`／
 `enemyName`、`ReplayRow.fleet3`／`fleet4`／`lbas`——已加進 `backup.ts` 的驗證，
 **缺席即維持缺席**，舊備份不會因此被拒、也不會被補上預設值。）一般備份
-不含 raw `events`、`notified`、projection metadata 或 localStorage 偏好。v1 legacy-full、
+不含 raw `events`、`notified`、projection metadata，也不含語言／主題／各分區篩選等
+顯示偏好。任務導覽的釘選與人工完成（`api_no` 名單）會寫進 envelope 可選欄位
+`questFlow`，還原後覆寫本機這兩項；舊檔沒有此欄則不碰既有釘選。v7 起完整檔另含
+`questObserved`（本機 `clearitemget` 領獎列，以來源 event id 冪等保存）。日／週／月
+以日本時間 05:00 為界，季任以 3／6／9／12 月 1 日 05:00 為界；年任只保存紀錄，目錄尚未
+有開始月，不自行對齊年度週期。v1 legacy-full、
 v2 split、v3 仍可相容匯入——**每個版本的 restore 表組合各自固定**（`determineKind()`），
 舊檔不會因為缺少後來新增的表被拒，新檔也不得少帶或夾帶。v3 新增 shipObtained、
 v4 新增 eventPlans（活動作戰板，純使用者手輸、不參照任何 event id，故不進
@@ -943,8 +949,8 @@ handle 仍在但需使用者手勢重新授權（`queryPermission`→`requestPer
 
 `viewer.html`（`viewer-html.ts`）隨資料夾備份一併寫入：單檔離線、內聯 `toKc3Replay`，任何人用
 瀏覽器開它、載入完整備份就能逐場複製 battleplayer 物件／開公開重播頁，**不需要擴充**。
-現行 `BACKUP_SCHEMA_VERSION` 為 **6**（`kind: full`）；v1 legacy-full 可單檔匯入，v2–v5 的
-restore/replays 拆分備份則可同次選取，或分兩次選取後由介面只在記憶體暫存、湊成一對；再正規化成完整 v6，並以
+現行 `BACKUP_SCHEMA_VERSION` 為 **7**（`kind: full`）；v1 legacy-full 可單檔匯入，v2–v5 的
+restore/replays 拆分備份則可同次選取，或分兩次選取後由介面只在記憶體暫存、湊成一對；再正規化成完整現行版本，並以
 一個 transaction 還原。所有 preflight、寫入、event ID reservation／high-water 與 marker 都在
 同一 transaction，任一失敗完整 rollback。
 
@@ -1264,6 +1270,26 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
 下次若同編號的任務重新出現（例如每日/每週任務隔天重置後再次接受）會重新從 0 起算——這與
 「日期重置＝新的一輪」的直覺一致。
 
+### 任務導覽的單發完成推論（`utils/quest-flow.ts`，2026-09-08）
+
+遊戲不會把已領獎的單發任務再放進 `questlist`，本機也沒有十年歷史。總括因此只在兩種
+**可從目前封包證明**的情況下，把單發任務標成「關聯推論完成」，且不與 `clearitemget`
+的「本機觀測完成」混用：
+
+1. **前置鏈**：目前受注／可接受，或最近一次 tab 0（全て）／tab 4（単発）完整清單裡
+   看得到的任務，若前置關係 `operator === 'all'`，沿該鏈把已知前置標成推論完成。
+2. **缺席繼流**：已觀測到 tab 0 或 tab 4 之後，對「若尚未完成就應該出現」的常設單發
+   做固定點反推：無已知前置、或列出的前置依 all／any／（unknown／conflict 時需全部
+   完成）已滿足，且該 `api_no` 不在完整清單裡。期間限定、未解析非任務條件、以及
+   條件組合仍不可考且前置未全部完成的任務維持不可考。
+
+tab 9（遂行中）只同步受注中／達成，不得清掉 tab 0 看到的可接受任務，也不得當作完整
+單發清單。尚未看過 tab 0／4 時不做缺席推論，只做第 1 項前置鏈。釘選與人工完成存
+`localStorage`（`kc-overview-quest-flow`），並隨完整備份的 `questFlow` 往返；搜尋／
+聚焦等暫時 UI 不進備份。舊備份沒有此欄時，還原不得清空本機既有釘選。本機觀測完成
+（`clearitemget`）另存 `db.questObserved` 並進備份：日／週／月以日本時間 05:00 為界，
+季任以 3／6／9／12 月 1 日 05:00 為界；年任保存紀錄但不對齊年度週期（開始月尚未進目錄）。
+
 ### 活動作戰板：關卡與出擊標籤（`utils/event-plan.ts`＋`sections/event-ops.ts`，2026-07-21）
 
 **機制前提（使用者提供，決定整個資料模型的形狀，別照紙本表格照抄）**：
@@ -1460,6 +1486,10 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 裝備欄用圖示，**一律畫滿該艦的真實槽數、空槽畫虛線空框**（「這格空著」與「沒有這一格」
 是兩件事）；補強增設無孔時整格不畫，才分得出「沒開孔」與「開了孔沒裝」。
 
+**同名艦種標籤**在 `utils/stype-label.ts`：stype 8／9 都叫「戰艦」時，篩選 checkbox 以該群
+名冊多數航速加註「高速戰艦」，低速側維持「戰艦」；列上用該艦自己的 `api_soku`。id 不能當
+航速捷徑（stype 8 有低速 Гангут 線、stype 9 有高速深海戰艦棲姫改）。
+
 **為此擴充的 `OwnedShipView` 欄位皆為封包事實**（真封包／完整 start2 核對，見 state.ts
 逐欄註解）：八項顯示素質 `stats`（`api_karyoku` 等的 `[0]`，**已含裝備加成**）與 `statsMax`
 （`[1]`）、`kyouka`／`kyoukaMax`、`remodelDone`、`exSlotOpen`、`exSlotSpecials`、`leng`、
@@ -1572,6 +1602,27 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 `counts()` 的裝備欄上限，故它們在清單裡帶「消耗品」標記，並有獨立的顯示／隱藏／只看三態——
 但**不預設隱藏**（藏起來會讓人以為資料漏了）。摘要列同時顯示「篩選結果件數」與遊戲的
 「裝備欄 n／max」，兩個數字語意不同，不可混為一談。
+
+### 配裝參考：`utils/equip-ref.ts`＋`sections/equip-ref.ts`（2026-09-09）
+
+從鎮守府**目前在案艦**指定一艘，列出她裝得上、且有藍字加成或社群主砲適性的**全圖鑑**裝備；
+庫存沒有的加「庫存無」，可篩成只看庫存有。艦清單與裝備庫分別吃 `ownedShips()`／`ownedGears()`。
+艦種篩選晶片與列上標籤走 `utils/stype-label.ts`（與艦娘全覽同一套）：stype 8／9 同名「戰艦」時，
+多數高速的那群才加註「高速」，低速側與逐艦低速艦維持原樣；鍵仍是 stype id，不用名稱當 Map key。
+艦清單／裝備區是左右雙欄：只在 `.er` 容器 ≤520px 才改單欄（`docs/design-guidelines.md` §4.7），
+**禁止**用 viewport 820px 這類斷點把清單堆到裝備區上面。
+
+**兩份社群表都不是封包驗證**，UI 的 `ov.erNote` 必須明講：
+
+- 藍字：`utils/equip-bonus-table.json`（KC3Kai replay `mst_slotitem_bonus.json`）。匹配鍵是
+  `shipId`／`shipBase`／`shipClass`／`shipType`／`shipCountry` 的**同時成立**（有寫的才檢查）。
+  只列該艦 `equipTypes` 裝得上的裝備，不猜未列的相互條件細節（`requiresEquipList` 只標有條件）。
+- 適性：wikiwiki「命中と回避」#BBfit 轉寫。戰艦 A/B 群分界用 master `api_taik[0]`（≥93＝B），
+  **不能用實例 maxhp**（結婚會加）。Atlanta／大淀從輕巡標準懲罰排除，避免與個別表疊加。
+  主砲（cat 1/2/3/38）獨立成段、適性由高到低、旁標射程。
+
+加成表更新：覆蓋 `utils/equip-bonus-table.json` 後跑 `tests/equip-ref.test.ts`。新活動口徑未進
+適性表時不要猜。
 
 ### 資源紀錄（`utils/resource-capture.ts`＋`resource-log.ts`＋`line-chart.ts`，2026-07-22）
 
@@ -1766,7 +1817,7 @@ fit 會讓遊戲縮得比視窗小、下方留一大條白。**畫布位置只�
   牽動的補償量（`tests/theater.test.ts` 有鎖這兩條）。
 
 **工具列固定佔住底部一條，絕不覆蓋遊戲畫面**：滑鼠移到遊戲畫面上時事件全被 iframe 吃掉，
-父頁無法依 hover 自動閃避，因此使用底部 `BAR_HEIGHT`（38px）的實體條，fit 計算一律扣掉它。
+父頁無法依 hover 自動閃避，因此使用底部 `BAR_HEIGHT`（19px）的實體條，fit 計算一律扣掉它。
 shadow CSS 裡 `button { display: inline-flex }` 是**作者樣式**，會覆蓋瀏覽器對 `[hidden]` 的
 `display:none`（與 specificity 無關），因此必須明寫
 `[hidden] { display: none !important }`。
@@ -1841,8 +1892,8 @@ content script 另有 `__kcTheaterInstalled` 旗標防重複注入長出第二�
 ### 拍照（`utils/screenshot.ts`＋`MSG_CAPTURE_TAB`，2026-07-24）
 
 只擷取「遊戲畫面」、不含 DMM 頁面其餘部分。入口有兩個：popup 選單的「拍照」與劇場模式
-工具列的相機鈕（後者的 `.bar[data-mode="on"]` 底部條隨此功能一併從 26px 加高到
-`BAR_HEIGHT=38`，見 `utils/theater.ts`，以容納縮放群組、靜音與相機按鈕）。
+工具列的相機鈕（後者的 `.bar[data-mode="on"]` 底部條高度為
+`BAR_HEIGHT=19`，見 `utils/theater.ts`；靜音與相機圖示鈕字級貼近列高以減少留白）。
 
 **裁切矩形絕不重新推算一次**：兩個入口都呼叫 `theater.content.ts` 的
 `measureScreenshotRect()`，它直接沿用劇場模式本身已經校準過的

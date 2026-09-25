@@ -1,29 +1,39 @@
-// 艦娘全覽的「同名艦種消歧」契約（見 sections/ships.ts 的 buildStypeLabels 檔頭註解）。
+// 同名艦種消歧契約（見 utils/stype-label.ts）。艦娘全覽與配裝參考共用同一套標籤。
 //
 // stype id 不等於航速，真封包可見 stype 8 有低速的 Гангут 線、stype 9 有高速的深海戰艦棲姫改；
 // 因此群組層級用多數決加註，逐艦層級使用該艦自己的 api_soku，避免兩個群組都顯示相同名稱。
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { buildStypeLabels, stypeDisplayLabel, type ShipsRow } from '../entrypoints/overview/sections/ships';
+import { buildStypeLabels, stypeDisplayLabel, type StypeLabelShip } from '../utils/stype-label';
 import { setLang, t } from '../utils/ui-i18n';
+
+const guidelines = readFileSync(new URL('../docs/design-guidelines.md', import.meta.url), 'utf8');
+const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 const mstShips: any[] = master.api_mst_ship;
 
 /** 由真封包 master 取該艦的 stype／soku，避免測試自己編一組不存在的組合。 */
-function shipRow(name: string): ShipsRow {
+function shipRow(name: string): StypeLabelShip {
     const mst = mstShips.find(s => s.api_name === name);
     if (!mst) throw new Error(`master 找不到 ${name}`);
     return {
         stypeId: mst.api_stype,
         stype: t(`stype.${mst.api_stype}`),
         soku: mst.api_soku,
-    } as unknown as ShipsRow;
+    };
 }
 
 beforeAll(() => setLang('zh-TW'));
 
 describe('同名艦種的篩選標籤', () => {
+    it('硬約束寫在 design-guidelines §4.8 與 CLAUDE.md', () => {
+        expect(guidelines).toContain('### 4.8 同名艦種標籤：不得兩顆都叫「戰艦」（硬約束）');
+        expect(guidelines).toContain('utils/stype-label.ts');
+        expect(claude).toContain('stype-label.ts');
+        expect(claude).toContain('§4.8');
+    });
+
     it('真封包佐證：stype 8／9 同名「戰艦」，且各自都有反例，故 id 不能當航速捷徑', () => {
         const bb8 = mstShips.filter(s => s.api_stype === 8);
         const bb9 = mstShips.filter(s => s.api_stype === 9);
@@ -66,7 +76,7 @@ describe('同名艦種的篩選標籤', () => {
     it('航速缺值（soku 0）不加註，不把未知誤判成高速', () => {
         const roster = [shipRow('金剛'), shipRow('大和')];
         buildStypeLabels(roster, new Map());
-        const unknown = { stypeId: 8, stype: t('stype.8'), soku: 0 } as unknown as ShipsRow;
+        const unknown: StypeLabelShip = { stypeId: 8, stype: t('stype.8'), soku: 0 };
         expect(stypeDisplayLabel(unknown)).toBe('戰艦');
     });
 

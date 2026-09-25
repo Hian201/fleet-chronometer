@@ -8,7 +8,7 @@
 // 仍支援 legacy 的 kanmusu-restore.json + kanmusu-replays.json 配對匯入；核心會先在
 // 記憶體驗證並合併，最後以一個 IndexedDB transaction 寫入，缺任一檔不會留下半套資料。
 // 刻意不含：db.events（原始封包日誌，本就設計成會被裁剪，db.snapshot 已是重建現狀的
-// 最小子集）與 localStorage 偏好（語言/主題）。
+// 最小子集）與語言／主題等顯示偏好。任務導覽的釘選／人工完成會隨完整檔往返。
 //
 // 資料夾備份（FSA）：把完整備份檔＋離線提取器 viewer.html 一次寫進使用者選定的資料夾
 // （可指向 Google Drive Desktop／WebDAV 掛載磁碟等同步夾），上雲同步交給桌面同步客戶端，
@@ -106,7 +106,7 @@ export const backupSection: OverviewSection = {
         // ── 檔案匯出（fallback／單檔下載）──
         el.querySelector('#backup-export')!.addEventListener('click', async () => {
             const env = await buildFullEnvelope(db);
-            if (isEmptyBackup(env.tables)) {
+            if (isEmptyBackup(env.tables, env.questFlow)) {
                 status.textContent = t('ov.backupEmptyRefuse');
                 return;
             }
@@ -144,7 +144,7 @@ export const backupSection: OverviewSection = {
                     folderStatus.textContent = t('ov.backupWriteError', { msg: String(e) });
                     return;
                 }
-                if (isEmptyBackup(backup.tables)) {
+                if (isEmptyBackup(backup.tables, backup.questFlow)) {
                     folderStatus.textContent = t('ov.backupEmptyRefuse');
                     return;
                 }

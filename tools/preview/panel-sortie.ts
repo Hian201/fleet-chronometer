@@ -5,6 +5,8 @@
 //
 //   npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts
 //   → .preview/panel-sortie{,-light}.html
+//   → .preview/panel-taiha-en.html（英文大破對照：六船／七船／連合／出擊警告）
+//   → .preview/panel-summary-{en,ja}.html（摘要固定寬度語系檢查）
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,9 +17,8 @@ import { setLang, t } from '../../utils/ui-i18n';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 setLang('zh-TW');
 
-// 實機標題列會吃掉預覽假窗的一段可用高度；740px 是目前以實際 Chrome 渲染校準的
-// 編成硬安全線。超過就必須在預覽中直接標紅，不能等使用者在正式面板才發現第 7 艘被裁。
-const FLEET_SAFE_HEIGHT = 740;
+// 以 730px 作為編成排版目標，為 740px 硬上限保留 10px 餘裕；超出目標就在預覽標紅。
+const FLEET_SAFE_HEIGHT = 730;
 
 const panelHtml = readFileSync(resolve(root, 'entrypoints/panel/index.html'), 'utf8');
 const css = panelHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
@@ -25,6 +26,10 @@ const css = panelHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
 // ── 7 船編成假資料（對齊正式 panel 編成資料）────────────────────────────────
 const alvMark = (alv: number) =>
     ['', '|', '||', '|||', '/', '//', '///', '&gt;&gt;'][Math.min(7, Math.max(0, alv))];
+const alvU = (alv: number) => {
+    const cls = alv >= 7 ? 'alv-ace' : alv >= 1 && alv <= 3 ? 'alv-lo' : '';
+    return `<u${cls ? ` class="${cls}"` : ''}>${alvMark(alv)}</u>`;
+};
 const impMark = (level: number) => (level >= 10 ? '★' : level > 0 ? String(level) : '');
 
 type Gear = {
@@ -40,6 +45,7 @@ type Ship = {
     gears: (Gear | null)[];
     ex?: Gear | 'empty' | 'none';
     cap?: (number | undefined)[];
+    opsMark?: string;
 };
 
 const blankChip = (cls: string, ex = false, capacity?: number) =>
@@ -61,17 +67,19 @@ const gearChip = (g: Gear, ex = false) => {
     }
     const ocCls = g.count == null || g.countMax == null ? '' : g.count <= 0 ? 'zero' : g.count < g.countMax ? 'hit' : '';
     return `<span class="chip ${g.cat}" title="${title}">` +
-        `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top"><u>${alvMark(g.alv ?? 0)}</u><b>${impMark(g.level ?? 0)}</b></span>` +
+        `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top">${alvU(g.alv ?? 0)}<b>${impMark(g.level ?? 0)}</b></span>` +
         `<em class="oc ${ocCls}">${g.count ?? ''}</em></span></span>`;
 };
 
 const vitSupply = (s: Ship) => {
-    const pct = (v: number, max: number) => max ? Math.round(100 * v / max) : 100;
+    const pct = (v: number, max: number) => max ? Math.max(0, Math.min(100, Math.round(100 * v / max))) : 100;
     const fp = pct(s.fuel, s.maxFuel), bp = pct(s.bull, s.maxBull);
-    return `<span class="vit-sup">` +
-        `<span class="sup-f" title="${esc(t('mat.fuel.full'))} ${fp}%">${matIconHtml('fuel', t('mat.fuel.full'))}${fp}</span>` +
-        `<span class="sup-a" title="${esc(t('mat.ammo.full'))} ${bp}%">${matIconHtml('ammo', t('mat.ammo.full'))}${bp}</span>` +
-        `</span>`;
+    const fTitle = `${esc(t('mat.fuel.full'))} ${s.fuel}/${s.maxFuel} (${fp}%)`;
+    const aTitle = `${esc(t('mat.ammo.full'))} ${s.bull}/${s.maxBull} (${bp}%)`;
+    const bar = (kind: 'fuel' | 'ammo', title: string, value: number) =>
+        `<span class="resource-bar ${kind}" role="img" aria-label="${title}" title="${title}">` +
+        `<i class="resource-fill" style="width:${value}%"></i><span class="resource-percent">${value}</span></span>`;
+    return `<span class="vit-sup resource-pair">${bar('fuel', fTitle, fp)}${bar('ammo', aTitle, bp)}</span>`;
 };
 const stClass = (s: Ship) => {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
@@ -95,6 +103,17 @@ const condDisplay = (s: Ship) => {
     return `<button type="button" class="taiha-cond-toggle cond ${cond}" aria-expanded="false" aria-label="${esc(`${label}：${t('fleet.heavyDamageReveal')}`)}" title="${esc(t('fleet.heavyDamageReveal'))}">${taihaMark(s)}<span class="taiha-cond-value">${s.cond}</span></button>`;
 };
 
+const dockMark = (s: Ship) => s.inDock
+    ? `<span class="dock-mark" title="${esc(t('fleet.inDockTitle'))}">${esc(t('fleet.inDock'))}</span>`
+    : '';
+const escapedTag = (s: Ship) => s.escaped
+    ? `<span class="esc-tag" title="${esc(t('fleet.escapedTitle'))}">${esc(t('fleet.escaped'))}</span>`
+    : '';
+const shipStateSlot = (s: Ship) => {
+    const inner = s.escaped ? escapedTag(s) : s.inDock ? dockMark(s) : taihaHpMark(s);
+    return inner ? `<span class="ship-state">${inner}</span>` : '';
+};
+
 const shipRow = (s: Ship) => {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = stClass(s);
@@ -104,15 +123,17 @@ const shipRow = (s: Ship) => {
             : blankChip('chip-pad ex', true);
     const padCount = FLEET_REGULAR_SLOTS - s.gears.length;
     const chips = realChips + blankChip('chip-pad').repeat(Math.max(0, padCount));
-    const dock = s.inDock ? `<span class="dock-mark">${esc(t('fleet.inDock'))}</span>` : '';
+    const stateSlot = shipStateSlot(s);
     return `<div class="ship ${st} ${s.escaped ? 'escaped' : ''} ${s.inDock ? 'in-dock' : ''}">
       <div class="ship-body">
-        <div class="ship-id">${s.stype ? `<span class="stype">${esc(s.stype)}</span>` : ''}<span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span>${dock}<span class="num">Lv${s.lv}</span></div>
-        <div class="ship-vitals">
-          <div class="vit-hp"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span>${taihaHpMark(s)}<span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span></div>
-          <div class="vit-aux"><span class="cond ${condClass(s)}">${s.cond}</span>${vitSupply(s)}</div>
+        <div class="ship-kind-status${stateSlot ? ' has-state' : ''}"><span class="stype">${esc(s.stype)}</span>${stateSlot}</div>
+        <div class="ship-main">
+          <div class="ship-identity-row">
+            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span></div>
+          </div>
+          <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
+          <div class="ship-gear-row"><span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
         </div>
-        <div class="sub-row"><div class="chips">${chips}${exChip}</div></div>
       </div>
     </div>`;
 };
@@ -180,40 +201,84 @@ const SEVEN_SHIPS: Ship[] = [
     },
 ];
 
-const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven">
+const previewSpeedTone = (speed: string) =>
+    speed === t('speed.fastest') ? 'speed-fastest'
+        : speed === t('speed.fastPlus') ? 'speed-fast-plus'
+            : speed === t('speed.fast') ? 'speed-fast'
+                : 'speed-slow';
+
+type SummaryMetricOverrides = {
+    air?: string;
+    los?: string;
+    speed?: string;
+    lv?: string;
+    tp?: string;
+};
+const summaryMetrics = ({
+    air = '69~70',
+    los = '24.0',
+    speed = t('speed.slow'),
+    lv = '628',
+    tp = '25',
+}: SummaryMetricOverrides = {}) => `<div class="fs-metrics">
+  <span class="fs-metric fs-air fs-pri"><span class="fs-label" title="${t('fleet.airPower')}">${t('fleet.airPowerShort')}</span><b class="fs-value">${air}</b></span>
+  <span class="fs-metric fs-los fs-pri"><span class="fs-readout"><span class="fs-label" title="${t('fleet.scouting33')}">${t('fleet.scouting33Short')}</span><b class="fs-value">${los}</b></span><label class="fs-scale" title="${t('fleet.scoutingMultiplier')}"><span class="sr-only">${t('fleet.scoutingMultiplier')}</span><select class="cn" aria-label="${t('fleet.scoutingMultiplier')}"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select><i class="fs-scale-chevron" aria-hidden="true"></i></label></span>
+  <span class="fs-metric fs-speed fs-sec ${previewSpeedTone(speed)}"><span class="fs-label" title="${t('order.speed')}">${t('order.speedShort')}</span><b class="fs-value">${speed}</b></span>
+  <span class="fs-metric fs-level fs-sec"><span class="fs-label">${t('fleet.lvTotal')}</span><b class="fs-value">${lv}</b></span>
+  <span class="fs-metric fs-tp fs-sec"><span class="fs-label">${t('fleet.transportTP')}</span><b class="fs-value">${tp}</b></span>
+</div>`;
+
+const repairOp = (accelerated = false, time = '20:00', n = 6) => `<span class="fs-op repair" data-accelerated="${accelerated}" title="${t('repair.repairTitle')}">
+  <img class="fs-op-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">
+  <span class="fs-op-label">${t('repair.repairBadge', { n })}</span>${accelerated ? `<span class="fs-op-mode">${t('repair.accelLabel')}</span>` : ''}<span class="fs-op-time ${accelerated ? 'accelerated' : 'normal'}">${time}</span>
+</span>`;
+const moraleOp = (time = '15:00', n = 6) => `<span class="fs-op supply" title="${t('repair.moraleTitle')}"><span class="fs-op-label">${t('repair.moraleBadge', { n })}</span><span class="fs-op-time normal">${time}</span></span>`;
+const moraleUnknownOp = (n = 0) => `<span class="fs-op supply" title="${t('repair.moraleTitle')}"><span class="fs-op-label">${t('repair.moraleBadge', { n })}</span></span><span class="fs-op-unknown" title="${t('repair.unknownAnchorTitle')}">${t('repair.unknownAnchor')}</span>`;
+
+const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven fleet-no-ops">
   <div class="fsummary">
-    <div class="fs-metrics">
-      <span class="fs-pri">${t('fleet.airPower')} <b>69~70</b></span>
-      <span class="fs-pri">${t('fleet.scouting33')} <b>24.0</b> <select class="cn"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select></span>
-      <span class="fs-sec"><b>低速</b></span>
-      <span class="fs-sec">${t('fleet.lvTotal')} <b>628</b></span>
-      <span class="fs-sec" title="輸送作戰 TP 貢獻值">${t('fleet.transportTP')} <b>25</b></span>
-    </div>
+    ${summaryMetrics()}
   </div>
   ${SEVEN_SHIPS.map(s => shipRow(s)).join('')}
 </section>`;
 const SEVEN_TAIHA_SHIPS = SEVEN_SHIPS.map((s, i) => i === 0 ? { ...s, hp: 8 } : s);
-const sevenFleetHtml = (ships: Ship[], ops = '') => `<section class="fleet fleet-seven${ops ? ' fleet-seven-ops' : ''}">
+const sevenFleetHtml = (ships: Ship[], ops = '', metrics: SummaryMetricOverrides = {}) => `<section class="fleet fleet-seven${ops ? ' fleet-ops' : ' fleet-no-ops'}">
   <div class="fsummary">
     ${ops ? `<div class="fs-ops">${ops}</div>` : ''}
-    <div class="fs-metrics">
-      <span class="fs-pri">${t('fleet.airPower')} <b>69~70</b></span>
-      <span class="fs-pri">${t('fleet.scouting33')} <b>24.0</b> <select class="cn"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select></span>
-      <span class="fs-sec"><b>低速</b></span>
-      <span class="fs-sec">${t('fleet.lvTotal')} <b>628</b></span>
-      <span class="fs-sec" title="輸送作戰 TP 貢獻值">${t('fleet.transportTP')} <b>25</b></span>
-    </div>
+    ${summaryMetrics(metrics)}
+  </div>
+  ${ships.map(s => shipRow(s)).join('')}
+</section>`;
+const sixFleetHtml = (ships: Ship[], ops = '', metrics: SummaryMetricOverrides = {}) => `<section class="fleet fleet-six${ops ? ' fleet-ops' : ' fleet-no-ops'}">
+  <div class="fsummary">
+    ${ops ? `<div class="fs-ops">${ops}</div>` : ''}
+    ${summaryMetrics(metrics)}
+  </div>
+  ${ships.map(s => shipRow(s)).join('')}
+</section>`;
+const fiveFleetHtml = (ships: Ship[], ops = '', metrics: SummaryMetricOverrides = {}) => `<section class="fleet${ops ? ' fleet-ops' : ' fleet-no-ops'}">
+  <div class="fsummary">
+    ${ops ? `<div class="fs-ops">${ops}</div>` : ''}
+    ${summaryMetrics(metrics)}
   </div>
   ${ships.map(s => shipRow(s)).join('')}
 </section>`;
 const SEVEN_FLEET_TAIHA_HTML = sevenFleetHtml(SEVEN_TAIHA_SHIPS);
+const SIX_TAIHA_SHIPS = SEVEN_TAIHA_SHIPS.slice(0, 6);
+const SIX_FLEET_TAIHA_HTML = `<section class="fleet fleet-six fleet-no-ops">
+  <div class="fsummary">
+    ${summaryMetrics({ lv: '554' })}
+  </div>
+  ${SIX_TAIHA_SHIPS.map(s => shipRow(s)).join('')}
+</section>`;
 
 // 連合艦隊編成預覽沿用同一頁的切換場景，不另開獨立頁面。
 // 這裡只重用既有七船 fixture 的資料切成兩欄，專門量測兩隊並列時的列寬與 HP／補給欄。
 const compactGearRow = (s: Ship) => {
     const cgItem = (g: Gear, ex = false) => {
         const title = `${esc(g.name)}${g.level ? ` ★${g.level}` : ''}${g.alv ? ` »${g.alv}` : ''}${esc(slotCountTitle(g))}`;
-        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${g.count != null ? `<em>${g.count}</em>` : ''}</span>`;
+        const value = g.count != null ? g.count : ex && (g.level ?? 0) >= 10 ? '★' : '';
+        return `<span class="cg-item ${g.cat}${ex ? ' ex' : ''}" title="${title}">${gearIconHtml(g.icon, g.short)}${value !== '' ? `<em>${value}</em>` : ''}</span>`;
     };
     const cgBlank = (capacity?: number, ex = false) =>
         `<span class="cg-item cg-empty${ex ? ' ex' : ''}"><span class="g-icon-slot"></span>${capacity ? `<em>${capacity}</em>` : ''}</span>`;
@@ -249,13 +314,43 @@ const SEVEN_FUNCTION_FLEET = (name: string, stype: string) => [
     previewShip(SEVEN_SHIPS[0], { stype, name }),
     ...SEVEN_SHIPS.slice(1),
 ];
+const withOpsMarks = (ships: Ship[], kind: 'repair' | 'morale' | 'both'): Ship[] =>
+    ships.map((s, i) => {
+        const bits: string[] = [];
+        if (kind === 'repair' || kind === 'both') {
+            bits.push(`<span class="rmark rep">${t('repair.markRepair')}+3</span>`);
+        }
+        if ((kind === 'morale' || kind === 'both') && i > 0) {
+            bits.push(`<span class="rmark mor">${t('repair.markMorale')}49</span>`);
+        }
+        return { ...s, opsMark: bits.join('') };
+    });
 const SEVEN_FLEET_REPAIR_HTML = sevenFleetHtml(
-    SEVEN_FUNCTION_FLEET('明石改', 'AR'),
-    '<span class="fs-tick repair-state"><span class="badge-tag repair">泊地修理 6艦</span></span>',
+    withOpsMarks(SEVEN_FUNCTION_FLEET('明石改', 'AR'), 'repair'),
+    repairOp(true),
 );
 const SEVEN_FLEET_MORALE_HTML = sevenFleetHtml(
+    withOpsMarks(SEVEN_FUNCTION_FLEET('野埼改', 'AO'), 'morale'),
+    moraleOp(),
+);
+const SEVEN_FLEET_REPAIR_MORALE_HTML = sevenFleetHtml(
+    withOpsMarks(SEVEN_FUNCTION_FLEET('明石改', 'AR'), 'both'),
+    `${repairOp(false)}${moraleOp()}`,
+);
+const SEVEN_FLEET_MORALE_UNKNOWN_HTML = sevenFleetHtml(
     SEVEN_FUNCTION_FLEET('野埼改', 'AO'),
-    '<span class="fs-tick repair-state"><span class="badge-tag morale">給糧 6艦</span></span>',
+    moraleUnknownOp(),
+    { air: '1234', lv: '1234', tp: '104' },
+);
+const SIX_FLEET_MORALE_UNKNOWN_HTML = sixFleetHtml(
+    withOpsMarks(SEVEN_FUNCTION_FLEET('野埼改', 'AO').slice(0, 6), 'morale'),
+    moraleUnknownOp(4),
+    { air: '0', los: '-12.8', lv: '540', tp: '102' },
+);
+const FIVE_FLEET_SPACING_HTML = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5));
+const FIVE_FLEET_SPACING_OPS_HTML = fiveFleetHtml(
+    withOpsMarks(SEVEN_SHIPS.slice(0, 5), 'morale'),
+    moraleOp('15:00', 5),
 );
 // 五格空母的搭載數是 compact 裝備列最容易觸發換行的案例；這是離線版面 fixture，
 // 不是對任何真實艦娘裝備狀態的推定。
@@ -270,6 +365,13 @@ const FIVE_SLOT_CARRIER = previewShip(SEVEN_SHIPS[2], {
     ],
     cap: [20, 20, 44, 12, 3],
     ex: 'empty',
+});
+const SIX_GEAR_CARRIER = previewShip(FIVE_SLOT_CARRIER, {
+    gears: [
+        ...FIVE_SLOT_CARRIER.gears.slice(0, 4),
+        { name: '艦載機', short: '攻', cat: 'c-tb', icon: 11, count: 3, countMax: 3 },
+    ],
+    ex: { name: '改良型艦本式渦輪', short: '機', cat: 'c-etc', icon: 24, level: 10 },
 });
 const COMBINED_FIRST_SHIPS: Ship[] = [
     previewShip(SEVEN_SHIPS[0], { stype: 'BBV', name: '大和改二重', lv: 173, hp: 107, maxhp: 107, cond: 100 }),
@@ -291,12 +393,14 @@ const COMBINED_SECOND_SHIPS: Ship[] = [
 // 大破示範只改離線預覽 fixture 的 HP；不把這組假資料當成封包狀態。
 const COMBINED_TAIHA_FIRST_SHIPS = COMBINED_FIRST_SHIPS.map((s, i) => i === 0 ? { ...s, hp: 20 } : s);
 const COMBINED_TAIHA_SECOND_SHIPS = COMBINED_SECOND_SHIPS.map((s, i) => i === 0 ? { ...s, hp: 3 } : s);
+const COMBINED_SIX_GEAR_FIRST_SHIPS = COMBINED_FIRST_SHIPS.map((s, i) => i === 2 ? SIX_GEAR_CARRIER : s);
 const combinedFleetHtml = (first: Ship[], second: Ship[]) => `<div class="combined-wrap sortie-combined-fleet">
-  <div class="fsummary combined-total"><div class="fs-metrics"><span class="fs-pri">制空 <b>27~28</b></span><span class="fs-pri">索敵(33) <b>22.5</b> <select class="cn"><option selected>×1</option><option>×2</option><option>×3</option><option>×4</option></select></span><span class="fs-sec"><b>低速</b></span><span class="fs-sec">Lv <b>1197</b></span><span class="fs-sec">TP <b>113</b></span></div></div>
+  <div class="fsummary combined-total">${summaryMetrics({ air: '27~28', los: '22.5', lv: '1197', tp: '113' })}</div>
   <div class="c-fleet-row">${combinedFleetColumn(first)}${combinedFleetColumn(second)}</div>
 </div>`;
 const COMBINED_FLEET_HTML = combinedFleetHtml(COMBINED_FIRST_SHIPS, COMBINED_SECOND_SHIPS);
 const COMBINED_FLEET_TAIHA_HTML = combinedFleetHtml(COMBINED_TAIHA_FIRST_SHIPS, COMBINED_TAIHA_SECOND_SHIPS);
+const COMBINED_FLEET_SIX_GEAR_HTML = combinedFleetHtml(COMBINED_SIX_GEAR_FIRST_SHIPS, COMBINED_SECOND_SHIPS);
 
 const NAV_HTML = `<button type="button">1</button><button type="button">2</button><button type="button" class="on">3</button><button type="button">4</button><button type="button">連合艦隊</button><span class="grow"></span><button type="button">基地航空隊</button>`;
 
@@ -613,8 +717,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 420px;
-  min-width: 420px;
+  width: 370px;
+  min-width: 370px;
   flex: 0 0 auto;
 }
 .pv-win-label {
@@ -626,7 +730,7 @@ html, body {
 .pv-win.pv-left .pv-win-label { color: var(--text); }
 .pv-win.pv-right .pv-win-label { color: var(--sparkle); }
 .pv-app {
-  width: 420px;
+  width: 370px;
   height: 850px;
   max-height: 850px;
   border-radius: 6px;
@@ -643,8 +747,8 @@ html, body {
   color: var(--dim);
   line-height: 1.4;
   padding: 4px 2px;
-  width: 420px;
-  max-width: 420px;
+  width: 370px;
+  max-width: 370px;
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
@@ -952,21 +1056,31 @@ html, body {
 }
 .pv-prop .s-priority-item {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
+  overflow: hidden;
   color: var(--dim);
   font-size: 9px;
+  line-height: 1;
   white-space: nowrap;
 }
+.pv-prop .s-priority-item span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .pv-prop .s-priority-item b {
+  max-width: 100%;
+  overflow: hidden;
   font-family: system-ui, -apple-system, "Hiragino Sans", sans-serif;
   color: var(--text);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0;
-  overflow: hidden;
+  line-height: 1;
   text-overflow: ellipsis;
 }
 .pv-prop .s-priority-item.good b { color: #58a55c; }
@@ -975,8 +1089,8 @@ html, body {
 
 .pv-prop .s-rank-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 12px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 8px;
   align-items: center;
   height: 33px;
   min-height: 33px;
@@ -1040,18 +1154,21 @@ html, body {
   font-size: 9.5px;
   letter-spacing: -.03em;
   font-weight: 650;
-  line-height: 1.05;
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: break-word;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .pv-prop .s-formation-compact {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 6px;
   height: 100%;
-  width: 100%;
+  width: max-content;
   min-width: 0;
   color: var(--dim);
   font-size: 10px;
@@ -1086,6 +1203,7 @@ html, body {
   min-height: 44px;
   padding: 0;
   box-sizing: border-box;
+  overflow: hidden;
 }
 .pv-prop .s-air-loss-grid {
   display: grid;
@@ -1156,6 +1274,7 @@ html, body {
   line-height: 1.2;
   font-family: inherit;
   margin: 0;
+  overflow: hidden;
   transition: background 0.15s ease, border-color 0.15s ease;
   z-index: 2;
 }
@@ -1372,10 +1491,10 @@ html, body {
   box-sizing: border-box;
 }
 .pv-app .sortie-combined-fleet {
-  gap: 2px;
+  gap: 0;
 }
 .pv-app .sortie-combined-fleet .c-fleet-row {
-  gap: 8px;
+  gap: 6px;
 }
 .pv-app .sortie-combined-fleet section.fleet.compact {
   min-width: 0;
@@ -2009,9 +2128,9 @@ const tacticalSideHtml = (s: TacticalSideParams) => {
             : s.contact === '敵'
                 ? '觸接：敵方深海艦載機'
                 : '觸接：未成立或無資料';
-    const retreatText = s.retreatAvailable ? '司令部裝備，可退避' : '注意，不可退避';
-    const warning = s.warning ? `<button type="button" class="taiha-alert s-taiha s-taiha-generic open" aria-expanded="true" title="大破！\n${retreatText}">
-      <span class="taiha-head">大破！</span><span class="taiha-hint">${retreatText}</span>
+    const retreatText = s.retreatAvailable ? t('sortie.taihaRetreatHint') : t('sortie.taihaRetreatNoEscort');
+    const warning = s.warning ? `<button type="button" class="taiha-alert s-taiha s-taiha-generic open" aria-expanded="true" title="${esc(t('sortie.taihaWarning'))}\n${esc(retreatText)}">
+      <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(retreatText)}</span>
     </button>` : '';
     const friendlyArrived = s.friendlyState === 'on';
     const friendlyShips = friendlyArrived
@@ -2166,8 +2285,8 @@ const REFERENCE_SIDE_HTML = `<div class="s-priority-row">
     <div class="s-air-loss-row"><span class="s-air-loss-cell friendly"><b>4</b></span><span class="s-air-kind fighter" title="戰鬥機">戰</span><span class="s-air-loss-cell enemy"><b>71</b><i>−15</i></span></div>
     <div class="s-air-loss-row"><span class="s-air-loss-cell friendly"><b>0</b></span><span class="s-air-kind bomber" title="爆擊機／攻擊機">爆</span><span class="s-air-loss-cell enemy"><b>24</b><i>−21</i></span></div>
   </div>
-  <button type="button" class="taiha-alert s-taiha s-taiha-generic open" aria-expanded="true" title="大破！\n注意，不可退避">
-    <span class="taiha-head">大破！</span><span class="taiha-hint">注意，不可退避</span>
+  <button type="button" class="taiha-alert s-taiha s-taiha-generic open" aria-expanded="true" title="${esc(t('sortie.taihaWarning'))}\n${esc(t('sortie.taihaRetreatNoEscort'))}">
+    <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(t('sortie.taihaRetreatNoEscort'))}</span>
   </button>
 </div>
 ${nightEffectsHtml({ searchlight: 'unknown', 'night-contact': 'unknown', 'star-shell': 'unknown' }, 'main', '夜戰進入：主隊', 'off', '友軍艦隊未抵達')}
@@ -2244,6 +2363,14 @@ const SCENES = [
         fleet: COMBINED_FLEET_HTML,
     },
     {
+        id: 'combined-fleet-six-gear',
+        label: '編成預覽｜連合六格極限',
+        note: '五個一般裝備格與增設格全部顯示：最後一格有裝備圖示與搭載數，增設格有裝備圖示與滿改星號；檢查窄欄內不重疊、不裁切。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: COMBINED_FLEET_SIX_GEAR_HTML,
+    },
+    {
         id: 'combined-fleet-taiha',
         label: '編成預覽｜連合艦隊大破狀態',
         note: '同一個連合艦隊雙欄版面加入第一／第二艦隊各一艘大破示範，確認紅名、紅色 HP 條、大破標記與 Lv／士氣／燃彈不互相遮住。',
@@ -2252,9 +2379,33 @@ const SCENES = [
         fleet: COMBINED_FLEET_TAIHA_HTML,
     },
     {
+        id: 'six-fleet-taiha',
+        label: '編成預覽｜六船大破狀態',
+        note: '六船單隊大破列：大破標籤在 32px 狀態槽，不得另增列高。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: SIX_FLEET_TAIHA_HTML,
+    },
+    {
+        id: 'five-fleet-spacing',
+        label: '編成預覽｜五船間距（無 .fs-ops）',
+        note: '五艦只減少艦列數，不縮小單艦列高；摘要指標至首艦與艦間距皆為 8px。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: FIVE_FLEET_SPACING_HTML,
+    },
+    {
+        id: 'five-fleet-spacing-ops',
+        label: '編成預覽｜五船間距（有 .fs-ops）',
+        note: '五艦帶操作摘要時，單艦列高與六艦一致；摘要指標至首艦與艦間距皆為 5px。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: FIVE_FLEET_SPACING_OPS_HTML,
+    },
+    {
         id: 'single-fleet-taiha',
-        label: '編成預覽｜單艦隊大破狀態',
-        note: '同一個出擊預覽頁內顯示單艦隊的大破列：整列紅色警示、士氣位置顯示大破標籤，點擊標籤可查看原本士氣。',
+        label: '編成預覽｜七船大破狀態',
+        note: '七船單隊大破列：整列紅色警示、狀態槽顯示大破標籤，編成總高不得超出 730px 目標。',
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
         fleet: SEVEN_FLEET_TAIHA_HTML,
@@ -2274,6 +2425,30 @@ const SCENES = [
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
         fleet: SEVEN_FLEET_MORALE_HTML,
+    },
+    {
+        id: 'single-fleet-repair-morale',
+        label: '編成預覽｜泊地修理＋給糧共存',
+        note: '泊地修理與給糧可同時顯示；兩個操作各自保有圖示、文字與倒數，並沿用相同垂直基準。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: SEVEN_FLEET_REPAIR_MORALE_HTML,
+    },
+    {
+        id: 'single-fleet-morale-unknown',
+        label: '編成預覽｜給糧倒數不可考',
+        note: '給糧範圍仍可判斷但時間錨點不存在時，將「倒數不可考」與給糧資訊分隔，不與艦數黏在一起。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: SEVEN_FLEET_MORALE_UNKNOWN_HTML,
+    },
+    {
+        id: 'six-fleet-morale-unknown',
+        label: '編成預覽｜六船給糧倒數不可考',
+        note: '六船單隊出現給糧摘要列時，檢查艦列間距並保留 730px 排版目標。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: SIX_FLEET_MORALE_UNKNOWN_HTML,
     },
     {
         id: 'combined-boss',
@@ -3136,13 +3311,13 @@ const page = `<!doctype html>
 <html lang="zh-TW">
 <head>
 <meta charset="utf-8">
-<title>出擊分頁左右比較預覽（420×850）</title>
+<title>出擊分頁左右比較預覽（370×850）</title>
 <style>${css}${extraCss}</style>
 </head>
 <body>
   <p class="pv-intro">
     <b>出擊分頁左右比較（參考畫面校正版）</b>
-    左側為目前面板，右側為修正版；兩個 420×850 假窗使用同一組 E3 甲資料，下方依場景切換單隊七船或連合艦隊雙欄編成並量測 ${FLEET_SAFE_HEIGHT}px 安全線。
+    左側為目前面板，右側為修正版；兩個 370×850 假窗使用同一組 E3 甲資料，下方依場景切換單隊六／七船或連合艦隊雙欄編成並量測 ${FLEET_SAFE_HEIGHT}px 安全線。
   </p>
   <div class="pv-bar">
     ${SCENES.map(s => `<button type="button" data-sc="${s.id}"${s.id === 'reference' ? ' class="on"' : ''}>${esc(s.label)}</button>`).join('')}
@@ -3210,13 +3385,21 @@ function measure() {
       ? Math.round(tabs.getBoundingClientRect().bottom - header.getBoundingClientRect().top)
       : 0;
     const n = fleets.querySelectorAll('.ship').length;
-    const row = fleets.querySelector('.ship');
+    const rows = [...fleets.querySelectorAll('.fleet > .ship')];
+    const row = rows[0];
+    const metrics = fleets.querySelector('.fleet > .fsummary .fs-metrics');
     const rowH = row ? Math.round(row.getBoundingClientRect().height * 10) / 10 : 0;
+    const metricsGap = row && metrics
+      ? Math.round((row.getBoundingClientRect().top - metrics.getBoundingClientRect().bottom) * 10) / 10
+      : 0;
+    const shipGap = rows.length > 1
+      ? Math.round((rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom) * 10) / 10
+      : 0;
     const over = used > FLEET_SAFE_HEIGHT;
     el.classList.toggle('over', over);
-    el.innerHTML = '假窗 <b>' + appH + 'px</b>；七船用掉 <b>' + used + 'px</b> / ' + FLEET_SAFE_HEIGHT + 'px 安全線' +
+    el.innerHTML = '假窗 <b>' + appH + 'px</b>；編成用掉 <b>' + used + 'px</b> / ' + FLEET_SAFE_HEIGHT + 'px 安全線' +
       '（頂欄 ' + chromeH + '／出擊區 ' + panelH + '／nav ' + navH + '／fleets ' + fleetH +
-      '，' + n + ' 艘、列高 ' + rowH + 'px）' +
+      '，' + n + ' 艘、列高 ' + rowH + 'px、摘要至首艦 ' + metricsGap + 'px／艦間距 ' + shipGap + 'px）' +
       (over ? '　⚠️ 超過 ' + FLEET_SAFE_HEIGHT + 'px 安全線，實機可能裁切' : '　✅ 安全線內（未超出）');
   });
 }
@@ -3291,4 +3474,159 @@ const dark = resolve(root, '.preview/panel-sortie.html');
 const light = resolve(root, '.preview/panel-sortie-light.html');
 writeFileSync(dark, page);
 writeFileSync(light, page.replace('<html lang="zh-TW">', '<html lang="zh-TW" data-theme="light">'));
+
+setLang('en');
+const airLossStub = `<div class="s-air-loss-grid" aria-hidden="true">
+  <div class="s-air-loss-head"><b>Us</b><span></span><b>Enemy</b></div>
+  <div class="s-air-loss-row"><span class="s-air-loss-cell friendly"><b>4</b></span><span class="s-air-kind fighter">F</span><span class="s-air-loss-cell enemy"><b>71</b></span></div>
+  <div class="s-air-loss-row"><span class="s-air-loss-cell friendly"><b>0</b></span><span class="s-air-kind bomber">B</span><span class="s-air-loss-cell enemy"><b>24</b></span></div>
+</div>`;
+const enOverlay = (hint: string, flagship = false) => `<div class="s-air-wrap covered">
+  ${airLossStub}
+  ${flagship
+        ? `<div class="taiha-alert s-taiha s-taiha-flagship open"><span class="taiha-head">${esc(hint)}</span></div>`
+        : `<button type="button" class="taiha-alert s-taiha s-taiha-generic open"><span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(hint)}</span></button>`}
+</div>`;
+const enSix = `<section class="fleet fleet-six fleet-no-ops">${SIX_TAIHA_SHIPS.map(s => shipRow(s)).join('')}</section>`;
+const enSeven = sevenFleetHtml(SEVEN_TAIHA_SHIPS);
+const enFiveNoOps = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5));
+const enFiveOps = fiveFleetHtml(
+    withOpsMarks(SEVEN_SHIPS.slice(0, 5), 'morale'),
+    moraleOp('15:00', 5),
+);
+const enCombinedDual = combinedFleetHtml(COMBINED_FIRST_SHIPS, COMBINED_SECOND_SHIPS);
+const enCombinedSixGear = combinedFleetHtml(COMBINED_SIX_GEAR_FIRST_SHIPS, COMBINED_SECOND_SHIPS);
+const enCombined = combinedFleetHtml(COMBINED_TAIHA_FIRST_SHIPS, COMBINED_TAIHA_SECOND_SHIPS);
+const enPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>English taiha layout</title>
+<style>
+${css}
+html, body { height: auto; overflow: auto; }
+body { display: block; margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; }
+.en-block { width: 370px; margin: 0 0 28px; }
+.en-block h2 { margin: 0 0 8px; font-size: 13px; color: var(--brass); }
+.en-measure { margin: 6px 0 0; font-size: 12px; color: var(--dim); }
+.en-eside { width: 171px; }
+</style>
+</head>
+<body>
+<h1 style="font-size:16px;color:var(--sparkle)">English taiha layout</h1>
+<div class="en-block">
+  <h2>Sortie overlay · no retreat</h2>
+  <div class="en-eside" id="en-overlay-none">${enOverlay(t('sortie.taihaRetreatNoEscort'))}</div>
+  <p class="en-measure" id="m-overlay-none"></p>
+</div>
+<div class="en-block">
+  <h2>Sortie overlay · retreat available</h2>
+  <div class="en-eside" id="en-overlay-ready">${enOverlay(t('sortie.taihaRetreatHint'))}</div>
+  <p class="en-measure" id="m-overlay-ready"></p>
+</div>
+<div class="en-block">
+  <h2>Sortie overlay · flagship</h2>
+  <div class="en-eside" id="en-overlay-flag">${enOverlay(t('sortie.taihaFlagship'), true)}</div>
+  <p class="en-measure" id="m-overlay-flag"></p>
+</div>
+<div class="en-block" id="en-six">${enSix}<p class="en-measure" id="m-six"></p></div>
+<div class="en-block" id="en-seven">${enSeven}<p class="en-measure" id="m-seven"></p></div>
+<div class="en-block" id="en-five-no-ops">
+  <h2>Five ships · no .fs-ops</h2>
+  ${enFiveNoOps}<p class="en-measure" id="m-five-no-ops"></p>
+</div>
+<div class="en-block" id="en-five-ops">
+  <h2>Five ships · with .fs-ops</h2>
+  ${enFiveOps}<p class="en-measure" id="m-five-ops"></p>
+</div>
+<div class="en-block" id="en-combined-dual">
+  <h2>Combined fleet · dual columns</h2>
+  ${enCombinedDual}<p class="en-measure" id="m-combined-dual"></p>
+</div>
+<div class="en-block" id="en-combined-six-gear">
+  <h2>Combined fleet · six-slot edge case</h2>
+  ${enCombinedSixGear}<p class="en-measure" id="m-combined-six-gear"></p>
+</div>
+<div class="en-block" id="en-combined">
+  <h2>Combined fleet · taiha</h2>
+  ${enCombined}<p class="en-measure" id="m-combined"></p>
+</div>
+<script>
+const rowDelta = (root, out) => {
+  const rows = [...root.querySelectorAll('.ship')];
+  if (rows.length < 2) { out.textContent = 'need 2 rows'; return; }
+  const taiha = rows[0].getBoundingClientRect().height;
+  const normal = rows[1].getBoundingClientRect().height;
+  out.textContent = 'taiha ' + taiha.toFixed(1) + 'px / normal ' + normal.toFixed(1) + 'px / delta ' + (taiha - normal).toFixed(1);
+};
+const fleetRowFit = (root, out) => {
+  const rows = [...root.querySelectorAll('.fleet > .ship')];
+  if (!rows.length) { out.textContent = 'missing fleet rows'; return; }
+  const metrics = root.querySelector('.fleet > .fsummary .fs-metrics');
+  const metricGap = metrics
+    ? Math.round((rows[0].getBoundingClientRect().top - metrics.getBoundingClientRect().bottom) * 10) / 10
+    : 0;
+  const rowHeights = [...new Set(rows.map(row => row.getBoundingClientRect().height.toFixed(1)))];
+  const shipGap = rows.length > 1
+    ? Math.round((rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom) * 10) / 10
+    : 0;
+  out.textContent = rows.length + ' ships / row ' + rowHeights.join(', ') + 'px / metrics-to-first ' + metricGap + 'px / ship gap ' + shipGap + 'px';
+};
+const overlayFit = (root, out) => {
+  const wrap = root.querySelector('.s-air-wrap');
+  const box = root.querySelector('.s-taiha');
+  if (!wrap || !box) { out.textContent = 'missing overlay'; return; }
+  const overflow = box.scrollHeight - wrap.clientHeight;
+  out.textContent = 'wrap ' + wrap.clientHeight + 'px / content ' + box.scrollHeight + 'px / overflow ' + overflow;
+};
+rowDelta(document.getElementById('en-six'), document.getElementById('m-six'));
+rowDelta(document.getElementById('en-seven'), document.getElementById('m-seven'));
+rowDelta(document.getElementById('en-combined'), document.getElementById('m-combined'));
+fleetRowFit(document.getElementById('en-five-no-ops'), document.getElementById('m-five-no-ops'));
+fleetRowFit(document.getElementById('en-five-ops'), document.getElementById('m-five-ops'));
+const combinedFit = (root, out) => {
+  const rows = [...root.querySelectorAll('.ship.c')];
+  const gearRows = [...root.querySelectorAll('.c-gear')];
+  const clipped = gearRows.filter(row => row.scrollWidth > row.clientWidth + 1).length;
+  const exClipped = [...root.querySelectorAll('.cg-item.ex')].filter(item => {
+    const row = item.closest('.ship.c');
+    return !row || item.getBoundingClientRect().right > row.getBoundingClientRect().right + 1;
+  }).length;
+  out.textContent = rows.length + ' ships / gear rows over width ' + clipped + '/' + gearRows.length + ' / enhancement chips clipped ' + exClipped;
+};
+combinedFit(document.getElementById('en-combined-dual'), document.getElementById('m-combined-dual'));
+combinedFit(document.getElementById('en-combined-six-gear'), document.getElementById('m-combined-six-gear'));
+combinedFit(document.getElementById('en-combined'), document.getElementById('m-combined'));
+overlayFit(document.getElementById('en-overlay-none'), document.getElementById('m-overlay-none'));
+overlayFit(document.getElementById('en-overlay-ready'), document.getElementById('m-overlay-ready'));
+overlayFit(document.getElementById('en-overlay-flag'), document.getElementById('m-overlay-flag'));
+const markReport = [...document.querySelectorAll('#en-combined .taiha-cond-toggle')].map(el => {
+  const m = el.querySelector('.taiha-mark');
+  return 'toggle ' + el.clientWidth + 'px mark ' + (m ? m.scrollWidth + '/' + m.clientWidth + ' [' + m.textContent + ']' : 'none');
+}).join(' · ');
+document.getElementById('m-combined').textContent += ' · ' + markReport;
+</script>
+</body></html>`.replace(/src="\/icons\//g, 'src="../public/icons/');
+writeFileSync(resolve(root, '.preview/panel-taiha-en.html'), enPage);
+
+const summaryLanguagePage = (lang: 'zh-TW' | 'en' | 'ja') => {
+    setLang(lang);
+    // 三語共用同一組最壞案例，確認制空範圍、負值索敵、四位數等級與 TP 都不會被裁掉。
+    const hardCase = summaryMetrics({ air: '1234~1245', los: '-20.6', lv: '1234', tp: '104' });
+    const speedSamples = [
+        t('speed.slow'), t('speed.fast'), t('speed.fastPlus'), t('speed.fastest'),
+    ].map((speed, index) => summaryMetrics({ speed, air: `${69 + index}`, los: `${24 + index}.0` })).join('');
+    const fleet = sevenFleetHtml(SEVEN_SHIPS, `${repairOp(true)}${moraleOp()}`);
+    return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>Summary ${lang}</title><style>
+${css}
+html,body{height:auto;overflow:auto}body{display:block;margin:0;padding:16px;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,sans-serif}.pv-lang{width:370px;border:1px solid var(--line);box-sizing:border-box;margin-bottom:16px}.pv-lang h1{font-size:14px;color:var(--sparkle);margin:0 10px 10px;padding-top:8px}.pv-lang .fsummary{margin-bottom:8px}.pv-lang .fs-metrics{margin-bottom:4px}
+</style></head><body>
+<main class="pv-lang" data-frame="370"><h1>${lang.toUpperCase()} 370 inner</h1>
+<div id="fleets">${hardCase}${speedSamples}${fleet}</div></main>
+</body></html>`.replace(/src="\/icons\//g, 'src="../public/icons/');
+};
+writeFileSync(resolve(root, '.preview/panel-summary-zh.html'), summaryLanguagePage('zh-TW'));
+writeFileSync(resolve(root, '.preview/panel-summary-en.html'), summaryLanguagePage('en'));
+writeFileSync(resolve(root, '.preview/panel-summary-ja.html'), summaryLanguagePage('ja'));
+setLang('zh-TW');
 console.log('Preview updated successfully');

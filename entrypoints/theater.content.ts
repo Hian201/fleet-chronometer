@@ -465,43 +465,45 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
     [hidden] { display: none !important; }
     .bar {
         position: fixed; z-index: 2147483647;
-        display: flex; align-items: center; gap: 2px;
-        font: 12px/1.2 system-ui, -apple-system, "Noto Sans TC", sans-serif;
+        display: flex; align-items: center; gap: 1px;
+        font: 11px/1 system-ui, -apple-system, "Noto Sans TC", sans-serif;
         color: #cfd6e4;
     }
     .bar[data-mode="idle"] {
-        right: 12px; bottom: 12px;
-        padding: 4px; border-radius: 10px;
+        right: 8px; bottom: 8px;
+        padding: 2px; border-radius: 6px;
         background: rgba(16, 21, 29, .92); border: 1px solid #2a3548;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, .45);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
         opacity: .35; transition: opacity .15s ease;
     }
     .bar[data-mode="idle"]:hover, .bar[data-mode="idle"]:focus-within { opacity: 1; }
     .bar[data-mode="on"] {
         left: 0; right: 0; bottom: 0; height: ${BAR_HEIGHT}px;
         justify-content: center;
-        padding: 0 8px;
+        padding: 0 4px;
         background: #0b1018; border-top: 1px solid #1d2636;
     }
     button {
         all: unset; box-sizing: border-box;
-        min-width: 30px; height: 28px; padding: 0 8px;
+        min-width: 20px; height: 16px; padding: 0 4px;
         display: inline-flex; align-items: center; justify-content: center;
-        border-radius: 6px; cursor: pointer; color: #cfd6e4;
+        border-radius: 3px; cursor: pointer; color: #cfd6e4;
         font: inherit; letter-spacing: .04em; white-space: nowrap;
     }
+    /* 圖示鈕用接近列高的字級，避免 emoji 在矮列裡顯得過小、留白過多。 */
+    button.mute, button.screenshot, button.exit { font-size: 13px; line-height: 1; }
     button:hover { background: #223049; }
     button:active { background: #2c3d5c; }
     button:focus-visible { outline: 2px solid #e6c35c; outline-offset: 1px; }
     button[data-on="1"] { color: #e6c35c; }
-    .sep { width: 1px; height: 14px; background: #2a3548; margin: 0 4px; }
+    .sep { width: 1px; height: 10px; background: #2a3548; margin: 0 2px; }
     /* 離開鈕跟其他按鈕拉開距離——唯一「按下去整個適應就沒了」的鈕，避免手滑。 */
-    .exit-gap { margin: 0 22px; }
+    .exit-gap { margin: 0 12px; }
     .flash {
-        position: fixed; z-index: 2147483647; left: 50%; bottom: 34px; transform: translateX(-50%);
-        padding: 7px 14px; border-radius: 8px; max-width: 70vw;
+        position: fixed; z-index: 2147483647; left: 50%; bottom: 22px; transform: translateX(-50%);
+        padding: 4px 10px; border-radius: 6px; max-width: 70vw;
         background: rgba(11, 16, 24, .96); border: 1px solid #2a3548; color: #cfd6e4;
-        font: 12px/1.4 system-ui, -apple-system, "Noto Sans TC", sans-serif;
+        font: 11px/1.3 system-ui, -apple-system, "Noto Sans TC", sans-serif;
         pointer-events: none;
     }
     @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }

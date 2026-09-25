@@ -27,6 +27,10 @@ const BUDGET = 440;
 // 面板的兩支符號函式（與 panel/main.ts 同一份轉寫；那邊是 module-local 不能匯入）
 const alvMark = (alv: number) =>
     ['', '|', '||', '|||', '/', '//', '///', '&gt;&gt;'][Math.min(7, Math.max(0, alv))];
+const alvU = (alv: number) => {
+    const cls = alv >= 7 ? 'alv-ace' : alv >= 1 && alv <= 3 ? 'alv-lo' : '';
+    return `<u${cls ? ` class="${cls}"` : ''}>${alvMark(alv)}</u>`;
+};
 const impMark = (level: number) => (level >= 10 ? '★' : level > 0 ? String(level) : '');
 
 // ── 假資料 ─────────────────────────────────────────────────────────────────
@@ -57,7 +61,7 @@ const BASE2: AirBaseView = {
     squadrons: [
         sq({ name: '雷電', short: '戦', cat: 'c-ftr', icon: 6, level: 10, alv: 7 }),
         sq({ name: '紫電改(三四三空) 戦闘301', short: '戦', cat: 'c-ftr', icon: 6, level: 7, alv: 7 }),
-        sq({ name: 'Fw 190 A-5/U2', short: '戦', cat: 'c-ftr', icon: 6, count: 9, alv: 4, cond: 2 }),
+        sq({ name: 'Fw 190 A-5/U2', short: '戦', cat: 'c-ftr', icon: 6, count: 9, alv: 2, cond: 2 }),
         sq({ name: '三式戦 飛燕(飛行第244戦隊)', short: '戦', cat: 'c-ftr', icon: 6, level: 3, alv: 6 }),
     ],
 };
@@ -149,7 +153,7 @@ const card = (ab: AirBaseView, cond: CondStyle = COND_STYLES.face!.render) => `<
   <div class="ab-sq-grid">${ab.squadrons.map(s => s.state !== 1
     ? `<div class="ab-sq empty-sq"><span class="sq-name">${t('lbas.notDeployed')}</span></div>`
     : `<div class="ab-sq">
-        <span class="sq-chip ${s.cat}" title="${esc(s.name)}${s.level ? ` ★${s.level}` : ''}${s.alv ? ` »${s.alv}` : ''}">${gearIconHtml(s.icon, s.short)}${s.alv ? `<u>${alvMark(s.alv)}</u>` : ''}${s.level ? `<b>${impMark(s.level)}</b>` : ''}</span>
+        <span class="sq-chip ${s.cat}" title="${esc(s.name)}${s.level ? ` ★${s.level}` : ''}${s.alv ? ` »${s.alv}` : ''}">${gearIconHtml(s.icon, s.short)}${s.alv ? alvU(s.alv) : ''}${s.level ? `<b>${impMark(s.level)}</b>` : ''}</span>
         <span class="sq-name" title="${esc(s.name)}">${esc(s.name)}</span>
         <span class="sq-count ${s.count < s.maxCount ? 'depleted' : ''}">${s.count}/${s.maxCount}</span>
         ${cond(s.cond)}

@@ -16,7 +16,10 @@
             --dmg-major: #e05555;
             --dmg-mid: #e08b3d;
             --dmg-minor: #d4b83a;
+            /* 血條刻度要壓在填色與空軌上。暗底用深線，亮底改淺線。 */
+            --hp-tick: rgba(16, 21, 29, .92);
             --sparkle: #e6c35c;
+            --alv-bar: #9dc3ef;
             /* 索敵/航向/觸接/航空戰數值色。刻意獨立於 --dmg-mid（傷害語意），
                避免兩種無關語意共用同一色而互相稀釋（design-guidelines §4.5）。 */
             --stat-mini: #e0954d;
@@ -31,6 +34,11 @@
             --gauge-track: #2a3548;
             /* 調度分頁下拉浮層底色（掛 body，需獨立於 --panel 以免與表格底混成一塊）。 */
             --menu: #1c2738;
+            /* 編成摘要的速力階層：不靠粗體，改用既有中性／黃銅色的明度順序。 */
+            --speed-slow: var(--dim);
+            --speed-fast: var(--text);
+            --speed-fast-plus: color-mix(in srgb, var(--brass) 55%, var(--text));
+            --speed-fastest: var(--sparkle);
 
             /* 字距（tracking）級距：與字級成反比——字愈小需要愈多字距才好讀，字愈大
                則要收緊。這組變數統一三種擴充頁面的字距比例，避免小字比大字更窄。 */
@@ -54,7 +62,9 @@
             --dim: #6b7688;
             --brass: #9a6b0b;
             --stub: #aab3c2;
+            --hp-tick: rgba(255, 255, 255, .92);
             --sparkle: #8a6d1a;
+            --alv-bar: #9dc3ef;
             --gauge-track: #4a5568;
             --menu: #ffffff;
         }
@@ -276,7 +286,7 @@
             flex-direction: column;
         }
 
-        /* 一般分頁固定資訊抬頭，任務內容在自己的區域捲動；避免 #tabpanel 整塊上下移動。 */
+        /* 一般分頁維持固定高度；各子頁自行處理內容捲動。 */
         #tabpanel.has-general {
             overflow: hidden;
             display: flex;
@@ -885,18 +895,11 @@
             color: var(--dim);
         }
 
-        /* 任務清單保留所有受注項目，僅任務區自身捲動；不可截斷成前 8 筆，否則後續任務
-           會完全消失。兩欄仍與上方欄界對齊，長任務名交給欄內 ellipsis 處理。 */
+        /* 任務清單保留垂直捲動；實際單欄展開列由 .ledger-quest-list 管理。 */
         #quests {
             flex: 1;
             min-height: 0;
             overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            grid-auto-rows: min-content;
-            gap: 1px 10px;
-            align-content: start;
-            align-items: start;
         }
 
         .quest-cell {
@@ -1000,9 +1003,10 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            /* 收垂直 padding：縮小「陣型列／分頁底」到編成之間的空隙，七船用 */
+            /* 收垂直 padding：縮小「陣型列／分頁底」到編成之間的空隙，七船用。
+               不畫底部分隔線：與下方 .fs-metrics 的間距改由 #fleets／.fsummary
+               統一承擔，避免單隊與連合各多一條線、上下留白不一致。 */
             padding: 3px 10px;
-            border-bottom: 1px solid var(--line);
         }
 
         #fleetnav button {
@@ -1068,19 +1072,21 @@
         }
 
         /* 聯合艦隊檢視：#fleets 只放一個 .combined-wrap 子元素——上排 .fsummary.combined-total
-           （兩隊合計統計，全寬）、下排 .c-fleet-row（兩隊左右並排，各佔一半可用寬，420
-           視窗內寬 400 − gap 8 → 約 196px），故必須解除單隊檢視的 min-width:320
+           （兩隊合計統計，全寬）、下排 .c-fleet-row（兩隊左右並排，各佔一半可用寬；370
+           內寬扣除編成內距與欄距後，每欄約 160px），故必須解除單隊檢視的 min-width:320
            （否則會被擠成上下堆疊）。欄內一切以 min-width:0 允許艦名截斷為前提。 */
         .combined-wrap {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            /* 合計列底內距已由 .fsummary 的 4px 承擔，此處不再加 gap，
+               否則連合會比六／七船多一截把艦列往下推。 */
+            gap: 0;
             width: 100%;
         }
 
         .c-fleet-row {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         section.fleet.compact {
@@ -1089,13 +1095,11 @@
             max-width: none;
         }
 
-        /* 聯合檢視沿用 850px 視窗；兩隊各最多 6 艘，版面以不捲動顯示完整編成為約束，
-           並保留固定的裝備列與狀態列高度。 */
+        /* 聯合檢視沿用 850px 視窗；兩隊各最多 6 艘，版面以不捲動顯示完整編成為約束。
+           合計列與單隊 .fsummary 共用同一套上下內距（無底線），避免連合多出一圈
+           留白把艦列往下推。 */
         .fsummary.combined-total {
-            padding: 6px 6px 5px;
-            font-size: 12px;
-            line-height: 1.3;
-            border-bottom: 1px solid var(--line);
+            padding: 0 6px 4px;
         }
 
         .fsummary.compact {
@@ -1111,14 +1115,19 @@
         }
 
         .ship.c {
-            padding: 2px 5px;
+            padding: 1px 4px;
             line-height: 1.3;
+            background: var(--panel);
+        }
+
+        section.fleet.compact > .ship.c:not(:last-child) {
+            margin-bottom: 6px;
         }
 
         .ship.c .c-top,
         .ship.c .c-bot {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             align-items: center;
         }
 
@@ -1158,7 +1167,7 @@
         }
 
         .ship.c .cond {
-            width: 2.4em;
+            width: 2.2em;
             font-size: 12px;
         }
 
@@ -1187,18 +1196,16 @@
             background-color: var(--line);
         }
 
-        /* 裝備列（HP 列下方新增一行）：不沿用單隊檢視的完整 .chip 結構（那個排法
-           連同 r-col 的熟練/改修兩行，塞進聯合欄寬後看起來就是縮小版單隊列，過於
-           擁擠）。改用單純的「圖示＋搭載數」小標籤：數字放在圖示右側（非疊在圖示
-           角落），改修★／熟練度移進 title、hover 才看到，讓聯合檢視的裝備列真正
-           比單隊檢視精簡。 */
+        /* 裝備列（HP 列下方新增一行）採窄版「圖示＋搭載數」；改修／熟練度收在 title，
+           增設格滿改另以星號顯示。整組 14px 圖示與 8px 數字是為五格一般裝備加增設格
+           保留完整寬度，避免窄欄重疊或裁切。 */
         /* 外層：一般槽位（.c-gear-slots，固定單列）＋打洞格，打洞格 flex:none 天然被
            推到最右、不隨一般槽位數量變動而跳位（見 main.ts compactGearRow 說明）。
            五格空母的搭載數也必須留在同一列，否則 compact 艦列會被額外的第二行撐高。 */
         .c-gear {
             display: flex;
             align-items: flex-start;
-            gap: 4px;
+            gap: 3px;
             margin-top: 2px;
             line-height: 1;
         }
@@ -1207,14 +1214,14 @@
             flex: 1 1 auto;
             display: flex;
             flex-wrap: nowrap;
-            gap: 2px;
+            gap: 3px;
             min-width: 0;
         }
 
         .cg-item {
             display: inline-flex;
             align-items: center;
-            gap: 2px;
+            gap: 1px;
             flex: 0 0 auto;
             min-width: 0;
             white-space: nowrap;
@@ -1222,8 +1229,8 @@
 
         .cg-item .g-icon,
         .cg-item .g-icon-slot {
-            width: 15px;
-            height: 15px;
+            width: 14px;
+            height: 14px;
         }
 
         /* 未裝備槽位：同單隊檢視 .chip-empty 的淡化＋虛線語意，但縮到與 .cg-item
@@ -1253,11 +1260,20 @@
 
         .cg-item em {
             font-style: normal;
-            font-weight: 700;
-            font-size: 9px;
+            font-weight: 600;
+            font-size: 8px;
             line-height: 1;
             color: var(--dim);
             font-variant-numeric: tabular-nums;
+        }
+
+        .cg-item.ex em {
+            color: #7fd0ff;
+        }
+
+        .c-gear-slots > .cg-item:not(.cg-empty) {
+            background: var(--line);
+            border-radius: 3px;
         }
 
         .cg-item em.hit {
@@ -1384,6 +1400,7 @@
            降為 --stub 並加刪除線，讓「在範圍內但不會被處理」與「根本不在範圍」可區分。 */
         .rmark {
             font-size: 9px;
+            line-height: 16px;
             letter-spacing: var(--track-tag);
             white-space: nowrap;
             font-variant-numeric: tabular-nums;
@@ -1400,24 +1417,6 @@
         .rmark.skip {
             color: var(--stub);
             text-decoration: line-through;
-        }
-
-        .ship-row,
-        .sub-row {
-            display: flex;
-            gap: 8px;
-            align-items: baseline;
-        }
-
-        /* 三個直屬元件（一般槽組／增設槽／燃彈）各收 1px gap：五格一般槽＋增設槽的
-           最寬組合仍在 420px 視窗內，且不必裁到任何圖示或數字。 */
-        .sub-row {
-            gap: 5px;
-            min-width: 0;
-        }
-
-        .ship-row {
-            flex-wrap: wrap;
         }
 
         .hpbar {
@@ -1437,6 +1436,19 @@
             background: #58a55c;
         }
 
+        /* 小破／中破／大破門檻。條寬已正規化，刻度固定在 75%／50%／25%，單艦隊與連合共用。 */
+        .hpbar::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background:
+                linear-gradient(var(--hp-tick), var(--hp-tick)) 75% 0 / 1px 100% no-repeat,
+                linear-gradient(var(--hp-tick), var(--hp-tick)) 50% 0 / 1px 100% no-repeat,
+                linear-gradient(var(--hp-tick), var(--hp-tick)) 25% 0 / 1px 100% no-repeat;
+        }
+
         .st-minor .hpbar>i {
             background: var(--dmg-minor);
         }
@@ -1449,9 +1461,8 @@
             background: var(--dmg-major);
         }
 
-        /* 大破艦：艦名轉紅。單隊與聯合（.ship.c）兩種艦列共用同一條警示語意；大破標籤
-           改放在士氣值的位置，不另外增加列高。 */
-        .st-major .ship-row .grow,
+        /* 大破艦：艦名轉紅。單隊與聯合（.ship.c）共用同一條警示語意；標籤不增加列高。 */
+        .st-major .ship-id .grow,
         .ship.c.st-major .c-top .grow {
             color: var(--dmg-major);
             font-weight: 600;
@@ -1478,8 +1489,8 @@
 
         /* 結構：.chips{flex:1} 裝一般槽，打洞＋燃彈在外側由剩餘空間推到列尾。
            第五格換行的主因是 SVG／熟練字元把單格撐寬；下面鎖 min/max 可維持整排預算。
-           五格一般槽＋增設槽時，將一般格縮至 40px（16px 圖示＋1px gap＋21px
-           資訊欄＋兩側各 1px 內距）且各 gap 收 1px，保證最後一格不會壓到增設槽。
+           共用基準格為 40px（16px 圖示＋1px gap＋21px 資訊欄＋兩側各 1px 內距）；
+           正式單隊列在下方按 90% 同步縮放，保證最後一格不會壓到增設槽。
            ⚠️ 高度硬約束：窗高 850 是按「單艘列高 ≈49.5px × 7 艘」校準的
            （background.ts openPanelWindow）。裝備列一旦 wrap 成兩行，單艘變高，
            第 7 艘就會被視窗底裁掉——所以這裡用 nowrap，並把格寬收到預算內。 */
@@ -1491,8 +1502,8 @@
             min-width: 0;
         }
 
-        /* 一般格 40px、打洞 34、燃彈 56（「100」不裁字）：5×40+gap8=208，
-           ＋34＋56＋sub-row gap10 ≈ 308，收進 420；.chips nowrap 禁止換行。
+        /* 共用基準格 40px、打洞 34、燃彈 56（「100」不裁字）；正式單隊列另縮為
+           36／31px。兩種配置都用 .chips nowrap 禁止換行，
            必須對 .chip／.g-icon 鎖 min/max，否則 SVG／「///」撐破→換行→七船被裁。 */
         .chip {
             box-sizing: border-box;
@@ -1609,8 +1620,10 @@
         }
 
         /* 熟練（u，在前）與改修（b，在後）槽固定寬度、不隨內容伸縮（flex:none），
-           空槽也佔位——讓同格數裝備列跨艦等寬對齊。顏色刻意對調：熟練金、改修藍。
-           熟練寬度以 /// 為準；改修僅單字元（數字或滿改修的 ★）故較窄。
+           空槽也佔位——讓同格數裝備列跨艦等寬對齊。
+           1–3 階直條跟遊戲同色 --alv-bar；4–7 斜線／雙箭維持 --sparkle。
+           熟練寬度以 /// 為準；滿熟 >> 以負字距收進同一槽，避免 overflow 切掉右箭、
+           也不壓到改修數字。改修僅單字元（數字或滿改修的 ★）故較窄。
            寬度屬於「六格一行」預算的一部分（見 .chip 註解），縮窄前先重算。 */
         .chip u {
             flex: none;
@@ -1623,6 +1636,15 @@
             text-align: left;
             text-decoration: none;
             color: var(--sparkle);
+        }
+
+        .chip u.alv-lo,
+        .ab-sq .sq-chip u.alv-lo {
+            color: var(--alv-bar);
+        }
+
+        .chip u.alv-ace {
+            letter-spacing: -0.12em;
         }
 
         .chip b {
@@ -1710,20 +1732,34 @@
             text-shadow: 0 0 2px #10151d, 0 0 2px #10151d;
         }
 
-        /* ── 編成定版：左側艦名／裝備、右側生命／補給 ──
+        /* ── 370px 編成定版：狀態、艦名、HP 與補給／裝備三列 ──
            正式面板由 entrypoints/panel/main.ts 實作；tools/preview/panel-sortie.ts 是獨立的
            離線量測 fixture，不會自動同步，版面變更必須兩邊一併更新。
-           右欄固定 96px，燃彈不再佔用裝備 chip；七艘滿編時只收緊列內 row-gap，
-           不改變左右欄比例。 */
+           裝備 chip 固定 221px，油彈百分比條與士氣同列；一至六船使用共同列距，七船另依高度預算收緊。 */
         html,
         body {
             overflow: hidden;
         }
 
         .fsummary {
+            box-sizing: border-box;
+            display: flex;
             flex-direction: column;
             flex-wrap: nowrap;
             gap: 2px;
+            min-width: 0;
+            overflow: hidden;
+            padding: 0 4px 4px;
+            height: 42px;
+            min-height: 42px;
+            max-height: 42px;
+        }
+
+        .fsummary:not(:has(> .fs-ops)) {
+            gap: 0;
+            height: 26px;
+            min-height: 26px;
+            max-height: 26px;
         }
 
         .fs-ops {
@@ -1736,10 +1772,7 @@
         }
 
         .fs-metrics {
-            display: flex;
-            align-items: center;
             flex-wrap: nowrap;
-            gap: 8px;
             min-width: 0;
             white-space: nowrap;
         }
@@ -1762,84 +1795,406 @@
             color: var(--dim);
         }
 
-        .ship:has(.ship-body) {
-            padding: 4px 6px;
+        /* 編成摘要定版：.fs-ops／.fs-metrics 共用同一列骨架；資訊階層靠排列、字級與
+           既有色階，不靠粗體。索敵倍率是索敵元件內的控制，不另立一顆白底 select。 */
+        .fs-ops {
+            gap: 0;
+            display: flex;
+            flex: 0 0 14px;
+            align-items: center;
+            height: 14px;
+            min-height: 14px;
+            max-height: 14px;
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 400;
+            line-height: 11px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .fs-op {
+            display: inline-flex;
+            align-items: center;
+            min-width: 0;
+            min-height: 11px;
+            line-height: 11px;
+            white-space: nowrap;
+        }
+
+        .fs-op + .fs-op {
+            margin-left: 6px;
+            padding-left: 6px;
+            border-left: 1px solid var(--line);
+        }
+
+        .fs-op-icon {
+            display: block;
+            flex: 0 0 10px;
+            width: 10px;
+            height: 10px;
+            margin-right: 3px;
+            object-fit: contain;
+        }
+
+        .fs-op-label,
+        .fs-op-mode,
+        .fs-op-time {
+            font-weight: 400;
+        }
+
+        .fs-op-label {
+            color: var(--text);
+        }
+
+        .fs-op-mode {
+            margin-left: 4px;
+            color: var(--brass);
+        }
+
+        .fs-op-time {
+            margin-left: 4px;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .fs-op.repair[data-accelerated="true"] .fs-op-time {
+            color: var(--sparkle);
+        }
+
+        .fs-op.mission {
+            color: var(--text);
+        }
+
+        .fs-op-unknown {
+            display: inline-flex;
+            align-items: center;
+            min-height: 11px;
+            margin-left: 6px;
+            padding-left: 6px;
+            border-left: 1px solid var(--line);
+            color: var(--dim);
+            font-size: 9px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .fs-metrics {
+            display: grid;
+            --fs-layout-rev: panel-370;
+            flex: 0 0 22px;
+            grid-template-columns: minmax(0, 70px) minmax(0, 86px) minmax(0, 62px) minmax(0, 52px) minmax(0, 48px);
+            align-items: center;
+            width: 100%;
+            max-width: 100%;
+            height: 22px;
+            min-height: 22px;
+            max-height: 22px;
+            gap: 3px;
+            padding: 0;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .fs-metric {
+            display: inline-flex;
+            align-items: baseline;
+            width: 100%;
+            gap: 3px;
+            min-width: 0;
+            height: 22px;
+            padding: 0 3px;
+            overflow: hidden;
+            border-radius: 3px;
+            background: var(--panel);
+            line-height: 1;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .fs-metric .fs-label {
+            flex: none;
+            color: var(--dim);
+            font-size: 7px;
+            line-height: 8px;
+            font-weight: 400;
+        }
+
+        .fs-metric .fs-value,
+        .fs-metric > b {
+            flex: 0 1 auto;
+            min-width: 0;
+            color: var(--text);
+            font-size: 11px;
+            line-height: 11px;
+            font-weight: 400;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .fs-air {
+            flex: none;
+            min-width: 0;
+        }
+
+        .fs-air .fs-value {
+            color: var(--sparkle);
+            font-size: 10px;
+        }
+
+        .fs-metric {
+            align-items: flex-start;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0;
+        }
+
+        .fs-los {
+            flex: none;
+            min-width: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 28px;
+            align-items: center;
+            column-gap: 2px;
+            padding: 0 3px;
+        }
+
+        .fs-readout {
+            display: inline-flex;
+            flex: 1 1 auto;
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 0;
+            min-width: 0;
+            padding: 0;
+        }
+
+        .fs-scale {
+            position: relative;
+            display: inline-flex;
+            flex: 0 0 28px;
+            align-items: center;
+            justify-content: center;
+            height: 18px;
+            margin-left: 1px;
+            border-left: 1px solid var(--line);
+            background: var(--panel);
+            color: var(--text);
+        }
+
+        .fs-scale .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .fs-scale select.cn {
+            appearance: none;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0 11px 0 5px;
+            border: 0;
+            outline: 0;
+            background: var(--panel);
+            color: var(--text);
+            color-scheme: dark;
+            text-align: left;
+            font: 400 8px/18px system-ui, sans-serif;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+        }
+
+        :root[data-theme="light"] .fs-scale select.cn {
+            color-scheme: light;
+        }
+
+        .fs-scale select.cn option {
+            background: var(--panel);
+            color: var(--text);
+        }
+
+        .fs-scale:focus-within {
+            color: var(--sparkle);
+        }
+
+        .fs-scale .fs-scale-chevron {
+            position: absolute;
+            top: 7px;
+            right: 4px;
+            width: 4px;
+            height: 4px;
+            pointer-events: none;
+            border-right: 1px solid currentColor;
+            border-bottom: 1px solid currentColor;
+            transform: rotate(45deg);
+        }
+
+        .fs-speed {
+            flex: none;
+            min-width: 0;
+        }
+
+        .fs-speed .fs-value {
+            font-size: 9px;
+        }
+
+        .fs-speed.speed-slow .fs-value { color: var(--speed-slow); }
+        .fs-speed.speed-fast .fs-value { color: var(--speed-fast); }
+        .fs-speed.speed-fast-plus .fs-value { color: var(--speed-fast-plus); }
+        .fs-speed.speed-fastest .fs-value { color: var(--speed-fastest); }
+
+        .fs-level {
+            flex: none;
+            min-width: 0;
+        }
+
+        .fs-level .fs-value {
+            font-size: 11px;
+        }
+
+        .fs-tp {
+            flex: none;
+            min-width: 0;
+        }
+
+        .fs-tp .fs-value {
+            font-size: 11px;
+        }
+
+        .fs-metrics .fs-metric b {
+            font-weight: 400;
+        }
+
+        .fleet:not(.compact) > .ship:has(.ship-body) {
+            padding: 3px 4px;
+        }
+
+        .fleet:not(.compact) > .ship:has(.ship-body):not(.st-major) {
+            background: var(--panel);
+        }
+
+        .fleet:not(.compact) > .ship:has(.ship-body):not(:last-child) {
+            margin-bottom: 5px;
+        }
+
+        .fleet:not(.compact) > .ship > .ship-body .ship-main {
+            row-gap: 1px;
         }
 
         .ship-body {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 96px;
-            grid-template-rows: auto auto;
-            column-gap: 6px;
-            row-gap: 6px;
-            align-items: center;
+            grid-template-columns: 32px minmax(0, 1fr);
+            column-gap: 4px;
+            align-items: stretch;
             min-width: 0;
         }
 
-        .ship-id {
+        .ship-kind-status {
             grid-column: 1;
-            grid-row: 1;
             display: flex;
-            align-items: baseline;
-            gap: 5px;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             min-width: 0;
-            white-space: nowrap;
         }
 
-        .ship-id .stype {
-            flex: none;
-            min-width: 26px;
-            padding: 1px 3px;
-            border: 1px solid var(--brass);
-            border-radius: 3px;
-            background: none;
-            color: var(--brass);
-            font-size: 10px;
-            line-height: 1.1;
+        .ship-kind-status.has-state {
+            justify-content: space-evenly;
+        }
+
+        .ship-kind-status > .stype {
+            box-sizing: border-box;
+            flex: 0 0 auto;
+            width: 32px;
+            min-width: 32px;
+            max-width: 32px;
             text-align: center;
         }
 
+        .ship-main {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            row-gap: 0;
+            min-width: 0;
+        }
+
+        .ship-identity-row {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 12px;
+            min-height: 12px;
+            line-height: 12px;
+        }
+
+        .ship-id {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            line-height: 12px;
+        }
+
+        .ship-id > .num {
+            display: inline-flex;
+            align-items: center;
+            flex: none;
+            width: auto;
+            color: var(--dim);
+            font-size: 10px;
+            font-weight: 400;
+            line-height: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ship-id .lv-n {
+            display: inline-block;
+            box-sizing: content-box;
+            width: 3ch;
+            min-width: 3ch;
+            max-width: 3ch;
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+        }
+
         .ship-id > .grow {
+            flex: 1 1 auto;
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             color: var(--text);
-            font-size: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 12px;
         }
 
-        .ship-id > .num {
-            flex: none;
-            color: var(--dim);
-            font-size: 10px;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .ship-vitals {
-            grid-column: 2;
-            grid-row: 1 / span 2;
+        .ship-hp {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
+            align-items: flex-end;
             gap: 4px;
-            width: 96px;
-            min-width: 0;
-        }
-
-        .vit-hp {
-            display: flex;
-            flex-wrap: wrap;
-            column-gap: 0;
-            row-gap: 0;
-            justify-content: flex-start;
-            align-items: baseline;
             width: 100%;
+            height: 11px;
+            min-height: 11px;
+            margin: 0;
+            padding: 0;
             min-width: 0;
         }
 
         .hp-num {
             color: var(--text);
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 11px;
+            font-weight: 400;
             font-variant-numeric: tabular-nums;
         }
 
@@ -1849,31 +2204,222 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .vit-hp .hpbar {
-            flex: 0 0 100%;
-            width: 100%;
-            height: 5px;
+        .ship-hp .hp-pair {
+            display: flex;
+            align-items: baseline;
+            justify-content: flex-start;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            line-height: 12px;
+            margin-top: 0;
+            order: 2;
+            flex: 0 0 auto;
         }
 
-        .vit-aux {
+        .ship-hp .hp-num {
+            box-sizing: content-box;
+            width: 3ch;
+            min-width: 3ch;
+            max-width: 3ch;
+            text-align: left;
+            font-weight: 400;
+        }
+
+        .ship-hp .hpbar {
+            flex: 1 1 auto;
+            width: auto;
+            min-width: 12px;
+            max-width: none;
+            height: 6px;
+            order: 1;
+            align-self: flex-end;
+            margin: 0 0 2px;
+        }
+
+        .ship-hp .hp-max {
+            min-width: 0;
+            text-align: left;
+        }
+
+        .ship-gear-row {
+            position: relative;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            min-width: 0;
+            gap: 2px;
+            width: calc(100% + 4px);
+            height: 16px;
+            min-height: 16px;
+            overflow: visible;
         }
 
-        .vit-aux .cond {
-            width: auto;
-            min-width: 2em;
-            text-align: left;
+        .ship-gear-row > .cond {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 28px;
+            width: 28px;
+            min-width: 28px;
+            max-width: 28px;
+            height: 16px;
+            margin: 0;
+            gap: 1px;
+            font-size: 9px;
+            line-height: 16px;
+        }
+
+        .ship-gear-row > .cond .cond-spark {
+            font-size: 8px;
+            line-height: 16px;
+        }
+
+        .vit-sup.resource-pair {
+            display: flex;
+            flex: 0 0 51px;
+            align-items: center;
+            gap: 3px;
+            width: 51px;
+            min-width: 51px;
+            max-width: 51px;
+            height: 16px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .resource-bar {
+            position: relative;
+            display: inline-flex;
+            flex: 0 0 24px;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            min-width: 24px;
+            max-width: 24px;
+            height: 10px;
+            border-radius: 2px;
+            background: var(--line);
+            overflow: hidden;
+        }
+
+        .resource-bar.fuel { color: #58a55c; }
+        .resource-bar.ammo { color: #a8763e; }
+
+        .resource-fill {
+            position: absolute;
+            inset: 0 auto 0 0;
+            display: block;
+            max-width: 100%;
+            background: currentColor;
+        }
+
+        .resource-percent {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 7px;
+            font-weight: 700;
+            line-height: 9px;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, .8);
+        }
+
+        .ship-gear-row > .chips {
+            display: flex;
+            flex: 0 0 221px;
+            flex-wrap: nowrap;
+            gap: 1px;
+            width: 221px;
+            min-width: 221px;
+            max-width: 221px;
+            height: 16px;
+            min-height: 16px;
+            overflow: visible;
+        }
+
+        .ship-gear-row .chip {
+            height: 16px;
+            min-height: 16px;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .ship-gear-row .chip:not(.ex) {
+            width: 36px;
+            min-width: 36px;
+            max-width: 36px;
+        }
+
+        .ship-gear-row .chip.ex {
+            width: 31px;
+            min-width: 31px;
+            max-width: 31px;
+        }
+
+        .ship-gear-row .chip:not(.ex) > .g-icon,
+        .ship-gear-row .chip:not(.ex) > .g-icon-slot {
+            width: 14px;
+            height: 14px;
+            min-width: 14px;
+            max-width: 14px;
+        }
+
+        .ship-gear-row .chip.ex > .g-icon,
+        .ship-gear-row .chip.ex > .g-icon-slot {
+            width: 12px;
+            height: 12px;
+            min-width: 12px;
+            max-width: 12px;
+        }
+
+        .ship-gear-row .chip:not(.ex) > .r-col {
+            width: 19px;
+            min-width: 19px;
+            max-width: 19px;
+        }
+
+        .ship-gear-row .chip.ex > b {
+            width: 11px;
+            min-width: 11px;
+            max-width: 11px;
+        }
+
+        .ship-gear-row .chip .r-col {
+            height: 14px;
+            min-height: 14px;
+            max-height: 14px;
+            justify-content: center;
+            gap: 0;
+        }
+
+        .ship-gear-row .chip .r-top {
+            height: 7px;
+            line-height: 7px;
+            align-items: center;
+        }
+
+        .ship-gear-row .chip .r-top u,
+        .ship-gear-row .chip .r-top b {
+            font-size: 7px;
+            line-height: 7px;
+        }
+
+        .ship-gear-row .chip .r-col .oc {
+            height: 6px;
+            font-size: 7px;
+            line-height: 6px;
         }
 
         .vit-sup {
             display: inline-flex;
             align-items: center;
             gap: 7px;
+            height: 16px;
             white-space: nowrap;
             font-size: 10px;
+            line-height: 16px;
             font-variant-numeric: tabular-nums;
         }
 
@@ -1889,24 +2435,7 @@
             width: 10px;
             height: 10px;
             min-width: 10px;
-            vertical-align: -1px;
-        }
-
-        .ship-body > .sub-row {
-            grid-column: 1;
-            grid-row: 2;
-            display: block;
-            min-width: 0;
-        }
-
-        .ship-body > .sub-row .chips {
-            flex: 0 0 auto;
-        }
-
-        .ship-id .taiha-mark,
-        .ship-id .dock-mark {
-            white-space: nowrap;
-            font-size: 9px;
+            vertical-align: 0;
         }
 
         .ship.c .c-top .taiha-mark {
@@ -1928,22 +2457,60 @@
             font-weight: 700;
         }
 
-        /* 單艦隊大破標籤：放在右欄 HP 數值列最右側，不遮住士氣值。 */
-        .taiha-hp-mark {
+        /* 單艦隊大破／入渠／退避共用與艦種莖同寬的狀態槽。 */
+        .ship-state {
+            box-sizing: border-box;
+            flex: 0 0 12px;
+            width: 32px;
+            min-width: 32px;
+            max-width: 32px;
+            height: 12px;
             display: inline-flex;
             align-items: center;
-            align-self: center;
-            flex: none;
-            margin-left: auto;
-            padding: 1px 4px;
-            border: 1px solid var(--dmg-major);
+            justify-content: center;
+            overflow: visible;
+        }
+
+        /* 沒有大破／入渠／退避時不建立狀態槽，艦種標籤保持垂直置中。 */
+        .ship-state:empty {
+            display: none;
+        }
+
+        .ship-state .taiha-hp-mark,
+        .ship-state .dock-mark,
+        .ship-state .esc-tag {
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            width: 32px;
+            min-width: 32px;
+            max-width: 32px;
+            height: 12px;
+            min-height: 12px;
+            padding: 0;
+            border-width: 1px;
+            border-style: solid;
             border-radius: 3px;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 10px;
+            letter-spacing: 0;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .ship-state .taiha-hp-mark {
+            border-color: var(--dmg-major);
             background: var(--dmg-major);
             color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            line-height: 1.1;
-            white-space: nowrap;
+        }
+
+        .ship-state .esc-tag {
+            color: var(--text);
+            border-color: var(--line);
+            background: color-mix(in srgb, var(--line) 18%, transparent);
         }
 
         /* 連合艦隊大破標籤覆蓋士氣值：預設只顯示紅底白字「大破」，點擊後才顯示士氣。
@@ -2003,13 +2570,9 @@
             color: var(--dim);
         }
 
-        .st-major:not(.escaped):not(.in-dock) {
-            box-shadow: inset -3px 0 0 0 var(--dmg-major);
-        }
-
+        /* 單艦隊任意艘數與連合 `.ship.c` 共用這一條：只洗列底，不畫外框或右側紅條。 */
         .ship.st-major:not(.escaped):not(.in-dock) {
-            /* 以出擊資訊的整列大破警示取代右側三像素紅條；用 inset 不增加列高。 */
-            box-shadow: inset 0 0 0 1px var(--dmg-major);
+            box-shadow: none;
             background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
         }
 
@@ -2019,10 +2582,10 @@
         }
 
         .chips {
-            /* 五格一般槽（5×40）＋五個間距（5×2）＋增設槽（34）＝244px；
+            /* 正式單隊列為五格 36px＋五個 2px 間距＋增設槽 31px＝221px；
                固定整排配置，讓第六格完整顯示，不靠 overflow 裁切來假裝塞得下。 */
             flex: 0 0 auto;
-            width: 244px;
+            width: 221px;
             max-width: 100%;
             overflow: visible;
         }
@@ -2031,22 +2594,45 @@
             font-size: 10px;
         }
 
-        /* 七船由 main.ts 依實際艦數加上 fleet-seven，避免把 .fsummary 或其他 div
-           當成艦列序號；這條規則只收七船單隊，不影響六船以下與連合 compact。
-           裝備 chip 本身高度不動，只壓縮艦列上下空白，避免固定面板高度裁掉第 7 艘。 */
+        .fleet:not(.compact):not(.fleet-seven).fleet-no-ops > .ship:has(.ship-body):not(:last-child) {
+            margin-bottom: 8px;
+        }
+
+        .fleet:not(.compact):not(.fleet-seven).fleet-no-ops > .fsummary {
+            margin-bottom: 4px;
+        }
+
+        .fleet:not(.compact):not(.fleet-seven).fleet-ops > .fsummary {
+            margin-bottom: 1px;
+        }
+
         .fleet.fleet-seven > .ship:has(.ship-body) {
-            padding: 1px 6px;
+            padding: 1px 4px;
         }
 
-        .fleet.fleet-seven > .ship > .ship-body {
-            row-gap: 2px;
+        .fleet.fleet-seven > .ship > .ship-body .ship-main {
+            row-gap: 1px;
         }
 
-        /* 七船若有泊地修理／給糧摘要，摘要會多出一列；只在這個狀態收緊右側
-           HP 與士氣之間的空白，把增加的摘要高度還回艦列。裝備列高度與資訊欄寬度
-           維持不變，避免功能標籤把第 7 艘推出固定面板底界。 */
-        .fleet.fleet-seven.fleet-seven-ops > .ship > .ship-body .ship-vitals {
+        .fleet.fleet-seven > .ship:has(.ship-body):not(:last-child) {
+            margin-bottom: 4px;
+        }
+
+        .fleet.fleet-seven.fleet-ops > .ship:has(.ship-body) {
+            padding-bottom: 0;
+        }
+
+        /* 七船有操作列時，摘要到首艦與艦間距統一為 3px，維持 730px 高度目標。 */
+        .fleet.fleet-seven.fleet-ops > .fsummary {
             gap: 1px;
+            padding-bottom: 3px;
+            height: 40px;
+            min-height: 40px;
+            max-height: 40px;
+        }
+
+        .fleet.fleet-seven.fleet-ops > .ship:has(.ship-body):not(:last-child) {
+            margin-bottom: 3px;
         }
 
         .ship.c .c-top {
@@ -2115,29 +2701,39 @@
         }
 
         .ship.c .taiha-cond-toggle {
-            width: 2.4em;
+            width: auto;
             min-width: 2.4em;
-            padding-inline: 2px;
+            max-width: 3.2em;
+            padding-inline: 1px;
             font-size: 12px;
+            overflow: hidden;
         }
 
-        /* ── 遠征檢核分頁（極簡高密度排版：No Border-Soup / No Bento / Zero Expansion）── */
+        .ship.c .taiha-cond-toggle .taiha-mark {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ── 遠征：一列艦隊選擇、固定資源欄、分組條件 ── */
         .exped-header {
-            display: flex;
+            display: grid;
+            grid-template-columns: 48px minmax(0, 1fr);
             align-items: center;
-            gap: 8px;
+            gap: 5px;
             margin-bottom: 4px;
             flex: none;
+            min-width: 0;
         }
 
         .exped-fleet-lbl {
-            font-size: 10.5px;
-            font-weight: 700;
+            font-size: 10px;
+            font-weight: 600;
             color: var(--brass);
             letter-spacing: var(--track-label);
             white-space: nowrap;
             font-variant-numeric: tabular-nums;
-            flex: none;
+            text-align: center;
         }
 
         .exped-select {
@@ -2150,7 +2746,7 @@
             font-size: 11.5px;
             font-weight: 600;
             padding: 1px 6px;
-            height: 22px;
+            height: 24px;
             outline: none;
             font-variant-numeric: tabular-nums;
             color-scheme: dark;
@@ -2172,189 +2768,269 @@
             border-color: var(--sparkle);
         }
 
-        /* 視覺第一與第二層級：收益預算與判定狀態 HUD（3 欄無外框網格） */
-        .exped-yield-grid {
-            display: grid;
-            /* 第一欄依語系標籤取寬；中間欄可收縮，避免英文長字串溢出到相鄰欄位。 */
-            grid-template-columns: max-content minmax(0, 1fr) auto;
-            align-items: center;
-            column-gap: 8px;
-            row-gap: 2px;
-            margin-bottom: 4px;
-            padding: 0;
+        .exped-yields {
             flex: none;
-            line-height: 1.3;
+            min-width: 0;
+            margin: 0 0 4px;
+            padding: 0 0 4px;
+            border-bottom: 1px solid var(--line);
         }
 
-        .exped-lbl {
-            color: var(--dim);
+        .exped-resource-matrix {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
             font-size: 10px;
-            font-weight: 600;
-            letter-spacing: var(--track-label);
+        }
+
+        .exped-resource-matrix col.exped-resource-stub,
+        .exped-resource-matrix .exped-resource-stub {
+            width: 112px;
+        }
+
+        .exped-resource-matrix th,
+        .exped-resource-matrix td {
+            padding: 0;
+            vertical-align: middle;
+        }
+
+        .exped-resource-matrix .exped-resource-stub,
+        .exped-resource-matrix .exped-resource-head {
+            height: 19px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .exped-resource-head {
+            text-align: right;
+            box-sizing: border-box;
+            padding: 0 4px !important;
+        }
+
+        .exped-resource-head .m-icon {
+            display: block;
+            width: 16px;
+            height: 16px;
+            margin-left: auto;
+            margin-right: 0;
+            object-fit: contain;
+        }
+
+        .exped-outcome-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 3px;
+            height: 21px;
+            box-sizing: border-box;
+            text-align: left;
+            font-weight: 400;
             white-space: nowrap;
         }
 
-        .exped-status {
+        .exped-outcome-name {
             min-width: 0;
-            font-size: 11px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            text-align: left;
-            white-space: normal;
-            overflow-wrap: anywhere;
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: var(--track-body);
         }
 
-        .exped-status.ok {
+        .exped-outcome-status {
+            flex: none;
+            font-size: 9px;
+            line-height: 12px;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .exped-outcome-status.ok {
             color: #58a55c;
         }
 
-        .exped-status.ng {
+        .exped-outcome-status.ng {
             color: var(--dmg-major);
         }
 
-        .exped-status.gs {
+        .exped-outcome-status.gs {
             color: var(--sparkle);
         }
 
-        .exped-res-line {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 8px;
-            min-width: 0;
-            overflow: hidden;
-            white-space: nowrap;
+        .exped-outcome-status.dim {
+            color: var(--dim);
         }
 
-        .exped-res-line .res-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 2px;
-            font-size: 11.5px;
+        .exped-resource-matrix tbody tr + tr th,
+        .exped-resource-matrix tbody tr + tr td {
+            border-top: 1px solid var(--line);
+        }
+
+        .exped-resource-value {
+            height: 21px;
+            box-sizing: border-box;
+            padding: 0 4px !important;
+            color: var(--text);
+            text-align: right;
+            font-size: 12px;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
-            color: var(--text);
             white-space: nowrap;
         }
 
-        .exped-res-line.bonus .res-item {
-            color: var(--sparkle);
-            font-weight: 700;
+        .exped-value-empty {
+            color: var(--dim);
+            font-weight: 400;
         }
 
-        .exped-res-line .m-icon {
-            width: 12px;
-            height: 12px;
-            vertical-align: -1.5px;
-            flex: none;
+        .exped-reward-unverified {
+            height: 21px;
+            padding: 2px 5px !important;
+            color: var(--dim);
+            text-align: right;
+            font-size: 9px;
+            line-height: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .exped-items-row {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr);
+            align-items: center;
+            column-gap: 4px;
+            margin-top: 2px;
+            min-width: 0;
+        }
+
+        .exped-items-label {
+            color: var(--dim);
+            font-size: 10px;
+            line-height: 12px;
+            font-weight: 500;
+            white-space: nowrap;
         }
 
         .exped-items-line {
-            grid-column: 2 / -1;
             display: flex;
             align-items: baseline;
-            gap: 6px;
-            font-size: 10.5px;
+            flex-wrap: wrap;
+            gap: 2px 7px;
             min-width: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            color: var(--text);
+            font-size: 10px;
+            line-height: 12px;
+        }
+
+        .exped-items-line .item-reward {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0 3px;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .exped-items-line .item-name {
             color: var(--text);
-            font-weight: 600;
+            font-weight: 500;
+            overflow-wrap: anywhere;
         }
 
         .exped-items-line .item-note {
+            color: var(--dim);
             font-size: 10px;
             font-weight: 400;
             font-variant-numeric: tabular-nums;
+            overflow-wrap: anywhere;
         }
 
         .exped-items-line .item-note.gs {
             color: var(--sparkle);
-            font-weight: 600;
+            font-weight: 500;
         }
 
-        .exped-items-line .item-note.dim {
-            color: var(--dim);
-        }
-
-        /* 檢核清單：三層階層（符號導引 → 條件名稱 → 當前值對照），徹底去除框線與斑馬紋 */
-        .exped-check-list {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: var(--line) var(--panel);
+        .exped-conditions {
             display: flex;
+            flex: 1;
             flex-direction: column;
-            gap: 2px;
-            padding-right: 2px;
+            gap: 4px;
+            min-height: 0;
+            overflow: hidden;
         }
 
-        /* 條件多於 8 項時（最高 15–16 項）：自動切換為雙欄瀑布網格（8列×2欄），全部可見零捲軸 */
-        .exped-check-list.is-multi-col,
-        .exped-check-list:has(.check-row:nth-child(9)) {
-            display: grid !important;
+        .exped-check-tier {
+            flex: none;
+            min-width: 0;
+        }
+
+        .exped-check-tier + .exped-check-tier {
+            padding-top: 3px;
+            border-top: 1px solid var(--line);
+        }
+
+        .exped-tier-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            min-height: 15px;
+            height: auto;
+            margin: 0 0 2px;
+            padding: 0;
+            border: 0;
+            color: var(--dim);
+            font-size: 11px;
+            line-height: 15px;
+            font-weight: 500;
+            letter-spacing: var(--track-label);
+            white-space: nowrap;
+        }
+
+        .exped-tier-count {
+            color: var(--dim);
+            font-weight: 400;
+            letter-spacing: 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .exped-tier-count.has-unmet {
+            color: var(--dmg-major);
+            font-weight: 500;
+        }
+
+        .exped-check-group {
+            display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            grid-auto-flow: column;
-            grid-template-rows: repeat(8, auto);
-            column-gap: 8px;
-            row-gap: 1.5px;
-        }
-
-        .exped-check-list.is-multi-col .check-row,
-        .exped-check-list:has(.check-row:nth-child(9)) .check-row {
-            grid-template-columns: 12px 1fr auto;
-            font-size: 10.5px;
-            line-height: 1.25;
-            padding: 1.5px 2px;
-            column-gap: 3px;
-        }
-
-        .exped-check-list.is-multi-col .check-row .mark,
-        .exped-check-list:has(.check-row:nth-child(9)) .check-row .mark {
-            width: 12px;
-            font-size: 10px;
-        }
-
-        .exped-check-list.is-multi-col .check-row .num,
-        .exped-check-list:has(.check-row:nth-child(9)) .check-row .num {
-            font-size: 10px;
-        }
-
-        .exped-check-list.is-multi-col .check-row.ng .num,
-        .exped-check-list.is-multi-col .check-row .num.ng,
-        .exped-check-list:has(.check-row:nth-child(9)) .check-row.ng .num,
-        .exped-check-list:has(.check-row:nth-child(9)) .check-row .num.ng {
-            font-size: 10px;
+            align-content: start;
+            align-items: start;
+            column-gap: 10px;
+            row-gap: 4px;
+            min-width: 0;
         }
 
         .check-row {
             display: grid;
-            grid-template-columns: 14px 1fr auto;
-            align-items: baseline;
-            column-gap: 6px;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11.5px;
-            line-height: 1.3;
+            grid-template-columns: 11px minmax(0, 1fr) max-content;
+            align-items: start;
+            gap: 0 4px;
+            min-width: 0;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
             background: transparent;
-            border: none;
-            transition: background 80ms ease;
-        }
-
-        .check-row:hover {
-            background: color-mix(in srgb, var(--panel) 50%, transparent);
+            font-size: 10px;
+            line-height: 13px;
         }
 
         .check-row .mark {
-            width: 14px;
+            grid-column: 1;
+            width: 11px;
+            color: var(--dim);
             text-align: center;
-            font-weight: 800;
-            font-size: 11px;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 13px;
         }
 
         .check-row.ok .mark {
@@ -2366,32 +3042,67 @@
         }
 
         .check-row .grow {
+            grid-column: 2;
+            min-width: 0;
             color: var(--text);
             font-weight: 400;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            overflow-wrap: anywhere;
+            padding-inline-end: 2px;
+            line-height: 13px;
         }
 
         .check-row.ng .grow {
             color: var(--dmg-mid);
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .check-row .num {
-            font-size: 10.5px;
-            font-weight: 400;
-            font-variant-numeric: tabular-nums;
+            grid-column: 3;
             color: var(--dim);
             text-align: right;
+            font-size: 9.5px;
+            font-weight: 400;
+            font-variant-numeric: tabular-nums;
             white-space: nowrap;
         }
 
         .check-row.ng .num,
         .check-row .num.ng {
             color: var(--dmg-major);
-            font-weight: 700;
-            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .exped-warning {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            min-width: 0;
+            color: var(--dim);
+            font-size: 9.5px;
+            line-height: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .exped-warning > span {
+            flex: none;
+            font-weight: 600;
+        }
+
+        .exped-resource-matrix .sr-only,
+        .check-row .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         /* ── 基地航空隊 ──
@@ -2576,7 +3287,7 @@
             white-space: nowrap;
         }
 
-        /* 顏色與編成 chip 一致：熟練金、改修藍。 */
+        /* 顏色與編成 chip 一致：1–3 直條 --alv-bar、4–7 --sparkle；改修藍。 */
         .ab-sq .sq-chip b {
             color: #7fd0ff;
             font-weight: 600;
@@ -3150,9 +3861,9 @@
             margin-left: 2px;
         }
 
-        /* 艦種縮寫（編成艦名前綴）：單隊艦名列是 .ship-id，聯合檢視則是 .c-top，
+        /* 艦種縮寫（編成艦名前綴）：單隊是 .ship-body 直屬莖，聯合檢視則是 .c-top，
            兩者共用同一份徽章規則。 */
-        .ship-id .stype,
+        .ship-kind-status > .stype,
         .c-top .stype {
             display: inline-block;
             font-size: 9px;
@@ -3165,8 +3876,8 @@
             /* 右內距扣掉一個字距：letter-spacing 在最後一字後也會留白，
                窄徽章內不補償會讓文字看起來偏左 */
             padding: 0 calc(3px - var(--track-tag)) 0 3px;
-            /* 艦名列本身已用 flex gap 控制組距；不可再加外距，否則單隊與聯合欄都會
-               出現雙倍間隔。 */
+            /* 單隊艦種莖靠 grid column-gap、聯合欄靠 .c-top flex gap 控制組距；
+               不可再加外距，否則單隊與聯合欄都會出現雙倍間隔。 */
             margin-right: 0;
             vertical-align: baseline;
             font-variant-numeric: tabular-nums;
@@ -3175,7 +3886,7 @@
         /* 固定寬度＋置中：縮寫本身長度不一（DD 2字 vs CVL 3字），寬度隨文字伸縮的話
            每艘艦的艦名起始 x 位置都不同，整個艦隊列表看起來參差不齊。32px 能容納
            艦種縮寫並與聯合檢視 .ship.c .stype 共用，兩種檢視視覺一致。 */
-        .ship-id .stype {
+        .ship-kind-status > .stype {
             width: 32px;
             text-align: center;
         }
@@ -3298,7 +4009,7 @@
             color: #10151d;
             background: var(--dim);
             border-radius: 8px;
-            /* 右內距扣掉一個字距，理由同 .ship-row .stype */
+        /* 右內距扣掉一個字距，避免窄徽章文字視覺偏左。 */
             padding: 1px calc(5px - var(--track-tag)) 1px 5px;
         }
 
@@ -3318,7 +4029,7 @@
         }
 
         /* ── 出擊定版覆寫 ───────────────────────────────────────────────
-           正式 panel 與離線 panel-sortie 預覽共用這個 420×270 出擊資訊比例：左側是
+           正式 panel 與離線 panel-sortie 預覽共用這個 370×270 出擊資訊比例：左側是
            戰況卡，右側是敵方主隊／隨伴晶片；最下方固定為五項系統訊號＋掉落格。
            這段只覆寫出擊元件，避免影響紀錄分頁的同名 chip。 */
         .sortie-container {
@@ -3594,7 +4305,7 @@
 
         .s-priority-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 4px;
             height: 27px;
             min-height: 27px;
@@ -3605,20 +4316,33 @@
         }
 
         .s-priority-item {
-            display: inline-flex;
-            align-items: baseline;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 1px;
             min-width: 0;
+            overflow: hidden;
             color: var(--dim);
             font-size: 9px;
+            line-height: 1;
             white-space: nowrap;
         }
 
+        .s-priority-item span {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .s-priority-item b {
+            max-width: 100%;
+            overflow: hidden;
             color: var(--text);
             font-size: 11.5px;
             font-weight: 600;
+            line-height: 1;
+            text-overflow: ellipsis;
         }
 
         .s-priority-item.good b { color: #58a55c; }
@@ -3627,9 +4351,9 @@
 
         .s-rank-row {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr) max-content;
             align-items: center;
-            column-gap: 12px;
+            column-gap: 8px;
             height: 33px;
             min-height: 33px;
             padding: 4px 0;
@@ -3708,16 +4432,19 @@
             font-size: 9.5px;
             letter-spacing: -.03em;
             font-weight: 650;
-            line-height: 1.05;
+            line-height: 1.1;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow-wrap: break-word;
             text-overflow: ellipsis;
-            white-space: nowrap;
         }
 
         .s-formation-compact {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            width: 100%;
+            justify-content: flex-end;
+            width: max-content;
             height: 100%;
             min-width: 0;
             color: var(--dim);
@@ -3728,7 +4455,7 @@
         .s-formation-readout {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-end;
             gap: 7px;
             min-width: 0;
             color: var(--text);
@@ -3757,6 +4484,7 @@
             height: 44px;
             min-height: 44px;
             margin: 0;
+            overflow: hidden;
         }
 
         .s-air-loss-grid {
@@ -3831,6 +4559,7 @@
             top: 0;
             bottom: 0;
             min-height: 100%;
+            overflow: hidden;
             background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
         }
 
@@ -3954,9 +4683,16 @@
             align-items: center;
             gap: 2px;
             height: 8px;
+            min-width: 0;
             color: var(--dim);
             font-size: 8px;
             line-height: 1;
+        }
+
+        .s-night-entry-cell span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .s-night-entry-cell i {
@@ -3999,7 +4735,7 @@
             grid-template-columns: repeat(5, minmax(35px, 1fr));
             column-gap: 2px;
             width: 100%;
-            /* 與右側掉落格保留一個欄內安全邊界；420px 面板在放大顯示時，
+            /* 與右側掉落格保留一個欄內安全邊界；370px 面板在放大顯示時，
                對空 CI 的圖示與文案也不能越過左欄邊界。 */
             box-sizing: border-box;
             height: 35px;
@@ -4078,7 +4814,7 @@
         .s-system-val { color: currentColor; font-size: 8.5px; font-weight: 500; }
         .s-system-signal.on { color: var(--sparkle); }
         .s-system-signal.on .s-system-label { color: var(--sparkle); font-weight: 500; }
-        /* 陸航到着／LBAS in 是固定狀態文案，不能被共用省略號裁成半個字。 */
+        /* 陸航／LBAS 與 LBAS in 是固定狀態文案，不能被共用省略號裁成半個字。 */
         .s-system-signal.lbas .s-system-label {
             overflow: visible;
             text-overflow: clip;
@@ -4090,7 +4826,7 @@
             text-overflow: clip;
             letter-spacing: -.04em;
         }
-        /* 對空 CI 在未發動時顯示「對空 CI」、發動後顯示 Typ n；兩種長度都必須
+        /* 對空 CI／AACI 在未發動時顯示短標籤、發動後顯示 Typ n；兩種長度都必須
            保持完整，不能沿用其餘狀態欄的省略號。 */
         .s-system-signal.aaci .s-system-label,
         .s-system-signal.aaci .s-system-val {
@@ -4599,6 +5335,12 @@
             top: 0;
             bottom: 0;
             min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            text-align: center;
             /* 展開態要真的遮住底下的機數，故底色不透明（同 prefers-reduced-transparency
                的處理手法：把同色相混進 --panel 而不是疊在透明上）。 */
             background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
@@ -4608,13 +5350,15 @@
             display: block;
         }
 
-        /* 展開態讓字典裡的 \n 成為實際斷行。警告框只有約 180px 寬，中日文沒有空格可斷，
-           全交給自動折行會把「大破艦」「強制返航」這種詞從中間切開，斷點必須由各語言
-           自己決定（見 ui-i18n.ts；英文靠空格自然折行，不需要硬斷點）。
-           文字隱藏態不顯示文案，紅框與航空戰欄位尺寸維持不變。 */
+        /* 展開態讓字典裡的 \n 成為實際斷行。警告框只有約 180px 寬、航空戰格 44px 高；
+           中日文沒有空格可斷，斷點必須由各語言自己決定（見 ui-i18n.ts）。英文用與
+           「大破！」同密度的短句，避免空格折行畫出格外。文字隱藏態不顯示文案，紅框
+           與航空戰欄位尺寸維持不變。 */
         .s-taiha.open .taiha-head,
         .s-taiha.open .taiha-hint {
             white-space: pre-line;
+            max-width: 100%;
+            overflow: hidden;
         }
 
         /* 一般大破點擊後只隱藏文字，紅框與原本占位維持不變。 */
@@ -4640,9 +5384,21 @@
             color: var(--dim);
         }
 
-        /* 退避艦：整列淡出＋灰標。退避不是傷害等級，故刻意不用 --dmg-* 語意色
-           （design-guidelines §4.5：語意色不跨功能挪用）。 */
+        /* 退避艦：聯合仍整列淡出；單隊列改對艦種／身分／輔助／第二 sweep 淡出，
+           32px 狀態槽的退避標籤保持可讀對比。退避不是傷害等級，故刻意不用 --dmg-*
+           語意色（design-guidelines §4.5：語意色不跨功能挪用）。 */
         .ship.escaped {
+            opacity: 0.5;
+        }
+
+        .ship:has(.ship-body).escaped {
+            opacity: 1;
+        }
+
+        .ship:has(.ship-body).escaped .ship-kind-status > .stype,
+        .ship:has(.ship-body).escaped .ship-id,
+        .ship:has(.ship-body).escaped .ship-hp,
+        .ship:has(.ship-body).escaped .ship-gear-row {
             opacity: 0.5;
         }
 
@@ -4685,7 +5441,7 @@
            使用不透明底——同色相直接混進 --panel，色調維持一致但不透出底下內容。 */
         @media (prefers-reduced-transparency: reduce) {
 
-            .ship-id .stype,
+            .ship-body > .stype,
             .c-top .stype {
                 background: color-mix(in srgb, var(--brass) 14%, var(--panel));
                 border-color: color-mix(in srgb, var(--brass) 40%, var(--panel));
@@ -4770,6 +5526,67 @@
             }
         }
 
+        /* 一般分頁沿用主分頁的底線導覽，數值欄位以等寬數字對齊。 */
+        #tabpanel.has-general>#tab-general.ledger{display:grid;flex:1;grid-template-rows:27px minmax(0,1fr);gap:6px}
+        .ledger-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--line)}
+        .ledger-nav button{appearance:none;display:flex;justify-content:center;align-items:center;gap:5px;min-width:0;margin-bottom:-1px;padding:3px 6px 4px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dim);font:inherit;font-size:12px;font-weight:500;line-height:1.25;text-align:center;white-space:nowrap;cursor:pointer}
+        .ledger-nav button[aria-selected=true]{border-bottom-color:var(--brass);color:var(--text);font-weight:600}
+        .ledger-nav .count{color:var(--dim);font-size:10.5px;font-weight:400;font-variant-numeric:tabular-nums}
+        .ledger-nav button:focus-visible,.ledger-group-tabs button:focus-visible,.ledger-quest summary:focus-visible,.ledger-item-switch button:focus-visible,.ledger-item-search-toggle:focus-visible,.ledger-item-row>summary:focus-visible,.ledger-item-row .item-pin:focus-visible,.ledger-item-tools input:focus-visible{outline:2px solid var(--sparkle);outline-offset:-2px}
+        .ledger-page{min-height:0;overflow:hidden}.ledger-page[hidden],.ledger-group[hidden]{display:none}
+        .ledger-harbor{display:grid;grid-template-rows:48px 34px minmax(0,1fr);gap:7px}
+        .ledger-materials{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,22px);gap:2px 12px}
+        .ledger-material{display:flex;align-items:center;gap:5px;min-width:0;height:22px}
+        .ledger-material img{width:14px;height:14px;flex:none}
+        .ledger-material .value{min-width:0;overflow:hidden;color:var(--text);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;text-align:left;text-overflow:clip;white-space:nowrap}
+        .ledger-material.secondary .value{color:var(--dim);font-size:11px;font-weight:500}
+        .ledger-group-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-bottom:1px solid var(--line)}
+        .ledger-group-tabs button{appearance:none;display:flex;justify-content:center;align-items:center;gap:5px;min-width:0;margin-bottom:-1px;padding:4px 8px 5px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dim);font:inherit;font-size:12px;font-weight:500;line-height:1.2;text-align:center;white-space:nowrap;cursor:pointer}
+        .ledger-group-tabs button[aria-selected=true]{border-bottom-color:var(--brass);color:var(--text);font-weight:600}
+        .ledger-group-tabs .count{color:var(--dim);font-size:10.5px;font-weight:400;font-variant-numeric:tabular-nums}
+        .ledger-group{display:flex;flex-direction:column;min-height:0;border-top:0}
+        .ledger-group-heading{flex:none;display:flex;justify-content:space-between;align-items:center;height:20px;color:var(--text);font-size:11px;font-weight:600}.ledger-group-heading .sub{color:var(--dim);font-size:10.5px;font-weight:400;font-variant-numeric:tabular-nums}
+        .ledger-group-list{overflow-y:auto;min-height:0;scrollbar-width:thin}
+        .ledger-op{display:grid;grid-template-columns:23px minmax(0,1fr) max-content;align-items:center;min-height:25px;gap:7px;padding:2px 4px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.3}
+        .ledger-op .slot{color:var(--brass);font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}.ledger-op .name{min-width:0;font-weight:500;overflow-wrap:anywhere;line-height:1.3}.ledger-op .time{color:var(--text);font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .ledger-op.done .time{color:#58a55c}.ledger-op.locked{color:var(--dim)}.ledger-op.locked .time{color:var(--dim);font-weight:400}
+        .ledger-quests{display:flex;flex-direction:column;min-height:0}.ledger-quest-heading{flex:none;display:flex;justify-content:space-between;align-items:center;height:21px;color:var(--text);font-size:12px;font-weight:600}.ledger-quest-heading span{color:var(--dim);font-size:10.5px;font-weight:500;font-variant-numeric:tabular-nums}
+        .ledger-quest-list{display:block;min-height:0;overflow-y:auto;scrollbar-width:thin}.ledger-quest{border-bottom:1px solid var(--line)}
+        .ledger-quest summary{display:grid;grid-template-columns:minmax(0,1fr) max-content 12px;align-items:start;gap:6px;min-height:24px;padding:3px 4px;color:var(--text);font-size:12px;line-height:1.2;cursor:pointer;list-style:none}
+        .ledger-quest summary::-webkit-details-marker{display:none}.ledger-quest .name{min-width:0;font-weight:500;overflow-wrap:anywhere}.ledger-quest .state{padding-top:1px;color:var(--dim);font-size:10.5px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .ledger-quest.done .state{color:#58a55c;font-weight:600}.ledger-quest .arrow{color:var(--dim);font-size:12px;text-align:right}.ledger-quest[open] .arrow{transform:rotate(90deg)}
+        .ledger-quest .description{margin:0 3px 7px;padding:7px 9px;border-left:2px solid var(--brass);background:var(--panel);color:var(--text);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+        /* 搜尋列平時收起（hidden），清單吃下省出的高度；用 flex 而非固定列高，收起的列才不會留空行。 */
+        .ledger-item-layout{display:flex;flex-direction:column;gap:5px;box-sizing:border-box;height:100%;min-height:0}
+        .ledger-item-bar{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 28px;height:28px;border-bottom:1px solid var(--line)}
+        .ledger-item-switch{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:0;min-width:0}
+        .ledger-item-search-toggle{appearance:none;display:grid;place-items:center;margin-bottom:-1px;padding:0;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dim);cursor:pointer}
+        .ledger-item-search-toggle svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+        .ledger-item-search-toggle:hover{color:var(--text)}.ledger-item-search-toggle[aria-expanded=true]{border-bottom-color:var(--brass);color:var(--text)}
+        .ledger-item-switch button{appearance:none;display:flex;justify-content:center;align-items:center;gap:5px;min-width:0;margin-bottom:-1px;padding:3px 7px 4px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dim);font:inherit;font-size:11.5px;font-weight:500;line-height:1.2;text-align:center;white-space:nowrap;cursor:pointer}
+        .ledger-item-switch button[aria-selected=true]{border-bottom-color:var(--brass);color:var(--text);font-weight:600}
+        .ledger-item-switch .capacity{flex:none;color:var(--dim);font-size:10px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .ledger-item-switch button[aria-selected=true] .capacity{color:var(--dim)}
+        .ledger-item-tools{flex:none;display:flex;align-items:center;height:24px;min-width:0}
+        .ledger-item-tools input{box-sizing:border-box;width:100%;min-width:0;padding:3px 7px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:11.5px;line-height:1.25}
+        .ledger-item-page{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden;scrollbar-width:thin}
+        .ledger-item-page[hidden],.ledger-item-tools[hidden],.ledger-item-row[hidden],.ledger-item-empty[hidden]{display:none}
+        .ledger-item-grid{display:grid;flex:1;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 7px;align-content:start;min-height:0;overflow-y:auto}
+        html[lang="en"] .ledger-item-grid,html[lang="ja"] .ledger-item-grid{grid-template-columns:minmax(0,1fr)}
+        .ledger-item-row{min-width:0;margin:0;border-bottom:1px solid color-mix(in srgb,var(--line) 78%,transparent)}
+        .ledger-item-row>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 12px;align-items:center;gap:5px;box-sizing:border-box;min-height:27px;padding:3px 4px;color:var(--text);font-size:11.5px;line-height:1.25;list-style:none;cursor:pointer}
+        .ledger-item-row>summary::-webkit-details-marker{display:none}
+        .ledger-item-row .name{min-width:0;overflow:hidden;color:var(--text);font-size:11.5px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
+        .ledger-item-row .count{min-width:3ch;color:var(--text);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+        .ledger-item-row .arrow{color:var(--dim);font-size:12px;text-align:right}.ledger-item-row[open] .arrow{transform:rotate(90deg)}
+        .ledger-item-row .pin-mark{width:9px;height:9px;margin-right:3px;vertical-align:-1px;fill:var(--brass)}
+        .ledger-item-row .item-detail{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 6px;padding:3px 7px 6px;color:var(--dim);font-size:10.5px;line-height:1.45;overflow-wrap:anywhere}
+        .ledger-item-row .item-detail-label{color:var(--brass);letter-spacing:var(--track-tag)}
+        /* 釘選鈕放在展開內容，不佔收攏列寬；按鈕獨立一行靠右，雙欄窄格也不擠壓說明。 */
+        .ledger-item-row .item-pin{appearance:none;grid-column:1/-1;justify-self:end;padding:1px 7px;border:1px solid var(--line);border-radius:3px;background:transparent;color:var(--dim);font:inherit;font-size:10.5px;line-height:1.35;white-space:nowrap;cursor:pointer}
+        .ledger-item-row .item-pin:hover{border-color:var(--brass);color:var(--text)}.ledger-item-row .item-pin[aria-pressed=true]{border-color:var(--brass);color:var(--brass)}
+        .ledger-item-switch .matches{color:var(--brass)}
+        .ledger-item-empty{padding:8px 3px;color:var(--dim);font-size:11px}
     </style>
 </head>
 
@@ -4780,27 +5597,22 @@
     <div id="notice" hidden></div>
     <div id="tabs"></div>
     <div id="tabpanel" class="has-general">
-        <div id="tab-general">
-            <div class="g-status">
-                <div class="resblock" id="resline"></div>
-                <div class="g-occ">
-                    <div class="g-cat g-cat-exped" data-i18n-title="tab.exped" title="遠征">
-                        <span class="t-tag tt-exped" data-i18n-title="tag.exped" title="遠"><img class="t-icon" src="/icons/ui/exped.svg" data-i18n-alt="tag.exped" alt="遠"></span>
-                        <div id="missions"></div>
-                    </div>
-                    <div class="g-cat g-cat-dock" data-i18n-title="section.dock" title="入渠">
-                        <span class="t-tag tt-dock" data-i18n-title="tag.dock" title="渠"><img class="t-icon" src="/icons/ui/dock.svg" data-i18n-alt="tag.dock" alt="渠"></span>
-                        <div id="ndocks"></div>
-                    </div>
-                    <div class="g-cat g-cat-build" data-i18n-title="section.build" title="建造">
-                        <span class="t-tag tt-build" data-i18n-title="tag.build" title="建"><img class="t-icon" src="/icons/ui/build.svg" data-i18n-alt="tag.build" alt="建"></span>
-                        <div id="kdocks"></div>
-                    </div>
-                </div>
+        <div id="tab-general" class="ledger">
+            <nav class="ledger-nav" id="general-nav" aria-label="一般分頁"></nav>
+            <div class="ledger-page ledger-harbor" id="general-harbor">
+                <div class="ledger-materials" id="resline"></div>
+                <div class="ledger-group-tabs" id="operation-nav"></div>
+                <section class="ledger-group" id="operation-exped"><div class="ledger-group-heading" id="heading-exped"></div><div class="ledger-group-list" id="missions"></div></section>
+                <section class="ledger-group" id="operation-dock" hidden><div class="ledger-group-heading" id="heading-dock"></div><div class="ledger-group-list" id="ndocks"></div></section>
+                <section class="ledger-group" id="operation-build" hidden><div class="ledger-group-heading" id="heading-build"></div><div class="ledger-group-list" id="kdocks"></div></section>
             </div>
-            <div class="g-quest-block" data-i18n-title="section.quest" title="任務">
-                <span class="t-tag tt-quest" data-i18n-title="tag.quest" title="任"><img class="t-icon" src="/icons/ui/quest.svg" data-i18n-alt="tag.quest" alt="任"></span>
-                <div id="quests"></div>
+            <div class="ledger-page ledger-quests" id="general-quests" hidden><div class="ledger-quest-heading" id="quest-heading"></div><div class="ledger-quest-list" id="quests"></div></div>
+            <div class="ledger-page ledger-items" id="general-items" hidden>
+                <div class="ledger-item-layout">
+                    <div class="ledger-item-bar"><div class="ledger-item-switch" id="inventory-nav" role="tablist"></div><button type="button" class="ledger-item-search-toggle" id="item-search-toggle" aria-expanded="false" aria-controls="item-search-row"><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.2"/><path d="M9.2 9.2 12.5 12.5"/></svg></button></div>
+                    <div class="ledger-item-tools" id="item-search-row" hidden><input id="item-search" type="search" autocomplete="off"></div>
+                    <div class="ledger-item-page" id="inventory-results"></div>
+                </div>
             </div>
         </div>
         <div id="tab-exped" style="display:none">

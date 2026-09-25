@@ -6,6 +6,8 @@ import type { ApiEventRow, SnapshotRow } from './db';
 export const SNAPSHOT_ORDER = [
     'api_start2/getData',
     'api_get_member/require_info',
+    'api_get_member/useitem',
+    'api_get_member/payitem',
     'api_get_member/slot_item',
     'api_port/port',
     'api_get_member/base_air_corps',

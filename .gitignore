@@ -11,3 +11,5 @@ __pycache__/
 /sortie-diagnosis.png
 tools/icons/out/
 .agents/skills/
+# 配裝參考預覽用的社群加成表快取，非正式資料、不進正式 bundle
+tools/preview/assets/*.preview.json
