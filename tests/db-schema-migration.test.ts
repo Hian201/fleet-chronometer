@@ -230,10 +230,10 @@ describe('KcDb 現行 schema 與 v9 相容遷移', () => {
         const database = track(new KcDb(databaseName('fresh-current')));
         await database.open();
 
-        expect(database.verno).toBe(13);
+        expect(database.verno).toBe(14);
         expect(database.tables.map(table => table.name).sort()).toEqual([
             'eventPlans', 'events', 'expeditions', 'factory', 'meta', 'notified',
-            'questObserved', 'replays', 'resourceMarks', 'resources', 'shipObtained',
+            'questObserved', 'questSeen', 'replays', 'resourceMarks', 'resources', 'shipObtained',
             'snapshot', 'sorties', 'wanted',
         ]);
 

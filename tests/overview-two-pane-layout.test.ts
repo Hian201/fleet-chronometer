@@ -26,7 +26,7 @@ describe('情報總括雙欄不得過早改單欄', () => {
 
     it('任務導覽在 ≤760px 仍維持左右兩欄', () => {
         const narrow = css.slice(css.indexOf('/* ── 窄視窗'));
-        expect(narrow).toMatch(/\.qf-board\s*\{[^}]*grid-template-columns:\s*minmax\(180px, 38%\) minmax\(0, 1fr\)/);
+        expect(narrow).toMatch(/\.qf-board\s*\{[^}]*grid-template-columns:\s*minmax\(160px, 30%\) minmax\(0, 1fr\)/);
         expect(narrow).not.toMatch(/\.er-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
         expect(narrow).not.toMatch(/\.qf-board\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
     });

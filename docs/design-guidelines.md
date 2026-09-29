@@ -567,7 +567,7 @@ panel 剪影風格而繞過或改寫既有生成器。
 ```bash
 npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts   # 出擊＋編成／連合場景
 npx vite-node --config vitest.config.ts tools/preview/panel-general.ts  # 一般分頁
-npx vite-node --config vitest.config.ts tools/preview/panel-general-ledger.ts  # 港務／任務／道具版面
+npx vite-node --config vitest.config.ts tools/preview/panel-general-ledger.ts  # 母港／任務／道具版面
 npx vite-node --config vitest.config.ts tools/preview/panel-items.ts  # 道具頁（打包正式 general.ts；?lang=&q=&pins=&open=）
 ```
 
@@ -600,10 +600,10 @@ npx vite-node --config vitest.config.ts tools/preview/panel-items.ts  # 道具�
 | `#fleetnav` | ≈32px | |
 | `#fleets` | 其餘 | 瓶頸是單隊七船 |
 
-一般分頁在固定的 `#tabpanel` 內切換港務、任務與道具。港務的八項資源採 4×2 圖示加數值，
+一般分頁在固定的 `#tabpanel` 內切換母港、任務與道具。母港的八項資源採 4×2 圖示加數值，
 完整名稱放在提示與輔助標籤；遠征、入渠、建造各自切換並依封包資料列出狀態。任務列出
 全部受注項目；八項收攏狀態須在 270px 面板內全數可見，展開說明造成內容超出時才在任務清單內捲動，
-以原生 `<details>` 顯示完整敘述且不重複加「任務說明」標籤。四個入渠與建造船塢列須完整放在港務區內，
+以原生 `<details>` 顯示完整敘述且不重複加「任務說明」標籤。四個入渠與建造船塢列須完整放在母港區內，
 正常船塢上限時不出現捲軸。道具搜尋列平時收起，由道具欄分頁列右端的放大鏡展開，收起或按 Esc
 即清空條件，避免看不見的篩選殘留；搜尋
 同時比對繁中、日文及英文名稱與兩個道具欄。釘選的道具依釘選先後排在所屬道具欄最前面、名稱前加黃銅圖釘，

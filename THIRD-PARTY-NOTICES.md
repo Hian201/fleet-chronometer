@@ -200,20 +200,128 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ## 10. 任務導覽目錄
 
-- **用途**：`utils/quest-catalog-data.ts`（由 `utils/quest-flow.ts` 讀取）——任務 `api_no`、週期、前置與開放邊，供情報總括任務導覽使用。
+- **用途**：`utils/quest-catalog-data.ts`（由 `utils/quest-flow.ts` 讀取）——任務 `api_no`、週期、前置與開放邊，供情報總括任務導覽使用；`utils/quest-catalog-rewards.json`——任務資源、固定報酬與選擇報酬，供任務導覽和 panel 共用。
+- **翻譯資料**：`utils/quest-catalog-translations.json` 的英譯及早期繁中對照參考 KC3Kai kc3-translations 的 `data/en/quests.json` 與 `data/tcn/quests.json`（commit `74b37f83b52df52bb4d76f62e4463603fcc7ec3a`）。`zh-TW` 文案由本專案以台灣華語重新校訂；上游資料只作對照，不作為台灣用語或任務條件的定稿依據。上游缺少的任務由本專案補譯。
+  - 專案：https://github.com/KC3Kai/kc3-translations
+  - 授權與版權：MIT License，Copyright (c) 2015-2021 KC3改。
 - **來源**：
+  - 任務獎勵 `utils/quest-catalog-rewards.json`：依 wikiwiki 任務總表及各任務分類表的獎勵欄整理；新任務與已封存的期間限定任務另查「新着任務」及「過去の期間限定任務」。資源數值沿用各欄位，其他獎勵保留固定／選擇分組；來源代號留在資料列供追查。
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E5%87%BA%E6%92%83%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E7%B7%A8%E6%88%90%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%BC%94%E7%BF%92%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E9%81%A0%E5%BE%81%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E5%B7%A5%E5%BB%A0%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%96%B0%E7%9D%80%E4%BB%BB%E5%8B%99
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E9%81%8E%E5%8E%BB%E3%81%AE%E6%9C%9F%E9%96%93%E9%99%90%E5%AE%9A%E4%BB%BB%E5%8B%99
+  - `utils/quest-catalog-reward-names.json` 的既有艦名、裝備名與消耗品譯名取自本專案 `samples/i18n/ship-names-i18n-player.csv`、`samples/i18n/equipment-names-i18n.csv` 及 `utils/item-catalog.ts`；未收錄的獎勵名稱由本專案依日文名稱撰寫台灣華語與英文對照。
   - 開放邊 `KC3_UNLOCKS_RAW`：KC3Kai 任務解鎖關係，只保留「前置 → 後續」的數字邊。
     https://github.com/KC3Kai/KC3Kai
   - 名稱、內文、wiki 代號、週期與前置清單：自社群任務目錄整理的事實欄位；來源網址不寫進資料檔。
-- **授權**：開放邊沿用 KC3Kai 的 MIT License（見下方全文）。
+  - 開放条件 `WIKI_QUEST_GRAPH_RAW`（`utils/quest-graph-data.ts`）：由 `tools/quest-graph/generate.py` 解析 wikiwiki 任務總表「開放条件/備考」欄產生，只保留前置 `api_no`、AND／OR 組合與【検証中】等驗證旗標，不收錄頁面文字。只在開發者更新任務資料時手動執行，一次一個請求；擴充執行時不連網。
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
+  - 前提／後續 `ZEKAMASHI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析ぜかまし各任務攻略「前提に…あり。後続に…あり。」敘述，只保留任務 `api_no` 關係與「要確認」「他不明」等註記旗標，不收錄文章內容。頁面快取於 `tools/quest-graph/.cache/`（不進 git），之後只重抓 sitemap lastmod 有變動或新發表的文章，請求間隔至少 2 秒。
+    https://zekamashi.net/
+  - 前置 `QUEST_PLANNER_GRAPH_RAW`（同檔）：同一產生器讀取 poi-plugin-quest-planner 固定 commit（`8b18557b8c19e4d3caa8ff08b6d129c20da825ba`）的 `data/quests.json`，只保留 `dependencies` 的任務 `api_no` 與期間限定前置代號，取代目錄裡同源（kcQuests）的舊版 poi 前置。
+    https://github.com/RikaKagurasaka/poi-plugin-quest-planner
+    授權與版權：MIT License，Copyright (c) 2026 Rika。
+  - 單發任務樹 `TSUKINOHASHI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析艦これ単発任務マネージャ `main.js` 的任務連線與各任務說明開頭的紅字前置，只保留任務 `api_no` 關係；只在其他來源衝突時作為額外引用與投票，不推翻沒有衝突的結果。
+    https://tsukinohashi.com/mission-manager
+  - 前置 `KCWIKI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析舰娘百科任務總表的「前置」欄（只抓總表一頁並快取；該站 robots.txt 為 Crawl-delay 100），只保留任務 `api_no` 關係與「待验证」等旗標，不收錄頁面文字。poi／kcQuests 的前置由此站抽出，兩者計票時合為一票。
+    https://zh.kcwiki.cn/wiki/%E4%BB%BB%E5%8A%A1
+    網站內容授權：知识共享署名-非商业性使用-相同方式共享（CC BY-NC-SA）；本專案只取任務關係事實。
+  - 代號與名稱補齊 `QUEST_CATALOG_SUPPLEMENT_RAW`（同檔）：目錄有 `api_no` 卻缺 wiki 代號或名稱的任務（例：1020＝2409B1），由上述 kc3-translations 同一 commit 的 `data/jp/quests.json` 補上。
+- **攻略事實核對**：任務條件以遊戲日文任務原文為基礎，優先查對 wikiwiki 任務表及 Zekamashi 對應攻略；必要時參考 wikiwiki 或 Zekamashi 的海域攻略。英文任務資料只供輔助比對，不得推翻日文任務表或上述攻略。僅整理艦種、艦名、編成位置、數量、海域、節點與勝利條件等事實，文案由本專案自行撰寫。
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E5%87%BA%E6%92%83%E4%BB%BB%E5%8B%99
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E7%B7%A8%E6%88%90%E4%BB%BB%E5%8B%99
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%BC%94%E7%BF%92%E4%BB%BB%E5%8B%99
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E3%82%B1%E3%83%83%E3%82%B3%E3%83%B3%E3%82%AB%E3%83%83%E3%82%B3%E3%82%AB%E3%83%AA%E4%BB%BB%E5%8B%99
+  - https://wikiwiki.jp/kancolle/%E9%8E%AE%E5%AE%88%E5%BA%9C%E6%B5%B7%E5%9F%9F/1-6
+  - https://wikiwiki.jp/kancolle/%E5%8C%97%E6%96%B9%E6%B5%B7%E5%9F%9F/3-5
+  - https://wikiwiki.jp/kancolle/%E5%8D%97%E8%A5%BF%E8%AB%B8%E5%B3%B6%E6%B5%B7%E5%9F%9F/2-2
+  - https://wikiwiki.jp/kancolle/%E5%8D%97%E6%96%B9%E6%B5%B7%E5%9F%9F
+  - https://zekamashi.net/kancolle-kouryaku/yonsuisen-zyunbi/
+  - https://zekamashi.net/kancolle-kouryaku/1-3/
+  - https://zekamashi.net/kancolle-kouryaku/3-5/
+  - https://zekamashi.net/kancolle-kouryaku/akashi-goei/
+  - https://zekamashi.net/kancolle-kouryaku/kaiboukan-mamoru/
+  - https://zekamashi.net/kancolle-kouryaku/kuma-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/hamanami-tekityuu/
+  - https://zekamashi.net/kancolle-kouryaku/haguro-penang/
+  - https://zekamashi.net/kancolle-kouryaku/noshirokaini-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/seiei-sisihunzin/
+  - https://zekamashi.net/kancolle-kouryaku/yonkousen-zenryoku/
+  - https://zekamashi.net/kancolle-kouryaku/yamakaze-batubyou/
+  - https://zekamashi.net/kancolle-kouryaku/inagikaini-batubyou/
+  - https://zekamashi.net/kancolle-kouryaku/sanzyuuniku-tukizisentousyoukai/
+  - https://zekamashi.net/kancolle-kouryaku/soubi-kaisyuu-syuutyuu/
+  - https://zekamashi.net/kancolle-kouryaku/soubi-kaisyuu-2/
+  - https://zekamashi.net/kancolle-kouryaku/kaiboukan-sinpatu/
+  - https://zekamashi.net/kancolle-kouryaku/2026syoka-kousyouseiri/
+  - https://zekamashi.net/kancolle-kouryaku/2-5/
+  - https://zekamashi.net/kancolle-kouryaku/1yb3h-tekityuutoppa/
+  - https://zekamashi.net/kancolle-kouryaku/daikyuusentai/
+  - https://zekamashi.net/kancolle-kouryaku/tamokutekitousaibokan-kitakamikaisan/
+  - https://zekamashi.net/kancolle-kouryaku/kisonsoubi-taikuuheisoukaihatu/
+  - https://zekamashi.net/kancolle-kouryaku/kaizyouhokyuusen-kakuho/
+  - https://zekamashi.net/kancolle-kouryaku/sigurekaisan-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/syoka-seieikidoubutai/
+  - https://zekamashi.net/kancolle-kouryaku/hayanami-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/hubukikaisan-batubyou/
+  - https://zekamashi.net/kancolle-kouryaku/hiryuukaisan-sippuudotou/
+  - https://zekamashi.net/kancolle-kouryaku/akizukikaini-suisan/
+  - https://zekamashi.net/kancolle-kouryaku/tamanami-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/senryakuheitan-yusou/
+  - https://zekamashi.net/kancolle-kouryaku/senryakuheitan-kakutyou/
+  - https://zekamashi.net/kancolle-kouryaku/nansei-kiti/
+  - https://zekamashi.net/kancolle-kouryaku/hisendan-yawatamaru/
+  - https://zekamashi.net/kancolle-kouryaku/1-6/
+  - https://zekamashi.net/kancolle-kouryaku/kiyosimokaini-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/hayasimokaini-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/ukurugata-bouei/
+  - https://zekamashi.net/kancolle-kouryaku/nitouyusoukan-unnyou/
+  - https://zekamashi.net/kancolle-kouryaku/yusousendangoeibutai-syutugeki/
+  - https://zekamashi.net/kancolle-kouryaku/2026syoka-suizyoudageki/
+  - https://zekamashi.net/kancolle-kouryaku/bay-batubyou/
+  - https://zekamashi.net/kancolle-kouryaku/yuudati-harusame/
+  - https://zekamashi.net/kancolle-kouryaku/daikyuusentai-zensen/
+  - https://zekamashi.net/kancolle-kouryaku/tamokutekitousaibokan-kitakamikaisan/
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%9C%9F%E9%96%93%E9%99%90%E5%AE%9A2
+  - https://wikiwiki.jp/kancolle/%E9%8E%AE%E5%AE%88%E5%BA%9C%E6%B5%B7%E5%9F%9F/1-1
+  - https://wikiwiki.jp/kancolle/%E4%B8%AD%E9%83%A8%E6%B5%B7%E5%9F%9F/6-4
+  - https://wikiwiki.jp/kancolle/%E6%97%A9%E9%9C%9C%E6%94%B9%E4%BA%8C
+  - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%96%B0%E7%9D%80%E4%BB%BB%E5%8B%99
+- **海域標籤與編號對照**：依各海域介紹核對海域名稱、地圖編號與世界範圍；多階段地圖另保留攻略慣用的關卡編號。
+  - https://zekamashi.net/kancolle-kouryaku/tinzyuhu-kaiiki/
+  - https://zekamashi.net/kancolle-kouryaku/nanseisyotou-kaiiki/
+  - https://zekamashi.net/kancolle-kouryaku/hoppou-kaiiki/
+  - https://zekamashi.net/kancolle-kouryaku/seihou-kaiiki/
+  - https://zekamashi.net/category/kancolle-kouryaku/nanpou-kaiiki/
+  - https://zekamashi.net/kancolle-kouryaku/tyuubu-kaiiki/
+  - https://zekamashi.net/kancolle-kouryaku/nansei-kaiiki/
+- **授權**：任務譯文沿用 KC3Kai kc3-translations 的 MIT License；開放邊沿用 KC3Kai 的 MIT License（見下方全文）。
 - **版權**：KC3Kai 部分 Copyright (c) 2015-2026 dragonjet。任務名稱與內文屬遊戲原文（DMM／Kadokawa），本專案不主張其著作權。
 - **限制**：不是封包驗證。週期只用來判斷本機領獎是否仍屬本期；年任開始月未進目錄，不對齊年度。
+
+## 11. 任務進度條件表 (Quest goal data)
+
+- **用途**：`utils/quest-goal-data.ts`（由 `tools/quest-goal/generate.py` 產生）的逐任務進度條件：
+  計數事件、海域、節點 edge、旗艦／僚艦／艦種／艦級等篩選與所需次數。只收錄結構化條件，
+  不收錄原說明文字。
+- **來源**：poi — https://github.com/poooi/poi 的 `assets/data/fcd/questgoal.json`，
+  固定 commit `013c81dc0a8725ab0b3e1af89830f9c3ee2efa52`（資料版本 2026/09/15/02）。
+- **判定邏輯**：`utils/quest-goals.ts` 依該專案 `skills/quest-goal-data/SKILL.md` 記載的欄位語意
+  （艦娘 id 表示該改造階段以後、僚艦條目的 OR／AND 與是否含旗艦、mapcell 為 edge 編號等）
+  由本專案自行實作，未複製其程式碼。
+- **授權**：MIT License
+- **版權**：Copyright (c) 2015-2021 poi contributors
 
 ---
 
 ## MIT License 全文
 
-上述第 1、2、5、5b、6、7b、8、9、10 項均採用 MIT License，
+上述第 1、2、5、5b、6、7b、8、9、10、11 項均採用 MIT License，
 其條款內容相同，全文如下：
 
 ```

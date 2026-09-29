@@ -2,7 +2,18 @@ import RAW_EXPED from './expedition-data';
 import { analyzeBattle, taihaFlags } from './battle';
 import { localizeShip, localizeGear, localizeEquipmentType } from './gamedata-i18n';
 import { expedItemDisplayName, expedItemFullName, t } from './ui-i18n';
-import { resolveQuestGoal, meetsRank, type QuestActionKind, type QuestGoal } from './quest-progress';
+import { resolveQuestGoal, meetsRank, QUEST_ID_OVERRIDES, type QuestActionKind, type QuestGoal } from './quest-progress';
+import {
+    compareWithServer, extractTextRule, judgeTextBattle, needsRecheck, progressRange, questTier,
+    type BattleFacts, type QuestJudgement, type QuestTier, type ServerObservation, type TextRule,
+} from './quest-tracking';
+import {
+    goalCount, goalTotal, idEntryHolds, judgeBattleGoals, judgeMissionGoals, judgePracticeGoals, judgeReachGoals,
+    questDay, questGoalDef,
+    simpleGoalFromDef, sinkingGains,
+    type FleetFacts, type QuestGoalDef,
+} from './quest-goals';
+import { nodeLetter } from './map-node-letters';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
     LBAS_COND_EXHAUSTED, LBAS_COND_MILD, LBAS_COND_TIRED,
@@ -653,6 +664,80 @@ export interface KdockView { id: number; state: number; ship: string; completeAt
 export interface QuestView {
     no: number; name: string; detail: string; done: boolean;
     progress: { count: number; target: number } | null;
+    // 可信度與伺服器對照（quest-tracking.ts）；只有受注中／達成的任務才有。
+    tracking?: QuestTrackingView;
+}
+/** 條件表子目標的進度；標籤由介面依事件、海域、節點字母與艦種組出。 */
+export interface QuestTargetView {
+    event: string;
+    maparea: number[] | null;
+    nodeLetters: string[];
+    shipType: number[] | null;
+    /** 遠征成功的子目標：限定的遠征（名稱取自 start2）；不限遠征時為 null。 */
+    missions: { id: number; name: string; dispNo: string }[] | null;
+    count: number;
+    need: number;
+}
+export interface QuestTrackingView {
+    tier: QuestTier;
+    recheck: boolean;
+    /** 伺服器下限高於本機計數時的推算範圍。 */
+    range: { lo: number; hi: number } | null;
+    /** 多個子目標時的逐項進度；單一計數的任務為 null。 */
+    targets: QuestTargetView[] | null;
+    latestServer: ServerObservation | null;
+    lastJudgement: QuestJudgement | null;
+    /** text 級的候選場次數。 */
+    candidates: number;
+    hasLog: boolean;
+    /** 條件表對照目前第一艦隊；沒有編成條件時為空陣列。 */
+    fleetCheck: QuestConditionCheck[];
+    /** fleetCheck 用到的艦娘 master id → 艦名；艦級 id → 代表艦的艦名（介面顯示為「○○型」）。 */
+    conditionNames: { ships: Record<number, string>; classes: Record<number, string> };
+}
+export type QuestConditionKind =
+    | 'flagshipId' | 'secondshipId' | 'escortshipId' | 'escortshipIdAll' | 'flagshiptype' | 'escortshiptype'
+    | 'flagshipclass' | 'secondshipclass' | 'escortshipclass' | 'fleetlimit' | 'banshiptype';
+/** 編成條件逐條對照目前第一艦隊。ids 依 kind 為艦娘／艦種／艦級 id；hits＝符合的艦（master id）。 */
+export interface QuestConditionCheck {
+    kind: QuestConditionKind;
+    ids: number[];
+    min?: number;
+    ignoreFlagship?: boolean;
+    limit?: number;
+    ok: boolean;
+    hits: number[];
+}
+export interface QuestTrackingDetail extends QuestTrackingView {
+    no: number;
+    acceptedTs: number;
+    count: number | null;
+    target: number | null;
+    judgements: QuestJudgement[];
+    server: ServerObservation[];
+    /** 條件表的子目標進度（含單一子目標）；沒有條件表時為 null。 */
+    goals: QuestTargetView[] | null;
+    textRule: TextRule | null;
+    /** 判定紀錄與條件中出現的艦娘 master id → 目前語言的艦名。 */
+    shipNames: Record<number, string>;
+    /** 艦級 id → 代表艦的艦名（介面顯示為「○○型」）。 */
+    classNames: Record<number, string>;
+    /** 判定紀錄中出現的遠征 id → start2 的遠征名稱。 */
+    missionNames: Record<number, string>;
+}
+/** 判定紀錄的保留上限；超過時只留最新的，避免長期受注的任務無限成長。 */
+const QUEST_JUDGEMENT_CAP = 100;
+const QUEST_SERVER_CAP = 30;
+interface QuestTrackRecord {
+    acceptedTs: number;
+    detail: string;
+    /** 條件表各子目標的計數；沒有可支援的條件表時為 null。 */
+    goalCounts: number[] | null;
+    /** 計數所屬的遊戲日（resetInterval 1 的任務換日歸零用）。 */
+    goalDay: number;
+    textRule: TextRule | null | undefined;
+    judgements: QuestJudgement[];
+    server: ServerObservation[];
 }
 export interface ExpedCheckRow { label: string; ok: boolean; cur?: string }
 
@@ -824,6 +909,8 @@ export class GameState {
     // 全名冊（常 300-500 艘）各跑一次帶 visited 的圖搜尋，而 battleresult 在面板啟動
     // 重播時會逐筆重跑，成本再乘上歷史結算筆數；艦娘全覽也是每艘各查一次。
     private baseShipIdCache = new Map<number, number | null>();
+    // shipCountsAs() 的快取；與 baseShipIdCache 同樣只在 start2 重建 master 時清空。
+    private shipCountsAsCache = new Map<number, number[]>();
     // 可裝備類別（裝備篩選用）。兩張表的關係已用真實完整 start2 驗證（見 equipTypesOf）：
     //   stypeEquip       ：api_mst_stype[].api_equip_type 中值為 1 的類別 id（艦種層級預設）
     //   shipEquipOverride：api_mst_equip_ship（逐艦例外，**完整覆蓋** stype 預設而非疊加）
@@ -884,6 +971,18 @@ export class GameState {
     // count 從「本機首次觀測到該任務」起算（baseline 誠實原則，見 quest-progress.ts）。
     // area/bossOnly/minRank/missionIds 為選填過濾條件，沿用 QuestGoal 的欄位（見該檔說明）。
     questProgress = new Map<number, QuestGoal & { count: number }>();
+    // 任務判定紀錄與伺服器對照（quest-tracking.ts）。與 questProgress 同樣只由保留的 raw events
+    // 重建、不另存 DB：raw event 裁剪後，較早的判定紀錄隨之消失，進度仍以伺服器回報為準。
+    questTracking = new Map<number, QuestTrackRecord>();
+    // 出擊當下的艦隊 master id（連合時為第一艦隊），供任務判定旗艦／僚艦；出擊中編成不會變動。
+    private sortieFleetMasters: number[] = [];
+    // 出擊當下的艦隊（0 起算）。戰鬥封包明示的 api_deck_id 與它不同時，出擊時記下的編成不能
+    // 代表這場戰鬥：本次出擊剩下的判定一律視為艦隊不可考，帶編成條件的子目標不計入。
+    private sortieFleetDeckIdx = -1;
+    private sortieFleetMismatch = false;
+    // 演習艦隊的 master id；演習戰鬥封包的 api_deck_id（缺席時用請求的 api_deck_id）解不出時為 null，
+    // 帶編成條件的演習任務此時判為艦隊不可考。演習結算的 api_ship_id 是對手艦隊，不能拿來判定。
+    private practiceFleetMasters: number[] | null = null;
     // clearitemget 是本機確實觀測到領取獎勵的證據。仍在 raw events 裡的領獎由 applyEvent
     // 記入；已裁剪或只存在備份 derived table 的列經 ingestArchivedQuestClaim 補回。
     questObservedCompletions = new Map<number, { count: number; lastTs: number }>();
@@ -891,6 +990,9 @@ export class GameState {
     // 可用來對「沒出現的單發任務」做缺席推論；遂行中／每日等子集 tab 不得寫入。
     // null＝尚未觀測到這類完整清單，與空陣列（當時 0 件）不同。
     questOnceCatalogNos: number[] | null = null;
+    // 曾經出現在任何 questlist tab 的任務（受注中／達成／可接受）。單發前置因此永久可推為完成；
+    // 已裁剪的觀測由 db.questSeen 經 ingestArchivedQuestSeen 補回（見 quest-seen.ts）。
+    questSeenNos = new Set<number>();
     consumableGearIds = new Set<number>();
     airBases = new Map<string, any>();   // key: `${area_id}_${rid}`
     // `api_get_member/mapinfo.api_air_base_expanded_info[]`：以海域 area_id 為單位的
@@ -1293,6 +1395,7 @@ export class GameState {
         if (path === 'api_start2/getData') {
             this.remodelPrev.clear();
             this.baseShipIdCache.clear();   // 反解來源要重建了，舊答案一律作廢
+            this.shipCountsAsCache.clear();
             this.masterUseItems.clear();
             for (const s of api.api_mst_ship) {
                 this.master.set(s.api_id, {
@@ -1584,6 +1687,7 @@ export class GameState {
                 if (syncActive) {
                     this.quests.clear();
                     this.questProgress.clear();
+                    this.questTracking.clear();
                 }
                 if (syncAvailable) this.availableQuests.clear();
                 if (catalogTab) recordOnceCatalog([]);
@@ -1593,6 +1697,7 @@ export class GameState {
                     // 空欄是 -1（不是物件），不可當任務讀。
                     if (!q || typeof q !== 'object' || !(q.api_no > 0)) continue;
                     seen.add(q.api_no);
+                    if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) this.questSeenNos.add(q.api_no);
                     if (q.api_state === 2 || q.api_state === 3) {
                         this.quests.set(q.api_no, {
                             name: q.api_title,
@@ -1602,14 +1707,21 @@ export class GameState {
                         this.availableQuests.delete(q.api_no);
                         // 進度只在「本機第一次看到這個任務編號」時初始化——重複的 questlist
                         // 不得把已累積的計數洗回 0。
-                        if (!this.questProgress.has(q.api_no)) {
-                            const goal = resolveQuestGoal(q.api_no, q.api_title ?? '', q.api_detail ?? '');
+                        const def = questGoalDef(q.api_no);
+                        if (!this.questProgress.has(q.api_no) && !def?.supported) {
+                            // 條件表有收錄但事件尚未支援（演習、遠征等）時，不用文字推算次數：
+                            // 那類任務多帶編成或評價條件，文字推算會多算。只接受人工核對的目標或單純計數。
+                            const goal = def
+                                ? QUEST_ID_OVERRIDES[q.api_no] ?? simpleGoalFromDef(def)
+                                : resolveQuestGoal(q.api_no, q.api_title ?? '', q.api_detail ?? '');
                             if (goal) this.questProgress.set(q.api_no, { ...goal, count: 0 });
                         }
+                        this.observeQuestServer(q.api_no, q.api_detail ?? '', q.api_progress_flag, q.api_state === 3, ts);
                     } else {
                         // state 1=未受注：若已追蹤過（例如放棄後），從面板拿掉。
                         this.quests.delete(q.api_no);
                         this.questProgress.delete(q.api_no);
+                        this.questTracking.delete(q.api_no);
                         this.availableQuests.set(q.api_no, {
                             name: q.api_title ?? '', detail: q.api_detail ?? '',
                         });
@@ -1620,6 +1732,7 @@ export class GameState {
                         if (seen.has(no)) continue;
                         this.quests.delete(no);
                         this.questProgress.delete(no);
+                        this.questTracking.delete(no);
                     }
                 }
                 if (syncAvailable) {
@@ -1649,6 +1762,7 @@ export class GameState {
                 }
                 this.quests.delete(questId);
                 this.questProgress.delete(questId);
+                this.questTracking.delete(questId);
             }
         } else if (path === 'api_port/port') {
             this.ships.clear();
@@ -1758,6 +1872,9 @@ export class GameState {
             // 熟練度是回港時依「出撃時 vs 帰投時の残数」結算的，故出擊當下要先拍一份
             // 搭載數實數留著比（見 settlePlaneProficiency）。
             this.snapshotSortieOnslot();
+            this.sortieFleetMasters = this.deckMasters(this.currentSortieFleetId);
+            this.sortieFleetDeckIdx = this.currentSortieFleetId;
+            this.sortieFleetMismatch = false;
             this.bossEntryTaiha = null;
             const startNode = sortieNodeOf(api);
             const bossCellNo = Number(api?.api_bosscell_no);
@@ -1804,6 +1921,7 @@ export class GameState {
             this.noteBossEntry(startNode);
             this.applyMaelstromIfAny(api, startNode.id);
             this.bumpQuestProgress('sortie');
+            this.countQuestSally(ts);
         } else if (path === 'api_req_map/next') {
             if (this.sortieInfo) {
                 const node = sortieNodeOf(api);
@@ -1816,6 +1934,7 @@ export class GameState {
                 // 的戰鬥分支），故這裡量到的正是「踏進這個節點時」的狀態。
                 this.noteBossEntry(node);
                 this.applyMaelstromIfAny(api, node.id);
+                this.judgeQuestReach(this.sortieInfo, node, ts);
             }
         } else if (path === 'api_req_hensei/change' && req) {
             const deck = this.decks[Number(req.api_id) - 1];
@@ -1981,6 +2100,7 @@ export class GameState {
                 const deckId = Number(req?.api_deck_id ?? 0);
                 const missionId = this.lastMissionByDeck.get(deckId - 1);
                 this.bumpQuestProgress('expedition', 1, { missionId });
+                this.judgeQuestMission(missionId, ts);
             }
         } else if (path === 'api_req_nyukyo/start' && req) {
             // 入渠任務以實際送出的入渠請求計數；高速修復同樣走此端點，仍保留原始
@@ -2198,6 +2318,9 @@ export class GameState {
                 if (Number.isInteger(battleDeckIdx) && battleDeckIdx >= 0
                     && battleDeckIdx < this.decks.length && this.decks[battleDeckIdx]) {
                     this.currentSortieFleetId = battleDeckIdx;
+                    if (!path.startsWith('api_req_practice/') && battleDeckIdx !== this.sortieFleetDeckIdx) {
+                        this.sortieFleetMismatch = true;
+                    }
                 }
                 const isNightOnly = path.includes('sp_midnight');
                 // `night_to_day` 是完整的「夜戰起始＋日戰收尾」封包：雖然名稱沒有
@@ -2210,7 +2333,13 @@ export class GameState {
                 const isNightContinuation = isNight && !isNightToDay;
                 // 演習「挑戰次數」在晝戰當下就算一次，不必等結果——夜戰接續是同一場
                 // 演習的延續，不會重複觸發 api_req_practice/battle。
-                if (path === 'api_req_practice/battle') this.bumpQuestProgress('practiceAttempt');
+                if (path === 'api_req_practice/battle') {
+                    this.bumpQuestProgress('practiceAttempt');
+                    const practiceDeck = [Number(api?.api_deck_id), Number(req?.api_deck_id)]
+                        .find(id => Number.isInteger(id) && id >= 1 && id <= this.decks.length && this.decks[id - 1]);
+                    this.practiceFleetMasters = practiceDeck === undefined ? null
+                        : this.deckMasters(practiceDeck - 1);
+                }
 
                 // Get player damecons
                 const playerDamecons = this.getPlayerDamecons(api);
@@ -2363,6 +2492,7 @@ export class GameState {
                 boss: map ? isBossNode(map.nodes[map.nodes.length - 1]) : false,
                 rank: api?.api_win_rank,
             };
+            this.judgeQuestBattle(map, api?.api_win_rank, ts);
             this.bumpQuestProgress('battleEngage', 1, battleCtx);
             this.bumpQuestProgress('battleWin', 1, battleCtx);
             // 結算畫面（顯示 rank+掉落）才一併套用本節點各戰累積的燃彈消耗，寫回 this.ships。
@@ -2412,6 +2542,8 @@ export class GameState {
                 if (api?.api_win_rank) this.battleInfo.rank = api.api_win_rank;
             }
             if (['S', 'A', 'B'].includes(api?.api_win_rank)) this.bumpQuestProgress('practiceWin');
+            this.judgeQuestPractice(api?.api_win_rank, ts);
+            this.practiceFleetMasters = null;
             // 演習不消耗實際燃彈（遊戲機制），故不呼叫 applyConsumption；但演習戰鬥分支
             // 一樣會把費率 push 進 pendingConsumption（與正式出擊共用同一段計算），這裡若不清空
             // 就會在陣列裡留下不會被套用的殘留項——目前僅因 api_req_map/start 無條件重置才不
@@ -2440,6 +2572,401 @@ export class GameState {
             if (kind === 'battleWin' && !meetsRank(ctx?.rank, p.minRank ?? 'B')) continue;
             p.count = Math.min(p.target, p.count + amount);
         }
+    }
+
+    /**
+     * 任務條件的艦娘比對集合：自身＋所有改造前身（api_aftershipid 反向圖與 api_mst_shipupgrade）。
+     * 條件表的 id 表示「此改造階段以後」，艦隊中的艦只要集合含該 id 就算。可逆改裝會成環，故用走訪。
+     */
+    shipCountsAs(masterId: number): number[] {
+        const cached = this.shipCountsAsCache.get(masterId);
+        if (cached) return cached;
+        const seen = new Set<number>([masterId]);
+        const stack = [masterId];
+        while (stack.length) {
+            const cur = stack.pop()!;
+            const preds = [...(this.remodelPrev.get(cur) ?? []), ...(this.upgradeOriginal.has(cur) ? [this.upgradeOriginal.get(cur)!] : [])];
+            for (const p of preds) {
+                if (seen.has(p)) continue;
+                seen.add(p);
+                stack.push(p);
+            }
+        }
+        const result = [...seen];
+        this.shipCountsAsCache.set(masterId, result);
+        return result;
+    }
+
+    /** 艦隊（0 起算）目前編成的 master id，依編成順序。 */
+    private deckMasters(deckIdx: number): number[] {
+        return ((this.decks[deckIdx]?.api_ship ?? []) as number[])
+            .filter(id => id > 0)
+            .map(id => Number(this.ships.get(id)?.api_ship_id))
+            .filter(id => Number.isSafeInteger(id) && id > 0);
+    }
+
+    /** 任務判定用的出擊艦隊；沒有出擊編成或戰鬥封包的艦隊與出擊時不同時為 null（艦隊不可考）。 */
+    private questSortieFleet(): number[] | null {
+        return this.sortieFleetMismatch || !this.sortieFleetMasters.length ? null : this.sortieFleetMasters;
+    }
+
+    private fleetFacts(masters: readonly number[]): FleetFacts {
+        return {
+            countsAs: masters.map(id => this.shipCountsAs(id)),
+            stype: masters.map(id => this.master.get(id)?.stype ?? -1),
+            ctype: masters.map(id => this.master.get(id)?.ctype ?? -1),
+        };
+    }
+
+    private trackRecord(no: number, detail: string, ts: number): QuestTrackRecord {
+        let record = this.questTracking.get(no);
+        if (!record) {
+            const def = questGoalDef(no);
+            record = {
+                acceptedTs: ts, detail,
+                goalCounts: def?.supported ? def.subgoals.map(sub => sub.init) : null,
+                goalDay: questDay(ts),
+                textRule: undefined, judgements: [], server: [],
+            };
+            this.questTracking.set(no, record);
+        }
+        return record;
+    }
+
+    /** 可支援的條件表；「本日中」任務（resetInterval 1）換日時計數歸回初值。 */
+    private activeGoal(no: number, record: QuestTrackRecord, ts: number): QuestGoalDef | null {
+        const def = questGoalDef(no);
+        if (!def?.supported || !record.goalCounts) return null;
+        const day = questDay(ts);
+        if (def.resetInterval === 1 && day !== record.goalDay) record.goalCounts = def.subgoals.map(sub => sub.init);
+        record.goalDay = day;
+        return def;
+    }
+
+    /** 本機計數與目標：條件表優先，其次 questProgress；都沒有回傳 null。 */
+    private questLocal(no: number, record: QuestTrackRecord | undefined): { count: number; target: number; single: boolean } | null {
+        const def = questGoalDef(no);
+        if (def?.supported && record?.goalCounts) {
+            return { count: goalCount(def, record.goalCounts), target: goalTotal(def), single: def.subgoals.length === 1 };
+        }
+        const goal = this.questProgress.get(no);
+        return goal ? { count: goal.count, target: goal.target, single: true } : null;
+    }
+
+    // questlist 每次都會重送；只在伺服器回報或本機計數有變化時才記一筆，避免洗版。
+    private observeQuestServer(no: number, detail: string, rawFlag: unknown, done: boolean, ts: number): void {
+        const record = this.trackRecord(no, detail, ts);
+        this.activeGoal(no, record, ts);
+        const flagNum = Number(rawFlag);
+        const flag = Number.isSafeInteger(flagNum) && flagNum >= 0 && flagNum <= 2 ? flagNum : null;
+        const local = this.questLocal(no, record);
+        const previous = record.server.at(-1);
+        if (previous && previous.flag === flag && previous.done === done && previous.local === (local?.count ?? null)) return;
+        record.server.push({
+            ts, flag, done,
+            local: local?.count ?? null,
+            target: local?.target ?? null,
+            status: local ? compareWithServer(local.count, local.target, flag, done, local.single) : null,
+        });
+        if (record.server.length > QUEST_SERVER_CAP) record.server.splice(0, record.server.length - QUEST_SERVER_CAP);
+    }
+
+    /** 文字級規則：只在沒有條件表與 questProgress 時才從說明文字抽，且需帶「出撃」。 */
+    private questTextRule(no: number, record: QuestTrackRecord): TextRule | null {
+        if (record.textRule !== undefined) return record.textRule;
+        if (questGoalDef(no) || this.questProgress.has(no) || !record.detail.includes('出撃') || !this.master.size) return null;
+        const mapNames = new Map<string, string>();
+        for (const info of this.masterMapInfo.values()) {
+            if (info.area > 0 && info.area < 10 && info.no > 0) mapNames.set(`${info.area}-${info.no}`, info.name);
+        }
+        const shipIdsByName = new Map<string, number[]>();
+        for (const [id, ship] of this.master) {
+            const list = shipIdsByName.get(ship.name);
+            if (list) list.push(id); else shipIdsByName.set(ship.name, [id]);
+        }
+        record.textRule = extractTextRule(record.detail, mapNames, shipIdsByName);
+        return record.textRule;
+    }
+
+    private pushJudgement(record: QuestTrackRecord, judgement: QuestJudgement): void {
+        record.judgements.push(judgement);
+        if (record.judgements.length > QUEST_JUDGEMENT_CAP) record.judgements.splice(0, record.judgements.length - QUEST_JUDGEMENT_CAP);
+    }
+
+    private addGoalCounts(def: QuestGoalDef, record: QuestTrackRecord, gains: Iterable<[number, number]>): boolean {
+        let changed = false;
+        for (const [index, amount] of gains) {
+            const sub = def.subgoals[index];
+            const current = record.goalCounts![index] ?? 0;
+            if (!sub || current >= sub.required) continue;
+            record.goalCounts![index] = Math.min(sub.required, current + amount);
+            changed = true;
+        }
+        return changed;
+    }
+
+    /** 出擊（map/start）：只有完全不帶篩選的 sally 子目標會計入（出擊封包沒有海域與艦隊事實）。 */
+    private countQuestSally(ts: number): void {
+        for (const [no, record] of this.questTracking) {
+            if (this.quests.get(no)?.done) continue;
+            const def = this.activeGoal(no, record, ts);
+            if (!def) continue;
+            const gains = def.subgoals.flatMap((sub, index) =>
+                sub.event === 'sally' && Object.keys(sub).every(key => ['key', 'event', 'required', 'init'].includes(key))
+                    ? [[index, 1] as [number, number]] : []);
+            this.addGoalCounts(def, record, gains);
+        }
+    }
+
+    /** 抵達節點（map/next）：reach_mapcell 子目標以進入節點的 edge 比對。 */
+    private judgeQuestReach(map: SortieInfoView, node: SortieNode, ts: number): void {
+        const maparea = map.mapArea * 10 + map.mapNo;
+        const mapKey = `${map.mapArea}-${map.mapNo}`;
+        const masters = this.questSortieFleet();
+        const fleet = masters ? this.fleetFacts(masters) : null;
+        for (const [no, record] of this.questTracking) {
+            if (this.quests.get(no)?.done) continue;
+            const def = this.activeGoal(no, record, ts);
+            if (!def) continue;
+            const result = judgeReachGoals(def, record.goalCounts!, maparea, Number(node.id), fleet);
+            if (!result) continue;
+            this.addGoalCounts(def, record, result.counted.map(index => [index, 1] as [number, number]));
+            this.pushJudgement(record, {
+                ts, map: mapKey, nodeLetter: nodeLetter(mapKey, Number(node.id)), boss: isBossNode(node), rank: '',
+                flagship: masters?.[0] ?? null, counted: result.counted.length > 0, reach: true, reason: result.reason,
+            });
+        }
+    }
+
+    /** 演習結算：只看條件表的演習子目標（questProgress 的演習計數仍由 bumpQuestProgress 處理）。 */
+    private judgeQuestPractice(rank: string | undefined, ts: number): void {
+        const fleet = this.practiceFleetMasters ? this.fleetFacts(this.practiceFleetMasters) : null;
+        for (const [no, record] of this.questTracking) {
+            if (this.quests.get(no)?.done) continue;
+            const def = this.activeGoal(no, record, ts);
+            if (!def) continue;
+            const result = judgePracticeGoals(def, record.goalCounts!, rank, fleet);
+            if (!result) continue;
+            this.addGoalCounts(def, record, result.counted.map(index => [index, 1] as [number, number]));
+            this.pushJudgement(record, {
+                ts, map: '', nodeLetter: null, boss: false, rank: rank ?? '',
+                flagship: this.practiceFleetMasters?.[0] ?? null, counted: result.counted.length > 0,
+                practice: true, reason: result.reason,
+            });
+        }
+    }
+
+    /** 遠征成功：只看條件表的遠征子目標；不相關的遠征不記錄。 */
+    private judgeQuestMission(missionId: number | undefined, ts: number): void {
+        for (const [no, record] of this.questTracking) {
+            if (this.quests.get(no)?.done) continue;
+            const def = this.activeGoal(no, record, ts);
+            if (!def) continue;
+            const result = judgeMissionGoals(def, record.goalCounts!, missionId);
+            if (!result) continue;
+            this.addGoalCounts(def, record, result.counted.map(index => [index, 1] as [number, number]));
+            this.pushJudgement(record, {
+                ts, map: '', nodeLetter: null, boss: false, rank: '', flagship: null,
+                counted: result.counted.length > 0, ...(missionId === undefined ? {} : { mission: missionId }), reason: result.reason,
+            });
+        }
+    }
+
+    /** 本場結算後 HP 為 0 的敵艦艦種（主隊＋隨伴）。 */
+    private sunkEnemyTypes(): number[] {
+        const info = this.battleInfo;
+        const fleets = info?.resultFleets;
+        if (!info || !fleets) return [];
+        const pairs: [number | undefined, { hp: number } | undefined][] = [
+            ...fleets.enemyMain.map((ship, index) => [info.enemyIds?.[index], ship] as [number | undefined, { hp: number }]),
+            ...fleets.enemyEscort.map((ship, index) => [info.enemyIdsEscort?.[index], ship] as [number | undefined, { hp: number }]),
+        ];
+        return pairs.flatMap(([id, ship]) => id && ship && ship.hp <= 0 ? [this.master.get(id)?.stype ?? -1] : []);
+    }
+
+    /**
+     * 戰鬥結算：條件表、questProgress 的戰鬥類目標或文字級規則各自記錄判定。
+     * 沒有出擊資訊（map/start 已被裁剪）時海域與節點不可考：不限海域的子目標照常計入，限定者不計。
+     */
+    private judgeQuestBattle(map: SortieInfoView | null, rank: string | undefined, ts: number): void {
+        const mapKey = map ? `${map.mapArea}-${map.mapNo}` : '?';
+        const maparea = map ? map.mapArea * 10 + map.mapNo : NaN;
+        const node = map?.nodes[map.nodes.length - 1];
+        // 沒有出擊資訊時艦隊同樣不可考，不能用空艦隊去比對（禁止艦種、艦數上限會被當成符合）。
+        const masters = map ? this.questSortieFleet() : null;
+        const facts: BattleFacts = {
+            ts, map: mapKey,
+            nodeLetter: node ? nodeLetter(mapKey, Number(node.id)) : null,
+            boss: isBossNode(node),
+            rank,
+            fleet: masters,
+        };
+        const base = {
+            ts, map: mapKey, nodeLetter: facts.nodeLetter, boss: facts.boss,
+            rank: rank ?? '', flagship: masters?.[0] ?? null,
+        };
+        const fleet = masters ? this.fleetFacts(masters) : null;
+        const sunk = this.sunkEnemyTypes();
+        for (const [no, record] of this.questTracking) {
+            if (this.quests.get(no)?.done) continue;
+            const def = this.activeGoal(no, record, ts);
+            if (def) {
+                const result = judgeBattleGoals(def, record.goalCounts!, {
+                    maparea, mapcell: Number(node?.id), boss: facts.boss, rank, fleet,
+                });
+                const battleGain = this.addGoalCounts(def, record, (result?.counted ?? []).map(index => [index, 1] as [number, number]));
+                const sinkGain = this.addGoalCounts(def, record, sinkingGains(def, sunk));
+                if (result || sinkGain) {
+                    this.pushJudgement(record, { ...base, counted: battleGain || sinkGain, reason: battleGain || sinkGain ? null : result?.reason ?? null });
+                }
+                continue;
+            }
+            const goal = this.questProgress.get(no);
+            if (goal) {
+                if (goal.kind !== 'battleWin' && goal.kind !== 'battleEngage') continue;
+                if (goal.area && !goal.area.includes(maparea)) continue;
+                const reason = goal.bossOnly && !facts.boss ? 'notBoss' as const
+                    : goal.kind === 'battleWin' && !meetsRank(rank, goal.minRank ?? 'B') ? 'rank' as const
+                        : goal.count >= goal.target ? 'full' as const : null;
+                this.pushJudgement(record, { ...base, counted: reason === null, reason });
+                continue;
+            }
+            const text = this.questTextRule(no, record);
+            const judgement = text ? judgeTextBattle(text, facts) : null;
+            if (judgement) this.pushJudgement(record, judgement);
+        }
+    }
+
+    private goalViews(def: QuestGoalDef, counts: readonly number[]): QuestTargetView[] {
+        return def.subgoals.map((sub, index) => {
+            const maps = sub.maparea ? [...sub.maparea] : null;
+            // 節點字母只在單一海域時查得到（edge 編號各海域獨立）。
+            const letters = maps?.length === 1 && sub.mapcell
+                ? [...new Set(sub.mapcell.map(edge => nodeLetter(`${Math.floor(maps[0] / 10)}-${maps[0] % 10}`, edge) ?? `#${edge}`))]
+                : [];
+            return {
+                event: sub.event, maparea: maps, nodeLetters: letters,
+                shipType: sub.shipType ? [...sub.shipType] : null,
+                missions: sub.missionId ? sub.missionId.map(id => ({ id, name: this.masterMissions.get(id)?.name ?? `#${id}`, dispNo: this.masterMissions.get(id)?.dispNo ?? String(id) })) : null,
+                count: Math.min(sub.required, counts[index] ?? 0), need: sub.required,
+            };
+        });
+    }
+
+    private questTrackingView(no: number, record: QuestTrackRecord): QuestTrackingView {
+        const def = questGoalDef(no);
+        const local = this.questLocal(no, record);
+        const latest = record.server.at(-1) ?? null;
+        const text = local ? null : this.questTextRule(no, record);
+        return {
+            tier: questTier(!!local, !!text, record.server),
+            recheck: needsRecheck(record.server),
+            range: local ? progressRange(local.count, local.target, latest ?? undefined) : null,
+            targets: def?.supported && record.goalCounts && def.subgoals.length > 1 ? this.goalViews(def, record.goalCounts) : null,
+            latestServer: latest,
+            lastJudgement: record.judgements.at(-1) ?? null,
+            candidates: record.judgements.filter(item => item.candidate).length,
+            hasLog: record.judgements.length > 0 || record.server.length > 0,
+            ...this.questFleetConditions(def?.supported && record.goalCounts ? def : null),
+        };
+    }
+
+    /** 條件表的編成條件對照目前第一艦隊，連同條件用到的艦名與艦級代表艦名。 */
+    private questFleetConditions(def: QuestGoalDef | null): Pick<QuestTrackingView, 'fleetCheck' | 'conditionNames'> {
+        const fleetCheck = def ? this.goalFleetChecks(def, this.deckMasters(0)) : [];
+        const shipKinds: QuestConditionKind[] = ['flagshipId', 'secondshipId', 'escortshipId', 'escortshipIdAll'];
+        const ships: Record<number, string> = {};
+        for (const check of fleetCheck) {
+            for (const id of [...check.hits, ...(shipKinds.includes(check.kind) ? check.ids : [])]) {
+                ships[id] ??= localizeShip(id, this.master.get(id)?.name);
+            }
+        }
+        const classes: Record<number, string> = {};
+        for (const check of fleetCheck) {
+            if (!check.kind.endsWith('class')) continue;
+            for (const ctype of check.ids) {
+                // 代表艦：該艦級中図鑑番号最小的艦娘（id < 1500 為艦娘，其餘為深海）。
+                let best: [number, number] | null = null;
+                for (const [id, ship] of this.master) {
+                    if (id >= 1500 || ship.ctype !== ctype || !(ship.sortno! > 0)) continue;
+                    if (!best || ship.sortno! < best[1]) best = [id, ship.sortno!];
+                }
+                classes[ctype] = best ? localizeShip(best[0], this.master.get(best[0])?.name) : `#${ctype}`;
+            }
+        }
+        return { fleetCheck, conditionNames: { ships, classes } };
+    }
+
+    /** 條件表的編成條件逐條對照艦隊；各子目標相同的條件只列一次。 */
+    private goalFleetChecks(def: QuestGoalDef, masters: readonly number[]): QuestConditionCheck[] {
+        const fleet = this.fleetFacts(masters);
+        const rows = new Map<string, QuestConditionCheck>();
+        const hitsBy = (match: (index: number) => boolean, skipFlagship = false) =>
+            masters.filter((_, index) => (!skipFlagship || index > 0) && match(index));
+        const add = (row: QuestConditionCheck) => rows.set(JSON.stringify([row.kind, row.ids, row.min, row.ignoreFlagship, row.limit]), row);
+        for (const sub of def.subgoals) {
+            if (sub.flagshipId) add({ kind: 'flagshipId', ids: [...sub.flagshipId], ok: fleet.countsAs[0]?.some(id => sub.flagshipId!.includes(id)) ?? false, hits: masters.slice(0, 1) });
+            if (sub.secondshipId) add({ kind: 'secondshipId', ids: [...sub.secondshipId], ok: fleet.countsAs[1]?.some(id => sub.secondshipId!.includes(id)) ?? false, hits: masters.slice(1, 2) });
+            for (const [kind, entries] of [['escortshipId', sub.escortshipId], ['escortshipIdAll', sub.escortshipIdAll]] as const) {
+                for (const entry of entries ?? []) {
+                    add({
+                        kind, ids: [...entry[0]], min: entry[1], ignoreFlagship: entry[2] === true,
+                        ok: idEntryHolds(entry, fleet),
+                        hits: hitsBy(index => fleet.countsAs[index].some(id => entry[0].includes(id)), entry[2] === true),
+                    });
+                }
+            }
+            if (sub.flagshiptype) add({ kind: 'flagshiptype', ids: [...sub.flagshiptype], ok: sub.flagshiptype.includes(fleet.stype[0] ?? -1), hits: masters.slice(0, 1) });
+            for (const entry of sub.escortshiptype ?? []) {
+                const hits = hitsBy(index => entry[0].includes(fleet.stype[index]), entry[2] === true);
+                add({ kind: 'escortshiptype', ids: [...entry[0]], min: entry[1], ignoreFlagship: entry[2] === true, ok: hits.length >= entry[1], hits });
+            }
+            if (sub.flagshipclass) add({ kind: 'flagshipclass', ids: [...sub.flagshipclass], ok: sub.flagshipclass.includes(fleet.ctype[0] ?? -1), hits: masters.slice(0, 1) });
+            if (sub.secondshipclass) add({ kind: 'secondshipclass', ids: [...sub.secondshipclass], ok: sub.secondshipclass.includes(fleet.ctype[1] ?? -1), hits: masters.slice(1, 2) });
+            for (const entry of sub.escortshipclass ?? []) {
+                const hits = hitsBy(index => entry[0].includes(fleet.ctype[index]), entry[2] === true);
+                add({ kind: 'escortshipclass', ids: [...entry[0]], min: entry[1], ignoreFlagship: entry[2] === true, ok: hits.length >= entry[1], hits });
+            }
+            if (sub.fleetlimit) add({ kind: 'fleetlimit', ids: [], limit: sub.fleetlimit, ok: masters.length <= sub.fleetlimit, hits: [] });
+            if (sub.banshiptype) {
+                const hits = hitsBy(index => sub.banshiptype!.includes(fleet.stype[index]));
+                add({ kind: 'banshiptype', ids: [...sub.banshiptype], ok: hits.length === 0, hits });
+            }
+        }
+        return [...rows.values()];
+    }
+
+    /** 情報總括「進度紀錄」分頁用的完整紀錄；任務不在受注中時回傳 null。 */
+    questTrackingDetail(no: number): QuestTrackingDetail | null {
+        const record = this.questTracking.get(no);
+        if (!record || !this.quests.has(no)) return null;
+        const def = questGoalDef(no);
+        const supported = def?.supported && record.goalCounts ? def : null;
+        const local = this.questLocal(no, record);
+        const view = this.questTrackingView(no, record);
+        const textRule = local ? null : this.questTextRule(no, record);
+        const shipNames: Record<number, string> = { ...view.conditionNames.ships };
+        for (const id of [...record.judgements.flatMap(item => item.flagship === null ? [] : [item.flagship]), ...(textRule?.flagship ?? [])]) {
+            shipNames[id] ??= localizeShip(id, this.master.get(id)?.name);
+        }
+        const missionNames: Record<number, string> = {};
+        for (const item of record.judgements) {
+            if (item.mission !== undefined) missionNames[item.mission] = this.masterMissions.get(item.mission)?.name ?? `#${item.mission}`;
+        }
+        return {
+            ...view,
+            no,
+            acceptedTs: record.acceptedTs,
+            count: local?.count ?? null,
+            target: local?.target ?? null,
+            judgements: [...record.judgements],
+            server: [...record.server],
+            goals: supported ? this.goalViews(supported, record.goalCounts!) : null,
+            textRule,
+            shipNames,
+            classNames: view.conditionNames.classes,
+            missionNames,
+        };
     }
 
     // 以回應帶的資材陣列更新庫存，回傳每項消耗差分（正值）。元素可能是數字或
@@ -3024,10 +3551,12 @@ export class GameState {
 
     quests_(): QuestView[] {
         return [...this.quests.entries()].map(([no, q]) => {
-            const p = this.questProgress.get(no);
+            const record = this.questTracking.get(no);
+            const local = this.questLocal(no, record);
             return {
                 no, name: q.name, detail: q.detail, done: q.done,
-                progress: p ? { count: p.count, target: p.target } : null,
+                progress: local ? { count: local.count, target: local.target } : null,
+                ...(record ? { tracking: this.questTrackingView(no, record) } : {}),
             };
         });
     }
@@ -3056,6 +3585,16 @@ export class GameState {
             count: (previous?.count ?? 0) + 1,
             lastTs: Math.max(previous?.lastTs ?? 0, ts),
         });
+    }
+
+    /** 已裁剪或只存在備份的任務清單觀測；集合語意，重複送入無副作用。 */
+    ingestArchivedQuestSeen(questNo: number): void {
+        if (Number.isSafeInteger(questNo) && questNo > 0) this.questSeenNos.add(questNo);
+    }
+
+    /** 本機曾觀測到出現在任務清單的任務編號。 */
+    questSeenNos_(): ReadonlySet<number> {
+        return new Set(this.questSeenNos);
     }
 
     /**

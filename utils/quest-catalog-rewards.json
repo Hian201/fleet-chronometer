@@ -1,0 +1,6532 @@
+{
+  "101": {
+    "sourceWikiId": "A1",
+    "resources": {
+      "fuel": 20,
+      "ammo": 20,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・「白雪」"
+  },
+  "102": {
+    "sourceWikiId": "A2",
+    "resources": {
+      "fuel": 30,
+      "ammo": 30,
+      "steel": 30,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速建造材x1"
+  },
+  "103": {
+    "sourceWikiId": "A3",
+    "resources": {
+      "fuel": 40,
+      "ammo": 40,
+      "steel": 0,
+      "bauxite": 40
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "104": {
+    "sourceWikiId": "A4",
+    "resources": {
+      "fuel": 50,
+      "ammo": 0,
+      "steel": 50,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・第2艦隊開放"
+  },
+  "105": {
+    "sourceWikiId": "A5",
+    "resources": {
+      "fuel": 60,
+      "ammo": 60,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "106": {
+    "sourceWikiId": "A7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 70,
+      "steel": 0,
+      "bauxite": 30
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "107": {
+    "sourceWikiId": "A12",
+    "resources": {
+      "fuel": 50,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "108": {
+    "sourceWikiId": "A8",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・高速建造材x2"
+  },
+  "109": {
+    "sourceWikiId": "A14",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・第3艦隊開放"
+  },
+  "110": {
+    "sourceWikiId": "A15",
+    "resources": {
+      "fuel": 150,
+      "ammo": 100,
+      "steel": 150,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "111": {
+    "sourceWikiId": "A17",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x1"
+  },
+  "112": {
+    "sourceWikiId": "A18",
+    "resources": {
+      "fuel": 300,
+      "ammo": 200,
+      "steel": 300,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "113": {
+    "sourceWikiId": "A13",
+    "resources": {
+      "fuel": 0,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速建造材x2"
+  },
+  "114": {
+    "sourceWikiId": "A19",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 500,
+      "bauxite": 500
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・高速建造材x2"
+  },
+  "115": {
+    "sourceWikiId": "A6",
+    "resources": {
+      "fuel": 50,
+      "ammo": 50,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速建造材x1"
+  },
+  "116": {
+    "sourceWikiId": "A9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "117": {
+    "sourceWikiId": "A11",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・高速建造材x2"
+  },
+  "118": {
+    "sourceWikiId": "A16",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・第4艦隊開放"
+  },
+  "119": {
+    "sourceWikiId": "A20",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3"
+  },
+  "120": {
+    "sourceWikiId": "A10",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "121": {
+    "sourceWikiId": "A21",
+    "resources": {
+      "fuel": 300,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x1"
+  },
+  "122": {
+    "sourceWikiId": "A22",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "123": {
+    "sourceWikiId": "A23",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "124": {
+    "sourceWikiId": "A24",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "125": {
+    "sourceWikiId": "A25",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "126": {
+    "sourceWikiId": "A26",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "127": {
+    "sourceWikiId": "A27",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "128": {
+    "sourceWikiId": "A28",
+    "resources": {
+      "fuel": 250,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "129": {
+    "sourceWikiId": "A29",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3"
+  },
+  "130": {
+    "sourceWikiId": "A30",
+    "resources": {
+      "fuel": 200,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "131": {
+    "sourceWikiId": "A31",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "132": {
+    "sourceWikiId": "A32",
+    "resources": {
+      "fuel": 180,
+      "ammo": 180,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1\n・応急修理要員x1"
+  },
+  "133": {
+    "sourceWikiId": "A33",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・応急修理要員x1"
+  },
+  "134": {
+    "sourceWikiId": "WA01",
+    "resources": {
+      "fuel": 88,
+      "ammo": 88,
+      "steel": 88,
+      "bauxite": 88
+    },
+    "otherJa": "確定報酬\n・家具箱(大)x1"
+  },
+  "135": {
+    "sourceWikiId": "WA02",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "136": {
+    "sourceWikiId": "A34",
+    "resources": {
+      "fuel": 220,
+      "ammo": 220,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "137": {
+    "sourceWikiId": "A35",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x5"
+  },
+  "138": {
+    "sourceWikiId": "A36",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "139": {
+    "sourceWikiId": "A37",
+    "resources": {
+      "fuel": 250,
+      "ammo": 250,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "140": {
+    "sourceWikiId": "A38",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・22号対水上電探改四"
+  },
+  "141": {
+    "sourceWikiId": "A39",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 450
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・高速建造材x2"
+  },
+  "142": {
+    "sourceWikiId": "A40",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・試製35.6cm三連装砲"
+  },
+  "143": {
+    "sourceWikiId": "A41",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・開発資材x2"
+  },
+  "144": {
+    "sourceWikiId": "A42",
+    "resources": {
+      "fuel": 0,
+      "ammo": 250,
+      "steel": 250,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "145": {
+    "sourceWikiId": "A43",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "146": {
+    "sourceWikiId": "A45",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x5"
+  },
+  "147": {
+    "sourceWikiId": "A44",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n改修資材x3"
+  },
+  "148": {
+    "sourceWikiId": "A46",
+    "resources": {
+      "fuel": 250,
+      "ammo": 250,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "149": {
+    "sourceWikiId": "A47",
+    "resources": {
+      "fuel": 110,
+      "ammo": 110,
+      "steel": 110,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "150": {
+    "sourceWikiId": "A48",
+    "resources": {
+      "fuel": 210,
+      "ammo": 210,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3"
+  },
+  "151": {
+    "sourceWikiId": "A49",
+    "resources": {
+      "fuel": 220,
+      "ammo": 220,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "152": {
+    "sourceWikiId": "A50",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "153": {
+    "sourceWikiId": "A51",
+    "resources": {
+      "fuel": 180,
+      "ammo": 180,
+      "steel": 0,
+      "bauxite": 180
+    },
+    "otherJa": "確定報酬\n・開発資材x2"
+  },
+  "154": {
+    "sourceWikiId": "A52",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "155": {
+    "sourceWikiId": "A53",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・探照灯"
+  },
+  "156": {
+    "sourceWikiId": "A54",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・家具箱(中)x1"
+  },
+  "157": {
+    "sourceWikiId": "A55",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・家具箱(大)x1"
+  },
+  "158": {
+    "sourceWikiId": "A92",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・41cm連装砲x2\n・新型砲熕兵装資材\n・開発資材x8\n\n確定報酬\n・三式弾改"
+  },
+  "161": {
+    "sourceWikiId": "A56",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "162": {
+    "sourceWikiId": "A57",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・改修資材x2"
+  },
+  "163": {
+    "sourceWikiId": "A58",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "164": {
+    "sourceWikiId": "A59",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・熟練搭乗員x1"
+  },
+  "165": {
+    "sourceWikiId": "A60",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・瑞雲(六三四空)"
+  },
+  "166": {
+    "sourceWikiId": "A61",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・応急修理要員x1"
+  },
+  "167": {
+    "sourceWikiId": "A62",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x1\n・熟練搭乗員x1"
+  },
+  "168": {
+    "sourceWikiId": "A63",
+    "resources": {
+      "fuel": 160,
+      "ammo": 160,
+      "steel": 160,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "169": {
+    "sourceWikiId": "A64",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・改修資材x2"
+  },
+  "170": {
+    "sourceWikiId": "A65",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3"
+  },
+  "171": {
+    "sourceWikiId": "A66",
+    "resources": {
+      "fuel": 310,
+      "ammo": 310,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・給糧艦「伊良湖」x1"
+  },
+  "172": {
+    "sourceWikiId": "A67",
+    "resources": {
+      "fuel": 0,
+      "ammo": 270,
+      "steel": 270,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "173": {
+    "sourceWikiId": "A68",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "174": {
+    "sourceWikiId": "A69",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "175": {
+    "sourceWikiId": "A70",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "176": {
+    "sourceWikiId": "A71",
+    "resources": {
+      "fuel": 250,
+      "ammo": 250,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・給糧艦「伊良湖」x1"
+  },
+  "177": {
+    "sourceWikiId": "A72",
+    "resources": {
+      "fuel": 190,
+      "ammo": 190,
+      "steel": 190,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・戦闘糧食x1"
+  },
+  "178": {
+    "sourceWikiId": "A73",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "179": {
+    "sourceWikiId": "A74",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・応急修理要員x1"
+  },
+  "180": {
+    "sourceWikiId": "A75",
+    "resources": {
+      "fuel": 0,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・給糧艦「伊良湖」x1"
+  },
+  "181": {
+    "sourceWikiId": "A76",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 700
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・給糧艦「伊良湖」x1"
+  },
+  "182": {
+    "sourceWikiId": "A77",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・熟練搭乗員x1"
+  },
+  "183": {
+    "sourceWikiId": "A78",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x4\n・応急修理要員x1"
+  },
+  "184": {
+    "sourceWikiId": "A79",
+    "resources": {
+      "fuel": 220,
+      "ammo": 0,
+      "steel": 220,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・戦闘糧食x2"
+  },
+  "185": {
+    "sourceWikiId": "A80",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・F6F-3x1\n・F4U-1Dx1\n\n選択報酬2\n・TBFx1\n・新型航空兵装資材x1"
+  },
+  "186": {
+    "sourceWikiId": "A81",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・戦闘糧食x1\n・給糧艦「伊良湖」x1"
+  },
+  "187": {
+    "sourceWikiId": "A82",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・給糧艦「伊良湖」x2\n・特注家具職人x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・高速修復材x3"
+  },
+  "188": {
+    "sourceWikiId": "A83",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・戦闘糧食(特別なおにぎり)x2\n・特注家具職人x1\n\n確定報酬\n・高速修復材x2"
+  },
+  "189": {
+    "sourceWikiId": "A84",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・応急修理女神x1"
+  },
+  "190": {
+    "sourceWikiId": "A85",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・戦闘糧食x1"
+  },
+  "191": {
+    "sourceWikiId": "A86",
+    "resources": {
+      "fuel": 170,
+      "ammo": 170,
+      "steel": 170,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x1\n・補強増設x1"
+  },
+  "192": {
+    "sourceWikiId": "A87",
+    "resources": {
+      "fuel": 180,
+      "ammo": 0,
+      "steel": 180,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・補強増設x1\n・特注家具職人x1"
+  },
+  "193": {
+    "sourceWikiId": "A88",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・12.7cm連装砲C型改二x1\n・勲章x1"
+  },
+  "194": {
+    "sourceWikiId": "A89",
+    "resources": {
+      "fuel": 180,
+      "ammo": 0,
+      "steel": 180,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x5\n・家具職人x1"
+  },
+  "195": {
+    "sourceWikiId": "A90",
+    "resources": {
+      "fuel": 170,
+      "ammo": 170,
+      "steel": 0,
+      "bauxite": 170
+    },
+    "otherJa": "選択報酬\n・戦闘糧食x2\n・高速修復材x3\n\n確定報酬\n・給糧艦「伊良湖」x1"
+  },
+  "196": {
+    "sourceWikiId": "A91",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・高速修復材x5\n・特注家具職人x1\n\n確定報酬\n・戦闘糧食x1"
+  },
+  "197": {
+    "sourceWikiId": "A93",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬\n・高速修復材x6\n・特注家具職人x1\n\n確定報酬\n・12.7cm連装砲D型改二★2x1"
+  },
+  "198": {
+    "sourceWikiId": "A94",
+    "resources": {
+      "fuel": 70,
+      "ammo": 70,
+      "steel": 70,
+      "bauxite": 70
+    },
+    "otherJa": "選択報酬1\n・戦闘糧食 x2\n・開発資材 x4\n\n選択報酬2\n・給糧艦「伊良湖」x2\n・高速修復材 x4"
+  },
+  "199": {
+    "sourceWikiId": "2606A1",
+    "resources": {
+      "fuel": 31,
+      "ammo": 31,
+      "steel": 31,
+      "bauxite": 31
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n\n選択報酬1\n・戦闘糧食x3\n・応急修理女神x1"
+  },
+  "201": {
+    "sourceWikiId": "Bd1",
+    "resources": {
+      "fuel": 50,
+      "ammo": 50,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "202": {
+    "sourceWikiId": "B1",
+    "resources": {
+      "fuel": 20,
+      "ammo": 20,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "203": {
+    "sourceWikiId": "B2",
+    "resources": {
+      "fuel": 30,
+      "ammo": 30,
+      "steel": 30,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "204": {
+    "sourceWikiId": "B4",
+    "resources": {
+      "fuel": 40,
+      "ammo": 40,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "205": {
+    "sourceWikiId": "B5",
+    "resources": {
+      "fuel": 50,
+      "ammo": 0,
+      "steel": 50,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1\n・「深雪」"
+  },
+  "206": {
+    "sourceWikiId": "B6",
+    "resources": {
+      "fuel": 60,
+      "ammo": 60,
+      "steel": 0,
+      "bauxite": 60
+    },
+    "otherJa": "確定報酬\n・「龍田」"
+  },
+  "207": {
+    "sourceWikiId": "B7",
+    "resources": {
+      "fuel": 70,
+      "ammo": 0,
+      "steel": 70,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "208": {
+    "sourceWikiId": "B8",
+    "resources": {
+      "fuel": 0,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "209": {
+    "sourceWikiId": "B9",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "210": {
+    "sourceWikiId": "Bd3",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 200,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "211": {
+    "sourceWikiId": "Bd4",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "212": {
+    "sourceWikiId": "Bd6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x2"
+  },
+  "213": {
+    "sourceWikiId": "Bw3",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "214": {
+    "sourceWikiId": "Bw1",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・高速建造材x2"
+  },
+  "215": {
+    "sourceWikiId": "B3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "216": {
+    "sourceWikiId": "Bd2",
+    "resources": {
+      "fuel": 50,
+      "ammo": 50,
+      "steel": 50,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "217": {
+    "sourceWikiId": "B10",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・「赤城」"
+  },
+  "218": {
+    "sourceWikiId": "Bd5",
+    "resources": {
+      "fuel": 100,
+      "ammo": 50,
+      "steel": 200,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "219": {
+    "sourceWikiId": "B11",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "220": {
+    "sourceWikiId": "Bw2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "確定報酬\n・開発資材x2"
+  },
+  "221": {
+    "sourceWikiId": "Bw4",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3"
+  },
+  "222": {
+    "sourceWikiId": "B12",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "223": {
+    "sourceWikiId": "B13",
+    "resources": {
+      "fuel": 150,
+      "ammo": 100,
+      "steel": 150,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "224": {
+    "sourceWikiId": "B14",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・家具箱(小)x1"
+  },
+  "225": {
+    "sourceWikiId": "B15",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 700
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・家具箱(中)x1"
+  },
+  "226": {
+    "sourceWikiId": "Bd7",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・高速建造材x1"
+  },
+  "227": {
+    "sourceWikiId": "B16",
+    "resources": {
+      "fuel": 100,
+      "ammo": 150,
+      "steel": 100,
+      "bauxite": 150
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "228": {
+    "sourceWikiId": "Bw5",
+    "resources": {
+      "fuel": 600,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・改修資材x1"
+  },
+  "229": {
+    "sourceWikiId": "Bw6",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 700
+    },
+    "otherJa": "確定報酬\n・開発資材x2"
+  },
+  "230": {
+    "sourceWikiId": "Bd8",
+    "resources": {
+      "fuel": 300,
+      "ammo": 30,
+      "steel": 300,
+      "bauxite": 30
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "231": {
+    "sourceWikiId": "B17",
+    "resources": {
+      "fuel": 150,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "232": {
+    "sourceWikiId": "B18",
+    "resources": {
+      "fuel": 0,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "233": {
+    "sourceWikiId": "B19",
+    "resources": {
+      "fuel": 0,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・家具箱(中)x1\n・応急修理要員x1"
+  },
+  "235": {
+    "sourceWikiId": "B135",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x3\n・高速修復材x3\n・25mm三連装機銃x2\n\n確定報酬\n・戦闘詳報x1"
+  },
+  "236": {
+    "sourceWikiId": "B136",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・新型砲熕兵装資材x1\n・13号対空電探x3\n・特注家具職人x1\n\n確定報酬\n・12.7cm連装砲C型改二x1"
+  },
+  "237": {
+    "sourceWikiId": "B138",
+    "resources": {
+      "fuel": 516,
+      "ammo": 0,
+      "steel": 1945,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・新型航空兵装資材x1\n・補強増設x1\n・特注家具職人x1\n\n確定報酬\n・家具『「羽黒の護り」掛け軸』"
+  },
+  "239": {
+    "sourceWikiId": "B20",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1\n・家具箱(中)x1"
+  },
+  "240": {
+    "sourceWikiId": "B21",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・家具箱(大)x1"
+  },
+  "241": {
+    "sourceWikiId": "Bw7",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 400,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・開発資材x3\n・改修資材x3"
+  },
+  "242": {
+    "sourceWikiId": "Bw8",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "243": {
+    "sourceWikiId": "Bw9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・改修資材x2"
+  },
+  "244": {
+    "sourceWikiId": "B22",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 500
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "245": {
+    "sourceWikiId": "WB01",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・書類一式&指輪x1"
+  },
+  "246": {
+    "sourceWikiId": "WB02",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・家具『煎餅布団』"
+  },
+  "247": {
+    "sourceWikiId": "B23",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 900
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・家具箱(大)x1"
+  },
+  "248": {
+    "sourceWikiId": "B24",
+    "resources": {
+      "fuel": 330,
+      "ammo": 330,
+      "steel": 330,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "249": {
+    "sourceWikiId": "Bm1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 550,
+      "steel": 550,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x5\n・家具箱(大)x1"
+  },
+  "250": {
+    "sourceWikiId": "B25",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "251": {
+    "sourceWikiId": "B26",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "252": {
+    "sourceWikiId": "B27",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・試製35.6cm三連装砲x1"
+  },
+  "253": {
+    "sourceWikiId": "B28",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・家具箱(大)x1\n・熟練艦載機整備員x1"
+  },
+  "254": {
+    "sourceWikiId": "B29",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・応急修理要員x1"
+  },
+  "255": {
+    "sourceWikiId": "B30",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(大)x1\n・特注家具職人x1"
+  },
+  "256": {
+    "sourceWikiId": "Bm2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(大)x1\n・給糧艦「伊良湖」x1"
+  },
+  "257": {
+    "sourceWikiId": "Bm3",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・給糧艦「伊良湖」x1"
+  },
+  "258": {
+    "sourceWikiId": "B31",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・一式徹甲弾x1"
+  },
+  "259": {
+    "sourceWikiId": "Bm4",
+    "resources": {
+      "fuel": 350,
+      "ammo": 400,
+      "steel": 350,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・改修資材x4"
+  },
+  "260": {
+    "sourceWikiId": "B32",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 250
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・一式徹甲弾x1"
+  },
+  "261": {
+    "sourceWikiId": "Bw10",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3"
+  },
+  "262": {
+    "sourceWikiId": "B33",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・改修資材x5\n・勲章x1"
+  },
+  "263": {
+    "sourceWikiId": "B34",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・家具箱(大)x1\n・特注家具職人x1"
+  },
+  "264": {
+    "sourceWikiId": "Bm6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 800
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・家具箱(大)x2"
+  },
+  "265": {
+    "sourceWikiId": "Bm5",
+    "resources": {
+      "fuel": 800,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x5\n・改修資材x3"
+  },
+  "266": {
+    "sourceWikiId": "Bm7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・改修資材x2"
+  },
+  "267": {
+    "sourceWikiId": "B35",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1"
+  },
+  "268": {
+    "sourceWikiId": "B36",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・三式水中探信儀x1"
+  },
+  "269": {
+    "sourceWikiId": "B37",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・プレゼント箱x1"
+  },
+  "270": {
+    "sourceWikiId": "B39",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x1\n・家具箱(中)x1"
+  },
+  "271": {
+    "sourceWikiId": "B38",
+    "resources": {
+      "fuel": 500,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n家具箱(大)x1"
+  },
+  "272": {
+    "sourceWikiId": "B40",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・25mm三連装機銃x1\n・三式弾x1"
+  },
+  "273": {
+    "sourceWikiId": "B41",
+    "resources": {
+      "fuel": 480,
+      "ammo": 480,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3\n・改修資材x3"
+  },
+  "274": {
+    "sourceWikiId": "B42",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x3\n・九三式水中聴音機"
+  },
+  "275": {
+    "sourceWikiId": "B43",
+    "resources": {
+      "fuel": 350,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 250
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・特注家具職人x1"
+  },
+  "276": {
+    "sourceWikiId": "B44",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x5\n・改修資材x2"
+  },
+  "277": {
+    "sourceWikiId": "B45",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・九三式水中聴音機"
+  },
+  "278": {
+    "sourceWikiId": "B46",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・特注家具職人x1"
+  },
+  "279": {
+    "sourceWikiId": "B47",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・改修資材x4"
+  },
+  "280": {
+    "sourceWikiId": "Bm8",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・開発資材x4\n・高速修復材x4\n・改修資材x2\n\n選択報酬2\n・九五式爆雷x1\n・25mm単装機銃x2\n・給糧艦「伊良湖」x1"
+  },
+  "281": {
+    "sourceWikiId": "B129",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・41cm連装砲x4\n・九一式徹甲弾x2\n・三式弾x2\n\n選択報酬2\n・戦闘詳報x1\n・試製46cm連装砲x1\n・試製南山x1"
+  },
+  "282": {
+    "sourceWikiId": "B130",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬\n・新型砲熕兵装資材x1\n・改修資材x5\n・試製46cm連装砲x1\n\n確定報酬\n・41cm連装砲改二x1"
+  },
+  "283": {
+    "sourceWikiId": "B137",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 1000,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬\n・改修資材x5\n・新型航空兵装資材x1\n・熟練搭乗員x1\n\n確定報酬\n・流星改(一航戦)x1"
+  },
+  "284": {
+    "sourceWikiId": "Bq11",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・改修資材x2\n・九四式爆雷投射機x2\n・ドラム缶(輸送用)x2\n\n確定報酬\n・プレゼント箱x1\n・戦果+80"
+  },
+  "285": {
+    "sourceWikiId": "B49",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・戦闘糧食x2"
+  },
+  "286": {
+    "sourceWikiId": "B48",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "287": {
+    "sourceWikiId": "B50",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・給糧艦「伊良湖」x1"
+  },
+  "288": {
+    "sourceWikiId": "B51",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・戦闘糧食x1\n・プレゼント箱x1"
+  },
+  "289": {
+    "sourceWikiId": "B52",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱中x1\n・プレゼント箱x1"
+  },
+  "290": {
+    "sourceWikiId": "B128",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1113,
+      "steel": 1942,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・戦闘詳報x1\n・96式150cm探照灯x1\n・勲章x1\n\n確定報酬\n・家具『「比叡」の掛け軸』"
+  },
+  "291": {
+    "sourceWikiId": "B134",
+    "resources": {
+      "fuel": 1200,
+      "ammo": 1200,
+      "steel": 1200,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・家具箱(大)x8\n・補強増設x1\n・勲章x1\n\n確定報酬\n・司令部要員x1"
+  },
+  "292": {
+    "sourceWikiId": "B133",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 2019,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・戦闘詳報x1\n・新型砲熕兵装資材x2\n・勲章x1\n\n確定報酬\n・35.6cm連装砲改二x1"
+  },
+  "293": {
+    "sourceWikiId": "B53",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・給糧艦「伊良湖」x1"
+  },
+  "294": {
+    "sourceWikiId": "B54",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・零戦52型丙(六〇一空)x1"
+  },
+  "295": {
+    "sourceWikiId": "B55",
+    "resources": {
+      "fuel": 320,
+      "ammo": 0,
+      "steel": 320,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(大)x1\n・給糧艦「間宮」x1"
+  },
+  "296": {
+    "sourceWikiId": "B56",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・特注家具職人x1"
+  },
+  "297": {
+    "sourceWikiId": "B57",
+    "resources": {
+      "fuel": 300,
+      "ammo": 700,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・プレゼント箱x1"
+  },
+  "298": {
+    "sourceWikiId": "B124",
+    "resources": {
+      "fuel": 700,
+      "ammo": 700,
+      "steel": 700,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・12.7cm連装砲B型改二x3\n・大発動艇x1\n\n選択報酬2\n・開発資材x8\n・改修資材x5\n・零式水中聴音機x1"
+  },
+  "299": {
+    "sourceWikiId": "B125",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・補強増設x1\n・勲章x1\n\n選択報酬2\n・新型砲熕兵装資材x2\n・探照灯x2\n・戦闘詳報x1"
+  },
+  "301": {
+    "sourceWikiId": "C1",
+    "resources": {
+      "fuel": 10,
+      "ammo": 10,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "302": {
+    "sourceWikiId": "Cw1",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・改修資材x1"
+  },
+  "303": {
+    "sourceWikiId": "Cd1",
+    "resources": {
+      "fuel": 50,
+      "ammo": 0,
+      "steel": 50,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速建造材x1"
+  },
+  "304": {
+    "sourceWikiId": "Cd2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 50,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "306": {
+    "sourceWikiId": "WC01",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 88,
+      "bauxite": 88
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "307": {
+    "sourceWikiId": "C5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "308": {
+    "sourceWikiId": "C6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・改修資材x1"
+  },
+  "309": {
+    "sourceWikiId": "C7",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・改修資材x1"
+  },
+  "311": {
+    "sourceWikiId": "Cm1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・戦闘糧食x1"
+  },
+  "312": {
+    "sourceWikiId": "C9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・戦闘糧食x1"
+  },
+  "313": {
+    "sourceWikiId": "Cs1",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1\n・プレゼント箱"
+  },
+  "314": {
+    "sourceWikiId": "Cs2",
+    "resources": {
+      "fuel": 300,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・給糧艦「間宮」x1"
+  },
+  "315": {
+    "sourceWikiId": "Cs3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 1000,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1\n・プレゼント箱 x1"
+  },
+  "316": {
+    "sourceWikiId": "C13",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・特注家具職人x1\n・大発動艇x1\n\n確定報酬\n・改修資材x2"
+  },
+  "317": {
+    "sourceWikiId": "C15",
+    "resources": {
+      "fuel": 0,
+      "ammo": 350,
+      "steel": 0,
+      "bauxite": 350
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・戦闘詳報x1\n\n選択報酬2\n・高速修復材x5\n・戦闘糧食x2"
+  },
+  "318": {
+    "sourceWikiId": "Cm2",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x2\n・高速修復材x2\n\n確定報酬\n・給糧艦「伊良湖」x1"
+  },
+  "319": {
+    "sourceWikiId": "C17",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x6\n・戦闘詳報x1\n\n確定報酬\n・給糧艦「間宮」x1"
+  },
+  "320": {
+    "sourceWikiId": "C18",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・改修資材x2\n・開発資材x4\n\n確定報酬\n・高速修復材x3"
+  },
+  "322": {
+    "sourceWikiId": "C20",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・補強増設x1\n・勲章x1\n\n確定報酬\n・家具『「択捉型海防艦」掛け軸』"
+  },
+  "323": {
+    "sourceWikiId": "C21",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材x4\n・高速修復材x4\n\n選択報酬2\n・戦闘詳報x1\n・勲章x1"
+  },
+  "324": {
+    "sourceWikiId": "C22",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・彗星x2\n・瑞雲x2\n・二式艦上偵察機x1\n\n選択報酬2\n・22号対水上電探x2\n・12cm30連装噴進砲x2\n・新型砲熕兵装資材x1"
+  },
+  "325": {
+    "sourceWikiId": "C23",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」x3\n・二式爆雷x1\n\n選択報酬2\n・補強増設x1\n・勲章x1"
+  },
+  "326": {
+    "sourceWikiId": "Cs5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1\n\n選択報酬\n・プレゼント箱 x1\n・応急修理要員x1\n・25mm連装機銃x2"
+  },
+  "327": {
+    "sourceWikiId": "C25",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x4\n・三式爆雷投射機x1\n・家具職人x1\n\n確定報酬\n・高速修復材x3"
+  },
+  "328": {
+    "sourceWikiId": "C27",
+    "resources": {
+      "fuel": 170,
+      "ammo": 170,
+      "steel": 170,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・二式爆雷x1\n・補強増設x1\n\n確定報酬\n・給糧艦「間宮」x1"
+  },
+  "330": {
+    "sourceWikiId": "Cq1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・九九式艦爆x4\n・彗星x2\n・開発資材x3\n\n選択報酬2\n・零式艦戦21型x3\n・零式艦戦52型x2\n・洋上補給x1"
+  },
+  "331": {
+    "sourceWikiId": "C31",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬\n・新型航空兵装資材\n・彗星x3\n・開発資材x6\n\n確定報酬\n・彗星一二型甲"
+  },
+  "332": {
+    "sourceWikiId": "C32",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 600,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬1\n・開発資材x6\n・高速建造材x6\n\n選択報酬2\n・零式艦戦52型x6\n・35.6cm連装砲x6\n・勲章x1"
+  },
+  "333": {
+    "sourceWikiId": "C33",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・開発資材x3\n・高速建造材x3\n\n選択報酬2\n・九七式艦攻x3\n・洋上補給x2\n・新型航空兵装資材x1"
+  },
+  "334": {
+    "sourceWikiId": "C34",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・13号対空電探x2\n・開発資材x4\n\n選択報酬2\n・彩雲★2x1\n・天山★2x2\n・熟練搭乗員x1"
+  },
+  "335": {
+    "sourceWikiId": "C35",
+    "resources": {
+      "fuel": 0,
+      "ammo": 179,
+      "steel": 0,
+      "bauxite": 180
+    },
+    "otherJa": "選択報酬\n・開発資材x4\n・25mm三連装機銃x3\n・12cm30連装噴進砲x2\n\n確定報酬\n・新型航空兵装資材x1"
+  },
+  "336": {
+    "sourceWikiId": "C37",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・九四式爆雷投射機x1\n・二式12cm迫撃砲改x1\n・九五式爆雷x2"
+  },
+  "337": {
+    "sourceWikiId": "Cq2",
+    "resources": {
+      "fuel": 180,
+      "ammo": 180,
+      "steel": 180,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・大発動艇x1\n・12cm30連装噴進砲x2\n・改修資材x3\n\n確定報酬\n・給糧艦「間宮」x1"
+  },
+  "338": {
+    "sourceWikiId": "C39",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x5\n・特注家具職人x1\n・新型噴進装備開発資材x1\n\n確定報酬\n・給糧艦「伊良湖」x1"
+  },
+  "339": {
+    "sourceWikiId": "Cq3",
+    "resources": {
+      "fuel": 190,
+      "ammo": 190,
+      "steel": 190,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・改修資材x3\n\n選択報酬2\n・三式爆雷投射機x1\n・12.7cm連装砲B型改二x1\n・開発資材x8"
+  },
+  "342": {
+    "sourceWikiId": "Cq4",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材x4\n・九五式爆雷x1\n\n選択報酬2\n・零式水上偵察機x2\n・25mm単装機銃x3\n・高速修復材x4"
+  },
+  "343": {
+    "sourceWikiId": "C46",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬\n・新型航空兵装資材x1\n・熟練搭乗員x1\n\n確定報酬\n・家具『「加賀岬」掛け軸』x1"
+  },
+  "344": {
+    "sourceWikiId": "C48",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 500,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・改修資材x2\n・高速修復材x4\n\n選択報酬2\n・25mm三連装機銃x2\n・新型兵装資材x1"
+  },
+  "345": {
+    "sourceWikiId": "Cy1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・Swordfishx1\n・Fulmarx1\n・開発資材x4\n\n選択報酬2\n・新型航空兵装資材x1\n・高速修復材x5"
+  },
+  "346": {
+    "sourceWikiId": "Cy2",
+    "resources": {
+      "fuel": 250,
+      "ammo": 250,
+      "steel": 250,
+      "bauxite": 250
+    },
+    "otherJa": "選択報酬1\n・開発資材x6\n・高速修復材x4\n\n選択報酬2\n・勲章x1\n・新型航空兵装資材x1\n・給糧艦「間宮」x1"
+  },
+  "347": {
+    "sourceWikiId": "C51",
+    "resources": {
+      "fuel": 160,
+      "ammo": 160,
+      "steel": 0,
+      "bauxite": 160
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・高速修復材x5\n\n選択報酬2\n・開発資材x8\n・新型兵装資材x1\n・改修資材x4"
+  },
+  "348": {
+    "sourceWikiId": "Cy3",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」x1\n・高速修復材x3\n\n選択報酬2\n・14cm連装砲x2\n・15.2cm連装砲x2\n・改修資材x3"
+  },
+  "350": {
+    "sourceWikiId": "Cy4",
+    "resources": {
+      "fuel": 350,
+      "ammo": 350,
+      "steel": 350,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・給糧艦「伊良湖」x2\n・新型兵装資材x1\n・高速修復材x4\n\n確定報酬\n・給糧艦「間宮」x1"
+  },
+  "351": {
+    "sourceWikiId": "C56",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・21号対空電探x1\n・開発資材x5\n\n選択報酬2\n・給糧艦「伊良湖」x3\n・特注家具職人"
+  },
+  "352": {
+    "sourceWikiId": "C57",
+    "resources": {
+      "fuel": 480,
+      "ammo": 0,
+      "steel": 480,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・25mm三連装機銃x2\n・新型兵装資材x1\n・家具『萩の床』\n\n確定報酬\n・15.2cm連装砲改二x1"
+  },
+  "353": {
+    "sourceWikiId": "Cy5",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・22号対水上電探改四 x2\n・20.3cm(3号)連装砲x2\n・熟練見張員★2 x1\n\n確定報酬\n・給糧艦「間宮」x1"
+  },
+  "354": {
+    "sourceWikiId": "Cy6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 730,
+      "steel": 0,
+      "bauxite": 730
+    },
+    "otherJa": "選択報酬\n・FM-2 x2\n・TBF x2\n・SKレーダー★5 x1\n\n確定報酬\n・設営隊 x1"
+  },
+  "355": {
+    "sourceWikiId": "Cy7",
+    "resources": {
+      "fuel": 150,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・22号対水上電探改四★2 x1\n・熟練見張員★2 x1\n\n選択報酬2\n・給糧艦「伊良湖」x2\n・改修資材 x3"
+  },
+  "356": {
+    "sourceWikiId": "Cy8",
+    "resources": {
+      "fuel": 190,
+      "ammo": 190,
+      "steel": 190,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」 x1\n・開発資材 x4\n\n選択報酬2\n・熟練見張員★4 x1\n・給糧艦「間宮」 x1\n・改修資材 x3"
+  },
+  "357": {
+    "sourceWikiId": "Cy9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬1\n・15.5cm三連装副砲 x2\n・新型砲熕兵装資材 x1\n・開発資材 x6\n\n選択報酬2\n・給糧艦「間宮」x1\n・21号対空電探 x2\n・改修資材 x4"
+  },
+  "358": {
+    "sourceWikiId": "C68",
+    "resources": {
+      "fuel": 240,
+      "ammo": 0,
+      "steel": 240,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」x1\n・改修資材 x2\n\n選択報酬2\n・開発資材 x10\n・TBF x1\n・SG レーダー(初期型) x1"
+  },
+  "360": {
+    "sourceWikiId": "C70",
+    "resources": {
+      "fuel": 360,
+      "ammo": 360,
+      "steel": 360,
+      "bauxite": 360
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・補強増設 x1\n・熟練搭乗員 x1\n\n選択報酬2\n・10cm連装高角砲改＋増設機銃 x1\n・零式艦戦64型(制空戦闘機仕様) x1"
+  },
+  "362": {
+    "sourceWikiId": "Cy10",
+    "resources": {
+      "fuel": 110,
+      "ammo": 110,
+      "steel": 110,
+      "bauxite": 110
+    },
+    "otherJa": "選択報酬1\n・12.7cm連装砲A型 x3\n・61cm三連装魚雷 x3\n・開発資材 x6\n\n選択報酬2\n・熟練見張員 x2\n・給糧艦「伊良湖」x3\n・改修資材 x4"
+  },
+  "364": {
+    "sourceWikiId": "C73",
+    "resources": {
+      "fuel": 400,
+      "ammo": 500,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・61cm三連装魚雷 x4\n・補強増設 x1\n・53cm連装魚雷★+5 x2\n\n確定報酬\n・35.6cm連装砲改三(ダズル迷彩仕様) x1"
+  },
+  "365": {
+    "sourceWikiId": "C75",
+    "resources": {
+      "fuel": 270,
+      "ammo": 270,
+      "steel": 270,
+      "bauxite": 270
+    },
+    "otherJa": "選択報酬1\n・九五式爆雷 x3\n・25mm三連装機銃 x3\n・改修資材 x3\n\n選択報酬2\n・開発資材 x8\n・プレゼント箱 x2\n・勲章 x1"
+  },
+  "366": {
+    "sourceWikiId": "C76",
+    "resources": {
+      "fuel": 1935,
+      "ammo": 518,
+      "steel": 2023,
+      "bauxite": 614
+    },
+    "otherJa": "選択報酬1\n・熟練見張員 x2\n・二式爆雷 x2\n・高速修復材 x8\n\n選択報酬2\n・特注家具職人 x1\n・改修資材 x4\n・補強増設 x1"
+  },
+  "368": {
+    "sourceWikiId": "Cy11",
+    "resources": {
+      "fuel": 160,
+      "ammo": 160,
+      "steel": 160,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」x1\n・高速修復剤x3\n・開発資材x3\n\n選択報酬2\n・12.7cm連装砲C型改二x1\n・新型兵装資材x2\n・強化型艦本式缶x3"
+  },
+  "371": {
+    "sourceWikiId": "Cy12",
+    "resources": {
+      "fuel": 200,
+      "ammo": 270,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型兵装資材 x1\n・高速修復材 x2\n・開発資材 x7\n\n選択報酬2\n・改修資材 x2\n・25mm三連装機銃 x2\n・戦闘糧食 x2"
+  },
+  "372": {
+    "sourceWikiId": "Cy13",
+    "resources": {
+      "fuel": 310,
+      "ammo": 150,
+      "steel": 150,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型兵装資材 x1\n・25mm連装機銃 x2\n\n選択報酬2\n・給糧艦「間宮」x2\n・開発資材 x10\n・勲章 x1"
+  },
+  "373": {
+    "sourceWikiId": "Cy14",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・新型兵装資材 x1\n・新型砲熕兵装資材 x1\n・開発資材 x8\n\n選択報酬2\n・13.8cm連装砲x3\n・15.2cm三連装主砲x2\n・38cm四連装砲 x1"
+  },
+  "374": {
+    "sourceWikiId": "2409C1",
+    "resources": {
+      "fuel": 320,
+      "ammo": 320,
+      "steel": 0,
+      "bauxite": 320
+    },
+    "otherJa": "選択報酬1・給糧艦「伊良湖」x1・25mm単装機銃 x3・高速修復材x4選択報酬2・開発資材x8・改修資材x3・給糧艦「間宮」x1"
+  },
+  "375": {
+    "sourceWikiId": "Cy15",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・35.6cm連装砲 x4\n・新型砲熕兵装資材x1\n・開発資材x10\n\n選択報酬2\n・勲章x1\n・改修資材x5"
+  },
+  "376": {
+    "sourceWikiId": "C77",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 600,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬1\n・35.6cm連装砲改 x1\n・新型砲熕兵装資材x2\n・開発資材x30\n\n選択報酬2\n・35.6cm連装砲改 x2\n・35.6cm連装砲改★6 x1\n・改装設計図x1"
+  },
+  "377": {
+    "sourceWikiId": "Cy16",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・熟練見張員 x2\n・改修資材 x3\n\n選択報酬2\n・給糧艦「伊良湖」x1\n・開発資材 x6\n・新型兵装資材 x1"
+  },
+  "382": {
+    "sourceWikiId": "2606C1",
+    "resources": {
+      "fuel": 300,
+      "ammo": 100,
+      "steel": 300,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬1\n・開発資材x3\n・改修資材x1\n・装備運用枠+1装備分\n\n選択報酬2\n・10cm連装高角砲x2\n・改修資材x2\n・燃料x2900"
+  },
+  "383": {
+    "sourceWikiId": "2606C2",
+    "resources": {
+      "fuel": 230,
+      "ammo": 230,
+      "steel": 230,
+      "bauxite": 230
+    },
+    "otherJa": "選択報酬1・洋上補給x1・開発資材x3・燃料x970選択報酬2・高速修復材x3・改修資材x1・装備運用枠+1装備分"
+  },
+  "384": {
+    "sourceWikiId": "2609C1",
+    "resources": {
+      "fuel": 220,
+      "ammo": 220,
+      "steel": 220,
+      "bauxite": 220
+    },
+    "otherJa": "選択報酬1\n・開発資材x2\n・高速建造材x2\n\n選択報酬2\n・工廠資源x1\n・装備運用枠\n+1装備分"
+  },
+  "385": {
+    "sourceWikiId": "2609C2",
+    "resources": {
+      "fuel": 330,
+      "ammo": 330,
+      "steel": 330,
+      "bauxite": 330
+    },
+    "otherJa": "選択報酬1\n・開発資材x12\n・改修資材x3\n\n選択報酬2\n・高速建造材x22\n・装備運用枠\n+3装備分\n・戦闘詳報x1"
+  },
+  "401": {
+    "sourceWikiId": "D1",
+    "resources": {
+      "fuel": 30,
+      "ammo": 30,
+      "steel": 30,
+      "bauxite": 30
+    },
+    "otherJa": "確定報酬\n・家具箱(小)x1"
+  },
+  "402": {
+    "sourceWikiId": "Dd1",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "403": {
+    "sourceWikiId": "Dd2",
+    "resources": {
+      "fuel": 150,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 150
+    },
+    "otherJa": "確定報酬\n・家具箱(小)x1\n・家具箱(中)x1"
+  },
+  "404": {
+    "sourceWikiId": "Dw1",
+    "resources": {
+      "fuel": 300,
+      "ammo": 500,
+      "steel": 500,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・開発資材x3\n・家具箱(大)x1"
+  },
+  "405": {
+    "sourceWikiId": "D5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 10,
+      "bauxite": 10
+    },
+    "otherJa": "確定報酬\n・応急修理要員x1"
+  },
+  "406": {
+    "sourceWikiId": "D6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 10,
+      "bauxite": 10
+    },
+    "otherJa": "確定報酬\n・Ju87C改"
+  },
+  "408": {
+    "sourceWikiId": "D7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1\n・Ju87C改"
+  },
+  "409": {
+    "sourceWikiId": "D8",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・「Z1」"
+  },
+  "410": {
+    "sourceWikiId": "Dw2",
+    "resources": {
+      "fuel": 150,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(小)x1"
+  },
+  "411": {
+    "sourceWikiId": "Dw3",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・改修資材x1"
+  },
+  "412": {
+    "sourceWikiId": "D10",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・瑞雲(六三四空)"
+  },
+  "413": {
+    "sourceWikiId": "D12",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・瑞雲(六三四空)"
+  },
+  "414": {
+    "sourceWikiId": "D13",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・潜水艦53cm艦首魚雷(8門)"
+  },
+  "415": {
+    "sourceWikiId": "D14",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・潜水艦53cm艦首魚雷(8門)"
+  },
+  "416": {
+    "sourceWikiId": "D15",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・25mm三連装機銃"
+  },
+  "417": {
+    "sourceWikiId": "D16",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・91式高射装置"
+  },
+  "418": {
+    "sourceWikiId": "D17",
+    "resources": {
+      "fuel": 150,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 150
+    },
+    "otherJa": "確定報酬\n・開発資材x3"
+  },
+  "419": {
+    "sourceWikiId": "D18",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x1\n・司令部要員x1"
+  },
+  "420": {
+    "sourceWikiId": "D19",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・家具箱(大)x1"
+  },
+  "422": {
+    "sourceWikiId": "D20",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・新型航空機設計図x1"
+  },
+  "423": {
+    "sourceWikiId": "D21",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・ネ式エンジンx1"
+  },
+  "424": {
+    "sourceWikiId": "Dm1",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・家具箱(中)x2"
+  },
+  "425": {
+    "sourceWikiId": "D23",
+    "resources": {
+      "fuel": 700,
+      "ammo": 700,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x2\n・開発資材x2"
+  },
+  "426": {
+    "sourceWikiId": "Dq1",
+    "resources": {
+      "fuel": 800,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・戦闘糧食x2"
+  },
+  "427": {
+    "sourceWikiId": "D25",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・遠征「臨時補給」開放\n・戦闘糧食x2"
+  },
+  "428": {
+    "sourceWikiId": "Dq2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・九五式爆雷x1"
+  },
+  "429": {
+    "sourceWikiId": "D27",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 600
+    },
+    "otherJa": "確定報酬\n・高速修復材x4\n・洋上補給x2"
+  },
+  "430": {
+    "sourceWikiId": "D28",
+    "resources": {
+      "fuel": 800,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬\n・洋上補給x2\n・高速修復材x8\n・改修資材x4\n\n確定報酬\n・給糧艦「伊良湖」x1"
+  },
+  "431": {
+    "sourceWikiId": "D29",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・洋上補給x5\n・紫雲x1\n・零式水上偵察機11型乙x1\n\n確定報酬\n・改修資材x3"
+  },
+  "432": {
+    "sourceWikiId": "D30",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・特注家具職人x1\n\n選択報酬2\n・開発資材x4\n・改修資材x2\n・7.7mm機銃x2"
+  },
+  "433": {
+    "sourceWikiId": "D31",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 750,
+      "bauxite": 750
+    },
+    "otherJa": "選択報酬\n・高速修復材x6\n・大発動艇x2\n・12.7mm単装機銃x3\n\n確定報酬\n・給糧艦「伊良湖」x2"
+  },
+  "434": {
+    "sourceWikiId": "Dy1",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」x2\n・高速修復材x5\n\n選択報酬2\n・洋上補給x2\n・改修資材x3\n・緊急修理資材x2"
+  },
+  "436": {
+    "sourceWikiId": "Dy2",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・ドラム缶(輸送用)x2\n・高速修復材x4\n\n選択報酬2\n・大発動艇x1\n・洋上補給x2\n・特注家具職人x1"
+  },
+  "437": {
+    "sourceWikiId": "Dy3",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・特注家具職人x1\n\n選択報酬2\n・大発動艇x1\n・改修資材x3\n・開発資材x7"
+  },
+  "438": {
+    "sourceWikiId": "Dy4",
+    "resources": {
+      "fuel": 2000,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・開発資材x5\n・特注家具職人x1\n\n選択報酬2\n・洋上補給x3\n・改修資材x4\n・新型航空兵装資材x1"
+  },
+  "439": {
+    "sourceWikiId": "Dy5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 480,
+      "bauxite": 480
+    },
+    "otherJa": "選択報酬1\n・開発資材x4\n・給糧艦「伊良湖」x1\n\n選択報酬2\n・高速修復材x6\n・新型兵装資材x1"
+  },
+  "440": {
+    "sourceWikiId": "Dy6",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・改修資材x4\n\n選択報酬2\n・新型砲熕兵装資材x2\n・新型航空兵装資材x2"
+  },
+  "442": {
+    "sourceWikiId": "Dy7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 900,
+      "steel": 500,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・給糧艦「伊良湖」x2\n・開発資材x6\n・改修資材x3\n\n選択報酬2\n・新型砲熕兵装資材x1\n・洋上補給x2\n・新型兵装資材x1"
+  },
+  "443": {
+    "sourceWikiId": "D39",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・Bf109T改x1\n・Do 17 Z-2x1\n\n選択報酬2\n・新型兵装資材x1\n・新型航空兵装資材x2\n・改修資材x4"
+  },
+  "444": {
+    "sourceWikiId": "Dy8",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬1\n・開発資材x6\n・高速修復材x5\n\n選択報酬2\n・新型砲熕兵装資材x1\n・新型航空兵装資材x1\n・改修資材x4"
+  },
+  "445": {
+    "sourceWikiId": "D41",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬1\n・設営隊 x1\n・一式陸攻 x2\n\n選択報酬2\n・設営隊 x1\n・新型航空兵装資材 x2"
+  },
+  "446": {
+    "sourceWikiId": "D42",
+    "resources": {
+      "fuel": 0,
+      "ammo": 350,
+      "steel": 350,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・九三式水中聴音機 x3\n・開発資材 x6\n\n選択報酬2\n・九四式爆雷投射機 x3\n・改修資材 x4\n・給糧艦「間宮」x1"
+  },
+  "447": {
+    "sourceWikiId": "D43",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・九三式水中聴音機 x2\n・九四式爆雷投射機 x2\n・開発資材 x6\n\n\n選択報酬2\n・三式水中探信儀 x2\n・改修資材 x3\n・特注家具職人 x1"
+  },
+  "501": {
+    "sourceWikiId": "E1",
+    "resources": {
+      "fuel": 20,
+      "ammo": 20,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "502": {
+    "sourceWikiId": "E2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 30,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "503": {
+    "sourceWikiId": "Ed1",
+    "resources": {
+      "fuel": 30,
+      "ammo": 30,
+      "steel": 30,
+      "bauxite": 30
+    },
+    "otherJa": "確定報酬\n・高速修復材x2"
+  },
+  "504": {
+    "sourceWikiId": "Ed2",
+    "resources": {
+      "fuel": 50,
+      "ammo": 50,
+      "steel": 50,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・開発資材x1\n・高速建造材x1"
+  },
+  "601": {
+    "sourceWikiId": "F1",
+    "resources": {
+      "fuel": 50,
+      "ammo": 50,
+      "steel": 50,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "602": {
+    "sourceWikiId": "F2",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "603": {
+    "sourceWikiId": "F3",
+    "resources": {
+      "fuel": 60,
+      "ammo": 60,
+      "steel": 60,
+      "bauxite": 60
+    },
+    "otherJa": "確定報酬\n・開発資材x1\n高速建造材x1"
+  },
+  "604": {
+    "sourceWikiId": "F4",
+    "resources": {
+      "fuel": 80,
+      "ammo": 80,
+      "steel": 80,
+      "bauxite": 80
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n開発資材x1"
+  },
+  "605": {
+    "sourceWikiId": "Fd1",
+    "resources": {
+      "fuel": 40,
+      "ammo": 40,
+      "steel": 40,
+      "bauxite": 40
+    },
+    "otherJa": "確定報酬\n・開発資材x1\n・高速建造材x1"
+  },
+  "606": {
+    "sourceWikiId": "Fd2",
+    "resources": {
+      "fuel": 50,
+      "ammo": 50,
+      "steel": 50,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "607": {
+    "sourceWikiId": "Fd3",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 100,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2"
+  },
+  "608": {
+    "sourceWikiId": "Fd4",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 300,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・高速建造材x1"
+  },
+  "609": {
+    "sourceWikiId": "Fd5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "610": {
+    "sourceWikiId": "F10",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・「大型艦建造」解放"
+  },
+  "611": {
+    "sourceWikiId": "WF01",
+    "resources": {
+      "fuel": 88,
+      "ammo": 88,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "612": {
+    "sourceWikiId": "F11",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 30,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・ドラム缶(輸送用)x3"
+  },
+  "613": {
+    "sourceWikiId": "Fw1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・ドラム缶(輸送用)x1"
+  },
+  "614": {
+    "sourceWikiId": "F13",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・天山一二型(友永隊)★X*29"
+  },
+  "615": {
+    "sourceWikiId": "F14",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・彗星(江草隊)★X*30"
+  },
+  "616": {
+    "sourceWikiId": "F15",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・烈風(六〇一空)*31"
+  },
+  "617": {
+    "sourceWikiId": "F16",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x4"
+  },
+  "618": {
+    "sourceWikiId": "F17",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x7"
+  },
+  "619": {
+    "sourceWikiId": "Fd6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 50,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x1"
+  },
+  "620": {
+    "sourceWikiId": "F88",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・流星改(一航戦/熟練)x1"
+  },
+  "621": {
+    "sourceWikiId": "F89",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・二式12cm迫撃砲改x1"
+  },
+  "622": {
+    "sourceWikiId": "F20",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・天山一二型(村田隊)★X*33"
+  },
+  "623": {
+    "sourceWikiId": "F19",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・九七式艦攻(村田隊)"
+  },
+  "624": {
+    "sourceWikiId": "F21",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・試製甲板カタパルトx1"
+  },
+  "625": {
+    "sourceWikiId": "F23",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・試製甲板カタパルトx1"
+  },
+  "626": {
+    "sourceWikiId": "Fm1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零式艦戦21型(熟練)★X*42"
+  },
+  "627": {
+    "sourceWikiId": "F24",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零式艦戦52型(熟練)★X*34"
+  },
+  "628": {
+    "sourceWikiId": "Fm2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零式艦戦52型(熟練)★X*43"
+  },
+  "629": {
+    "sourceWikiId": "F26",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零戦52型丙(付岩井小隊)★X*35"
+  },
+  "630": {
+    "sourceWikiId": "F28",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零戦21型(付岩本小隊)★X*37"
+  },
+  "631": {
+    "sourceWikiId": "F27",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零戦62型(爆戦/岩井隊)★X*36"
+  },
+  "632": {
+    "sourceWikiId": "F29",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零戦52型甲(付岩本小隊)★X*38"
+  },
+  "633": {
+    "sourceWikiId": "F30",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・零式艦戦53型(岩本隊)★X*39"
+  },
+  "634": {
+    "sourceWikiId": "F31",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 90,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "635": {
+    "sourceWikiId": "F32",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 50,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(中)x1"
+  },
+  "636": {
+    "sourceWikiId": "F33",
+    "resources": {
+      "fuel": 50,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特二式内火艇"
+  },
+  "637": {
+    "sourceWikiId": "Fq1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・改修資材x4\n・熟練搭乗員x1"
+  },
+  "638": {
+    "sourceWikiId": "Fw2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・改修資材x1"
+  },
+  "639": {
+    "sourceWikiId": "F36",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x6\n・試製61cm六連装(酸素)魚雷"
+  },
+  "641": {
+    "sourceWikiId": "F37",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・九六式陸攻"
+  },
+  "642": {
+    "sourceWikiId": "F38",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・九六式陸攻"
+  },
+  "643": {
+    "sourceWikiId": "Fq2",
+    "resources": {
+      "fuel": 250,
+      "ammo": 250,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・一式陸攻"
+  },
+  "644": {
+    "sourceWikiId": "F40",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・一式陸攻 二二型甲"
+  },
+  "645": {
+    "sourceWikiId": "Fm3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・洋上補給x1"
+  },
+  "646": {
+    "sourceWikiId": "F42",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "647": {
+    "sourceWikiId": "F43",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・中部海域「基地航空隊」開放"
+  },
+  "648": {
+    "sourceWikiId": "F44",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "649": {
+    "sourceWikiId": "F45",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・試製景雲(艦偵型)"
+  },
+  "650": {
+    "sourceWikiId": "F46",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・橘花改"
+  },
+  "651": {
+    "sourceWikiId": "F47",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・ネ式エンジンx1"
+  },
+  "652": {
+    "sourceWikiId": "F48",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1"
+  },
+  "653": {
+    "sourceWikiId": "Fq9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬1\n・大発動艇x1\n・零式艦戦21型x2\n・九六式陸攻x1\n\n選択報酬2\n・九四式爆雷投射機x3\n・12cm30連装噴進砲x2\n・二式12cm迫撃砲改x1"
+  },
+  "654": {
+    "sourceWikiId": "Fy2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・Swordfish Mk.II(熟練)x1"
+  },
+  "655": {
+    "sourceWikiId": "Fy3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材x10\n・新型砲熕兵装資材x1\n・新型航空兵装資材x1\n\n選択報酬2\n・改修資材x5\n・新型兵装資材x2"
+  },
+  "656": {
+    "sourceWikiId": "F49",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・晴嵐(六三一空)"
+  },
+  "657": {
+    "sourceWikiId": "Fy1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・改修資材x5\n・新型兵装資材x2\n\n確定報酬\n・開発資材x10"
+  },
+  "658": {
+    "sourceWikiId": "F50",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・後期型艦首魚雷(6門)"
+  },
+  "659": {
+    "sourceWikiId": "F51",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・二式水戦改(熟練)"
+  },
+  "660": {
+    "sourceWikiId": "F52",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・二式水戦改(熟練)"
+  },
+  "661": {
+    "sourceWikiId": "F53",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(中)x2\n・新型砲熕兵装資材x1"
+  },
+  "662": {
+    "sourceWikiId": "F54",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・開発資材x2"
+  },
+  "663": {
+    "sourceWikiId": "Fq3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・開発資材x3"
+  },
+  "664": {
+    "sourceWikiId": "F56",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・開発資材x4"
+  },
+  "665": {
+    "sourceWikiId": "F57",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・特注家具職人x1"
+  },
+  "666": {
+    "sourceWikiId": "F58",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・瑞雲(六三四空/熟練)"
+  },
+  "667": {
+    "sourceWikiId": "F59",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・特注家具職人x1\n\n確定報酬\n・戦闘糧食x2"
+  },
+  "668": {
+    "sourceWikiId": "F60",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・戦闘糧食(特別なおにぎり)x1"
+  },
+  "669": {
+    "sourceWikiId": "F61",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・F6F-3N"
+  },
+  "670": {
+    "sourceWikiId": "F63",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・F6F-5N"
+  },
+  "671": {
+    "sourceWikiId": "F62",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・TBM-3D"
+  },
+  "672": {
+    "sourceWikiId": "F64",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・遊撃部隊 艦隊司令部x1"
+  },
+  "673": {
+    "sourceWikiId": "Fd7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 100,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "674": {
+    "sourceWikiId": "Fd8",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x1"
+  },
+  "675": {
+    "sourceWikiId": "Fq4",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・一式戦 隼II型*44x1\n・紫電一一型*45x1\n・改修資材x4\n\n確定報酬\n・開発資材x4"
+  },
+  "676": {
+    "sourceWikiId": "Fw3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1\n・開発資材x7"
+  },
+  "677": {
+    "sourceWikiId": "Fw4",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 150
+    },
+    "otherJa": "確定報酬\n・高速修復材x5"
+  },
+  "678": {
+    "sourceWikiId": "Fq5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x8\n・新型航空兵装資材x1\n\n確定報酬\n・紫電改二x2"
+  },
+  "679": {
+    "sourceWikiId": "F71",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・25mm三連装機銃x2\n・12cm30連装噴進砲x2\n・補強増設x1"
+  },
+  "680": {
+    "sourceWikiId": "Fq6",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・10cm連装高角砲x2\n・12cm30連装噴進砲x2\n\n選択報酬2\n・8cm高角砲x2\n・開発資材x6"
+  },
+  "681": {
+    "sourceWikiId": "Fy4",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・九六式陸攻x3\n・一式陸攻 二二型甲x1\n・新型航空兵装資材x2\n\n選択報酬2\n・熟練搭乗員x1\n・改修資材x4"
+  },
+  "682": {
+    "sourceWikiId": "F73",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・開発資材x4\n・新型砲熕兵装資材x1\n\n選択報酬2\n・「択捉」\n・「松輪」"
+  },
+  "683": {
+    "sourceWikiId": "F74",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・41cm三連装砲改二x1"
+  },
+  "684": {
+    "sourceWikiId": "F75",
+    "resources": {
+      "fuel": 0,
+      "ammo": 634,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・彗星二二型(六三四空/熟練)x1"
+  },
+  "685": {
+    "sourceWikiId": "F76",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・12.7cm連装砲A型改三(戦時改修)＋高射装置"
+  },
+  "686": {
+    "sourceWikiId": "Fq7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・12.7cm連装砲A型改三(戦時改修)＋高射装置"
+  },
+  "687": {
+    "sourceWikiId": "F78",
+    "resources": {
+      "fuel": 0,
+      "ammo": 220,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・12.7cm連装砲B型改四(戦時改修)＋高射装置"
+  },
+  "688": {
+    "sourceWikiId": "Fq8",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・零式艦戦32型(熟練)x1\n・一式戦 隼II型*46x1\n・瑞雲(六三一空)*47x1"
+  },
+  "689": {
+    "sourceWikiId": "F80",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・烈風 一一型\n・三式戦 飛燕x2\n・Spitfire Mk.Ix2"
+  },
+  "690": {
+    "sourceWikiId": "F81",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・雷電\n・試製東海\n・紫電一一型x2"
+  },
+  "691": {
+    "sourceWikiId": "F82",
+    "resources": {
+      "fuel": 200,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材x5\n・家具箱(中)x3\n\n選択報酬2\n・特注家具職人x1\n・家具箱(大)x3"
+  },
+  "692": {
+    "sourceWikiId": "F83",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬1\n・特注家具職人\n・改修資材x2\n・開発資材x5\n\n選択報酬2\n・増設バルジ(中型艦)x2\n・増設バルジ(大型艦)"
+  },
+  "693": {
+    "sourceWikiId": "F84",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・新型航空兵装資材x2\n・オ号観測機改"
+  },
+  "694": {
+    "sourceWikiId": "F85",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・試製甲板カタパルトx1\n・新型航空兵装資材x3"
+  },
+  "695": {
+    "sourceWikiId": "F86",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・彗星一二型(六三四空/三号爆弾搭載機)"
+  },
+  "696": {
+    "sourceWikiId": "F87",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・瑞雲改二(六三四空/熟練)"
+  },
+  "698": {
+    "sourceWikiId": "F91",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・TBM-3W＋3Sx1"
+  },
+  "701": {
+    "sourceWikiId": "G1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 50,
+      "bauxite": 50
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "702": {
+    "sourceWikiId": "Gd1",
+    "resources": {
+      "fuel": 20,
+      "ammo": 20,
+      "steel": 50,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x1"
+  },
+  "703": {
+    "sourceWikiId": "Gw1",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 300,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・開発資材x2\n・高速建造材x1"
+  },
+  "704": {
+    "sourceWikiId": "G4",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 400,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・開発資材x1"
+  },
+  "705": {
+    "sourceWikiId": "G5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・新型航空機設計図x1"
+  },
+  "714": {
+    "sourceWikiId": "Gy1",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材×1\n・開発資材×2\n選択報酬2\n・戦闘糧食×2\n・給糧艦「伊良湖」x1"
+  },
+  "715": {
+    "sourceWikiId": "Gy2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材x2\n・開発資材x3\n選択報酬2\n・25mm単装機銃x2\n・改修資材x2"
+  },
+  "716": {
+    "sourceWikiId": "Gy3",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材x2\n・開発資材x3\n選択報酬2\n・25mm単装機銃x2\n・給糧艦「伊良湖」x1"
+  },
+  "717": {
+    "sourceWikiId": "Gy4",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・開発資材x4\n・15.2cm連装砲x1\n選択報酬2\n・22号対水上電探x2\n・改修資材x2"
+  },
+  "718": {
+    "sourceWikiId": "G10",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬\n・8cm高角砲x2\n・25mm単装機銃x2\n・開発資材x8\n確定報酬\n・補強増設x1"
+  },
+  "719": {
+    "sourceWikiId": "G11",
+    "resources": {
+      "fuel": 600,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・20.3cm(3号)連装砲x2\n・瑞雲12型x2\n・改修資材x5\n確定報酬\n・21号対空電探改二x1"
+  },
+  "720": {
+    "sourceWikiId": "2603G2",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬・菱餅x2・高速修復材x2"
+  },
+  "805": {
+    "sourceWikiId": "B58",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・13号対空電探改x1\n・戦闘糧食x1"
+  },
+  "806": {
+    "sourceWikiId": "B59",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・25mm三連装機銃 集中配備x1\n・改修資材x3"
+  },
+  "807": {
+    "sourceWikiId": "B60",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・プレゼント箱x1*12"
+  },
+  "808": {
+    "sourceWikiId": "B61",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具『「春の一番」掛け軸』"
+  },
+  "809": {
+    "sourceWikiId": "B62",
+    "resources": {
+      "fuel": 0,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・大発動艇x1"
+  },
+  "810": {
+    "sourceWikiId": "B63",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・戦闘糧食x1\n・勲章x1"
+  },
+  "811": {
+    "sourceWikiId": "B64",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・戦闘糧食x1\n・特注家具職人x1"
+  },
+  "812": {
+    "sourceWikiId": "B65",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・勲章x1\n・給糧艦「伊良湖」x2"
+  },
+  "813": {
+    "sourceWikiId": "B66",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・戦闘糧食x1"
+  },
+  "814": {
+    "sourceWikiId": "B68",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・給糧艦「伊良湖」x1"
+  },
+  "815": {
+    "sourceWikiId": "B69",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "確定報酬\n・熟練搭乗員x1\n・改修資材x3"
+  },
+  "816": {
+    "sourceWikiId": "B67",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具『「三周年記念」掛け軸』"
+  },
+  "817": {
+    "sourceWikiId": "B70",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1\n・高速修復材x3"
+  },
+  "818": {
+    "sourceWikiId": "B71",
+    "resources": {
+      "fuel": 0,
+      "ammo": 900,
+      "steel": 900,
+      "bauxite": 900
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・特注家具職人x1"
+  },
+  "819": {
+    "sourceWikiId": "B72",
+    "resources": {
+      "fuel": 310,
+      "ammo": 310,
+      "steel": 0,
+      "bauxite": 310
+    },
+    "otherJa": "確定報酬\n・改修資材x2\n・三式水中探信儀x1"
+  },
+  "820": {
+    "sourceWikiId": "B73",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・探照灯x1\n・大発動艇x1"
+  },
+  "821": {
+    "sourceWikiId": "B74",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "確定報酬\n・改修資材x4\n・四式水中聴音機x1"
+  },
+  "822": {
+    "sourceWikiId": "Bq1",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x5\n・給糧艦「間宮」x1"
+  },
+  "823": {
+    "sourceWikiId": "B75",
+    "resources": {
+      "fuel": 0,
+      "ammo": 350,
+      "steel": 0,
+      "bauxite": 350
+    },
+    "otherJa": "確定報酬\n・高速修復材x4\n・給糧艦「伊良湖」x1"
+  },
+  "824": {
+    "sourceWikiId": "B76",
+    "resources": {
+      "fuel": 600,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(中)x1\n・特注家具職人x1"
+  },
+  "825": {
+    "sourceWikiId": "B77",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特注家具職人x1\n・給糧艦「伊良湖」x1"
+  },
+  "826": {
+    "sourceWikiId": "B78",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x3\n・給糧艦「伊良湖」x1"
+  },
+  "827": {
+    "sourceWikiId": "B79",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・改修資材x4\n・洋上補給x1"
+  },
+  "828": {
+    "sourceWikiId": "B80",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・設営隊x1"
+  },
+  "829": {
+    "sourceWikiId": "B81",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・設営隊x1"
+  },
+  "830": {
+    "sourceWikiId": "B82",
+    "resources": {
+      "fuel": 100,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・探照灯x1\n・戦闘糧食x1"
+  },
+  "833": {
+    "sourceWikiId": "B139",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・二式12cm迫撃砲改ｘ3\n・ 艦載型 四式20cm対地噴進砲x1"
+  },
+  "834": {
+    "sourceWikiId": "B83",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・家具箱(中)x1\n・特注家具職人x1"
+  },
+  "835": {
+    "sourceWikiId": "B84",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x1\n・家具『艦娘座布団の床』"
+  },
+  "836": {
+    "sourceWikiId": "B85",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・特大発動艇x1"
+  },
+  "837": {
+    "sourceWikiId": "B86",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 0,
+      "steel": 1000,
+      "bauxite": 3000
+    },
+    "otherJa": "確定報酬\n・改修資材x5\n・洋上補給x1"
+  },
+  "838": {
+    "sourceWikiId": "B87",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x1\n・家具『手編みとフローリング』"
+  },
+  "839": {
+    "sourceWikiId": "B88",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬\n・二式水戦改x1\n・PBY-5A Catalinax1\n\n確定報酬\n・改修資材x2"
+  },
+  "842": {
+    "sourceWikiId": "B89",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・改良型艦本式タービンx1\n・強化型艦本式缶x1\n\n確定報酬\n・給糧艦「伊良湖」x1"
+  },
+  "844": {
+    "sourceWikiId": "B90",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "確定報酬\n・改修資材x4\n・補強増設x1"
+  },
+  "845": {
+    "sourceWikiId": "Bq12",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 2400,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・大発動艇x2\n・新型噴進装備開発資材x1\n\n確定報酬\n・戦果+330"
+  },
+  "846": {
+    "sourceWikiId": "B91",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x3\n・給糧艦「伊良湖」x1"
+  },
+  "847": {
+    "sourceWikiId": "B163",
+    "resources": {
+      "fuel": 550,
+      "ammo": 550,
+      "steel": 550,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・25mm三連装機銃x2\n・大発動艇x1\n・改修資材x3\n\n確定報酬\n・補強増設x1"
+  },
+  "848": {
+    "sourceWikiId": "B92",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 700,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・艦本新設計 増設バルジ(中型艦)x1"
+  },
+  "849": {
+    "sourceWikiId": "B93",
+    "resources": {
+      "fuel": 300,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・給糧艦「間宮」x1\n・給糧艦「伊良湖」x1"
+  },
+  "850": {
+    "sourceWikiId": "B94",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "確定報酬\n・開発資材x5\n・熟練搭乗員x1"
+  },
+  "851": {
+    "sourceWikiId": "B95",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 700
+    },
+    "otherJa": "選択報酬\n・強風改x1\n・艦本新設計 増設バルジ(中型艦)x1\n\n確定報酬\n・改修資材x4"
+  },
+  "852": {
+    "sourceWikiId": "B96",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "確定報酬\n・零式艦戦63型(爆戦)x1\n・8cm高角砲改＋増設機銃x1"
+  },
+  "853": {
+    "sourceWikiId": "B97",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・給糧艦「伊良湖」x2\n・特注家具職人x1"
+  },
+  "854": {
+    "sourceWikiId": "Bq2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 2000,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x4\n・給糧艦「伊良湖」x3\n・戦果+350"
+  },
+  "855": {
+    "sourceWikiId": "B98",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "確定報酬\n・開発資材x4\n・特注家具職人x1"
+  },
+  "856": {
+    "sourceWikiId": "B99",
+    "resources": {
+      "fuel": 0,
+      "ammo": 880,
+      "steel": 880,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x4\n・艦本新設計 増設バルジ(大型艦)x1"
+  },
+  "857": {
+    "sourceWikiId": "B100",
+    "resources": {
+      "fuel": 700,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・高速修復材x3"
+  },
+  "858": {
+    "sourceWikiId": "B101",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 1000,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n・零式艦戦63型(爆戦)x1\n\n確定報酬\n・改修資材x4"
+  },
+  "859": {
+    "sourceWikiId": "B102",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・熟練搭乗員x1\n\n確定報酬\n・改修資材x4"
+  },
+  "860": {
+    "sourceWikiId": "B103",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬\n・大発動艇x1\n・補強増設x1\n\n確定報酬\n・熟練搭乗員x1"
+  },
+  "861": {
+    "sourceWikiId": "Bq3",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・高速修復材x4\n・洋上補給x1"
+  },
+  "862": {
+    "sourceWikiId": "Bq4",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "確定報酬\n・開発資材x8\n・改修資材x4"
+  },
+  "863": {
+    "sourceWikiId": "B104",
+    "resources": {
+      "fuel": 0,
+      "ammo": 700,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬\n・大発動艇x1\n・新型砲熕兵装資材x1\n・補強増設x1\n\n確定報酬\n・給糧艦「伊良湖」x2"
+  },
+  "864": {
+    "sourceWikiId": "B105",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 700,
+      "bauxite": 700
+    },
+    "otherJa": "選択報酬1\n・F6F-3x1\n・熟練搭乗員x1\n・新型航空兵装資材x1\n\n選択報酬2\n・TBFx1\n・夜間作戦航空要員x1"
+  },
+  "865": {
+    "sourceWikiId": "B106",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・TBFx1\n・新型航空兵装資材x1\n・夜間作戦航空要員＋熟練甲板員x1\n\n選択報酬2\n・補強増設x1\n・新型航空兵装資材x1\n・熟練搭乗員x1"
+  },
+  "869": {
+    "sourceWikiId": "B107",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・洋上補給x1\n・給糧艦「伊良湖」x1"
+  },
+  "870": {
+    "sourceWikiId": "B108",
+    "resources": {
+      "fuel": 0,
+      "ammo": 250,
+      "steel": 250,
+      "bauxite": 250
+    },
+    "otherJa": "確定報酬\n・開発資材x3\n・給糧艦「間宮」x1"
+  },
+  "871": {
+    "sourceWikiId": "B109",
+    "resources": {
+      "fuel": 800,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・12.7cm連装砲C型改二x1\n・大発動艇x1\n・22号対水上電探x2\n\n確定報酬\n・改修資材x4"
+  },
+  "872": {
+    "sourceWikiId": "Bq10",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 2000,
+      "bauxite": 2000
+    },
+    "otherJa": "選択報酬\n・改修資材x4\n・給糧艦「伊良湖」x3\n・洋上補給x4\n\n確定報酬\n・戦果+400"
+  },
+  "873": {
+    "sourceWikiId": "Bq5",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・特注家具職人x1\n・12.7cm連装砲C型改二★3\n・勲章x1\n\n確定報酬\n・戦闘糧食x1"
+  },
+  "874": {
+    "sourceWikiId": "B110",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 700
+    },
+    "otherJa": "選択報酬\n・紫電改二x2\n・改修資材x4\n・新型航空兵装資材x1\n\n確定報酬\n・プレゼント箱x1"
+  },
+  "875": {
+    "sourceWikiId": "Bq6",
+    "resources": {
+      "fuel": 310,
+      "ammo": 310,
+      "steel": 0,
+      "bauxite": 310
+    },
+    "otherJa": "選択報酬1\n・13号対空電探x2\n・22号対水上電探x2\n・戦闘詳報x1\n\n選択報酬2\n・新型砲熕兵装資材x1\n・プレゼント箱x1"
+  },
+  "876": {
+    "sourceWikiId": "B111",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材x1\n・新型航空兵装資材x1\n\n選択報酬2\n・特注家具職人x1\n・大発動艇x1\n・戦闘詳報x1"
+  },
+  "877": {
+    "sourceWikiId": "B112",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・12.7cm連装砲C型改二x1\n・22号対水上電探x2\n・12.7cm連装砲B型改二x2\n\n選択報酬2\n・洋上補給x2\n・ドラム缶(輸送用)x3\n・改修資材x4"
+  },
+  "878": {
+    "sourceWikiId": "B113",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・大発動艇x1\n・改修資材x3\n\n選択報酬2\n・新型砲熕兵装資材x1\n・12cm30連装噴進砲x2\n・特注家具職人x1"
+  },
+  "879": {
+    "sourceWikiId": "B114",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬\n・戦闘詳報x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・12cm30連装噴進砲改二x1"
+  },
+  "880": {
+    "sourceWikiId": "B115",
+    "resources": {
+      "fuel": 480,
+      "ammo": 480,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・新型砲熕兵装資材x1\n\n選択報酬2\n・戦闘詳報x1\n・勲章x1"
+  },
+  "881": {
+    "sourceWikiId": "B116",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 480,
+      "bauxite": 480
+    },
+    "otherJa": "選択報酬\n・大発動艇x1\n・10cm連装高角砲改＋増設機銃x1\n・改修資材x5"
+  },
+  "884": {
+    "sourceWikiId": "B117",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・新型砲熕兵装資材x1\n・戦闘詳報x1\n\n選択報酬2\n・勲章x2\n・試製甲板カタパルトx1\n・12.7cm連装砲D型改二x1"
+  },
+  "885": {
+    "sourceWikiId": "B118",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 0,
+      "steel": 634,
+      "bauxite": 634
+    },
+    "otherJa": "選択報酬1\n・熟練搭乗員x1\n・新型航空兵装資材x1\n・改修資材x4\n\n選択報酬2\n・瑞雲(六三四空)x1\n・彗星二二型(六三四空)x1\n・新型砲熕兵装資材x2"
+  },
+  "886": {
+    "sourceWikiId": "B119",
+    "resources": {
+      "fuel": 634,
+      "ammo": 0,
+      "steel": 1000,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・九六式艦戦x3\n・九九式艦爆x3\n・零式艦戦21型x2\n\n選択報酬2\n・紫電改二x2\n・勲章x1\n・戦闘詳報x1"
+  },
+  "887": {
+    "sourceWikiId": "B120",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬1\n・高速修復材x5\n・戦闘詳報x1\n\n選択報酬2\n・22号対水上電探x2\n・改修資材x4"
+  },
+  "888": {
+    "sourceWikiId": "Bq7",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・改修資材x5\n\n確定報酬\n・戦果+200"
+  },
+  "889": {
+    "sourceWikiId": "B121",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 0,
+      "steel": 1000,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・勲章x1\n・新型砲熕兵装資材x1\n・高速修復材x8\n\n確定報酬\n・12.7cm連装砲B型改四(戦時改修)＋高射装置x1"
+  },
+  "890": {
+    "sourceWikiId": "B122",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬\n・12.7cm連装高角砲(後期型)x2\n・高速修復材x8\n・勲章x1\n\n確定報酬\n・家具『「摩耶の盾」掛け軸』"
+  },
+  "891": {
+    "sourceWikiId": "B123",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・三式水中探信儀x1\n・12.7cm単装高角砲(後期型)x1\n・特注家具職人x1\n\n選択報酬2\n・戦闘詳報x1\n・12.7cm連装砲C型改二x1\n・61cm四連装(酸素)魚雷後期型x1"
+  },
+  "892": {
+    "sourceWikiId": "B126",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 500,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材x1\n・新型航空兵装資材x1\n・大発動艇x1\n\n選択報酬2\n・熟練搭乗員x1\n・改修資材x4"
+  },
+  "893": {
+    "sourceWikiId": "Bq8",
+    "resources": {
+      "fuel": 2000,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬\n・熟練見張員x1\n・熟練搭乗員x1\n・洋上補給x4\n\n確定報酬\n・戦果+300"
+  },
+  "894": {
+    "sourceWikiId": "Bq9",
+    "resources": {
+      "fuel": 600,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型航空兵装資材x1\n・開発資材x4\n\n選択報酬2\n・彩雲x1\n・熟練搭乗員x1\n・プレゼント箱x1"
+  },
+  "895": {
+    "sourceWikiId": "B127",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 0,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬1\n・零式艦戦21型x3\n・零式艦戦32型x2\n・特注家具職人x1\n\n選択報酬2\n・改修資材x4\n・22号対水上電探x3\n・新型航空兵装資材x2"
+  },
+  "896": {
+    "sourceWikiId": "B131",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 0,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬\n・戦闘詳報x1\n・勲章x2\n\n確定報酬\n・勲章x1"
+  },
+  "897": {
+    "sourceWikiId": "B132",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・S-51Jx1\n・勲章x2\n\n確定報酬\n・瑞雲改二(六三四空)x1"
+  },
+  "898": {
+    "sourceWikiId": "B162",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1200,
+      "steel": 0,
+      "bauxite": 1200
+    },
+    "otherJa": "選択報酬\n・高速修復材x5\n・特注家具職人x1\n\n確定報酬\n・家具『特注の二〇式鎮守府暖炉』"
+  },
+  "901": {
+    "sourceWikiId": "B140",
+    "resources": {
+      "fuel": 0,
+      "ammo": 3000,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・二式爆雷x2\n・大発動艇x2\n・特注家具職人x1\n\n確定報酬\n・14cm連装砲改x1"
+  },
+  "902": {
+    "sourceWikiId": "B141",
+    "resources": {
+      "fuel": 3000,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材x12\n・甲標的 丁型改(蛟龍改)x1\n・改修資材x6\n\n確定報酬\n・補強増設x1"
+  },
+  "903": {
+    "sourceWikiId": "Bq13",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬\n・高速修復材x10\n・勲章x1\n・新型砲熕兵装資材x1\n\n確定報酬\n・戦果+390"
+  },
+  "904": {
+    "sourceWikiId": "By1",
+    "resources": {
+      "fuel": 1900,
+      "ammo": 0,
+      "steel": 1900,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・給糧艦「間宮」x1\n・家具箱(中)x10\n\n選択報酬2\n・高速修復材x8\n・開発資材x10\n・改修資材x4"
+  },
+  "905": {
+    "sourceWikiId": "By2",
+    "resources": {
+      "fuel": 1200,
+      "ammo": 600,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材x6\n・開発資材x8\n\n選択報酬2\n・特注家具職人\n・二式爆雷x1\n・勲章x1"
+  },
+  "911": {
+    "sourceWikiId": "B142",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 880,
+      "bauxite": 500
+    },
+    "otherJa": "選択報酬1\n・洋上補給x3\n・高速修復材x6\n・戦闘糧食(特別なおにぎり)x2\n\n選択報酬2\n・新型砲熕兵装資材x1\n・新型噴進装備開発資材x1\n・家具『「沖に立つ波」私物棚』"
+  },
+  "912": {
+    "sourceWikiId": "By3",
+    "resources": {
+      "fuel": 600,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・緊急修理資材x2\n・高速修復材x5\n・開発資材x6\n\n確定報酬\n・洋上補給x1"
+  },
+  "913": {
+    "sourceWikiId": "B143",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・洋上補給x2\n・高速修復材x6\n・25mm三連装機銃x2\n\n選択報酬2\n・試製東海x1\n・試製景雲(艦偵型)x1"
+  },
+  "914": {
+    "sourceWikiId": "By4",
+    "resources": {
+      "fuel": 0,
+      "ammo": 800,
+      "steel": 800,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材x5\n・新型砲熕兵装資材x1\n・増設バルジ(中型艦)x1\n\n選択報酬2\n・20.3cm(2号)連装砲x2\n・改修資材x4"
+  },
+  "915": {
+    "sourceWikiId": "2212B1",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 600
+    },
+    "otherJa": "選択報酬1\n・SOC Seagullx2\n・Ro.43水偵x2\n・Laté 298Bx2\n\n選択報酬2\n・S9 Ospreyx2\n・Swordfish(水上機型)x2\n・勲章x1"
+  },
+  "916": {
+    "sourceWikiId": "B144",
+    "resources": {
+      "fuel": 1942,
+      "ammo": 2020,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材x2\n・35.6cm連装砲改二x1\n\n選択報酬2\n・零式水上偵察機11型乙★2x1\n・艦本新設計 増設バルジ(大型艦)★2x1\n・戦闘詳報x1"
+  },
+  "917": {
+    "sourceWikiId": "B145",
+    "resources": {
+      "fuel": 700,
+      "ammo": 700,
+      "steel": 700,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・Swordfish(水上機型)x2\n・S9 Ospreyx2\n・Swordfish Mk.III改(水上機型)x1\n\n選択報酬2\n・改修資材x4\n・新型航空兵装資材x1\n・補強増設x1"
+  },
+  "918": {
+    "sourceWikiId": "B146",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 2020
+    },
+    "otherJa": "選択報酬\n・新型航空兵装資材x2\n・Fairey Seafox改x1\n\n確定報酬\n・家具『北欧ソファー家具』"
+  },
+  "919": {
+    "sourceWikiId": "B147",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・改修資材x2\n・緊急修理資材x2\n・高速修復材x4\n\n選択報酬2\n・天山x3\n・OS2Ux1"
+  },
+  "920": {
+    "sourceWikiId": "B148",
+    "resources": {
+      "fuel": 600,
+      "ammo": 600,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・F4F-3★3x2\n・TBD★3x2\n・開発資材x6\n\n確定報酬\n・533mm五連装魚雷(後期型)x1"
+  },
+  "921": {
+    "sourceWikiId": "B149",
+    "resources": {
+      "fuel": 700,
+      "ammo": 700,
+      "steel": 700,
+      "bauxite": 700
+    },
+    "otherJa": "選択報酬\n・改修資材x4\n・熟練搭乗員x1\n・洋上補給x3\n\n確定報酬\n・RUR-4A Weapon Alpha改x1"
+  },
+  "922": {
+    "sourceWikiId": "B150",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・試製甲板カタパルトx1\n・対潜短魚雷(試作初期型)x1\n・改装設計図x1\n\n確定報酬\n・勲章x1"
+  },
+  "923": {
+    "sourceWikiId": "B151",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・高速修復材x4\n・開発資材x5\n\n選択報酬2\n・SKレーダーx1\n・新型航空兵装資材x2"
+  },
+  "924": {
+    "sourceWikiId": "B152",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 880,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬\n・開発資材x88\n・試製甲板カタパルトx1\n・TBF★4x1\n\n確定報酬\n・勲章x1"
+  },
+  "925": {
+    "sourceWikiId": "B153",
+    "resources": {
+      "fuel": 1942,
+      "ammo": 2020,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・試製 秋水x1\n・一式陸攻 二二型甲★2x1\n・カ号観測機★3x3\n\n確定報酬\n・流星改(一航戦)x1"
+  },
+  "926": {
+    "sourceWikiId": "B154",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 1830,
+      "bauxite": 1840
+    },
+    "otherJa": "選択報酬1\n・試製甲板カタパルトx1\n・天山一二型甲改(空六号電探改装備機)x2\n・一式陸攻 三四型★2x1\n\n選択報酬2\n・戦闘詳報x2\n・改装設計図x1\n・流星改(一航戦/熟練)★2x1"
+  },
+  "927": {
+    "sourceWikiId": "B155",
+    "resources": {
+      "fuel": 0,
+      "ammo": 2020,
+      "steel": 1945,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・戦闘詳報x1\n・新型兵装資材x1\n\n確定報酬\n・20.3cm(3号)連装砲★6x1"
+  },
+  "928": {
+    "sourceWikiId": "By5",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬\n・新型砲熕兵装資材x1\n・新型航空兵装資材x1\n・開発資材x10\n\n選択報酬2\n・瑞雲12型x2\n・新型兵装資材x2\n・改修資材x8"
+  },
+  "929": {
+    "sourceWikiId": "B156",
+    "resources": {
+      "fuel": 513,
+      "ammo": 513,
+      "steel": 513,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・新型兵装資材x1\n・後期型艦首魚雷(6門)★2x1\n・戦闘詳報x1\n\n確定報酬\n・家具『「鯨」の掛け軸』"
+  },
+  "930": {
+    "sourceWikiId": "B157",
+    "resources": {
+      "fuel": 800,
+      "ammo": 800,
+      "steel": 400,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬\n・開発資材x10\n・戦闘詳報x1\n・改修資材x5\n\n確定報酬\n・61cm四連装(酸素)魚雷後期型★5x1"
+  },
+  "931": {
+    "sourceWikiId": "B158",
+    "resources": {
+      "fuel": 1270,
+      "ammo": 270,
+      "steel": 270,
+      "bauxite": 270
+    },
+    "otherJa": "選択報酬\n・洋上補給x2\n・応急修理女神x1\n・秋刀魚の缶詰x2\n\n確定報酬\n・家具『焼き芋と読書の時間』"
+  },
+  "933": {
+    "sourceWikiId": "B159",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・応急修理女神x1\n・新型兵装資材x1\n・洋上補給x2\n\n確定報酬\n・司令部要員x1"
+  },
+  "934": {
+    "sourceWikiId": "B160",
+    "resources": {
+      "fuel": 1971,
+      "ammo": 0,
+      "steel": 1939,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・勲章x1\n・補強増設x1\n\n選択報酬2\n・現地改装12.7cm連装高角砲★4x1\n・現地改装10cm連装高角砲★4x1\n・新型兵装資材x2"
+  },
+  "935": {
+    "sourceWikiId": "B161",
+    "resources": {
+      "fuel": 1945,
+      "ammo": 2020,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・戦闘詳報x1\n・改修資材x6\n\n選択報酬2\n・5inch単装砲 Mk.30 改★4x1\n・22号対水上電探改四(後期調整型)★4x1\n・61cm四連装(酸素)魚雷後期型★4x1"
+  },
+  "936": {
+    "sourceWikiId": "B164",
+    "resources": {
+      "fuel": 1026,
+      "ammo": 0,
+      "steel": 1944,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・15.2cm連装砲x2\n・8cm高角砲x2\n・25mm三連装機銃x2\n\n確定報酬\n・15.2cm連装砲改二x1"
+  },
+  "937": {
+    "sourceWikiId": "B165",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1944,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・補強増設x2\n・爆装一式戦 隼III型改(65戦隊)x1\n\n確定報酬\n・12.7cm連装高角砲改二x1"
+  },
+  "938": {
+    "sourceWikiId": "B166",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬1\n・勲章x1\n・開発資材x8\n・瑞雲12型x2\n\n選択報酬2\n・特注家具職人x1\n・給糧艦「間宮」x1\n・熟練搭乗員x1"
+  },
+  "939": {
+    "sourceWikiId": "B167",
+    "resources": {
+      "fuel": 2021,
+      "ammo": 0,
+      "steel": 1944,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・8cm高角砲改＋増設機銃x1\n・戦闘詳報x1\n・応急修理女神x2\n\n選択報酬2\n・勲章x2\n・甲標的 丙型x2\n・強風改x1"
+  },
+  "940": {
+    "sourceWikiId": "B168",
+    "resources": {
+      "fuel": 1945,
+      "ammo": 2021,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・15.2cm連装砲改二★2x1\n・家具『矢矧の掛け軸』"
+  },
+  "943": {
+    "sourceWikiId": "B169",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 1946,
+      "bauxite": 2021
+    },
+    "otherJa": "選択報酬1\n・高速修復材 x8\n・天山一二型甲 x1\n・応急修理女神 x1\n\n選択報酬2\n・8cm高角砲改＋増設機銃★2 x1\n・零式艦戦63型(爆戦) x2\n・天山一二型甲改(空六号電探改装備機) x1"
+  },
+  "944": {
+    "sourceWikiId": "By6",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・二式爆雷 x2\n・給糧艦「伊良湖」 x2\n・給糧艦「間宮」x1\n\n選択報酬2\n・三式水中探信儀★2 x1\n・三式爆雷投射機★2 x1\n・開発資材x5"
+  },
+  "945": {
+    "sourceWikiId": "By7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・二式12cm迫撃砲改 x2\n・艦載型 四式20cm対地噴進砲 x1\n・戦闘糧食 x4\n\n選択報酬2\n・大発動艇 x2\n・新型砲熕兵装資材 x1\n・改修資材 x3"
+  },
+  "946": {
+    "sourceWikiId": "By8",
+    "resources": {
+      "fuel": 0,
+      "ammo": 400,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・零式艦戦32型 x2\n・F4F-3 x2\n・高速修復材 x5\n\n選択報酬2\n・九九式艦爆二二型 x2\n・SBD x2\n・戦闘詳報 x1"
+  },
+  "947": {
+    "sourceWikiId": "By9",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 880,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬\n・13号対空電探改 x2\n・勲章 x1\n・補強増設 x1\n\n確定報酬\n・戦果+480"
+  },
+  "948": {
+    "sourceWikiId": "By10",
+    "resources": {
+      "fuel": 1300,
+      "ammo": 1300,
+      "steel": 0,
+      "bauxite": 1300
+    },
+    "otherJa": "選択報酬\n・熟練搭乗員 x5\n・試製甲板カタパルト x1\n・橘花改 x1\n\n確定報酬\n・戦果+600"
+  },
+  "949": {
+    "sourceWikiId": "B170",
+    "resources": {
+      "fuel": 730,
+      "ammo": 730,
+      "steel": 730,
+      "bauxite": 730
+    },
+    "otherJa": "選択報酬1\n・TBF★4 x2\n・改修資材 x7\n・戦闘詳報 x1\n\n選択報酬2\n・戦果+800\n・FR-1 Fireball x1"
+  },
+  "952": {
+    "sourceWikiId": "B171",
+    "resources": {
+      "fuel": 750,
+      "ammo": 750,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・三式弾 x2\n・12cm30連装噴進砲 x3\n・艦載型 四式20cm対地噴進砲 x2\n\n選択報酬2\n・大発動艇 x2\n・25mm三連装機銃 x2\n・応急修理女神 x1"
+  },
+  "957": {
+    "sourceWikiId": "B172",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x8\n・高速修復材 x6\n・補強増設 x1\n\n\n確定報酬\n・三式水中探信儀改 x1"
+  },
+  "958": {
+    "sourceWikiId": "B173",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬1\n・改修資材 x5\n・大発動艇 x3\n・新型兵装資材 x2\n\n選択報酬2\n・戦闘詳報 x1\n・12.7cm連装砲C型改二 x1\n・61cm四連装(酸素)魚雷後期型 x1"
+  },
+  "961": {
+    "sourceWikiId": "B174",
+    "resources": {
+      "fuel": 550,
+      "ammo": 550,
+      "steel": 0,
+      "bauxite": 550
+    },
+    "otherJa": "選択報酬1\n・特注家具職人 x1\n・新型砲熕兵装資材 x2\n・改修資材 x5\n\n選択報酬2\n・61cm四連装(酸素)魚雷後期型 x1\n・新型兵装資材 x4\n・戦闘詳報 x1"
+  },
+  "966": {
+    "sourceWikiId": "B175",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬\n・一式陸攻 x1\n・三式戦 飛燕 x2\n・改修資材 x5\n\n確定報酬\n・南西海域「基地航空隊」開設"
+  },
+  "967": {
+    "sourceWikiId": "B176",
+    "resources": {
+      "fuel": 600,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬\n・開発資材 x8\n・改修資材 x4\n・応急修理女神 x1\n\n\n確定報酬\n・「八幡丸」"
+  },
+  "968": {
+    "sourceWikiId": "B177",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・九七式艦攻(九三一空) x2\n・改修資材 x6\n・新型航空兵装資材 x2\n\n選択報酬2\n・戦闘詳報 x2\n・九七式艦攻改 試製三号戊型(空六号電探改装備機) x2\n・試製甲板カタパルト x1"
+  },
+  "969": {
+    "sourceWikiId": "B178",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 2022,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・勲章 x1\n・補強増設 x1\n\n選択報酬2\n・戦闘詳報 x1\n・12.7cm連装砲B型改四(戦時改修)＋高射装置★4 x1\n・61cm三連装(酸素)魚雷後期型★4 x1"
+  },
+  "970": {
+    "sourceWikiId": "B179",
+    "resources": {
+      "fuel": 0,
+      "ammo": 2022,
+      "steel": 1944,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材 x1\n・新型航空兵装資材 x1\n・補強増設 x1\n\n選択報酬2\n・試製 長12.7cm連装砲A型改四 x1\n・新型航空兵装資材 x3\n・戦闘詳報 x1"
+  },
+  "973": {
+    "sourceWikiId": "By11",
+    "resources": {
+      "fuel": 350,
+      "ammo": 450,
+      "steel": 350,
+      "bauxite": 550
+    },
+    "otherJa": "選択報酬1\n・開発資材 x8\n・熟練搭乗員 x1\n・新型航空兵装資材 x1\n\n\n選択報酬2\n・Swordfish(水上機型) x2\n・SOC Seagull x1\n・OS2U x1"
+  },
+  "974": {
+    "sourceWikiId": "B180",
+    "resources": {
+      "fuel": 190,
+      "ammo": 190,
+      "steel": 190,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材 x9\n・新型砲熕兵装資材 x1\n・補強増設 x1\n\n選択報酬2\n・12.7cm連装砲A型改二 x1\n・61cm三連装(酸素)魚雷 x2\n・開発資材 x9"
+  },
+  "975": {
+    "sourceWikiId": "By12",
+    "resources": {
+      "fuel": 190,
+      "ammo": 190,
+      "steel": 190,
+      "bauxite": 190
+    },
+    "otherJa": "選択報酬1\n・熟練見張員 x2\n・改修資材 x4\n・高速修復材 x9\n\n選択報酬\n・勲章 x2\n・12.7cm連装砲A型改二 x2\n・61cm三連装(酸素)魚雷後期型 x1"
+  },
+  "976": {
+    "sourceWikiId": "B181",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材 x10\n・新型砲熕兵装資材 x2\n・補強増設 x1\n\n選択報酬2\n・試製51cm連装砲 x1\n・15.5cm三連装副砲改二★2 x1\n・10cm連装高角砲群 集中配備 x1"
+  },
+  "977": {
+    "sourceWikiId": "B182",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬1\n・改装設計図 x1\n・戦闘詳報 x1\n・10cm連装高角砲群 集中配備 x1\n\n選択報酬2\n・15m二重測距儀＋21号電探改二 x1\n・46cm三連装砲改★8 x1\n・15.5cm三連装副砲改二★2 x2"
+  },
+  "978": {
+    "sourceWikiId": "B183",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 1000,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x2\n・新型兵装資材 x2\n・改修資材 x8\n\n選択報酬2\n・15m二重測距儀改＋21号電探改二＋熟練射撃指揮所 x1\n・試製51cm三連装砲 x1\n・10cm連装高角砲群 集中配備★2 x1"
+  },
+  "980": {
+    "sourceWikiId": "B184",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 150,
+      "bauxite": 150
+    },
+    "otherJa": "選択報酬1\n・特注家具職人 x1\n・補強増設 x1\n・勲章 x1\n\n選択報酬2\n・戦闘詳報 x1\n・12.7cm連装砲C型改三 x1\n・61cm四連装(酸素)魚雷後期型 x1"
+  },
+  "981": {
+    "sourceWikiId": "B185",
+    "resources": {
+      "fuel": 557,
+      "ammo": 533,
+      "steel": 413,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・特注家具職人 x2\n・給糧艦「間宮」x2\n・改修資材 x7\n\n選択報酬2\n・5inch単装砲 Mk.30 x4\n・GFCS Mk.37 x1"
+  },
+  "982": {
+    "sourceWikiId": "B186",
+    "resources": {
+      "fuel": 413,
+      "ammo": 413,
+      "steel": 413,
+      "bauxite": 413
+    },
+    "otherJa": "選択報酬1\n・高速修復材 x6\n・開発資材 x7\n\n選択報酬2\n・新型兵装資材 x2\n・5inch単装砲 Mk.30 x2\n・勲章 x1"
+  },
+  "983": {
+    "sourceWikiId": "B187",
+    "resources": {
+      "fuel": 1500,
+      "ammo": 1500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・補強増設 x2\n・FM-2★7 x1\n・改修資材 x7\n\n確定報酬\n・Mk.32 対潜魚雷(Mk.2落射機) x1"
+  },
+  "989": {
+    "sourceWikiId": "B188",
+    "resources": {
+      "fuel": 1921,
+      "ammo": 1947,
+      "steel": 0,
+      "bauxite": 2022
+    },
+    "otherJa": "選択報酬\n・熟練搭乗員 x3\n・勲章 x2\n・改修資材 x10\n\n確定報酬\n・零式艦戦64型(制空戦闘機仕様) x1"
+  },
+  "993": {
+    "sourceWikiId": "B193",
+    "resources": {
+      "fuel": 1945,
+      "ammo": 410,
+      "steel": 2023,
+      "bauxite": 707
+    },
+    "otherJa": "選択報酬1\n・勲章x2\n・25mm対空機銃増備★2x1\n・応急修理女神x3\n\n選択報酬2\n・12.7cm連装砲C型改二★MAXx1\n・水雷戦隊 熟練見張員x1"
+  },
+  "995": {
+    "sourceWikiId": "B189",
+    "resources": {
+      "fuel": 1934,
+      "ammo": 2023,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・補強増設 x2\n・応急修理女神 x2\n・戦闘詳報 x1\n\n選択報酬2\n・12.7cm連装砲A型改二★max x1\n・発煙装置(煙幕) x3\n・61cm三連装(酸素)魚雷★+3 x2"
+  },
+  "996": {
+    "sourceWikiId": "B190",
+    "resources": {
+      "fuel": 1945,
+      "ammo": 2023,
+      "steel": 1913,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・35.6cm連装砲改 x4\n・35.6cm連装砲改二 x2\n・戦闘詳報 x2\n\n選択報酬2\n・35.6cm連装砲改三(ダズル迷彩仕様)★+2 x1\n・42号対空電探改二★+6 x1\n・改装設計図 x2"
+  },
+  "997": {
+    "sourceWikiId": "B191",
+    "resources": {
+      "fuel": 500,
+      "ammo": 0,
+      "steel": 500,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速修復材 x7\n・開発資材 x10\n・給糧艦「伊良湖」x3\n\n選択報酬2\n・二式爆雷 x2\n・一式陸攻 x2\n・戦闘詳報 x1"
+  },
+  "998": {
+    "sourceWikiId": "B192",
+    "resources": {
+      "fuel": 1935,
+      "ammo": 1945,
+      "steel": 0,
+      "bauxite": 2023
+    },
+    "otherJa": "選択報酬1\n・開発資材 x10\n・25mm対空機銃増備★+1 x1\n・給糧艦「間宮」x3\n\n選択報酬2\n・12.7cm連装砲C型改三 x1\n・電探装備マスト(13号改＋22号電探改四)★+1 x1\n・勲章 x3"
+  },
+  "1001": {
+    "sourceWikiId": "B194",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材x3\n・12.7cm連装砲D型改二x1\n・61cm四連装(酸素)魚雷後期型x1\n\n選択報酬2\n・改修資材x7\n・開発資材x30\n・22号対水上電探改四(後期調整型)x1"
+  },
+  "1003": {
+    "sourceWikiId": "B195",
+    "resources": {
+      "fuel": 400,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・燃料x800\n・21inch艦首魚雷発射管4門(後期型)x1\n・弾薬x800\n\n選択報酬2\n・SJレーダー＋潜水艦司令塔装備x1\n・勲章x1"
+  },
+  "1004": {
+    "sourceWikiId": "B196",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬1\n・特注家具職人 x1\n・給糧艦「間宮」x1\n・熟練搭乗員 x1\n\n選択報酬2\n・紫雲★2 x1\n・勲章 x2\n・試製20.3cm(4号)連装砲★2 x1"
+  },
+  "1005": {
+    "sourceWikiId": "By13",
+    "resources": {
+      "fuel": 280,
+      "ammo": 280,
+      "steel": 280,
+      "bauxite": 280
+    },
+    "otherJa": "選択報酬\n・燃料 x700\n・高速修復材 x4\n・改修資材 x2\n\n選択報酬2\n・開発資材 x7\n・勲章 x1\n・特注家具職人 x1"
+  },
+  "1006": {
+    "sourceWikiId": "B197",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬1\n・燃料 x200\n・開発資材 x2\n・高速修復材 x2\n\n選択報酬2\n・給糧艦「間宮」x1\n・特注家具職人 x1"
+  },
+  "1007": {
+    "sourceWikiId": "B198",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・12.7cm連装砲C型改二 x1\n・25mm三連装機銃 x4\n・新型兵装資材 x2\n\n選択報酬2\n・開発資材 x15\n・改修資材 x5\n・勲章 x1"
+  },
+  "1008": {
+    "sourceWikiId": "B199",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 880,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬\n・開発資材 x20\n・改修資材 x7\n・戦闘詳報 x1\n\n確定報酬\n・12.7cm連装砲C型改三H★2 x1"
+  },
+  "1010": {
+    "sourceWikiId": "B212",
+    "resources": {
+      "fuel": 610,
+      "ammo": 610,
+      "steel": 610,
+      "bauxite": 610
+    },
+    "otherJa": "選択報酬1\n・94式高射装置 x2\n・13号対空電探改★8 x1\n・戦闘詳報 x1\n\n選択報酬2\n・10cm連装高角砲改＋高射装置改 x1\n・試製61cm六連装(酸素)魚雷 x1"
+  },
+  "1012": {
+    "sourceWikiId": "By14",
+    "resources": {
+      "fuel": 320,
+      "ammo": 320,
+      "steel": 320,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・燃料 x880\n・高速修復材 x6\n・特注家具職人 x1\n\n選択報酬2\n・開発資材 x16\n・12cm単装高角砲E型 x3\n・改修資材 x3"
+  },
+  "1013": {
+    "sourceWikiId": "B200",
+    "resources": {
+      "fuel": 800,
+      "ammo": 0,
+      "steel": 800,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬1\n・高速修復材 x8\n・弾薬 x8000\n・補強増設 x1\n\n選択報酬2\n・12cm単装高角砲E型改★8\n・改修資材 x8\n・戦闘詳報 x1"
+  },
+  "1014": {
+    "sourceWikiId": "B201",
+    "resources": {
+      "fuel": 170,
+      "ammo": 170,
+      "steel": 170,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材 x6\n・給糧艦「伊良湖」x2\n・特注家具職人 x1\n\n選択報酬2\n新型兵装資材 x1\n・高速修復材 x5\n・勲章 x1"
+  },
+  "1015": {
+    "sourceWikiId": "B202",
+    "resources": {
+      "fuel": 250,
+      "ammo": 0,
+      "steel": 250,
+      "bauxite": 250
+    },
+    "otherJa": "選択報酬1\n・開発資材 x8\n・12.7cm連装高角砲 x4\n・改修資材 x2\n\n選択報酬2\n・10cm連装高角砲 x4\n・勲章 x1\n・補強増設 x1"
+  },
+  "1016": {
+    "sourceWikiId": "B203",
+    "resources": {
+      "fuel": 610,
+      "ammo": 610,
+      "steel": 610,
+      "bauxite": 610
+    },
+    "otherJa": "選択報酬\n・94式高射装置 x2\n・勲章 x2\n・戦闘詳報 x1\n\n確定報酬\n・10cm連装高角砲改＋高射装置改 x1"
+  },
+  "1017": {
+    "sourceWikiId": "B204",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・燃料x2000\n・特注家具職人x1\n・開発資材x10\n\n選択報酬2\n・給糧艦「間宮」x4\n・戦闘詳報x1"
+  },
+  "1018": {
+    "sourceWikiId": "By15",
+    "resources": {
+      "fuel": 300,
+      "ammo": 500,
+      "steel": 500,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・35.6cm連装砲 x5\n・新型兵装資材 x2\n・改修資材 x5\n\n選択報酬2\n・勲章 x2\n・弾薬 x5500\n・戦闘詳報 x1"
+  },
+  "1021": {
+    "sourceWikiId": "B206",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 1026,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材 x30\n・13号対空電探改★3 x1\n・新型砲熕兵装資材 x2\n\n選択報酬2\n・戦闘詳報 x1\n・12.7cm連装砲D型改二★3\n・水雷戦隊 熟練見張員 x1"
+  },
+  "1022": {
+    "sourceWikiId": "2412B5",
+    "resources": {
+      "fuel": 320,
+      "ammo": 320,
+      "steel": 320,
+      "bauxite": 320
+    },
+    "otherJa": "選択報酬1・7.7mm機銃x4・25mm単装機銃x3・給糧艦「間宮」x1選択報酬2・改修資材x4・燃料x4000・給糧艦「伊良湖」x2"
+  },
+  "1023": {
+    "sourceWikiId": "B207",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 1025,
+      "steel": 1026,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・改修資材 x9\n・新型兵装資材 x3\n・戦闘詳報 x1\n\n選択報酬2\n・13号対空電探改(後期型)★+3 x2\n・逆探(E27)＋22号対水上電探改四(後期調整型) x1\n・12.7cm連装砲D型改三 x1"
+  },
+  "1025": {
+    "sourceWikiId": "B208",
+    "resources": {
+      "fuel": 1943,
+      "ammo": 2025,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材 x3\n・25mm連装機銃★+9 x1\n・戦闘詳報 x1\n\n選択報酬2\n・94式高射装置 x2\n・新型兵装資材 x4\n・10cm連装高角砲改★+8 x1"
+  },
+  "1029": {
+    "sourceWikiId": "B209",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 1111,
+      "steel": 2025,
+      "bauxite": 512
+    },
+    "otherJa": "選択報酬1\n・開発資材 x13\n・新型砲熕兵装資材 x2\n・改修資材 x5\n\n選択報酬2\n・25mm三連装機銃★+9 x2\n・13号対空電探改(後期型)★+8 x1\n・12.7cm連装砲D型改二★+7 x1"
+  },
+  "1031": {
+    "sourceWikiId": "2605B6",
+    "resources": {
+      "fuel": 700,
+      "ammo": 700,
+      "steel": 0,
+      "bauxite": 700
+    },
+    "otherJa": "選択報酬1・高速修復材x24・開発資材x32・給糧艦「間宮」x4選択報酬2・海外艦最新技術x4・新型兵装資材x4・改装設計図x1"
+  },
+  "1032": {
+    "sourceWikiId": "2605B5",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 880,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬1・新型砲熕兵装資材x4・新型兵装資材x3・高速建造材x88選択報酬2・海外艦最新技術x5・開発資材x88・試製甲板カタパルトx1"
+  },
+  "1033": {
+    "sourceWikiId": "B210",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・12.7mm単装機銃 x2\n・25mm単装機銃 x2\n・戦闘糧食 x2\n\n選択報酬2\n・7.7mm機銃 x4\n・陸軍歩兵部隊 x1\n・新型噴進装備開発資材 x1"
+  },
+  "1036": {
+    "sourceWikiId": "B211",
+    "resources": {
+      "fuel": 400,
+      "ammo": 400,
+      "steel": 400,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・装備運用枠\n+2装備分\n・燃料 x2000\n・新型噴進装備開発資材 x1\n\n選択報酬2\n・勲章 x2\n・改修資材 x9\n・ボーキサイト x3600"
+  },
+  "1041": {
+    "sourceWikiId": "B213",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 2026,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・勲章x2\n・二式爆雷★8x1\n・戦闘詳報x1\n\n選択報酬2\n・四式水中聴音機★2x1\n・逆探(E27)＋22号対水上電探改四(後期調整型)x1\n・12.7cm連装砲D型改三x1"
+  },
+  "1042": {
+    "sourceWikiId": "B214",
+    "resources": {
+      "fuel": 1942,
+      "ammo": 0,
+      "steel": 1946,
+      "bauxite": 2026
+    },
+    "otherJa": "選択報酬1\n・試製烈風 後期型 x6\n・流星改 x6\n・装備運用枠+12装備分\n\n選択報酬2\n・新型航空兵装資材 x5\n・勲章 x5\n・新型航空機設計図 x2"
+  },
+  "1044": {
+    "sourceWikiId": "B215",
+    "resources": {
+      "fuel": 1944,
+      "ammo": 2026,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型兵装資材 x3\n・開発資材 x88\n・試製甲板カタパルト x1\n\n選択報酬2\n・水雷戦隊 熟練見張員 x1\n・12.7cm連装砲D型改三 x1\n・三式爆雷投射機改 x1"
+  },
+  "1045": {
+    "sourceWikiId": "By16",
+    "resources": {
+      "fuel": 1945,
+      "ammo": 1946,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・工廠資源 x5\n・海外艦最新技術 x3\n・開発資材 x88\n\n\n選択報酬2\n・12.7cm単装高角砲改二★6 x1\n・試製 23号電探改三 x1\n・勲章 x5"
+  },
+  "1047": {
+    "sourceWikiId": "B216",
+    "resources": {
+      "fuel": 1943,
+      "ammo": 0,
+      "steel": 2026,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・補強増設 x1\n・装備運用枠+4装備分\n・工廠資源 x4\n\n選択報酬2\n・新型兵装資材 x4\n・25mm連装機銃(熟練機銃員分隊)x1\n・戦闘詳報 x2"
+  },
+  "1048": {
+    "sourceWikiId": "2606B1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・弾薬x3000\n・燃料x3000\n・ボーキサイトx2400\n\n選択報酬2\n・開発資材x5\n・鋼材x3600\n・装備運用枠+1装備分"
+  },
+  "1049": {
+    "sourceWikiId": "2606B2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・弾薬x4800\n・燃料x4800\n・ボーキサイトx4000\n\n選択報酬2\n・装備運用枠+2装備分\n・鋼材x4000\n・工廠資源 x1"
+  },
+  "1050": {
+    "sourceWikiId": "2609B1",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・弾薬x1200\n・ボーキサイトx1000\n・高速修復材x5\n\n選択報酬2\n・開発資材x9\n・勲章x1\n・新型兵装資材x2"
+  },
+  "1051": {
+    "sourceWikiId": "2609B2",
+    "resources": {
+      "fuel": 1000,
+      "ammo": 1000,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "選択報酬1\n・鋼材x2500\n・高速修復材x12\n・格納庫増設x1\n\n選択報酬2\n・工廠資源x2\n・新型砲熕兵装資材x2\n・勲章x2"
+  },
+  "1052": {
+    "sourceWikiId": "B217",
+    "resources": {
+      "fuel": 1300,
+      "ammo": 1300,
+      "steel": 1300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・補強増設x1\n・大発動艇x4\n・61cm五連装(酸素)魚雷★+5x1\n\n選択報酬2\n・勲章x3\n・特大発動艇＋チハ★+2x1\n・甲標的 丁型改(蛟龍改)x1"
+  },
+  "1101": {
+    "sourceWikiId": "F96",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・高速建造材 x8\n・開発資材 x8\n・特注家具職人 x1\n\n選択報酬2\n・新型砲熕兵装資材 x1\n・新型噴進装備開発資材 x1\n・改修資材 x4"
+  },
+  "1102": {
+    "sourceWikiId": "F97",
+    "resources": {
+      "fuel": 0,
+      "ammo": 450,
+      "steel": 450,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材 x2\n・新型航空兵装資材 x2\n・改修資材 x4\n\n選択報酬2\n・新型兵装資材 x2\n・25mm三連装機銃 x2\n・開発資材 x10"
+  },
+  "1103": {
+    "sourceWikiId": "Fy5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 100,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x5\n・改修資材 x2\n\n確定報酬\n・後期型艦首魚雷(6門)*48 x1"
+  },
+  "1104": {
+    "sourceWikiId": "Fy6",
+    "resources": {
+      "fuel": 100,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x5\n・改修資材 x2\n\n確定報酬\n・潜水艦搭載電探＆水防式望遠鏡*49 x1"
+  },
+  "1105": {
+    "sourceWikiId": "Fy7",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・新型航空兵装資材 x2\n・新型兵装資材 x1\n・開発資材 x10\n\n選択報酬2\n・熟練搭乗員 x2\n・設営隊 x1\n・改修資材 x8"
+  },
+  "1106": {
+    "sourceWikiId": "F101",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・零式水上偵察機11型乙(熟練) x1"
+  },
+  "1107": {
+    "sourceWikiId": "Fy8",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 3000
+    },
+    "otherJa": "選択報酬1\n・九六式陸攻 x2\n・一式陸攻 x1\n・新型航空兵装資材 x1\n\n選択報酬2\n・新型兵装資材 x1\n・改修資材 x3"
+  },
+  "1108": {
+    "sourceWikiId": "F103",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・三式水中探信儀改 x1"
+  },
+  "1109": {
+    "sourceWikiId": "F104",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・装甲艇(AB艇) x1"
+  },
+  "1111": {
+    "sourceWikiId": "F105",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・一式陸攻(野中隊) x1"
+  },
+  "1112": {
+    "sourceWikiId": "F106",
+    "resources": {
+      "fuel": 0,
+      "ammo": 650,
+      "steel": 0,
+      "bauxite": 550
+    },
+    "otherJa": "選択報酬\n・改修資材 x8\n・新型砲熕兵装資材 x3\n・設営隊 x1"
+  },
+  "1113": {
+    "sourceWikiId": "F107",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 300
+    },
+    "otherJa": "確定報酬\n・キ102乙改＋イ号一型乙 誘導弾 x1"
+  },
+  "1114": {
+    "sourceWikiId": "F108",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 200,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材 x1\n・新型航空兵装資材 x1\n・開発資材 x5\n\n選択報酬2\n・新型兵装資材 x1\n・新型噴進装備開発資材 x1\n・改修資材 x3"
+  },
+  "1115": {
+    "sourceWikiId": "F109",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 300
+    },
+    "otherJa": "選択報酬1\n・新型砲熕兵装資材 x1\n・新型高温高圧缶 x1\n・開発資材 x6\n\n選択報酬2\n・新型兵装資材 x2\n・新型高温高圧缶 x1\n・勲章 x1"
+  },
+  "1116": {
+    "sourceWikiId": "F110",
+    "resources": {
+      "fuel": 200,
+      "ammo": 200,
+      "steel": 0,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬1\n・開発資材 x8\n・改修資材 x2\n\n選択報酬2\n・新型航空兵装資材 x1\n・改修資材 x3\n・熟練搭乗員 x1"
+  },
+  "1117": {
+    "sourceWikiId": "F111",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 100
+    },
+    "otherJa": "確定報酬\n・零式水上偵察機11型乙改(夜偵) x1"
+  },
+  "1118": {
+    "sourceWikiId": "F112",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 50,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・Hedgehog(初期型) x1"
+  },
+  "1120": {
+    "sourceWikiId": "Fy9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 240,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材 x8\n・新型航空兵装資材 x1\n・改修資材 x3\n\n選択報酬2\n・紫電一一型 x3\n・紫電二一型 紫電改 x2\n・試製烈風 後期型 x2"
+  },
+  "1123": {
+    "sourceWikiId": "Fy10",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・零式水上偵察機11型乙 x1"
+  },
+  "1127": {
+    "sourceWikiId": "F115",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・発煙装置改(煙幕) x1"
+  },
+  "1128": {
+    "sourceWikiId": "F116",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・35.6cm連装砲改四 x1"
+  },
+  "1129": {
+    "sourceWikiId": "F117",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・熟練聴音員＋後期型艦首魚雷(6門) x1"
+  },
+  "1130": {
+    "sourceWikiId": "F118",
+    "resources": {
+      "fuel": 0,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x40\n・改修資材 x10\n・新型兵装資材 x4"
+  },
+  "1131": {
+    "sourceWikiId": "F119",
+    "resources": {
+      "fuel": 250,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・12.7cm連装砲B型改二x3\n・12.7cm連装高角砲(後期型)x2\n・新型砲熕兵装資材x1\n\n選択報酬2\n・14cm連装砲改★3x1\n・15.2cm連装砲改★2x1\n・20.3cm(2号)連装砲x2"
+  },
+  "1132": {
+    "sourceWikiId": "F120",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・12.7cm連装砲D型改三 x1"
+  },
+  "1133": {
+    "sourceWikiId": "F121",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・逆探(E27)＋22号対水上電探改四(後期調整型)x1"
+  },
+  "1134": {
+    "sourceWikiId": "F122",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・22号対水上電探改四(後期調整型)x1"
+  },
+  "1137": {
+    "sourceWikiId": "F123",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・三式爆雷投射機 集中配備★1 x1"
+  },
+  "1138": {
+    "sourceWikiId": "Fy11",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・高速修復材 x3\n・改修資材 x2\n\n確定報酬\n・94式高射装置 x1"
+  },
+  "1139": {
+    "sourceWikiId": "F124",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・通信装置＆要員 x1"
+  },
+  "1140": {
+    "sourceWikiId": "F125",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・38cm四連装砲改 deux x1\n・Loire 130M x1"
+  },
+  "1141": {
+    "sourceWikiId": "F126",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・零式水上偵察機11型甲改二 x1"
+  },
+  "1142": {
+    "sourceWikiId": "F127",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・天山一二型甲改二(村田隊／電探装備) x1"
+  },
+  "1143": {
+    "sourceWikiId": "F128",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・燃料x3200\n・ボーキサイトx1600\n・開発資材x10\n\n確定報酬\n・35.6cm連装砲改三丙 x1"
+  },
+  "1145": {
+    "sourceWikiId": "F129",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・零式小型水上機 x2\n・後期型艦首魚雷(6門) x3\n・潜水艦搭載電探＆水防式望遠鏡 x4\n\n確定報酬\n・零式小型水上機 x1"
+  },
+  "1148": {
+    "sourceWikiId": "F130",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・94式高射装置 x1\n・13号対空電探改 x1"
+  },
+  "1150": {
+    "sourceWikiId": "2605F3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 600,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・特注家具職人x1\n・補強増設x1\n・装備運用枠+3装備分\n\n選択報酬2\n・12.7cm連装高角砲(後期型)★+4x2\n・九八式水上偵察機(夜偵)★+4x2\n・新型兵装資材x2"
+  },
+  "1151": {
+    "sourceWikiId": "F131",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 360
+    },
+    "otherJa": "選択報酬1\n・三式戦 飛燕 x2\n・Spitfire Mk.I x2\n・二式複戦 屠龍 x2\n\n選択報酬2\n・三式戦 飛燕 x2\n・Spitfire Mk.I x2\n新型航空兵装資材 x1"
+  },
+  "1152": {
+    "sourceWikiId": "F132",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・三式爆雷投射機 集中配備 x1"
+  },
+  "1153": {
+    "sourceWikiId": "F133",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・三式爆雷投射機 集中配備★+2 x1"
+  },
+  "1154": {
+    "sourceWikiId": "F134",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・装備運用枠\n+4装備分\n・鋼材 x7200\n・開発資材 x80\n\n選択報酬2\n・改修資材 x22\n・試製15cm9連装対潜噴進砲 x1\n・海外艦最新技術 x3"
+  },
+  "1155": {
+    "sourceWikiId": "F135",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材 x40\n・装備運用枠\n+8装備分\n・戦闘糧食 x4\n\n選択報酬2\n・10cm連装高角砲改★+5 x2\n・10cm連装高角砲＋高射装置★+2 x1"
+  },
+  "1158": {
+    "sourceWikiId": "F136",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・開発資材 x63\n・装備運用枠+10装備分\n・新型兵装資材 x3\n\n選択報酬2\n・三式爆雷投射機 集中配備★+4 x2\n・試製15cm9連装対潜噴進砲 x1"
+  },
+  "1159": {
+    "sourceWikiId": "F137",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・零式艦戦52型 x4\n・紫電一一型 x3\n・紫電改二 x2\n\n選択報酬2\n・紫電一一型 x5\n・試製烈風 後期型 x4\n・改修資材 x6"
+  },
+  "1160": {
+    "sourceWikiId": "F138",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・震電改二(艦戦型改二)x1"
+  },
+  "1161": {
+    "sourceWikiId": "F139",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 220,
+      "bauxite": 220
+    },
+    "otherJa": "選択報酬1\n・装備運用枠+10装備分\n・勲章 x2\n・新型兵装資材 x2\n\n選択報酬2\n・開発資材 x88\n・天山一二型甲 x4\n・試製甲板カタパルト x1"
+  },
+  "1162": {
+    "sourceWikiId": "F140",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・新型航空兵装資材 x2\n・改装設計図 x1\n・流星改 x4\n\n選択報酬2\n・開発資材 x110\n・ネ式エンジン x1\n・海外艦最新技術 x3"
+  },
+  "1163": {
+    "sourceWikiId": "F141",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・震電改三(試製 噴式震電) x1"
+  },
+  "1164": {
+    "sourceWikiId": "F142",
+    "resources": {
+      "fuel": 0,
+      "ammo": 200,
+      "steel": 1200,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬1\n・装備運用枠+8装備分\n・二式爆雷★4 x1\n・開発資材 x40\n\n選択報酬2\n・61cm五連装(酸素)魚雷★4 x2\n・12.7cm連装高角砲改二★4 x1\n・新型兵装資材 x3"
+  },
+  "1166": {
+    "sourceWikiId": "Fd9",
+    "resources": {
+      "fuel": 0,
+      "ammo": 40,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・改修資材x1"
+  },
+  "1167": {
+    "sourceWikiId": "Fw5",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 30,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・改修資材x2\n・開発資材x6\n\n確定報酬\n・改修資材x3"
+  },
+  "1170": {
+    "sourceWikiId": "F143",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 300,
+      "bauxite": 100
+    },
+    "otherJa": "選択報酬1\n・新型兵装資材x3\n・12.7cm単装高角砲改二★+3x1\n・新型航空兵装資材x3\n\n選択報酬2\n・25mm三連装機銃 集中配備★+4x1\n・12.7cm単装高角砲改三x1\n・装備運用枠\n+5装備分"
+  }
+}

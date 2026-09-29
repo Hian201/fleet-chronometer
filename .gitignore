@@ -13,3 +13,6 @@ tools/icons/out/
 .agents/skills/
 # 配裝參考預覽用的社群加成表快取，非正式資料、不進正式 bundle
 tools/preview/assets/*.preview.json
+# 任務關係產生器的抓取快取（避免重複抓 wikiwiki／ぜかまし）
+tools/quest-graph/.cache/
+tools/quest-goal/.cache/

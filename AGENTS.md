@@ -75,6 +75,10 @@ The agent must not add code that:
 
 The extension may only observe existing traffic and derive local state.
 
+## Taiwan Traditional Chinese localization
+
+All `zh-TW` copy must be written and proofread as Taiwan Mandarin. Do not translate by converting Simplified Chinese. For uncertain vocabulary, check the Ministry of Education Revised Mandarin Dictionary. Quest names and descriptions are shared by task guide and panel, so verify ship names, fleet positions, counts, map IDs/nodes, and victory ranks against the Japanese source, the wikiwiki quest table, and the matching Zekamashi guide. English quest data is auxiliary and must not override those references. Follow [`docs/translation-guidelines.md`](docs/translation-guidelines.md).
+
 ## 370px fleet preview reference
 
 * The accepted 370px fleet reference is the `試排｜七船、原位加高 HP＋油彈條` scene in `.preview/panel-width-hp-resource-zh.html`; use the matching English preview when checking English text.

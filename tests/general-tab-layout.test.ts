@@ -51,8 +51,21 @@ describe('一般分頁', () => {
 
     it('任務用原生 details 展開完整敘述，保留展開和捲動位置', () => {
         expect(general).toContain('<details class="ledger-quest');
-        expect(general).toContain('<div class="description">${q.detail ? detailHtml(q.detail) : esc(t(\'quest.noDetail\'))}</div>');
+        expect(general).toContain("detail: `${detail ? detailHtml(detail) : esc(t('quest.noDetail'))}${rewardHtml}`");
         expect(general).not.toContain('description-label');
+        // 展開後「說明／原文／進度」三選一，同時只顯示一個分頁；日文介面沒有原文分頁，
+        // 只剩一個分頁時不顯示切換鈕。選中的分頁跨重繪保留。
+        expect(general).toContain('localizedQuestDetail(q.no, questLocale, q.detail)');
+        expect(general).toContain("questLocale !== 'ja' && (q.name || q.detail) ? ['original' as const] : []");
+        // 說明與原文的獎勵共用同一個元件（原文以日文輸出），排版一致。
+        expect(general).toContain('localizedQuestRewardHtml(q.no, questLocale)');
+        expect(general).toContain("localizedQuestRewardHtml(q.no, 'ja')");
+        // 編成條件在進度分頁以短標籤呈現，完整條件放在提示。
+        expect(general).toContain('class="ledger-quest-cond"');
+        expect(general).toContain('questConditionShort(check)');
+        expect(general).toContain('const seg = panes.length > 1');
+        expect(general).toContain('questPanes.get(q.no)');
+        expect(general).toContain('data-quest-pane-body="${pane}"');
         expect(general).toContain('openQuests.has(q.no)');
         expect(general).toContain('const scrollTop = questsEl.scrollTop');
         expect(general).toContain('questsEl.scrollTop = scrollTop');

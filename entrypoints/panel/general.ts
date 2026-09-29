@@ -2,12 +2,20 @@ import { esc, matIconHtml } from '@/utils/html-escape';
 import { itemCatalog, itemDetails, itemMatches, uncataloguedUseItem, type CatalogItem, type ItemInventory } from '@/utils/item-catalog';
 import { ITEM_PINS_KEY, loadItemPins, saveItemPins, sortPinnedFirst, toggleItemPin } from '@/utils/item-pins';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
-import type { GameState } from '@/utils/state';
+import {
+    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml,
+} from '@/utils/quest-catalog-localization';
+import { formatQuestTime, type QuestJudgement, type ServerObservation } from '@/utils/quest-tracking';
+import { openOverviewAt, type OverviewTabsApi } from '@/utils/open-overview';
+import { questConditionShort, questConditionText, questTargetLabel, questTargetShortLabel } from '@/utils/quest-goal-label';
+import type { GameState, QuestView } from '@/utils/state';
 
 type Page = 'harbor' | 'quests' | 'items';
 type Operation = 'exped' | 'dock' | 'build';
+// 任務展開後的分頁：說明／原文／進度三選一，同時只顯示一個，面板高度不因進度判定而疊加。
+type QuestPane = 'detail' | 'original' | 'progress';
 const copy = {
-    'zh-TW': { harbor: '港務', quests: '任務', items: '道具', exped: '遠征', dock: '入渠', build: '建造',
+    'zh-TW': { harbor: '母港', quests: '任務', items: '道具', exped: '遠征', dock: '入渠', build: '建造',
         standard: '道具欄', expansion: '擴張欄', other: '其他', searchOpen: '搜尋道具', searchClose: '關閉搜尋', searchPlaceholder: '名稱', search: '搜尋所有道具欄（繁體中文／日文／英文）',
         pin: '釘選', unpin: '取消釘選', pinned: '已釘選',
         index: '持有量依最近取得的遊戲資料顯示', unavailable: '尚未取得', unknown: '資料尚未取得',
@@ -24,7 +32,84 @@ const copy = {
         waiting: 'Item data has not been observed', none: 'No matching items', detail: 'Use', detailUnknown: 'Description unavailable', locked: 'Locked' },
 } as const;
 const byId = (id: string) => document.getElementById(id)!;
-const detailHtml = (s: string) => esc(s).replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+const detailHtml = (s: string) => esc(s).replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\r?\n/g, '<br>');
+
+function serverLabel(obs: ServerObservation | null): string {
+    if (!obs) return t('quest.srv.unknown');
+    if (obs.done) return t('quest.srv.done');
+    return obs.flag === null ? t('quest.srv.unknown') : t(`quest.srv.${obs.flag}`);
+}
+
+function judgementLine(item: QuestJudgement, missionName: (id: number) => string): string {
+    const node = item.boss ? t('quest.boss') : item.nodeLetter ?? t('quest.route');
+    const result = item.counted ? t('quest.counted')
+        : item.candidate ? t('quest.candidate')
+            : t('quest.notCounted', { why: t(`quest.reason.${item.reason ?? 'rank'}`) });
+    const battle = item.mission !== undefined ? t('quest.goal.mission', { names: missionName(item.mission) })
+        : item.practice ? `${t('quest.practice')} ${item.rank || '-'}`
+            : item.reach ? `${item.map}-${item.nodeLetter ?? '?'} ${t('quest.goal.reach')}`
+                : `${item.map} ${node} ${item.rank || '-'}`;
+    return t('quest.lastBattle', { time: formatQuestTime(item.ts), battle, result });
+}
+
+/** 任務列右側：可信度標記＋進度。需重核時不再顯示本機計數，只標「需重核」。 */
+function questStateHtml(q: QuestView): string {
+    const tracking = q.tracking;
+    if (q.done || !tracking) {
+        const plain = !q.done && q.progress ? `${q.progress.count}/${q.progress.target}` : q.done ? t('quest.done') : t('quest.inProgress');
+        return esc(plain);
+    }
+    const chip = `<i class="quest-tier tier-${tracking.tier}" title="${esc(t(`quest.tierTip.${tracking.tier}`))}">${esc(t(`quest.tier.${tracking.tier}`))}</i>`;
+    if (tracking.recheck) return `${chip}<span class="n weak">${esc(t('quest.recheck'))}</span>`;
+    if (q.progress) {
+        const value = tracking.range
+            ? `${tracking.range.lo}–${tracking.range.hi}/${q.progress.target}`
+            : `${q.progress.count}/${q.progress.target}`;
+        return `${chip}<span class="n est">${esc(value)}</span>`;
+    }
+    if (tracking.tier === 'text' && tracking.candidates > 0) {
+        return `${chip}<span class="n weak">${esc(t('quest.candidates', { n: tracking.candidates }))}</span>`;
+    }
+    return `${chip}<span class="n weak">${esc(serverLabel(tracking.latestServer))}</span>`;
+}
+
+/** 進度分頁最多四行：伺服器對照、逐海域進度格、上一戰判定、詳細紀錄連結。 */
+function questProgressHtml(q: QuestView, missionName: (id: number) => string): string {
+    const tracking = q.tracking!;
+    const srv = serverLabel(tracking.latestServer);
+    const lines: string[] = [];
+    const sub = (text: string) => `<div class="sub">${esc(text)}</div>`;
+    if (tracking.recheck && q.progress) {
+        lines.push(`<div>${esc(t('quest.srvOver', { local: q.progress.count, target: q.progress.target, srv }))}</div>`, sub(t('quest.srvOverNote')));
+    } else if (q.progress) {
+        if (tracking.latestServer?.status === 'under') lines.push(`<div>${esc(t('quest.srvUnder', { srv }))}</div>`, sub(t('quest.srvUnderNote')));
+        else if (tracking.latestServer) lines.push(`<div>${esc(t('quest.srvConsistent', { srv }))}</div>`);
+    } else if (tracking.tier === 'text') {
+        lines.push(`<div>${esc(t('quest.textServer', { srv }))}</div>`, sub(t('quest.textHidden')));
+    } else {
+        lines.push(`<div>${esc(t('quest.srvOnly', { srv }))}</div>`);
+    }
+    if (tracking.fleetCheck.length) {
+        // 編成條件：每條一個短標籤，完整條件放在提示；表格版在情報總括「進度紀錄」。
+        const tip = t('quest.cond.tip');
+        lines.push(`<div class="ledger-quest-cond" title="${esc(tip)}">${tracking.fleetCheck.map(check =>
+            `<span class="${check.ok ? 'ok' : 'ng'}" title="${esc(`${questConditionText(check, tracking.conditionNames)}\n${tip}`)}">${esc(questConditionShort(check))} ${check.ok ? '✓' : '✗'}</span>`).join('')}</div>`);
+    }
+    if (tracking.targets) {
+        // 需要次數多的子目標畫方格會太長，改顯示數字。
+        lines.push(`<div class="ledger-quest-maps">${tracking.targets.map(target => {
+            const meter = target.need <= 4
+                ? `<span class="pips" role="img" aria-label="${target.count}/${target.need}">${Array.from({ length: target.need }, (_, index) =>
+                    `<i${index < target.count ? ' class="on"' : ''}></i>`).join('')}</span>`
+                : `<span class="count">${target.count}/${target.need}</span>`;
+            return `<span title="${esc(questTargetLabel(target))}">${esc(questTargetShortLabel(target))} ${meter}</span>`;
+        }).join('')}</div>`);
+    }
+    if (tracking.lastJudgement) lines.push(sub(judgementLine(tracking.lastJudgement, missionName)));
+    if (tracking.hasLog) lines.push(`<button type="button" class="ledger-quest-more" data-quest-log="${q.no}">${esc(t('quest.fullLog'))}</button>`);
+    return `<div class="ledger-quest-prog">${lines.join('')}</div>`;
+}
+
 const pinMark = (label: string) => `<svg class="pin-mark" viewBox="0 0 10 10" role="img" aria-label="${esc(label)}"><path d="M3 1h4v1L6.2 2.6V5L8 6.4V7H5.5v2.5L5 10l-.5-.5V7H2v-.6L3.8 5V2.6L3 2z"/></svg>`;
 
 export function mountGeneral(state: GameState, countdown: (time: number) => string) {
@@ -42,6 +127,7 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     let questSignature = '';
     let itemSignature = '';
     const openQuests = new Set<number>();
+    const questPanes = new Map<number, QuestPane>();
     const openItems = new Set<string>();
     let pins = loadItemPins();
     const label = () => copy[getLang()];
@@ -124,6 +210,29 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         const no = Number(node.dataset.no);
         if (node.open) openQuests.add(no); else openQuests.delete(no);
     }, true);
+    questsEl.addEventListener('click', event => {
+        const target = event.target as HTMLElement;
+        const log = target.closest<HTMLButtonElement>('[data-quest-log]');
+        if (log) {
+            event.preventDefault();
+            const no = Number(log.dataset.questLog);
+            if (!Number.isSafeInteger(no) || no <= 0) return;
+            // 已開著的情報總括分頁直接切到該任務的進度紀錄，不另開新分頁。
+            openOverviewAt(browser as unknown as OverviewTabsApi, `/quest-flow?no=${no}&tab=progress`)
+                .catch(error => console.error('[panel] 開啟任務進度紀錄失敗', error));
+            return;
+        }
+        const button = target.closest<HTMLButtonElement>('[data-quest-pane]');
+        const quest = button?.closest<HTMLElement>('.ledger-quest');
+        if (!button || !quest) return;
+        event.preventDefault();
+        const no = Number(quest.dataset.no);
+        const pane = button.dataset.questPane as QuestPane;
+        questPanes.set(no, pane);
+        // 只切換這一列的分頁，不重繪整份清單，保留其他列的展開與捲動位置。
+        quest.querySelectorAll<HTMLButtonElement>('[data-quest-pane]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+        quest.querySelectorAll<HTMLElement>('[data-quest-pane-body]').forEach(body => { body.hidden = body.dataset.questPaneBody !== pane; });
+    });
     results.addEventListener('toggle', event => {
         const node = event.target as HTMLDetailsElement;
         if (!node.matches('.ledger-item-row')) return;
@@ -241,12 +350,38 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         }).join('') : `<div class="g-empty">${esc(l.unknown)}</div>`;
         const quests = state.quests_();
         byId('quest-heading').innerHTML = `<strong>${esc(l.quests)}</strong><span>${quests.length}</span>`;
-        const signature = JSON.stringify([getLang(), quests.map(q => [q.no, q.name, q.detail, q.done, q.progress?.count, q.progress?.target])]);
+        const questLocale = getLang();
+        const signature = JSON.stringify([questLocale, quests.map(q => [q.no, q.name, q.detail, q.done, q.progress?.count, q.progress?.target, q.tracking])]);
         if (signature !== questSignature) {
             const scrollTop = questsEl.scrollTop;
             questsEl.innerHTML = quests.map(q => {
-                const progress = !q.done && q.progress ? `${q.progress.count}/${q.progress.target}` : q.done ? t('quest.done') : t('quest.inProgress');
-                return `<details class="ledger-quest${q.done ? ' done' : ''}" data-no="${q.no}"${openQuests.has(q.no) ? ' open' : ''}><summary><span class="name">${esc(q.name)}</span><span class="state">${esc(progress)}</span><span class="arrow" aria-hidden="true">›</span></summary><div class="description">${q.detail ? detailHtml(q.detail) : esc(t('quest.noDetail'))}</div></details>`;
+                const name = localizedQuestName(q.no, questLocale, q.name);
+                const detail = localizedQuestDetail(q.no, questLocale, q.detail);
+                const rewardHtml = localizedQuestRewardHtml(q.no, questLocale);
+                // 日文介面的說明就是原文，不另設原文分頁；只剩一個分頁時不顯示切換鈕。
+                const panes: QuestPane[] = [
+                    'detail',
+                    ...(questLocale !== 'ja' && (q.name || q.detail) ? ['original' as const] : []),
+                    ...(q.tracking && !q.done ? ['progress' as const] : []),
+                ];
+                const stored = questPanes.get(q.no);
+                const active: QuestPane = stored && panes.includes(stored) ? stored : 'detail';
+                const bodies: Record<QuestPane, string> = {
+                    detail: `${detail ? detailHtml(detail) : esc(t('quest.noDetail'))}${rewardHtml}`,
+                    original: `${q.name ? `<p class="ledger-quest-original-name">${esc(q.name)}</p>` : ''}${q.detail ? `<p class="ledger-quest-original-detail">${detailHtml(q.detail)}</p>` : ''}${localizedQuestRewardHtml(q.no, 'ja')}`,
+                    progress: panes.includes('progress')
+                        ? questProgressHtml(q, id => expedDisplayName(id, state.masterMissions.get(id)?.name ?? `#${id}`))
+                        : '',
+                };
+                const seg = panes.length > 1
+                    ? `<div class="ledger-quest-seg" role="group">${panes.map(pane =>
+                        `<button type="button" data-quest-pane="${pane}" aria-pressed="${pane === active}">${esc(t(`quest.pane.${pane}`))}</button>`).join('')}</div>`
+                    : '';
+                return `<details class="ledger-quest${q.done ? ' done' : ''}" data-no="${q.no}"${openQuests.has(q.no) ? ' open' : ''}>
+                    <summary><span class="name">${esc(name)}</span><span class="state">${questStateHtml(q)}</span><span class="arrow" aria-hidden="true">›</span></summary>
+                    <div class="description">${seg}${panes.map(pane =>
+                        `<div class="ledger-quest-pane" data-quest-pane-body="${pane}"${pane === active ? '' : ' hidden'}>${bodies[pane]}</div>`).join('')}</div>
+                </details>`;
             }).join('') || `<div class="g-empty">${esc(t('common.empty'))}</div>`;
             questsEl.scrollTop = scrollTop;
             questSignature = signature;

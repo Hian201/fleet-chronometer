@@ -8,6 +8,7 @@ import { eventWorldLabel, type EventMapFilterPlan, type EventWorldFilter } from 
 import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
 import { applyArchivedQuestObservations } from '@/utils/quest-observed';
+import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { t } from '@/utils/ui-i18n';
 
 export { esc, gearIconHtml, matIconHtml };
@@ -132,10 +133,11 @@ export function paginate<T>(rows: T[], size: number, page: number): Page<T> {
 // overview 僅套用 reducer，不經 EventProjector，因此不寫任何 derived tables。
 export async function loadGameState(): Promise<GameState> {
     const gs = new GameState();
-    const [snapshots, events, observed] = await Promise.all([
+    const [snapshots, events, observed, seen] = await Promise.all([
         db.snapshot.toArray(),
         db.events.orderBy('id').toArray(),
         db.questObserved.toArray(),
+        db.questSeen.toArray(),
     ]);
     const plan = planStateRecovery(snapshots, events);
     applyStateRecoveryPlan(gs, plan);
@@ -144,7 +146,21 @@ export async function loadGameState(): Promise<GameState> {
         observed,
         new Set(plan.rawEvents.flatMap(event => event.id === undefined ? [] : [event.id])),
     );
+    applyArchivedQuestSeen(gs, seen);
     return gs;
+}
+
+// hash 深連結參數：#/<sectionId>?key=value。面板「詳細紀錄」用它指定任務與分頁。
+export function hashParams(): URLSearchParams {
+    const index = location.hash.indexOf('?');
+    return new URLSearchParams(index < 0 ? '' : location.hash.slice(index + 1));
+}
+
+/** 參數套用後從網址移除，之後切語言或重繪時不會再把使用者拉回同一處。不觸發 hashchange。 */
+export function clearHashParams(): void {
+    const index = location.hash.indexOf('?');
+    if (index < 0) return;
+    history.replaceState(null, '', `${location.pathname}${location.search}${location.hash.slice(0, index)}`);
 }
 
 // 檔案下載（Blob + 臨時 <a download>）；純前端、不需任何權限。

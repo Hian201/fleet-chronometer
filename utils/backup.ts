@@ -3,7 +3,7 @@
 // 任務導覽釘選經 quest-flow-prefs 讀寫 localStorage；無 storage 的測試環境視為空白名單。
 import type {
     BackupRestoreMetaRow, DatabaseMetaRow, EventPlanRow, ExpeditionRow, FactoryLogRow, KcDb,
-    QuestObservedRow, ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow,
+    QuestObservedRow, QuestSeenRow, ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow,
     ShipObtainedRow, SnapshotRow, SortieLogRow, WantedRow,
 } from './db';
 import { borrowEventId } from './event-id-borrow';
@@ -23,7 +23,11 @@ import {
 //
 // v7 在 full envelope 新增 questObserved（本機觀測到的任務領獎）。raw events 不進備份，
 // 裁剪後也無法從 snapshot 重建，不帶就等於重裝後任務導覽失去「這期已經領過」的證據。
-export const BACKUP_SCHEMA_VERSION = 7 as const;
+//
+// v8 在 full envelope 新增 questSeen（本機觀測到出現在任務清單的任務）。同理無法從 snapshot
+// 重建；不帶就等於重裝後要重開任務清單或逐項手動標記，才找得回單發前置已完成的推論。
+// v7 以前的檔案沒有這張表，照常匯入、表保持空白。
+export const BACKUP_SCHEMA_VERSION = 8 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -40,6 +44,7 @@ export interface BackupTables {
     resources?: ResourceRow[];
     resourceMarks?: ResourceMarkRow[];
     questObserved?: QuestObservedRow[];
+    questSeen?: QuestSeenRow[];
 }
 
 export interface BackupEnvelope {
@@ -85,9 +90,13 @@ const TABLE_NAMES_V6 = [
     'snapshot', 'sorties', 'expeditions', 'factory', 'replays', 'wanted', 'shipObtained',
     'eventPlans', 'resources', 'resourceMarks',
 ] as const;
-const TABLE_NAMES = [
+const TABLE_NAMES_V7 = [
     ...TABLE_NAMES_V6,
     'questObserved',
+] as const;
+const TABLE_NAMES = [
+    ...TABLE_NAMES_V7,
+    'questSeen',
 ] as const;
 
 function invalid(message: string): never {
@@ -635,6 +644,21 @@ function validateQuestObserved(value: unknown, index: number): QuestObservedRow 
     };
 }
 
+function validateQuestSeen(value: unknown, index: number): QuestSeenRow {
+    const where = `tables.questSeen[${index}]`;
+    const row = objectAt(value, where);
+    const firstTs = timestamp(row.firstTs, `${where}.firstTs`);
+    const lastTs = timestamp(row.lastTs, `${where}.lastTs`);
+    if (lastTs < firstTs) invalid(`${where}.lastTs 不得早於 firstTs。`);
+    return {
+        questNo: integer(row.questNo, `${where}.questNo`, 1),
+        firstTs,
+        lastTs,
+        firstEventId: integer(row.firstEventId, `${where}.firstEventId`, 1),
+        lastEventId: integer(row.lastEventId, `${where}.lastEventId`, 1),
+    };
+}
+
 function determineKind(schemaVersion: number, kind: unknown, tables: UnknownRecord): BackupKind {
     const names = Object.keys(tables);
     const expected = (allowed: readonly string[]) => names.every(name => allowed.includes(name));
@@ -654,7 +678,8 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
     // 造成出擊詳情無從重建；若真的要縮小檔案，應由保留規則或壓縮處理，不能犧牲還原語意。
     if (schemaVersion >= 6) {
         if (kind !== 'full') invalid(`schemaVersion ${schemaVersion} 的 kind 必須是 full。`);
-        const required = schemaVersion >= 7 ? TABLE_NAMES : TABLE_NAMES_V6;
+        const required = schemaVersion >= 8 ? TABLE_NAMES
+            : schemaVersion === 7 ? TABLE_NAMES_V7 : TABLE_NAMES_V6;
         if (!required.every(name => names.includes(name)) || !expected(required)) {
             invalid(`full 備份的 tables 組合與 schemaVersion ${schemaVersion} 不相容。`);
         }
@@ -714,6 +739,8 @@ function validateTables(value: unknown): BackupTables {
         : unique((tables.resourceMarks as unknown[]).map(validateResourceMark), row => row.key, 'tables.resourceMarks');
     const questObserved = tables.questObserved === undefined ? undefined
         : unique((tables.questObserved as unknown[]).map(validateQuestObserved), row => row.eventId, 'tables.questObserved');
+    const questSeen = tables.questSeen === undefined ? undefined
+        : unique((tables.questSeen as unknown[]).map(validateQuestSeen), row => row.questNo, 'tables.questSeen');
     return {
         ...(snapshot === undefined ? {} : { snapshot }),
         ...(sorties === undefined ? {} : { sorties }),
@@ -726,6 +753,7 @@ function validateTables(value: unknown): BackupTables {
         ...(resources === undefined ? {} : { resources }),
         ...(resourceMarks === undefined ? {} : { resourceMarks }),
         ...(questObserved === undefined ? {} : { questObserved }),
+        ...(questSeen === undefined ? {} : { questSeen }),
     };
 }
 
@@ -765,6 +793,10 @@ export function highestReferencedEventId(tables: BackupTables): number {
     tables.resources?.forEach((row, index) => include(row.eventId, `tables.resources[${index}].eventId`));
     tables.resourceMarks?.forEach((row, index) => include(row.eventId, `tables.resourceMarks[${index}].eventId`));
     tables.questObserved?.forEach((row, index) => include(row.eventId, `tables.questObserved[${index}].eventId`));
+    tables.questSeen?.forEach((row, index) => {
+        include(row.firstEventId, `tables.questSeen[${index}].firstEventId`);
+        include(row.lastEventId, `tables.questSeen[${index}].lastEventId`);
+    });
     return highest;
 }
 
@@ -803,21 +835,21 @@ export function parseBackupJson(text: string): ValidatedBackupEnvelope {
  */
 export async function buildFullEnvelope(
     database: Pick<KcDb, 'snapshot' | 'sorties' | 'expeditions' | 'factory' | 'replays' | 'wanted'
-        | 'shipObtained' | 'eventPlans' | 'resources' | 'resourceMarks' | 'questObserved'>,
+        | 'shipObtained' | 'eventPlans' | 'resources' | 'resourceMarks' | 'questObserved' | 'questSeen'>,
 ): Promise<BackupEnvelope> {
     const [snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved, replays] = await Promise.all([
+        resources, resourceMarks, questObserved, questSeen, replays] = await Promise.all([
         database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
         database.factory.toArray(), database.wanted.toArray(), database.shipObtained.toArray(),
         database.eventPlans.toArray(), database.resources.toArray(), database.resourceMarks.toArray(),
-        database.questObserved.toArray(),
+        database.questObserved.toArray(), database.questSeen.toArray(),
         database.replays.toArray(),
     ]);
     return {
         schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'full', exportedAt: Date.now(),
         tables: {
             snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-            resources, resourceMarks, questObserved, replays,
+            resources, resourceMarks, questObserved, questSeen, replays,
         },
         questFlow: readQuestFlowBackupPrefs(),
     };
@@ -858,6 +890,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         resources: restore.tables.resources ?? [],
         resourceMarks: restore.tables.resourceMarks ?? [],
         questObserved: restore.tables.questObserved ?? [],
+        questSeen: restore.tables.questSeen ?? [],
         replays: replays.tables.replays ?? [],
     };
     return {
@@ -914,7 +947,8 @@ function hasRestoreRows(tables: BackupTables): boolean {
         || tables.eventPlans?.length
         || tables.resources?.length
         || tables.resourceMarks?.length
-        || tables.questObserved?.length,
+        || tables.questObserved?.length
+        || tables.questSeen?.length,
     );
 }
 
@@ -968,10 +1002,11 @@ function existingTables(
     resources: ResourceRow[],
     resourceMarks: ResourceMarkRow[],
     questObserved: QuestObservedRow[],
+    questSeen: QuestSeenRow[],
 ): BackupTables {
     return {
         snapshot, sorties, expeditions, factory, replays, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved,
+        resources, resourceMarks, questObserved, questSeen,
     };
 }
 
@@ -987,20 +1022,20 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         database.events, database.meta, database.notified,
         database.snapshot, database.sorties, database.expeditions, database.factory,
         database.replays, database.wanted, database.shipObtained, database.eventPlans,
-        database.resources, database.resourceMarks, database.questObserved,
+        database.resources, database.resourceMarks, database.questObserved, database.questSeen,
     ], async () => {
         const [
             eventCount, notifiedCount, metaRows,
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
-            currentResources, currentResourceMarks, currentQuestObserved,
+            currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen,
         ] = await Promise.all([
             database.events.count(), database.notified.count(), database.meta.toArray(),
             database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
             database.factory.toArray(), database.replays.toArray(), database.wanted.toArray(),
             database.shipObtained.toArray(), database.eventPlans.toArray(),
             database.resources.toArray(), database.resourceMarks.toArray(),
-            database.questObserved.toArray(),
+            database.questObserved.toArray(), database.questSeen.toArray(),
         ]);
 
         if (eventCount > 0) destinationInvalid('還原環境已有 raw events。');
@@ -1010,7 +1045,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         const currentTables = existingTables(
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
-            currentResources, currentResourceMarks, currentQuestObserved,
+            currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen,
         );
         const restoreRowsExist = hasRestoreRows(currentTables);
         const replayRowsExist = hasReplayRows(currentTables);
@@ -1069,6 +1104,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         if (tables.resources?.length) await database.resources.bulkPut(tables.resources);
         if (tables.resourceMarks?.length) await database.resourceMarks.bulkPut(tables.resourceMarks);
         if (tables.questObserved?.length) await database.questObserved.bulkPut(tables.questObserved);
+        if (tables.questSeen?.length) await database.questSeen.bulkPut(tables.questSeen);
         if (tables.wanted?.length) {
             await database.wanted.bulkAdd(tables.wanted.map(({ id: _id, ...row }) => row));
         }

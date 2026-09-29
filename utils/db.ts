@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { PlanStage, PlanTag } from './event-plan';
+import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 
 // 事件日誌一筆 = provider 合約的載體。所有封包來源（目前 MAIN world interceptor；
 // 未來 Native Companion / Proxy）交件時都必須滿足以下不變量，下游（GameState、面板）
@@ -406,6 +407,18 @@ export interface QuestObservedRow {
     ts: number;
 }
 
+// 本機觀測到「出現在任務清單」的任務（受注中／達成／可接受）。任務看得到＝它的單發前置
+// 必定已完成，單發任務完成後不會變回未完成，所以這份證據永久有效；raw questlist 會被 M6
+// 裁剪、備份也不帶 events，故獨立永久表。主鍵 questNo，同一任務只留最早與最近的觀測，
+// 以 min／max 合併 ⇒ 重跑同一筆事件冪等。只存證據，推論在 quest-flow.ts 進行。
+export interface QuestSeenRow {
+    questNo: number;
+    firstTs: number;
+    lastTs: number;
+    firstEventId: number;
+    lastEventId: number;
+}
+
 // 已提前通知過的遠征（防重複通知）。狀態必須持久化，才能跨 service worker 重啟維持
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
 export interface NotifiedRow {
@@ -428,6 +441,7 @@ export class KcDb extends Dexie {
     resources!: Table<ResourceRow, number>;
     resourceMarks!: Table<ResourceMarkRow, string>;
     questObserved!: Table<QuestObservedRow, number>;
+    questSeen!: Table<QuestSeenRow, number>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -574,6 +588,36 @@ export class KcDb extends Dexie {
                 if (event.id === undefined || !Number.isSafeInteger(questNo) || questNo < 1) continue;
                 await observed.put({ eventId: event.id, questNo, ts: event.ts });
             }
+        });
+        // v14：任務清單觀測（見 QuestSeenRow）。純新增表。升級時只從**當時仍保留**的
+        // questlist raw events 回填；已被裁剪的歷史不回填、不猜測。
+        this.version(14).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            questSeen: 'questNo, lastTs',
+            meta: 'key',
+        }).upgrade(async trans => {
+            const events = trans.table('events');
+            const rows = await events.where('path').equals('api_get_member/questlist').sortBy('id');
+            const merged = new Map<number, QuestSeenRow>();
+            for (const event of rows as ApiEventRow[]) {
+                if (event.id === undefined) continue;
+                for (const questNo of listedQuestNos(event.path, event.api)) {
+                    merged.set(questNo, mergeQuestSeen(merged.get(questNo), questNo, event.id, event.ts));
+                }
+            }
+            if (merged.size) await trans.table('questSeen').bulkPut([...merged.values()]);
         });
     }
 }

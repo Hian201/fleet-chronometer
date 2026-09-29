@@ -15,6 +15,7 @@
 | `hensei-combined.json` | `api_req_hensei/combined`（母港切連合艦隊）**只有回應本體**（沒存到 req），`api_data.api_combined:1` | 這份樣本當初讓我誤判「型別值在回應」——單一案例、沒跨型別比對就下結論。已被下面兩筆 `{req,api}` 完整配對推翻，留著當反面教材：**enum 型欄位只驗證一個值不能算驗證過，至少要覆蓋兩個不同值** |
 | `hensei-combined-task.json` | `{req, api}`，選「空母機動部隊」：`req.api_combined_type="1"`、`api.api_combined:1` | 跟 transport 那筆（下面）交叉比對後證實：**型別值在 `req.api_combined_type`**（1=機動），回應的 `api_combined` 兩筆都是 1，是「連合已啟用」的通用成功旗標、不是型別值 |
 | `hensei-combined-transport.json` | `{req, api}`，選「運輸護衛部隊」：`req.api_combined_type="3"`、`api.api_combined:1` | 同上；`req` 值 1↔3 隨型別變動、`api` 恆為 1，兩相對照才真正定案（2=水上打撃部隊用刪去法推得，僅 3 種型別、1/3 已直接驗證，未直接驗證過 2） |
+| `practice-battle-result.json` | `api_req_practice/battle_result` 回應本體（使用者提供，未附 req；`api_enemy_info` 的提督名為空字串）。`api_win_rank:"A"`、`api_ship_id` 為 6 個艦娘 master id（576 Nelson改／668 矢矧改二乙／553 伊勢改二／920 Samuel B.Roberts Mk.II／506 最上改二特／204 深雪改）、`api_get_ship_exp` 帶 leading -1 共 7 格 | 證實演習結算端點與 `api_win_rank` 欄位存在，沒有任何海域欄位。`api_ship_id` 是我方還是對手艦隊待確認；`api_win_rank` 只見過 A 一個值，但與出擊 `battleresult` 共用同一套評價字串 |
 | `equip_slot.json` | `{req, api}`，`api_req_kaisou/slotset`（艦娘215、全空裝狀態下點第三格裝備 item 131566，`req.api_slot_idx="2"`）；`api` 只有裸 `api_result` | 單看這筆看不出裝備最終落點，需搭配 `slot_to_port.json` 交叉比對 |
 | `slot_to_port.json` | 上述動作後緊接著的 `api_port/port` 完整回應（裸 `api_result`/`api_data` 外殼，含全員 427 艘船），本檔案較大（~620KB） | 交叉比對艦娘215：`api_slot=[131566,-1,-1,-1,-1]`——證實裝備落在 **index 0**、不是 req 送的 `idx=2`。推翻「req.api_slot_idx 就是最終格位」的假設，證實遊戲會把裝備自動塞進「目前第一個空槽」；`state.ts` 的 `api_req_kaisou/slotset` 分支已改成：目標格本身是空的才找第一個空槽塞入，目標格已有裝備（換裝/替換）則維持照 idx 直接寫入 |
 

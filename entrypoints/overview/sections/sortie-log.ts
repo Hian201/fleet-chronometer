@@ -66,7 +66,7 @@ import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
     eventDisplayName, eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter,
     loadJsonPrefs, mapFilterSelectHtml, paginate, readEventWorldFilter, saveJsonPrefs,
-    dropDisplayName,
+    dropDisplayName, hashParams, clearHashParams,
 } from '../lib';
 
 const SEIKU_KEYS = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
@@ -1766,7 +1766,22 @@ export const sortieLogSection: OverviewSection = {
             return;
         }
 
+        // 任務進度紀錄的深連結：#/sortie-log?ts=<戰鬥結算時間>。解除篩選、翻到該場所在頁並展開。
+        const focusTs = Number(hashParams().get('ts'));
+        clearHashParams();
+        const focus = Number.isFinite(focusTs) && focusTs > 0
+            ? entries.find(entry => entry.rows.some(row => row.ts === focusTs))
+            : undefined;
+        if (focus) {
+            prefs.cat = 'all';
+            pinLatestEvent = false;
+            eventFilter = 'all';
+            mapFilter = 'all';
+            page = Math.floor(entries.indexOf(focus) / prefs.size) + 1;
+            open.add(focus.key);
+        }
         drawFilters();
         drawList();
+        if (focus) body.querySelector<HTMLElement>(`.sl-card[data-key="${focus.key}"]`)?.scrollIntoView({ block: 'start' });
     },
 };

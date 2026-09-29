@@ -10,6 +10,7 @@ import { pruneRawEventsBefore } from '@/utils/event-pruning';
 import { parseKcsapiResponse } from '@/utils/kcsapi';
 import { captureResources } from '@/utils/resource-capture';
 import { captureQuestObserved } from '@/utils/quest-observed';
+import { captureQuestSeen } from '@/utils/quest-seen';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
 
@@ -304,6 +305,7 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   // 全部 put/add-if-absent，故 recovery 重跑同一筆事件不會重複記錄（見 utils/resource-capture.ts）。
   await captureResources(db, { id, ts, path, api });
   await captureQuestObserved(db, { id, ts, path, req });
+  await captureQuestSeen(db, { id, ts, path, api });
   // M6 事件裁剪：登入封包（start2）到達 = 遊戲即將重送全量狀態，更早的事件可安全清除
   if (path === 'api_start2/getData') await pruneEvents(id);
   // 超長單一 session（不重登）保險裁剪：不等 start2，events 數量過大就主動修剪一次。

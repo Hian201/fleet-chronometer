@@ -14,6 +14,7 @@ import {
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
 import { applyArchivedQuestObservations } from '@/utils/quest-observed';
+import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
@@ -1887,11 +1888,12 @@ async function restoreGaugeBossHp(): Promise<boolean> {
 
 (async () => {
     try {
-        const [snapshots, events, storedProjectionCursor, observed] = await Promise.all([
+        const [snapshots, events, storedProjectionCursor, observed, seen] = await Promise.all([
             db.snapshot.toArray(),
             db.events.orderBy('id').toArray(),
             readProjectionCursor(db),
             db.questObserved.toArray(),
+            db.questSeen.toArray(),
         ]);
         const plan = planStateRecovery(snapshots, events);
         projectionThroughEventId = storedProjectionCursor;
@@ -1905,6 +1907,7 @@ async function restoreGaugeBossHp(): Promise<boolean> {
             observed,
             new Set(plan.rawEvents.flatMap(row => row.id === undefined ? [] : [row.id])),
         );
+        applyArchivedQuestSeen(state, seen);
         // 重播完 events 後，mapGauges 已是最新一次 mapinfo 的內容，這裡把各未攻略海域的
         // 斬殺線一次補齊——面板一開（不論在母港或出擊中）就該看得到，不必等下一則封包。
         await restoreGaugeBossHp();

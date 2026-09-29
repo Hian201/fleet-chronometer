@@ -99,7 +99,7 @@ loadGameState().then(gs => { sharedState = gs; renderSection(); });
 
 // ── hash 路由（#/<sectionId>，可直接以網址深連結到特定分區）──────────
 function currentSectionId(): string {
-    const id = location.hash.replace(/^#\/?/, '');
+    const id = location.hash.replace(/^#\/?/, '').split('?')[0];
     return sections.some(s => s.id === id) ? id : sections[0].id;
 }
 

@@ -5556,6 +5556,40 @@
         .ledger-quest summary::-webkit-details-marker{display:none}.ledger-quest .name{min-width:0;font-weight:500;overflow-wrap:anywhere}.ledger-quest .state{padding-top:1px;color:var(--dim);font-size:10.5px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
         .ledger-quest.done .state{color:#58a55c;font-weight:600}.ledger-quest .arrow{color:var(--dim);font-size:12px;text-align:right}.ledger-quest[open] .arrow{transform:rotate(90deg)}
         .ledger-quest .description{margin:0 3px 7px;padding:7px 9px;border-left:2px solid var(--brass);background:var(--panel);color:var(--text);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+        /* 任務展開：說明／原文／進度三選一，同時只顯示一個分頁（面板長寬固定，不疊加內容）。 */
+        .ledger-quest-seg{display:flex;margin-bottom:6px}
+        .ledger-quest-seg button{appearance:none;padding:2px 8px;border:1px solid var(--line);background:var(--bg);color:var(--dim);font:inherit;font-size:10.5px;line-height:1.25;cursor:pointer}
+        .ledger-quest-seg button+button{border-left:none}
+        .ledger-quest-seg button:first-child{border-radius:4px 0 0 4px}.ledger-quest-seg button:last-child{border-radius:0 4px 4px 0}
+        .ledger-quest-seg button[aria-pressed="true"]{border-color:var(--brass);color:var(--sparkle);background:color-mix(in srgb,var(--brass) 14%,var(--bg))}
+        .ledger-quest-seg button[aria-pressed="true"]+button{border-left:1px solid var(--line)}
+        .ledger-quest-seg button:focus-visible,.ledger-quest-more:focus-visible{outline:2px solid var(--sparkle);outline-offset:1px}
+        .ledger-quest-pane[hidden]{display:none}
+        .ledger-quest-original-name{margin:0 0 3px;overflow-wrap:anywhere}.ledger-quest-original-detail{margin:0;overflow-wrap:anywhere}
+        .quest-rewards{display:grid;gap:3px;margin-top:7px;overflow-wrap:anywhere;font-size:10.5px;line-height:1.4}
+        .quest-reward-title{color:var(--brass);font-size:10px;letter-spacing:var(--track-tag)}
+        .quest-reward-resources{display:flex;flex-wrap:wrap;gap:1px 8px;color:var(--text);font-variant-numeric:tabular-nums}
+        .quest-reward-group{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 5px}
+        .quest-reward-kind,.quest-reward-pending{color:var(--dim)}.quest-reward-values{min-width:0}
+        /* 可信度標記只用中性色，以外框樣式區分等級，不新增色相（design-guidelines §1.5）。 */
+        .quest-tier{display:inline-block;margin-right:4px;padding:0 3px;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-size:9px;font-style:normal;font-weight:500;line-height:13px;letter-spacing:var(--track-tag);vertical-align:1px}
+        .quest-tier.tier-verified{border-color:color-mix(in srgb,var(--brass) 60%,var(--line));color:var(--text)}
+        .quest-tier.tier-text,.quest-tier.tier-server{border-style:dashed}
+        .ledger-quest .state .n.est{color:var(--brass)}.ledger-quest .state .n.weak{color:var(--dim)}
+        .ledger-quest-prog{display:grid;gap:2px;font-size:11px;line-height:1.45}
+        .ledger-quest-prog .sub{color:var(--dim)}
+        .ledger-quest-maps{display:flex;flex-wrap:wrap;gap:2px 10px;font-variant-numeric:tabular-nums}
+        .ledger-quest-maps>span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+        .ledger-quest-maps .pips{display:inline-flex;gap:2px}
+        .ledger-quest-maps .pips i{width:8px;height:8px;border:1px solid var(--brass);border-radius:2px}
+        .ledger-quest-maps .pips i.on{background:var(--brass)}
+        /* 編成條件標籤：符合用黃銅框，不符用虛線中性框（不挪用傷害等語意色）。 */
+        .ledger-quest-cond{display:flex;flex-wrap:wrap;gap:3px}
+        .ledger-quest-cond span{padding:0 5px;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-size:10px;line-height:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
+        .ledger-quest-cond span.ok{border-color:color-mix(in srgb,var(--brass) 60%,var(--line));color:var(--text)}
+        .ledger-quest-cond span.ng{border-style:dashed}
+        .ledger-quest-more{justify-self:start;padding:0;border:none;background:none;color:var(--brass);font:inherit;font-size:10.5px;cursor:pointer}
+        .ledger-quest-more:hover{color:var(--sparkle)}
         /* 搜尋列平時收起（hidden），清單吃下省出的高度；用 flex 而非固定列高，收起的列才不會留空行。 */
         .ledger-item-layout{display:flex;flex-direction:column;gap:5px;box-sizing:border-box;height:100%;min-height:0}
         .ledger-item-bar{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 28px;height:28px;border-bottom:1px solid var(--line)}

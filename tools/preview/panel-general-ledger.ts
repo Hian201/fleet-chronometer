@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { esc, matIconHtml } from '../../utils/html-escape';
 import { expedDisplayName, setLang, t } from '../../utils/ui-i18n';
 import { itemCatalog, itemDetails, type ItemInventory } from '../../utils/item-catalog';
+import {
+    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml,
+} from '../../utils/quest-catalog-localization';
+import { QUEST_CATALOG_BY_NO } from '../../utils/quest-flow';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const source = readFileSync(resolve(root, 'entrypoints/panel/index.html'), 'utf8');
@@ -13,6 +17,12 @@ const baseline = readFileSync(resolve(root, '.preview/panel-general.html'), 'utf
 const fleetLiteral = baseline.match(/^const FLEET_HTML = (".*");$/m)?.[1];
 if (!css || !fleetLiteral) throw new Error('無法取得正式面板樣式或編成預覽');
 const fleetZh = JSON.parse(fleetLiteral) as string;
+const featuredQuestNo = 879;
+const featuredQuest = (() => {
+    const quest = QUEST_CATALOG_BY_NO.get(featuredQuestNo);
+    if (!quest) throw new Error(`找不到任務 ${featuredQuestNo} 的離線預覽資料`);
+    return quest;
+})();
 
 // 假設情境：這些數值只用於版面預覽，正式畫面須採用被動觀測到的資料。
 const materials = [
@@ -56,7 +66,7 @@ const inventories: Record<InventoryKey, { zh: string; ja: string; en: string }> 
 };
 const labels = {
     'zh-TW': {
-        title: '一般分頁・港務、任務與道具', harbor: '港務', quests: '任務', items: '道具', resources: '資材',
+        title: '一般分頁・母港、任務與道具', harbor: '母港', quests: '任務', items: '道具', resources: '資材',
         exped: '遠征', dock: '入渠', build: '建造', active: '受注中', done: '完成', locked: '未開放',
         open: '2 / 4 渠已開放',
         sample: '離線版面測試資料；非帳號即時狀態', search: '搜尋所有道具欄（繁中／日文／英文）', searchLabel: '搜尋', searchPlaceholder: '名稱', itemUse: '用途', unavailable: '尚未取得', detailUnknown: '用途說明尚未取得',
@@ -123,7 +133,20 @@ function render(lang: PreviewLang, theme: 'dark' | 'light') {
             '><div class="ledger-group-heading"><strong>' + l[kind] + '</strong><span class="sub">' +
             sub + '</span></div><div class="ledger-group-list">' + rows + '</div></section>';
     };
-    const questHtml = quests.map(item => {
+    // 與正式面板相同：說明／原文／進度三選一；日文介面沒有原文分頁。進度內容為版面示意。
+    const featuredPanes = lang === 'ja' ? ['detail', 'progress'] as const : ['detail', 'original', 'progress'] as const;
+    const featuredBodies = {
+        detail: `${esc(localizedQuestDetail(featuredQuestNo, lang, featuredQuest.detail))}${localizedQuestRewardHtml(featuredQuestNo, lang)}`,
+        original: `<p class="ledger-quest-original-name">${esc(featuredQuest.name)}</p><p class="ledger-quest-original-detail">${esc(featuredQuest.detail)}</p>${localizedQuestRewardHtml(featuredQuestNo, 'ja')}`,
+        progress: `<div class="ledger-quest-prog"><div>${esc(t('quest.srvConsistent', { srv: t('quest.srv.1') }))}</div><div class="sub">${esc(t('quest.lastBattle', { time: '2026-09-28 21:32', battle: `1-5 ${t('quest.boss')} S`, result: t('quest.counted') }))}</div><button type="button" class="ledger-quest-more">${esc(t('quest.fullLog'))}</button></div>`,
+    };
+    const featuredQuestHtml = `<details class="ledger-quest" open>
+        <summary><span class="name">${esc(localizedQuestName(featuredQuestNo, lang, featuredQuest.name))}</span><span class="state"><i class="quest-tier tier-unchecked">${esc(t('quest.tier.unchecked'))}</i><span class="n est">3/4</span></span><span class="arrow">›</span></summary>
+        <div class="description"><div class="ledger-quest-seg" role="group">${featuredPanes.map((pane, index) =>
+            `<button type="button" data-quest-pane="${pane}" aria-pressed="${index === 0}">${esc(t(`quest.pane.${pane}`))}</button>`).join('')}</div>${featuredPanes.map((pane, index) =>
+            `<div class="ledger-quest-pane" data-quest-pane-body="${pane}"${index === 0 ? '' : ' hidden'}>${featuredBodies[pane]}</div>`).join('')}</div>
+    </details>`;
+    const questHtml = featuredQuestHtml + quests.slice(1).map(item => {
         const state = item[1] === 'done' ? l.done : item[1] === 'active' ? l.active : item[1];
         return '<details class="ledger-quest' + (item[1] === 'done' ? ' done' : '') + '">' +
             '<summary><span class="name">' + esc(item[0]) + '</span><span class="state">' + state +
@@ -193,6 +216,10 @@ function render(lang: PreviewLang, theme: 'dark' | 'light') {
         '</button></div><div id="fleets">' + translatedFleet(lang) + '</div></div>' +
         '<script>if(new URLSearchParams(location.search).has("capture"))document.body.classList.add("capture");' +
         'const panel=document.querySelector(".mock-panel");' +
+        'panel.querySelectorAll("[data-quest-pane]").forEach(button=>button.addEventListener("click",()=>{' +
+        'const quest=button.closest(".ledger-quest"),pane=button.dataset.questPane;' +
+        'quest.querySelectorAll("[data-quest-pane]").forEach(item=>item.setAttribute("aria-pressed",String(item===button)));' +
+        'quest.querySelectorAll("[data-quest-pane-body]").forEach(body=>{body.hidden=body.dataset.questPaneBody!==pane})}));' +
         'function select(attr,value){panel.querySelectorAll("[role=tab][data-"+attr+"]").forEach(tab=>tab.setAttribute("aria-selected",String(tab.dataset[attr]===value)));' +
         'panel.querySelectorAll(".ledger-"+(attr==="page"?"page":"group")).forEach(view=>{view.hidden=view.dataset[attr]!==value})}' +
         'panel.querySelectorAll(".ledger-nav [role=tab]").forEach(tab=>tab.addEventListener("click",()=>select("page",tab.dataset.page)));' +

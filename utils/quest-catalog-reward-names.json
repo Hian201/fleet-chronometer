@@ -1,0 +1,1334 @@
+{
+  "10cm連装高角砲": {
+    "zh-TW": "10cm連裝高角砲",
+    "en": "10cm Twin High-angle Gun Mount"
+  },
+  "10cm連装高角砲改": {
+    "zh-TW": "10cm連裝高角砲改",
+    "en": "10cm Twin High-angle Gun Mount Kai"
+  },
+  "10cm連装高角砲改＋増設機銃": {
+    "zh-TW": "10cm 連裝高角砲改＋增設機槍",
+    "en": "10cm Twin High-angle Gun Mount Kai + Additional Machine Gun"
+  },
+  "10cm連装高角砲改＋高射装置改": {
+    "zh-TW": "10cm 連裝高角砲改＋高射裝置改",
+    "en": "10cm Twin High-angle Gun Mount Kai + Improved High-angle Director"
+  },
+  "10cm連装高角砲群 集中配備": {
+    "zh-TW": "10cm連裝高角砲群 集中配備",
+    "en": "10cm Twin High-angle Gun Mount Battery Concentrated Deployment"
+  },
+  "10cm連装高角砲＋高射装置": {
+    "zh-TW": "10cm 連裝高角砲＋高射裝置",
+    "en": "10cm Twin High-angle Gun Mount + High-angle Director"
+  },
+  "12.7cm単装高角砲(後期型)": {
+    "zh-TW": "12.7cm單裝高角砲(後期型)",
+    "en": "12.7cm Single High-angle Gun Mount (Late Model)"
+  },
+  "12.7cm単装高角砲改三": {
+    "zh-TW": "12.7cm單裝高角砲改三",
+    "en": "12.7cm Single High-angle Gun Mount Kai 3"
+  },
+  "12.7cm単装高角砲改二": {
+    "zh-TW": "12.7cm單裝高角砲改二",
+    "en": "12.7cm Single High-angle Gun Mount Kai 2"
+  },
+  "12.7cm連装砲A型": {
+    "zh-TW": "12.7cm連裝砲A型",
+    "en": "12.7cm Twin Gun Mount Model A"
+  },
+  "12.7cm連装砲A型改三(戦時改修)＋高射装置": {
+    "zh-TW": "12.7cm 連裝砲 A 型改三（戰時改修）＋高射裝置",
+    "en": "12.7cm Twin Gun Mount Model A Kai 3 (Wartime Refit) + High-angle Director"
+  },
+  "12.7cm連装砲A型改二": {
+    "zh-TW": "12.7cm連裝砲A型改二",
+    "en": "12.7cm Twin Gun Mount Model A Kai 2"
+  },
+  "12.7cm連装砲B型改二": {
+    "zh-TW": "12.7cm連裝砲B型改二",
+    "en": "12.7cm Twin Gun Mount Model B Kai 2"
+  },
+  "12.7cm連装砲B型改四(戦時改修)＋高射装置": {
+    "zh-TW": "12.7cm 連裝砲 B 型改四（戰時改修）＋高射裝置",
+    "en": "12.7cm Twin Gun Mount Model B Kai 4 (Wartime Refit) + High-angle Director"
+  },
+  "12.7cm連装砲C型改三": {
+    "zh-TW": "12.7cm連裝砲C型改三",
+    "en": "12.7cm Twin Gun Mount Model C Kai 3"
+  },
+  "12.7cm連装砲C型改三H": {
+    "zh-TW": "12.7cm連裝砲C型改三H",
+    "en": "12.7cm Twin Gun Mount Model C Kai 3 H"
+  },
+  "12.7cm連装砲C型改二": {
+    "zh-TW": "12.7cm連裝砲C型改二",
+    "en": "12.7cm Twin Gun Mount Model C Kai 2"
+  },
+  "12.7cm連装砲D型改三": {
+    "zh-TW": "12.7cm連裝砲D型改三",
+    "en": "12.7cm Twin Gun Mount Model D Kai 3"
+  },
+  "12.7cm連装砲D型改二": {
+    "zh-TW": "12.7cm連裝砲D型改二",
+    "en": "12.7cm Twin Gun Mount Model D Kai 2"
+  },
+  "12.7cm連装高角砲": {
+    "zh-TW": "12.7cm連裝高角砲",
+    "en": "12.7cm Twin High-angle Gun Mount"
+  },
+  "12.7cm連装高角砲(後期型)": {
+    "zh-TW": "12.7cm連裝高角砲(後期型)",
+    "en": "12.7cm Twin High-angle Gun Mount (Late Model)"
+  },
+  "12.7cm連装高角砲改二": {
+    "zh-TW": "12.7cm連裝高角砲改二",
+    "en": "12.7cm Twin High-angle Gun Mount Kai 2"
+  },
+  "12.7mm単装機銃": {
+    "zh-TW": "12.7mm單裝機銃",
+    "en": "12.7mm Single Machine Gun Mount"
+  },
+  "12cm30連装噴進砲": {
+    "zh-TW": "12cm30連裝噴進砲",
+    "en": "12cm 30-tube Rocket Launcher"
+  },
+  "12cm30連装噴進砲改二": {
+    "zh-TW": "12cm30連裝噴進砲改二",
+    "en": "12cm 30-tube Rocket Launcher Kai 2"
+  },
+  "12cm単装高角砲E型": {
+    "zh-TW": "12cm單裝高角砲E型",
+    "en": "12cm Single High-angle Gun Mount Model E"
+  },
+  "12cm単装高角砲E型改": {
+    "zh-TW": "12cm單裝高角砲E型改",
+    "en": "12cm Single High-angle Gun Mount Model E Kai"
+  },
+  "13.8cm連装砲": {
+    "zh-TW": "13.8cm連裝砲",
+    "en": "13.8cm Twin Gun Mount"
+  },
+  "13号対空電探": {
+    "zh-TW": "13號對空電探",
+    "en": "Type 13 Air Radar"
+  },
+  "13号対空電探改": {
+    "zh-TW": "13號對空電探改",
+    "en": "Type 13 Air Radar Kai"
+  },
+  "13号対空電探改(後期型)": {
+    "zh-TW": "13號對空電探改(後期型)",
+    "en": "Type 13 Air Radar Kai (Late Model)"
+  },
+  "14cm連装砲": {
+    "zh-TW": "14cm連裝砲",
+    "en": "14cm Twin Gun Mount"
+  },
+  "14cm連装砲改": {
+    "zh-TW": "14cm連裝砲改",
+    "en": "14cm Twin Gun Mount Kai"
+  },
+  "15.2cm三連装主砲": {
+    "zh-TW": "15.2cm三連裝主砲",
+    "en": "15.2cm Triple Main Gun Mount"
+  },
+  "15.2cm連装砲": {
+    "zh-TW": "15.2cm連裝砲",
+    "en": "15.2cm Twin Gun Mount"
+  },
+  "15.2cm連装砲改": {
+    "zh-TW": "15.2cm連裝砲改",
+    "en": "15.2cm Twin Gun Mount Kai"
+  },
+  "15.2cm連装砲改二": {
+    "zh-TW": "15.2cm連裝砲改二",
+    "en": "15.2cm Twin Gun Mount Kai 2"
+  },
+  "15.5cm三連装副砲": {
+    "zh-TW": "15.5cm三連裝副砲",
+    "en": "15.5cm Triple Secondary Gun Mount"
+  },
+  "15.5cm三連装副砲改二": {
+    "zh-TW": "15.5cm三連裝副砲改二",
+    "en": "15.5cm Triple Secondary Gun Mount Kai 2"
+  },
+  "15m二重測距儀改＋21号電探改二＋熟練射撃指揮所": {
+    "zh-TW": "15m 雙重測距儀改＋21 號電探改二＋熟練射擊指揮所",
+    "en": "Improved 15m Double Rangefinder + Type 21 Radar Kai 2 + Skilled Fire-Control Station"
+  },
+  "15m二重測距儀＋21号電探改二": {
+    "zh-TW": "15m 雙重測距儀＋21 號電探改二",
+    "en": "15m Double Rangefinder + Type 21 Radar Kai 2"
+  },
+  "20.3cm(2号)連装砲": {
+    "zh-TW": "20.3cm(2號)連裝砲",
+    "en": "20.3cm (No.2) Twin Gun Mount"
+  },
+  "20.3cm(3号)連装砲": {
+    "zh-TW": "20.3cm(3號)連裝砲",
+    "en": "20.3cm (No.3) Twin Gun Mount"
+  },
+  "21inch艦首魚雷発射管4門(後期型)": {
+    "zh-TW": "21inch艦首魚雷發射管4門(後期型)",
+    "en": "21inch 4-tube Bow Torpedo Launcher (Late Model)"
+  },
+  "21号対空電探": {
+    "zh-TW": "21號對空電探",
+    "en": "Type 21 Air Radar"
+  },
+  "21号対空電探改二": {
+    "zh-TW": "21號對空電探改二",
+    "en": "Type 21 Air Radar Kai 2"
+  },
+  "22号対水上電探": {
+    "zh-TW": "22號對水上電探",
+    "en": "Type 22 Surface Radar"
+  },
+  "22号対水上電探改四": {
+    "zh-TW": "22號對水上電探改四",
+    "en": "Type 22 Surface Radar Kai 4"
+  },
+  "22号対水上電探改四(後期調整型)": {
+    "zh-TW": "22號對水上電探改四(後期調整型)",
+    "en": "Type 22 Surface Radar Kai 4 (Calibrated Late Model)"
+  },
+  "25mm三連装機銃": {
+    "zh-TW": "25mm三連裝機銃",
+    "en": "25mm Triple Autocannon Mount"
+  },
+  "25mm三連装機銃 集中配備": {
+    "zh-TW": "25mm三連裝機銃 集中配備",
+    "en": "25mm Triple Autocannon Mount (Concentrated Deployment)"
+  },
+  "25mm単装機銃": {
+    "zh-TW": "25mm單裝機銃",
+    "en": "25mm Single Autocannon Mount"
+  },
+  "25mm対空機銃増備": {
+    "zh-TW": "25mm對空機銃增備",
+    "en": "25mm Anti-aircraft Autocannon Mount & Machine Guns"
+  },
+  "25mm連装機銃": {
+    "zh-TW": "25mm連裝機銃",
+    "en": "25mm Twin Autocannon Mount"
+  },
+  "25mm連装機銃(熟練機銃員分隊)": {
+    "zh-TW": "25mm連裝機銃(熟練機銃員分隊)",
+    "en": "25mm Twin Autocannon Mount (Skilled Machine Gunner Squadron)"
+  },
+  "35.6cm連装砲": {
+    "zh-TW": "35.6cm連裝砲",
+    "en": "35.6cm Twin Gun Mount"
+  },
+  "35.6cm連装砲改": {
+    "zh-TW": "35.6cm連裝砲改",
+    "en": "35.6cm Twin Gun Mount Kai"
+  },
+  "35.6cm連装砲改三(ダズル迷彩仕様)": {
+    "zh-TW": "35.6cm 連裝砲改三（炫目迷彩式樣）",
+    "en": "35.6cm Twin Gun Mount Kai 3 (Dazzle Camouflage)"
+  },
+  "35.6cm連装砲改三丙": {
+    "zh-TW": "35.6cm連裝砲改三丙",
+    "en": "35.6cm Twin Gun Mount Kai 3 C"
+  },
+  "35.6cm連装砲改二": {
+    "zh-TW": "35.6cm連裝砲改二",
+    "en": "35.6cm Twin Gun Mount Kai 2"
+  },
+  "35.6cm連装砲改四": {
+    "zh-TW": "35.6cm連裝砲改四",
+    "en": "35.6cm Twin Gun Mount Kai 4"
+  },
+  "38cm四連装砲": {
+    "zh-TW": "38cm四連裝砲",
+    "en": "38cm Quadruple Gun Mount"
+  },
+  "38cm四連装砲改 deux": {
+    "zh-TW": "38cm四連裝砲改 deux",
+    "en": "38cm Quadruple Gun Mount Kai Deux"
+  },
+  "41cm三連装砲改二": {
+    "zh-TW": "41cm三連裝砲改二",
+    "en": "41cm Triple Gun Mount Kai 2"
+  },
+  "41cm連装砲": {
+    "zh-TW": "41cm連裝砲",
+    "en": "41cm Twin Gun Mount"
+  },
+  "41cm連装砲改二": {
+    "zh-TW": "41cm連裝砲改二",
+    "en": "41cm Twin Gun Mount Kai 2"
+  },
+  "42号対空電探改二": {
+    "zh-TW": "42號對空電探改二",
+    "en": "Type 42 Air Radar Kai 2"
+  },
+  "46cm三連装砲改": {
+    "zh-TW": "46cm三連裝砲改",
+    "en": "46cm Triple Gun Mount Kai"
+  },
+  "533mm五連装魚雷(後期型)": {
+    "zh-TW": "533mm五連裝魚雷(後期型)",
+    "en": "533mm Quintuple Torpedo Mount (Late Model)"
+  },
+  "53cm連装魚雷": {
+    "zh-TW": "53cm連裝魚雷",
+    "en": "53cm Twin Torpedo Mount"
+  },
+  "5inch単装砲 Mk.30": {
+    "zh-TW": "5inch單裝砲 Mk.30",
+    "en": "5inch Single Gun Mount Mk.30"
+  },
+  "5inch単装砲 Mk.30 改": {
+    "zh-TW": "5inch 單裝砲 Mk.30 改",
+    "en": "5inch Single Gun Mount Mk.30 Kai"
+  },
+  "61cm三連装(酸素)魚雷": {
+    "zh-TW": "61cm三連裝(酸素)魚雷",
+    "en": "61cm Triple (Oxygen) Torpedo Mount"
+  },
+  "61cm三連装(酸素)魚雷後期型": {
+    "zh-TW": "61cm三連裝(酸素)魚雷後期型",
+    "en": "61cm Triple (Oxygen) Torpedo Mount Late Model"
+  },
+  "61cm三連装魚雷": {
+    "zh-TW": "61cm三連裝魚雷",
+    "en": "61cm Triple Torpedo Mount"
+  },
+  "61cm五連装(酸素)魚雷": {
+    "zh-TW": "61cm五連裝(酸素)魚雷",
+    "en": "61cm Quintuple (Oxygen) Torpedo Mount"
+  },
+  "61cm四連装(酸素)魚雷後期型": {
+    "zh-TW": "61cm四連裝(酸素)魚雷後期型",
+    "en": "61cm Quadruple (Oxygen) Torpedo Mount Late Model"
+  },
+  "7.7mm機銃": {
+    "zh-TW": "7.7mm機銃",
+    "en": "7.7mm Machine Gun"
+  },
+  "8cm高角砲": {
+    "zh-TW": "8cm高角砲",
+    "en": "8cm High-angle Gun"
+  },
+  "8cm高角砲改＋増設機銃": {
+    "zh-TW": "8cm 高角砲改＋增設機槍",
+    "en": "8cm High-angle Gun Mount Kai + Additional Machine Gun"
+  },
+  "91式高射装置": {
+    "zh-TW": "91式高射裝置",
+    "en": "Type 91 Anti-Aircraft Fire Director"
+  },
+  "94式高射装置": {
+    "zh-TW": "94式高射裝置",
+    "en": "Type 94 Anti-Aircraft Fire Director"
+  },
+  "96式150cm探照灯": {
+    "zh-TW": "96式150cm探照燈",
+    "en": "Type 96 150cm Searchlight"
+  },
+  "Bf109T改": {
+    "zh-TW": "Bf109T改",
+    "en": "Bf 109T Kai"
+  },
+  "Do 17 Z-2": {
+    "zh-TW": "Do 17 Z-2",
+    "en": "Do 17 Z-2"
+  },
+  "F4F-3": {
+    "zh-TW": "F4F-3",
+    "en": "F4F-3"
+  },
+  "F4U-1D": {
+    "zh-TW": "F4U-1D",
+    "en": "F4U-1D"
+  },
+  "F6F-3": {
+    "zh-TW": "F6F-3",
+    "en": "F6F-3"
+  },
+  "F6F-3N": {
+    "zh-TW": "F6F-3N",
+    "en": "F6F-3N"
+  },
+  "F6F-5N": {
+    "zh-TW": "F6F-5N",
+    "en": "F6F-5N"
+  },
+  "FM-2": {
+    "zh-TW": "FM-2",
+    "en": "FM-2"
+  },
+  "FR-1 Fireball": {
+    "zh-TW": "FR-1 Fireball",
+    "en": "FR-1 Fireball"
+  },
+  "Fairey Seafox改": {
+    "zh-TW": "Fairey Seafox改",
+    "en": "Fairey Seafox Kai"
+  },
+  "Fulmar": {
+    "zh-TW": "Fulmar",
+    "en": "Fulmar"
+  },
+  "GFCS Mk.37": {
+    "zh-TW": "GFCS Mk.37",
+    "en": "GFCS Mk.37"
+  },
+  "Hedgehog(初期型)": {
+    "zh-TW": "Hedgehog(初期型)",
+    "en": "Hedgehog (Initial Model)"
+  },
+  "Ju87C改": {
+    "zh-TW": "Ju87C改",
+    "en": "Ju 87C Kai"
+  },
+  "Laté 298B": {
+    "zh-TW": "Laté 298B",
+    "en": "Laté 298B"
+  },
+  "Loire 130M": {
+    "zh-TW": "Loire 130M",
+    "en": "Loire 130M"
+  },
+  "Mk.32 対潜魚雷(Mk.2落射機)": {
+    "zh-TW": "Mk.32 對潛魚雷(Mk.2落射機)",
+    "en": "Mk.32 ASW Torpedo (Mk.2 Thrower)"
+  },
+  "OS2U": {
+    "zh-TW": "OS2U",
+    "en": "OS2U"
+  },
+  "PBY-5A Catalina": {
+    "zh-TW": "PBY-5A Catalina",
+    "en": "PBY-5A Catalina"
+  },
+  "RUR-4A Weapon Alpha改": {
+    "zh-TW": "RUR-4A Weapon Alpha改",
+    "en": "RUR-4A Weapon Alpha Kai"
+  },
+  "Ro.43水偵": {
+    "zh-TW": "Ro.43水偵",
+    "en": "Ro.43 Reconnaissance Seaplane"
+  },
+  "S-51J": {
+    "zh-TW": "S-51J",
+    "en": "S-51J"
+  },
+  "S9 Osprey": {
+    "zh-TW": "S9 Osprey",
+    "en": "S9 Osprey"
+  },
+  "SBD": {
+    "zh-TW": "SBD",
+    "en": "SBD"
+  },
+  "SG レーダー(初期型)": {
+    "zh-TW": "SG 雷達（初期型）",
+    "en": "SG Radar (Initial Model)"
+  },
+  "SJレーダー＋潜水艦司令塔装備": {
+    "zh-TW": "SJ 雷達＋潛水艦司令塔裝備",
+    "en": "SJ Radar + Submarine Conning-Tower Equipment"
+  },
+  "SKレーダー": {
+    "zh-TW": "SK 雷達",
+    "en": "SK Radar"
+  },
+  "SOC Seagull": {
+    "zh-TW": "SOC Seagull",
+    "en": "SOC Seagull"
+  },
+  "Spitfire Mk.I": {
+    "zh-TW": "Spitfire Mk.I",
+    "en": "Spitfire Mk.I"
+  },
+  "Swordfish": {
+    "zh-TW": "Swordfish",
+    "en": "Swordfish"
+  },
+  "Swordfish Mk.II(熟練)": {
+    "zh-TW": "Swordfish Mk.II(熟練)",
+    "en": "Swordfish Mk.II (Skilled)"
+  },
+  "Swordfish Mk.III改(水上機型)": {
+    "zh-TW": "Swordfish Mk.III改(水上機型)",
+    "en": "Swordfish Mk.III Kai (Seaplane Model)"
+  },
+  "Swordfish(水上機型)": {
+    "zh-TW": "Swordfish(水上機型)",
+    "en": "Swordfish (Seaplane Model)"
+  },
+  "TBD": {
+    "zh-TW": "TBD",
+    "en": "TBD"
+  },
+  "TBF": {
+    "zh-TW": "TBF",
+    "en": "TBF"
+  },
+  "TBM-3D": {
+    "zh-TW": "TBM-3D",
+    "en": "TBM-3D"
+  },
+  "TBM-3W＋3S": {
+    "zh-TW": "TBM-3W＋3S",
+    "en": "TBM-3W + 3S"
+  },
+  "Z1": {
+    "zh-TW": "Z1",
+    "en": "Z1"
+  },
+  "「三周年記念」掛け軸": {
+    "zh-TW": "「三週年紀念」掛軸",
+    "en": "“Third Anniversary” Scroll"
+  },
+  "「加賀岬」掛け軸": {
+    "zh-TW": "「加賀岬」掛軸",
+    "en": "“Kaga Cape” Scroll"
+  },
+  "「大型艦建造」解放": {
+    "zh-TW": "開放大型艦建造",
+    "en": "Unlock Large Ship Construction"
+  },
+  "「択捉型海防艦」掛け軸": {
+    "zh-TW": "「擇捉級海防艦」掛軸",
+    "en": "“Etorofu-class Escort Ship” Scroll"
+  },
+  "「摩耶の盾」掛け軸": {
+    "zh-TW": "「摩耶之盾」掛軸",
+    "en": "“Maya’s Shield” Scroll"
+  },
+  "「春の一番」掛け軸": {
+    "zh-TW": "「春之一番」掛軸",
+    "en": "“First Spring Wind” Scroll"
+  },
+  "「比叡」の掛け軸": {
+    "zh-TW": "「比叡」掛軸",
+    "en": "“Hiei” Scroll"
+  },
+  "「沖に立つ波」私物棚": {
+    "zh-TW": "「沖に立つ波」私人物品架",
+    "en": "“Waves Far Offshore” Personal Shelf"
+  },
+  "「羽黒の護り」掛け軸": {
+    "zh-TW": "「羽黑的守護」掛軸",
+    "en": "“Haguro’s Protection” Scroll"
+  },
+  "「鯨」の掛け軸": {
+    "zh-TW": "「鯨」掛軸",
+    "en": "“Whale” Scroll"
+  },
+  "オ号観測機改": {
+    "zh-TW": "O 號觀測機改",
+    "en": "O Model Reconnaissance Autogyro Kai"
+  },
+  "カ号観測機": {
+    "zh-TW": "Ka 號觀測機",
+    "en": "Ka Model Reconnaissance Autogyro"
+  },
+  "キ102乙改＋イ号一型乙 誘導弾": {
+    "zh-TW": "Ki-102 乙改＋I 號一型乙誘導彈",
+    "en": "Ki-102 Otsu Kai + I-Go Type 1 Otsu Guided Missile"
+  },
+  "ドラム缶(輸送用)": {
+    "zh-TW": "運輸用油桶",
+    "en": "Transport Drum Canister"
+  },
+  "ネ式エンジン": {
+    "zh-TW": "Ne式引擎",
+    "en": "Ne-Type Engine"
+  },
+  "プレゼント箱": {
+    "zh-TW": "禮物箱",
+    "en": "Present Box"
+  },
+  "一式徹甲弾": {
+    "zh-TW": "一式徹甲彈",
+    "en": "Type 1 Armor Piercing Shell"
+  },
+  "一式戦 隼II型": {
+    "zh-TW": "一式戰 隼II型",
+    "en": "Type 1 Fighter Hayabusa Model II"
+  },
+  "一式陸攻": {
+    "zh-TW": "一式陸攻",
+    "en": "Type 1 Land-based Attack Aircraft"
+  },
+  "一式陸攻 三四型": {
+    "zh-TW": "一式陸攻 三四型",
+    "en": "Type 1 Land-based Attack Aircraft Model 34"
+  },
+  "一式陸攻 二二型甲": {
+    "zh-TW": "一式陸攻 二二型甲",
+    "en": "Type 1 Land-based Attack Aircraft Model 22A"
+  },
+  "一式陸攻(野中隊)": {
+    "zh-TW": "一式陸攻(野中隊)",
+    "en": "Type 1 Land-based Attack Aircraft (Nonaka Squadron)"
+  },
+  "三式弾": {
+    "zh-TW": "三式彈",
+    "en": "Type 3 Shell"
+  },
+  "三式弾改": {
+    "zh-TW": "三式彈改",
+    "en": "Type 3 Shell Kai"
+  },
+  "三式戦 飛燕": {
+    "zh-TW": "三式戰 飛燕",
+    "en": "Type 3 Fighter Hien"
+  },
+  "三式水中探信儀": {
+    "zh-TW": "三式水中探信儀",
+    "en": "Type 3 Active Sonar"
+  },
+  "三式水中探信儀改": {
+    "zh-TW": "三式水中探信儀改",
+    "en": "Type 3 Active Sonar Kai"
+  },
+  "三式爆雷投射機": {
+    "zh-TW": "三式爆雷投射機",
+    "en": "Type 3 Depth Charge Projector"
+  },
+  "三式爆雷投射機 集中配備": {
+    "zh-TW": "三式爆雷投射機 集中配備",
+    "en": "Type 3 Depth Charge Projector (Concentrated Deployment)"
+  },
+  "三式爆雷投射機改": {
+    "zh-TW": "三式爆雷投射機改",
+    "en": "Type 3 Depth Charge Projector Kai"
+  },
+  "中部海域「基地航空隊」開放": {
+    "zh-TW": "開放中部海域「基地航空隊」",
+    "en": "Unlock the Central Sea base air squadron"
+  },
+  "九一式徹甲弾": {
+    "zh-TW": "九一式徹甲彈",
+    "en": "Type 91 Armor Piercing Shell"
+  },
+  "九七式艦攻": {
+    "zh-TW": "九七式艦攻",
+    "en": "Type 97 Torpedo Bomber"
+  },
+  "九七式艦攻(九三一空)": {
+    "zh-TW": "九七式艦攻(九三一空)",
+    "en": "Type 97 Torpedo Bomber (931 Air Group)"
+  },
+  "九七式艦攻(村田隊)": {
+    "zh-TW": "九七式艦攻(村田隊)",
+    "en": "Type 97 Torpedo Bomber (Murata Squadron)"
+  },
+  "九七式艦攻改 試製三号戊型(空六号電探改装備機)": {
+    "zh-TW": "九七式艦攻改 試製三號戊型(空六號電探改裝備機)",
+    "en": "Prototype Type 97 Torpedo Bomber Kai No. 3 Model E (w/ Type 6 Airborne Radar Kai)"
+  },
+  "九三式水中聴音機": {
+    "zh-TW": "九三式水中聽音機",
+    "en": "Type 93 Passive Sonar"
+  },
+  "九九式艦爆": {
+    "zh-TW": "九九式艦爆",
+    "en": "Type 99 Dive Bomber"
+  },
+  "九九式艦爆二二型": {
+    "zh-TW": "九九式艦爆二二型",
+    "en": "Type 99 Dive Bomber Model 22"
+  },
+  "九五式爆雷": {
+    "zh-TW": "九五式爆雷",
+    "en": "Type 95 Depth Charge"
+  },
+  "九八式水上偵察機(夜偵)": {
+    "zh-TW": "九八式水上偵察機(夜偵)",
+    "en": "Type 98 Reconnaissance Seaplane (Night Recon)"
+  },
+  "九六式艦戦": {
+    "zh-TW": "九六式艦戰",
+    "en": "Type 96 Fighter"
+  },
+  "九六式陸攻": {
+    "zh-TW": "九六式陸攻",
+    "en": "Type 96 Land-based Attack Aircraft"
+  },
+  "九四式爆雷投射機": {
+    "zh-TW": "九四式爆雷投射機",
+    "en": "Type 94 Depth Charge Projector"
+  },
+  "二式12cm迫撃砲改": {
+    "zh-TW": "二式12cm迫擊砲改",
+    "en": "Type 2 12cm Mortar Kai"
+  },
+  "二式水戦改": {
+    "zh-TW": "二式水戰改",
+    "en": "Type 2 Seaplane Fighter Kai"
+  },
+  "二式水戦改(熟練)": {
+    "zh-TW": "二式水戰改(熟練)",
+    "en": "Type 2 Seaplane Fighter Kai (Skilled)"
+  },
+  "二式爆雷": {
+    "zh-TW": "二式爆雷",
+    "en": "Type 2 Depth Charge"
+  },
+  "二式艦上偵察機": {
+    "zh-TW": "二式艦上偵察機",
+    "en": "Type 2 Reconnaissance Aircraft"
+  },
+  "二式複戦 屠龍": {
+    "zh-TW": "二式複戰 屠龍",
+    "en": "Type 2 Two-seat Fighter Toryuu"
+  },
+  "八幡丸": {
+    "zh-TW": "八幡丸",
+    "en": "Yawata Maru"
+  },
+  "勲章": {
+    "zh-TW": "勳章",
+    "en": "Medal"
+  },
+  "北欧ソファー家具": {
+    "zh-TW": "北歐風沙發",
+    "en": "Nordic Sofa"
+  },
+  "南西海域「基地航空隊」開設": {
+    "zh-TW": "設置南西海域「基地航空隊」",
+    "en": "Establish the Southwest Sea base air squadron"
+  },
+  "司令部要員": {
+    "zh-TW": "司令部要員",
+    "en": "Headquarters Personnel"
+  },
+  "四式水中聴音機": {
+    "zh-TW": "四式水中聽音機",
+    "en": "Type 4 Passive Sonar"
+  },
+  "増設バルジ(中型艦)": {
+    "zh-TW": "增設防雷突出部（中型艦）",
+    "en": "Additional Bulge (Medium Ships)"
+  },
+  "増設バルジ(大型艦)": {
+    "zh-TW": "增設防雷突出部（大型艦）",
+    "en": "Additional Bulge (Large Ships)"
+  },
+  "夜間作戦航空要員": {
+    "zh-TW": "夜間作戰航空要員",
+    "en": "Night Operation Aviation Personnel"
+  },
+  "夜間作戦航空要員＋熟練甲板員": {
+    "zh-TW": "夜間作戰航空要員＋熟練甲板員",
+    "en": "Night Operation Aviation Personnel + Skilled Deck Crew"
+  },
+  "大発動艇": {
+    "zh-TW": "大發動艇",
+    "en": "Daihatsu Landing Craft"
+  },
+  "天山": {
+    "zh-TW": "天山",
+    "en": "Tenzan"
+  },
+  "天山一二型(友永隊)": {
+    "zh-TW": "天山一二型(友永隊)",
+    "en": "Tenzan Model 12 (Tomonaga Squadron)"
+  },
+  "天山一二型(村田隊)": {
+    "zh-TW": "天山一二型(村田隊)",
+    "en": "Tenzan Model 12 (Murata Squadron)"
+  },
+  "天山一二型甲": {
+    "zh-TW": "天山一二型甲",
+    "en": "Tenzan Model 12A"
+  },
+  "天山一二型甲改(空六号電探改装備機)": {
+    "zh-TW": "天山一二型甲改(空六號電探改裝備機)",
+    "en": "Tenzan Model 12A Kai (w/ Type 6 Airborne Radar Kai)"
+  },
+  "天山一二型甲改二(村田隊／電探装備)": {
+    "zh-TW": "天山一二型甲改二（村田隊／電探裝備）",
+    "en": "Tenzan Model 12A Kai 2 (Murata Squadron / Radar-Equipped)"
+  },
+  "家具箱（中）": {
+    "zh-TW": "家具箱（中）",
+    "en": "Furniture Box (Medium)"
+  },
+  "家具箱（大）": {
+    "zh-TW": "家具箱（大）",
+    "en": "Furniture Box (Large)"
+  },
+  "家具箱（小）": {
+    "zh-TW": "家具箱（小）",
+    "en": "Furniture Box (Small)"
+  },
+  "対潜短魚雷(試作初期型)": {
+    "zh-TW": "對潛短魚雷(試作初期型)",
+    "en": "Lightweight ASW Torpedo (Initial Test Model)"
+  },
+  "工廠資源": {
+    "zh-TW": "工廠資源",
+    "en": "Arsenal Resource"
+  },
+  "強化型艦本式缶": {
+    "zh-TW": "強化型艦本式罐",
+    "en": "Enhanced Kanhon Type Boiler"
+  },
+  "強風改": {
+    "zh-TW": "強風改",
+    "en": "Kyoufuu Kai"
+  },
+  "彗星": {
+    "zh-TW": "彗星",
+    "en": "Suisei"
+  },
+  "彗星(江草隊)": {
+    "zh-TW": "彗星(江草隊)",
+    "en": "Suisei (Egusa Squadron)"
+  },
+  "彗星一二型(六三四空/三号爆弾搭載機)": {
+    "zh-TW": "彗星一二型(六三四空/三號爆彈搭載機)",
+    "en": "Suisei Model 12 (634 Air Group w/ Type 3 Cluster Bombs)"
+  },
+  "彗星一二型甲": {
+    "zh-TW": "彗星一二型甲",
+    "en": "Suisei Model 12A"
+  },
+  "彗星二二型(六三四空)": {
+    "zh-TW": "彗星二二型(六三四空)",
+    "en": "Suisei Model 22 (634 Air Group)"
+  },
+  "彗星二二型(六三四空/熟練)": {
+    "zh-TW": "彗星二二型(六三四空/熟練)",
+    "en": "Suisei Model 22 (634 Air Group/Skilled)"
+  },
+  "彩雲": {
+    "zh-TW": "彩雲",
+    "en": "Saiun"
+  },
+  "後期型艦首魚雷(6門)": {
+    "zh-TW": "後期型艦首魚雷(6門)",
+    "en": "Late Model Bow Torpedo Mount (6 tubes)"
+  },
+  "応急修理女神": {
+    "zh-TW": "應急修理女神",
+    "en": "Emergency Repair Goddess"
+  },
+  "応急修理要員": {
+    "zh-TW": "應急修理要員",
+    "en": "Emergency Repair Personnel"
+  },
+  "戦闘糧食": {
+    "zh-TW": "戰鬥糧食",
+    "en": "Combat Ration"
+  },
+  "戦闘糧食(特別なおにぎり)": {
+    "zh-TW": "戰鬥糧食（特別製飯糰）",
+    "en": "Special Combat Onigiri"
+  },
+  "戦闘詳報": {
+    "zh-TW": "戰鬥詳報",
+    "en": "Action Report"
+  },
+  "手編みとフローリング": {
+    "zh-TW": "手編織與木地板",
+    "en": "Hand-Knit Decor and Wood Flooring"
+  },
+  "択捉": {
+    "zh-TW": "擇捉",
+    "en": "Etorofu"
+  },
+  "探照灯": {
+    "zh-TW": "探照燈",
+    "en": "Searchlight"
+  },
+  "改修資材": {
+    "zh-TW": "改修資材",
+    "en": "Improvement Material"
+  },
+  "改良型艦本式タービン": {
+    "zh-TW": "改良型艦本式渦輪機",
+    "en": "Improved Kanpon-Type Turbine"
+  },
+  "改装設計図": {
+    "zh-TW": "改裝設計圖",
+    "en": "Remodeling Blueprint"
+  },
+  "新型兵装資材": {
+    "zh-TW": "新型兵裝資材",
+    "en": "New Model Armament Material"
+  },
+  "新型噴進装備開発資材": {
+    "zh-TW": "新型噴進裝備開發資材",
+    "en": "New Jet Equipment Development Material"
+  },
+  "新型砲熕兵装資材": {
+    "zh-TW": "新型砲熕兵裝資材",
+    "en": "New Model Gun Armament Material"
+  },
+  "新型航空兵装資材": {
+    "zh-TW": "新型航空兵裝資材",
+    "en": "New Model Aircraft Armament Material"
+  },
+  "新型航空機設計図": {
+    "zh-TW": "新型航空機設計圖",
+    "en": "New Aircraft Blueprint"
+  },
+  "新型高温高圧缶": {
+    "zh-TW": "新型高溫高壓罐",
+    "en": "New Model High Temperature High Pressure Boiler"
+  },
+  "晴嵐(六三一空)": {
+    "zh-TW": "晴嵐(六三一空)",
+    "en": "Seiran (631 Air Group)"
+  },
+  "書類一式＆指輪": {
+    "zh-TW": "書類一式與戒指",
+    "en": "Marriage Certificate and Ring"
+  },
+  "松輪": {
+    "zh-TW": "松輪",
+    "en": "Matsuwa"
+  },
+  "格納庫増設": {
+    "zh-TW": "格納庫增設",
+    "en": "Hangar Expansion"
+  },
+  "橘花改": {
+    "zh-TW": "橘花改",
+    "en": "Kikka Kai"
+  },
+  "水雷戦隊 熟練見張員": {
+    "zh-TW": "水雷戰隊 熟練見張員",
+    "en": "Torpedo Squadron Skilled Lookouts"
+  },
+  "洋上補給": {
+    "zh-TW": "洋上補給",
+    "en": "Offshore Supply"
+  },
+  "流星改": {
+    "zh-TW": "流星改",
+    "en": "Ryuusei Kai"
+  },
+  "流星改(一航戦)": {
+    "zh-TW": "流星改(一航戰)",
+    "en": "Ryuusei Kai (CarDiv 1)"
+  },
+  "流星改(一航戦/熟練)": {
+    "zh-TW": "流星改(一航戰/熟練)",
+    "en": "Ryuusei Kai (CarDiv 1/Skilled)"
+  },
+  "海外艦最新技術": {
+    "zh-TW": "海外艦最新技術",
+    "en": "Latest Overseas Warship Technology"
+  },
+  "深雪": {
+    "zh-TW": "深雪",
+    "en": "Miyuki"
+  },
+  "潜水艦53cm艦首魚雷(8門)": {
+    "zh-TW": "潛水艦53cm艦首魚雷(8門)",
+    "en": "Submarine 53cm Bow Torpedo Mount (8 tubes)"
+  },
+  "潜水艦搭載電探＆水防式望遠鏡": {
+    "zh-TW": "潛水艦搭載電探＆水防式望遠鏡",
+    "en": "Submarine-Mounted Radar & Water-Resistant Telescope"
+  },
+  "烈風 一一型": {
+    "zh-TW": "烈風 一一型",
+    "en": "Reppuu Model 11"
+  },
+  "烈風(六〇一空)": {
+    "zh-TW": "烈風(六〇一空)",
+    "en": "Reppuu (601 Air Group)"
+  },
+  "焼き芋と読書の時間": {
+    "zh-TW": "烤地瓜與閱讀時光",
+    "en": "Roasted Sweet Potatoes and Reading Time"
+  },
+  "煎餅布団": {
+    "zh-TW": "煎餅棉被",
+    "en": "Flat Futon"
+  },
+  "熟練搭乗員": {
+    "zh-TW": "熟練搭乘員",
+    "en": "Skilled Crew Member"
+  },
+  "熟練聴音員＋後期型艦首魚雷(6門)": {
+    "zh-TW": "熟練聽音員＋後期型艦艏魚雷（6 門）",
+    "en": "Skilled Sonarman + Late-Model Bow Torpedo (6-tube)"
+  },
+  "熟練艦載機整備員": {
+    "zh-TW": "熟練艦載機整備員",
+    "en": "Skilled Carrier-based Aircraft Maintenance Personnel"
+  },
+  "熟練見張員": {
+    "zh-TW": "熟練見張員",
+    "en": "Skilled Lookouts"
+  },
+  "爆装一式戦 隼III型改(65戦隊)": {
+    "zh-TW": "爆裝一式戰 隼III型改(65戰隊)",
+    "en": "Bomb-carrying Type 1 Fighter Hayabusa Model III Kai (65th Squadron)"
+  },
+  "特二式内火艇": {
+    "zh-TW": "特二式内火艇",
+    "en": "Special Type 2 Amphibious Tank"
+  },
+  "特大発動艇": {
+    "zh-TW": "特大發動艇",
+    "en": "Toku Daihatsu Landing Craft"
+  },
+  "特大発動艇＋チハ": {
+    "zh-TW": "特大發動艇＋Chi-Ha",
+    "en": "Toku Daihatsu Landing Craft + Chi-Ha"
+  },
+  "特注の二〇式鎮守府暖炉": {
+    "zh-TW": "特製二〇式鎮守府暖爐",
+    "en": "Custom Model 20 Naval Base Fireplace"
+  },
+  "特注家具職人": {
+    "zh-TW": "特注家具職人",
+    "en": "Special Furniture Craftsman"
+  },
+  "現地改装10cm連装高角砲": {
+    "zh-TW": "現地改裝10cm連裝高角砲",
+    "en": "Locally Modified 10cm Twin High-angle Gun Mount"
+  },
+  "現地改装12.7cm連装高角砲": {
+    "zh-TW": "現地改裝12.7cm連裝高角砲",
+    "en": "Locally Modified 12.7cm Twin High-angle Gun Mount"
+  },
+  "瑞雲": {
+    "zh-TW": "瑞雲",
+    "en": "Zuiun"
+  },
+  "瑞雲(六三一空)": {
+    "zh-TW": "瑞雲(六三一空)",
+    "en": "Zuiun (631 Air Group)"
+  },
+  "瑞雲(六三四空)": {
+    "zh-TW": "瑞雲(六三四空)",
+    "en": "Zuiun (634 Air Group)"
+  },
+  "瑞雲(六三四空/熟練)": {
+    "zh-TW": "瑞雲(六三四空/熟練)",
+    "en": "Zuiun (634 Air Group/Skilled)"
+  },
+  "瑞雲12型": {
+    "zh-TW": "瑞雲12型",
+    "en": "Zuiun Model 12"
+  },
+  "瑞雲改二(六三四空)": {
+    "zh-TW": "瑞雲改二(六三四空)",
+    "en": "Zuiun Kai 2 (634 Air Group)"
+  },
+  "瑞雲改二(六三四空/熟練)": {
+    "zh-TW": "瑞雲改二(六三四空/熟練)",
+    "en": "Zuiun Kai 2 (634 Air Group/Skilled)"
+  },
+  "甲標的 丁型改(蛟龍改)": {
+    "zh-TW": "甲標的 丁型改(蛟龍改)",
+    "en": "Type D Kouhyouteki Kai (Kouryuu Kai)"
+  },
+  "甲標的 丙型": {
+    "zh-TW": "甲標的 丙型",
+    "en": "Type C Kouhyouteki"
+  },
+  "発煙装置(煙幕)": {
+    "zh-TW": "發煙裝置(煙幕)",
+    "en": "Smoke Generator (Smoke Screen)"
+  },
+  "発煙装置改(煙幕)": {
+    "zh-TW": "發煙裝置改(煙幕)",
+    "en": "Smoke Generator Kai (Smoke Screen)"
+  },
+  "白雪": {
+    "zh-TW": "白雪",
+    "en": "Shirayuki"
+  },
+  "矢矧の掛け軸": {
+    "zh-TW": "矢矧掛軸",
+    "en": "Yahagi Scroll"
+  },
+  "秋刀魚の缶詰": {
+    "zh-TW": "秋刀魚罐頭",
+    "en": "Canned Pacific Saury"
+  },
+  "第2艦隊開放": {
+    "zh-TW": "開放第 2 艦隊",
+    "en": "Unlock Fleet 2"
+  },
+  "第3艦隊開放": {
+    "zh-TW": "開放第 3 艦隊",
+    "en": "Unlock Fleet 3"
+  },
+  "第4艦隊開放": {
+    "zh-TW": "開放第 4 艦隊",
+    "en": "Unlock Fleet 4"
+  },
+  "紫雲": {
+    "zh-TW": "紫雲",
+    "en": "Shiun"
+  },
+  "紫電一一型": {
+    "zh-TW": "紫電一一型",
+    "en": "Shiden Model 11"
+  },
+  "紫電二一型 紫電改": {
+    "zh-TW": "紫電二一型 紫電改",
+    "en": "Shiden Model 21 Shiden Kai"
+  },
+  "紫電改二": {
+    "zh-TW": "紫電改二",
+    "en": "Shiden Kai 2"
+  },
+  "給糧艦「伊良湖」": {
+    "zh-TW": "給糧艦「伊良湖」",
+    "en": "Irako"
+  },
+  "給糧艦「間宮」": {
+    "zh-TW": "給糧艦「間宮」",
+    "en": "Mamiya"
+  },
+  "緊急修理資材": {
+    "zh-TW": "緊急修理資材",
+    "en": "Emergency Repair Material"
+  },
+  "艦娘座布団の床": {
+    "zh-TW": "艦娘坐墊地板",
+    "en": "Shipgirl Cushion Flooring"
+  },
+  "艦本新設計 増設バルジ(中型艦)": {
+    "zh-TW": "艦本新設計增設防雷突出部（中型艦）",
+    "en": "New Kanpon Design Additional Bulge (Medium Ships)"
+  },
+  "艦本新設計 増設バルジ(大型艦)": {
+    "zh-TW": "艦本新設計增設防雷突出部（大型艦）",
+    "en": "New Kanpon Design Additional Bulge (Large Ships)"
+  },
+  "艦載型 四式20cm対地噴進砲": {
+    "zh-TW": "艦載型 四式20cm對地噴進砲",
+    "en": "Shipborne Model Type 4 20cm Anti-ground Rocket Launcher"
+  },
+  "菱餅": {
+    "zh-TW": "菱餅",
+    "en": "Hishimochi"
+  },
+  "萩の床": {
+    "zh-TW": "萩花地板",
+    "en": "Bush Clover Flooring"
+  },
+  "装甲艇(AB艇)": {
+    "zh-TW": "裝甲艇(AB艇)",
+    "en": "Soukoutei (Armored Boat Class)"
+  },
+  "補強増設": {
+    "zh-TW": "補強增設",
+    "en": "Reinforcement Expansion"
+  },
+  "設営隊": {
+    "zh-TW": "設營隊",
+    "en": "Construction Corps"
+  },
+  "試製 23号電探改三": {
+    "zh-TW": "試製 23號電探改三",
+    "en": "Prototype Type 23 Radar Kai 3"
+  },
+  "試製 秋水": {
+    "zh-TW": "試製 秋水",
+    "en": "Prototype Shuusui"
+  },
+  "試製 長12.7cm連装砲A型改四": {
+    "zh-TW": "試製 長12.7cm連裝砲A型改四",
+    "en": "Prototype Long-barrel 12.7cm Twin Gun Mount Model A Kai 4"
+  },
+  "試製15cm9連装対潜噴進砲": {
+    "zh-TW": "試製15cm9連裝對潛噴進砲",
+    "en": "Prototype 15cm 9-tube ASW Rocket Launcher"
+  },
+  "試製20.3cm(4号)連装砲": {
+    "zh-TW": "試製20.3cm(4號)連裝砲",
+    "en": "Prototype 20.3cm (No.4) Twin Gun Mount"
+  },
+  "試製35.6cm三連装砲": {
+    "zh-TW": "試製35.6cm三連裝砲",
+    "en": "Prototype 35.6cm Triple Gun Mount"
+  },
+  "試製46cm連装砲": {
+    "zh-TW": "試製46cm連裝砲",
+    "en": "Prototype 46cm Twin Gun Mount"
+  },
+  "試製51cm三連装砲": {
+    "zh-TW": "試製51cm三連裝砲",
+    "en": "Prototype 51cm Triple Gun Mount"
+  },
+  "試製51cm連装砲": {
+    "zh-TW": "試製51cm連裝砲",
+    "en": "Prototype 51cm Twin Gun Mount"
+  },
+  "試製61cm六連装(酸素)魚雷": {
+    "zh-TW": "試製61cm六連裝(酸素)魚雷",
+    "en": "Prototype 61cm Sextuple (Oxygen) Torpedo Mount"
+  },
+  "試製南山": {
+    "zh-TW": "試製南山",
+    "en": "Prototype Nanzan"
+  },
+  "試製景雲(艦偵型)": {
+    "zh-TW": "試製景雲(艦偵型)",
+    "en": "Prototype Keiun (Carrier-based Reconnaissance Model)"
+  },
+  "試製東海": {
+    "zh-TW": "試製東海",
+    "en": "Prototype Toukai"
+  },
+  "試製烈風 後期型": {
+    "zh-TW": "試製烈風 後期型",
+    "en": "Prototype Reppuu Late Model"
+  },
+  "試製甲板カタパルト": {
+    "zh-TW": "試製甲板彈射器",
+    "en": "Prototype Flight Deck Catapult"
+  },
+  "赤城": {
+    "zh-TW": "赤城",
+    "en": "Akagi"
+  },
+  "逆探(E27)＋22号対水上電探改四(後期調整型)": {
+    "zh-TW": "逆探（E27）＋22 號對水上電探改四（後期調整型）",
+    "en": "E27 Passive Radar Detector + Type 22 Surface Radar Kai 4 (Late-Model Adjustment)"
+  },
+  "通信装置＆要員": {
+    "zh-TW": "通信裝置＆要員",
+    "en": "Communication Device & Personnel"
+  },
+  "遊撃部隊 艦隊司令部": {
+    "zh-TW": "遊擊部隊 艦隊司令部",
+    "en": "Striking Force Fleet Command Facility"
+  },
+  "遠征「臨時補給」開放": {
+    "zh-TW": "開放遠征「臨時補給」",
+    "en": "Unlock expedition resupply"
+  },
+  "開発資材": {
+    "zh-TW": "開發資材",
+    "en": "Development Material"
+  },
+  "陸軍歩兵部隊": {
+    "zh-TW": "陸軍步兵部隊",
+    "en": "Army Infantry Corps"
+  },
+  "零式小型水上機": {
+    "zh-TW": "零式小型水上機",
+    "en": "Type 0 Small Reconnaissance Seaplane"
+  },
+  "零式水上偵察機": {
+    "zh-TW": "零式水上偵察機",
+    "en": "Type 0 Reconnaissance Seaplane"
+  },
+  "零式水上偵察機11型乙": {
+    "zh-TW": "零式水上偵察機11型乙",
+    "en": "Type 0 Reconnaissance Seaplane Model 11B"
+  },
+  "零式水上偵察機11型乙(熟練)": {
+    "zh-TW": "零式水上偵察機11型乙(熟練)",
+    "en": "Type 0 Reconnaissance Seaplane Model 11B (Skilled)"
+  },
+  "零式水上偵察機11型乙改(夜偵)": {
+    "zh-TW": "零式水上偵察機11型乙改(夜偵)",
+    "en": "Type 0 Reconnaissance Seaplane Model 11B Kai (Night Recon)"
+  },
+  "零式水上偵察機11型甲改二": {
+    "zh-TW": "零式水上偵察機11型甲改二",
+    "en": "Type 0 Reconnaissance Seaplane Model 11A Kai 2"
+  },
+  "零式水中聴音機": {
+    "zh-TW": "零式水中聽音機",
+    "en": "Type 0 Passive Sonar"
+  },
+  "零式艦戦21型": {
+    "zh-TW": "零式艦戰21型",
+    "en": "Type 0 Fighter Model 21"
+  },
+  "零式艦戦21型(熟練)": {
+    "zh-TW": "零式艦戰21型(熟練)",
+    "en": "Type 0 Fighter Model 21 (Skilled)"
+  },
+  "零式艦戦32型": {
+    "zh-TW": "零式艦戰32型",
+    "en": "Type 0 Fighter Model 32"
+  },
+  "零式艦戦32型(熟練)": {
+    "zh-TW": "零式艦戰32型(熟練)",
+    "en": "Type 0 Fighter Model 32 (Skilled)"
+  },
+  "零式艦戦52型": {
+    "zh-TW": "零式艦戰52型",
+    "en": "Type 0 Fighter Model 52"
+  },
+  "零式艦戦52型(熟練)": {
+    "zh-TW": "零式艦戰52型(熟練)",
+    "en": "Type 0 Fighter Model 52 (Skilled)"
+  },
+  "零式艦戦53型(岩本隊)": {
+    "zh-TW": "零式艦戰53型(岩本隊)",
+    "en": "Type 0 Fighter Model 53 (Iwamoto Squadron)"
+  },
+  "零式艦戦63型(爆戦)": {
+    "zh-TW": "零式艦戰63型(爆戰)",
+    "en": "Type 0 Fighter Model 63 (Fighter-bomber)"
+  },
+  "零式艦戦64型(制空戦闘機仕様)": {
+    "zh-TW": "零式艦戰64型(制空戰鬭機仕樣)",
+    "en": "Type 0 Fighter Model 64 (Air Superiority Fighter Specification)"
+  },
+  "零戦21型(付岩本小隊)": {
+    "zh-TW": "零戰21型(付岩本小隊)",
+    "en": "Zero Fighter Model 21 (w/ Iwamoto Flight)"
+  },
+  "零戦52型丙(付岩井小隊)": {
+    "zh-TW": "零戰52型丙(付岩井小隊)",
+    "en": "Zero Fighter Model 52C (w/ Iwai Flight)"
+  },
+  "零戦52型丙(六〇一空)": {
+    "zh-TW": "零戰52型丙(六〇一空)",
+    "en": "Zero Fighter Model 52C (601 Air Group)"
+  },
+  "零戦52型甲(付岩本小隊)": {
+    "zh-TW": "零戰52型甲(付岩本小隊)",
+    "en": "Zero Fighter Model 52A (w/ Iwamoto Flight)"
+  },
+  "零戦62型(爆戦/岩井隊)": {
+    "zh-TW": "零戰62型(爆戰/岩井隊)",
+    "en": "Zero Fighter Model 62 (Fighter-bomber / Iwai Squadron)"
+  },
+  "雷電": {
+    "zh-TW": "雷電",
+    "en": "Raiden"
+  },
+  "電探装備マスト(13号改＋22号電探改四)": {
+    "zh-TW": "電探裝備桅杆（13 號改＋22 號電探改四）",
+    "en": "Radar-Equipped Mast (Type 13 Kai + Type 22 Surface Radar Kai 4)"
+  },
+  "震電改三(試製 噴式震電)": {
+    "zh-TW": "震電改三(試製 噴式震電)",
+    "en": "Shinden Kai 3 (Prototype Jet Shinden)"
+  },
+  "震電改二(艦戦型改二)": {
+    "zh-TW": "震電改二(艦戰型改二)",
+    "en": "Shinden Kai 2 (Carrier-based Fighter Model Kai 2)"
+  },
+  "高速修復材": {
+    "zh-TW": "高速修復材",
+    "en": "Instant Repair Material"
+  },
+  "高速建造材": {
+    "zh-TW": "高速建造材",
+    "en": "Instant Construction Material"
+  },
+  "龍田": {
+    "zh-TW": "龍田",
+    "en": "Tatsuta"
+  }
+}
