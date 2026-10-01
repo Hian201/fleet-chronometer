@@ -146,6 +146,41 @@ export const MSG_UI_LANG_SET = 'kc:ui-lang-set';
 /** 遊戲框（kancolle-server.com）的 bridge 連上來拿靜音狀態的長連線名稱。 */
 export const PORT_MUTE = 'kc:mute';
 
+// ── 編成寫真（面板拍照托盤）──────────────────────────
+/**
+ * 遊戲框 bridge 連上來接收擷取請求的長連線。理由同 PORT_MUTE：由 content script 主動
+ * 連上，background 不需要對遊戲分頁的 host permission，也不需要 activeTab。
+ */
+export const PORT_GAME_FRAME = 'kc:game-frame';
+export const MSG_FLEET_PHOTO_SOURCES = 'kc:fleet-photo-sources';
+export interface FleetPhotoSource { tabId: number; title: string }
+/** 面板 → background：擷取所選分頁的指定區塊（遊戲 1200×720 座標）。 */
+export const MSG_FLEET_PHOTO_CAPTURE = 'kc:fleet-photo-capture';
+export interface FleetPhotoCaptureMessage {
+    type: typeof MSG_FLEET_PHOTO_CAPTURE;
+    region: { x: number; y: number; width: number; height: number };
+    tabId?: number;
+}
+/**
+ * - `no-game`：所選分頁沒有遊戲框連線（遊戲沒開，或擴充更新後尚未 F5）。
+ * - `no-canvas`：遊戲框都在，但找不到遊戲畫布。
+ * - `blank`：讀到的像素是空白（WebGL 畫布在繪製週期外讀取）。
+ * - `timeout`：遊戲框沒有回應。
+ * - `choose-source`：多個遊戲分頁連線，尚未指定來源。
+ */
+export type FleetPhotoCaptureError = 'no-game' | 'no-canvas' | 'blank' | 'timeout' | 'failed' | 'choose-source';
+export type FleetPhotoCaptureReply = { dataUrl: string } | { error: FleetPhotoCaptureError; detail?: string };
+/** background → 面板：快捷鍵觸發「拍下一張」。 */
+export const MSG_FLEET_PHOTO_SHOOT = 'kc:fleet-photo-shoot';
+/** manifest `commands` 的指令名稱。 */
+export const COMMAND_FLEET_PHOTO_SHOOT = 'fleet-photo-shoot';
+
+/** background ⇄ 遊戲框 bridge（PORT_GAME_FRAME 上的訊息）。 */
+export type GameFrameRequest = { kind: 'capture'; reqId: number; region: FleetPhotoCaptureMessage['region'] };
+export type GameFrameReply =
+    | { kind: 'capture-result'; reqId: number; dataUrl: string }
+    | { kind: 'capture-result'; reqId: number; error: Exclude<FleetPhotoCaptureError, 'no-game' | 'timeout' | 'choose-source'>; detail?: string };
+
 /**
  * 遊戲框 → 最上層 DMM 頁的 window.postMessage 轉發（跨源，只送互動意圖，不含遊戲資料）。
  *

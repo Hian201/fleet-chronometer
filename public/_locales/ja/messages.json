@@ -7,5 +7,8 @@
     },
     "extDescription": {
         "message": "艦隊の共通作戦状況図（COP）支援ツール"
+    },
+    "cmdFleetPhotoShoot": {
+        "message": "編成写真：次を撮影"
     }
 }

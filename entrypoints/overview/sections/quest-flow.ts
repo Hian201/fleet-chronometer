@@ -4,7 +4,7 @@
 // 搜尋與篩選仍只留在本機。
 import type { OverviewSection } from './types';
 import type {
-    QuestCategory, QuestFlowModel, QuestFlowRow, QuestPeriod, QuestStatus, QuestUnlockPlan,
+    QuestFlowModel, QuestFlowRow, QuestPeriod, QuestStatus, QuestUnlockPlan,
 } from '@/utils/quest-flow';
 import {
     buildQuestFlow, isCompletedQuestRow, normalizeQuestSearch, questDownstreamLayers,
@@ -13,7 +13,7 @@ import {
 import { layoutQuestGraph } from '@/utils/quest-graph-layout';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import {
-    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml,
+    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml,
 } from '@/utils/quest-catalog-localization';
 import {
     QUEST_FLOW_PREFS_KEY, normalizeQuestApiNos,
@@ -21,6 +21,9 @@ import {
 import { clearHashParams, esc, fmtTs, hashParams, loadJsonPrefs, saveJsonPrefs } from '../lib';
 import { formatQuestTime, type ServerObservation } from '@/utils/quest-tracking';
 import { questConditionText, questTargetLabel } from '@/utils/quest-goal-label';
+import { questCatalogIdentity } from '@/utils/quest-identity';
+import { QUEST_CATEGORY_LABEL_KEYS, type QuestCategory } from '@/utils/quest-category';
+import { questCategoryMarkHtml } from '@/utils/html-escape';
 
 const PREFS_KEY = QUEST_FLOW_PREFS_KEY;
 type FocusMode = 'focus' | 'all';
@@ -68,16 +71,6 @@ const STAT_BUCKET_KEYS: Record<StatBucket, string> = {
     unknown: 'ov.qfUnknownCount',
 };
 
-const CATEGORY_KEYS: Record<QuestCategory, string> = {
-    composition: 'ov.qfCategoryComposition',
-    sortie: 'ov.qfCategorySortie',
-    practice: 'ov.qfCategoryPractice',
-    expedition: 'ov.qfCategoryExpedition',
-    'supply-dock': 'ov.qfCategorySupplyDock',
-    arsenal: 'ov.qfCategoryArsenal',
-    modernization: 'ov.qfCategoryModernization',
-    unknown: 'ov.qfCategoryUnknown',
-};
 const PERIOD_KEYS: Record<QuestPeriod, string> = {
     once: 'ov.qfPeriodOnce',
     daily: 'ov.qfPeriodDaily',
@@ -161,7 +154,12 @@ function statusLabel(status: QuestStatus): string {
 }
 
 function categoryLabel(category: QuestCategory): string {
-    return t(CATEGORY_KEYS[category]);
+    return t(QUEST_CATEGORY_LABEL_KEYS[category]);
+}
+
+function categoryMark(row: QuestFlowRow | undefined): string {
+    const category = row?.definition.category ?? 'unknown';
+    return questCategoryMarkHtml(category, categoryLabel(category));
 }
 
 function periodLabel(period: QuestPeriod): string {
@@ -186,7 +184,14 @@ function evidenceLabel(row: QuestFlowRow): string {
     return t(key);
 }
 
+/** 營運重用編號的新任務：即時標題與目錄不同，以編號對應的譯文、獎勵與關係都是舊任務的。 */
+function isReusedQuest(row: QuestFlowRow): boolean {
+    return row.definition.catalogMismatch === true
+        || questCatalogIdentity(row.definition.apiNo, row.current?.name || row.available?.name) === 'mismatch';
+}
+
 function taskName(row: QuestFlowRow): string {
+    if (isReusedQuest(row)) return row.name;
     return localizedQuestName(
         row.definition.apiNo,
         getLang(),
@@ -195,6 +200,7 @@ function taskName(row: QuestFlowRow): string {
 }
 
 function taskDetail(row: QuestFlowRow): string {
+    if (isReusedQuest(row)) return row.detail || t('ov.qfNoDetail');
     return localizedQuestDetail(
         row.definition.apiNo,
         getLang(),
@@ -207,7 +213,7 @@ function lineBreaks(value: string): string {
 }
 
 function japaneseOriginalHtml(row: QuestFlowRow, expanded: boolean): string {
-    if (getLang() === 'ja') return '';
+    if (getLang() === 'ja' || isReusedQuest(row)) return '';
     const name = row.name || row.definition.name;
     const detail = row.detail || row.definition.detail;
     const no = row.definition.apiNo;
@@ -253,7 +259,7 @@ function rowHtml(row: QuestFlowRow, selected: boolean, pinned: boolean, manually
                 <span class="qf-status qf-status-${row.status}">${esc(statusLabel(row.status))}</span>
                 ${row.nearUnlock ? `<span class="qf-near-badge">${esc(t('ov.qfNearUnlockBadge'))}</span>` : ''}
             </span>
-            <strong class="qf-row-name">${esc(taskName(row))}</strong>
+            <strong class="qf-row-name">${categoryMark(row)}${esc(taskName(row))}</strong>
             <span class="qf-row-meta">${rowMeta(row)}</span>
             <span class="qf-progress">${esc(progressLabel(row))}</span>
         </button>
@@ -270,7 +276,7 @@ function guideNodeHtml(model: QuestFlowModel, no: number, note = ''): string {
     const row = model.byNo.get(no);
     const status = row ? statusTagHtml(row) : '';
     const name = row ? taskName(row) : t('ov.qfUnknown');
-    return `<li><button type="button" class="qf-node-summary" data-qf-target="${no}">${status}<b>${esc(name)}</b><small>api_no ${no}</small>${note ? `<small class="qf-guide-source">${esc(note)}</small>` : ''}</button></li>`;
+    return `<li><button type="button" class="qf-node-summary" data-qf-target="${no}">${status}<b>${categoryMark(row)}${esc(name)}</b><small>api_no ${no}</small>${note ? `<small class="qf-guide-source">${esc(note)}</small>` : ''}</button></li>`;
 }
 
 /** 刷不出任務時的指引：本週期尚未完成的定期前置，以及來源衝突時只有單一來源提出的備考。 */
@@ -342,7 +348,7 @@ function itemHtml(model: QuestFlowModel, no: number, className: string, sub: str
     return `<li class="qf-item${className ? ` ${className}` : ''}" data-qf-item="${no}">
         <button type="button" class="qf-item-main" data-qf-target="${no}">
             <span class="qf-item-id">${esc(shortLabel(row, no))}</span>
-            <span class="qf-item-name">${esc(nameOf(model, no))}</span>
+            <span class="qf-item-name">${categoryMark(row)}${esc(nameOf(model, no))}</span>
             ${row ? statusTagHtml(row) : ''}
         </button>
         ${sub ? `<div class="qf-item-sub">${sub}</div>` : ''}
@@ -442,7 +448,7 @@ function graphPaneHtml(model: QuestFlowModel, row: QuestFlowRow, showDone: boole
             + (state === 'covered' ? ` · ${t('ov.qfPathCovered')}` : '');
         return `<button type="button" class="qf-node is-${state}" data-qf-target="${node.no}" data-qf-node="${node.no}"
             style="left:${node.x}px;top:${node.y}px;width:${layout.nodeWidth}px;height:${layout.nodeHeight}px"
-            title="${esc(label)}" aria-label="${esc(label)}"><b>${esc(shortLabel(item, node.no))}</b><span>${esc(nameOf(model, node.no))}</span></button>`;
+            title="${esc(label)}" aria-label="${esc(label)}"><b>${categoryMark(item)}${esc(shortLabel(item, node.no))}</b><span>${esc(nameOf(model, node.no))}</span></button>`;
     }).join('');
     return `${tools}<div class="qf-graph-scroll"><div class="qf-graph" style="width:${layout.width}px;height:${layout.height}px">
         <svg class="qf-graph-edges" width="${layout.width}" height="${layout.height}" aria-hidden="true">${edges}</svg>${nodes}
@@ -617,7 +623,7 @@ function headHtml(row: QuestFlowRow, view: QuestFlowDetailView): string {
     return `<header class="qf-head">
         <div class="qf-head-top">
             <span class="qf-head-id">${esc(shortLabel(row, no))}</span>
-            <strong class="qf-now-name">${esc(taskName(row))}</strong>
+            <strong class="qf-now-name">${categoryMark(row)}${esc(taskName(row))}</strong>
         </div>
         <div class="qf-head-meta">
             ${statusTagHtml(row)}
@@ -628,8 +634,9 @@ function headHtml(row: QuestFlowRow, view: QuestFlowDetailView): string {
                 <button type="button" class="ov-btn" data-qf-manual="${no}" aria-pressed="${view.manual}">${esc(view.manual ? t('ov.qfManualUnmark') : t('ov.qfManualMark'))}</button>
             </span>
         </div>
+        ${isReusedQuest(row) ? `<p class="qf-reused-note" role="note">${esc(t('ov.qfReusedNote'))}</p>` : ''}
         <p class="qf-task-detail">${lineBreaks(taskDetail(row))}</p>
-        ${localizedQuestRewardHtml(no, getLang())}
+        ${isReusedQuest(row) ? pendingQuestRewardHtml(getLang()) : localizedQuestRewardHtml(no, getLang())}
         ${japaneseOriginalHtml(row, view.japaneseOriginalOpen)}
         ${unresolved}${limited}
     </header>`;

@@ -1,5 +1,5 @@
 import { defineConfig } from 'wxt';
-import { GAME_PAGE_MATCHES } from './utils/game-page';
+import { COMMAND_FLEET_PHOTO_SHOOT, GAME_PAGE_MATCHES } from './utils/game-page';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -38,7 +38,7 @@ export default defineConfig({
         name: '__MSG_extName__',
         short_name: '__MSG_extShortName__',
         description: '__MSG_extDescription__',
-        version: '1.1.0.5',
+        version: '1.1.0.6',
         action: {
             default_title: '__MSG_extShortName__',
         },
@@ -62,6 +62,14 @@ export default defineConfig({
         // 或關閉即失效——與拍照「按下當下要看到的畫面」的使用情境完全吻合。
         permissions: ['activeTab', 'alarms', 'notifications', 'scripting', 'tabs'],
         optional_host_permissions: GAME_PAGE_MATCHES,
+        // 編成寫真「拍下一張」的快捷鍵。commands 不是權限、不跳授權提示；使用者可在
+        // chrome://extensions/shortcuts 改鍵或停用。實際動作由面板的托盤執行（托盤關著不拍）。
+        commands: {
+            [COMMAND_FLEET_PHOTO_SHOOT]: {
+                suggested_key: { default: 'Alt+Shift+S' },
+                description: '__MSG_cmdFleetPhotoShoot__',
+            },
+        },
     },
     hooks: {
         // WXT 對 `registration: 'runtime'` 的 content script 會**自動把 matches 塞進

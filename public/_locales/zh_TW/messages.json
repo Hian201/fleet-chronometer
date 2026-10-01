@@ -7,5 +7,8 @@
     },
     "extDescription": {
         "message": "Kancolle 通用作戰圖像輔助工具"
+    },
+    "cmdFleetPhotoShoot": {
+        "message": "編成寫真：拍下一張"
     }
 }

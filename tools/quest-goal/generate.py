@@ -110,7 +110,7 @@ def main() -> None:
         '// **本檔由 tools/quest-goal/generate.py 產生，請勿手改**——來源為 poi（MIT）固定 commit 的\n'
         f'// assets/data/fcd/questgoal.json（{POI_COMMIT}，版本 {payload["meta"]["version"]}）。\n'
         '// 遠征名稱（mission）已依 samples/start2-master.json 換成遠征 id（missionId）。\n'
-        '// 欄位語意與判定見 utils/quest-goals.ts；本機修正放在該檔的 QUEST_GOAL_OVERRIDES。\n'
+        '// 欄位語意與判定見 utils/quest-goals.ts；本機撰寫或修正的條件放在 utils/quest-goal-local.ts。\n'
         f'export const QUEST_GOAL_SOURCE = {{ commit: {json.dumps(POI_COMMIT)}, version: {json.dumps(payload["meta"]["version"])} }} as const;\n'
         f'export const QUEST_GOAL_RAW: Record<string, Record<string, unknown>> = {body};\n',
         encoding='utf-8',

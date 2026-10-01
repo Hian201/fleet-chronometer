@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getLang, setLang, t } from '../utils/ui-i18n';
-import { GAME_PAGE_MATCHES, THEATER_SCRIPT_FILE } from '../utils/game-page';
+import { COMMAND_FLEET_PHOTO_SHOOT, GAME_PAGE_MATCHES, THEATER_SCRIPT_FILE } from '../utils/game-page';
 import type { Lang } from '../utils/gamedata-i18n';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -12,7 +12,7 @@ const manifestPath = new URL('../.output/chrome-mv3/manifest.json', import.meta.
 const outputRoot = fileURLToPath(new URL('../.output/chrome-mv3/', import.meta.url));
 const product = {
     packageName: 'fleet-chronometer',
-    version: '1.1.0.5',
+    version: '1.1.0.6',
     description: 'Passive KanColle monitor for fleets, expeditions, battles, history, replays, and local backups.',
 };
 
@@ -32,6 +32,7 @@ interface LocaleMessages {
     extName?: { message?: string };
     extShortName?: { message?: string };
     extDescription?: { message?: string };
+    cmdFleetPhotoShoot?: { message?: string };
 }
 
 const readLocale = (locale: string): LocaleMessages =>
@@ -58,6 +59,7 @@ interface Manifest {
     permissions?: string[];
     host_permissions?: string[];
     optional_permissions?: string[];
+    commands?: Record<string, { suggested_key?: { default?: string }; description?: string }>;
     optional_host_permissions?: string[];
 }
 
@@ -119,6 +121,13 @@ describe('正式版 manifest', () => {
         expect(manifest.host_permissions ?? []).toEqual([]);
         expect(manifest.optional_permissions ?? []).toEqual([]);
         expect(manifest.optional_host_permissions ?? []).toEqual(GAME_PAGE_MATCHES);
+        // 編成寫真的快捷鍵：commands 不是權限、不跳授權提示；說明文字走 _locales。
+        expect(manifest.commands).toEqual({
+            [COMMAND_FLEET_PHOTO_SHOOT]: {
+                suggested_key: { default: 'Alt+Shift+S' },
+                description: '__MSG_cmdFleetPhotoShoot__',
+            },
+        });
     });
 
     // 劇場模式刻意**不在** content_scripts 裡：它由 popup 在取得授權後才動態註冊／注入。
@@ -176,7 +185,7 @@ describe('正式版 manifest', () => {
     it('三個語系都提供完整的 messages，且預設語系必須齊全', () => {
         for (const [locale] of LOCALES) {
             const messages = readLocale(locale);
-            for (const key of ['extName', 'extShortName', 'extDescription'] as const) {
+            for (const key of ['extName', 'extShortName', 'extDescription', 'cmdFleetPhotoShoot'] as const) {
                 expect(messages[key]?.message, `${locale}/${key}`).toBeTruthy();
             }
         }

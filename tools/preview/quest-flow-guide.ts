@@ -55,7 +55,17 @@ function by6Available(): QuestFlowModel {
     return buildQuestFlow(state);
 }
 
+function reusedQuest(): QuestFlowModel {
+    const state = new GameState();
+    state.applyEvent('api_get_member/questlist', { api_list: [{
+        api_no: 984, api_state: 2, api_title: '【期間限定任務】14年目実りの秋、南瓜始め！',
+        api_detail: '新任務', api_category: 2,
+    }] }, { api_tab_id: '0' });
+    return buildQuestFlow(state);
+}
+
 const SCENES: Scene[] = [
+    { key: 'reused-quest', no: 984, tab: 'path', model: reusedQuest, note: 'Reused quest number' },
     { key: 'by8-unlocked', no: 946, tab: 'path', model: by6Available, note: 'By8 · By6 already listed' },
     { key: 'b114-rewards', no: 879, tab: 'path', model: () => buildQuestFlow(new GameState()), note: 'B114 · rewards' },
     { key: 'cy5-reward-options', no: 353, tab: 'path', model: () => buildQuestFlow(new GameState()), note: 'Cy5 · reward options' },

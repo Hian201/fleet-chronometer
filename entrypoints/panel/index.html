@@ -16,6 +16,15 @@
             --dmg-major: #e05555;
             --dmg-mid: #e08b3d;
             --dmg-minor: #d4b83a;
+
+            /* 任務種類（語意色，不隨主題變化；對齊遊戲任務清單的分類色，禁止挪用做其他用途）。 */
+            --qc-composition: #2a8144;
+            --qc-sortie: #c0413e;
+            --qc-practice: #559d3d;
+            --qc-expedition: #39a29e;
+            --qc-supply-dock: #d8ba63;
+            --qc-arsenal: #6b473c;
+            --qc-modernization: #a783b9;
             /* 血條刻度要壓在填色與空軌上。暗底用深線，亮底改淺線。 */
             --hp-tick: rgba(16, 21, 29, .92);
             --sparkle: #e6c35c;
@@ -137,16 +146,12 @@
             font-size: 14px;
             font-weight: 600;
             letter-spacing: var(--track-title);
-            /* 提督名稱可能過長（遊戲上限 12 文字，全角時仍會擠掉右側統計）：
-               唯一允許收縮的項目，超出以省略號截斷、全名在 title */
+            /* 提督名稱上限 12 文字：放不下時整排由 fitHeader() 縮小（見檔尾「header 單行自動縮放」）；
+               縮到下限仍放不下才以省略號截斷，全名在 title */
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-        }
-
-        #header .grow {
-            flex: 1;
         }
 
         #header .stat {
@@ -4379,7 +4384,7 @@
             display: grid;
             grid-template-columns: 18px minmax(0, 1fr);
             align-items: center;
-            column-gap: 2px;
+            column-gap: 5px;
             justify-content: center;
             min-width: 0;
             height: 100%;
@@ -4456,7 +4461,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: flex-end;
-            gap: 7px;
+            gap: 5px;
             min-width: 0;
             color: var(--text);
             line-height: 1;
@@ -4588,9 +4593,11 @@
             color: var(--dim);
         }
 
-        .s-night-effect.on { color: var(--sparkle); opacity: 1; }
-        .s-night-effect.off { color: var(--dim); opacity: .34; }
-        .s-night-effect.unknown { color: var(--text); opacity: .56; }
+        /* 與友軍錨同一套退場語言：未發動與狀態未知都轉灰階，只有發動時顯示裝備原色；
+           夜偵圖示隨觸接機 master 變動，所以灰圖由同一張圖套濾鏡產生，不另備檔。 */
+        .s-night-effect.on { color: var(--sparkle); opacity: 1; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sparkle) 65%, transparent)); }
+        .s-night-effect.off { color: var(--dim); opacity: .32; filter: grayscale(100%); }
+        .s-night-effect.unknown { color: var(--dim); opacity: .42; filter: grayscale(100%); }
         .s-night-effect .g-icon { width: 20px; height: 20px; object-fit: contain; }
 
         .s-friendly-fleet {
@@ -4730,9 +4737,11 @@
 
         .s-system-rail {
             display: grid;
-            /* 五格等寬並保留最小寬度；四字支援／陸航與 Typ n 都能完整顯示，
-               最後一格不會因吃掉剩餘寬度而侵入右側掉落模組。 */
-            grid-template-columns: repeat(5, minmax(35px, 1fr));
+            /* 不設最小欄寬，否則五格加總會超出左欄而壓到右側掉落模組。欄寬依各格最寬
+               內容分配：支援與陸航常同時出現四字標籤（砲擊支援＋陸航抵達），多留寬度
+               才不會黏成一串；索敵要放得下英文 Missed，觸接要放得下敵我並排的 30px
+               圖示，對空 CI 只需 Typ n。與掉落格的距離由本列的 padding-inline-end 保留。 */
+            grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 33fr) minmax(0, 31fr) minmax(0, 24fr);
             column-gap: 2px;
             width: 100%;
             /* 與右側掉落格保留一個欄內安全邊界；370px 面板在放大顯示時，
@@ -4741,7 +4750,7 @@
             height: 35px;
             min-height: 35px;
             padding: 0;
-            padding-inline-end: 8px;
+            padding-inline-end: 6px;
             border: 0;
         }
 
@@ -4760,9 +4769,9 @@
 
         .s-system-glyph {
             display: block;
-            width: 20px;
-            height: 18px;
-            flex: 0 0 18px;
+            width: 18px;
+            height: 15px;
+            flex: 0 0 15px;
             overflow: visible;
             fill: none;
             stroke: currentColor;
@@ -4772,7 +4781,7 @@
         }
 
         .s-system-glyph.support-shell,
-        .s-system-glyph.support-torpedo { width: 28px; }
+        .s-system-glyph.support-torpedo { width: 24px; }
 
         .s-system-glyph .support-ship-raster,
         .s-system-glyph .support-torpedo-raster,
@@ -4781,14 +4790,14 @@
         .s-system-glyph .lbas-aircraft-raster,
         .s-system-glyph .aaci-gun-raster {
             display: block;
-            width: 20px;
-            height: 18px;
+            width: 18px;
+            height: 15px;
             object-fit: contain;
         }
 
-        .s-system-glyph.support-shell .support-ship-raster { width: 28px; }
-        .s-system-glyph.support-torpedo .support-torpedo-raster { width: 28px; height: 18px; }
-        .s-system-glyph.support-asw .support-asw-raster { width: 20px; height: 18px; }
+        .s-system-glyph.support-shell .support-ship-raster { width: 24px; }
+        .s-system-glyph.support-torpedo .support-torpedo-raster { width: 24px; height: 15px; }
+        .s-system-glyph.support-asw .support-asw-raster { width: 18px; height: 15px; }
 
         .s-system-copy {
             display: inline-flex;
@@ -4824,6 +4833,7 @@
         .s-system-signal.support .s-system-label {
             overflow: visible;
             text-overflow: clip;
+            font-size: 8px;
             letter-spacing: -.04em;
         }
         /* 對空 CI／AACI 在未發動時顯示短標籤、發動後顯示 Typ n；兩種長度都必須
@@ -4834,11 +4844,6 @@
             text-overflow: clip;
             letter-spacing: -.06em;
             font-size: 7.5px;
-        }
-        /* 最右格在固定雙模組中保留內縮，避免 Typ n 貼住掉落框線。 */
-        .s-system-signal.aaci {
-            padding-inline-end: 6px;
-            box-sizing: border-box;
         }
         .s-system-signal.off .s-system-glyph { opacity: .38; filter: grayscale(100%); }
         .s-system-signal.off .s-system-copy { color: var(--dim); }
@@ -5550,10 +5555,20 @@
         .ledger-op{display:grid;grid-template-columns:23px minmax(0,1fr) max-content;align-items:center;min-height:25px;gap:7px;padding:2px 4px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.3}
         .ledger-op .slot{color:var(--brass);font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}.ledger-op .name{min-width:0;font-weight:500;overflow-wrap:anywhere;line-height:1.3}.ledger-op .time{color:var(--text);font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
         .ledger-op.done .time{color:#58a55c}.ledger-op.locked{color:var(--dim)}.ledger-op.locked .time{color:var(--dim);font-weight:400}
+        /* 任務種類色標：名稱前的細色塊；unknown 只畫空框，不借用任何種類色。 */
+        .qc-mark { display: inline-block; flex: none; width: 4px; height: .95em; margin-right: 5px; border-radius: 1px; vertical-align: -.12em; background: var(--qc, transparent); }
+        .qc-composition { --qc: var(--qc-composition); }
+        .qc-sortie { --qc: var(--qc-sortie); }
+        .qc-practice { --qc: var(--qc-practice); }
+        .qc-expedition { --qc: var(--qc-expedition); }
+        .qc-supply-dock { --qc: var(--qc-supply-dock); }
+        .qc-arsenal { --qc: var(--qc-arsenal); }
+        .qc-modernization { --qc: var(--qc-modernization); }
+        .qc-unknown { box-shadow: inset 0 0 0 1px var(--line); }
         .ledger-quests{display:flex;flex-direction:column;min-height:0}.ledger-quest-heading{flex:none;display:flex;justify-content:space-between;align-items:center;height:21px;color:var(--text);font-size:12px;font-weight:600}.ledger-quest-heading span{color:var(--dim);font-size:10.5px;font-weight:500;font-variant-numeric:tabular-nums}
         .ledger-quest-list{display:block;min-height:0;overflow-y:auto;scrollbar-width:thin}.ledger-quest{border-bottom:1px solid var(--line)}
         .ledger-quest summary{display:grid;grid-template-columns:minmax(0,1fr) max-content 12px;align-items:start;gap:6px;min-height:24px;padding:3px 4px;color:var(--text);font-size:12px;line-height:1.2;cursor:pointer;list-style:none}
-        .ledger-quest summary::-webkit-details-marker{display:none}.ledger-quest .name{min-width:0;font-weight:500;overflow-wrap:anywhere}.ledger-quest .state{padding-top:1px;color:var(--dim);font-size:10.5px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .ledger-quest summary::-webkit-details-marker{display:none}.ledger-quest .name{min-width:0;padding-left:9px;text-indent:-9px;font-weight:500;overflow-wrap:anywhere}.ledger-quest .state{padding-top:1px;color:var(--dim);font-size:10.5px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
         .ledger-quest.done .state{color:#58a55c;font-weight:600}.ledger-quest .arrow{color:var(--dim);font-size:12px;text-align:right}.ledger-quest[open] .arrow{transform:rotate(90deg)}
         .ledger-quest .description{margin:0 3px 7px;padding:7px 9px;border-left:2px solid var(--brass);background:var(--panel);color:var(--text);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
         /* 任務展開：說明／原文／進度三選一，同時只顯示一個分頁（面板長寬固定，不疊加內容）。 */
@@ -5565,6 +5580,7 @@
         .ledger-quest-seg button[aria-pressed="true"]+button{border-left:1px solid var(--line)}
         .ledger-quest-seg button:focus-visible,.ledger-quest-more:focus-visible{outline:2px solid var(--sparkle);outline-offset:1px}
         .ledger-quest-pane[hidden]{display:none}
+        .ledger-quest-reused{margin:0 0 5px;color:var(--dim);font-size:10.5px;line-height:1.4}
         .ledger-quest-original-name{margin:0 0 3px;overflow-wrap:anywhere}.ledger-quest-original-detail{margin:0;overflow-wrap:anywhere}
         .quest-rewards{display:grid;gap:3px;margin-top:7px;overflow-wrap:anywhere;font-size:10.5px;line-height:1.4}
         .quest-reward-title{color:var(--brass);font-size:10px;letter-spacing:var(--track-tag)}
@@ -5578,6 +5594,7 @@
         .ledger-quest .state .n.est{color:var(--brass)}.ledger-quest .state .n.weak{color:var(--dim)}
         .ledger-quest-prog{display:grid;gap:2px;font-size:11px;line-height:1.45}
         .ledger-quest-prog .sub{color:var(--dim)}
+        .ledger-quest-tier{display:flex;align-items:baseline;gap:4px;color:var(--dim);font-size:10.5px}.ledger-quest-tier .quest-tier{flex:none;margin-right:0}
         .ledger-quest-maps{display:flex;flex-wrap:wrap;gap:2px 10px;font-variant-numeric:tabular-nums}
         .ledger-quest-maps>span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
         .ledger-quest-maps .pips{display:inline-flex;gap:2px}
@@ -5621,6 +5638,83 @@
         .ledger-item-row .item-pin:hover{border-color:var(--brass);color:var(--text)}.ledger-item-row .item-pin[aria-pressed=true]{border-color:var(--brass);color:var(--brass)}
         .ledger-item-switch .matches{color:var(--brass)}
         .ledger-item-empty{padding:8px 3px;color:var(--dim);font-size:11px}
+
+        /* ── header 單行自動縮放 ──
+           提督名放得下時維持原尺寸；會被截斷時由 main.ts fitHeader() 調低 --hs，名稱、Lv、
+           艦／裝數量、圖示、間距與相機鈕一起等比縮小。高度固定 39px，縮放不會推動下方版面。 */
+        #header { --hs: 1; height: 39px; padding-top: 0; padding-bottom: 0; gap: calc(12px * var(--hs)); }
+        #header .idbox { gap: calc(6px * var(--hs)); }
+        #header .nick { font-size: calc(14px * var(--hs)); }
+        #header .num { font-size: calc(13px * var(--hs)); }
+        #header .stat { gap: calc(4px * var(--hs)); font-size: calc(13px * var(--hs)); }
+        #header .stat.first { margin-left: auto; }
+        #header .h-icon { width: calc(16px * var(--hs)); height: calc(16px * var(--hs)); }
+        #header .h-cam { flex: none; display: inline-flex; align-items: center; justify-content: center; width: calc(22px * var(--hs)); height: calc(22px * var(--hs)); padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; color: var(--dim); cursor: pointer; }
+        #header .h-cam:hover { color: var(--text); border-color: var(--brass); }
+        #header .h-cam[aria-pressed="true"] { color: var(--sparkle); border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+        #header .h-cam svg { width: calc(15px * var(--hs)); height: calc(15px * var(--hs)); fill: none; stroke: currentColor; stroke-width: 1.4; }
+
+        /* ── 編成寫真托盤：開啟時取代 #tabpanel，同樣固定 270px，不推動下方編成 ── */
+        #photo-tray { display: flex; flex-direction: column; gap: 5px; height: 270px; padding: 6px 8px; min-height: 0; overflow: hidden; }
+        #photo-tray[hidden], #tabpanel[hidden] { display: none; }
+        .ph-head { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 20px; font-size: 12px; line-height: 1.2; }
+        .ph-title { color: var(--text); white-space: nowrap; }
+        .ph-target { min-width: 0; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ph-seg { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+        .ph-seg button { border: none; background: none; color: var(--dim); font: inherit; font-size: 11px; padding: 1px 7px; cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .ph-seg button + button { border-left: 1px solid var(--line); }
+        .ph-seg button[aria-pressed="true"] { color: var(--text); background: color-mix(in srgb, var(--brass) 16%, transparent); }
+        .ph-count { margin-left: auto; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .ph-count b { color: var(--text); font-weight: 600; }
+        .ph-close { flex: none; border: none; background: none; color: var(--dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; }
+        .ph-close:hover { color: var(--text); }
+        .ph-hint { font-size: 10px; color: var(--dim); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ph-hint.toast { color: var(--text); }
+        /* 錯誤沿用 #notice.err 的警示色；允許換行，原因不截斷（格線區會自動縮小讓位） */
+        .ph-hint.err { color: var(--dmg-major); white-space: normal; }
+        /* 格線區夾在 head／hint／foot 之間；以 container 尺寸推算格子大小，任何艦數都不撐破 270px */
+        .ph-grid { display: grid; gap: 4px 5px; flex: 1; min-height: 0; container-type: size; align-content: start; }
+        .ph-grid.fleet { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .ph-grid.fleet .ph-cell { height: calc((100cqh - (var(--rows) - 1) * 4px) / var(--rows)); }
+        /* 基地航空隊：欄寬固定為三分之一，不足三隊時置中 */
+        .ph-grid.lbas { grid-template-columns: repeat(var(--n, 3), calc((100% - 10px) / 3)); justify-content: center; }
+        .ph-grid .ph-empty { grid-column: 1 / -1; align-self: center; color: var(--dim); font-size: 11px; text-align: center; }
+        .ph-cell { position: relative; display: flex; gap: 6px; align-items: stretch; min-width: 0; margin: 0; padding: 2px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; overflow: hidden; }
+        .ph-cell:hover { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
+        .ph-thumb { position: relative; flex: none; height: 100%; aspect-ratio: 684 / 546; border: 1px dashed var(--line); border-radius: 2px; background: var(--bg); overflow: hidden; }
+        .ph-cell.shot .ph-thumb { border: none; }
+        .ph-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+        .ph-meta { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; font-size: 11px; line-height: 1.25; }
+        .ph-name { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ph-sub, .ph-state { color: var(--dim); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+        .ph-cell.next { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
+        .ph-cell.next .ph-state { color: var(--sparkle); }
+        .ph-cell.stale .ph-thumb img { opacity: .4; filter: grayscale(.7); }
+        .ph-cell.stale .ph-state { color: var(--text); }
+        .ph-grid.lbas .ph-cell { flex-direction: column; gap: 3px; height: 100cqh; }
+        .ph-grid.lbas .ph-thumb { height: auto; width: min(100%, calc((100cqh - 38px) * 334 / 422)); aspect-ratio: 334 / 422; align-self: center; }
+        .ph-grid.lbas .ph-meta { flex: none; align-items: center; text-align: center; }
+        .ph-cell.flash::after { content: ''; position: absolute; inset: 0; background: #fff; animation: ph-flash 220ms ease-out forwards; pointer-events: none; }
+        @keyframes ph-flash { from { opacity: .85; } to { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) { .ph-cell.flash::after { animation: none; opacity: 0; } }
+        .ph-foot { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .ph-foot .grow { flex: 1; }
+        .ph-shoot { flex: none; height: 26px; padding: 0 10px; border: 1px solid var(--brass); border-radius: 4px; background: color-mix(in srgb, var(--brass) 14%, var(--panel)); color: var(--sparkle); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+        .ph-shoot:disabled { border-color: var(--line); background: var(--panel); color: var(--stub); cursor: default; }
+        .ph-btn { flex: none; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+        .ph-btn:hover:not(:disabled) { border-color: var(--brass); }
+        .ph-btn:disabled { color: var(--stub); cursor: default; }
+        /* 輸出設定：原生 <details>；托盤更新時保留同一個元素，展開狀態不被重繪洗掉 */
+        .ph-opts { position: relative; flex: none; }
+        .ph-opts > summary { list-style: none; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); font-size: 11px; cursor: pointer; white-space: nowrap; }
+        .ph-opts > summary::-webkit-details-marker { display: none; }
+        .ph-opts > summary::after { content: '▾'; color: var(--dim); font-size: 9px; }
+        .ph-opts[open] > summary { border-color: var(--brass); }
+        .ph-opts-panel { position: absolute; right: 0; bottom: 30px; z-index: 5; width: 236px; padding: 8px; display: grid; gap: 7px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 4px 14px color-mix(in srgb, #000 35%, transparent); font-size: 11px; }
+        .ph-opts-panel label.row { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 6px; color: var(--dim); }
+        .ph-opts-panel select { min-width: 0; height: 24px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--text); font: inherit; font-size: 11px; }
+        .ph-opts-panel .checks { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text); }
+        .ph-opts-panel .checks label { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
     </style>
 </head>
 
@@ -5677,6 +5771,7 @@
             </div>
         </div>
     </div>
+    <div id="photo-tray" hidden></div>
     <div id="fleetnav"></div>
     <div id="fleets"></div>
     <div id="air-bases" style="display:none"></div>

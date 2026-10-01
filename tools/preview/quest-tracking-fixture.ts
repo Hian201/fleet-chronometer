@@ -25,8 +25,10 @@ function battle(state: GameState, area: number, no: number, edge: number, boss: 
     state.applyEvent('api_req_sortie/battleresult', { api_win_rank: rank }, {}, ts + 60_000);
 }
 
+// api_category 依遊戲的任務編號段（2xx→2、10xx→10…）；示意任務 9001／9002 分別當出擊與工廠。
+const questApiCategory = (no: number) => no === 9001 ? 9 : no === 9002 ? 6 : Math.floor(no / 100);
 const Q = (no: number, title: string, detail: string, flag = 0, state = 2) =>
-    ({ api_no: no, api_state: state, api_title: title, api_detail: detail, api_progress_flag: flag });
+    ({ api_no: no, api_category: questApiCategory(no), api_state: state, api_title: title, api_detail: detail, api_progress_flag: flag });
 
 export function questTrackingFixture(): GameState {
     const s = new GameState();
@@ -48,6 +50,8 @@ export function questTrackingFixture(): GameState {
         Q(854, '戦果拡張任務！「Z作戦」前段作戦', '「第一艦隊」で南西諸島・西方・中部海域の敵を撃滅せよ！', 1),
         Q(243, '南方海域珊瑚諸島沖の制空権を握れ！', '南方海域珊瑚諸島沖に出撃し、敵機動部隊を撃滅せよ！', flag243),
         Q(342, '小艦艇群演習強化任務', '駆逐艦または海防艦計4隻(軽巡級1隻導入可能)を含む演習艦隊を編成、同演習艦隊による演習で本日中に【A判定】以上の勝利を4回以上達成せよ！', 0),
+        // 營運重用編號的示意：984 在目錄裡是 2025 年的南瓜任務，這裡換成不同標題。
+        Q(984, '【期間限定任務】（示意）14年目実りの秋、南瓜始め！', '（示意）鎮守府近海に出撃し、南瓜を収穫せよ！', 0),
         Q(9002, '（示意）装備を整備せよ！', '（示意）艦隊の装備を整備し、次期作戦に備えよ！', 1),
     ];
     s.applyEvent('api_get_member/questlist', { api_list: list(0, 0) }, { api_tab_id: '0' }, T0);

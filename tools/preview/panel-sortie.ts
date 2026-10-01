@@ -1116,7 +1116,7 @@ html, body {
   grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 5px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -1178,7 +1178,7 @@ html, body {
 .pv-prop .s-formation-compact .s-formation-readout {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   color: var(--text);
   line-height: 1;
 }
@@ -1380,9 +1380,9 @@ html, body {
   color: var(--dim);
   cursor: help;
 }
-.pv-prop .s-night-effect.on { color: var(--sparkle); opacity: 1; }
-.pv-prop .s-night-effect.off { color: var(--dim); opacity: .34; }
-.pv-prop .s-night-effect.unknown { color: var(--text); opacity: .56; }
+.pv-prop .s-night-effect.on { color: var(--sparkle); opacity: 1; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sparkle) 65%, transparent)); }
+.pv-prop .s-night-effect.off { color: var(--dim); opacity: .32; filter: grayscale(100%); }
+.pv-prop .s-night-effect.unknown { color: var(--dim); opacity: .42; filter: grayscale(100%); }
 .pv-prop .s-night-effect .g-icon { display: block; width: 20px; height: 20px; object-fit: contain; }
 .pv-prop .s-night-entry-available {
   display: inline-flex;
@@ -1480,14 +1480,14 @@ html, body {
 .pv-prop .s-action-rail.with-system > .s-system-rail {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(5, minmax(35px, 1fr));
+  grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 33fr) minmax(0, 31fr) minmax(0, 24fr);
   justify-content: center;
   column-gap: 2px;
   height: 35px;
   min-height: 35px;
   border: 0;
-  /* Keep the last AA-CI cell inside the left module before the drop slot. */
-  padding: 0 8px 0 0;
+  /* 不設最小欄寬，加總才不會超出左欄而壓到掉落格；欄寬依各格最寬內容分配。 */
+  padding: 0 6px 0 0;
   box-sizing: border-box;
 }
 .pv-app .sortie-combined-fleet {
@@ -1515,9 +1515,9 @@ html, body {
 .pv-prop .s-system-signal.search.on { color: var(--sparkle); }
 .pv-prop .s-system-signal.contact .s-system-val { display: none; }
 .pv-prop .s-system-glyph {
-  width: 20px;
-  height: 18px;
-  flex: 0 0 18px;
+  width: 18px;
+  height: 15px;
+  flex: 0 0 15px;
   display: block;
   overflow: visible;
   fill: none;
@@ -1527,7 +1527,7 @@ html, body {
   stroke-linejoin: round;
 }
 .pv-prop .s-system-glyph.support-shell,
-.pv-prop .s-system-glyph.support-torpedo { width: 28px; }
+.pv-prop .s-system-glyph.support-torpedo { width: 24px; }
 .pv-prop .s-system-copy {
   display: inline-flex;
   align-items: baseline;
@@ -1565,10 +1565,6 @@ html, body {
   text-overflow: clip;
   letter-spacing: -.06em;
   font-size: 7.5px;
-}
-.pv-prop .s-system-signal.aaci {
-  padding-inline-end: 6px;
-  box-sizing: border-box;
 }
 .pv-prop .s-system-copy b,
 .pv-prop .s-system-copy .s-system-val {
@@ -1709,16 +1705,21 @@ html, body {
 .pv-prop .s-system-glyph .support-aircraft-raster,
 .pv-prop .s-system-glyph .support-asw-raster,
 .pv-prop .s-system-glyph .lbas-aircraft-raster,
-.pv-prop .s-system-glyph .aaci-gun-raster,
+.pv-prop .s-system-glyph .aaci-gun-raster {
+  display: block;
+  width: 18px;
+  height: 15px;
+  object-fit: contain;
+}
 .pv-prop .s-system-glyph .friendly-fleet-raster {
   display: block;
   width: 20px;
   height: 18px;
   object-fit: contain;
 }
-.pv-prop .s-system-glyph.support-shell .support-ship-raster { width: 28px; }
-.pv-prop .s-system-glyph.support-torpedo .support-torpedo-raster { width: 28px; height: 18px; }
-.pv-prop .s-system-glyph.support-asw .support-asw-raster { width: 20px; height: 18px; }
+.pv-prop .s-system-glyph.support-shell .support-ship-raster { width: 24px; }
+.pv-prop .s-system-glyph.support-torpedo .support-torpedo-raster { width: 24px; height: 15px; }
+.pv-prop .s-system-glyph.support-asw .support-asw-raster { width: 18px; height: 15px; }
 
 /* 敵我觸接要保留兩個方向的圖示，並排而非互相覆蓋。 */
 .pv-prop .s-system-glyph.contact-both {
@@ -2095,7 +2096,7 @@ const tacticalSideHtml = (s: TacticalSideParams) => {
     const supportLabel = supportActive ? supportKindName : '支援';
     const supportValue = supportActive ? '' : s.support;
     const supportTitle = supportActive
-        ? `支援艦隊已到著：${s.supportKind === 'air' ? '彗星俯視剪影' : s.supportKind === 'asw' ? (s.aswSupportVariant === 'ka2' ? 'Ka-2 旋翼機' : 'Tracker S-2') : '大和北卡風'}`
+        ? `支援艦隊已抵達：${s.supportKind === 'air' ? '彗星俯視剪影' : s.supportKind === 'asw' ? (s.aswSupportVariant === 'ka2' ? 'Ka-2 旋翼機' : 'Tracker S-2') : '大和北卡風'}`
         : '支援狀態';
     const lbasActive = s.lbasState === 'on' && s.lbas !== '—';
     const lbasLabel = lbasActive ? '陸航' : '陸航';
@@ -2292,7 +2293,7 @@ const REFERENCE_SIDE_HTML = `<div class="s-priority-row">
 ${nightEffectsHtml({ searchlight: 'unknown', 'night-contact': 'unknown', 'star-shell': 'unknown' }, 'main', '夜戰進入：主隊', 'off', '友軍艦隊未抵達')}
 <div class="s-system-rail" aria-label="支援、陸航、索敵、觸接與對空 CI 狀態">
   ${systemSignal('support', '砲擊支援', '', 'on', '道中砲擊支援已抵達', 'shell', null, 'yamato')}
-  ${systemSignal('lbas', '陸航到着', '', 'on', '基地航空隊已到著', null, null, 'yamato', 'tracker', 'anchor')}
+  ${systemSignal('lbas', '陸航抵達', '', 'on', '基地航空隊已抵達', null, null, 'yamato', 'tracker', 'anchor')}
   ${systemSignal('search', '成功', '', 'on', '索敵成功')}
   ${systemSignal('contact', 'Type 48', '雙', 'on', '敵我雙方觸接', null, { icon: 9, short: '偵', name: '零式水上偵察機' })}
   ${systemSignal('aaci', 'Typ 48', '', 'on', '對空 CI：Typ 48 發動')}

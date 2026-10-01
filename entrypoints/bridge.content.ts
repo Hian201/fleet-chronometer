@@ -3,9 +3,10 @@ import {
     sendKcApiRuntimeMessageWithRetry,
 } from '../utils/runtime-message';
 import {
-    MUTE_MARK, PORT_MUTE, RELAY_MARK,
-    type MuteBridgeMessage, type TheaterRelayMessage,
+    MUTE_MARK, PORT_GAME_FRAME, PORT_MUTE, RELAY_MARK,
+    type GameFrameReply, type GameFrameRequest, type MuteBridgeMessage, type TheaterRelayMessage,
 } from '../utils/game-page';
+import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
 
 export default defineContentScript({
     matches: ['*://*.kancolle-server.com/*'],
@@ -62,6 +63,59 @@ export default defineContentScript({
             }
         };
         connectMutePort();
+
+        // ── 編成寫真：讀取遊戲畫布的指定區塊 ──────────────────
+        // 只讀像素、不觸碰遊戲狀態與通訊。直接讀畫布而非整分頁截圖：解析度固定為畫布原生
+        // 像素、不受縮放與劇場模式影響，也不需要 activeTab。
+        // WebGL 畫布在繪製週期外讀取會得到空白，故排進下一個 animation frame：遊戲的
+        // ticker 先在同一 frame 繪製完，這裡才讀。讀到空白時誠實回報，不回傳空圖。
+        const captureRegion = (region: GameFrameRequest['region']): Promise<Omit<GameFrameReply, 'kind' | 'reqId'>> =>
+            new Promise((resolve) => {
+                const canvas = [...document.querySelectorAll('canvas')]
+                    .filter(c => c.width >= 200 && c.height >= 150)
+                    .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+                if (!canvas) { resolve({ error: 'no-canvas' }); return; }
+                requestAnimationFrame(() => {
+                    try {
+                        const px = regionToCanvasPx(region, canvas.width, canvas.height);
+                        if (!px) { resolve({ error: 'no-canvas' }); return; }
+                        const out = document.createElement('canvas');
+                        out.width = px.width;
+                        out.height = px.height;
+                        const ctx = out.getContext('2d', { willReadFrequently: true });
+                        if (!ctx) { resolve({ error: 'failed', detail: '2d context unavailable' }); return; }
+                        ctx.drawImage(canvas, px.x, px.y, px.width, px.height, 0, 0, px.width, px.height);
+                        // 5×5 格取樣判斷空白，不需要讀整張圖
+                        const sample: number[] = [];
+                        for (let i = 1; i <= 5; i++) for (let j = 1; j <= 5; j++) {
+                            const d = ctx.getImageData(Math.floor(px.width * i / 6), Math.floor(px.height * j / 6), 1, 1).data;
+                            sample.push(d[0], d[1], d[2], d[3]);
+                        }
+                        if (isBlankSample(sample)) { resolve({ error: 'blank' }); return; }
+                        resolve({ dataUrl: out.toDataURL('image/png') });
+                    } catch (e) {
+                        resolve({ error: 'failed', detail: String((e as { message?: unknown })?.message ?? e) });
+                    }
+                });
+            });
+        const connectGameFramePort = () => {
+            try {
+                const port = browser.runtime.connect({ name: PORT_GAME_FRAME });
+                port.onMessage.addListener((msg: GameFrameRequest) => {
+                    if (msg?.kind !== 'capture') return;
+                    void captureRegion(msg.region).then(result => {
+                        try {
+                            port.postMessage({ kind: 'capture-result', reqId: msg.reqId, ...result } as GameFrameReply);
+                        } catch { /* 已斷線 */ }
+                    });
+                });
+                // SW 閒置回收會斷線；同靜音通道，短延遲重連
+                port.onDisconnect.addListener(() => { setTimeout(connectGameFramePort, 250); });
+            } catch (e) {
+                console.warn('[KC-Monitor] 編成寫真通道連線失敗', e);
+            }
+        };
+        connectGameFramePort();
 
         // ── 視窗適應的互動意圖轉發（僅 Esc）────
         // 焦點落進遊戲框內時，鍵盤事件只送到框內文件，父頁收不到 Esc。

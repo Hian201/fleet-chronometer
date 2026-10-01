@@ -40,6 +40,7 @@ npx vite-node --config vitest.config.ts tools/preview/fleet-overview.ts
 npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts
 npx vite-node --config vitest.config.ts tools/preview/panel-general.ts
 npx vite-node --config vitest.config.ts tools/preview/quest-flow-guide.ts
+npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
 ```
 
 需要瀏覽器檢視 `.preview/*.html` 時，依 [`AGENTS.md`](AGENTS.md) 先從專案根目錄啟動 localhost HTTP server，檢視後清理 server；不可使用 live 遊戲頁。介面改動不得只看單一語系預覽結案：至少再核對台灣華語與英文（離線對照或正式頁切語言皆可）。
@@ -61,7 +62,7 @@ npx vite-node --config vitest.config.ts tools/preview/quest-flow-guide.ts
 | 狀態與投影 | `utils/state.ts`、`utils/battle.ts`、`utils/event-projector.ts`、`utils/projection-cursor.ts`、`utils/event-pruning.ts` | index「戰鬥／大破／艦載機／關卡」、samples |
 | 面板 | `entrypoints/panel/`、`panel/index.html` | `docs/design-guidelines.md` §7、面板相關 tests、離線 preview |
 | 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | 該功能在 engineering log 的同名章節、`docs/design-guidelines.md` §4.7／§4.8 |
-| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts` | engineering log 劇場／拍照章節；不得連 live 遊戲驗證 |
+| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | engineering log 劇場／拍照／編成寫真章節；不得連 live 遊戲驗證 |
 | 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | Handoff、備份還原章節；任何 schema 或格式變更先確認相容性 |
 | 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | index「譯名與產生物」、各產生器與 `tools/*/README.md`；產生物勿手改 |
 

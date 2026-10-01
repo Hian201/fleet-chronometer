@@ -6,11 +6,10 @@ import {
     KCWIKI_QUEST_GRAPH_RAW, QUEST_CATALOG_SUPPLEMENT_RAW, QUEST_PLANNER_GRAPH_RAW,
     TSUKINOHASHI_QUEST_GRAPH_RAW, WIKI_QUEST_GRAPH_RAW, ZEKAMASHI_QUEST_GRAPH_RAW,
 } from './quest-graph-data';
+import { questCatalogIdentity } from './quest-identity';
 import { QUEST_REVIEWED_RELATIONS } from './quest-graph-reviewed';
 
-export type QuestCategory =
-    | 'composition' | 'sortie' | 'practice' | 'expedition'
-    | 'supply-dock' | 'arsenal' | 'modernization' | 'unknown';
+import type { QuestCategory } from './quest-category';
 
 export type QuestPeriod =
     | 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'other' | 'unknown';
@@ -32,6 +31,8 @@ export type QuestStatus =
 
 export interface QuestDefinition {
     apiNo: number;
+    /** 即時標題與目錄不符時，禁止沿用來源關係及人工裁決。 */
+    catalogMismatch?: boolean;
     wikiIds: string[];
     name: string;
     detail: string;
@@ -429,7 +430,7 @@ export function questRelation(definitionOrNo: QuestDefinition | number, nowTs = 
     const definition = typeof definitionOrNo === 'number'
         ? QUEST_CATALOG_BY_NO.get(definitionOrNo)
         : definitionOrNo;
-    if (!definition) {
+    if (!definition || definition.catalogMismatch) {
         return {
             prerequisites: [], edges: [], remarks: [], consensus: false, reviewed: null, phases: null,
             clauses: null, unresolvedPrerequisites: [],
@@ -727,8 +728,16 @@ export function buildQuestFlow(
     const available = new Map(state.availableQuests_().map(quest => [quest.no, quest]));
     const observed = state.questObservedCompletions_();
     const definitions = new Map(QUEST_CATALOG.map(definition => [definition.apiNo, definition]));
-    for (const quest of [...current.values(), ...available.values()]) {
-        if (!definitions.has(quest.no)) definitions.set(quest.no, dynamicDefinition(quest.no));
+    const reusedNos = new Set<number>();
+    for (const quest of [...state.questCatalogMismatches_(), ...current.values(), ...available.values()]) {
+        const reused = questCatalogIdentity(quest.no, quest.name) === 'mismatch';
+        if (reused) reusedNos.add(quest.no);
+        const definition = reused
+            ? { ...dynamicDefinition(quest.no), name: quest.name, detail: quest.detail, catalogMismatch: true }
+            : definitions.get(quest.no) ?? dynamicDefinition(quest.no);
+        // 即時 api_category 優先：目錄沒收錄的任務、或營運重用編號換了種類時仍能正確分色。
+        definitions.set(quest.no, quest.category !== 'unknown' && quest.category !== definition.category
+            ? { ...definition, category: quest.category } : definition);
     }
     for (const no of observed.keys()) {
         if (!definitions.has(no)) definitions.set(no, dynamicDefinition(no));
@@ -740,7 +749,11 @@ export function buildQuestFlow(
     const relationByNo = new Map<number, QuestRelation>();
     const postByNo = new Map<number, Set<number>>();
     for (const definition of [...definitions.values()]) {
-        const relation = questRelation(definition, nowTs);
+        const catalogRelation = questRelation(definition, nowTs);
+        // 舊來源指向重用編號的邊也無從核對；整組條件維持不可考，避免刪邊後誤推論已解鎖。
+        const touchesReused = [...catalogRelation.prerequisites, ...catalogRelation.remarks.map(edge => edge.no),
+            ...(catalogRelation.phases?.flatMap(phase => phase.prerequisites) ?? [])].some(no => reusedNos.has(no));
+        const relation = touchesReused ? questRelation({ ...definition, catalogMismatch: true }, nowTs) : catalogRelation;
         relationByNo.set(definition.apiNo, relation);
         for (const prerequisite of relation.prerequisites) {
             if (!definitions.has(prerequisite)) definitions.set(prerequisite, dynamicDefinition(prerequisite));
@@ -774,7 +787,7 @@ export function buildQuestFlow(
     const observedCurrent = new Set<number>();
     for (const [no, observedCompletion] of observed) {
         const definition = definitions.get(no);
-        if (definition && observedIsCurrentPeriod(definition, observedCompletion, nowTs)) {
+        if (definition && !reusedNos.has(no) && observedIsCurrentPeriod(definition, observedCompletion, nowTs)) {
             observedCurrent.add(no);
         }
     }
@@ -783,7 +796,7 @@ export function buildQuestFlow(
     for (const no of inferred) {
         if (!listedNos.has(no)) completed.add(no);
     }
-    for (const no of manualComplete) completed.add(no);
+    for (const no of manualComplete) if (!reusedNos.has(no)) completed.add(no);
     for (const no of observedCurrent) completed.add(no);
     if (state.questOnceCatalogNos_() !== null) {
         inferAbsentOnceQuests(definitions, relationByNo, listedNos, completed, inferred);

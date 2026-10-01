@@ -239,6 +239,11 @@ export function localizedQuestRewardHtml(apiNo: number, locale: QuestRewardLocal
     return `<div class="quest-rewards"><strong class="quest-reward-title">${esc(reward.title)}</strong>${contents}</div>`;
 }
 
+/** 獎勵尚未收錄（例：營運重用編號的新任務，不能沿用舊任務的獎勵）。與 localizedQuestRewardHtml 同一個外框。 */
+export function pendingQuestRewardHtml(locale: QuestRewardLocale): string {
+    return `<div class="quest-rewards"><strong class="quest-reward-title">${esc(tFor(locale, 'quest.reward.title'))}</strong><div class="quest-reward-pending">${esc(tFor(locale, 'quest.reward.pending'))}</div></div>`;
+}
+
 export function questCatalogTranslation(
     apiNo: number,
     locale: QuestCatalogLocale,

@@ -43,6 +43,15 @@
             --eq-over: #c17a4a;
             --eq-lack: #c9a36a;
 
+            /* 任務種類（語意色，不隨主題變化；對齊遊戲任務清單的分類色，禁止挪用做其他用途）。 */
+            --qc-composition: #2a8144;
+            --qc-sortie: #c0413e;
+            --qc-practice: #559d3d;
+            --qc-expedition: #39a29e;
+            --qc-supply-dock: #d8ba63;
+            --qc-arsenal: #6b473c;
+            --qc-modernization: #a783b9;
+
             /* 配船板標籤色（獨立語意，禁止挪用 --dmg-*／--sally-*／--res-*） */
             --tag-1: #9aa4b2; --tag-2: #63718a; --tag-3: #e0b25e; --tag-4: #5fa86e;
             --tag-5: #8fb8e8; --tag-6: #3f7cc0; --tag-7: #e59aa4; --tag-8: #c2564f;
@@ -6373,6 +6382,17 @@
             font-size: 12px;
         }
 
+        /* 任務種類色標：名稱前的細色塊；unknown 只畫空框，不借用任何種類色。 */
+        .qc-mark { display: inline-block; flex: none; width: 4px; height: .95em; margin-right: 5px; border-radius: 1px; vertical-align: -.12em; background: var(--qc, transparent); }
+        .qc-composition { --qc: var(--qc-composition); }
+        .qc-sortie { --qc: var(--qc-sortie); }
+        .qc-practice { --qc: var(--qc-practice); }
+        .qc-expedition { --qc: var(--qc-expedition); }
+        .qc-supply-dock { --qc: var(--qc-supply-dock); }
+        .qc-arsenal { --qc: var(--qc-arsenal); }
+        .qc-modernization { --qc: var(--qc-modernization); }
+        .qc-unknown { box-shadow: inset 0 0 0 1px var(--line); }
+
         .qf-list {
             display: flex;
             flex-direction: column;
@@ -6569,6 +6589,9 @@
         }
 
         .qf-fact small { margin-top: 3px; }
+
+        /* 營運重用編號的新任務：標頭說明舊資料不適用。 */
+        .qf-reused-note { margin: 4px 0 0; color: var(--dim); font-size: 11.5px; line-height: 1.6; }
 
         /* 任務導覽頂端的免責說明：固定顯示、不可摺疊。只用中性色，不挪用警示語意色。 */
         .qf-disclaimer {

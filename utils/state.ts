@@ -2,14 +2,16 @@ import RAW_EXPED from './expedition-data';
 import { analyzeBattle, taihaFlags } from './battle';
 import { localizeShip, localizeGear, localizeEquipmentType } from './gamedata-i18n';
 import { expedItemDisplayName, expedItemFullName, t } from './ui-i18n';
-import { resolveQuestGoal, meetsRank, QUEST_ID_OVERRIDES, type QuestActionKind, type QuestGoal } from './quest-progress';
+import { parseQuestGoal, resolveQuestGoal, meetsRank, QUEST_ID_OVERRIDES, type QuestActionKind, type QuestGoal } from './quest-progress';
+import { questCatalogIdentity } from './quest-identity';
+import { questCategoryFromApi, type QuestCategory } from './quest-category';
 import {
     compareWithServer, extractTextRule, judgeTextBattle, needsRecheck, progressRange, questTier,
     type BattleFacts, type QuestJudgement, type QuestTier, type ServerObservation, type TextRule,
 } from './quest-tracking';
 import {
     goalCount, goalTotal, idEntryHolds, judgeBattleGoals, judgeMissionGoals, judgePracticeGoals, judgeReachGoals,
-    questDay, questGoalDef,
+    questDay, questGoalFor,
     simpleGoalFromDef, sinkingGains,
     type FleetFacts, type QuestGoalDef,
 } from './quest-goals';
@@ -663,6 +665,8 @@ export interface KdockView { id: number; state: number; ship: string; completeAt
 // （單次型任務或以「隻」為單位者），UI 應回退顯示受注中／達成。見 quest-progress.ts。
 export interface QuestView {
     no: number; name: string; detail: string; done: boolean;
+    /** 取自即時 api_category；未收錄的值為 unknown。 */
+    category: QuestCategory;
     progress: { count: number; target: number } | null;
     // 可信度與伺服器對照（quest-tracking.ts）；只有受注中／達成的任務才有。
     tracking?: QuestTrackingView;
@@ -883,6 +887,11 @@ const GS_FORMULA = new Set([
 // 上記以外は Model A（通常キラキラ式）：出発時「在籍全艦」がキラキラなら大成功可、1隻でも非キラで大成功せず。
 //   全艦キラ時の目安：6隻→100%・5隻→95%・4隻以下→80%（wiki 実測目安）。
 
+/** 艦隊最慢艦的 api_soku → 航速代碼（對應 ui-i18n 的 `speed.*`）。 */
+export function speedKeyOf(minSoku: number): 'fastest' | 'fastPlus' | 'fast' | 'slow' {
+    return minSoku >= 20 ? 'fastest' : minSoku >= 15 ? 'fastPlus' : minSoku >= 10 ? 'fast' : 'slow';
+}
+
 export class GameState {
     nickname = '';
     hqLv = 1;
@@ -963,10 +972,12 @@ export class GameState {
     kdockCap = 0;   // 已解鎖建造渠數（api_port/port 的 api_count_kdock，非即時狀態）
     materials: number[] = [];
     maxChara = 0; maxSlotitem = 0;
-    quests = new Map<number, { name: string; detail: string; done: boolean }>();
+    quests = new Map<number, { name: string; detail: string; done: boolean; category: QuestCategory }>();
     // state 1 是遊戲清單當下可接受的任務；與受注中／達成待領取分開保存，讓總括能誠實
     // 區分「目前看得到但尚未接受」和「本機沒有看過」。
-    availableQuests = new Map<number, { name: string; detail: string }>();
+    availableQuests = new Map<number, { name: string; detail: string; category: QuestCategory }>();
+    // 任務離開清單後仍保留已觀測的身分差異，避免領獎或放棄後重新套用舊目錄關係。
+    private questCatalogMismatches = new Map<number, { name: string; detail: string; category: QuestCategory }>();
     // 任務本機進度追蹤：key＝api_no，只有 resolveQuestGoal() 解得出目標的任務才有條目。
     // count 從「本機首次觀測到該任務」起算（baseline 誠實原則，見 quest-progress.ts）。
     // area/bossOnly/minRank/missionIds 為選填過濾條件，沿用 QuestGoal 的欄位（見該檔說明）。
@@ -1544,6 +1555,20 @@ export class GameState {
             // 登入必送的 require_info 也帶 api_kdock（KC3/poi 一登入就能顯示建造渠的資料源）。
             // 防禦性讀取：欄位存在才覆蓋，避免 slot_item 端點（無此欄位）誤清空。
             if (Array.isArray(api.api_kdock)) this.kdockData = api.api_kdock;
+        } else if (path === 'api_get_member/basic') {
+            // 提督基本資料：欄位與 api_port/port 的 api_basic 同名，但直接放在 api_data。
+            // 任務獎勵擴充艦娘／裝備保有上限後，遊戲在回港前就會以此封包送出新上限。
+            this.maxChara = api.api_max_chara ?? this.maxChara;
+            this.maxSlotitem = api.api_max_slotitem ?? this.maxSlotitem;
+            this.nickname = api.api_nickname ?? this.nickname;
+            this.hqLv = api.api_level ?? this.hqLv;
+        } else if (path === 'api_get_member/record') {
+            // 戰績畫面：api_ship／api_slotitem 是 [目前數量, 上限]，上限值與 api_max_chara／
+            // api_max_slotitem 相同（KC3Kai 與 EO 的型別定義一致）。上限格不是非負整數時保留原值。
+            const cap = (v: unknown) =>
+                Array.isArray(v) && v.length >= 2 && Number.isInteger(v[1]) && v[1] >= 0 ? v[1] as number : null;
+            this.maxChara = cap(api.api_ship) ?? this.maxChara;
+            this.maxSlotitem = cap(api.api_slotitem) ?? this.maxSlotitem;
         } else if (path === 'api_get_member/useitem') {
             this.observeUseItems(api);
         } else if (path === 'api_get_member/payitem') {
@@ -1697,23 +1722,33 @@ export class GameState {
                     // 空欄是 -1（不是物件），不可當任務讀。
                     if (!q || typeof q !== 'object' || !(q.api_no > 0)) continue;
                     seen.add(q.api_no);
+                    const identity = questCatalogIdentity(q.api_no, q.api_title);
+                    if (identity === 'mismatch') this.questCatalogMismatches.set(q.api_no, {
+                        name: q.api_title, detail: q.api_detail ?? '', category: questCategoryFromApi(q.api_category),
+                    });
+                    else if (identity === 'match') this.questCatalogMismatches.delete(q.api_no);
                     if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) this.questSeenNos.add(q.api_no);
                     if (q.api_state === 2 || q.api_state === 3) {
                         this.quests.set(q.api_no, {
                             name: q.api_title,
                             detail: q.api_detail ?? '',
                             done: q.api_state === 3,
+                            category: questCategoryFromApi(q.api_category),
                         });
                         this.availableQuests.delete(q.api_no);
                         // 進度只在「本機第一次看到這個任務編號」時初始化——重複的 questlist
                         // 不得把已累積的計數洗回 0。
-                        const def = questGoalDef(q.api_no);
+                        const def = this.questGoal(q.api_no);
                         if (!this.questProgress.has(q.api_no) && !def?.supported) {
-                            // 條件表有收錄但事件尚未支援（演習、遠征等）時，不用文字推算次數：
-                            // 那類任務多帶編成或評價條件，文字推算會多算。只接受人工核對的目標或單純計數。
+                            // 條件表有收錄但事件尚未支援時，不用文字推算次數：那類任務多帶編成或評價條件，
+                            // 文字推算會多算。只接受人工核對的目標或單純計數。營運重用編號的新任務
+                            // （標題與目錄不同）不套用以編號對應的人工目標，只剩文字推算。
+                            const reused = questCatalogIdentity(q.api_no, q.api_title) === 'mismatch';
                             const goal = def
                                 ? QUEST_ID_OVERRIDES[q.api_no] ?? simpleGoalFromDef(def)
-                                : resolveQuestGoal(q.api_no, q.api_title ?? '', q.api_detail ?? '');
+                                : reused
+                                    ? parseQuestGoal(q.api_title ?? '', q.api_detail ?? '')
+                                    : resolveQuestGoal(q.api_no, q.api_title ?? '', q.api_detail ?? '');
                             if (goal) this.questProgress.set(q.api_no, { ...goal, count: 0 });
                         }
                         this.observeQuestServer(q.api_no, q.api_detail ?? '', q.api_progress_flag, q.api_state === 3, ts);
@@ -1724,6 +1759,7 @@ export class GameState {
                         this.questTracking.delete(q.api_no);
                         this.availableQuests.set(q.api_no, {
                             name: q.api_title ?? '', detail: q.api_detail ?? '',
+                            category: questCategoryFromApi(q.api_category),
                         });
                     }
                 }
@@ -2618,10 +2654,17 @@ export class GameState {
         };
     }
 
+    /**
+     * 任務的進度條件（本機條件優先；標題與目錄不同的重用編號新任務不套用舊條件，見 questGoalFor）。
+     */
+    private questGoal(no: number): QuestGoalDef | null {
+        return questGoalFor(no, this.quests.get(no)?.name);
+    }
+
     private trackRecord(no: number, detail: string, ts: number): QuestTrackRecord {
         let record = this.questTracking.get(no);
         if (!record) {
-            const def = questGoalDef(no);
+            const def = this.questGoal(no);
             record = {
                 acceptedTs: ts, detail,
                 goalCounts: def?.supported ? def.subgoals.map(sub => sub.init) : null,
@@ -2635,7 +2678,7 @@ export class GameState {
 
     /** 可支援的條件表；「本日中」任務（resetInterval 1）換日時計數歸回初值。 */
     private activeGoal(no: number, record: QuestTrackRecord, ts: number): QuestGoalDef | null {
-        const def = questGoalDef(no);
+        const def = this.questGoal(no);
         if (!def?.supported || !record.goalCounts) return null;
         const day = questDay(ts);
         if (def.resetInterval === 1 && day !== record.goalDay) record.goalCounts = def.subgoals.map(sub => sub.init);
@@ -2645,7 +2688,7 @@ export class GameState {
 
     /** 本機計數與目標：條件表優先，其次 questProgress；都沒有回傳 null。 */
     private questLocal(no: number, record: QuestTrackRecord | undefined): { count: number; target: number; single: boolean } | null {
-        const def = questGoalDef(no);
+        const def = this.questGoal(no);
         if (def?.supported && record?.goalCounts) {
             return { count: goalCount(def, record.goalCounts), target: goalTotal(def), single: def.subgoals.length === 1 };
         }
@@ -2674,7 +2717,7 @@ export class GameState {
     /** 文字級規則：只在沒有條件表與 questProgress 時才從說明文字抽，且需帶「出撃」。 */
     private questTextRule(no: number, record: QuestTrackRecord): TextRule | null {
         if (record.textRule !== undefined) return record.textRule;
-        if (questGoalDef(no) || this.questProgress.has(no) || !record.detail.includes('出撃') || !this.master.size) return null;
+        if (this.questGoal(no) || this.questProgress.has(no) || !record.detail.includes('出撃') || !this.master.size) return null;
         const mapNames = new Map<string, string>();
         for (const info of this.masterMapInfo.values()) {
             if (info.area > 0 && info.area < 10 && info.no > 0) mapNames.set(`${info.area}-${info.no}`, info.name);
@@ -2854,7 +2897,7 @@ export class GameState {
     }
 
     private questTrackingView(no: number, record: QuestTrackRecord): QuestTrackingView {
-        const def = questGoalDef(no);
+        const def = this.questGoal(no);
         const local = this.questLocal(no, record);
         const latest = record.server.at(-1) ?? null;
         const text = local ? null : this.questTextRule(no, record);
@@ -2940,7 +2983,7 @@ export class GameState {
     questTrackingDetail(no: number): QuestTrackingDetail | null {
         const record = this.questTracking.get(no);
         if (!record || !this.quests.has(no)) return null;
-        const def = questGoalDef(no);
+        const def = this.questGoal(no);
         const supported = def?.supported && record.goalCounts ? def : null;
         const local = this.questLocal(no, record);
         const view = this.questTrackingView(no, record);
@@ -3545,7 +3588,9 @@ export class GameState {
         const gears = [...this.slotItems.values()].filter(it => !this.consumableGearIds.has(it.mst)).length;
         return {
             ships: this.ships.size, maxShips: this.maxChara,
-            gears, maxGears: this.maxSlotitem
+            // 遊戲畫面上的裝備上限一律比 api_max_slotitem 多 3（KC3Kai #1860 同樣補 +3）；
+            // 艦娘上限則直接使用 api_max_chara。尚未收到上限時維持 0，交給 UI 顯示「?」。
+            gears, maxGears: this.maxSlotitem > 0 ? this.maxSlotitem + 3 : 0
         };
     }
 
@@ -3554,7 +3599,7 @@ export class GameState {
             const record = this.questTracking.get(no);
             const local = this.questLocal(no, record);
             return {
-                no, name: q.name, detail: q.detail, done: q.done,
+                no, name: q.name, detail: q.detail, done: q.done, category: q.category,
                 progress: local ? { count: local.count, target: local.target } : null,
                 ...(record ? { tracking: this.questTrackingView(no, record) } : {}),
             };
@@ -3568,6 +3613,7 @@ export class GameState {
             name: q.name,
             detail: q.detail,
             done: false,
+            category: q.category,
             progress: null,
         }));
     }
@@ -3593,6 +3639,10 @@ export class GameState {
     }
 
     /** 本機曾觀測到出現在任務清單的任務編號。 */
+    questCatalogMismatches_() {
+        return [...this.questCatalogMismatches].map(([no, quest]) => ({ no, ...quest }));
+    }
+
     questSeenNos_(): ReadonlySet<number> {
         return new Set(this.questSeenNos);
     }
@@ -3980,11 +4030,13 @@ export class GameState {
             lvSum += s.api_lv ?? 0;
             minSoku = Math.min(minSoku, s.api_soku ?? 20);
         }
-        const speed = minSoku >= 20 ? t('speed.fastest') : minSoku >= 15 ? t('speed.fastPlus') : minSoku >= 10 ? t('speed.fast') : t('speed.slow');
+        // speedKey：不受介面語言影響的航速代碼，供需要以其他語言輸出的呼叫端（編成寫真標題列）使用。
+        const speedKey = speedKeyOf(minSoku);
+        const speed = t(`speed.${speedKey}`);
         // airStale：這一隊制空的熟練度成分可能已經過時（見 alvStaleGears）。呼叫端必須
         // 標示，不能讓偏高的舊值裝成封包事實。
         return {
-            lvSum, speed, air: this.airPower(deckIdx), airStale: this.deckAlvStale(deckIdx),
+            lvSum, speed, speedKey, air: this.airPower(deckIdx), airStale: this.deckAlvStale(deckIdx),
             f33: this.f33(deckIdx, cn), tp: this.fleetTP(deckIdx),
         };
     }
@@ -4014,9 +4066,11 @@ export class GameState {
             const tp = this.fleetTP(i);
             tpTotal += tp.total; tpGear += tp.gear;
         }
-        const speed = minSoku >= 20 ? t('speed.fastest') : minSoku >= 15 ? t('speed.fastPlus') : minSoku >= 10 ? t('speed.fast') : t('speed.slow');
+        // speedKey：不受介面語言影響的航速代碼，供需要以其他語言輸出的呼叫端（編成寫真標題列）使用。
+        const speedKey = speedKeyOf(minSoku);
+        const speed = t(`speed.${speedKey}`);
         return {
-            lvSum, speed, air: { min: airMin, max: airMax },
+            lvSum, speed, speedKey, air: { min: airMin, max: airMax },
             airStale: this.deckAlvStale(0) || this.deckAlvStale(1),
             f33, tp: { total: tpTotal, gear: tpGear },
         };

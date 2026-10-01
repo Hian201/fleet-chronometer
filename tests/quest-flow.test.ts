@@ -424,7 +424,7 @@ describe('任務導覽與本機狀態', () => {
     it('達成待領取仍保留為目前狀態，不先當成已完成前置', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/questlist', {
-            api_list: [{ api_no: 102, api_state: 3, api_title: '達成任務', api_detail: '內容' }],
+            api_list: [{ api_no: 102, api_state: 3, api_title: QUEST_CATALOG_BY_NO.get(102)!.name, api_detail: '內容' }],
         }, { api_tab_id: '9' });
 
         const model = buildQuestFlow(state);
@@ -521,7 +521,7 @@ describe('任務導覽與本機狀態', () => {
         // B121（889）：(B115) 及び (Dd1) 及び 【検証中】(Bm3)
         const state = new GameState();
         state.applyEvent('api_get_member/questlist', {
-            api_list: [{ api_no: 889, api_state: 2, api_title: 'B121', api_detail: '內容' }],
+            api_list: [{ api_no: 889, api_state: 2, api_title: QUEST_CATALOG_BY_NO.get(889)!.name, api_detail: '內容' }],
         }, { api_tab_id: '9' });
 
         const model = buildQuestFlow(state);
@@ -534,7 +534,7 @@ describe('任務導覽與本機狀態', () => {
         // A82（187）主要前置：D27（429，單發）＋Dd1（402，每日）；Bw8 為備考
         const state = new GameState();
         state.applyEvent('api_get_member/questlist', {
-            api_list: [{ api_no: 187, api_state: 2, api_title: 'A82', api_detail: '內容' }],
+            api_list: [{ api_no: 187, api_state: 2, api_title: QUEST_CATALOG_BY_NO.get(187)!.name, api_detail: '內容' }],
         }, { api_tab_id: '9' });
 
         const model = buildQuestFlow(state);

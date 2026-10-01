@@ -26,13 +26,17 @@ import { formationRects } from '@/utils/formation-geometry';
 import { mountOrder, renderOrder } from './order';
 import { mountGeneral } from './general';
 import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
+import { mountFleetPhoto } from './fleet-photo';
+import { fitHeaderScale } from './header-fit';
+import { MSG_FLEET_PHOTO_SHOOT } from '@/utils/game-page';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
     wantedEl = $('wanted'),
     facLiveEl = $('factory-live'),
     orderEl = $('tab-order'),
-    tabpanelEl = $('tabpanel');
+    tabpanelEl = $('tabpanel'),
+    photoTrayEl = $('photo-tray');
 const state = new GameState();
 const projector = new EventProjector({ state, mode: 'persist', tables: db });
 const PANEL_INNER_WIDTH = 370;
@@ -61,6 +65,7 @@ mountOrder(orderEl, () => state);
 // （靠 expedSelLang 偵測語言），待驗證封包清單則要重讀 DB 才能換掉按鈕與說明文字。
 onPrefsChange(() => {
     applyStaticI18n();
+    photo.relabel();
     renderAll();
     if (isDebugUiEnabled()) void renderWanted().catch(() => { });
 });
@@ -94,6 +99,20 @@ let showLbas = false;
 let selectedLbasArea: number | null = null;
 // 一般大破卡點擊後只隱藏文字，紅框仍固定覆蓋航空戰欄，不另設會擠壓版面的收縮態。
 let taihaDetailsHidden = false;
+// 編成寫真托盤：拍攝對象跟著下方艦隊切換（單隊／連合／基地航空隊）。開啟時取代 #tabpanel；
+// 自動切換分頁（autoSwitch）仍在背後照常運作，關閉托盤即回到當下應顯示的分頁。
+const photo = mountFleetPhoto({
+    root: photoTrayEl,
+    state,
+    target: () => showLbas ? { kind: 'lbas', area: selectedLbasArea }
+        : isCombinedView() ? { kind: 'combined' } : { kind: 'fleet', deck: view[0] ?? 0 },
+    cn: () => cn,
+    onOpenChange: (isOpen) => {
+        tabpanelEl.hidden = isOpen;
+        renderHeader();
+        renderTabs();
+    },
+});
 // 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
 // 熟練度以符號表示（對映遊戲內熟練度徽章階層：1-3 直線、4-6 斜線、7 為 ace 雙箭）。
 // 不吐數字（數字寬度隨值變動、破壞對齊），確切等級留在 chip 的 title 提示。'>' 需轉義。
@@ -193,21 +212,42 @@ function renderHeader() {
     const c = state.counts();
     // 標籤改用圖示（艦＝軍艦側影／裝＝金銀齒輪，與遊戲原圖同語彙）；
     // 全名放 title 供 hover 與無障礙，排版不再受各語系字寬影響。
-    const stat = (kind: string, label: string, cur: number, max: number, margin: number) =>
-        `<span class="stat ${max > 0 && cur >= max - margin ? 'warn' : ''}" title="${esc(label)}">` +
+    // first：第一個統計靠右推開（margin-left:auto），名稱與統計之間不另放撐開用的元素
+    const stat = (kind: string, label: string, cur: number, max: number, margin: number, first = false) =>
+        `<span class="stat${first ? ' first' : ''} ${max > 0 && cur >= max - margin ? 'warn' : ''}" title="${esc(label)}">` +
         `<img class="h-icon" src="/icons/ui/${kind}.svg" alt="${esc(label)}"> <b>${cur}/${max || '?'}</b></span>`;
-    // 提督名＋等級成組共用一個 title：遊戲限定名稱最長 12 文字，但 12 個全角字在 370px
-    // 面板仍會擠掉右側統計，故名稱過長仍以省略號截斷；hover 一次補回「全名　Lv等級」。
+    // 提督名＋等級成組共用一個 title（hover 補回「全名　Lv等級」）。遊戲限定名稱最長 12 文字；
+    // 放不下時由 fitHeader() 整排等比縮小，名稱維持完整，不靠省略號。
     const nick = state.nickname || '???';
+    const photoOpen = photo.isOpen();
     headerEl.innerHTML =
         `<span class="idbox" title="${esc(nick)}　Lv${state.hqLv}">` +
         `<span class="nick">${esc(nick)}</span>` +
         `<span class="num">Lv${state.hqLv}</span>` +
         `</span>` +
-        `<span class="grow"></span>` +
-        stat('ship', t('header.ships'), c.ships, c.maxShips, 4) +
-        stat('equip', t('header.equip'), c.gears, c.maxGears, 20);
+        stat('ship', t('header.ships'), c.ships, c.maxShips, 4, true) +
+        stat('equip', t('header.equip'), c.gears, c.maxGears, 20) +
+        `<button type="button" class="h-cam" data-photo="1" aria-pressed="${photoOpen}" title="${esc(t('photo.open'))}" aria-label="${esc(t('photo.title'))}">` +
+        `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.2h2.6L5.8 3.4h4.4l1.2 1.8H14v7.4H2z"/><circle cx="8" cy="8.6" r="2.4"/></svg></button>`;
+    fitHeader();
 }
+// 縮放結果依文字內容快取：renderHeader 隨事件頻繁重繪，內容沒變就不再反覆量測。
+let headerFitKey = '';
+let headerFitScale = 1;
+function fitHeader(force = false) {
+    const key = `${headerEl.textContent}|${getLang()}`;
+    if (!force && key === headerFitKey) {
+        headerEl.style.setProperty('--hs', String(headerFitScale));
+        return;
+    }
+    headerFitKey = key;
+    headerFitScale = fitHeaderScale(headerEl);
+}
+// 字型晚於第一次量測載入時字寬會變，載入完成後重量一次
+void document.fonts?.ready.then(() => fitHeader(true));
+headerEl.addEventListener('click', e => {
+    if ((e.target as HTMLElement).closest('[data-photo]')) photo.toggle();
+});
 // 語言/主題切換只在「鎮守府情報總括」進行（單一控制中心，見 utils/ui-prefs.ts）；
 // 面板不再放語言選單，改由 onPrefsChange() 監聽 storage 事件被動同步套用＋重繪。
 function renderTabs() {
@@ -217,14 +257,16 @@ function renderTabs() {
     // 紀錄的擷取/歸檔仍在 consume() 進行（與是否顯示無關），總括頁讀 db 呈現歷史。
     // 「動態」分頁僅開發用 UI（見 utils/debug-ui.ts），正式建置不顯示。
     const activityBtn = isDebugUiEnabled()
-        ? `<button data-t="activity" class="${tab === 'activity' ? 'on' : ''}">${t('tab.activity')}</button>`
+        ? `<button data-t="activity" class="${tab === 'activity' && !photo.isOpen() ? 'on' : ''}">${t('tab.activity')}</button>`
         : '';
+    // 編成寫真開著時資訊區被托盤取代，分頁列不標示選取（點任一分頁即關閉托盤）
+    const on = (name: typeof tab) => (tab === name && !photo.isOpen() ? 'on' : '');
     tabsEl.innerHTML = `
-      <button data-t="general" class="${tab === 'general' ? 'on' : ''}">${t('tab.general')}</button>
-      <button data-t="sortie" class="${tab === 'sortie' ? 'on' : ''}">${t('tab.sortie')}</button>
-      <button data-t="exped" class="${tab === 'exped' ? 'on' : ''}">${t('tab.exped')}</button>
-      <button data-t="factory" class="${tab === 'factory' ? 'on' : ''}">${t('tab.factory')}</button>
-      <button data-t="order" class="${tab === 'order' ? 'on' : ''}">${t('tab.order')}</button>
+      <button data-t="general" class="${on('general')}">${t('tab.general')}</button>
+      <button data-t="sortie" class="${on('sortie')}">${t('tab.sortie')}</button>
+      <button data-t="exped" class="${on('exped')}">${t('tab.exped')}</button>
+      <button data-t="factory" class="${on('factory')}">${t('tab.factory')}</button>
+      <button data-t="order" class="${on('order')}">${t('tab.order')}</button>
       ${activityBtn}`;
 }
 // 切換分頁的共用函式（manual=true 代表使用者手動點選，會暫停自動切換）
@@ -261,6 +303,7 @@ function autoSwitch(desired: typeof tab, ctx: string) {
 tabsEl.addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest('button');
     if (!b || !b.dataset.t) return;
+    photo.setOpen(false);
     setTab(b.dataset.t as typeof tab, true);
 });
 document.getElementById('battle-content')!.addEventListener('click', e => {
@@ -351,6 +394,7 @@ fleetnavEl.addEventListener('click', e => {
         airBasesEl.style.display = showLbas ? '' : 'none';
         renderFleetNav();
         if (showLbas) renderAirBases();
+        photo.refresh();
         return;
     }
     // 聯合艦隊：切成 1+2 同時檢視；已在聯合狀態再按一次退回單看第一艦隊。
@@ -363,7 +407,7 @@ fleetnavEl.addEventListener('click', e => {
         } else {
             view = isCombinedView() ? [0] : [0, 1];
         }
-        renderFleetNav(); renderFleets(); renderExped();
+        renderFleetNav(); renderFleets(); renderExped(); photo.refresh();
         return;
     }
     if (b.dataset.i === undefined) return;
@@ -375,7 +419,7 @@ fleetnavEl.addEventListener('click', e => {
     // 單隊鈕一律只看該隊；聯合檢視只透過專屬「連合艦隊」鈕進入，避免用點擊順序隱含組合。
     const f = Number(b.dataset.i);
     view = [f];
-    renderFleetNav(); renderFleets(); renderExped();
+    renderFleetNav(); renderFleets(); renderExped(); photo.refresh();
 });
 // 空白 chip（未裝備槽位／跨艦補位槽共用）：子元素與有裝備的 chip 完全一致，寬高由
 // 這些子元素自然撐出，不必硬編尺寸追平。ex=true（打洞格）先天裝不了有熟練度的裝備、
@@ -943,12 +987,14 @@ airBasesEl.addEventListener('click', e => {
     if (b && b.dataset.area) {
         selectedLbasArea = Number(b.dataset.area);
         renderAirBases();
+        photo.refresh();
     }
 });
 function renderAll() {
     renderHeader(); renderTabs(); renderGeneral(); renderFleetNav(); renderFleets(); renderExped(); renderSortie(); renderFactory();
     renderOrder();
     if (showLbas) renderAirBases();
+    photo.refresh();
 }
 function getEdgeLetter(mapArea: number, mapNo: number, edgeId: number) {
     // 節點字母不在任何封包裡，只能透過 utils/map-node-letters.ts 查對照表。
@@ -1777,6 +1823,10 @@ browser.runtime.onMessage.addListener((msg) => {
 });
 // 面板視窗單例化：使用者點擴充圖示時 background 會 ping，回報自己的 windowId 供聚焦
 // （見 background.ts action.onClicked）。return true = 稍後非同步呼叫 sendResponse。
+// 快捷鍵（manifest commands，由 background 轉來）：托盤開著才拍
+browser.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === MSG_FLEET_PHOTO_SHOOT && photo.isOpen()) photo.shoot();
+});
 browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type !== 'kc:panel-ping') return;
     browser.windows.getCurrent().then(w => sendResponse(w.id));

@@ -50,30 +50,33 @@ describe('出擊面板的固定資訊密度', () => {
         expect(panelHtml).toMatch(/\.s-air-loss-cell i\s*\{[^}]*color:\s*var\(--dmg-major\)/);
     });
 
-    it('陸航到着使用不裁字的專用標籤規則', () => {
+    it('陸航抵達使用不裁字的專用標籤規則', () => {
         expect(panelHtml).toMatch(/\.s-system-signal\.lbas \.s-system-label\s*\{[^}]*overflow:\s*visible/);
         expect(panelHtml).toMatch(/\.s-system-signal\.lbas \.s-system-label\s*\{[^}]*text-overflow:\s*clip/);
     });
 
+    it('夜戰裝備未發動或狀態未知時轉灰階，發動才顯示原色', () => {
+        expect(panelHtml).toMatch(/\.s-night-effect\.off\s*\{[^}]*grayscale\(100%\)/);
+        expect(panelHtml).toMatch(/\.s-night-effect\.unknown\s*\{[^}]*grayscale\(100%\)/);
+        expect(panelHtml).not.toMatch(/\.s-night-effect\.on\s*\{[^}]*grayscale/);
+    });
+
     it('支援列前兩格保留完整支援／陸航文字，其他三格維持圖示與短狀態', () => {
-        expect(panelHtml).toContain('grid-template-columns: repeat(5, minmax(35px, 1fr));');
+        expect(panelHtml).toContain('grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 33fr) minmax(0, 31fr) minmax(0, 24fr);');
         expect(panelHtml).toContain('.s-action-rail.with-system > .s-system-rail { grid-column: 1; }');
         expect(panelHtml).toContain('.s-action-rail.with-system > .s-drop-slot { grid-column: 2; }');
         expect(panelHtml).toMatch(/\.s-system-signal\.support \.s-system-label\s*\{[^}]*overflow:\s*visible/);
         expect(panelHtml).toContain('.s-system-signal.aaci .s-system-label,');
         expect(panelHtml).toMatch(/\.s-system-signal\.aaci \.s-system-val\s*\{[^}]*overflow:\s*visible/);
-        expect(panelHtml).toContain('.s-system-signal.aaci {');
         expect(panelHtml).toContain('padding-inline-end: 6px;');
         expect(panelHtml).toContain('.s-system-label { color: var(--dim); font-size: 8.5px; font-weight: 500; }');
         expect(panelHtml).toContain('.s-system-val { color: currentColor; font-size: 8.5px; font-weight: 500; }');
         expect(panelHtml).toContain('.s-system-signal.on .s-system-label { color: var(--sparkle); font-weight: 500; }');
         expect(panelMain).toContain("'sortie.supportRailShelling'");
         expect(panelMain).toContain('const supportRailLabel = support');
-        expect(panelHtml).toContain('padding-inline-end: 8px;');
-        expect(preview).toContain('grid-template-columns: repeat(5, minmax(35px, 1fr));');
+        expect(preview).toContain('grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 33fr) minmax(0, 31fr) minmax(0, 24fr);');
         expect(preview).toContain("const aaciLabel = aaciFired ? '' : '對空 CI';");
-        expect(preview).toContain('.pv-prop .s-system-signal.aaci {');
-        expect(preview).toContain('padding-inline-end: 6px;');
+        expect(preview).toContain('padding: 0 6px 0 0;');
         expect(preview).toContain('font-weight: 500;');
         expect(preview).not.toContain('.pv-prop .s-system-signal.on .s-system-label {\n  color: var(--sparkle);\n  font-weight: 600;');
         expect(panelMain).toContain('const aaciValue = info.aaci > 0 ? `Typ ${info.aaci}` : \'\';');

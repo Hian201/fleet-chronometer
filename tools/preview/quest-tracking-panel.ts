@@ -53,7 +53,7 @@ const TITLES: Record<Lang, [string, string, string, string]> = {
 function page(lang: Lang): string {
     const [a, b, c, d] = TITLES[lang];
     const scenes: Scene[] = [
-        { title: a, open: [1047], progress: [] },
+        { title: a, open: [1047, 984], progress: [] },
         { title: b, open: [1047], progress: [1047] },
         { title: c, open: [342, 9001, 9002, 243], progress: [342, 9001, 9002, 243] },
         // 日文介面沒有原文分頁。

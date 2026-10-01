@@ -10,6 +10,8 @@
 //   - missionId 是產生器依 start2 樣本把遠征名稱換成的遠征 id。
 // 認不得的篩選欄位不可默默忽略（會讓條件消失而多算），故整個任務標為不支援。
 import { QUEST_GOAL_RAW } from './quest-goal-data';
+import { QUEST_GOAL_LOCAL } from './quest-goal-local';
+import { questCatalogIdentity, questTitleKey } from './quest-identity';
 import type { QuestGoal } from './quest-progress';
 
 /** 本專案目前會產生的計數事件：出擊、演習、遠征。工廠與補給入渠類尚未支援。 */
@@ -65,10 +67,7 @@ const FILTER_KEYS = new Set([
 const QUEST_KEYS = new Set(['type', 'fuzzy', 'resetInterval']);
 const SUBGOAL_META = new Set(['required', 'init']);
 
-/** 本機修正：以任務編號整筆覆蓋條件表，格式同 QUEST_GOAL_RAW。 */
-export const QUEST_GOAL_OVERRIDES: Readonly<Record<number, Record<string, unknown>>> = {};
-
-function parseDef(no: number, raw: Record<string, unknown>): QuestGoalDef {
+export function parseGoalDef(no: number, raw: Record<string, unknown>): QuestGoalDef {
     const fuzzy = raw.fuzzy === true;
     let supported = true;
     const subgoals: GoalSubgoal[] = [];
@@ -97,12 +96,37 @@ function parseDef(no: number, raw: Record<string, unknown>): QuestGoalDef {
 
 const cache = new Map<number, QuestGoalDef | null>();
 
+const localCache = new Map<number, QuestGoalDef>();
+
+/** 來源條件表的定義（不含本機條件與身分核對）；比對工具與測試用。 */
 export function questGoalDef(no: number): QuestGoalDef | null {
     if (cache.has(no)) return cache.get(no)!;
-    const raw = QUEST_GOAL_OVERRIDES[no] ?? QUEST_GOAL_RAW[String(no)];
-    const def = raw ? parseDef(no, raw) : null;
+    const raw = QUEST_GOAL_RAW[String(no)];
+    const def = raw ? parseGoalDef(no, raw) : null;
     cache.set(no, def);
     return def;
+}
+
+export function localQuestGoalDef(no: number): QuestGoalDef | null {
+    const local = QUEST_GOAL_LOCAL[no];
+    if (!local) return null;
+    let def = localCache.get(no);
+    if (!def) { def = parseGoalDef(no, local.goal); localCache.set(no, def); }
+    return def;
+}
+
+/**
+ * 判定用的條件，依序：
+ *   1. 本機條件，且撰寫時對照的標題與遊戲即時標題相同（新活動任務即使目錄未收錄也能用）。
+ *   2. 即時標題與目錄不同（營運重用編號的新任務）：舊條件不適用，回傳 null。
+ *   3. 來源條件表。
+ * 沒有即時標題時（例：尚未收到 questlist）無從核對，依 1→3 的順序採用。
+ */
+export function questGoalFor(no: number, liveTitle: string | undefined): QuestGoalDef | null {
+    const local = QUEST_GOAL_LOCAL[no];
+    if (local && (!liveTitle || questTitleKey(local.title) === questTitleKey(liveTitle))) return localQuestGoalDef(no);
+    if (questCatalogIdentity(no, liveTitle) === 'mismatch') return null;
+    return questGoalDef(no);
 }
 
 // ── 比對 ──────────────────────────────────────────────────────────────

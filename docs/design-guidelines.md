@@ -84,6 +84,20 @@ protan・deutan 的 CVD ΔE 分離／WCAG 對比）皆 PASS。**新增資料視�
 --eq-lack:  #c9a36a   /* 鎮守府庫存沒有此裝備 */
 ```
 
+任務種類（panel 任務清單、任務導覽）是**第五組獨立語意色**，對齊遊戲任務清單的分類色，
+不隨主題變化、不挪用其他組。種類取自即時 `api_category`（對照在 `utils/quest-category.ts`），
+只以名稱前 4px 色標呈現，種類名稱放在提示與輔助標籤；種類不明只畫空框：
+
+```
+--qc-composition:   #2a8144   /* 編成 */
+--qc-sortie:        #c0413e   /* 出擊 */
+--qc-practice:      #559d3d   /* 演習 */
+--qc-expedition:    #39a29e   /* 遠征 */
+--qc-supply-dock:   #d8ba63   /* 補給／入渠 */
+--qc-arsenal:       #6b473c   /* 工廠 */
+--qc-modernization: #a783b9   /* 改裝 */
+```
+
 ### 1.3 半透明疊色：一律 `color-mix`，不用裸 `rgba`
 
 現有的透明疊色（chip 底色、選中態底色）用 `color-mix(in srgb, var(--brass) 14%, transparent)`
@@ -521,8 +535,8 @@ panel 剪影風格而繞過或改寫既有生成器。
 - **暗色面板優先的金屬剪影質感**：未發動時以低明度、去彩或灰階保持退場狀態；
   發動時以黃銅／金色高光、亮度與 `--sparkle` 狀態表達啟用，不為每一顆圖示任意
   更換一套顏色。物件本身負責辨識，狀態文字與數字放在圖示外側或 hover 內容。
-- **小尺寸仍要讀得出形**：一般圖示以約 `20×18px` 的視覺槽位呈現，寬體艦艇或
-  雷擊支援可用約 `28×18px`；使用 `object-fit: contain`，由素材保留比例，不能
+- **小尺寸仍要讀得出形**：底部系統列的一般圖示以約 `18×15px` 的視覺槽位呈現，寬體
+  艦艇或雷擊支援可用約 `24×15px`（五格須在 370px 面板的左半欄內，不能壓到右側掉落格）；使用 `object-fit: contain`，由素材保留比例，不能
   讓不同來源的圖在欄位中互相擠壓。
 - **資訊與互動分離**：圖示要有適當的 `title`／`aria-label`；Type 數字、傷害值、
   觸接飛機名稱等狀態資料不畫進圖片。需要細節時透過 hover 顯示，例如陸航對敵傷害
@@ -569,6 +583,7 @@ npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts   # 出擊
 npx vite-node --config vitest.config.ts tools/preview/panel-general.ts  # 一般分頁
 npx vite-node --config vitest.config.ts tools/preview/panel-general-ledger.ts  # 母港／任務／道具版面
 npx vite-node --config vitest.config.ts tools/preview/panel-items.ts  # 道具頁（打包正式 general.ts；?lang=&q=&pins=&open=）
+npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts  # 編成寫真托盤＋header 縮放（打包正式 fleet-photo.ts；?lang=&mode=&shots=&export=1&nick=）
 ```
 
 → `.preview/panel-sortie{,-light}.html`（編成／連合艦隊由頁面上方選項切換）與
@@ -622,6 +637,18 @@ npx vite-node --config vitest.config.ts tools/preview/panel-items.ts  # 道具�
 七船由 `main.ts` 依 `f.ships.length >= 7` 加上 `.fleet-seven`，CSS 只對
 `.fleet.fleet-seven` 收緊；不能用 `.ship:nth-of-type(7)`，因為 `.fsummary` 同樣是
 `div`，會使艦列序號判斷失真。
+
+header 固定 39px、單行：提督名＋Lv、艦數、裝備數、相機鈕。提督名放得下時維持原字級；會被
+截斷時整排以 `--hs` 等比縮小（`entrypoints/panel/header-fit.ts`），名稱維持完整，不改成上下兩行，
+也不改變 header 高度。驗收以 12 個全形字＋3 位艦數＋4 位裝備數為最寬情境。
+
+編成寫真托盤（`#photo-tray`）開啟時取代 `#tabpanel`，同樣 270px：標題列、提示列（拍攝後改顯示
+結果或錯誤）、格線區、底列（拍下一張／輸出設定／輸出 PNG／複製）。格線區以 container 尺寸推算
+格子大小，任何艦數都不撐破 270px。艦隊為 2 欄、由左而右再往下，與遊戲編成畫面相同；格子是
+「縮圖＋艦名／編號・Lv／狀態」橫排。基地航空隊為一列直式縮圖，欄寬固定三分之一、不足三隊時
+置中。只有「下一張」用黃銅強調；需重拍的格子淡化縮圖並以文字標示，不借用大破等語意色。
+輸出設定用原生 `<details>`，托盤更新時保留同一份控制項，展開狀態與選單不被重繪洗掉。
+拍攝來源以遊戲分頁區分：唯一來源自動選取，多個來源須在設定的「遊戲分頁」選單指定；未選時顯示提示並展開設定。
 
 ### 7.3 資訊階層
 
@@ -737,7 +764,7 @@ body { display: block; }
    25px 高，敵艦較少時保留列內留白，不得拉高單格填滿整列。
 3. Result Rank 使用遊戲 Result 的斜體襯線、描邊與固有色相；陣形圖示固定黃銅色。
 4. 探照燈、夜偵、照明彈、友軍錨，以及月亮／主隊／伴隨夜戰目標指示固定占位，以亮暗表示
-   狀態；無夜戰時只套用暗色，不可因尚未夜戰而移除整列。日戰預測的主／伴目標以 KC3Kai
+   狀態（夜戰裝備與友軍錨未發動或狀態未知時一律灰階，發動才顯示原色）；無夜戰時只套用暗色，不可因尚未夜戰而移除整列。日戰預測的主／伴目標以 KC3Kai
    規則標示，實際夜戰封包抵達後由 `api_active_deck[1]` 覆蓋。
 5. 一般大破預設以紅色覆蓋框顯示「大破！」與退避條件（英文為 `Taiha!`／`No retreat`
    等短句，須收進 44px 航空戰格）。點擊後只隱藏這兩行文字、保留同尺寸
