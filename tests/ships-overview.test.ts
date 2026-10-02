@@ -125,6 +125,17 @@ describe('艦娘全覽的入手觀測關聯與畫面資料', () => {
         expect(ids({}, 'name', 'asc')).toEqual([99, 102, 101]);
     });
 
+    it('同值依遊戲次序，升冪時整串反轉；不可考恆在後', () => {
+        const base = createState().ownedShips().find(ship => ship.id === 101)!;
+        const roster = buildRoster([
+            { ...base, id: 1, sortId: 1096 }, { ...base, id: 2, sortId: 1017 },
+            { ...base, id: 3, sortId: null }, { ...base, id: 4, sortId: 1047, lv: 174 },
+        ]);
+        const ids = (dir: SortDir) => sortRoster(roster, 'level', dir).map(ship => ship.id);
+        expect(ids('desc')).toEqual([4, 2, 1, 3]);
+        expect(ids('asc')).toEqual([1, 2, 3, 4]);
+    });
+
     it('輸出名稱與裝備名稱時會 HTML escape', () => {
         const roster = buildRoster([createState().ownedShips().find(ship => ship.id === 101)!]);
         const html = rosterTableHtml(roster, view(), ctx);

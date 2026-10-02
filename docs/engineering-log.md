@@ -652,6 +652,28 @@ f1～f4／a1～a3 外，另讀 `s`（`a`＝world、`i`＝mapnum、`c[]`＝各格
 3＝輸送護衛部隊（2 已用 `samples/61-5-jibun-rengou-node52.json` 確認）。三者的隨伴艦隊角色
 完全不同，只寫「連合艦隊」等於沒說。
 
+### 不記錄的海域（`utils/sortie-exclude.ts`＋`sections/sortie-log.ts`＋`utils/event-projector.ts`，2026-10-02）
+
+使用者在出擊紀錄分區指定通常海域（world 1–9），之後在這些海域的出擊不寫 `db.sorties`／
+`db.replays`；打撈紀錄由 `db.sorties` 衍生，因此一併不收錄。
+
+- **只擋 derived 寫入**：`EventProjector` 的 `skipSortieMap` 在 `api_req_map/start` 的 reducer
+  套用後判定一次（`skipCurrentSortie`），整場沿用，出擊途中改設定不會只記半場。
+  `GameState.applyEvent()` 照常執行，任務計數、戰況顯示與 raw events 都不受影響；既有紀錄不刪、
+  不藏。
+- **斬殺標記**：被排除的海域不執行 `markLatestBossCleared()`，否則斬殺會標到該圖較舊的紀錄上。
+- **活動海域不可指定**：活動的 Boss HP 斬殺線與斬殺旗標要從 sorties／replays 回推。
+- **設定與時機**：名單存 localStorage（`kc-sortie-exclude-maps`，panel 與 overview 同源共享），
+  面板以 `storage` 事件同步；讀寫失敗一律退回「不排除」，寧可多記也不漏記。判定發生在面板投影
+  時：面板沒開時累積的事件，於下次開面板補投影時依當下名單判定。名單隨完整備份走
+  （`sortieExclude`，見「母港快照與資料備份還原」）。
+- **候選清單**：start2 `api_mst_mapinfo` 的通常海域，加上紀錄裡出現過、master 已沒有的關；不寫死
+  關卡表。選單的大區名、關名與作戰名查 `utils/map-names.ts`（規範見
+  `docs/translation-guidelines.md`「海域與關卡名稱」）；master 名稱與表中日文不一致（遊戲改名）時
+  省略譯名。
+- 測試：`tests/sortie-exclude.test.ts`、`tests/event-projector.test.ts`（不記錄的海域兩則）、
+  `tests/backup-sortie-exclude.test.ts`。
+
 ### 節點類型（`utils/map-node-kind.ts`）——這個**在**封包裡
 
 `api_req_map/start`／`next` 的 `api_event_id`／`api_event_kind` 直接給出節點性質，**是封包事實**，
@@ -915,7 +937,10 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 以日本時間 05:00 為界，季任以 3／6／9／12 月 1 日 05:00 為界；年任只保存紀錄，目錄尚未
 有開始月，不自行對齊年度週期。v8 起完整檔另含 `questSeen`（曾出現在任務清單的任務，
 以 questNo 為主鍵、min／max 合併首末觀測；兩個 event id 都進 `highestReferencedEventId()`）；
-v7 以前的檔案不含此表，照常匯入、表保持空白。v1 legacy-full、
+v7 以前的檔案不含此表，照常匯入、表保持空白。v8 同時新增 envelope 選填欄位 `sortieExclude`
+（出擊紀錄「不記錄的海域」名單，見同名小節）：匯出帶當下名單，還原在 IndexedDB 提交後才覆寫
+本機名單，舊檔缺席則不碰；只接受正規寫法的通常海域編號（`1-1`～`9-9`）且不得重複。只有這項
+設定、資料表全空時仍視為空備份，不寫檔。v1 legacy-full、
 v2 split、v3 仍可相容匯入——**每個版本的 restore 表組合各自固定**（`determineKind()`），
 舊檔不會因為缺少後來新增的表被拒，新檔也不得少帶或夾帶。v3 新增 shipObtained、
 v4 新增 eventPlans（活動作戰板，純使用者手輸、不參照任何 event id，故不進
@@ -951,7 +976,7 @@ handle 仍在但需使用者手勢重新授權（`queryPermission`→`requestPer
 
 `viewer.html`（`viewer-html.ts`）隨資料夾備份一併寫入：單檔離線、內聯 `toKc3Replay`，任何人用
 瀏覽器開它、載入完整備份就能逐場複製 battleplayer 物件／開公開重播頁，**不需要擴充**。
-現行 `BACKUP_SCHEMA_VERSION` 為 **7**（`kind: full`）；v1 legacy-full 可單檔匯入，v2–v5 的
+現行 `BACKUP_SCHEMA_VERSION` 為 **8**（`kind: full`）；v1 legacy-full 可單檔匯入，v2–v5 的
 restore/replays 拆分備份則可同次選取，或分兩次選取後由介面只在記憶體暫存、湊成一對；再正規化成完整現行版本，並以
 一個 transaction 還原。所有 preflight、寫入、event ID reservation／high-water 與 marker 都在
 同一 transaction，任一失敗完整 rollback。
@@ -1635,6 +1660,13 @@ master 表已併入 `samples/start2-master.json`，該檔現有 12 張表）：
   完整 start2 另有 `api_mst_equip_exslot`／`equip_exslot_ship`／`equip_limit_exslot` 三張表
   （已存進 fixture）。目前已解讀並使用 `api_mst_equip_exslot_ship` 的艦娘／艦種／艦型／等級
   條件；其餘補強增設限制表仍未解讀，不得擴大支援範圍。
+- **同值次序對齊遊戲（`compareGameOrder`）**：主排序鍵同值時依 master 的 `api_sort_id`，再以艦實例
+  id。遊戲只有降冪，同值時 `api_sort_id` 由小到大；升冪視為整串反轉。`samples/start2-master.json`
+  核對：金剛改二丙 1017 < 比叡改二丙 1027 < … < 長門改二 1096，與遊戲畫面次序一致。遊戲的
+  「艦種」排序就是 `api_sort_id` 升冪，不比等級、也不依 stype 分組（實機：霧島 Lv1 在霧島改二丙
+  Lv99 前；扶桑〔stype 9〕在扶桑改二〔stype 10〕前），所以 `filterShips`／`sortRoster` 的艦種
+  排序只看 `api_sort_id`。值為 0 或缺席時不可考，不論方向都排最後。艦娘全覽、面板調度表與
+  LLM 報告的艦娘清單共用。
 
 ### 艦娘全覽（詳細清單）：`utils/ship-roster.ts`＋`sections/ships.ts`（2026-07-22）
 
@@ -1677,11 +1709,29 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 **裝備ボーナス**（特定艦×特定裝備的隱藏加成，例 大和型＋51cm）已計入顯示值卻不在裝備資料
 裡，相減後會偏高。不要把它當精確值使用。
 
-**先制對潛是推算值**（`isOpeningAsw`）——遊戲**不送這個旗標**，依 wikiwiki 機制
-頁轉寫：海防艦（聲納＋對潛 60／對潛裝備＋對潛 75）、輕空母（對潛 65＋對潛攻擊可能機）、
-例外艦（不需聲納、對潛 100）、其餘（聲納＋對潛 100）。例外艦**以艦級 ctype 表達**
-（Fletcher級 91／John C.Butler級 87，已用真實 master 核對），只有單艦的才列 master id——
-列舉每個改造形態的 id 會隨改版腐爛。規則會變，UI 的提示文字必須保留「推算／參考」字樣。
+**先制對潛是推算值**（`utils/opening-asw.ts` `openingAswEligible()`；艦娘全覽的 `isOpeningAsw()`
+與面板編成的 ASW 標籤共用）——遊戲**不送這個旗標**。條件依 wikiwiki「対潜攻撃」發動條件表
+轉寫（2026-10-01 核對），艦與裝備 id 以 `samples/start2-master.json` 核對：
+
+- **無條件**：五十鈴改二、龍田改二、夕張改二丁、吹雪改三護(六式)、J級改（Jervis改／Janus改／
+  Javelin改）、Samuel B.Roberts改／Mk.II、Visby／改，以及 Fletcher 級（ctype 91；未改裝的
+  Heywood L.E.／Richard P.Leary 除外）。Samuel B.Roberts 未改裝形態不適用，因此不再以 John
+  C.Butler 級（ctype 87）整級豁免。
+- **加賀改二護、大鷹型改／改二**：只需對潛 ≥1 的艦攻／艦爆、對潛哨戒機或回轉翼機其一。
+- **日向改二**：S-51J／改 1 架，或カ号／オ号改／改二 2 架。
+- **海防艦**：顯示對潛 60＋聲納，或顯示對潛 75＋裝備原始對潛合計 ≥4（含補強增設）。
+- **其他輕空母／護衛空母**：對潛 50＋聲納＋（原始對潛 ≥7 的艦攻、對潛哨戒機或回轉翼機；鈴谷／
+  熊野航改二不適用此條）、對潛 65＋同上機種，或對潛 100＋聲納＋對潛 ≥1 的艦攻／艦爆。
+- **神州丸改、大和改二重／熊野丸系／扶桑・山城改二系**：對潛 100＋聲納＋各自指定的機種或爆雷。
+- **驅逐、輕巡、雷巡、練巡、補給艦（含宗谷、山汐丸、しまね丸改）**：對潛 100＋聲納；山汐丸改／
+  しまね丸改只帶對潛 0 的航空攻擊機時不成立。表中沒有的艦（如あきつ丸）一律不標。
+- 對潛值用 `api_taisen[0]`（含裝備加成的顯示值，與遊戲畫面一致）。有裝備的 master 未載入、無法
+  確認類別時（`aswEquipmentKnown === false`）不標，避免誤報；無條件艦不受此限。
+- **情境**：已退避、開幕夜戰與連合艦隊第一艦隊不成立（連合艦隊只有第二艦隊能發動）；中破／大破
+  不影響。標籤只表示編成能力，不預測敵方是否有潛艦或實際攻擊；介面提示只寫條件與限制，不寫來源
+  （版面見 `docs/design-guidelines.md` §7）。規則會隨改版變動，需人工跟進並同步
+  `tests/opening-asw.test.ts`。
+
 對照之下**開幕雷擊是事實**：裝備了特殊潜航艇（類別 22）即成立。
 
 **國籍（建造國）＝人工參照表，鍵是艦型 ctype**（`utils/ship-nationality.ts`）。遊戲 API
@@ -2099,8 +2149,8 @@ host permission。`<all_urls>` 違反權限精簡（設計原則5），改用 `a
 ### 編成寫真（`entrypoints/panel/fleet-photo.ts`＋`utils/fleet-photo.ts`，2026-10-01）
 
 面板 header 的相機鈕開啟拍照托盤，取代固定 270px 的 `#tabpanel`（`#photo-tray`，同高，
-不推動下方編成）。玩家在遊戲裡逐艘打開艦船ステータス（或逐隊打開基地航空隊），按「拍下一張」
-或快捷鍵，擴充讀取該區塊；全部拍完後依遊戲編成畫面的順序合成一張 PNG，頂端加上本擴充繪製的
+不推動下方編成）。玩家在遊戲「編成」逐艘點開艦娘「詳細」（或逐隊打開基地航空隊），再按托盤的「拍下一張」，
+擴充讀取該區塊；全部拍完後依遊戲編成畫面的順序合成一張 PNG，頂端加上本擴充繪製的
 標題列。拍攝對象跟著下方的艦隊切換鈕：1–4 單隊、連合艦隊（主力／護衛兩段）、基地航空隊
 （面板目前選的海域）。點分頁列任一分頁即關閉托盤；autoSwitch 在背後照常運作。
 
@@ -2137,9 +2187,10 @@ kancolle-server.com 框各有一條連線，background 只向所選分頁發送�
 基地：各中隊裝備 master id＋改修）。之後封包使簽章改變時格子標示「已變更，需重拍」。Lv、HP、
 熟練度、機數與疲勞隨出擊天天變，刻意不列入，否則每場戰鬥都會把整排標成需重拍。拍攝前後簽章或對象不同時，捨棄影像並提示重新拍攝。
 
-**暫存與權限**：截圖只存在面板視窗記憶體，不寫 DB、不進備份，關閉面板即清空。快捷鍵是 manifest
-`commands`（預設 Alt+Shift+S，`chrome://extensions/shortcuts` 可改），不是權限；background
-收到指令後轉給面板，托盤開著才拍。輸出設定（類型、標題列欄位、語言、尺寸）只在本視窗期間有效。
+**暫存與觸發**：截圖只存在面板視窗記憶體，不寫 DB、不進備份，關閉面板即清空。拍攝只由托盤的
+「拍下一張」觸發，不註冊 manifest `commands` 快捷鍵：macOS 的 Edge 會把 ⌥⇧S 交給瀏覽器內建擷圖，
+建議鍵實際上無法使用；`tests/manifest.test.ts` 斷言 manifest 沒有 `commands`。輸出設定（類型、
+標題列欄位、語言、尺寸）只在本視窗期間有效。
 
 **header 單行自動縮放**：加入相機鈕後，12 字提督名在預設字級下放不下。改為名稱放得下時維持原
 尺寸；會被截斷時以 1% 為級距整排等比縮小（`fitHeaderScale`，CSS 變數 `--hs`），最寬的 12 個

@@ -192,8 +192,7 @@ export const fmtShortTs = (ts: number) => {
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-// 四艦隊＋基地航空隊的 Markdown 片段。fleet-overview 與 llm.ts 的完整報告共用同一段內容，
-// 只差外層標題層級，故用 h 參數控制（獨立文件用 '##'，嵌入報告章節用 '###'）。
+// 四艦隊＋基地航空隊的 Markdown 片段（fleet-overview 匯出用）；外層標題層級由 h 參數控制。
 export const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];
 // lbas：**以海域（maparea id）為單位**的開關表，鍵是 `String(areaId)`，缺席＝顯示。
 // 使用者指定「每個海域一個 checkbox 就好」——一個海域最多三個基地、平常整組一起看，
@@ -220,34 +219,39 @@ export function airBaseAreaLabel(state: GameState, areaId: number): string {
     return state.masterMapAreas.has(areaId) ? name : `${name} #${areaId}`;
 }
 
-// 熟練度符號：與面板 chip 同一套階層（1-3 直線、4-6 斜線、7 為 ace 雙箭）。
-// Markdown 是純文字，故 ace 用單一字元 '»'（面板用 HTML 實體 &gt;&gt;）。
-const ALV_MARKS = ['', '|', '||', '|||', '/', '//', '///', '»'];
+// 表格儲存格內的 `|` 會被當成欄分隔，名稱中若出現須跳脫。
+const mdCell = (s: string) => s.replace(/\|/g, '\\|');
 
 /**
- * Markdown 的裝備寫法：`零式艦戦 53 型(岩本隊)★»`。
+ * Markdown 的裝備寫法：`零式艦戦53型(岩本隊) ★MAX`。
  *
- * 改修**滿階（★10）只給星號不給數字**——這是使用者指定的寫法，讀者看到光禿禿的
- * ★ 就知道是滿的，不必去記上限是幾；1-9 才寫數字。熟練度接在後面，沒有就不寫。
- *
- * export：fleet-overview 的 PNG 匯出也是同一份純文字內容，共用這支才不會出現
- * 「Markdown 寫 ★»、PNG 寫 ★10」這種同一隊兩種寫法。
+ * 改修滿階（★10）寫 `★MAX`，1-9 寫數字，未改修不寫。熟練度不輸出：表格儲存格內
+ * 的 `|` 會被當成欄分隔，且使用者指定的格式只列改修值。
  */
-export const gearMarkdown = (g: { name: string; level: number; alv: number }) =>
-    `${g.name}${g.level >= 10 ? '★' : g.level > 0 ? `★${g.level}` : ''}`
-    + (ALV_MARKS[Math.min(7, Math.max(0, g.alv))] ?? '');
+export const gearMarkdown = (g: { name: string; level: number }) =>
+    mdCell(g.name) + (g.level >= 10 ? ' ★MAX' : g.level > 0 ? ` ★${g.level}` : '');
 
 /**
- * 一艘艦的裝備列（一般槽＋補強增設）。補強增設有裝才追加，並加 `[補強]` 前綴
- * （同艦娘全覽文字匯出）；空孔／無孔都不寫——Markdown 不需要「這格空著」的精度。
+ * 一艘艦的裝備列（一般槽＋補強增設），一件一行，以 `<br>` 串接供表格儲存格使用。
+ * 補強增設有裝才追加，並加 `[補強] ` 前綴；空孔／無孔都不寫。
  */
 export function shipGearsMarkdown(s: {
-    gears: ({ name: string; level: number; alv: number } | null)[];
-    exGear: { name: string; level: number; alv: number } | null;
-}): string {
+    gears: ({ name: string; level: number } | null)[];
+    exGear: { name: string; level: number } | null;
+}): string[] {
     const parts = s.gears.filter(Boolean).map(g => gearMarkdown(g!));
-    if (s.exGear) parts.push(`[${t('ov.shipsEx')}]${gearMarkdown(s.exGear)}`);
-    return parts.join(' / ');
+    if (s.exGear) parts.push(`[${t('ov.shipsEx')}] ${gearMarkdown(s.exGear)}`);
+    return parts;
+}
+
+// 兩欄表格：每格一艘艦（或一個基地），奇數時最後一格留空。第一列兼作表頭。
+function mdTwoColumnTable(cells: string[]): string[] {
+    const rows: string[] = [];
+    for (let i = 0; i < cells.length; i += 2) {
+        rows.push(`| ${cells[i]} | ${cells[i + 1] ?? ''} |`);
+        if (i === 0) rows.push('| --- | --- |');
+    }
+    return rows;
 }
 
 /**
@@ -270,20 +274,20 @@ export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownS
     state.fleets().forEach((f, i) => {
         if (!f.ships.length) return;
         if (scope && scope.fleets[i] === false) return;
-        lines.push(`${h} ${t('ov.fleetN', { n: i + 1 })} — ${f.name}${f.mission ? `（${t('ov.onMission')}）` : ''}`);
-        for (const s of f.ships) {
-            const gears = shipGearsMarkdown(s);
-            lines.push(`- **${s.stype} ${s.name}** Lv${s.lv}　HP ${s.hp}/${s.maxhp}　cond ${s.cond}${gears ? `　│ ${gears}` : ''}`);
-        }
-        lines.push('');
+        lines.push(`${h} ${t('ov.fleetN', { n: i + 1 })} — ${f.name}${f.mission ? `（${t('ov.onMission')}）` : ''}`, '');
+        const cells = f.ships.map((s, j) =>
+            [`**#${j + 1} ${mdCell(s.name)}** Lv${s.lv}`, ...shipGearsMarkdown(s)].join('<br>'));
+        lines.push(...mdTwoColumnTable(cells), '');
     });
     const bases = state.airBases_().filter(b => !scope || scope.lbas[String(b.areaId)] !== false);
     if (bases.length) {
-        lines.push(`${h} ${t('ov.airCorps')}`);
-        for (const b of bases) {
-            const sq = b.squadrons.map(gearMarkdown).join(' / ');
-            lines.push(`- **${b.name}**（${airBaseAreaLabel(state, b.areaId)}）${t(AIR_ACTION_KEYS[b.actionKind] ?? 'lbas.standby')}　${t('ov.airRadius', { n: b.distance })}　${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}${sq ? `　│ ${sq}` : ''}`);
-        }
+        lines.push(`${h} ${t('ov.airCorps')}`, '');
+        const cells = bases.map(b => [
+            `**${mdCell(b.name)}**（${mdCell(airBaseAreaLabel(state, b.areaId))}）`,
+            `${t(AIR_ACTION_KEYS[b.actionKind] ?? 'lbas.standby')}　${t('ov.airRadius', { n: b.distance })}　${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}`,
+            ...b.squadrons.map(gearMarkdown),
+        ].join('<br>'));
+        lines.push(...mdTwoColumnTable(cells), '');
     }
-    return lines.join('\n');
+    return lines.join('\n').trimEnd() + '\n';
 }

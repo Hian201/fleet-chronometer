@@ -55,7 +55,10 @@ describe('編成版面', () => {
         expect(css).toMatch(/\.ship-state\s*\{[^}]*width:\s*32px/);
         expect(css).toMatch(/\.ship-state \.taiha-hp-mark[\s\S]*?width:\s*32px/);
         expect(css).toMatch(/\.ship-id\s*\{[^}]*height:\s*12px|\.ship-identity-row\s*\{[^}]*height:\s*12px/);
-        expect(css).toMatch(/\.ship-hp\s*\{[^}]*height:\s*11px/);
+        // .ship-hp 是 display: contents，血條與數字直接落在 .ship-main 的第 2 列（11px）。
+        expect(css).toMatch(/\.ship-main\s*\{[^}]*grid-template-rows:\s*12px\s+11px\s+16px/);
+        expect(css).toMatch(/\.ship-hp\s*\{[^}]*display:\s*contents/);
+        expect(css).toMatch(/\.escaped \.ship-hp > \*/);
         expect(css).toMatch(/\.hp-num\s*\{[^}]*font-size:\s*11px/);
         expect(css).toMatch(/\.hp-num\s*\{[^}]*font-weight:\s*400/);
         expect(css).toMatch(/\.ship-gear-row\s*\{[^}]*height:\s*16px/);

@@ -1,5 +1,11 @@
 import { defineConfig } from 'wxt';
-import { COMMAND_FLEET_PHOTO_SHOOT, GAME_PAGE_MATCHES } from './utils/game-page';
+import { GAME_PAGE_MATCHES } from './utils/game-page';
+
+// 單一 chunk 壓縮後的大小預算（kB，1 kB = 1000 bytes，與 Vite 計算方式相同）。
+// Vite 預設 500 kB 是為經網路下載的網站設計；擴充頁 chunk 都從本機載入，大小只影響
+// 解析時間。最大的 chunk 是任務目錄三語翻譯與任務資料表（約 1.1 MB），預算留約一成餘裕，
+// 超過即代表資料又成長一截，該評估把翻譯改成依語言動態載入。
+const CHUNK_BUDGET_KB = 1200;
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -12,6 +18,23 @@ export default defineConfig({
             cors: true,
         },
         plugins: [{
+            // 超出 CHUNK_BUDGET_KB 時補一則說明下一步的警告；Vite 內建警告只列出 chunk。
+            name: 'chunk-budget-advice',
+            apply: 'build',
+            generateBundle(_options, bundle) {
+                const over = Object.values(bundle)
+                    .filter((item) => item.type === 'chunk')
+                    .map((chunk) => ({ name: chunk.fileName, kb: Buffer.byteLength(chunk.code) / 1000 }))
+                    .filter((chunk) => chunk.kb > CHUNK_BUDGET_KB);
+                if (over.length === 0) return;
+                const list = over.map((chunk) => `${chunk.name} ${chunk.kb.toFixed(0)} kB`).join('、');
+                this.warn(
+                    `chunk 超出 ${CHUNK_BUDGET_KB} kB 預算：${list}。`
+                    + '請用 bundle 分析確認成長來源；若是翻譯資料，評估改成依語言以 import() 動態載入，'
+                    + '確認不需處理才調高 wxt.config.ts 的 CHUNK_BUDGET_KB。',
+                );
+            },
+        }, {
             // lzma_worker.js 把 API 掛在 CJS `this` 上，沒有 ESM export。套件入口
             // 又用 Node `path`＋`require`，不能給擴充頁用。改成具名匯出時必須拿掉
             // `this.LZMA = …`：ESM 嚴格模式的 this 是 undefined，一載入就丟錯，
@@ -31,6 +54,7 @@ export default defineConfig({
             // extension resource mismatch」並白抓一次檔案。擴充頁的 chunk 都是本機檔案、
             // 零網路延遲，預載本來就沒有價值——關掉即可，模組仍由 <script type="module"> 載入。
             modulePreload: false,
+            chunkSizeWarningLimit: CHUNK_BUDGET_KB,
         },
     }),
     manifest: {
@@ -62,14 +86,6 @@ export default defineConfig({
         // 或關閉即失效——與拍照「按下當下要看到的畫面」的使用情境完全吻合。
         permissions: ['activeTab', 'alarms', 'notifications', 'scripting', 'tabs'],
         optional_host_permissions: GAME_PAGE_MATCHES,
-        // 編成寫真「拍下一張」的快捷鍵。commands 不是權限、不跳授權提示；使用者可在
-        // chrome://extensions/shortcuts 改鍵或停用。實際動作由面板的托盤執行（托盤關著不拍）。
-        commands: {
-            [COMMAND_FLEET_PHOTO_SHOOT]: {
-                suggested_key: { default: 'Alt+Shift+S' },
-                description: '__MSG_cmdFleetPhotoShoot__',
-            },
-        },
     },
     hooks: {
         // WXT 對 `registration: 'runtime'` 的 content script 會**自動把 matches 塞進

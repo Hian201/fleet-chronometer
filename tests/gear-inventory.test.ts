@@ -139,7 +139,15 @@ describe('groupGears：實例 → 種類彙總', () => {
     });
 
     it('同一艘裝兩顆算一個持有者 ×2（欄位問的是「裝在誰身上」）', () => {
-        expect(gun.holders).toEqual([{ name: '明石', sub: '工作', kind: 'ship', count: 2 }]);
+        expect(gun.holders).toEqual([{ name: '明石', sub: '工作', kind: 'ship', count: 2, ex: 0 }]);
+    });
+
+    it('補強增設的顆數記在同一持有者的 ex，不另拆一列', () => {
+        const exGroups = groupGears(build(
+            [{ id: 1, mst: GUN_41 }, { id: 2, mst: GUN_41 }],
+            { ships: [{ mst: 182, slots: [1], slotEx: 2 }] },
+        ));
+        expect(exGroups[0].holders).toEqual([{ name: '明石', sub: '工作', kind: 'ship', count: 2, ex: 1 }]);
     });
 
     it('instances 保留原件：改修高者在前、同星數時裝備中的在前', () => {

@@ -14,7 +14,7 @@
 6. **核心可獨立執行**：`utils/state.ts`、`utils/battle.ts` 及其他標示為純函式的核心不得依賴 `chrome.*` 或 DOM；要能用 samples 與 Node／Vitest 驗證。
 7. **權限精簡**：正式 manifest 的 permissions 由 `wxt.config.ts` 與 `tests/manifest.test.ts` 定義，目前為 `activeTab`、`alarms`、`notifications`、`scripting`、`tabs`；正式 build 的 `host_permissions` 必須為空。劇場模式的 DMM 存取權走 `optional_host_permissions`，只在使用者操作時請求。新增權限必須說明程式碼看不出的必要性。
 8. **未驗證欄位不得猜**：沒有真實封包證據時，保留原始值或回傳 `null`，UI 顯示「不可考」／「推算」並說明限制。演算法可參考社群資料，但欄位佈局與索引要先用 `samples/` 驗證。
-9. **UI 狀態與資訊**：同一事實只完整呈現一次；缺值不是 0，排序時缺值放最後。帶關鍵字、日期、數字輸入或使用者展開／捲動狀態的分區，不得因每次變更而全量重繪控制項。非同步分區先畫 shell、綁事件，再讀 DB；載入或錯誤必須顯示狀態，不得靜默留白。折疊使用原生 `<details>`；語意色不可跨功能挪用。面板的主色／輔助色／強調色取捨遵守 [`docs/design-guidelines.md`](docs/design-guidelines.md) §1.5 的 631 原則。改介面、可見文案或固定欄寬樣式時，至少以台灣華語與英文各核對一次排版——固定幾何下拉丁文通常比漢字長，只看一種語言會漏掉溢出、重疊或裁切。日文長度明顯不同時一併看。核對項目見 [`docs/design-guidelines.md`](docs/design-guidelines.md) §2.4。
+9. **UI 狀態與資訊**：同一事實只完整呈現一次；缺值不是 0，排序時缺值放最後。帶關鍵字、日期、數字輸入或使用者展開／捲動狀態的分區，不得因每次變更而全量重繪控制項。非同步分區先畫 shell、綁事件，再讀 DB；載入或錯誤必須顯示狀態，不得靜默留白。折疊使用原生 `<details>`；語意色不可跨功能挪用。面板的主色／輔助色／強調色取捨遵守 [`docs/design-guidelines.md`](docs/design-guidelines.md) §1.5 的 631 原則。改介面、可見文案或固定欄寬樣式時，台灣華語、英文、日文三種語言都要核對排版——固定幾何下拉丁文通常比漢字長，日文假名句又常比華語長，只看部分語言會漏掉溢出、重疊或裁切。放不下時先縮短文案（完整說明移到 `title`），仍不夠才縮小字型。核對項目見 [`docs/design-guidelines.md`](docs/design-guidelines.md) §2.4。
 10. **語言與註解**：回應使用者一律繁體中文（台灣用語），程式碼註解使用繁體中文。註解與變更說明只寫目前行為、非顯而易見的理由、約束或風險，不保留除錯歷程、未合入方案或舊實作。
 11. **任務翻譯**：任務導覽與 panel 共用任務目錄翻譯。繁體中文須以台灣華語撰寫與校對，不得由簡體中文轉換；用語規範、辭典查證方式及任務條件核對流程見 [`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
 
@@ -43,7 +43,7 @@ npx vite-node --config vitest.config.ts tools/preview/quest-flow-guide.ts
 npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
 ```
 
-需要瀏覽器檢視 `.preview/*.html` 時，依 [`AGENTS.md`](AGENTS.md) 先從專案根目錄啟動 localhost HTTP server，檢視後清理 server；不可使用 live 遊戲頁。介面改動不得只看單一語系預覽結案：至少再核對台灣華語與英文（離線對照或正式頁切語言皆可）。
+需要瀏覽器檢視 `.preview/*.html` 時，依 [`AGENTS.md`](AGENTS.md) 先從專案根目錄啟動 localhost HTTP server，檢視後清理 server；不可使用 live 遊戲頁。介面改動不得只看單一語系預覽結案：台灣華語、英文、日文三種都要核對（離線對照或正式頁切語言皆可）。
 
 ## 資料流與檔案入口
 
@@ -75,7 +75,7 @@ npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
 - **重播**：原始戰鬥封包保存在 `db.replays`；裁剪只影響詳細重播，`db.sorties` 摘要仍保留。沒有出擊開始事件或必要艦隊快照時，該場只能保存可建立的摘要，不能補猜編成。
 - **待驗證擷取**：`wantedTag()` 只留渦潮表外且真有 `api_happening`、以及未知 sally 系 key。正式 build 預設關閉 debug UI（`utils/debug-ui.ts`）。`db.wanted` 會永久保護對應 raw event，達上限必須明說，不可靜默略過或擴充會洗版的鉤子。
 - **活動資料**：節點字母只走 `utils/map-node-letters.ts` 查表；新海域沒有對照時顯示原始 edge id。活動標籤的未驗證語意、`api_sally_flag` 與其他待驗證欄位要保留原始值，不自行命名或推導。
-- **版面**：面板固定幾何、七艘編成完整顯示、裝備槽單行、出擊警告不推動下方系統列等限制集中在 `docs/design-guidelines.md` §7。panel 內容寬度是 370px；編成六／七船在有無 `.fs-ops` 下都以 730px 為排版目標、740px 為硬上限。摘要與遠征雙欄條件需以 370px 實際排版核對，不可沿用舊 420px 基準；9 項以上條件逐列雙欄並允許換行。popup 啟動時把內容區補到 370。情報總括左右並排分區在內容區還放得下兩欄時不得改單欄（§4.7）；同名艦種篩選／列上標籤走 `utils/stype-label.ts`（§4.8）。修改面板或 overview 版面前必讀對應節，不在本檔複製其他 CSS 數值。介面完成前至少核對台灣華語與英文排版（§2.4），不得只憑一種語言宣告沒問題。
+- **版面**：面板固定幾何、七艘編成完整顯示、裝備槽單行、出擊警告不推動下方系統列等限制集中在 `docs/design-guidelines.md` §7。panel 內容寬度是 370px；編成六／七船在有無 `.fs-ops` 下都以 730px 為排版目標、740px 為硬上限。摘要與遠征雙欄條件需以 370px 實際排版核對，不可沿用舊 420px 基準；9 項以上條件逐列雙欄並允許換行。popup 啟動時把內容區補到 370。情報總括左右並排分區在內容區還放得下兩欄時不得改單欄（§4.7）；同名艦種篩選／列上標籤走 `utils/stype-label.ts`（§4.8）。修改面板或 overview 版面前必讀對應節，不在本檔複製其他 CSS 數值。介面完成前必須核對台灣華語、英文、日文三語排版（§2.4），不得只憑部分語言宣告沒問題。
 - **圖示與相容性**：panel 系統圖示維持 `docs/design-guidelines.md` §5.1 的剪影語言；第三方邏輯採 clean-room 重寫，依 `THIRD-PARTY-NOTICES.md` 登錄來源。
 
 ## 目前待辦索引

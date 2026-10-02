@@ -75,6 +75,10 @@ The agent must not add code that:
 
 The extension may only observe existing traffic and derive local state.
 
+## User-facing explanation policy
+
+All explanations in every interface, including the panel, overview, popup, dialogs, hover tooltips, `title` attributes, and accessible descriptions, must be concise and clear. State only the feature meaning, relevant conditions, and necessary limitations. Do not include data-source names, websites, reference links, or attribution phrases such as “according to Wiki” or “estimated from Wiki conditions”. Record third-party sources and attribution only in `THIRD-PARTY-NOTICES.md` and the relevant project Markdown documents; repeating them in the interface adds noise to operational guidance.
+
 ## Taiwan Traditional Chinese localization
 
 All `zh-TW` copy must be written and proofread as Taiwan Mandarin. Do not translate by converting Simplified Chinese. For uncertain vocabulary, check the Ministry of Education Revised Mandarin Dictionary. Quest names and descriptions are shared by task guide and panel, so verify ship names, fleet positions, counts, map IDs/nodes, and victory ranks against the Japanese source, the wikiwiki quest table, and the matching Zekamashi guide. English quest data is auxiliary and must not override those references. Follow [`docs/translation-guidelines.md`](docs/translation-guidelines.md).

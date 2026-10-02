@@ -15,7 +15,7 @@ async function setup() {
     const sendMessage = vi.fn(message => message.type === MSG_FLEET_PHOTO_SOURCES
         ? Promise.resolve([{ tabId: 1, title: 'A' }, { tabId: 2, title: 'B' }])
         : new Promise<FleetPhotoCaptureReply>(resolve => { resolveCapture = resolve; }));
-    vi.stubGlobal('browser', { runtime: { sendMessage }, commands: { getAll: async () => [] } });
+    vi.stubGlobal('browser', { runtime: { sendMessage } });
     let target: PhotoTarget = { kind: 'fleet', deck: 0 };
     const ships = [{ id: 1, mst: 1, name: 'A', lv: 1, gears: [{ mst: 9, level: 0 }], exGear: null }];
     const state = { fleets: () => [{ ships }, { ships }], combinedFlag: 0 } as unknown as GameState;

@@ -5,7 +5,7 @@
 import type { GameState, OwnedShipView } from '@/utils/state';
 import { nationOf, nationsOf, NATIONS, type Nation } from '@/utils/ship-nationality';
 import {
-    EQUIP_TYPE, matchEquip, matchSpeed, type EquipFilter, type SpeedFilter,
+    compareGameOrder, EQUIP_TYPE, matchEquip, matchSpeed, type EquipFilter, type SpeedFilter,
 } from '@/utils/ship-filter';
 import { SPARKLE_COND } from '@/utils/ship-roster';
 import {
@@ -21,6 +21,8 @@ import { esc } from '@/utils/html-escape';
 import { t } from '@/utils/ui-i18n';
 
 type Mode = 'ship' | 'gear';
+/** 裝備表的呈現：素質欄，或改列裝備艦（收起素質欄、整表不需橫捲）。不影響篩選。 */
+type GearView = 'stats' | 'holders';
 type Amphib = 'all' | 'daihatsu' | 'naikatei' | 'either' | 'both';
 type ShipSortKey =
     'name' | 'lv' | 'cond' | 'maxhp' | 'firepower' | 'torpedo' | 'aa' | 'armor'
@@ -71,6 +73,14 @@ const GEAR_COLS: { key: GearSortKey; labelKey: string }[] = [
     { key: 'souk', labelKey: 'ov.rsColArmor' },
 ];
 
+// 裝備艦檢視：裝備、數量、閒置、裝備艦。裝備艦欄以裝備中顆數排序。
+const HOLDER_COLS: { key: GearSortKey; labelKey: string; cls: string }[] = [
+    { key: 'name', labelKey: 'order.colGear', cls: 'n' },
+    { key: 'count', labelKey: 'order.colCount', cls: '' },
+    { key: 'idle', labelKey: 'order.colIdle', cls: 'idle' },
+    { key: 'equipped', labelKey: 'order.colHolders', cls: 'h' },
+];
+
 let root: HTMLElement | null = null;
 let getState: (() => GameState) | null = null;
 let shellReady = false;
@@ -88,6 +98,9 @@ const selected = new Set<number>();
 
 let gearCat: string | null = null;
 let gearSub = 'all';
+let gearView: GearView = 'stats';
+/** 素質檢視下展開裝備艦子列的裝備（master id）。表重繪時沿用。 */
+const openGears = new Set<number>();
 
 const shipSort = { key: 'lv' as ShipSortKey, dir: 'desc' as SortDir };
 const gearSort = { key: 'count' as GearSortKey, dir: 'desc' as SortDir };
@@ -206,6 +219,7 @@ function paintGoals(): void {
         parts.push(ddBtn('speed', speedLabel(), speed !== 'all'));
         parts.push(ddBtn('group', groupLabel(), groupFilter !== 'all'));
     } else {
+        parts.push(`<button type="button" class="od-pill ${gearView === 'holders' ? 'on' : ''}" data-toggle="gearView" aria-pressed="${gearView === 'holders'}" title="${esc(t('order.viewHoldersTitle'))}">${esc(t('order.viewHolders'))}</button>`);
         for (const c of ORDER_GEAR_CATS) {
             const on = gearCat === c.id;
             let lab = t(c.labelKey);
@@ -299,11 +313,12 @@ function sortShips(rows: ShipRow[]): ShipRow[] {
             const aE = av === 0, bE = bv === 0;
             if (aE !== bE) return aE ? 1 : -1;
         }
-        let c = typeof av === 'string'
+        const c = typeof av === 'string'
             ? av.localeCompare(String(bv), undefined, { sensitivity: 'base' })
             : (av as number) - (bv as number);
-        if (c === 0) c = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.id - b.id;
-        return dir === 'asc' ? c : -c;
+        // 同值次序對齊遊戲；反向排序時整串反轉（見 compareGameOrder）。名稱的自然方向是 asc。
+        const gameDir: SortDir = key === 'name' ? (dir === 'asc' ? 'desc' : 'asc') : dir;
+        return (dir === 'asc' ? c : -c) || compareGameOrder(a, b, gameDir);
     });
 }
 
@@ -336,11 +351,7 @@ function paintTable(): void {
             wrap.innerHTML = `<div class="od-empty">${esc(t('order.empty'))}</div>`;
             return;
         }
-        const head = SHIP_COLS.map(c => {
-            const on = shipSort.key === c.key;
-            const arrow = on ? (shipSort.dir === 'asc' ? '▲' : '▼') : '';
-            return `<th class="${c.key === 'name' ? 'n' : ''} ${on ? 'on' : ''}" data-sort="${c.key}"><span class="od-head"><span class="od-label">${esc(t(c.labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
-        }).join('');
+        const head = SHIP_COLS.map(c => sortHead(c.key, c.labelKey, c.key === 'name' ? 'n' : '')).join('');
         const body = rows.map(s => {
             const picked = selected.has(s.id);
             const condCls = s.cond >= SPARKLE_COND ? 'cond-spark'
@@ -373,13 +384,16 @@ function paintTable(): void {
             wrap.innerHTML = `<div class="od-empty">${esc(t('order.empty'))}</div>`;
             return;
         }
-        const head = GEAR_COLS.map(c => {
-            const on = gearSort.key === c.key;
-            const arrow = on ? (gearSort.dir === 'asc' ? '▲' : '▼') : '';
-            return `<th class="${c.key === 'name' ? 'n' : ''} ${on ? 'on' : ''}" data-sort="${c.key}"><span class="od-head"><span class="od-label">${esc(t(c.labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
-        }).join('');
-        const body = rows.map(g => `<tr>
-          <td class="n" title="${esc(state.gearNameJa(g.mst))}">${esc(g.name)}</td>
+        if (gearView === 'holders') {
+            wrap.innerHTML = holderTable(rows);
+            restoreScroll();
+            return;
+        }
+        const head = GEAR_COLS.map(c => sortHead(c.key, c.labelKey, c.key === 'name' ? 'n' : '')).join('');
+        const body = rows.map(g => {
+            const open = openGears.has(g.mst);
+            const row = `<tr class="${open ? 'open' : ''}">
+          <td class="n"><button type="button" class="od-gear" data-gear="${g.mst}" title="${esc(state.gearNameJa(g.mst))}" aria-expanded="${open}"><span class="od-tw" aria-hidden="true">${open ? '▼' : '▶'}</span>${esc(g.name)}</button></td>
           <td><b>${g.count}</b></td>
           <td>${g.maxLevel ? '★' + g.maxLevel : '<span class="zero">·</span>'}</td>
           <td>${statOrDot(g.stats.houg)}</td>
@@ -392,10 +406,55 @@ function paintTable(): void {
           <td>${statOrDot(g.stats.tais)}</td>
           <td>${statOrDot(g.stats.tyku)}</td>
           <td>${statOrDot(g.stats.souk)}</td>
-        </tr>`).join('');
+        </tr>`;
+            // 子列內容 sticky 在可視寬度內：表橫捲時裝備艦清單不跟著捲走。
+            return open
+                ? row + `<tr class="od-hold"><td colspan="${GEAR_COLS.length}"><div class="od-hold-in">${holderChips(g)}</div></td></tr>`
+                : row;
+        }).join('');
         wrap.innerHTML = `<table class="od"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
         restoreScroll();
     }
+}
+
+function sortHead(key: GearSortKey | ShipSortKey, labelKey: string, cls: string): string {
+    const sort = mode === 'ship' ? shipSort : gearSort;
+    const on = sort.key === key;
+    const arrow = on ? (sort.dir === 'asc' ? '▲' : '▼') : '';
+    return `<th class="${cls} ${on ? 'on' : ''}" data-sort="${key}"><span class="od-head"><span class="od-label">${esc(t(labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
+}
+
+function holderTable(rows: GearGroup[]): string {
+    const head = HOLDER_COLS.map(c => sortHead(c.key, c.labelKey, c.cls)).join('');
+    const state = getState!();
+    const body = rows.map(g => `<tr>
+          <td class="n" title="${esc(state.gearNameJa(g.mst))}">${esc(g.name)}</td>
+          <td><b>${g.count}</b></td>
+          <td>${statOrDot(g.idle)}</td>
+          <td class="h" title="${esc(holderTitle(g))}">${holderChips(g, false)}</td>
+        </tr>`).join('');
+    return `<table class="od od-hv"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/** 裝備艦標籤；showIdle＝末尾補「閒置 N」（裝備艦檢視已有閒置欄，不重複）。 */
+function holderChips(g: GearGroup, showIdle = true): string {
+    const chips = g.holders.map(h => {
+        const exTag = h.ex === 0 ? ''
+            : `<span class="od-hc-ex">${esc(t('order.ex'))}${h.ex < h.count ? h.ex : ''}</span>`;
+        return `<span class="od-hc ${h.kind === 'lbas' ? 'lbas' : ''}">${esc(h.name)}${h.count > 1 ? `<span class="x">×${h.count}</span>` : ''}${exTag}</span>`;
+    });
+    if (!g.holders.length) chips.push(`<span class="od-hc idle">${esc(t('order.allIdle'))}</span>`);
+    else if (showIdle && g.idle > 0) chips.push(`<span class="od-hc idle">${esc(t('order.idleN', { n: g.idle }))}</span>`);
+    return `<div class="od-hc-list">${chips.join('')}</div>`;
+}
+
+/** 裝備艦欄的純文字版，供 title 與複製用。 */
+function holderTitle(g: GearGroup): string {
+    if (!g.holders.length) return t('order.allIdle');
+    return g.holders.map(h => {
+        const ex = h.ex ? `（${t('order.ex')}${h.ex < h.count ? h.ex : ''}）` : '';
+        return `${h.name}${h.count > 1 ? `×${h.count}` : ''}${ex}`;
+    }).join('、');
 }
 
 function statOrDot(n: number): string {
@@ -412,6 +471,7 @@ function onGoalsClick(e: Event): void {
     if (!btn) return;
     if (btn.dataset.toggle) {
         if (btn.dataset.toggle === 'command') command = !command;
+        else if (btn.dataset.toggle === 'gearView') gearView = gearView === 'stats' ? 'holders' : 'stats';
         paint();
         return;
     }
@@ -431,6 +491,13 @@ function onGoalsClick(e: Event): void {
 }
 
 function onTableClick(e: Event): void {
+    const gear = (e.target as HTMLElement).closest('[data-gear]') as HTMLElement | null;
+    if (gear) {
+        const mst = Number(gear.dataset.gear);
+        if (openGears.has(mst)) openGears.delete(mst); else openGears.add(mst);
+        paintTable();
+        return;
+    }
     const pick = (e.target as HTMLElement).closest('[data-pick]') as HTMLElement | null;
     if (pick) {
         const id = Number(pick.dataset.pick);

@@ -7,8 +7,5 @@
     },
     "extDescription": {
         "message": "A Common Operational Picture (COP) assistant for KanColle."
-    },
-    "cmdFleetPhotoShoot": {
-        "message": "Fleet Photo: shoot next"
     }
 }

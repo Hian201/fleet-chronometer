@@ -1,7 +1,7 @@
-// 艦隊 Markdown 匯出必須含畫面同樣呈現的補強增設欄位。
+// 艦隊 Markdown 匯出：兩欄表格，含畫面同樣呈現的補強增設欄位。
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
-import { fleetMarkdown, shipGearsMarkdown } from '../entrypoints/overview/lib';
+import { fleetMarkdown, gearMarkdown, shipGearsMarkdown } from '../entrypoints/overview/lib';
 import { setLang, t } from '../utils/ui-i18n';
 
 function stateWithExSlot(): GameState {
@@ -43,27 +43,35 @@ function stateWithExSlot(): GameState {
     return state;
 }
 
-describe('艦隊 Markdown 含補強增設', () => {
+describe('艦隊 Markdown 表格', () => {
     it('shipGearsMarkdown 把補強增設接在一般槽後面，並帶改修值', () => {
         const ship = stateWithExSlot().fleets()[0].ships[0];
-        const text = shipGearsMarkdown(ship);
+        const parts = shipGearsMarkdown(ship);
         expect(ship.exGear).toBeTruthy();
-        expect(text).toContain(`${ship.gears[0]!.name}★4`);
-        expect(text).toContain(`[${t('ov.shipsEx')}]${ship.exGear!.name}★6`);
+        expect(parts).toEqual([
+            `${ship.gears[0]!.name} ★4`,
+            `[${t('ov.shipsEx')}] ${ship.exGear!.name} ★6`,
+        ]);
     });
 
-    it('fleetMarkdown 輸出含補強增設（不只畫面有）', () => {
+    it('fleetMarkdown 以兩欄表格輸出，每格艦名＋Lv＋逐行裝備', () => {
         const state = stateWithExSlot();
         const ship = state.fleets()[0].ships[0];
         const md = fleetMarkdown(state);
-        expect(md).toContain(`[${t('ov.shipsEx')}]${ship.exGear!.name}★6`);
-        expect(md).toContain(`${ship.gears[0]!.name}★4`);
+        expect(md).toContain(
+            `| **#1 ${ship.name}** Lv50<br>${ship.gears[0]!.name} ★4<br>[${t('ov.shipsEx')}] ${ship.exGear!.name} ★6 |  |`);
+        expect(md).toContain('| --- | --- |');
+    });
+
+    it('改修滿階寫 ★MAX，名稱中的 | 會跳脫', () => {
+        expect(gearMarkdown({ name: 'A|B', level: 10 })).toBe('A\\|B ★MAX');
+        expect(gearMarkdown({ name: 'C', level: 0 })).toBe('C');
     });
 
     it('無補強增設時不硬塞空標籤', () => {
         const state = stateWithExSlot();
         state.ships.get(10)!.api_slot_ex = -1;
-        const text = shipGearsMarkdown(state.fleets()[0].ships[0]);
-        expect(text).not.toContain(`[${t('ov.shipsEx')}]`);
+        const parts = shipGearsMarkdown(state.fleets()[0].ships[0]);
+        expect(parts.join('')).not.toContain(`[${t('ov.shipsEx')}]`);
     });
 });

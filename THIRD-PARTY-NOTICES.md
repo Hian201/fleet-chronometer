@@ -99,6 +99,32 @@
 
 ---
 
+## 5a. 通常海域關名與作戰名（英文） (Normal map & operation names)
+
+- **用途**：`utils/map-names.ts`——出擊紀錄「不記錄的海域」選單與任務導覽的海域標示共用的
+  大區名與各關名。日文以 start2 `api_mst_mapinfo.api_name`／`api_opetext` 為準；台灣華語由本專案依
+  `docs/translation-guidelines.md`「海域與關卡名稱」自行校訂，未使用外部譯文。
+- **性質**：英文關名與作戰名是遊戲官方日文名稱的短譯，屬社群共用詞彙，不是單一專案獨有。同一批
+  英文名同時見於 KC3Kai TsunDB-webpage、KC3Kai kc3-translations（MIT）、Electronic Observer EN
+  翻譯資料、KanColle Wiki（CC BY-SA）等多個獨立專案。單一名稱屬通用名詞與短語（我國著作權法
+  第 9 條第 1 項第 3 款「通用之符號、名詞」），本身不受著作權保護。本專案只逐關取用名稱短詞，
+  表格結構、欄位與台灣華語譯名皆自行編製，未複製任何來源檔案的編排或其他內容。下列來源僅供
+  追溯與致意，不是授權依據。
+- **參考來源**（取得日 2026-10-02）：
+  - KC3Kai TsunDB-webpage `src/data/mapNames.json` —— https://github.com/KC3Kai/TsunDB-webpage
+  - KanColle Wiki（Fandom）Sortie 與 World 7 各關頁面 —— https://kancolle.fandom.com/wiki/Sortie
+  - 大區名、2-1、2-2、4-1～4-4、5-6、7-4、7-5 由開發者依 Fandom 提供。
+  - 作戰名（英文）：開發者手動查閱較新的 KanColle Wiki（https://en.kancollewiki.net ）提供全
+    37 關；英文保留 wiki 慣用偽名，實際地名僅作附註。
+- **日文作戰名核對**：wikiwiki.jp/kancolle 各大區頁（鎮守府海域…南西海域）的「作戦名」欄，
+  直接讀原始 HTML 逐關比對，與 `api_mst_mapinfo.api_opetext` 37 關全數一致；表中日文仍以
+  封包為準。
+- **取捨**：兩邊都有時採 KC3Kai；KC3Kai 沒有或其日文關名與遊戲目前不同時採 Fandom／開發者
+  提供的名稱。表中日文與 `samples/start2-master.json` 逐關一致，並以 `tests/map-names.test.ts`
+  鎖定；遊戲改名後名稱不一致即不顯示譯名。
+
+---
+
 ## 5b. 渦潮燃彈扣減與基地空襲損失種別
 
 - **用途**：`utils/maelstrom.ts`／`utils/maelstrom-data.ts`（渦潮查表＋電探減輕逐艦扣燃彈）；
@@ -316,6 +342,14 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   由本專案自行實作，未複製其程式碼。
 - **授權**：MIT License
 - **版權**：Copyright (c) 2015-2021 poi contributors
+
+---
+
+## 先制對潛條件
+
+- **來源**：wikiwiki.jp/kancolle「対潜攻撃」的「対潜先制爆雷攻撃／発動条件」表與補充說明，核對日期 2026-10-01。
+  https://wikiwiki.jp/kancolle/対潜攻撃#oasw
+- **用途**：`utils/opening-asw.ts` 自行實作艦型、改造階段、顯示對潛值與原始裝備對潛值的條件判定；未複製第三方程式碼或頁面文字。艦與裝備 ID 以本專案真實 start2 樣本核對。遊戲不提供資格旗標，因此介面標為推算。
 
 ---
 

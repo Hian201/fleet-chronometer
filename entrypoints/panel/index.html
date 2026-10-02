@@ -580,6 +580,88 @@
         .od-empty {
             padding: 18px 10px; text-align: center; color: var(--dim); font-size: 12px;
         }
+        /* 裝備名稱即展開鈕：外觀同一般名稱格，可用 Tab／Enter／Space 操作。 */
+        table.od td.n .od-gear {
+            display: block;
+            width: 100%;
+            padding: 0;
+            border: 0;
+            background: none;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+        table.od td.n .od-gear:focus-visible { outline: 1px solid var(--brass); outline-offset: -1px; }
+        /* 裝備艦：素質表的展開子列與裝備艦檢視共用同一種標籤。 */
+        table.od td.n .od-tw {
+            display: inline-block;
+            width: 10px;
+            color: var(--stub);
+            font-size: 8px;
+        }
+        table.od tr.open td { background: color-mix(in srgb, var(--brass) 10%, transparent); }
+        table.od tr.open td.n {
+            background: color-mix(in srgb, var(--brass) 14%, var(--panel));
+            color: var(--sparkle);
+            box-shadow: inset 2px 0 0 var(--brass);
+        }
+        table.od tr.open td.n .od-tw { color: var(--sparkle); }
+        table.od tr.od-hold td,
+        table.od tr.od-hold:hover td {
+            padding: 0;
+            background: color-mix(in srgb, var(--brass) 5%, var(--panel));
+        }
+        /* 寬度＝表格外框內寬（370 − 2×10 邊距 − 2×1 邊框 − 捲軸），sticky 後不隨橫捲移動。 */
+        table.od tr.od-hold .od-hold-in {
+            position: sticky;
+            left: 0;
+            box-sizing: border-box;
+            width: 340px;
+            padding: 4px 6px 5px 16px;
+            white-space: normal;
+            text-align: left;
+        }
+        .od-hc-list { display: flex; flex-wrap: wrap; gap: 3px; }
+        .od-hc {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            max-width: 100%;
+            height: 17px;
+            padding: 0 5px;
+            box-sizing: border-box;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 10.5px;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+        .od-hc .x { color: var(--dim); }
+        .od-hc-ex {
+            padding: 0 2px;
+            border: 1px solid var(--line);
+            border-radius: 3px;
+            color: var(--dim);
+            font-size: 9px;
+            line-height: 11px;
+        }
+        .od-hc.lbas { border-style: dashed; color: var(--dim); }
+        .od-hc.idle { border-color: transparent; background: none; color: var(--dim); }
+        /* 裝備艦檢視：四欄收在面板寬度內，不橫捲；裝備艦多時列高撐開，不截斷清單。 */
+        table.od.od-hv { width: 100%; }
+        table.od.od-hv th.h,
+        table.od.od-hv td.h { text-align: left; }
+        table.od.od-hv th.h .od-head { display: flex; justify-content: flex-start; }
+        table.od.od-hv td.h { white-space: normal; width: 100%; }
+        /* 數量／閒置欄表頭不可被裝備艦欄壓到省略：改 flex，項目保有內容寬度。 */
+        table.od.od-hv th:not(.n):not(.h) .od-head { display: flex; justify-content: center; }
+        table.od.od-hv th:not(.n):not(.h) .od-label { overflow: visible; }
 
         h3 {
             margin: 12px 0 6px;
@@ -1120,6 +1202,10 @@
         }
 
         .ship.c {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            grid-template-rows: auto auto auto;
+            column-gap: 6px;
             padding: 1px 4px;
             line-height: 1.3;
             background: var(--panel);
@@ -1129,7 +1215,32 @@
             margin-bottom: 6px;
         }
 
-        .ship.c .c-top,
+        .ship.c .c-top {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .ship.c .c-top .c-name {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .ship.c .c-top .c-top-flags {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ship.c .c-top .c-top-flags:empty {
+            display: none;
+        }
+
         .ship.c .c-bot {
             display: flex;
             gap: 4px;
@@ -1153,6 +1264,12 @@
             text-align: center;
             flex: none;
             margin-right: 0;
+        }
+
+        .ship.c .c-top .ship-asw-icon-only {
+            flex: 0 0 11px;
+            width: 11px;
+            gap: 0;
         }
 
         /* 艦名過長時截斷（全名在 title）——並排欄寬無法容納長名，換行會破壞列高一致。 */
@@ -2123,13 +2240,17 @@
 
         .ship-main {
             grid-column: 2;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-rows: 12px 11px 16px;
+            column-gap: 4px;
             row-gap: 0;
             min-width: 0;
         }
 
         .ship-identity-row {
+            grid-column: 1;
+            grid-row: 1;
             display: flex;
             align-items: center;
             width: 100%;
@@ -2183,17 +2304,47 @@
             line-height: 12px;
         }
 
+        .ship-asw {
+            display: inline-flex;
+            align-items: center;
+            flex: 0 0 35px;
+            gap: 2px;
+            width: 35px;
+            height: 10px;
+            color: color-mix(in srgb, var(--brass) 65%, var(--dim));
+            font-size: 8px;
+            font-weight: 400;
+            line-height: 10px;
+            letter-spacing: var(--track-body);
+            white-space: nowrap;
+        }
+
+        .ship-asw > svg {
+            display: block;
+            flex: 0 0 11px;
+            width: 11px;
+            height: 10px;
+        }
+
         .ship-hp {
-            display: flex;
-            flex-direction: row;
-            align-items: flex-end;
-            gap: 4px;
-            width: 100%;
-            height: 11px;
-            min-height: 11px;
-            margin: 0;
-            padding: 0;
-            min-width: 0;
+            display: contents;
+        }
+
+        .ship-hp .hpbar {
+            grid-column: 1;
+            grid-row: 2;
+            align-self: end;
+        }
+
+        .ship-hp .hp-pair {
+            grid-column: 2;
+            grid-row: 2;
+            align-self: end;
+        }
+
+        .ship-gear-row {
+            grid-column: 1 / -1;
+            grid-row: 3;
         }
 
         .hp-num {
@@ -2645,11 +2796,32 @@
         }
 
         .ship.c .c-hp {
-            display: flex;
+            display: contents;
             justify-content: flex-start;
             gap: 6px;
             align-items: center;
             min-width: 0;
+        }
+
+        .ship.c .c-hp > .hpbar {
+            grid-column: 1;
+            grid-row: 2;
+            align-self: center;
+        }
+
+        .ship.c .c-hp > .c-hp-value {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        .ship.c .c-hp > .c-aux {
+            grid-column: 3;
+            grid-row: 2;
+        }
+
+        .ship.c > .c-gear {
+            grid-column: 1 / -1;
+            grid-row: 3;
         }
 
         .ship.c .c-hp-value {
@@ -5366,18 +5538,68 @@
             overflow: hidden;
         }
 
-        /* 一般大破點擊後只隱藏文字，紅框與原本占位維持不變。 */
-        .s-taiha-generic {
+        /* 大破警告（旗艦與一般）點擊後只隱藏文字，紅框與原本占位維持不變。 */
+        .s-taiha-toggle {
             cursor: pointer;
         }
 
-        .s-taiha.open.s-taiha-generic.details-hidden {
+        .s-taiha.open.s-taiha-toggle.details-hidden {
             background: transparent;
         }
 
-        .s-taiha-generic.details-hidden .taiha-head,
-        .s-taiha-generic.details-hidden .taiha-hint {
+        .s-taiha-toggle.details-hidden .taiha-head,
+        .s-taiha-toggle.details-hidden .taiha-hint {
             display: none;
+        }
+
+        /* 可切換的提示：右上角折角。展開態是掀起的紙角（暗角＋亮色翻面），表示底下還有內容；
+           隱藏態改為實心紅角標，表示警告收在這裡、可再翻回來。角落 10px 內不會壓到置中的
+           敵我欄標與機數，也不依語言長度變動。 */
+        .s-taiha-toggle {
+            transition: border-color 100ms ease-out, background 100ms ease-out, transform 100ms ease-out;
+        }
+
+        .taiha-flip {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 9px;
+            height: 9px;
+            pointer-events: none;
+            border-bottom-left-radius: 2px;
+            background: linear-gradient(225deg,
+                    var(--panel) 50%,
+                    color-mix(in srgb, #ffffff 55%, var(--dmg-major)) 50%);
+            box-shadow: -1px 1px 2px rgba(0, 0, 0, 0.35);
+            transition: width 100ms ease-out, height 100ms ease-out;
+        }
+
+        .s-taiha-toggle.details-hidden .taiha-flip {
+            border-bottom-left-radius: 0;
+            background: linear-gradient(225deg, var(--dmg-major) 50%, transparent 50%);
+            box-shadow: none;
+        }
+
+        .s-taiha-toggle:hover {
+            border-color: #ff8a8a;
+        }
+
+        .s-taiha-toggle:hover .taiha-flip {
+            width: 13px;
+            height: 13px;
+        }
+
+        .s-taiha.open.s-taiha-toggle.details-hidden:hover {
+            background: rgba(224, 85, 85, 0.08);
+        }
+
+        .s-taiha-toggle:active {
+            transform: scale(.97);
+        }
+
+        .s-taiha-toggle:focus-visible {
+            outline: 2px solid var(--sparkle);
+            outline-offset: -2px;
         }
 
         /* 退避提示（旗艦帶司令部施設時）：附在大破警告內的第二行，弱化成說明語氣——
@@ -5402,7 +5624,7 @@
 
         .ship:has(.ship-body).escaped .ship-kind-status > .stype,
         .ship:has(.ship-body).escaped .ship-id,
-        .ship:has(.ship-body).escaped .ship-hp,
+        .ship:has(.ship-body).escaped .ship-hp > *,
         .ship:has(.ship-body).escaped .ship-gear-row {
             opacity: 0.5;
         }
@@ -5437,8 +5659,14 @@
                 transition: none;
             }
 
-            .ab-tabs button:active {
+            .ab-tabs button:active,
+            .s-taiha-toggle:active {
                 transform: none;
+            }
+
+            .s-taiha-toggle,
+            .taiha-flip {
+                transition: none;
             }
         }
 

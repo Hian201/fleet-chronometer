@@ -25,10 +25,11 @@ import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
 import { formationRects } from '@/utils/formation-geometry';
 import { mountOrder, renderOrder } from './order';
 import { mountGeneral } from './general';
+import { openingAswBadge } from './opening-asw';
 import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 import { mountFleetPhoto } from './fleet-photo';
 import { fitHeaderScale } from './header-fit';
-import { MSG_FLEET_PHOTO_SHOOT } from '@/utils/game-page';
+import { loadExcludedMaps, onExcludedMapsChange } from '@/utils/sortie-exclude';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
@@ -38,7 +39,13 @@ const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), genera
     tabpanelEl = $('tabpanel'),
     photoTrayEl = $('photo-tray');
 const state = new GameState();
-const projector = new EventProjector({ state, mode: 'persist', tables: db });
+// 不記錄的海域可能在總括頁被改動；用 storage 事件同步，下一場出擊開始時生效。
+let excludedSortieMaps = new Set(loadExcludedMaps());
+onExcludedMapsChange(maps => { excludedSortieMaps = new Set(maps); });
+const projector = new EventProjector({
+    state, mode: 'persist', tables: db,
+    skipSortieMap: map => excludedSortieMaps.has(map),
+});
 const PANEL_INNER_WIDTH = 370;
 async function fitPanelInnerWidth() {
     const inner = document.documentElement.clientWidth;
@@ -560,7 +567,7 @@ const shipStateSlot = (s: ShipView) => {
     return inner ? `<span class="ship-state">${inner}</span>` : '';
 };
 const FLEET_REGULAR_SLOTS = 5;
-function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string }) {
+function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string }, fleetNo?: number) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = stClass(s);
     // ★改修與熟練恆佔固定寬度的槽（即使該裝備無改修/熟練也保留空槽），使不同艦艇的
@@ -585,7 +592,7 @@ function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string }) {
         </div>
         <div class="ship-main">
           <div class="ship-identity-row">
-            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow"${shipNameTitle(s)}>${esc(s.name)}</span></div>
+            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow"${shipNameTitle(s)}>${esc(s.name)}</span>${openingAswBadge(s, { combined: state.combinedFlag > 0 && (fleetNo === 1 || fleetNo === 2), fleetNo })}</div>
           </div>
           <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
           <div class="ship-gear-row"><span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
@@ -609,7 +616,9 @@ function renderExped() {
             if (m.maparea !== area) {
                 if (area !== -1) html += '</optgroup>';
                 area = m.maparea;
-                html += `<optgroup label="${esc(t('exped.area', { n: area }))}">`;
+                // 通常海域同出擊紀錄寫成「1 鎮守府海域」；活動海域（支援遠征）只顯示名稱。
+                const areaLabel = area < 10 ? `${area} ${state.mapAreaName(area)}` : state.mapAreaName(area);
+                html += `<optgroup label="${esc(areaLabel)}">`;
             }
             const timeStr = m.time ? ` (${Math.floor(m.time / 60)}:${String(m.time % 60).padStart(2, '0')})` : '';
             html += `<option value="${m.id}">[${esc(m.dispNo)}] ${esc(expedDisplayName(m.id, m.name))}${timeStr}</option>`;
@@ -767,7 +776,7 @@ function compactGearRow(s: ShipView) {
     if (slots.length === 0 && !exItem) return '';
     return `<div class="c-gear"><span class="c-gear-slots">${slots.join('')}</span>${exItem}</div>`;
 }
-function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
+function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }, fleetNo?: number) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
     const cond = s.cond >= 50 ? 'sparkle' : s.cond <= 19 ? 'heavy' : s.cond <= 29 ? 'tired' : '';
@@ -780,9 +789,11 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }) {
         `<i style="background-image:linear-gradient(to left,#a8763e ${bp}%,transparent ${bp}%)"></i></span>`;
     return `<div class="ship c ${st} ${s.escaped ? 'escaped' : ''} ${s.inDock ? 'in-dock' : ''} ${marks?.cls ?? ''}">
       <div class="c-top">
-        <span class="stype">${esc(s.stype)}</span>
-        <span class="grow"${shipNameTitle(s)}>${esc(s.name)}${escapedTag(s)}</span>${dockMark(s)}
-        ${marks?.mark ?? ''}${condDisplay(s)}
+        <div class="c-name">
+          <span class="stype">${esc(s.stype)}</span>
+          <span class="grow"${shipNameTitle(s)}>${esc(s.name)}${escapedTag(s)}</span>
+        </div>
+        <span class="c-top-flags">${dockMark(s)}${marks?.mark ?? ''}</span>${openingAswBadge(s, { combined: state.combinedFlag > 0 && (fleetNo === 1 || fleetNo === 2), fleetNo }, true)}${condDisplay(s)}
       </div>
       <div class="c-hp"><span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span>
         <span class="c-hp-value"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span>
@@ -836,7 +847,7 @@ function renderCombinedFleets() {
         // 多長一列、把整排艦往下推，正在盯的那一艘突然換位置。改比照單隊檢視，把警示長在
         // 大破艦自己身上（艦名轉紅，見 index.html 的 .ship.c.st-major .c-top .grow），
         // 不佔版面。出擊中的完整大破警告本來就在出擊分頁，不靠這顆徽章。
-        return `<section class="fleet compact">${f.ships.map(s => compactShipRow(s)).join('')}</section>`;
+        return `<section class="fleet compact">${f.ships.map(s => compactShipRow(s, undefined, i + 1)).join('')}</section>`;
     }).join('');
     fleetsEl.innerHTML = `<div class="combined-wrap">${totalHead}<div class="c-fleet-row">${cols}</div></div>`;
 }
@@ -859,7 +870,7 @@ function renderFleets() {
             ${fleetMetricsHtml(sum)}
           </div>` : '';
         const fleetClass = `${f.ships.length === 6 ? ' fleet-six' : ''}${f.ships.length >= 7 ? ' fleet-seven' : ''}${ops ? ' fleet-ops' : ' fleet-no-ops'}`;
-        return `<section class="fleet${fleetClass}">${summary}${f.ships.map((s, idx) => shipRow(s, maxSlots, repairMarks(idx, rep, mor))).join('')}</section>`;
+        return `<section class="fleet${fleetClass}">${summary}${f.ships.map((s, idx) => shipRow(s, maxSlots, repairMarks(idx, rep, mor), i + 1)).join('')}</section>`;
     }).join('');
 }
 fleetsEl.addEventListener('change', e => {
@@ -930,8 +941,11 @@ function renderAirBases() {
     if (selectedLbasArea === null || !areas.includes(selectedLbasArea)) {
         selectedLbasArea = areas[0]!;
     }
+    // 英文大區名較長，370px 內與活動海域並列會被擠出；分頁改用 wiki 慣用的 World n，
+    // 完整名稱放 title，選中海域的完整名稱另由下方標題呈現。
+    const tabLabel = (a: number) => getLang() === 'en' && a < 10 ? `World ${a}` : state.mapAreaName(a);
     let html = `<div class="ab-tabs">` + areas.map(a =>
-        `<button data-area="${a}" class="${a === selectedLbasArea ? 'on' : ''}">${esc(state.mapAreaName(a))}</button>`
+        `<button data-area="${a}" class="${a === selectedLbasArea ? 'on' : ''}" title="${esc(state.mapAreaName(a))}">${esc(tabLabel(a))}</button>`
     ).join('') + `</div>`;
     const maintenanceLevel = state.airBaseMaintenanceLevel(selectedLbasArea);
     const maintenance = maintenanceLevel == null ? '' :
@@ -1148,18 +1162,19 @@ function renderSortie() {
         // ── 大破警告 ──
         // 警告絕對定位於航空戰欄，不參與一般流，避免推動固定高度的敵艦列與系統列。
         // 旗艦大破後不能前往下一節點；因此不得同時顯示司令部退避的選項。
-        let taihaHtml = '';
+        // 旗艦大破與一般大破共用同一顆切換按鈕：點擊只隱藏文字、保留紅框，露出底下的機數。
+        let taihaWarning: { kind: 'flagship' | 'generic'; head: string; hint: string; title: string } | null = null;
         if (info.flagshipTaiha) {
             const dameconMst = info.flagshipDamecon === 1 ? 42 : info.flagshipDamecon === 2 ? 43 : 0;
-            const flagshipWarning = dameconMst
-                ? {
-                    text: t('sortie.taihaFlagshipDamecon', { item: state.gearName(dameconMst) }),
-                    title: t('sortie.taihaFlagshipDameconTitle'),
-                }
-                : { text: t('sortie.taihaFlagship'), title: t('sortie.taihaFlagship') };
-            taihaHtml = `<div class="taiha-alert s-taiha s-taiha-flagship open" title="${esc(flagshipWarning.title)}">
-                <span class="taiha-head">${esc(flagshipWarning.text)}</span>
-              </div>`;
+            const head = dameconMst
+                ? t('sortie.taihaFlagshipDamecon', { item: state.gearName(dameconMst) })
+                : t('sortie.taihaFlagship');
+            taihaWarning = {
+                kind: 'flagship',
+                head,
+                hint: '',
+                title: dameconMst ? t('sortie.taihaFlagshipDameconTitle', { item: state.gearName(dameconMst) }) : head,
+            };
         } else if (info.isTaiha) {
             const retreat = state.retreatAvailability();
             const canRetreat = retreat.state === 'ready';
@@ -1167,11 +1182,26 @@ function renderSortie() {
             const retreatTitle = canRetreat
                 ? retreat.kind === 'combined' ? t('sortie.taihaRetreatHintTitle') : t('sortie.taihaRetreatSoloTitle')
                 : t('sortie.taihaRetreatNoEscortTitle');
-            taihaHtml = `<button type="button" class="taiha-alert s-taiha s-taiha-generic open${taihaDetailsHidden ? ' details-hidden' : ''}"
+            taihaWarning = {
+                kind: 'generic',
+                head: t('sortie.taihaWarning'),
+                hint: retreatText,
+                title: `${t('sortie.taihaWarning')}\n${retreatTitle}`,
+            };
+        }
+        let taihaHtml = '';
+        if (taihaWarning) {
+            // 文字隱藏後按鈕沒有可見內容，無障礙名稱改由 aria-label 保留警告與切換方向。
+            // 右上角折角是「可翻開」的視覺提示：展開態像紙角掀起、隱藏態留紅色角標。
+            const toggleHint = t(taihaDetailsHidden ? 'sortie.taihaExpandHint' : 'sortie.taihaCollapseHint');
+            const label = [taihaWarning.head, taihaWarning.hint].filter(Boolean).join(' ').replace(/\s+/g, ' ');
+            taihaHtml = `<button type="button" class="taiha-alert s-taiha s-taiha-${taihaWarning.kind} s-taiha-toggle open${taihaDetailsHidden ? ' details-hidden' : ''}"
                 id="taiha-toggle" aria-expanded="${!taihaDetailsHidden}"
-                title="${esc(`${t('sortie.taihaWarning')}\n${retreatTitle}`)}">
-                <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span>
-                <span class="taiha-hint">${esc(retreatText)}</span>
+                aria-label="${esc(`${label}：${toggleHint}`)}"
+                title="${esc(`${taihaWarning.title}\n\n${toggleHint}`)}">
+                <span class="taiha-head">${esc(taihaWarning.head)}</span>${taihaWarning.hint ? `
+                <span class="taiha-hint">${esc(taihaWarning.hint)}</span>` : ''}
+                <span class="taiha-flip" aria-hidden="true"></span>
               </button>`;
         }
         // 敵方編成：晶片式兩欄（隨伴在左、主隊在右，對齊遊戲排版）。
@@ -1823,10 +1853,6 @@ browser.runtime.onMessage.addListener((msg) => {
 });
 // 面板視窗單例化：使用者點擴充圖示時 background 會 ping，回報自己的 windowId 供聚焦
 // （見 background.ts action.onClicked）。return true = 稍後非同步呼叫 sendResponse。
-// 快捷鍵（manifest commands，由 background 轉來）：托盤開著才拍
-browser.runtime.onMessage.addListener((msg) => {
-    if (msg?.type === MSG_FLEET_PHOTO_SHOOT && photo.isOpen()) photo.shoot();
-});
 browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type !== 'kc:panel-ping') return;
     browser.windows.getCurrent().then(w => sendResponse(w.id));

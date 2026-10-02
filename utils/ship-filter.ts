@@ -79,6 +79,27 @@ export interface FilterableShip {
     soku: number;
     equipTypes: number[];
     sallyArea: number;
+    /** master 的 api_sort_id；null／未提供＝不可考。見 compareGameOrder。 */
+    sortId?: number | null;
+}
+
+/**
+ * 主排序鍵同值時的遊戲次序：api_sort_id，再以艦實例 id。遊戲只有降冪（同值時 api_sort_id
+ * 由小到大）；升冪視為整串反轉，故 `desc` 為由小到大、`asc` 為由大到小。
+ * sortId 不可考者不論方向都排在後面（缺值不是很小的值）。
+ */
+export function compareGameOrder(
+    a: { id: number; sortId?: number | null }, b: { id: number; sortId?: number | null },
+    dir: 'asc' | 'desc' = 'desc',
+): number {
+    const sign = dir === 'desc' ? 1 : -1;
+    const as = a.sortId ?? null, bs = b.sortId ?? null;
+    if (as !== bs) {
+        if (as == null) return 1;
+        if (bs == null) return -1;
+        return sign * (as - bs);
+    }
+    return sign * (a.id - b.id);
 }
 
 export type ShipSortKey = 'level' | 'stype' | 'name';
@@ -136,9 +157,11 @@ export function filterShips<T extends FilterableShip>(
         && (!needle || s.name.toLocaleLowerCase().includes(needle)));
 
     return out.sort((a, b) => {
-        if (sort === 'name') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.id - b.id;
-        if (sort === 'stype') return a.stypeId - b.stypeId || b.lv - a.lv || a.id - b.id;
-        return b.lv - a.lv || a.id - b.id;
+        if (sort === 'name') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || compareGameOrder(a, b);
+        // 遊戲的「艦種」排序就是 api_sort_id 升冪：不比等級、也不依艦種 id 分組
+        // （實機畫面：霧島 Lv1 在霧島改二丙 Lv99 前，扶桑〔艦種 9〕在扶桑改二〔艦種 10〕前）。
+        if (sort === 'stype') return compareGameOrder(a, b);
+        return b.lv - a.lv || compareGameOrder(a, b);
     });
 }
 

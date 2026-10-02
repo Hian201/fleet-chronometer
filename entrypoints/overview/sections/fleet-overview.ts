@@ -1,5 +1,5 @@
 // 艦隊四隊＋基地航空隊全覽。從共用 GameState 讀當前母港狀態，渲染四艦隊與
-// 基地航空隊，並可「複製／下載 Markdown」或「下載 PNG」（截圖）。
+// 基地航空隊，並可「複製／下載 Markdown」。
 //
 // 版面契約：
 //   · 每艘艦一張卡，艦隊以橫向欄呈現；裝備逐列顯示完整名稱，欄寬不足時以 ellipsis 收束。
@@ -15,22 +15,19 @@
 //   · 基地航空隊的顯示範圍以海域為單位，lbas 鍵使用 `String(areaId)`。封包只提供
 //     maparea 層級的所屬資訊，不能可靠區分同一海域內的個別地圖；`rid` 不是全域鍵。
 //
-// Markdown／PNG 匯出仍直接吃畫面的顯示範圍 prefs（不跳選擇框）——這兩個是「複製/
+// Markdown 匯出直接吃畫面的顯示範圍 prefs（不跳選擇框）——這是「複製/
 // 下載現在看到的東西」，跟「傳去另一個網站」的心智模型不同，沒有必要每次都多問一次。
 //
 // 匯出設計：
-//   · Markdown＝主要、最穩健的輸出（純文字，貼哪都行）。
-//   · PNG＝把一份「內聯樣式、純文字（不含外部 <img>）」的匯出用 HTML 包進 SVG
-//     foreignObject → canvas → PNG。刻意不含外部圖示：SVG 載入為圖片時處於安全模式、
-//     不會載外部資源，含 <img> 會變空白；純文字＋內聯 CSS 則能穩定點陣化，不需任何權限。
+//   · Markdown＝每支艦隊一張兩欄表格，每格一艘艦，裝備以 `<br>` 逐行列出。
 //   · DeckBuilder（KanColleImgBuilder／制空権シミュレータ）：見 utils/deckbuilder.ts。
 import type { OverviewSection } from './types';
 import { airBaseKey } from '@/utils/state';
 import type { GameState, FleetView, AirBaseView, ShipView, GearView, SquadronView } from '@/utils/state';
 import { t } from '@/utils/ui-i18n';
 import {
-    AIR_ACTION_KEYS, airBaseAreaLabel, esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml, gearMarkdown,
-    loadJsonPrefs, saveJsonPrefs, shipGearsMarkdown, type FleetMarkdownScope,
+    AIR_ACTION_KEYS, airBaseAreaLabel, esc, downloadText, copyWithFeedback, fleetMarkdown, gearIconHtml,
+    loadJsonPrefs, saveJsonPrefs, type FleetMarkdownScope,
 } from '../lib';
 import {
     buildDeckBuilder, buildOwnedEquipmentCode, buildSelectedDeckBuilder, buildSelectedSupportDeckBuilder,
@@ -191,61 +188,12 @@ export function baseHtml(b: AirBaseView, areaName: string): string {
 }
 
 // ── Markdown 匯出 ─────────────────────────────────────
-// 艦隊＋基地航空隊本體共用 lib.ts 的 fleetMarkdown()（llm.ts 的完整報告匯出也靠它組裝，
-// 兩處輸出格式保證一致；那邊不傳 scope＝一律全含，不受這個分區的顯示開關影響）。
+// 艦隊＋基地航空隊本體共用 lib.ts 的 fleetMarkdown()。
 //
 // **不放提督資訊**（暱稱／司令部 Lv）：這份輸出是拿去貼給別人看編成的，提督暱稱是
-// 個人識別資訊，貼出去就散出去了，而它對「這隊帶了什麼」毫無幫助。PNG 匯出仍保留
-// 標題列——那是自己留存的截圖用途，使用者要的是這一份純文字不帶身分。
+// 個人識別資訊，貼出去就散出去了，而它對「這隊帶了什麼」毫無幫助。
 function buildMarkdown(state: GameState, scope: FleetMarkdownScope): string {
     return fleetMarkdown(state, '##', scope);
-}
-
-// ── PNG 匯出（內聯樣式、純文字，穩定點陣化）────────────────
-// 裝備寫法共用 lib.ts 的 gearMarkdown()（同 Markdown 匯出）：★10 只給星號、熟練度接
-// 符號。Markdown 與 PNG 匯出共用同一份純文字格式，確保同一支艦隊的輸出一致。
-function buildExportHtml(state: GameState, scope: FleetMarkdownScope): { html: string; height: number } {
-    const rows: string[] = [];
-    const line = (txt: string, bold = false, indent = 0) =>
-        `<div style="margin:${bold ? '10px 0 2px' : '1px 0'};padding-left:${indent}px;font-weight:${bold ? 700 : 400};color:${bold ? '#e6c35c' : '#cfd6e4'}">${esc(txt)}</div>`;
-    rows.push(line(`${state.nickname || '???'}　Lv${state.hqLv}`, true));
-    state.fleets().forEach((f, i) => {
-        if (!f.ships.length || !scope.fleets[i]) return;
-        rows.push(line(`${t('ov.fleetN', { n: i + 1 })} — ${f.name}`, true));
-        for (const s of f.ships) {
-            const gears = shipGearsMarkdown(s);
-            rows.push(line(`${s.stype} ${s.name}  Lv${s.lv}  HP${s.hp}/${s.maxhp}  ${gears}`, false, 12));
-        }
-    });
-    for (const b of state.airBases_()) {
-        if (scope.lbas[b.rid - 1] === false) continue;
-        rows.push(line(`${b.name}（${state.mapAreaName(b.areaId)}）  ${t('ov.airPower', { min: b.airPower.min, max: b.airPower.max })}`, true));
-        rows.push(line(b.squadrons.map(gearMarkdown).join(' / '), false, 12));
-    }
-    const height = 40 + rows.length * 20;
-    const html = `<div xmlns="http://www.w3.org/1999/xhtml" style="width:760px;padding:16px;box-sizing:border-box;background:#10151d;font:13px/1.5 sans-serif">${rows.join('')}</div>`;
-    return { html, height };
-}
-
-function downloadPng(state: GameState, scope: FleetMarkdownScope) {
-    const { html, height } = buildExportHtml(state, scope);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="760" height="${height}"><foreignObject width="100%" height="100%">${html}</foreignObject></svg>`;
-    const img = new Image();
-    img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 760; canvas.height = height;
-        const cx = canvas.getContext('2d')!;
-        cx.drawImage(img, 0, 0);
-        canvas.toBlob(blob => {
-            if (!blob) return;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `fleet-${Date.now()}.png`;
-            document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }, 'image/png');
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 }
 
 export const fleetOverviewSection: OverviewSection = {
@@ -297,7 +245,6 @@ export const fleetOverviewSection: OverviewSection = {
             <div class="ov-toolbar">
                 <button class="ov-btn" id="fo-md-copy">${esc(t('ov.copyMarkdown'))}</button>
                 <button class="ov-btn" id="fo-md-dl">${esc(t('ov.downloadMarkdown'))}</button>
-                <button class="ov-btn" id="fo-png">${esc(t('ov.downloadPng'))}</button>
                 <button class="ov-btn" id="fo-imgbuilder">${esc(t('ov.exportImgBuilder'))}</button>
                 <button class="ov-btn" id="fo-aircalc">${esc(t('ov.exportAirCalc'))}</button>
                 <button class="ov-btn" id="fo-fleet-codes">${esc(t('ov.fleetCodesButton'))}</button>
@@ -394,7 +341,7 @@ export const fleetOverviewSection: OverviewSection = {
         }
         renderBody();
 
-        // 開關同時決定畫面顯示與 Markdown／PNG 匯出範圍（見檔頭註解），故只需維護
+        // 開關同時決定畫面顯示與 Markdown 匯出範圍（見檔頭註解），故只需維護
         // prefs 一份狀態；傳去外部工具的範圍是 dialog 自己單獨一份，不共用這裡。
         scopeEl.addEventListener('change', e => {
             const box = (e.target as HTMLElement).closest('input[type=checkbox]') as HTMLInputElement | null;
@@ -415,7 +362,6 @@ export const fleetOverviewSection: OverviewSection = {
             copyWithFeedback(e.currentTarget as HTMLButtonElement, buildMarkdown(state, scope()), t('ov.copied')));
         el.querySelector('#fo-md-dl')!.addEventListener('click', () =>
             downloadText(`fleet-${Date.now()}.md`, buildMarkdown(state, scope()), 'text/markdown'));
-        el.querySelector('#fo-png')!.addEventListener('click', () => downloadPng(state, scope()));
 
         // ── 傳去外部工具前先選範圍 ──
         // dialog 裡的 checkbox 是獨立一份、預設帶入目前畫面顯示範圍當起點，勾選只

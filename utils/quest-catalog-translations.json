@@ -1375,7 +1375,7 @@
       "detail": "Sortie to [W5-2]. S-Rank the boss node 2 times."
     },
     "zh-TW": {
-      "name": "（週） 南方海域出擊！",
+      "name": "（週） 掌握南方海域珊瑚諸島沖的制空權！",
       "detail": "在 5-2 在王點取得 S 勝利 2 次！"
     }
   },
@@ -1541,7 +1541,7 @@
   },
   "260": {
     "en": {
-      "name": "Rush the Battleship Force into the Northern Sea!",
+      "name": "Rush the Battleship Force into the Northern Waters!",
       "detail": "Sortie 2 (F)BB (no BBV), 1 CVL and 3 additional ships to [W3-5]. S-Rank the boss node."
     },
     "zh-TW": {
@@ -1561,7 +1561,7 @@
   },
   "262": {
     "en": {
-      "name": "Advance the Nishimura Fleet into the Southern Sea!",
+      "name": "Advance the Nishimura Fleet into the Southern Waters!",
       "detail": "Sortie Fusou, Yamashiro, Mogami, Shigure, Michishio and 1 additional ship to [W5-1]. S-Rank the boss node."
     },
     "zh-TW": {
@@ -1571,7 +1571,7 @@
   },
   "263": {
     "en": {
-      "name": "Sortie the 6th Cruiser Division into the Southwestern Sea!",
+      "name": "Sortie the 6th Cruiser Division into the South Western Waters!",
       "detail": "Sortie Furutaka, Kako, Aoba, Kinugasa and 2 additional ships to [W2-5]. S-Rank the boss node."
     },
     "zh-TW": {
@@ -1675,7 +1675,7 @@
       "detail": "Sortie Choukai Kai Ni as flagship and any five of Aoba, Kinugasa, Kako, Furutaka, Tenryuu, Yuubari to [W5-1]. S-Rank the boss node."
     },
     "zh-TW": {
-      "name": "新編三川艦隊，向所羅門海域出發！",
+      "name": "新編三川艦隊，向所羅門方面出發！",
       "detail": "在 5-1 出動含有「鳥海改二」（旗艦），（「古鷹」、「加古」、「青葉」、「衣笠」、「夕張」及「天龍」） 6 艘中的 5 艘的艦隊在王點取得 S 勝利"
     }
   },
@@ -1781,17 +1781,17 @@
   },
   "284": {
     "en": {
-      "name": "Quarterly Nansei Archipelago",
+      "name": "Quarterly Nansei Islands",
       "detail": "Sortie a CL(T)/CT/CVL, 3 DD/DE and up to 2 other ships to [W1-4], [W2-1], [W2-2] and [W2-3]. S-Rank the boss nodes of each."
     },
     "zh-TW": {
-      "name": "（季） [戰果任務] 西南島嶼群「海上警戒行動」命令",
+      "name": "（季） [戰果任務] 南西諸島方面「海上警戒行動」命令",
       "detail": "在 1-4、2-1、2-2 及 2-3 出動含有 1 艘（輕巡級+輕航空母艦），3 艘（驅逐艦+海防艦） 的艦隊 （另可編入至多 2 艘不限艦種的艦艇） 在王點各取得 S 勝利 1 次"
     }
   },
   "285": {
     "en": {
-      "name": "Advance the Carrier Task Force into the Northern Sea!",
+      "name": "Advance the Carrier Task Force into the Northern Waters!",
       "detail": "Sortie a CV(B) as flagship to [W3-5]. S-Rank the boss node."
     },
     "zh-TW": {
@@ -1811,7 +1811,7 @@
   },
   "287": {
     "en": {
-      "name": "Sortie the 5th Carrier Division into the Coral Sea Region!",
+      "name": "Sortie the 5th Carrier Division off the Coral Islands!",
       "detail": "Sortie Shoukaku, Zuikaku, Oboro, Akigumo and up to 2 additional ships to [W5-2]. S-Rank the boss node."
     },
     "zh-TW": {
@@ -1925,7 +1925,7 @@
       "detail": "Sortie any two of Akebono, Ushio, Sazanami and Oboro and up to 4 additional ships to [W2-1], [W2-2], [W2-3] and [W2-4]. S-Rank the boss nodes."
     },
     "zh-TW": {
-      "name": "「第七驅逐隊」，前往西南群島！",
+      "name": "「第七驅逐隊」，前往南西諸島！",
       "detail": "在 2-1、2-2、2-3 及 2-4 出動含有（「曙」、「潮」、「漣」及「朧」） 4 艘中的 2 艘的艦隊 （另可編入至多 4 艘不限艦種的艦艇） 在王點各取得 S 勝利 1 次"
     }
   },
@@ -2965,7 +2965,7 @@
       "detail": "Complete Expeditions A1, 4, 9 and B5."
     },
     "zh-TW": {
-      "name": "（年 - 8月） 強化西南島嶼群海上護衛！",
+      "name": "（年 - 8月） 強化南西諸島方面海上護衛！",
       "detail": "成功完成 A1、4、9 及 B5（月） 號遠征"
     }
   },
@@ -3541,7 +3541,7 @@
   },
   "647": {
     "en": {
-      "name": "Deploy an Air Base Squadron to the Chubu Region!",
+      "name": "Deploy an Air Base Squadron to the Central Waters!",
       "detail": "Have 1200 Fuel, 3000 Bauxite, and one Construction Battalion in your inventory. Scrap two Drum Canisters."
     },
     "zh-TW": {
@@ -4171,12 +4171,12 @@
   },
   "805": {
     "en": {
-      "name": "Send Flagship Kasumi to Patrol the Northern Sea!",
+      "name": "Send Flagship Kasumi to Patrol the Northern Waters!",
       "detail": "Sortie Kasumi Kai Ni as flagship, 3 DD and up to 2 additional ships to [W3-1]. B-Rank+ the boss node."
     },
     "zh-TW": {
       "name": "旗艦「霞」北方海域哨戒！",
-      "detail": "以「霞改二」擔任旗艦，率領包含4艘驅逐艦的艦隊投入北方海域，實施莫雷海哨戒！"
+      "detail": "以「霞改二」擔任旗艦，率領包含4艘驅逐艦的艦隊投入北方海域，實施白令海哨戒！"
     }
   },
   "806": {
@@ -4371,7 +4371,7 @@
   },
   "825": {
     "en": {
-      "name": "Torpedo Squadron, Patrol the Nansei Islands Region!",
+      "name": "Torpedo Squadron, Patrol the Nansei Island Waters!",
       "detail": "Sortie a CL/CLT/CT as flagship, 4 DD and 1 additional ship to [W2-2] and [W2-3]. S-Rank the boss nodes of both maps."
     },
     "zh-TW": {
@@ -4601,7 +4601,7 @@
   },
   "853": {
     "en": {
-      "name": "Vigilantly Patrol the Waters of the Naval Base!",
+      "name": "Vigilantly Patrol the Naval Base Waters!",
       "detail": "Sortie a CL/CA(V) as flagship and at least 2 DD in any suitable fleet composition to [W1-2], [W1-3], [W1-4] and [W1-5]. A-Rank+ the boss nodes of each."
     },
     "zh-TW": {
@@ -4781,7 +4781,7 @@
   },
   "874": {
     "en": {
-      "name": "Execute a Combat Patrol of the Northern Region!",
+      "name": "Execute a Combat Patrol of the Northern Waters!",
       "detail": "Sortie a CL, an AV, a CVL and up to 3 additional ships to [W3-5]. S-Rank the boss node twice."
     },
     "zh-TW": {
@@ -4811,7 +4811,7 @@
   },
   "877": {
     "en": {
-      "name": "Elite DesRon 4, Deploy to the Southern Region!",
+      "name": "Elite DesRon 4, Deploy to the Southern Waters!",
       "detail": "Sortie Murasame Kai Ni as flagship and 3+ of Yura Kai Ni, Yuudachi Kai Ni, Harusame Kai, Samidare Kai or Akizuki Kai to [W5-1], [W5-3] and [W5-4]. A-Rank+ the bosses."
     },
     "zh-TW": {
@@ -4851,11 +4851,11 @@
   },
   "881": {
     "en": {
-      "name": "DesDiv 18, to Kis Island in the Northern Seas!",
+      "name": "DesDiv 18, to Kis Island in the Northern Waters!",
       "detail": "Sortie Arare Kai Ni, Kasumi Kai Ni (or B), Kagerou Kai, Shiranui Kai and up to 2 additional ships to [W3-2]. S-Rank the boss node twice."
     },
     "zh-TW": {
-      "name": "「十八驅」，往北方海域基斯島！",
+      "name": "「十八驅」，往北方海域基斯卡島！",
       "detail": "在 3-2 出動含有「霰改二」、「霞改二/乙」、「陽炎改」、「不知火改」（另可編入至多 2 艘不限艦種的艦艇），導航要求 2 驅逐 或 1 輕巡 + 1 驅逐/補給)的艦隊，在王點取得 S 勝利 2 次。"
     }
   },
@@ -4905,7 +4905,7 @@
       "detail": "Sortie any four of Choukai, Aoba, Kinugasa, Kako, Furutaka, Tenryuu, Yuubari and up to 2 additional ships to [W5-1], [W5-3] and [W5-4]. S-Rank the boss nodes."
     },
     "zh-TW": {
-      "name": "（季） [戰果任務] 新組成「三川艦隊」，攻進鐵底海域！",
+      "name": "（季） [戰果任務] 新組成「三川艦隊」，攻進鐵底海峽！",
       "detail": "在 5-1、5-3 及 5-4 出動含有 （「鳥海」、「青葉」、「衣笠」、「加古」、「古鷹」、「天龍」及「夕張」） 7 艘當中 4 艘的艦隊 （另可編入至多 2 艘不限艦種的艦艇） 在王點各取得 S 勝利 1 次"
     }
   },
@@ -4971,7 +4971,7 @@
   },
   "895": {
     "en": {
-      "name": "Winter Northern Region Operation",
+      "name": "Winter Northern Waters Operation",
       "detail": "Sortie a CL as flagship and up to 5 additional ships to [W3-1], [W3-3], [W3-4] and [W3-5]. S-Rank each boss node twice."
     },
     "zh-TW": {
@@ -5141,7 +5141,7 @@
   },
   "919": {
     "en": {
-      "name": "Nansei Island Region Coalition Patrol",
+      "name": "Nansei Island Waters Coalition Patrol",
       "detail": "Sortie 2 American ships and up to 4 additional ships to [W2-2], [W2-3] and [W2-4]. S-Rank each boss node."
     },
     "zh-TW": {
@@ -5225,7 +5225,7 @@
       "detail": "Sortie Haguro as flagship and up to 4 additional ships to [W7-3-E]. A-Rank+ boss node 4 times."
     },
     "zh-TW": {
-      "name": "重巡「羽黑」，出擊！檳榔嶼海域海戰",
+      "name": "重巡「羽黑」，出擊！檳城沖海戰",
       "detail": "以羽黑為旗艦，並組成至多5艘的艦隊；於[W7-3-1]王點取得4次A勝利以上。"
     }
   },
@@ -5461,7 +5461,7 @@
   },
   "966": {
     "en": {
-      "name": "Establish the Southwest Sea Land-Based Air Squadron!",
+      "name": "Establish the South Western Waters Land-Based Air Squadron!",
       "detail": "With any fleet, S-Rank the boss at [W2-1], [W2-2], [W2-3] and [W7-3-P2] once each. Reach the port node [W7-4-O] once and have one Construction Battalion ready to establish the land-based air squadron."
     },
     "zh-TW": {
@@ -5475,7 +5475,7 @@
       "detail": "With any fleet, destroy the gauge at [W7-4]. If the gauge has already been destroyed, accepting the quest completes it automatically."
     },
     "zh-TW": {
-      "name": "海上護衛！守護 Hi 船團！",
+      "name": "海上護衛！守護ヒ（菲律賓）船團！",
       "detail": "以任一艦隊完成 [W7-4] 海域的血條破壞；若血條已破壞，接下任務後會直接完成。"
     }
   },
@@ -5775,7 +5775,7 @@
       "detail": "Sortie 3 DE and up to 3 additional ships, OR 4 DD/DE and up to 2 additional ships to [W1-1], [W1-2], [W1-5] and [W2-1]. A-Rank+ each boss node."
     },
     "zh-TW": {
-      "name": "派出哨戒部隊警戒近海以及西南諸島！",
+      "name": "派出哨戒部隊警戒近海以及南西諸島！",
       "detail": "於[W1-1]、[W1-2]、[W1-5]及[W2-1]各王點取得1次A勝利以上；艦隊須編入至少3艘海防艦，或驅逐艦與海防艦合計至少4艘。"
     }
   },
@@ -5871,7 +5871,7 @@
   },
   "1031": {
     "en": {
-      "name": "[Early Summer] Northern Sea Combat Patrol Operation 2026",
+      "name": "[Early Summer] Northern Waters Combat Patrol Operation 2026",
       "detail": "Sortie any 3 of Thonburi, Tuscaloosa, Gambier Bay, Haruna, Souya, Yuubari, Hayanami, Hamanami, Usugumo, Oboro and Ooi, one as flagship, and up to 3 additional ships to [W3-1], [W3-2] and [W3-5]. S-Rank each boss node twice."
     },
     "zh-TW": {

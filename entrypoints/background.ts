@@ -2,7 +2,7 @@ import { db, type ApiEventRow, type GamePageMetaRow } from '@/utils/db';
 import {
   MSG_MUTE_GET, MSG_MUTE_SET,
   MSG_CAPTURE_TAB, MSG_THEATER_FIT_WINDOW, MSG_THEATER_TOGGLE, MSG_UI_LANG, MSG_UI_LANG_SET, PORT_MUTE,
-  COMMAND_FLEET_PHOTO_SHOOT, MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES, MSG_FLEET_PHOTO_SHOOT, PORT_GAME_FRAME,
+  MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES, PORT_GAME_FRAME,
   type FleetPhotoCaptureMessage, type FleetPhotoSource,
   type TheaterFitWindowMessage,
 } from '@/utils/game-page';
@@ -120,11 +120,6 @@ export default defineBackground(() => {
     return tabs.filter(tab => tab.id !== undefined && ids.has(tab.id))
       .map(tab => ({ tabId: tab.id!, title: tab.title || tab.url || String(tab.id) }));
   };
-  // 快捷鍵（manifest commands）：轉給面板，面板的托盤開著才會拍。
-  browser.commands?.onCommand.addListener((command) => {
-    if (command !== COMMAND_FLEET_PHOTO_SHOOT) return;
-    browser.runtime.sendMessage({ type: MSG_FLEET_PHOTO_SHOOT }).catch(() => { /* 面板未開 */ });
-  });
 
   const broadcastMute = (muted: boolean) => {
     for (const port of mutePorts) {

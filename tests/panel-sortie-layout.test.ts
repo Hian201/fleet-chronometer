@@ -134,14 +134,21 @@ describe('出擊面板的固定資訊密度', () => {
         expect(panelMain).toContain('const nightEntryHtml = !showNightEntry ?');
     });
 
-    it('旗艦大破優先於司令部退避；一般大破點擊後只隱藏文字，紅框不收縮', () => {
+    it('旗艦大破優先於司令部退避；大破警告點擊後只隱藏文字，紅框不收縮', () => {
         expect(panelMain).toContain("} else if (info.isTaiha) {");
-        expect(panelMain).toContain('s-taiha-generic open');
+        expect(panelMain).toContain('s-taiha-toggle open');
         expect(panelMain).toContain('taihaDetailsHidden');
         expect(panelMain).toContain('taiha-toggle');
         expect(panelMain).toContain("taihaHtml && !taihaDetailsHidden ? ' covered' : ''");
-        expect(panelHtml).toContain('.s-taiha.open.s-taiha-generic.details-hidden');
-        expect(panelHtml).toContain('.s-taiha-generic.details-hidden .taiha-head');
+        expect(panelHtml).toContain('.s-taiha.open.s-taiha-toggle.details-hidden');
+        expect(panelHtml).toContain('.s-taiha-toggle.details-hidden .taiha-head');
+        // 可切換提示：折角只出現在一般大破，兩態都要看得到，切換方向寫進提示與無障礙名稱。
+        expect(panelMain).toContain('<span class="taiha-flip" aria-hidden="true"></span>');
+        expect(panelMain).toContain('s-taiha-${taihaWarning.kind} s-taiha-toggle open');
+        expect(panelMain).not.toContain('<div class="taiha-alert s-taiha s-taiha-flagship');
+        expect(panelMain).toContain("taihaDetailsHidden ? 'sortie.taihaExpandHint' : 'sortie.taihaCollapseHint'");
+        expect(panelHtml).toContain('.s-taiha-toggle.details-hidden .taiha-flip');
+        expect(panelHtml).toContain('.s-taiha-toggle:hover .taiha-flip');
         expect(claude).not.toContain('收縮態浮在');
         expect(claude).not.toContain('預設只收成一條 banner');
     });
@@ -265,6 +272,18 @@ describe('出擊面板的固定資訊密度', () => {
         expect(t('fleet.heavyDamage')).toBe('大破');
         expect(t('sortie.taihaWarning')).toBe('大破！');
         setLang('ja');
+    });
+
+    it('大破警告文案在繁中、英文、日文都限兩行，三語對照預覽都要產生', () => {
+        const keys = ['sortie.taihaFlagship', 'sortie.taihaFlagshipDamecon'];
+        for (const lang of ['zh-TW', 'en', 'ja'] as const) {
+            setLang(lang);
+            for (const key of keys) {
+                expect(t(key, { item: 'X' }).split('\n').length, `${lang} ${key}`).toBeLessThanOrEqual(2);
+            }
+        }
+        setLang('ja');
+        expect(preview).toContain("for (const lang of ['zh-TW', 'en', 'ja'] as const) {\n    writeFileSync(resolve(root, `.preview/panel-taiha-overlay-${lang}.html`), taihaOverlayPage(lang));");
     });
 
     it('大破警告釘在 44px 航空戰格內，英文短句走 i18n', () => {

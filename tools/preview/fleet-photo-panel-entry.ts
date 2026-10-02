@@ -66,7 +66,6 @@ function placeholder(width: number, height: number): string {
             ? [{ tabId: 1, title: 'KanColle A' }, ...(params.has('multi') ? [{ tabId: 2, title: 'KanColle B' }] : [])]
             : params.has('error') ? { error: params.get('error') } : { dataUrl: placeholder(msg.region.width, msg.region.height) },
     },
-    commands: { getAll: async () => [{ name: 'fleet-photo-shoot', shortcut: 'Alt+Shift+S' }] },
 };
 
 // 「輸出 PNG」改成把圖顯示在頁面上，供核對

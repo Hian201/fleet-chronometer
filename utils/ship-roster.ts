@@ -17,13 +17,14 @@
 //   · 補強增設可裝的特殊類別＝api_mst_equip_exslot_ship（key 是**裝備 master id**）
 //   · 出擊標籤＝api_sally_area；航速＝api_soku；射程＝api_leng
 // 推算（**遊戲不送這個旗標**，依 wikiwiki.jp/kancolle 機制頁轉寫）：
-//   · 先制對潛 isOpeningAsw()。規則會隨遊戲改版變動，例外艦以**艦級 ctype** 表達以降低
-//     維護成本，但仍需人工跟進。UI 必須標示為推算值，不可呈現成確定事實。
+//   · 先制對潛 isOpeningAsw()。規則會隨遊戲改版變動，艦型與改造階段依 Wiki 條件維護。UI 必須標示為推算值，不可呈現成確定事實。
 // 開幕雷擊則是事實：裝備了特殊潜航艇（裝備類別 22）即可，類別 id 由 start2 核對。
 
 import type { OwnedShipView } from './state';
+import { openingAswEligible } from './opening-asw';
+export { OPENING_ASW_EXEMPT_CTYPES as OASW_EXEMPT_CTYPES, OPENING_ASW_EXEMPT_SHIPS as OASW_EXEMPT_SHIPS } from './opening-asw';
 import {
-    filterShips,
+    compareGameOrder, filterShips,
     type EquipFilter, type ShipFilterState, type SpeedFilter,
 } from './ship-filter';
 import { NATIONS, nationOf, nationsOf, type Nation } from './ship-nationality';
@@ -55,62 +56,13 @@ export const SPARKLE_COND = 50;
 /** ケッコンカッコカリ（婚艦）門檻。Lv100 以上即為已婚。 */
 export const MARRIED_LV = 100;
 
-// ── 先制對潛（推算，見檔頭）────────────────────────────────────────────
-/** ソナー系。海防艦の 60 要件・通常艦の 100 要件はどちらもソナー装備が前提。 */
-const SONAR_TYPES: number[] = [GEAR_TYPE.sonar, GEAR_TYPE.largeSonar];
-/** ソナー以外も含む「対潜装備」。海防艦の対潜 75 要件はこちらで足りる。 */
-const ASW_GEAR_TYPES: number[] = [...SONAR_TYPES, GEAR_TYPE.depthCharge];
-/** 対潜攻撃可能機（軽空母・護衛空母の 65 要件）。艦攻・艦爆は対潜値を持つものだけ。 */
-const ASW_PLANE_TYPES: number[] = [GEAR_TYPE.autogyro, GEAR_TYPE.aswPlane];
-const ASW_CAPABLE_PLANE_TYPES: number[] = [GEAR_TYPE.torpedoPlane, GEAR_TYPE.divePlane];
-
-/** 艦種 id（api_mst_stype）。先制對潛的門檻依艦種而異，故需具名。 */
-const STYPE = { coastalDefense: 1, lightCarrier: 7 } as const;
-
-/**
- * ソナー不要で先制対潜が成立する例外艦。**艦級（ctype）で表現**——Fletcher級・
- * John C.Butler級は全形態が対象なので、改造形態ごとの master id を並べるより壊れにくい。
- * 単艦のものだけ master id で補う。いずれも真実 start2 で id を確認済み。
- */
-export const OASW_EXEMPT_CTYPES: number[] = [91 /* Fletcher級 */, 87 /* John C.Butler級 */];
-export const OASW_EXEMPT_SHIPS: number[] = [
-    141, // 五十鈴改二
-    478, // 龍田改二
-    394, // Jervis改
-    893, // Janus改
-    624, // 夕張改二丁
-    717, // 山汐丸改
-];
-
 const hasGearType = (ship: OwnedShipView, types: number[]) =>
     ship.gears.some(g => g != null && types.includes(g.type))
     || (ship.exGear != null && types.includes(ship.exGear.type));
 
-/**
- * 先制對潛（推算）。**遊戲不送這個旗標**，以下為 wikiwiki 機制頁的規則轉寫：
- *   1. 海防艦：ソナー装備 かつ 対潜 ≥ 60、または 対潜装備 かつ 対潜 ≥ 75
- *   2. 例外艦（上の ctype／master id）：ソナー不要、対潜 ≥ 100
- *   3. 軽空母・護衛空母：対潜 ≥ 65 かつ 対潜攻撃可能機を装備
- *   4. その他：ソナー装備 かつ 対潜 ≥ 100
- * 対潜値は api_taisen[0]＝**装備込みの表示値**（＝遊戲畫面と同じ数字）を使う。
- */
+/** 艦娘全覽與編成共用 Wiki 條件；遊戲沒有提供先制對潛旗標。 */
 export function isOpeningAsw(ship: OwnedShipView): boolean {
-    const asw = ship.stats.asw;
-    if (asw <= 0) return false;   // 対潜 0 の艦（戦艦など）はそもそも対潜攻撃できない
-    if (ship.stypeId === STYPE.coastalDefense) {
-        return (asw >= 60 && hasGearType(ship, SONAR_TYPES))
-            || (asw >= 75 && hasGearType(ship, ASW_GEAR_TYPES));
-    }
-    if (ship.stypeId === STYPE.lightCarrier) {
-        const plane = ship.gears.some(g => g != null
-            && (ASW_PLANE_TYPES.includes(g.type)
-                || (ASW_CAPABLE_PLANE_TYPES.includes(g.type) && g.asw > 0)));
-        return asw >= 65 && plane;
-    }
-    if (OASW_EXEMPT_CTYPES.includes(ship.ctype) || OASW_EXEMPT_SHIPS.includes(ship.masterId)) {
-        return asw >= 100;
-    }
-    return asw >= 100 && hasGearType(ship, SONAR_TYPES);
+    return openingAswEligible({ ...ship, asw: ship.stats.asw });
 }
 
 /** 開幕雷擊。**推算ではなく事実**：特殊潜航艇（類別 22）を装備していれば発動する。 */
@@ -358,13 +310,14 @@ function compareWithMissingLast(a: number | null, b: number | null, dir: SortDir
     return dir === 'asc' ? a - b : b - a;
 }
 
-/** 排序。不修改輸入陣列；同值一律以艦實例 id 為穩定次序。 */
+/** 排序。不修改輸入陣列；同值依遊戲次序，升冪時整串反轉（見 compareGameOrder）。 */
 export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir): RosterShip[] {
     const sign = dir === 'asc' ? 1 : -1;
     return [...ships].sort((a, b) => {
         let r = 0;
         if (key === 'name') r = sign * a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-        else if (key === 'stype') r = sign * (a.stypeId - b.stypeId);
+        // 艦種欄比照遊戲的「艦種」排序＝api_sort_id（見 ship-filter.ts filterShips）；不可考排最後。
+        else if (key === 'stype') r = compareWithMissingLast(a.sortId, b.sortId, dir);
         // 國籍依 NATIONS 的顯示順序排，不用字母序（見 ship-nationality.ts）。
         // 不可考者比照缺值排最後。
         else if (key === 'nation') {
@@ -379,7 +332,10 @@ export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir
             else r = sign * a.debut.localeCompare(b.debut);
         } else if (key === 'joined') r = compareWithMissingLast(a.obtainedTs, b.obtainedTs, dir);
         else r = sign * ((NUMERIC[key]?.(a) ?? 0) - (NUMERIC[key]?.(b) ?? 0));
-        return r || a.id - b.id;
+        // 艦種（遊戲的艦種排序＝api_sort_id 升冪）與名稱的自然方向是 asc，其餘欄是 desc；
+        // 依自然方向排時同值走遊戲次序，反向時整串反轉。
+        const gameDir: SortDir = key === 'stype' || key === 'name' ? (dir === 'asc' ? 'desc' : 'asc') : dir;
+        return r || compareGameOrder(a, b, gameDir);
     });
 }
 

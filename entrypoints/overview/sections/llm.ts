@@ -27,6 +27,7 @@
 import type { OverviewSection } from './types';
 import type { GameState } from '@/utils/state';
 import { db } from '@/utils/db';
+import { compareGameOrder } from '@/utils/ship-filter';
 import { nodeLabel } from '@/utils/map-node-letters';
 import { groupGears } from '@/utils/gear-inventory';
 import { findUnknownGears, findUnknownShips, type CoverageGap } from '@/utils/gamedata-coverage';
@@ -68,7 +69,7 @@ async function buildFullReport(state: GameState): Promise<string> {
             g.ships.push(s);
         }
         for (const [, group] of [...byType.entries()].sort((a, b) => a[0] - b[0])) {
-            group.ships.sort((a, b) => b.lv - a.lv);
+            group.ships.sort((a, b) => b.lv - a.lv || compareGameOrder(a, b));
             lines.push(`### ${group.stype}（${group.ships.length}）`);
             for (const s of group.ships) {
                 const gears = s.gears.filter(Boolean).map(g => `${g!.name}${g!.level > 0 ? `★${g!.level}` : ''}`).join(' / ');

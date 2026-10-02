@@ -35,6 +35,11 @@ export interface EventProjectorOptions {
     state: GameState;
     mode?: EventProjectorMode;
     tables?: EventProjectorTables;
+    /**
+     * 回傳 true 的海域（`${mapArea}-${mapNo}`）不寫 sorties／replays。只擋 derived 寫入，
+     * state reducer 照常執行，任務計數不受影響。見 utils/sortie-exclude.ts。
+     */
+    skipSortieMap?: (map: string) => boolean;
 }
 
 export class EventProjector {
@@ -45,6 +50,9 @@ export class EventProjector {
     currentReplay: ReplayRow | null = null;
     readonly gaugeSeenUncleared = new Set<number>();
     readonly gaugeBroken = new Set<number>();
+    // 在 map/start 決定整場是否不記錄；出擊途中改設定不會讓同一場只記一半。
+    skipCurrentSortie = false;
+    private readonly skipSortieMap: (map: string) => boolean;
     private activeMode: EventProjectorMode;
     // projectWithMode() 跨多個 await 步驟共用 this.activeMode；呼叫端（panel/main.ts 的
     // ready/pumping flag）目前保證同一個 projector 一次只處理一筆事件，絕不重入。這面旗標
@@ -57,6 +65,7 @@ export class EventProjector {
         this.mode = options.mode ?? 'persist';
         this.activeMode = this.mode;
         this.tables = options.tables ?? db;
+        this.skipSortieMap = options.skipSortieMap ?? (() => false);
     }
 
     async project(event: ProjectableEvent, afterStateApplied?: () => void): Promise<void> {
@@ -87,6 +96,10 @@ export class EventProjector {
             if (path === 'api_req_map/start') this.currentSortieKey = id;
             // 帶入原始 event.ts：泊地修理計時器錨點靠它，replay 時不能用「現在」。
             this.state.applyEvent(path, api, req, ts);
+            if (path === 'api_req_map/start') {
+                const sortie = this.state.sortieInfo;
+                this.skipCurrentSortie = !!sortie && this.skipSortieMap(`${sortie.mapArea}-${sortie.mapNo}`);
+            }
             afterStateApplied?.();
             await this.archiveSortie(id, ts, path, api);
             await this.archiveFactory(id, ts, path);
@@ -105,7 +118,7 @@ export class EventProjector {
 
     private async archiveSortie(id: number, ts: number, path: string, api: any): Promise<void> {
         const sortie = this.state.sortieInfo;
-        if (!sortie) return;
+        if (!sortie || this.skipCurrentSortie) return;
         if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') {
             const info = this.state.battleInfo;
             if (!info) return;
@@ -202,6 +215,10 @@ export class EventProjector {
     private async captureReplay(id: number, ts: number, path: string, api: any): Promise<void> {
         if (path === 'api_req_map/start') {
             // reducer 已先更新 decks、combinedFlag 與 currentSortieFleetId，快照順序維持不變。
+            if (this.skipCurrentSortie) {
+                this.currentReplay = null;
+                return;
+            }
             this.currentReplay = startReplay(this.state, id, ts, api);
             const gauge = this.state.mapGauges.get(this.currentReplay.world * 10 + this.currentReplay.mapnum);
             setDifficulty(this.currentReplay, gauge?.selectedRank ?? 0);
@@ -313,8 +330,11 @@ export class EventProjector {
         if (path !== 'api_get_member/mapinfo') return;
         for (const [id, gauge] of this.state.mapGauges) {
             if (this.isGaugeBroken(gauge)) {
-                if (!this.gaugeBroken.has(id) && this.gaugeSeenUncleared.has(id) && this.shouldPersist) {
-                    await this.markLatestBossCleared(`${Math.floor(id / 10)}-${id % 10}`);
+                const map = `${Math.floor(id / 10)}-${id % 10}`;
+                // 不記錄的海域沒有這場的 Boss 列，標到舊紀錄上會誤指斬殺場次。
+                if (!this.gaugeBroken.has(id) && this.gaugeSeenUncleared.has(id) && this.shouldPersist
+                    && !this.skipSortieMap(map)) {
+                    await this.markLatestBossCleared(map);
                 }
                 this.gaugeBroken.add(id);
             } else {

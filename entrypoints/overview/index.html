@@ -1495,6 +1495,118 @@
             max-width: none;
         }
 
+        /* 不記錄的海域：工具列下方的原生 <details>，預設收起；不放進 sticky 工具列以免捲動時佔高。 */
+        .sl-exclude {
+            margin-bottom: 8px;
+            font-size: 12px;
+            max-width: 900px;
+        }
+
+        .sl-exclude>summary {
+            cursor: pointer;
+            list-style: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--dim);
+            letter-spacing: var(--track-label);
+        }
+
+        .sl-exclude>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .sl-exclude>summary::before {
+            content: '▸';
+            display: inline-block;
+            width: 12px;
+            font-size: 10px;
+        }
+
+        .sl-exclude[open]>summary::before {
+            content: '▾';
+        }
+
+        .sl-exclude>summary:hover::before {
+            color: var(--sparkle);
+        }
+
+        .sl-exclude-sum {
+            min-width: 18px;
+            padding: 0 5px;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            text-align: center;
+            color: var(--text);
+            font-size: 11px;
+        }
+
+        .sl-exclude-sum[hidden] {
+            display: none;
+        }
+
+        .sl-exclude-note {
+            margin: 6px 0;
+            color: var(--dim);
+            line-height: 1.5;
+        }
+
+        .sl-exclude-row,
+        .sl-exclude-list {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sl-exclude-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 26px;
+            padding: 2px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .sl-exclude-chip:hover span {
+            color: var(--dmg-major);
+        }
+
+        .sl-exclude-chip span {
+            color: var(--dim);
+        }
+
+        .sl-exclude-none {
+            color: var(--dim);
+        }
+
+        /* 選單與「加入」同組換行，不讓按鈕單獨落到下一行。 */
+        .sl-exclude-pick {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+        }
+
+        /* 關名可能很長（英文更長），選單本身限寬，完整名稱在 option 的 title。 */
+        .sl-exclude-sel {
+            max-width: 320px;
+            min-width: 0;
+            min-height: 28px;
+            padding: 3px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+        }
+
+
         /* 單場 JSON 匯入面板（工具列下方，預設收起）；打撈／建造紀錄的 CSV 匯入面板共用同一套。 */
         .sl-import,
         .dl-import,

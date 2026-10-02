@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 import {
-    emptyFilter, filterShips, nationOptions, sallyOptions, stypeOptions,
+    compareGameOrder, emptyFilter, filterShips, nationOptions, sallyOptions, stypeOptions,
     type EquipFilter, type FilterableShip,
 } from '../utils/ship-filter';
 import { nationOf, nationsOf } from '../utils/ship-nationality';
@@ -166,5 +166,53 @@ describe('降級', () => {
         expect([...bare.equipTypesOf(418)]).toEqual([]);
         const roster = [ship({ id: 1 })];
         expect(filterShips(roster, emptyFilter())).toHaveLength(1);
+    });
+});
+
+describe('同值次序對齊遊戲（api_sort_id）', () => {
+    // 遊戲艦船選択依 Lv 排序的實際畫面：同 Lv99 依 api_sort_id 升冪，與艦名、入手順序無關。
+    // 實例 id 故意打亂，確保次序不是靠入手順序湊出來的。
+    const owned: [number, number, number][] = [   // [實例 id, master id, Lv]
+        [1, 554, 99], [2, 541, 99], [3, 694, 99], [4, 916, 174], [5, 553, 99],
+        [6, 954, 99], [7, 195, 139], [8, 592, 99], [9, 698, 143], [10, 591, 99],
+    ];
+    const roster = owned.map(([id, mst, lv]) =>
+        ship({ id, lv, name: state.master.get(mst)!.name, sortId: state.master.get(mst)!.sortId }));
+
+    it('等級降冪、同等級依 api_sort_id 升冪', () => {
+        expect(filterShips(roster, emptyFilter()).map(s => s.name)).toEqual([
+            '大和改二重', '加賀改二', '綾波改二',
+            '金剛改二丙', '比叡改二丙', '榛名改二丙', '霧島改二丙', '伊勢改二', '日向改二', '長門改二',
+        ]);
+    });
+    it('艦種排序＝api_sort_id 升冪，不比等級、不依艦種 id 分組', () => {
+        // 實機艦種排序畫面：Lv1 霧島在 Lv99 霧島改二丙前；扶桑（艦種 9）在扶桑改二（艦種 10）前。
+        const byMst: [number, number, number][] = [   // [實例 id, master id, Lv]
+            [1, 88, 15], [2, 553, 99], [3, 411, 98], [4, 26, 1], [5, 694, 99],
+            [6, 85, 1], [7, 954, 99], [8, 591, 99], [9, 412, 98], [10, 592, 99],
+        ];
+        const list = byMst.map(([id, mst, lv]) => {
+            const m = state.master.get(mst)!;
+            return ship({ id, lv, name: m.name, stypeId: m.stype, sortId: m.sortId });
+        });
+        expect(filterShips(list, emptyFilter(), 'stype').map(s => s.name)).toEqual([
+            '金剛改二丙', '比叡改二丙', '榛名改二丙', '霧島', '霧島改二丙',
+            '扶桑', '扶桑改二', '山城改二', '伊勢改二', '日向改',
+        ]);
+    });
+    it('海外艦（3xxxx）依 api_sort_id 集中排在艦種排序最後，不併入同艦種', () => {
+        // 實機艦種排序最後一頁：Eidsvold改 → Gotland改 → Gotland andra → Visby改 → De Ruyter改 → Perth改。
+        const tail = [[1, 618, 98], [2, 1067, 50], [3, 739, 81], [4, 609, 98], [5, 630, 99], [6, 579, 65], [7, 591, 99]]
+            .map(([id, mst, lv]) => {
+                const m = state.master.get(mst)!;
+                return ship({ id, lv, name: m.name, stypeId: m.stype, sortId: m.sortId });
+            });
+        expect(filterShips(tail, emptyFilter(), 'stype').map(s => s.name)).toEqual([
+            '金剛改二丙', 'Eidsvold改', 'Gotland改', 'Gotland andra', 'Visby改', 'De Ruyter改', 'Perth改',
+        ]);
+    });
+    it('sortId 相同比實例 id；不可考者排最後', () => {
+        expect([ship({ id: 3, sortId: null }), ship({ id: 2, sortId: 1011 }), ship({ id: 1, sortId: 1011 })]
+            .sort(compareGameOrder).map(s => s.id)).toEqual([1, 2, 3]);
     });
 });

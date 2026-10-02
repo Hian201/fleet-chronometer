@@ -59,9 +59,13 @@ import type {
     BattleDamageEvent, BattleDamageKind, BattleHpSnapshot, BattleHpView, BattleInfoView, BattlePhaseKind, BattlePhaseView,
     BattleShipView,
 } from '@/utils/state';
-import { t } from '@/utils/ui-i18n';
+import { getLang, t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
+import {
+    excludeCandidateGroups, loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps,
+} from '@/utils/sortie-exclude';
+import { PSEUDONYM_NOTES_EN, mapName, operationName } from '@/utils/map-names';
 import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
     eventDisplayName, eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter,
@@ -1325,6 +1329,17 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
                 <button type="button" class="ov-btn sl-expand">${esc(t('ov.slExpandAll'))}</button>
                 ${importUi}
             </div>
+            <details class="sl-exclude">
+                <summary>${esc(t('ov.slExclude'))}<span class="sl-exclude-sum"></span></summary>
+                <p class="sl-exclude-note">${esc(t('ov.slExcludeNote'))}</p>
+                <div class="sl-exclude-row">
+                    <span class="sl-exclude-list"></span>
+                    <span class="sl-exclude-pick">
+                        <select class="sl-exclude-sel" aria-label="${esc(t('ov.slExclude'))}"></select>
+                        <button type="button" class="ov-btn sl-exclude-add">${esc(t('ov.slExcludeAdd'))}</button>
+                    </span>
+                </div>
+            </details>
             ${importPanel}
             <div class="sl-body ov-list"></div>
             <div class="rs-pager sl-pager" hidden></div>
@@ -1378,6 +1393,61 @@ export const sortieLogSection: OverviewSection = {
         const battleDialogBody = el.querySelector<HTMLDivElement>('.sl-battle-dialog-body')!;
         const closeBattleDialog = () => { if (battleDialog.open) battleDialog.close(); };
         el.querySelector<HTMLButtonElement>('[data-battle-close]')!.addEventListener('click', closeBattleDialog);
+
+        // 不記錄的海域：只在清單變動時重繪鈕列與下拉，其餘控制項不動。
+        // 候選＝start2 的通常海域關卡（遊戲目前有哪些關以 master 為準），再補上紀錄裡
+        // 出現過、master 已沒有的關；不寫死關卡表。
+        let excludedMaps = loadExcludedMaps();
+        const excludeSum = el.querySelector<HTMLSpanElement>('.sl-exclude-sum')!;
+        const excludeList = el.querySelector<HTMLSpanElement>('.sl-exclude-list')!;
+        const excludeSel = el.querySelector<HTMLSelectElement>('.sl-exclude-sel')!;
+        const excludeAdd = el.querySelector<HTMLButtonElement>('.sl-exclude-add')!;
+        const areaLabel = (area: number) => `${area} ${ctx.state.mapAreaName(area)}`;
+        const mapAreaOf = (map: string) => areaLabel(Number(map.split('-')[0]));
+        // 同遊戲畫面「海域名＋作戰名」：海域名可跨關重複（4-1／7-5 都是爪哇島沖），靠作戰名區分。
+        // 名稱查共用譯名表；遊戲已改名而表未更新時該段省略（見 utils/map-names.ts）。
+        const mapTitle = (map: string) => {
+            const master = [...ctx.state.masterMapInfo.values()].find(info => `${info.area}-${info.no}` === map);
+            const parts = [mapName(map, getLang(), master?.name), operationName(map, getLang(), master?.opetext)]
+                .filter((part): part is string => !!part);
+            return parts.length ? `${map} ${parts.join('｜')}` : map;
+        };
+        // 英文保留 wiki 慣用偽名，實際地名只放進提示。
+        const mapTip = (map: string) => {
+            const note = getLang() === 'en' ? PSEUDONYM_NOTES_EN[map] : undefined;
+            return note ? `${mapTitle(map)} (${note})` : mapTitle(map);
+        };
+        function drawExcluded() {
+            // 摺疊時只給數量，完整清單在展開後的鈕列，不重複呈現。
+            excludeSum.textContent = excludedMaps.length ? String(excludedMaps.length) : '';
+            excludeSum.hidden = !excludedMaps.length;
+            excludeList.innerHTML = excludedMaps.length
+                ? excludedMaps.map(map => `<button type="button" class="sl-exclude-chip" data-exclude-map="${esc(map)}" title="${esc(`${mapAreaOf(map)}・${mapTip(map)}・${t('ov.slExcludeRemove', { map })}`)}" aria-label="${esc(t('ov.slExcludeRemove', { map }))}">${esc(map)}<span aria-hidden="true">×</span></button>`).join('')
+                : `<span class="sl-exclude-none">${esc(t('ov.slExcludeNone'))}</span>`;
+            const candidates = [
+                ...[...ctx.state.masterMapInfo.values()].map(info => `${info.area}-${info.no}`),
+                ...entries.filter(entry => !entry.event).map(entry => entry.map),
+            ];
+            const groups = excludeCandidateGroups(candidates, excludedMaps);
+            excludeSel.innerHTML = groups.length
+                ? groups.map(group => `<optgroup label="${esc(areaLabel(group.area))}">${group.maps
+                    .map(map => { const label = mapTitle(map); return `<option value="${esc(map)}" title="${esc(mapTip(map))}">${esc(label)}</option>`; }).join('')}</optgroup>`).join('')
+                : `<option value="">${esc(t('ov.slExcludeNoMaps'))}</option>`;
+            excludeSel.disabled = excludeAdd.disabled = !groups.length;
+        }
+        excludeAdd.addEventListener('click', () => {
+            const map = normalizeExcludedMap(excludeSel.value);
+            if (!map) return;
+            excludedMaps = saveExcludedMaps([...excludedMaps, map]);
+            drawExcluded();
+        });
+        excludeList.addEventListener('click', event => {
+            const chip = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-exclude-map]');
+            if (!chip) return;
+            excludedMaps = saveExcludedMaps(excludedMaps.filter(map => map !== chip.dataset.excludeMap));
+            drawExcluded();
+        });
+        drawExcluded();
         battleDialogBody.addEventListener('click', event => {
             const target = event.target as HTMLElement;
             const nodeButton = target.closest<HTMLButtonElement>('button[data-battle-node]');
@@ -1782,6 +1852,7 @@ export const sortieLogSection: OverviewSection = {
         }
         drawFilters();
         drawList();
+        drawExcluded();
         if (focus) body.querySelector<HTMLElement>(`.sl-card[data-key="${focus.key}"]`)?.scrollIntoView({ block: 'start' });
     },
 };

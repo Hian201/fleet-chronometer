@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { esc, gearIconHtml, matIconHtml } from '../../utils/html-escape';
 import { formationRects } from '../../utils/formation-geometry';
 import { setLang, t } from '../../utils/ui-i18n';
+import { GameState, type ShipView } from '../../utils/state';
+import { openingAswBadge } from '../../entrypoints/panel/opening-asw';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 setLang('zh-TW');
@@ -46,6 +48,7 @@ type Ship = {
     ex?: Gear | 'empty' | 'none';
     cap?: (number | undefined)[];
     opsMark?: string;
+    aswShip?: ShipView;
 };
 
 const blankChip = (cls: string, ex = false, capacity?: number) =>
@@ -129,7 +132,7 @@ const shipRow = (s: Ship) => {
         <div class="ship-kind-status${stateSlot ? ' has-state' : ''}"><span class="stype">${esc(s.stype)}</span>${stateSlot}</div>
         <div class="ship-main">
           <div class="ship-identity-row">
-            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span></div>
+            <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span>${s.aswShip ? openingAswBadge(s.aswShip) : ''}</div>
           </div>
           <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
           <div class="ship-gear-row"><span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
@@ -289,7 +292,7 @@ const compactGearRow = (s: Ship) => {
     return `<div class="c-gear"><span class="c-gear-slots">${slots.join('')}</span>${exItem}</div>`;
 };
 
-const compactShipRow = (s: Ship) => {
+const compactShipRow = (s: Ship, fleetNo = 2) => {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = stClass(s);
     const pct = (v: number, max: number) => max ? Math.round(100 * v / max) : 100;
@@ -298,14 +301,14 @@ const compactShipRow = (s: Ship) => {
         `<i style="background-image:linear-gradient(to right,#58a55c ${fp}%,transparent ${fp}%)"></i>` +
         `<i style="background-image:linear-gradient(to left,#a8763e ${bp}%,transparent ${bp}%)"></i></span>`;
     return `<div class="ship c ${st}">
-      <div class="c-top"><span class="stype">${esc(s.stype)}</span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span>${condDisplay(s)}</div>
+      <div class="c-top"><div class="c-name"><span class="stype">${esc(s.stype)}</span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span></div><span class="c-top-flags"></span>${s.aswShip ? openingAswBadge(s.aswShip, { combined: true, fleetNo }, true) : ''}${condDisplay(s)}</div>
       <div class="c-hp"><span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span><span class="c-hp-value"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span><span class="c-aux">${supply}</span></div>
       ${compactGearRow(s)}
     </div>`;
 };
 
-const combinedFleetColumn = (ships: Ship[]) =>
-    `<section class="fleet compact">${ships.map(compactShipRow).join('')}</section>`;
+const combinedFleetColumn = (ships: Ship[], fleetNo = 2) =>
+    `<section class="fleet compact">${ships.map(s => compactShipRow(s, fleetNo)).join('')}</section>`;
 
 // 這組只用來重現使用者提供的連合艦隊版面；裝備槽沿用既有 fixture，避免把未提供的
 // 封包資料當成真實遊戲資料。艦名、等級、HP、cond 與總覽數字依參考畫面抄錄。
@@ -1301,9 +1304,9 @@ html, body {
   display: block;
   white-space: pre-line;
 }
-.pv-prop .s-taiha.open.s-taiha-generic.details-hidden { background: transparent; }
-.pv-prop .s-taiha-generic.details-hidden .taiha-head,
-.pv-prop .s-taiha-generic.details-hidden .taiha-hint { display: none; }
+.pv-prop .s-taiha.open.s-taiha-toggle.details-hidden { background: transparent; }
+.pv-prop .s-taiha-toggle.details-hidden .taiha-head,
+.pv-prop .s-taiha-toggle.details-hidden .taiha-hint { display: none; }
 /* ── 夜戰裝備與友軍 ── */
 .pv-prop .s-night-effects {
   display: flex;
@@ -2130,8 +2133,8 @@ const tacticalSideHtml = (s: TacticalSideParams) => {
                 ? '觸接：敵方深海艦載機'
                 : '觸接：未成立或無資料';
     const retreatText = s.retreatAvailable ? t('sortie.taihaRetreatHint') : t('sortie.taihaRetreatNoEscort');
-    const warning = s.warning ? `<button type="button" class="taiha-alert s-taiha s-taiha-generic open" aria-expanded="true" title="${esc(t('sortie.taihaWarning'))}\n${esc(retreatText)}">
-      <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(retreatText)}</span>
+    const warning = s.warning ? `<button type="button" class="taiha-alert s-taiha s-taiha-toggle open" aria-expanded="true" title="${esc(t('sortie.taihaWarning'))}\n${esc(retreatText)}">
+      <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(retreatText)}</span><span class="taiha-flip" aria-hidden="true"></span>
     </button>` : '';
     const friendlyArrived = s.friendlyState === 'on';
     const friendlyShips = friendlyArrived
@@ -2286,8 +2289,8 @@ const REFERENCE_SIDE_HTML = `<div class="s-priority-row">
     <div class="s-air-loss-row"><span class="s-air-loss-cell friendly"><b>4</b></span><span class="s-air-kind fighter" title="戰鬥機">戰</span><span class="s-air-loss-cell enemy"><b>71</b><i>−15</i></span></div>
     <div class="s-air-loss-row"><span class="s-air-loss-cell friendly"><b>0</b></span><span class="s-air-kind bomber" title="爆擊機／攻擊機">爆</span><span class="s-air-loss-cell enemy"><b>24</b><i>−21</i></span></div>
   </div>
-  <button type="button" class="taiha-alert s-taiha s-taiha-generic open" aria-expanded="true" title="${esc(t('sortie.taihaWarning'))}\n${esc(t('sortie.taihaRetreatNoEscort'))}">
-    <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(t('sortie.taihaRetreatNoEscort'))}</span>
+  <button type="button" class="taiha-alert s-taiha s-taiha-toggle open" aria-expanded="true" title="${esc(t('sortie.taihaWarning'))}\n${esc(t('sortie.taihaRetreatNoEscort'))}">
+    <span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(t('sortie.taihaRetreatNoEscort'))}</span><span class="taiha-flip" aria-hidden="true"></span>
   </button>
 </div>
 ${nightEffectsHtml({ searchlight: 'unknown', 'night-contact': 'unknown', 'star-shell': 'unknown' }, 'main', '夜戰進入：主隊', 'off', '友軍艦隊未抵達')}
@@ -3457,7 +3460,7 @@ document.addEventListener('click', e => {
     cond.setAttribute('aria-expanded', String(revealed));
     return;
   }
-  const warning = e.target.closest('.s-taiha-generic');
+  const warning = e.target.closest('.s-taiha-toggle');
   if (!warning) return;
   const hidden = !warning.classList.contains('details-hidden');
   warning.classList.toggle('details-hidden', hidden);
@@ -3485,8 +3488,8 @@ const airLossStub = `<div class="s-air-loss-grid" aria-hidden="true">
 const enOverlay = (hint: string, flagship = false) => `<div class="s-air-wrap covered">
   ${airLossStub}
   ${flagship
-        ? `<div class="taiha-alert s-taiha s-taiha-flagship open"><span class="taiha-head">${esc(hint)}</span></div>`
-        : `<button type="button" class="taiha-alert s-taiha s-taiha-generic open"><span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(hint)}</span></button>`}
+        ? `<button type="button" class="taiha-alert s-taiha s-taiha-flagship s-taiha-toggle open"><span class="taiha-head">${esc(hint)}</span><span class="taiha-flip" aria-hidden="true"></span></button>`
+        : `<button type="button" class="taiha-alert s-taiha s-taiha-toggle open"><span class="taiha-head">${esc(t('sortie.taihaWarning'))}</span><span class="taiha-hint">${esc(hint)}</span><span class="taiha-flip" aria-hidden="true"></span></button>`}
 </div>`;
 const enSix = `<section class="fleet fleet-six fleet-no-ops">${SIX_TAIHA_SHIPS.map(s => shipRow(s)).join('')}</section>`;
 const enSeven = sevenFleetHtml(SEVEN_TAIHA_SHIPS);
@@ -3610,6 +3613,53 @@ document.getElementById('m-combined').textContent += ' · ' + markReport;
 </body></html>`.replace(/src="\/icons\//g, 'src="../public/icons/');
 writeFileSync(resolve(root, '.preview/panel-taiha-en.html'), enPage);
 
+// 出擊大破覆蓋框三語對照：實際航空戰格約 150×44px。每種警告文案都要放得下，
+// 文字隱藏態也一併列出；量測結果寫在每格下方，overflow 必須為 0。
+const taihaOverlayPage = (lang: 'zh-TW' | 'en' | 'ja') => {
+    setLang(lang);
+    const master = JSON.parse(readFileSync(resolve(root, 'samples/start2-master.json'), 'utf8'));
+    const gs = new GameState();
+    gs.applyEvent('api_start2/getData', master);
+    const cases: Array<[string, string, string, boolean, boolean]> = [
+        ['generic · no retreat', t('sortie.taihaWarning'), t('sortie.taihaRetreatNoEscort'), false, false],
+        ['generic · retreat', t('sortie.taihaWarning'), t('sortie.taihaRetreatHint'), false, false],
+        ['generic · hidden', t('sortie.taihaWarning'), t('sortie.taihaRetreatNoEscort'), false, true],
+        ['flagship', t('sortie.taihaFlagship'), '', true, false],
+        ['flagship · damecon 42', t('sortie.taihaFlagshipDamecon', { item: gs.gearName(42) }), '', true, false],
+        ['flagship · damecon 43', t('sortie.taihaFlagshipDamecon', { item: gs.gearName(43) }), '', true, false],
+        ['flagship · hidden', t('sortie.taihaFlagship'), '', true, true],
+    ];
+    const cell = ([label, head, hint, flagship, hidden]: typeof cases[number]) => `<div class="tc">
+  <p>${esc(label)}</p>
+  <div class="tc-cell"><div class="s-air-wrap${hidden ? '' : ' covered'}">${airLossStub}<button type="button" class="taiha-alert s-taiha s-taiha-${flagship ? 'flagship' : 'generic'} s-taiha-toggle open${hidden ? ' details-hidden' : ''}"><span class="taiha-head">${esc(head)}</span>${hint ? `<span class="taiha-hint">${esc(hint)}</span>` : ''}<span class="taiha-flip" aria-hidden="true"></span></button></div></div>
+  <p class="tc-m"></p></div>`;
+    return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>Taiha overlay ${lang}</title><style>
+${css}
+html,body{height:auto;overflow:auto}body{display:block;margin:0;padding:16px;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,sans-serif}
+.tc-grid{display:flex;flex-wrap:wrap;gap:12px}.tc p{margin:0 0 4px;font-size:11px;color:var(--dim)}.tc-cell{width:150px}.tc-m.bad{color:var(--dmg-major)}
+</style></head><body><h1 style="font-size:14px;color:var(--sparkle)">Taiha overlay · ${lang} · 150×44</h1>
+<div class="tc-grid">${cases.map(cell).join('')}</div>
+<script>
+const bad = [];
+document.querySelectorAll('.tc').forEach(tc => {
+  const box = tc.querySelector('.s-taiha'), out = tc.querySelector('.tc-m');
+  // 置中 flex 溢出時會同時往上下超出，框的 scrollHeight 量不到上緣，改比對文字列與框內緣。
+  const r = box.getBoundingClientRect(), cs = getComputedStyle(box);
+  const top = r.top + parseFloat(cs.borderTopWidth), bottom = r.bottom - parseFloat(cs.borderBottomWidth);
+  const spans = [...box.querySelectorAll('.taiha-head,.taiha-hint')].filter(el => el.offsetParent);
+  // 文字列本身是 overflow:hidden 的 flex 子項，空間不足時會被壓扁、在自己裡面裁字，也要量。
+  const v = Math.max(0, ...spans.map(el => { const e = el.getBoundingClientRect(); return Math.ceil(Math.max(top - e.top, e.bottom - bottom, el.scrollHeight - el.clientHeight)); }));
+  const h = Math.max(0, ...spans.map(el => el.scrollWidth - el.clientWidth));
+  out.textContent = 'overflow v' + v + ' h' + h;
+  if (v > 0 || h > 0) { out.classList.add('bad'); bad.push(tc.querySelector('p').textContent); }
+});
+document.body.dataset.overflow = bad.join(' | ');
+</script></body></html>`;
+};
+for (const lang of ['zh-TW', 'en', 'ja'] as const) {
+    writeFileSync(resolve(root, `.preview/panel-taiha-overlay-${lang}.html`), taihaOverlayPage(lang));
+}
+
 const summaryLanguagePage = (lang: 'zh-TW' | 'en' | 'ja') => {
     setLang(lang);
     // 三語共用同一組最壞案例，確認制空範圍、負值索敵、四位數等級與 TP 都不會被裁掉。
@@ -3631,3 +3681,56 @@ writeFileSync(resolve(root, '.preview/panel-summary-en.html'), summaryLanguagePa
 writeFileSync(resolve(root, '.preview/panel-summary-ja.html'), summaryLanguagePage('ja'));
 setLang('zh-TW');
 console.log('Preview updated successfully');
+
+
+// ASW 場景以真實 master 建立 view；顯示值與配裝為明確的離線測試情境。
+for (const lang of ['zh-TW', 'en', 'ja'] as const) {
+    setLang(lang);
+    const sampleMaster = JSON.parse(readFileSync(resolve(root, 'samples/start2-master.json'), 'utf8'));
+    const state = new GameState();
+    state.applyEvent('api_start2/getData', sampleMaster);
+    const rows = [
+        { mst: 141, asw: 70, slots: [] },
+        { mst: 692, asw: 55, slots: [46, 45, 226] },
+        { mst: 376, asw: 75, slots: [456] },
+        { mst: 117, asw: 65, slots: [82] },
+        { mst: 554, asw: 40, slots: [326] },
+        { mst: 1, asw: 99, slots: [46] },
+        { mst: 941, asw: 55, slots: [] },
+    ];
+    let gearId = 100;
+    const gearInstances: any[] = [];
+    const rawShips = rows.map((row, index) => {
+        const mst = sampleMaster.api_mst_ship.find((x: any) => x.api_id === row.mst);
+        const slots = row.slots.map(id => {
+            const instance = gearId++;
+            gearInstances.push({ api_id: instance, api_slotitem_id: id, api_level: 0, api_alv: 0 });
+            return instance;
+        });
+        return { api_id: index + 1, api_ship_id: row.mst, api_lv: 99, api_taisen: [row.asw, row.asw],
+            api_nowhp: mst.api_taik[0], api_maxhp: mst.api_taik[0], api_cond: 49,
+            api_fuel: mst.api_fuel_max, api_bull: mst.api_bull_max,
+            api_slot: [...slots, ...Array(Math.max(0, mst.api_slot_num - slots.length)).fill(-1)],
+            api_slot_ex: -1, api_onslot: mst.api_maxeq };
+    });
+    state.applyEvent('api_get_member/require_info', { api_slot_item: gearInstances });
+    state.applyEvent('api_port/port', { api_ship: rawShips,
+        api_deck_port: [{ api_ship: rawShips.map(s => s.api_id), api_mission: [0, 0, 0, 0] }],
+        api_ndock: [], api_material: [], api_basic: {}, api_combined_flag: 0 });
+    const ships: Ship[] = state.fleets()[0].ships.map(s => ({
+        ...s, aswShip: s, ex: 'empty', cap: s.slotCapacity,
+    }));
+    const seven = sevenFleetHtml(ships);
+    const six = sixFleetHtml(ships.slice(0, 6));
+    const ops = sevenFleetHtml(ships, moraleOp());
+    const combined = `<div class="c-fleet-row">${combinedFleetColumn(ships.slice(0, 6), 1)}${combinedFleetColumn(ships.slice(0, 6), 2)}</div>`;
+    const body = `<div class="pv-intro">ASW · ${lang} · 370px · 離線配裝示意 / Offline fixtures</div>
+      <button id="theme">Light / Dark</button><div class="asw-previews">
+      ${[['7 ships', seven], ['6 ships', six], ['7 ships + operations', ops], ['Combined fleet', combined]].map(([label, fleet]) =>
+        `<div><p>${label}</p><div class="asw-panel">${fleet}</div></div>`).join('')}</div>`;
+    writeFileSync(resolve(root, `.preview/panel-asw-${lang}.html`), `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>ASW fleet preview</title><style>${css}
+      html,body{height:auto;overflow:auto}body{display:block;padding:16px;background:var(--bg);color:var(--text)}
+      .asw-previews{display:flex;gap:20px;flex-wrap:wrap}.asw-panel{width:370px;background:var(--bg);padding:0}.asw-panel .fleet{display:block}
+      </style>${body.replaceAll('src="/icons/', 'src="../public/icons/')}<script>document.getElementById('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'dark':'light'}</script></html>`);
+}
+setLang('zh-TW');

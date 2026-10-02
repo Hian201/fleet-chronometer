@@ -11,6 +11,7 @@ import {
     applyQuestFlowBackupPrefs, hasQuestFlowBackupPrefs, readQuestFlowBackupPrefs,
     type QuestFlowBackupPrefs,
 } from './quest-flow-prefs';
+import { loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps } from './sortie-exclude';
 
 // v4 在 restore envelope 新增 eventPlans（活動作戰板）。
 // v5 再新增 resources／resourceMarks（資源紀錄的時間序列與活動特殊時間點）——這兩張表
@@ -26,7 +27,8 @@ import {
 //
 // v8 在 full envelope 新增 questSeen（本機觀測到出現在任務清單的任務）。同理無法從 snapshot
 // 重建；不帶就等於重裝後要重開任務清單或逐項手動標記，才找得回單發前置已完成的推論。
-// v7 以前的檔案沒有這張表，照常匯入、表保持空白。
+// v7 以前的檔案沒有這張表，照常匯入、表保持空白。v8 同時新增選填的 sortieExclude
+// （出擊紀錄「不記錄的海域」），缺席時還原不碰本機設定。
 export const BACKUP_SCHEMA_VERSION = 8 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
@@ -55,6 +57,8 @@ export interface BackupEnvelope {
     tables: BackupTables;
     // 任務導覽釘選／人工完成（api_no）。舊檔缺席＝還原時不碰本機這兩項。
     questFlow?: QuestFlowBackupPrefs;
+    // 不記錄的海域（`${world}-${mapnum}`）。舊檔缺席＝還原時不碰本機設定。
+    sortieExclude?: string[];
 }
 
 export interface ValidatedBackupEnvelope extends Omit<BackupEnvelope, 'kind'> {
@@ -189,6 +193,22 @@ function validateQuestFlow(value: unknown): QuestFlowBackupPrefs | undefined {
         pinned: uniquePositiveIntegers(row.pinned, 'questFlow.pinned'),
         manualComplete: uniquePositiveIntegers(row.manualComplete, 'questFlow.manualComplete'),
     };
+}
+
+// 通常海域最多 9×9 關；上限只防惡意超大陣列。
+const MAX_SORTIE_EXCLUDE = 81;
+
+function validateSortieExclude(value: unknown): string[] | undefined {
+    if (value === undefined) return undefined;
+    const list = arrayAt(value, 'sortieExclude');
+    if (list.length > MAX_SORTIE_EXCLUDE) invalid('sortieExclude 超過上限。');
+    const maps = list.map((entry, index) => {
+        const map = typeof entry === 'string' ? normalizeExcludedMap(entry) : null;
+        if (map === null || map !== entry) invalid(`sortieExclude[${index}] 必須是通常海域編號（如 1-5）。`);
+        return map;
+    });
+    if (new Set(maps).size !== maps.length) invalid('sortieExclude 不得重複。');
+    return maps;
 }
 
 function optionalPositiveInteger(row: UnknownRecord, key: string, where: string): number | undefined {
@@ -816,6 +836,7 @@ export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope 
         exportedAt: timestamp(envelope.exportedAt, 'exportedAt'),
         tables,
         questFlow: validateQuestFlow(envelope.questFlow),
+        sortieExclude: validateSortieExclude(envelope.sortieExclude),
     };
 }
 
@@ -852,6 +873,7 @@ export async function buildFullEnvelope(
             resources, resourceMarks, questObserved, questSeen, replays,
         },
         questFlow: readQuestFlowBackupPrefs(),
+        sortieExclude: loadExcludedMaps(),
     };
 }
 
@@ -899,6 +921,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         exportedAt: Math.max(restore.exportedAt, replays.exportedAt),
         tables,
         questFlow: restore.questFlow,
+        sortieExclude: restore.sortieExclude,
     };
 }
 
@@ -1126,11 +1149,9 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         });
     });
 
-    // IndexedDB 已提交後才寫 localStorage。舊檔沒有 questFlow 不得清空本機釘選；
-    // 只含 replays 的 complementary 匯入也不該覆寫任務導覽偏好。
-    if (envelope.questFlow !== undefined && (
-        envelope.kind === 'full' || envelope.kind === 'legacy-full' || envelope.kind === 'restore'
-    )) {
-        applyQuestFlowBackupPrefs(envelope.questFlow);
-    }
+    // IndexedDB 已提交後才寫 localStorage。舊檔沒有 questFlow／sortieExclude 不得清空本機設定；
+    // 只含 replays 的 complementary 匯入也不該覆寫這些偏好。
+    const carriesPrefs = envelope.kind === 'full' || envelope.kind === 'legacy-full' || envelope.kind === 'restore';
+    if (carriesPrefs && envelope.questFlow !== undefined) applyQuestFlowBackupPrefs(envelope.questFlow);
+    if (carriesPrefs && envelope.sortieExclude !== undefined) saveExcludedMaps(envelope.sortieExclude);
 }

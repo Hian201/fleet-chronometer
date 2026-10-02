@@ -170,10 +170,6 @@ export interface FleetPhotoCaptureMessage {
  */
 export type FleetPhotoCaptureError = 'no-game' | 'no-canvas' | 'blank' | 'timeout' | 'failed' | 'choose-source';
 export type FleetPhotoCaptureReply = { dataUrl: string } | { error: FleetPhotoCaptureError; detail?: string };
-/** background → 面板：快捷鍵觸發「拍下一張」。 */
-export const MSG_FLEET_PHOTO_SHOOT = 'kc:fleet-photo-shoot';
-/** manifest `commands` 的指令名稱。 */
-export const COMMAND_FLEET_PHOTO_SHOOT = 'fleet-photo-shoot';
 
 /** background ⇄ 遊戲框 bridge（PORT_GAME_FRAME 上的訊息）。 */
 export type GameFrameRequest = { kind: 'capture'; reqId: number; region: FleetPhotoCaptureMessage['region'] };

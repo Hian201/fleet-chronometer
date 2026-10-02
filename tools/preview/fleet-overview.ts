@@ -152,7 +152,6 @@ const shell = `
     <div class="ov-toolbar">
         <button class="ov-btn">${t('ov.copyMarkdown')}</button>
         <button class="ov-btn">${t('ov.downloadMarkdown')}</button>
-        <button class="ov-btn">${t('ov.downloadPng')}</button>
         <button class="ov-btn">${t('ov.exportImgBuilder')}</button>
         <button class="ov-btn">${t('ov.exportAirCalc')}</button>
         <button class="ov-btn">${t('ov.fleetCodesButton')}</button>

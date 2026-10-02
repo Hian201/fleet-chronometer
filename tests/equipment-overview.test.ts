@@ -150,7 +150,7 @@ describe('HTML escape', () => {
         ...groupGears(gears([{ id: 1, mst: GUN_41 }]))[0],
         name: hostile,
         catName: hostile,
-        holders: [{ name: hostile, sub: '', kind: 'ship', count: 1 }],
+        holders: [{ name: hostile, sub: '', kind: 'ship', count: 1, ex: 0 }],
     };
 
     it('裝備名／類別名在兩種模式下都被轉義', () => {

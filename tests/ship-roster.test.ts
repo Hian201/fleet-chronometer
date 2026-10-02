@@ -140,7 +140,7 @@ describe('開幕：開幕雷擊是事實、先制對潛是推算', () => {
         expect(isOpeningAsw(sonarHigh)).toBe(true);
     });
 
-    it('例外艦（單艦 id 與整個艦級）不需要聲納，但仍需對潛 100', () => {
+    it('免裝備艦不需要聲納或對潛 100', () => {
         const [isuzu, fletcher, fletcherLow] = build([
             { mst: ISUZU_K2, taisen: 100 },
             { mst: FLETCHER, taisen: 100 },
@@ -148,7 +148,7 @@ describe('開幕：開幕雷擊是事實、先制對潛是推算', () => {
         ]);
         expect(isOpeningAsw(isuzu)).toBe(true);
         expect(isOpeningAsw(fletcher)).toBe(true);
-        expect(isOpeningAsw(fletcherLow)).toBe(false);
+        expect(isOpeningAsw(fletcherLow)).toBe(true);
     });
 
     it('對潛 0 的艦一律不成立（戰艦等）', () => {

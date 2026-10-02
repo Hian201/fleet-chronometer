@@ -230,6 +230,47 @@ describe('EventProjector persist 模式', () => {
         expect(replay?.battles[0].yasen).toMatchObject({ marker: 'night' });
     });
 
+    it('不記錄的海域不寫 sorties／replays，也不標舊紀錄斬殺，但任務計數與其他表不變', async () => {
+        const questlist = row(2.5, 'api_get_member/questlist', {
+            api_list: [{ api_no: 201, api_state: 2, api_title: '敵艦隊を撃破せよ！', api_detail: '艦隊を出撃させ、敵艦隊を捕捉、これを撃滅せよ！' }],
+        }, {});
+        const events = fullEventStream();
+        events.splice(2, 0, questlist);
+
+        const logged = createDb();
+        const loggedState = new GameState();
+        await projectAll(new EventProjector({ state: loggedState, tables: logged }), events);
+
+        const skipped = createDb();
+        const skippedState = new GameState();
+        const projector = new EventProjector({ state: skippedState, tables: skipped, skipSortieMap: map => map === '6-5' });
+        await projectAll(projector, events);
+
+        expect(await skipped.sorties.count()).toBe(0);
+        expect(await skipped.replays.count()).toBe(0);
+        expect(await skipped.factory.count()).toBe(await logged.factory.count());
+        expect(await skipped.expeditions.count()).toBe(1);
+        expect(projector.currentReplay).toBeNull();
+
+        const progress = (state: GameState) => state.quests_().map(q => ({ no: q.no, progress: q.progress }));
+        expect(progress(loggedState)).toEqual([{ no: 201, progress: { count: 1, target: 1 } }]);
+        expect(progress(skippedState)).toEqual(progress(loggedState));
+        expect(skippedState.questTrackingDetail(201)).toEqual(loggedState.questTrackingDetail(201));
+    });
+
+    it('不記錄的判斷在 map/start 定案，出擊途中改設定不會只記半場', async () => {
+        const database = createDb();
+        let skip = false;
+        const projector = new EventProjector({ state: new GameState(), tables: database, skipSortieMap: () => skip });
+        const events = fullEventStream();
+        for (const event of events) {
+            await projector.project(event);
+            if (event.path === 'api_req_map/start') skip = true;
+        }
+        expect(await database.sorties.count()).toBe(1);
+        expect(await database.replays.count()).toBe(1);
+    });
+
     it('api_get_material 非陣列（實機觀測過）時不拋錯，resources 退回空陣列', async () => {
         const database = createDb();
         const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });

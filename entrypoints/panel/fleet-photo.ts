@@ -13,7 +13,7 @@ import {
     type FleetPhotoType, type PhotoRegion,
 } from '@/utils/fleet-photo';
 import {
-    COMMAND_FLEET_PHOTO_SHOOT, MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES,
+    MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES,
     type FleetPhotoCaptureMessage, type FleetPhotoCaptureReply, type FleetPhotoSource,
 } from '@/utils/game-page';
 
@@ -42,7 +42,6 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
     let busy = false;
     let part: 'main' | 'escort' = 'main';
     let message: { text: string; kind: 'toast' | 'err' } | null = null;
-    let shortcut = '';
     const shots = new Map<string, Shot>();
     const cursor = new Map<string, number>();
     // 輸出設定（本視窗期間有效）
@@ -55,11 +54,6 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
     let sources: FleetPhotoSource[] = [];
     let sourceTabId: number | undefined;
     let selectionVersion = 0;
-
-    void browser.commands?.getAll().then(list => {
-        shortcut = list.find(c => c.name === COMMAND_FLEET_PHOTO_SHOOT)?.shortcut ?? '';
-        refresh();
-    }).catch(() => { /* 取不到就顯示「未設定」 */ });
 
     root.innerHTML =
         '<div class="ph-head"><span class="ph-title"></span><span class="ph-target"></span>' +
@@ -88,25 +82,24 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
     };
     const basesOf = (area: number | null) =>
         area === null ? [] : state.airBases_().filter(b => b.areaId === area).sort((a, b) => a.rid - b.rid);
-    const keyText = () => shortcut || t('photo.noKey');
     /** 托盤目前顯示的那一組（連合艦隊時為主力或護衛其中之一）。 */
     function currentGroup(): Group {
         const tg = deps.target();
         if (tg.kind === 'lbas') {
             const area = lbasArea(tg.area);
             return {
-                key: `b${area}`, region: 'lbas', hint: t('photo.hintLbas', { key: keyText() }),
+                key: `b${area}`, region: 'lbas', hint: t('photo.hintLbas'),
                 items: basesOf(area).map(ab => ({ name: ab.name, sub: '', sig: basePhotoSignature(ab.squadrons) })),
             };
         }
         if (tg.kind === 'combined') {
             return part === 'main'
-                ? fleetGroup(0, t('photo.hintFleet', { key: keyText() }))
-                : fleetGroup(1, t('photo.hintEscort', { key: keyText() }));
+                ? fleetGroup(0, t('photo.hintFleet'))
+                : fleetGroup(1, t('photo.hintEscort'));
         }
         return fleetGroup(tg.deck, tg.deck === 0
-            ? t('photo.hintFleet', { key: keyText() })
-            : t('photo.hintFleetN', { n: tg.deck + 1, key: keyText() }));
+            ? t('photo.hintFleet')
+            : t('photo.hintFleetN', { n: tg.deck + 1 }));
     }
     /** 輸出圖涵蓋的所有組（連合艦隊＝主力＋護衛）。 */
     function outputGroups(): Group[] {
@@ -167,6 +160,7 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
 
         hintEl.className = `ph-hint${message ? ` ${message.kind}` : ''}`;
         hintEl.textContent = message?.text ?? g.hint;
+        hintEl.title = hintEl.textContent;
 
         if (!g.items.length) {
             gridEl.className = 'ph-grid';
@@ -184,7 +178,6 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
         const canShoot = g.items.length > 0 && (cur >= 0 || (tg.kind === 'combined' && part === 'main' && firstPending(groups[1], 0) >= 0));
         shootEl.disabled = busy || !canShoot;
         shootEl.textContent = busy ? t('photo.shooting') : canShoot ? t('photo.shoot') : t('photo.done');
-        shootEl.title = shortcut;
         optsSummary.textContent = t('photo.opts');
         saveEl.textContent = t('photo.save');
         copyEl.textContent = t('photo.copy');

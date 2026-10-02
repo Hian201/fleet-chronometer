@@ -1,7 +1,8 @@
 import RAW_EXPED from './expedition-data';
 import { analyzeBattle, taihaFlags } from './battle';
 import { localizeShip, localizeGear, localizeEquipmentType } from './gamedata-i18n';
-import { expedItemDisplayName, expedItemFullName, t } from './ui-i18n';
+import { expedItemDisplayName, expedItemFullName, getLang, t } from './ui-i18n';
+import { AREA_NAMES, areaName } from './map-names';
 import { parseQuestGoal, resolveQuestGoal, meetsRank, QUEST_ID_OVERRIDES, type QuestActionKind, type QuestGoal } from './quest-progress';
 import { questCatalogIdentity } from './quest-identity';
 import { questCategoryFromApi, type QuestCategory } from './quest-category';
@@ -70,6 +71,10 @@ export interface ShipView {
     // mst／stypeId：艦 master id 與艦種 id。僅有艦種縮寫字串無法判定
     // 「這艘是不是明石／野埼」，泊地修理與給糧範圍計算需要，故補上原始 id。
     mst: number; stypeId: number;
+    /** 顯示對潛值含裝備加成；缺少封包欄位時不可考。 */
+    asw?: number | null;
+    aswEquipmentKnown?: boolean;
+    ctype?: number;
     // id：艦實例 id（api_id）。艦隊全覽輸出 DeckBuilder 格式（給 KanColleImgBuilder／
     // 制空権シミュレータ）時要拿它去 ownedShips() 反查精確素質（已含裝備加成），
     // 不能用 mst 反查——同型艦會撞號。
@@ -152,6 +157,8 @@ export interface GearHolderView {
 export interface OwnedShipView {
     id: number;
     masterId: number;
+    nameJa?: string;
+    aswEquipmentKnown?: boolean;
     // 基礎形態的 master id（改造形態沿用本體身分）。查官方登場日一律用它，見 baseShipId()。
     // master 尚未載入（無 start2）時為 null，UI 需可降級。
     baseMst: number | null;
@@ -159,11 +166,13 @@ export interface OwnedShipView {
     // sortno 不可靠（真實 start2 實測：睦月=31、睦月改=1354、睦月改二=234，落在不同區間），
     // 拿它排序會讓改造形態跟本體離很遠。用基礎形態的番号，收藏視角才與官方図鑑一致。
     bookNo: number | null;
+    // 本形態的 api_sort_id。遊戲清單在主排序鍵同值時依它升冪，各瀏覽清單的同值次序
+    // 一律用它對齊遊戲（見 ship-filter.ts compareGameOrder）。master 未載入時為 null。
+    sortId: number | null;
     name: string;
     stypeId: number;
     stype: string;
-    // 艦型（艦級）id＝master 的 api_ctype。先制對潜的例外艦是**整個艦級**適用
-    // （Fletcher級 91／John C.Butler級 87），用 ctype 判定比列舉每個改造形態的 id 穩健。
+    // 艦型 id＝master 的 api_ctype；先制對潛仍需區分艦級內各改造階段。
     ctype: number;
     lv: number;
     hp: number;
@@ -898,6 +907,8 @@ export class GameState {
     master = new Map<number, {
         name: string; stype: number; fuelMax: number; bullMax: number;
         slotNum?: number; maxeq?: number[]; sortno?: number;
+        // api_sort_id：遊戲清單同值時的次序鍵，見 OwnedShipView.sortId。
+        sortId?: number;
         // 以下四項為「艦娘全覽」的篩選所需，見 api_start2/getData 分支的逐欄說明。
         ctype: number; afterLv: number; afterShipId: number; kyoukaMax: number[];
         // 基礎耐久 api_taik[0]。配裝參考的戰艦 A/B 群分界用它，不能用實例 maxhp（結婚會加）。
@@ -1442,6 +1453,10 @@ export class GameState {
                     // ＝長門/陸奥/伊勢/日向/雪風/赤城/加賀/蒼龍/飛龍/島風，與 samples/
                     // ship-debut-dates.json 的排列完全一致）。0/缺 = 不在図鑑（深海棲艦等）。
                     sortno: s.api_sortno,
+                    // api_sort_id：艦船選択依等級排序時，同等級依此值升冪（samples/
+                    // start2-master.json 核對：金剛改二丙 1017 < 比叡改二丙 1027 < … < 長門改二 1096，
+                    // 與遊戲畫面次序一致）。0／缺視為不可考。
+                    sortId: Number(s.api_sort_id) > 0 ? Number(s.api_sort_id) : undefined,
                     taik0: Number(s.api_taik?.[0]) || 0,
                 });
                 // api_aftershipid 是**字串**（真封包實證，例 睦月 '254'），'0' 代表無後續改造。
@@ -4204,6 +4219,11 @@ export class GameState {
                         nameJa: this.shipNameJa(s.api_ship_id),
                         stype: STYPE_ABBR[mst?.stype ?? 0] ?? '',
                         mst: s.api_ship_id, stypeId: mst?.stype ?? 0,
+                        ctype: mst?.ctype ?? 0,
+                        aswEquipmentKnown: Array.isArray(s.api_slot)
+                            && slots.every(gid => gid <= 0 || (this.gearOf(gid)?.type ?? 0) > 0)
+                            && (!(s.api_slot_ex > 0) || (this.gearOf(s.api_slot_ex)?.type ?? 0) > 0),
+                        asw: Array.isArray(s.api_taisen) && Number.isFinite(s.api_taisen[0]) ? s.api_taisen[0] : null,
                         ndockTime: Number(s.api_ndock_time ?? 0),
                         inDock: dockCompleteById.has(id),
                         dockCompleteAt: dockCompleteById.get(id) || null,
@@ -4287,8 +4307,13 @@ export class GameState {
             return {
                 id,
                 masterId: s.api_ship_id ?? 0,
+                nameJa: this.shipNameJa(s.api_ship_id),
+                aswEquipmentKnown: Array.isArray(s.api_slot)
+                    && slots.every((gid, idx) => gid <= 0 || (gears[idx]?.type ?? 0) > 0)
+                    && (!(s.api_slot_ex > 0) || (exGear?.type ?? 0) > 0),
                 baseMst,
                 bookNo: this.pictureBookNo(baseMst ?? undefined),
+                sortId: mst?.sortId ?? null,
                 name: this.shipName(s.api_ship_id),
                 stypeId: mst?.stype ?? 0,
                 stype: stypeName(mst?.stype ?? 0),
@@ -4734,8 +4759,13 @@ export class GameState {
         return this.airBaseMaintenanceLevels.get(areaId) ?? null;
     }
 
+    // 通常海域依介面語言查共用譯名表（utils/map-names.ts）；master 名稱與表中日文不一致
+    // （遊戲改名）時退回 master 原名。活動海域只有 master 名稱。
     mapAreaName(id: number) {
         const name = this.masterMapAreas.get(id);
+        const lang = getLang();
+        const local = lang === 'ja' ? null : areaName(id, lang);
+        if (local && (!name || AREA_NAMES[id]?.jp === name)) return local;
         if (name) return name;
         if (id === 6) return t('area.central');
         if (id === 7) return t('area.southwest');

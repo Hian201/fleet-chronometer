@@ -24,6 +24,7 @@ import { questConditionText, questTargetLabel } from '@/utils/quest-goal-label';
 import { questCatalogIdentity } from '@/utils/quest-identity';
 import { QUEST_CATEGORY_LABEL_KEYS, type QuestCategory } from '@/utils/quest-category';
 import { questCategoryMarkHtml } from '@/utils/html-escape';
+import { loadExcludedMaps } from '@/utils/sortie-exclude';
 
 const PREFS_KEY = QUEST_FLOW_PREFS_KEY;
 type FocusMode = 'focus' | 'all';
@@ -513,6 +514,7 @@ function progressPaneHtml(row: QuestFlowRow): string {
     const missionName = (id: number) => expedDisplayName(id, row.tracking?.missionNames[id] ?? `#${id}`);
     const d = row.tracking;
     if (!d) return `<div class="ov-empty">${esc(t('ov.qpNoRecord'))}</div>`;
+    const excludedMaps = new Set(loadExcludedMaps());
     const joiner = getLang() === 'en' ? ', ' : '、';
     const names = (ids: readonly number[]) => ids.map(id => d.shipNames[id] ?? `#${id}`).join(joiner);
     const statusKey = d.recheck ? 'over' : d.latestServer?.status ?? 'none';
@@ -566,6 +568,9 @@ function progressPaneHtml(row: QuestFlowRow): string {
                 ${td(item.mission !== undefined || item.practice || item.reach
                     // 出擊紀錄只收戰鬥結算；遠征、演習與抵達節點沒有對應的場次可連。
                     ? esc(formatQuestTime(item.ts))
+                    : excludedMaps.has(item.map)
+                    // 不記錄的海域仍計入任務，但出擊紀錄沒有這場可開。
+                    ? `<span title="${esc(t('ov.qpSortieNotLogged'))}">${esc(formatQuestTime(item.ts))}</span>`
                     : `<a href="#/sortie-log?ts=${item.ts}" title="${esc(t('ov.qpOpenSortie'))}">${esc(formatQuestTime(item.ts))}</a>`)}
                 ${td(esc(item.mission !== undefined ? missionName(item.mission) : item.practice ? t('quest.practice') : item.map), 'wrap')}
                 ${td(esc(item.mission !== undefined || item.practice ? '—' : item.reach ? `${item.nodeLetter ?? '?'} ${t('quest.goal.reach')}` : item.boss ? t('quest.boss') : item.nodeLetter ?? t('quest.route')))}
