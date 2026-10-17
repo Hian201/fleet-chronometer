@@ -38,6 +38,13 @@
                只是現階段選了同一個橘；日後要調其中一邊時不該連動另一邊。
                對比：暗底 7.1:1；亮底 2.3:1（偏低，與面板既有的 --dmg-mid 用法同級）。 */
             --lbas-tired: #e08b3d;
+            /* 艦娘士氣分級（對照遊戲疲勞度：赤 0–19／橙 20–29／黃 30–39），由紅到黃。
+               與 --dmg-*（傷害）及 --sparkle（キラ）是不同語意，數值相近也不得互相挪用。
+               黃段取偏淡的檸檬色，與偏橙金的 --sparkle 拉開；小字下色相仍接近，
+               故單隊列另以「疲勞段不畫 ✦」區分（見 .ship-gear-row > .cond）。 */
+            --cond-heavy: #e05555;
+            --cond-tired: #e08b3d;
+            --cond-mild: #e3e38c;
             /* 關卡量表 pill 的軌道色。獨立變數而非沿用 --line：條子裡是白字的剩餘實數，
                軌道必須在兩個主題下都夠深才讀得到（亮色主題只調深、不轉淺，見 .s-gauge-bar）。 */
             --gauge-track: #2a3548;
@@ -73,6 +80,9 @@
             --stub: #aab3c2;
             --hp-tick: rgba(255, 255, 255, .92);
             --sparkle: #8a6d1a;
+            --cond-heavy: #c43c3c;
+            --cond-tired: #b8641c;
+            --cond-mild: #7f7a00;
             --alv-bar: #9dc3ef;
             --gauge-track: #4a5568;
             --menu: #ffffff;
@@ -574,8 +584,9 @@
             box-shadow: inset 2px 0 0 var(--brass);
         }
         .od-table-wrap .cond-spark { color: var(--sparkle); font-weight: 700; }
-        .od-table-wrap .cond-tired { color: var(--dmg-mid); }
-        .od-table-wrap .cond-red { color: var(--dmg-major); }
+        .od-table-wrap .cond-mild { color: var(--cond-mild); }
+        .od-table-wrap .cond-tired { color: var(--cond-tired); }
+        .od-table-wrap .cond-red { color: var(--cond-heavy); }
         .od-table-wrap .zero { color: var(--stub); }
         .od-empty {
             padding: 18px 10px; text-align: center; color: var(--dim); font-size: 12px;
@@ -1601,12 +1612,16 @@
             color: var(--sparkle);
         }
 
+        .cond.mild {
+            color: var(--cond-mild);
+        }
+
         .cond.tired {
-            color: var(--dmg-mid);
+            color: var(--cond-tired);
         }
 
         .cond.heavy {
-            color: var(--dmg-major);
+            color: var(--cond-heavy);
         }
 
         /* 結構：.chips{flex:1} 裝一般槽，打洞＋燃彈在外側由剩餘空間推到列尾。
@@ -2426,6 +2441,12 @@
         .ship-gear-row > .cond .cond-spark {
             font-size: 8px;
             line-height: 16px;
+        }
+
+        /* 疲勞段不畫 ✦：遊戲以臉標示疲勞、星星只屬於キラ，帶色的 ✦ 會被讀成キラ。
+           用 visibility 保留寬度，數字位置與其他列對齊。 */
+        .ship-gear-row > .cond:is(.mild, .tired, .heavy) .cond-spark {
+            visibility: hidden;
         }
 
         .vit-sup.resource-pair {

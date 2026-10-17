@@ -13,15 +13,20 @@
 //    整塊重繪會把它們全部洗掉。
 import type { OverviewSection } from './types';
 import { db, type ResourceMarkRow, type ResourceRow } from '@/utils/db';
-import { t } from '@/utils/ui-i18n';
+import { getLang, t } from '@/utils/ui-i18n';
+import {
+    SEASON_GROUP, eventOperationsOf, eventTermLabel, eventTermOf, operationIndexOfMap, operationMapRange,
+    type EventSeason, type SeasonGroup,
+} from '@/utils/event-calendar';
 import {
     copyWithFeedback, downloadText, esc, fmtShortTs, fmtTs, loadJsonPrefs, matIconHtml,
     paginate, saveJsonPrefs,
 } from '../lib';
 import { multiChartGeometry, nearestIndex, type ChartBox, type MultiChartGeometry } from '@/utils/line-chart';
 import {
-    MAT_FILES, MAT_KEYS, bucketSamples, buildEventPeriods, delta, downsample, normalizeSamples,
-    toCsv, type EventPeriod, type Granularity, type MatIndex, type Milestone, type Sample,
+    MAT_FILES, MAT_KEYS, bucketSamples, buildEventPeriods, buildEventSummary, delta, downsample,
+    normalizeSamples, toCsv, type EventPeriod, type EventSummary, type Granularity, type MatIndex,
+    type Milestone, type Sample,
 } from '@/utils/resource-log';
 
 const ALL_COLS: MatIndex[] = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -54,11 +59,20 @@ interface Prefs {
     showDelta: boolean;
     marks: boolean;
     size: PageSize;
+    /** 活動資源消耗：右側看單次明細或歷次比較。 */
+    evView: EvView;
+    evCmp: EvCmp;
+    /** true＝顯示日均，false＝合計。 */
+    evAvg: boolean;
 }
+
+export type EvView = 'detail' | 'compare';
+export type EvCmp = 'attack' | 'after' | 'both';
 
 const defaultPrefs = (): Prefs => ({
     range: '30', gran: 'raw', series: [...MAIN_COLS], cols: [...ALL_COLS],
     showDelta: true, marks: true, size: 50,
+    evView: 'detail', evCmp: 'attack', evAvg: false,
 });
 
 function loadPrefs(): Prefs {
@@ -77,6 +91,9 @@ function loadPrefs(): Prefs {
             showDelta: r.showDelta !== false,
             marks: r.marks !== false,
             size: (PAGE_SIZES as readonly number[]).includes(r.size as number) ? r.size as PageSize : d.size,
+            evView: r.evView === 'compare' ? 'compare' : 'detail',
+            evCmp: r.evCmp === 'after' || r.evCmp === 'both' ? r.evCmp : 'attack',
+            evAvg: r.evAvg === true,
         };
     });
 }
@@ -201,36 +218,276 @@ export function chartGeo(samples: Sample[], visible: MatIndex[], from: number, t
     );
 }
 
-export function eventCardHtml(p: EventPeriod, opts: RenderOpts): string {
-    return `<div class="rl-event">
-        <div class="rl-event-head">
-            <b class="rl-event-name">${esc(opts.areaName(p.area))}</b>
-            <span class="dim">${esc(fmtTs(p.startTs))} ～ ${esc(fmtTs(p.endTs))}</span>
-            <span class="grow"></span>
-            <button type="button" class="rs-mini rl-only" data-from="${p.startTs}" data-to="${p.endTs}">${esc(t('ov.rlOnlyThis'))}</button>
-        </div>
-        <div class="rl-seg-list">
-            ${p.segments.map(seg => `<div class="rl-seg-row">
-                <span class="rl-seg-name">${esc(milestoneLabel(seg.to))}</span>
-                <span class="dim rl-seg-time">${esc(fmtTs(seg.to.ts))}</span>
-                <span class="rl-seg-chips">${seg.from === null ? '' : deltaChips(seg.delta)}</span>
-            </div>`).join('')}
-            <div class="rl-seg-row rl-seg-total">
-                <span class="rl-seg-name">${esc(t('ov.rlTotal'))}</span>
-                <span class="dim rl-seg-time"></span>
-                <span class="rl-seg-chips">${deltaChips(p.total)}</span>
-            </div>
-        </div>
-    </div>`;
+// ── 活動資源消耗：左側清單（篩選＋依年份分組）＋右側明細／比較 ─────────────────
+// 活動的身分（年份季節、各段作戰名）只在清單完整呈現一次；數字只出現在明細與比較表。
+// 篩選只切換 `hidden`、不重繪控制項（CLAUDE.md 規則 9：帶關鍵字輸入的分區不得全量重繪）。
+
+export interface EventEntryOp {
+    /** 日文原名（遊戲畫面上的寫法）。 */
+    jp: string;
+    /** 非日文介面附帶的譯名；與原名相同或日文介面時為 null。 */
+    local: string | null;
+    /** 多段活動的段標（前段／後段）；單段為 null。 */
+    tag: string | null;
 }
 
-export function eventsHtml(periods: EventPeriod[], opts: RenderOpts): string {
-    const head = `<h3>${esc(t('ov.rlEventTitle'))}</h3>`
-        + `<p class="ov-note">${esc(t('ov.rlEventNote'))}</p>`;
-    const cards = periods.length
-        ? periods.map(p => eventCardHtml(p, opts)).join('')
-        : `<div class="ov-empty">${esc(t('ov.rlEventNone'))}</div>`;
-    return `<section class="rl-events">${head}${cards}</section>`;
+export interface EventEntry {
+    area: number;
+    year: number | null;
+    season: EventSeason | null;
+    /** 「2026夏季」；年表外退回 master 名或 `活動海域 #id`。 */
+    termLabel: string;
+    ops: EventEntryOp[];
+    summary: EventSummary;
+}
+
+/**
+ * 把各次活動的里程碑、資源序列與出擊時刻組成清單項目。
+ * @param masterName 當期 master 的作戰名（只有進行中的活動才有）；年表外的活動靠它命名。
+ * @param fallbackName 連 master 都沒有時的顯示名（`活動海域 #id`）。
+ */
+export function buildEventEntries(
+    periods: EventPeriod[],
+    samples: Sample[],
+    markRows: ResourceMarkRow[],
+    sortieRows: { ts: number; map: string }[],
+    masterName: (area: number) => string | undefined,
+    fallbackName: (area: number) => string,
+): EventEntry[] {
+    const armed = new Set(markRows.filter(m => m.kind === 'gauge-seen').map(m => m.mapKey));
+    const sortiesByArea = new Map<number, number[]>();
+    for (const row of sortieRows) {
+        const area = Number(row.map.split('-')[0]);
+        const list = sortiesByArea.get(area);
+        if (list) list.push(row.ts); else sortiesByArea.set(area, [row.ts]);
+    }
+    for (const list of sortiesByArea.values()) list.sort((a, b) => a - b);
+    const lang = getLang();
+    return periods.map(p => {
+        const term = eventTermOf(p.area);
+        const ops = eventOperationsOf(p.area);
+        return {
+            area: p.area,
+            year: term?.year ?? null,
+            season: term?.season ?? null,
+            termLabel: eventTermLabel(p.area, t) ?? fallbackName(p.area),
+            ops: ops
+                ? ops.map((o, i) => {
+                    const local = lang === 'zh-TW' ? o.zhTW : lang === 'en' ? o.en : null;
+                    return { jp: o.jp, local: local && local !== o.jp ? local : null, tag: ops.length > 1 ? eventPartLabel(ops.length, i) : null };
+                })
+                // 表外的活動只有當期 master 名（活動結束後就沒了）
+                : [{ jp: masterName(p.area) ?? fallbackName(p.area), local: null, tag: null }],
+            summary: buildEventSummary(p, samples, sortiesByArea.get(p.area) ?? [], armed,
+                mapNo => Math.max(0, operationIndexOfMap(p.area, mapNo))),
+        };
+    });
+}
+
+/** 第 index 段的段名；單段活動一律叫「攻略」。 */
+export function eventPartLabel(opCount: number, index: number): string {
+    if (opCount <= 1) return t('ov.rlEvAttack');
+    if (index === 0) return t('ov.rlEvPart0');
+    if (index === 1) return t('ov.rlEvPart1');
+    return t('ov.rlEvPartN', { n: index + 1 });
+}
+
+/** 期間只寫月／日：年份已由清單的年份分組交代；日期與活動年不同（跨年）才補年份。 */
+function evDate(ts: number, year: number | null): string {
+    const d = new Date(ts);
+    return `${year !== null && d.getFullYear() !== year ? `${d.getFullYear()}/` : ''}${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function evDateTime(ts: number, year: number | null): string {
+    const d = new Date(ts);
+    return `${evDate(ts, year)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+const evDays = (days: number) => t('ov.rlEvDaysN', { n: days.toFixed(1) });
+
+/** 一格消長：合計與日均各一個 span，切換只改外層 data-ev-mode，不重繪。 */
+function evValue(d: number[] | null, i: MatIndex, days: number | null): string {
+    if (!d) return noSample();
+    const avg = days === null ? null : Math.round(d[i] / Math.max(days, 1 / 24));
+    return `<span class="rl-v rl-ev-tot ${deltaClass(d[i])}">${esc(fmtDelta(d[i]))}</span>`
+        + (avg === null ? '' : `<span class="rl-v rl-ev-avg ${deltaClass(avg)}">${esc(fmtDelta(avg))}</span>`);
+}
+
+const evCells = (d: number[] | null, days: number | null, extra = '') =>
+    ALL_COLS.map(i => `<td class="rl-td-mat${extra}">${evValue(d, i, days)}</td>`).join('');
+
+const evMatHead = () => ALL_COLS.map(i => `<th class="rl-th-mat" title="${esc(t(MAT_KEYS[i] + '.full'))}">`
+    + `${matIconHtml(MAT_FILES[i], t(MAT_KEYS[i]))}</th>`).join('');
+
+const SEASON_ORDER: SeasonGroup[] = ['winter', 'spring', 'summer', 'autumn', 'mini'];
+
+/** 分區骨架（控制項只建一次）。清單、明細、比較表在資料讀完後各自填入。 */
+export function eventsShellHtml(prefs: { evView: EvView; evCmp: EvCmp; evAvg: boolean }): string {
+    const seg = (key: string, items: [string, string][], on: string) =>
+        `<div class="rs-seg rl-ev-seg">${items.map(([value, label]) =>
+            `<button type="button" data-ev-${key}="${value}"${value === on ? ' class="on"' : ''}>${esc(label)}</button>`).join('')}</div>`;
+    return `<section class="rl-ev" data-ev-view="${prefs.evView}" data-ev-cmp="${prefs.evCmp}" data-ev-mode="${prefs.evAvg ? 'avg' : 'total'}">
+        <h3>${esc(t('ov.rlEventTitle'))}</h3>
+        <p class="ov-note">${esc(t('ov.rlEventNote'))}</p>
+        <div class="rl-ev-grid">
+            <nav class="rl-ev-side" aria-label="${esc(t('ov.rlEvList'))}">
+                <div class="rl-ev-filter">
+                    <input class="rs-search rl-ev-q" type="search" autocomplete="off" placeholder="${esc(t('ov.rlEvSearch'))}">
+                    <div class="rl-ev-selects">
+                        <select class="rl-ev-fyear"><option value="">${esc(t('ov.rlEvAllYears'))}</option></select>
+                        <select class="rl-ev-fseason"><option value="">${esc(t('ov.rlEvAllSeasons'))}</option></select>
+                        <span class="dim rl-ev-count"></span>
+                    </div>
+                </div>
+                <div class="rl-ev-list"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
+            </nav>
+            <div class="rl-ev-main">
+                <div class="rl-ev-bar">
+                    ${seg('view', [['detail', t('ov.rlEvViewDetail')], ['compare', t('ov.rlEvViewCompare')]], prefs.evView)}
+                    <span class="rl-ev-cmpsel">${seg('cmp', [['attack', t('ov.rlEvAttackSum')], ['after', t('ov.rlEvAfter')], ['both', t('ov.rlEvBoth')]], prefs.evCmp)}</span>
+                    <span class="grow"></span>
+                    ${seg('mode', [['total', t('ov.rlEvTotal')], ['avg', t('ov.rlEvPerDay')]], prefs.evAvg ? 'avg' : 'total')}
+                    <button type="button" class="rs-mini rl-only">${esc(t('ov.rlOnlyThis'))}</button>
+                </div>
+                <div class="rl-ev-detail"></div>
+                <div class="rl-ev-cmp"></div>
+            </div>
+        </div>
+    </section>`;
+}
+
+/** 篩選下拉的選項（只列實際有紀錄的年份與季節大類）。 */
+export function eventFilterOptions(entries: EventEntry[]): { years: string; seasons: string } {
+    const years = [...new Set(entries.flatMap(e => (e.year === null ? [] : [e.year])))].sort((a, b) => b - a);
+    const groups = new Set(entries.flatMap(e => (e.season === null ? [] : [SEASON_GROUP[e.season]])));
+    return {
+        years: `<option value="">${esc(t('ov.rlEvAllYears'))}</option>`
+            + years.map(y => `<option value="${y}">${y}</option>`).join(''),
+        seasons: `<option value="">${esc(t('ov.rlEvAllSeasons'))}</option>`
+            + SEASON_ORDER.filter(g => groups.has(g)).map(g => `<option value="${g}">${esc(t(`event.season.${g}`))}</option>`).join(''),
+    };
+}
+
+function eventItemHtml(e: EventEntry, selected: number | null): string {
+    const search = [e.termLabel, ...e.ops.flatMap(o => [o.jp, o.local ?? ''])].join(' ').toLowerCase();
+    // 卡片內只寫季節：年份已由分組標題交代（design-guidelines「上層已交代的維度，下層省略」）
+    const heading = e.season === null ? e.termLabel : t(`event.season.${e.season}`);
+    const on = e.area === selected;
+    return `<button type="button" class="rl-ev-item${on ? ' on' : ''}" data-area="${e.area}"
+        data-year="${e.year ?? ''}" data-season="${e.season === null ? '' : SEASON_GROUP[e.season]}"
+        data-search="${esc(search)}" aria-pressed="${on}">
+        <b class="rl-ev-term">${esc(heading)}</b>
+        ${e.ops.map(o => `<span class="rl-ev-op">
+            ${o.tag ? `<span class="rl-ev-tag">${esc(o.tag)}</span>` : ''}
+            <span class="rl-ev-names"><span class="rl-ev-jp" lang="ja">${esc(o.jp)}</span>${o.local ? `<span class="rl-ev-tr">${esc(o.local)}</span>` : ''}</span>
+        </span>`).join('')}
+    </button>`;
+}
+
+/** 依年份分組的清單。預設展開最近兩年；年份不明的活動排最後。 */
+export function eventListHtml(entries: EventEntry[], selected: number | null): string {
+    if (!entries.length) return `<div class="ov-empty">${esc(t('ov.rlEventNone'))}</div>`;
+    const keys = [...new Set(entries.map(e => e.year))].sort((a, b) => (b ?? -1) - (a ?? -1));
+    return keys.map((year, i) => {
+        const items = entries.filter(e => e.year === year);
+        return `<details class="rl-ev-year" data-year="${year ?? ''}"${i < 2 || items.some(e => e.area === selected) ? ' open' : ''}>
+            <summary><b>${esc(year === null ? t('ov.rlEvUnknownYear') : String(year))}</b><span class="dim rl-ev-ycount">${items.length}</span></summary>
+            <div class="rl-ev-items">${items.map(e => eventItemHtml(e, selected)).join('')}</div>
+        </details>`;
+    }).join('') + `<div class="ov-empty rl-ev-empty" hidden>${esc(t('ov.rlEvEmpty'))}</div>`;
+}
+
+/** 明細：摘要表（各段／攻略合計／攻略後）＋各關區段表。兩張表共用同一組資源欄。 */
+export function eventDetailHtml(e: EventEntry): string {
+    const s = e.summary;
+    const opCount = e.ops.length;
+    const partRange = (index: number) => {
+        if (opCount <= 1) return '';
+        const range = operationMapRange(e.area, index);
+        if (!range) return '';
+        const seen = s.segments.filter(seg => seg.part === index).map(seg => seg.to.mapNo);
+        const to = range.to ?? (seen.length ? Math.max(...seen) : range.from);
+        return range.from === to ? `E${range.from}` : `E${range.from}–E${to}`;
+    };
+    const period = (from: number, to: number) => `${esc(evDate(from, e.year))} ～ ${esc(evDate(to, e.year))}`;
+    const rows: string[] = s.parts.map(p => `<tr>
+        <th class="rl-ev-k" scope="row">${esc(eventPartLabel(opCount, p.index))}${partRange(p.index) ? ` <small>${esc(partRange(p.index))}</small>` : ''}</th>
+        <td class="rl-ev-per">${period(p.from, p.to)}</td>
+        <td class="rl-ev-num">${esc(evDays(p.days))}</td>${evCells(p.delta, p.days)}</tr>`);
+    if (s.parts.length > 1 && s.attack) {
+        rows.push(`<tr class="rl-ev-sumrow">
+            <th class="rl-ev-k" scope="row">${esc(t('ov.rlEvAttackSum'))}</th>
+            <td class="rl-ev-per">${period(s.attack.from, s.attack.to)}</td>
+            <td class="rl-ev-num">${esc(evDays(s.attack.days))}</td>${evCells(s.attack.delta, s.attack.days)}</tr>`);
+    }
+    if (s.after) {
+        rows.push(`<tr class="rl-ev-afterrow">
+            <th class="rl-ev-k" scope="row">${esc(t('ov.rlEvAfter'))}</th>
+            <td class="rl-ev-per">${s.after.windows.map(w => period(w.from, w.to)).join('<br>')}</td>
+            <td class="rl-ev-num">${esc(evDays(s.after.days))}</td>${evCells(s.after.delta, s.after.days)}</tr>`);
+    }
+    const summary = `<div class="rl-table-wrap"><table class="rl-table rl-ev-table">
+        <thead><tr><th class="rl-ev-k"></th><th class="rl-ev-per">${esc(t('ov.rlEvPeriod'))}</th><th>${esc(t('ov.rlEvDays'))}</th>${evMatHead()}</tr></thead>
+        <tbody>${rows.join('')}</tbody></table></div>`;
+
+    // 各關區段：段別用跨列的一格交代，不另插標題列；跨段（前段打完到後段開打）不算差值
+    type SegRow = { part: number; name: string; ts: number; d: number[] | null; blank: boolean };
+    const segRows: SegRow[] = s.segments.map(seg => ({
+        part: seg.part, name: milestoneLabel(seg.to), ts: seg.to.ts,
+        d: seg.delta, blank: seg.from === null || seg.crossPart,
+    }));
+    if (s.trailing) {
+        const tr = s.trailing;
+        const at = segRows.map(r => r.part).lastIndexOf(tr.part) + 1;
+        segRows.splice(at, 0, { part: tr.part, name: t('ov.rlEvOpenSeg', { n: tr.mapNo }), ts: tr.to, d: tr.delta, blank: false });
+    }
+    const multi = opCount > 1;
+    const segBody = segRows.map((r, i) => {
+        const runStart = i === 0 || segRows[i - 1].part !== r.part;
+        let run = 1;
+        while (runStart && segRows[i + run]?.part === r.part) run++;
+        return `<tr class="${runStart && i ? 'rl-ev-grp' : ''}">
+            ${multi && runStart ? `<th class="rl-ev-ph" rowspan="${run}" scope="rowgroup">${esc(eventPartLabel(opCount, r.part))}</th>` : ''}
+            <td class="rl-ev-pt">${esc(r.name)}</td><td class="rl-ev-per">${esc(evDateTime(r.ts, e.year))}</td>
+            ${r.blank ? `<td colspan="${ALL_COLS.length}"></td>` : evCells(r.d, null)}</tr>`;
+    }).join('');
+    const segTable = `<div class="rl-table-wrap"><table class="rl-table rl-ev-table">
+        <thead><tr>${multi ? '<th class="rl-ev-ph"></th>' : ''}<th class="rl-ev-pt">${esc(t('ov.rlEvPoint'))}</th>
+            <th class="rl-ev-per">${esc(t('ov.rlEvTime'))}</th>${evMatHead()}</tr></thead>
+        <tbody>${segBody}</tbody></table></div>`;
+
+    return `${summary}<h4 class="rl-ev-h">${esc(t('ov.rlEvSegTitle'))}</h4>${segTable}`;
+}
+
+/** 比較：每次活動一列，列首只放年份季節短標（作戰名在左側清單）。點列首跳回該活動明細。 */
+export function eventCompareHtml(entries: EventEntry[], selected: number | null): string {
+    const pick = (s: EventSummary, kind: EvCmp): { d: number[] | null; days: number } | null => {
+        const attack = s.attack, after = s.after;
+        if (kind === 'attack') return attack ? { d: attack.delta, days: attack.days } : null;
+        if (kind === 'after') return after ? { d: after.delta, days: after.days } : null;
+        if (!attack) return null;
+        // 沒有攻略後＝那段時間沒出擊，合計就等於攻略；有但不可考則整筆不可考
+        return after
+            ? { d: attack.delta && after.delta ? attack.delta.map((v, i) => v + after.delta![i]) : null, days: attack.days + after.days }
+            : { d: attack.delta, days: attack.days };
+    };
+    const kinds: EvCmp[] = ['attack', 'after', 'both'];
+    const rows = entries.map(e => {
+        const days = kinds.map(k => {
+            const x = pick(e.summary, k);
+            return `<td class="rl-ev-num rl-ev-c-${k}">${x ? esc(evDays(x.days)) : '–'}</td>`;
+        }).join('');
+        const cells = kinds.map(k => {
+            const x = pick(e.summary, k);
+            return x ? evCells(x.d, x.days, ` rl-ev-c-${k}`)
+                : ALL_COLS.map(() => `<td class="rl-td-mat rl-ev-c-${k}"><span class="dim">–</span></td>`).join('');
+        }).join('');
+        return `<tr class="rl-ev-crow${e.area === selected ? ' on' : ''}" data-area="${e.area}">
+            <th class="rl-ev-k" scope="row"><button type="button" class="rl-ev-jump">${esc(e.termLabel)}</button></th>${days}${cells}</tr>`;
+    }).join('');
+    return `<div class="rl-table-wrap"><table class="rl-table rl-ev-table">
+        <thead><tr><th class="rl-ev-k">${esc(t('ov.rlEvEvent'))}</th><th>${esc(t('ov.rlEvDays'))}</th>${evMatHead()}</tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
 }
 
 /**
@@ -317,7 +574,7 @@ export function shellHtml(prefs = defaultPrefs()): string {
             <button type="button" class="ov-btn rl-csv">${esc(t('ov.rlExportCsv'))}</button>
             <button type="button" class="ov-btn rl-copy">${esc(t('ov.rlCopyCsv'))}</button>
         </div>
-        <div class="rl-body"></div>
+        <div class="rl-body"><div class="rl-top"></div>${eventsShellHtml(prefs)}<div class="rl-bottom"></div></div>
     </div>`;
 }
 
@@ -349,11 +606,16 @@ export const resourceLogSection: OverviewSection = {
         el.innerHTML = shellHtml(prefs);
 
         const body = el.querySelector<HTMLDivElement>('.rl-body')!;
+        // 結果區拆成上下兩塊：活動資源消耗夾在中間、只建一次（它有搜尋框與篩選，不能跟著重繪）
+        const top = el.querySelector<HTMLDivElement>('.rl-top')!;
+        const bottom = el.querySelector<HTMLDivElement>('.rl-bottom')!;
+        const evSec = el.querySelector<HTMLElement>('.rl-ev')!;
         const granSel = el.querySelector<HTMLSelectElement>('.rl-gran')!;
         const sizeSel = el.querySelector<HTMLSelectElement>('.rl-size')!;
         granSel.value = prefs.gran;
         sizeSel.value = String(prefs.size);
-        body.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
+        top.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
+        evSec.hidden = !prefs.marks;
 
         let all: Sample[] = [];
         let periods: ReturnType<typeof buildEventPeriods> = [];
@@ -361,8 +623,10 @@ export const resourceLogSection: OverviewSection = {
         const opts: RenderOpts = {
             cols: prefs.cols,
             showDelta: prefs.showDelta,
-            areaName: area => ctx.state.mapAreaName(area),
+            areaName: area => eventTermLabel(area, t) ?? ctx.state.mapAreaName(area),
         };
+        let entries: EventEntry[] = [];
+        let selected: number | null = null;
         /** 指定期間（按「只看這次活動」設定）；非 null 時蓋過 prefs.range。 */
         let custom: { from: number; to: number } | null = null;
         let page = 1;
@@ -383,7 +647,8 @@ export const resourceLogSection: OverviewSection = {
 
         function draw(keepScroll = false) {
             if (!all.length) {
-                body.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
+                top.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
+                bottom.innerHTML = '';
                 return;
             }
             const scroll = keepScroll ? body.scrollTop : 0;
@@ -398,11 +663,11 @@ export const resourceLogSection: OverviewSection = {
             const p = paginate(rows, prefs.size, page);
             page = p.page;
 
-            body.innerHTML =
+            top.innerHTML =
                 summaryHtml(all[all.length - 1], delta(view[0] ?? null, view[view.length - 1] ?? null), view, !!custom)
-                + chartHtml(chartSamples, geo, prefs.series, all[all.length - 1])
-                + (prefs.marks ? eventsHtml(periods, opts) : '')
-                + colRackHtml(prefs.cols)
+                + chartHtml(chartSamples, geo, prefs.series, all[all.length - 1]);
+            bottom.innerHTML =
+                colRackHtml(prefs.cols)
                 + `<div class="rl-table-wrap">${tableHtml(p.rows, opts)}</div>`
                 + (prefs.size && p.pageCount > 1 ? `<div class="rs-pager rl-pager">
                     <button type="button" class="ov-btn rl-page" data-step="-1" ${page <= 1 ? 'disabled' : ''}>${esc(t('ov.rlPagePrev'))}</button>
@@ -487,8 +752,117 @@ export const resourceLogSection: OverviewSection = {
         });
         el.querySelector<HTMLInputElement>('.rl-marks')!.addEventListener('change', ev => {
             prefs.marks = (ev.target as HTMLInputElement).checked;
+            evSec.hidden = !prefs.marks;
             savePrefs(prefs); draw();
         });
+
+        // ── 活動資源消耗（清單＋明細／比較）────────────────────────────
+        const evList = evSec.querySelector<HTMLDivElement>('.rl-ev-list')!;
+        const evDetail = evSec.querySelector<HTMLDivElement>('.rl-ev-detail')!;
+        const evCmp = evSec.querySelector<HTMLDivElement>('.rl-ev-cmp')!;
+        const evQuery = evSec.querySelector<HTMLInputElement>('.rl-ev-q')!;
+        const evYear = evSec.querySelector<HTMLSelectElement>('.rl-ev-fyear')!;
+        const evSeason = evSec.querySelector<HTMLSelectElement>('.rl-ev-fseason')!;
+        const evCount = evSec.querySelector<HTMLSpanElement>('.rl-ev-count')!;
+
+        /** 篩選只切 hidden：輸入框、捲動位置與年份的展開狀態都不能被重繪洗掉。 */
+        function applyEvFilter() {
+            const q = evQuery.value.trim().toLowerCase();
+            const year = evYear.value, season = evSeason.value;
+            const active = !!(q || year || season);
+            const visible = new Set<string>();
+            for (const item of evList.querySelectorAll<HTMLButtonElement>('.rl-ev-item')) {
+                const ok = (!q || item.dataset.search!.includes(q))
+                    && (!year || item.dataset.year === year) && (!season || item.dataset.season === season);
+                item.hidden = !ok;
+                if (ok) visible.add(item.dataset.area!);
+            }
+            for (const group of evList.querySelectorAll<HTMLDetailsElement>('.rl-ev-year')) {
+                const n = [...group.querySelectorAll<HTMLElement>('.rl-ev-item')].filter(x => !x.hidden).length;
+                group.hidden = n === 0;
+                if (active && n) group.open = true;
+                group.querySelector('.rl-ev-ycount')!.textContent = String(n);
+            }
+            for (const row of evCmp.querySelectorAll<HTMLTableRowElement>('.rl-ev-crow')) row.hidden = !visible.has(row.dataset.area!);
+            const empty = evList.querySelector<HTMLElement>('.rl-ev-empty');
+            if (empty) empty.hidden = visible.size > 0 || !entries.length;
+            evCount.textContent = entries.length ? t('ov.rlEvCount', { n: visible.size, total: entries.length }) : '';
+        }
+
+        function selectEvent(area: number) {
+            selected = area;
+            const entry = entries.find(e => e.area === area);
+            evDetail.innerHTML = entry ? eventDetailHtml(entry) : '';
+            for (const item of evList.querySelectorAll<HTMLButtonElement>('.rl-ev-item')) {
+                const on = Number(item.dataset.area) === area;
+                item.classList.toggle('on', on);
+                item.setAttribute('aria-pressed', String(on));
+            }
+            for (const row of evCmp.querySelectorAll<HTMLTableRowElement>('.rl-ev-crow')) {
+                row.classList.toggle('on', Number(row.dataset.area) === area);
+            }
+        }
+
+        function setEvSeg(key: 'view' | 'cmp' | 'mode', value: string) {
+            evSec.dataset[`ev${key[0].toUpperCase()}${key.slice(1)}`] = value;
+            for (const b of evSec.querySelectorAll<HTMLButtonElement>(`button[data-ev-${key}]`)) {
+                b.classList.toggle('on', b.getAttribute(`data-ev-${key}`) === value);
+            }
+            if (key === 'view') prefs.evView = value as EvView;
+            if (key === 'cmp') prefs.evCmp = value as EvCmp;
+            if (key === 'mode') prefs.evAvg = value === 'avg';
+            savePrefs(prefs);
+        }
+
+        evQuery.addEventListener('input', applyEvFilter);
+        evYear.addEventListener('change', applyEvFilter);
+        evSeason.addEventListener('change', applyEvFilter);
+        evSec.addEventListener('click', ev => {
+            const target = ev.target as HTMLElement;
+            const segBtn = target.closest<HTMLButtonElement>('button[data-ev-view],button[data-ev-cmp],button[data-ev-mode]');
+            if (segBtn) {
+                const key = segBtn.dataset.evView ? 'view' : segBtn.dataset.evCmp ? 'cmp' : 'mode';
+                setEvSeg(key, segBtn.getAttribute(`data-ev-${key}`)!);
+                return;
+            }
+            const item = target.closest<HTMLButtonElement>('.rl-ev-item');
+            if (item) { selectEvent(Number(item.dataset.area)); return; }
+            const jump = target.closest<HTMLButtonElement>('.rl-ev-jump');
+            if (jump) {
+                const area = Number(jump.closest<HTMLElement>('.rl-ev-crow')!.dataset.area);
+                selectEvent(area);
+                setEvSeg('view', 'detail');
+                const card = evList.querySelector<HTMLElement>(`.rl-ev-item[data-area="${area}"]`);
+                if (card) {
+                    card.closest('details')!.open = true;
+                    card.scrollIntoView({ block: 'nearest' });
+                }
+                return;
+            }
+            if (target.closest('.rl-only')) {
+                const entry = entries.find(e => e.area === selected);
+                if (!entry || !all.length) return;
+                // 要看得出「開打前的水位」，故區間往前後各留一小時餘裕
+                custom = { from: entry.summary.span.from - 3_600_000, to: entry.summary.span.to + 3_600_000 };
+                page = 1;
+                draw();
+            }
+        });
+
+        /** 資料讀完後填清單、比較表與篩選選項（只做一次；之後的互動都只切狀態）。 */
+        function fillEvents(markRows: ResourceMarkRow[], sortieRows: { ts: number; map: string }[]) {
+            entries = buildEventEntries(periods, all, markRows, sortieRows,
+                area => ctx.state.masterMapAreas.get(area), area => ctx.state.mapAreaName(area));
+            const options = eventFilterOptions(entries);
+            evYear.innerHTML = options.years;
+            evSeason.innerHTML = options.seasons;
+            selected = entries[0]?.area ?? null;
+            evList.innerHTML = eventListHtml(entries, selected);
+            evCmp.innerHTML = entries.length ? eventCompareHtml(entries, selected) : '';
+            evSec.querySelector<HTMLElement>('.rl-ev-main')!.hidden = !entries.length;
+            if (selected !== null) selectEvent(selected);
+            applyEvFilter();
+        }
 
         const csv = () => toCsv(
             detailRows(), prefs.cols,
@@ -531,14 +905,6 @@ export const resourceLogSection: OverviewSection = {
                 draw(true);
                 return;
             }
-            const only = target.closest<HTMLButtonElement>('.rl-only');
-            if (only) {
-                // 要看得出「開打前的水位」，故區間往前後各留一小時餘裕
-                custom = { from: Number(only.dataset.from) - 3_600_000, to: Number(only.dataset.to) + 3_600_000 };
-                page = 1;
-                draw();
-                return;
-            }
             if (target.closest('.rl-clear-custom')) { custom = null; page = 1; draw(); return; }
             const pager = target.closest<HTMLButtonElement>('.rl-page');
             if (pager) { page += Number(pager.dataset.step); draw(); }
@@ -558,8 +924,16 @@ export const resourceLogSection: OverviewSection = {
             periods = buildEventPeriods(markRows, all);
             allMilestones = periods.flatMap(p => p.milestones);
             draw();
+            // 「攻略後」要知道最後一次出擊活動海域的時刻；只讀最早一次活動之後的出擊紀錄
+            const since = periods.length ? Math.min(...periods.map(p => p.startTs)) : Infinity;
+            const sortieRows = Number.isFinite(since)
+                ? await db.sorties.where('ts').aboveOrEqual(since).toArray() as { ts: number; map: string }[]
+                : [];
+            fillEvents(markRows, sortieRows.filter(r => Number(r.map.split('-')[0]) >= 10));
         } catch (error) {
-            body.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+            const msg = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+            top.innerHTML = msg;
+            evList.innerHTML = msg;
         }
     },
 };

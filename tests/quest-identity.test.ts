@@ -42,7 +42,9 @@ describe('questCatalogIdentity', () => {
     });
 
     it('同編號但標題不同：營運重用編號的新任務', () => {
-        expect(questCatalogIdentity(984, '【期間限定任務】14年目実りの秋、南瓜始め！')).toBe('mismatch');
+        // 目錄是 2026 年版（14年目），假設隔年沿用同一編號
+        expect(questCatalogIdentity(984, '【期間限定任務】14年目実りの秋、南瓜始め！')).toBe('match');
+        expect(questCatalogIdentity(984, '【期間限定任務】15年目実りの秋、南瓜始め！')).toBe('mismatch');
     });
 
     it('沒有即時標題或目錄沒有這個編號：無從比對', () => {
@@ -81,12 +83,12 @@ describe('任務導覽：重用編號的關係隔離', () => {
     it.each([1, 2])('即時新任務（state %i）不沿用舊前後置、週期與 Wiki ID', apiState => {
         const state = new GameState();
         state.applyEvent('api_get_member/questlist', { api_list: [{
-            api_no: 984, api_state: apiState, api_title: '【期間限定任務】14年目実りの秋、南瓜始め！',
+            api_no: 986, api_state: apiState, api_title: '【期間限定任務】15年目の南瓜祭り！',
             api_detail: '新任務', api_category: 2,
         }] }, { api_tab_id: '0' }, 3000);
         const model = buildQuestFlow(state);
-        const row = model.byNo.get(984)!;
-        expect(row.name).toContain('14年目');
+        const row = model.byNo.get(986)!;
+        expect(row.name).toContain('15年目');
         expect(row.definition.category).toBe('sortie');
         expect(row.definition.wikiIds).toEqual([]);
         expect(row.definition.period).toBe('unknown');
@@ -94,8 +96,8 @@ describe('任務導覽：重用編號的關係隔離', () => {
         expect(row.postrequisiteNos).toEqual([]);
         expect(row.relation.confidence).toBe('checking');
         for (const other of model.rows) {
-            expect(other.prerequisiteNos).not.toContain(984);
-            expect(other.remarkNos).not.toContain(984);
+            expect(other.prerequisiteNos).not.toContain(986);
+            expect(other.remarkNos).not.toContain(986);
         }
     });
     it('重用編號不從人工裁決沿前置鏈推論完成', () => {
@@ -122,7 +124,7 @@ describe('任務導覽：重用編號的關係隔離', () => {
     });
     it('未重用任務保持既有解鎖關係', () => {
         const model = buildQuestFlow(new GameState());
-        expect(model.byNo.get(984)!.prerequisiteNos).toContain(207);
-        expect(model.byNo.get(984)!.postrequisiteNos).toContain(985);
+        expect(model.byNo.get(986)!.prerequisiteNos).toContain(359);
+        expect(model.byNo.get(986)!.postrequisiteNos).toContain(987);
     });
 });

@@ -2,7 +2,7 @@
   "name": "fleet-chronometer",
   "description": "Passive KanColle monitor for fleets, expeditions, battles, history, replays, and local backups.",
   "private": true,
-  "version": "1.1.0.6",
+  "version": "1.1.0.7",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -13,6 +13,8 @@
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
     "test": "vitest run",
+    "site:build": "vite-node --config vitest.config.ts site/build.ts",
+    "site:deploy": "npm run site:build && npx wrangler pages deploy .site --project-name fleet-chronometer",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {

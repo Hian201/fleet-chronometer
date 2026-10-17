@@ -82,8 +82,36 @@ describe('attachAxiosResponseCapture', () => {
         expect(enqueue).toHaveBeenCalledTimes(1);
         const [path, reqBody, readText] = enqueue.mock.calls[0];
         expect(path).toBe('api_port/port');
-        expect(reqBody).toBe('api_verno=1');
+        expect(reqBody).toBe('');
         expect(readText()).toBe(response.data);
+    });
+
+    it.each([
+        'api_token=secret&api_deck_id=1&api_token=other&api_verno=1&%61pi_token=encoded',
+        new URLSearchParams({ api_token: 'secret', api_deck_id: '1', api_verno: '1' }),
+        { api_token: 'secret', api_deck_id: 1, api_verno: '1' },
+        (() => {
+            const data = new FormData();
+            data.append('api_token', 'secret');
+            data.append('api_token', 'other');
+            data.append('api_deck_id', '1');
+            data.append('api_verno', '1');
+            return data;
+        })(),
+    ])('入列前移除憑證，保留操作參數與原請求內容（%#）', (data) => {
+        const mock = mockAxios();
+        const enqueue = vi.fn();
+        attachAxiosResponseCapture(mock.axios, enqueue);
+        const original = serializeAxiosRequestBody(data);
+        const response: AxiosResponseLike = {
+            data: 'svdata={"api_data":{}}',
+            config: { url: '/kcsapi/api_port/port', data },
+        };
+
+        expect(mock.handler(response)).toBe(response);
+        expect(enqueue.mock.calls[0][1]).toBe('api_deck_id=1');
+        expect(response.config?.data).toBe(data);
+        expect(serializeAxiosRequestBody(data)).toBe(original);
     });
 
     it('非 kcsapi 不入列', () => {

@@ -10,6 +10,7 @@ import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recover
 import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { t } from '@/utils/ui-i18n';
+import { formatDateTime } from '@/utils/date-format';
 
 export { esc, gearIconHtml, matIconHtml };
 
@@ -186,7 +187,8 @@ export async function copyWithFeedback(btn: HTMLButtonElement, text: string, don
     } catch { /* 剪貼簿不可用時靜默 */ }
 }
 
-export const fmtTs = (ts: number) => new Date(ts).toLocaleString();
+/** 介面日期一律年/月/日（見 utils/date-format.ts）。 */
+export const fmtTs = (ts: number) => formatDateTime(ts);
 export const fmtShortTs = (ts: number) => {
     const d = new Date(ts);
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;

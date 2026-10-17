@@ -157,7 +157,7 @@ def other_prerequisites() -> dict[int, set[int]]:
     return result
 
 
-KC3_TRANSLATIONS_COMMIT = '74b37f83b52df52bb4d76f62e4463603fcc7ec3a'
+KC3_TRANSLATIONS_COMMIT = '6fed2aac44a1ca95f2892bb1af93a6bc0e60b667'
 KC3_QUESTS = Path(__file__).with_name('.cache') / f'kc3-quests-jp-{KC3_TRANSLATIONS_COMMIT[:12]}.json'
 
 
@@ -303,9 +303,35 @@ def wiki_page(offline: bool) -> str:
     return page
 
 
+# api_no → (開始日, 結束日或 None)：wikiwiki「実装」欄，例「2026 10/14 ~ 20** **/**」（結束未公告）。
+# 只有實施中的期間限定任務會寫；main() 只輸出目錄標為期間限定的任務。
+WINDOWS: dict[int, tuple[str, str | None]] = {}
+IMPL_DATE = re.compile(r'(20\d\d)\s*(\d{1,2})/(\d{1,2})')
+
+
+def implementation_window(cell: str) -> tuple[str, str | None] | None:
+    text = html.unescape(cell)
+    # 期間限定的寫法是「開始 ~ 結束」；只有單一日期的是常設任務的實裝日（例：B82「2016 10/5」）
+    sep = re.search(r'~|～', text)
+    if not sep:
+        return None
+    head, tail = text[:sep.start()], text[sep.end():]
+    start = IMPL_DATE.search(head)
+    if not start:
+        return None
+    iso = lambda m: f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
+    # 「更新日 2026 07/08」是任務內容改版日，不是結束日；結束日只看「~」後緊接的日期
+    end = IMPL_DATE.match(tail.strip())
+    return iso(start), (iso(end) if end else None)
+
+
 TABLE_PERIODS = [
     ('単発', 'once'), ('デイリー', 'daily'), ('ウィークリー', 'weekly'),
     ('マンスリー', 'monthly'), ('クォータリー', 'quarterly'), ('イヤーリー', 'yearly'),
+    # 季節大演習每季重新發出（api_type 仍為 4），見 quest-flow.ts 的 SEASONAL_SAME_SEASON_MS
+    ('季節大演習', 'seasonal'),
+    # 只在特定日期出現的日常任務（Bd4／Bd6）
+    ('特定の日のみ', 'daily'),
 ]
 
 
@@ -322,21 +348,25 @@ def parse_wiki(page: str, by_wiki, names) -> tuple[dict[int, tuple], dict[int, s
         if header is None or 'ID' not in header:
             continue
         id_col, name_col, cond_col = header.index('ID'), header.index('任務名'), header.index('開放条件/備考')
+        impl_col = header.index('実装') if '実装' in header else None
         # 總表依週期分表（「単発 【単】Once」「デイリー 【日】Daily」…）；新着、期間限定等表沒有週期資訊
         period = next((value for key, value in TABLE_PERIODS if heading.startswith(key)), '')
         for row in rows:
-            if len(row) <= cond_col or not ID_CELL.match(row[id_col].strip()):
+            # 期間限定任務的代號在 wiki 以換行拆成兩段（「2610<br>B1」）
+            wiki_id = re.sub(r'\s+', '', row[id_col]) if len(row) > id_col else ''
+            if len(row) <= cond_col or not ID_CELL.match(wiki_id):
                 continue
             # 2023 年定期任務改號後，舊位置留下跨欄合併的「IDを…に変更」佔位列
             if row[cond_col] == row[name_col + 1]:
                 continue
             seen_rows += 1
-            wiki_id = row[id_col].strip()
             no = resolve(wiki_id, row[name_col], by_wiki, names)
             if no is None:
                 unmapped_rows.append(wiki_id)
                 continue
             wiki_names[no] = row[name_col].strip()
+            if impl_col is not None and len(row) > impl_col and (window := implementation_window(row[impl_col])):
+                WINDOWS[no] = window
             parsed = parse_condition(html.unescape(row[cond_col]), by_wiki, names)
             clauses, flags, unresolved = parsed if parsed else ([], 0, [])
             entry = (clauses, flags, unresolved, period)
@@ -423,6 +453,9 @@ def parse_zekamashi(articles: dict[str, dict], index: NameIndex, known: dict[int
         hits = {index.exact(name) for name in inbound.get(url, [])} - {None}
         data = articles.get(url)
         titled = index.contained(data['title']) if data else None
+        # 標題寫出的任務不在連入名稱裡時，是別篇的連結掛錯（例：「海上護衛戦」連到 Bw10 的攻略），以標題為準
+        if titled is not None and hits and titled not in hits:
+            return titled
         if len(hits) == 1:
             return next(iter(hits))
         # 偶有文章用別的任務名連到這篇；分歧時採用同時出現在標題裡的那一個
@@ -446,6 +479,17 @@ def parse_zekamashi(articles: dict[str, dict], index: NameIndex, known: dict[int
                 no = linked
         return no
 
+    # 每年重辦的期間限定任務以「年份＋系列」命名文章（2025pumpkin-1、2026pumpkin-1…）。營運沿用編號、
+    # 標題也常相同或只差年份，舊年度的文章會被對到今年的任務，把已失效的前置混進來；有較新年度時不採用。
+    def series(url: str) -> tuple[str, int] | None:
+        m = YEAR_SERIES.search(url)
+        return (m.group(2), int(m.group(1))) if m else None
+    latest: dict[str, int] = {}
+    for url in articles:
+        if (key := series(url)):
+            latest[key[0]] = max(latest.get(key[0], 0), key[1])
+    superseded = {url for url in articles if (key := series(url)) and key[1] < latest[key[0]]}
+
     edges: dict[int, dict[int, int]] = {}
     cond: dict[int, int] = {}
     unresolved: dict[int, set[str]] = {}
@@ -461,6 +505,8 @@ def parse_zekamashi(articles: dict[str, dict], index: NameIndex, known: dict[int
         current[source] = current.get(source, flag) & flag
 
     for url, data in articles.items():
+        if url in superseded:
+            continue
         for position, group in enumerate(data['groups']):
             # 第一組在「任務情報」段落，屬於文章本身的任務；後面的組只有小標題寫出任務名時才採用，
             # 「まとめ」「旧編成」或裝備名等小標題下的是重述，略過。
@@ -508,6 +554,7 @@ def parse_zekamashi(articles: dict[str, dict], index: NameIndex, known: dict[int
 
 
 REPORT = Path(__file__).with_name('.cache') / 'zekamashi-unmapped.json'
+YEAR_SERIES = re.compile(r'/(20\d\d)([a-z]+)-[0-9a-z]+/?$')
 
 # poi-plugin-quest-planner：kcQuests（kcwikizh）前置的較新整理版，和目錄的 poi 前置同一條資料線，
 # 所以取代舊版而不另計來源。固定 commit；更新時改這裡並重跑。
@@ -677,6 +724,9 @@ def main() -> None:
     planner_body = ','.join(compact([no, deps, unresolved]) for no, (deps, unresolved) in sorted(planner.items()))
     tsuki_body = ','.join(compact([no, deps]) for no, deps in sorted(tsuki.items()))
     kcwiki_body = ','.join(compact([no, edges, flags, unresolved]) for no, (edges, flags, unresolved) in sorted(kcw.items()))
+    limited_nos = {entry[0] for entry in json.loads(re.search(
+        r'QUEST_CATALOG_RAW = (\[.*?\]) as const', CATALOG.read_text(encoding='utf-8'), re.S).group(1)) if entry[6]}
+    window_body = ','.join(compact([no, start, end]) for no, (start, end) in sorted(WINDOWS.items()) if no in limited_nos)
     supplement_body = ','.join(compact([no, code, name]) for no, (code, name) in sorted(SUPPLEMENT.items()))
     OUT.write_text(
         '/* 由 tools/quest-graph/generate.py 產生，勿手改。 */\n\n'
@@ -712,7 +762,11 @@ def main() -> None:
         '/**\n'
         ' * 目錄有 api_no 卻缺 wiki 代號或名稱的任務，由 KC3 kc3-translations 日文任務表補上：[api_no, 代號, 名稱]（空字串＝目錄已有）。\n'
         ' */\n'
-        f'export const QUEST_CATALOG_SUPPLEMENT_RAW = [{supplement_body}] as const;\n',
+        f'export const QUEST_CATALOG_SUPPLEMENT_RAW = [{supplement_body}] as const;\n\n'
+        '/**\n'
+        ' * 實施中期間限定任務的實裝期間（wikiwiki「実装」欄）：[api_no, 開始日, 結束日或 null（未公告）]，日期為日本時間。\n'
+        ' */\n'
+        f'export const LIMITED_QUEST_WINDOWS_RAW = [{window_body}] as const;\n',
         encoding='utf-8',
     )
     print(f'已寫入 {OUT.relative_to(ROOT)}', file=sys.stderr)

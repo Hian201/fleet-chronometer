@@ -1,5 +1,5 @@
 // 「資源紀錄」分區的核心（純函式，無 chrome.*／無 DOM，node 可測）：
-// 序列取樣、消長差分、活動海域的區段消耗。UI 殼在 entrypoints/overview/sections/resource-log.ts。
+// 序列取樣、消長差分、活動海域的區段消耗與攻略／攻略後切分。UI 殼在 entrypoints/overview/sections/resource-log.ts。
 //
 // 兩個貫穿全檔的取捨：
 //   1. **餘額是事實，消長是差分**。封包只給餘額，任何「花了多少」都是兩筆餘額相減，
@@ -182,6 +182,146 @@ export function buildEventPeriods(marks: ResourceMarkRow[], samples: Sample[]): 
         });
     }
     return periods.sort((a, b) => b.startTs - a.startTs);
+}
+
+// ── 一次活動的攻略／攻略後切分 ─────────────────────────────────────────────
+
+const DAY_MS = 86_400_000;
+
+/** 逐項相加；任一邊不可考整筆不可考（缺席不得被 0 頂替）。 */
+function sumDelta(a: number[] | null, b: number[] | null): number[] | null {
+    return a && b ? a.map((v, i) => v + (b[i] ?? 0)) : null;
+}
+
+/** `ts` 當下（含）之後最近的一筆。出擊扣的燃彈與修理要回港補給／入渠後才反映在餘額上。 */
+function sampleAfter(samples: Sample[], ts: number): Sample | null {
+    let lo = 0, hi = samples.length - 1, found: Sample | null = null;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (samples[mid].ts >= ts) { found = samples[mid]; hi = mid - 1; }
+        else lo = mid + 1;
+    }
+    return found;
+}
+
+export interface EventPart {
+    /** 第幾段作戰（0 起，對應 eventOperationsOf 的索引）。 */
+    index: number;
+    from: number;
+    to: number;
+    delta: number[] | null;
+    days: number;
+    /** 這段出擊過的關卡是否都已觀測到量表歸零（且沒有再武裝的下一段量表）。 */
+    done: boolean;
+    /** 未打完時，最後一張尚未歸零的關卡（E 幾）。 */
+    openMap: number | null;
+}
+
+export interface EventWindow {
+    from: number;
+    to: number;
+    delta: number[] | null;
+}
+
+export interface EventSummarySegment extends EventSegment {
+    part: number;
+    /** 這段跨越前後段（例如前段打完到後段開打之間）：差值不屬於任何一段攻略，不顯示。 */
+    crossPart: boolean;
+}
+
+export interface EventSummary {
+    area: number;
+    parts: EventPart[];
+    /** 全部攻略段的合計；只有一段時就是那一段。 */
+    attack: { from: number; to: number; delta: number[] | null; days: number } | null;
+    /** 各段歸零之後仍出擊該活動海域的時間窗（撈船等）。 */
+    after: { windows: EventWindow[]; delta: number[] | null; days: number } | null;
+    segments: EventSummarySegment[];
+    /** 未打完的那段，最後一個里程碑之後到最後一次出擊的消耗。 */
+    trailing: { part: number; mapNo: number; to: number; delta: number[] | null } | null;
+    /** 整次活動的觀測範圍（第一個里程碑 → 最後一次出擊）。 */
+    span: { from: number; to: number };
+}
+
+/**
+ * 把一次活動切成「各段攻略」與「攻略後」。
+ *
+ * - 各段攻略：該段第一個里程碑 → 該段出擊過的關卡全部歸零。仍有量表守衛（`seen:`）的關卡
+ *   代表還有下一段血條，不算打完。未打完的段算到該段最後一次出擊後的第一筆餘額。
+ * - 攻略後：各段歸零之後、下一段開打之前仍有出擊的時間窗（撈船等），合併成一筆。
+ *   前段打完到後段開打之間若沒出擊就不計——那段只有遠征收入，不是活動消耗。
+ * - 段落依 event-calendar 的 `firstMap` 切；表外活動整次視為一段。
+ *
+ * @param sortieTs 這個 world 的出擊（戰鬥）時刻，升冪。
+ * @param armedMapKeys 目前有 `gauge-seen` 守衛的 mapKey（還沒打完的量表）。
+ */
+export function buildEventSummary(
+    period: EventPeriod,
+    samples: Sample[],
+    sortieTs: number[],
+    armedMapKeys: ReadonlySet<number>,
+    partOf: (mapNo: number) => number,
+): EventSummary {
+    const parts: EventPart[] = [];
+    const windows: EventWindow[] = [];
+    let trailing: EventSummary['trailing'] = null;
+
+    const partIds = [...new Set(period.milestones.map(m => partOf(m.mapNo)))].sort((a, b) => a - b);
+    partIds.forEach((index, k) => {
+        const ms = period.milestones.filter(m => partOf(m.mapNo) === index);
+        const nextIndex = partIds[k + 1];
+        const nextStart = nextIndex === undefined ? Infinity
+            : Math.min(...period.milestones.filter(m => partOf(m.mapNo) === nextIndex).map(m => m.ts));
+        const from = ms[0].ts;
+        const opened = new Set(ms.filter(m => m.kind === 'open').map(m => m.mapNo));
+        const cleared = new Set(ms.filter(m => m.kind === 'clear').map(m => m.mapNo));
+        const unbroken = [...opened].filter(n => !cleared.has(n) || armedMapKeys.has(period.area * 10 + n));
+        const done = opened.size > 0 && unbroken.length === 0;
+        const inPart = sortieTs.filter(ts => ts >= from && ts < nextStart);
+        const lastMilestone = ms[ms.length - 1];
+
+        if (done) {
+            const to = Math.max(...ms.filter(m => m.kind === 'clear').map(m => m.ts));
+            parts.push({ index, from, to, delta: delta(ms[0].sample, sampleAt(samples, to)), days: (to - from) / DAY_MS, done, openMap: null });
+            const farming = inPart.filter(ts => ts > to);
+            if (farming.length) {
+                const last = farming[farming.length - 1];
+                windows.push({ from: to, to: last, delta: delta(sampleAt(samples, to), sampleAfter(samples, last)) });
+            }
+            return;
+        }
+        const lastSortie = inPart.length ? inPart[inPart.length - 1] : null;
+        const to = lastSortie !== null && lastSortie > lastMilestone.ts ? lastSortie : lastMilestone.ts;
+        const endSample = to === lastMilestone.ts ? sampleAt(samples, to) : sampleAfter(samples, to);
+        const openMap = unbroken.length ? Math.max(...unbroken) : null;
+        parts.push({ index, from, to, delta: delta(ms[0].sample, endSample), days: (to - from) / DAY_MS, done, openMap });
+        if (openMap !== null && to > lastMilestone.ts) {
+            trailing = { part: index, mapNo: openMap, to, delta: delta(lastMilestone.sample, endSample) };
+        }
+    });
+
+    const attack = parts.length === 0 ? null : parts.length === 1
+        ? { from: parts[0].from, to: parts[0].to, delta: parts[0].delta, days: parts[0].days }
+        : {
+            from: parts[0].from,
+            to: parts[parts.length - 1].to,
+            delta: parts.slice(1).reduce<number[] | null>((acc, p) => sumDelta(acc, p.delta), parts[0].delta),
+            days: parts.reduce((acc, p) => acc + p.days, 0),
+        };
+    const after = windows.length === 0 ? null : {
+        windows,
+        delta: windows.slice(1).reduce<number[] | null>((acc, w) => sumDelta(acc, w.delta), windows[0].delta),
+        days: windows.reduce((acc, w) => acc + (w.to - w.from) / DAY_MS, 0),
+    };
+    const segments = period.segments.map(seg => {
+        const part = partOf(seg.to.mapNo);
+        return { ...seg, part, crossPart: seg.from !== null && partOf(seg.from.mapNo) !== part };
+    });
+    const lastSortie = sortieTs.length ? sortieTs[sortieTs.length - 1] : -Infinity;
+    return {
+        area: period.area, parts, attack, after, segments, trailing,
+        span: { from: period.startTs, to: Math.max(period.endTs, lastSortie) },
+    };
 }
 
 // ── 匯出 ─────────────────────────────────────────────────────────────────

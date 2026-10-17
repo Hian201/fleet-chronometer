@@ -13,35 +13,42 @@ import {
 import { layoutQuestGraph } from '@/utils/quest-graph-layout';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import {
-    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml,
+    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml, questRewardItemLabel,
 } from '@/utils/quest-catalog-localization';
 import {
     QUEST_FLOW_PREFS_KEY, normalizeQuestApiNos,
 } from '@/utils/quest-flow-prefs';
-import { clearHashParams, esc, fmtTs, hashParams, loadJsonPrefs, saveJsonPrefs } from '../lib';
+import { clearHashParams, downloadBlob, esc, fmtTs, hashParams, loadJsonPrefs, saveJsonPrefs } from '../lib';
+import { renderQuestGraphPhoto } from '../quest-graph-photo';
+import { questGraphPhotoFilename } from '@/utils/quest-graph-photo';
 import { formatQuestTime, type ServerObservation } from '@/utils/quest-tracking';
 import { questConditionText, questTargetLabel } from '@/utils/quest-goal-label';
 import { questCatalogIdentity } from '@/utils/quest-identity';
+import { formatDate } from '@/utils/date-format';
 import { QUEST_CATEGORY_LABEL_KEYS, type QuestCategory } from '@/utils/quest-category';
 import { questCategoryMarkHtml } from '@/utils/html-escape';
 import { loadExcludedMaps } from '@/utils/sortie-exclude';
+import { areaName, mapName } from '@/utils/map-names';
+import {
+    QUEST_FACET_GROUPS, QUEST_LIST_FACETS, QUEST_PERIOD_FACETS, QUEST_PROGRESS_FACETS, QUEST_REWARD_FACETS,
+    compareQuestMapLabels, hasFacetSelection, matchesFacets, questCauseSummary, questFacetCounts, questGraphFitScale,
+    questGraphZoomStep, questRowFacets,
+    type QuestFacetGroup, type QuestFacetSelection, type QuestRowFacets,
+} from '@/utils/quest-flow-facets';
 
 const PREFS_KEY = QUEST_FLOW_PREFS_KEY;
 type FocusMode = 'focus' | 'all';
-type StatBucket =
-    | 'current' | 'pinned' | 'ready' | 'available' | 'recurring'
-    | 'near' | 'limited' | 'inferred' | 'unknown';
-
 interface QuestFlowPrefs {
     targetNo: number | null;
     manualComplete: number[];
     pinned: number[];
     focus: FocusMode;
-    bucket: StatBucket | 'none';
     query: string;
-    category: QuestCategory | 'all';
-    period: QuestPeriod | 'all';
-    status: QuestStatus | 'all';
+    /** 多選篩選：同組任一符合、跨組全部符合。 */
+    filters: QuestFacetSelection;
+    pinnedOnly: boolean;
+    /** 右欄標頭「任務內容與獎勵」是否展開；預設收起，把高度留給路線與關係圖。 */
+    headOpen: boolean;
     tab: QuestFlowDetailTab;
     graphDone: boolean;
 }
@@ -50,28 +57,6 @@ const CATEGORIES: QuestCategory[] = [
     'composition', 'sortie', 'practice', 'expedition',
     'supply-dock', 'arsenal', 'modernization', 'unknown',
 ];
-const PERIODS: QuestPeriod[] = [
-    'once', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'other', 'unknown',
-];
-const STATUSES: QuestStatus[] = [
-    'available', 'in-progress', 'ready-to-claim', 'observed-complete',
-    'inferred-complete', 'manual-complete', 'locked', 'unknown', 'expired',
-];
-const STAT_BUCKETS: StatBucket[] = [
-    'current', 'pinned', 'ready', 'available', 'recurring', 'near', 'limited', 'inferred', 'unknown',
-];
-const STAT_BUCKET_KEYS: Record<StatBucket, string> = {
-    current: 'ov.qfCurrentTasks',
-    pinned: 'ov.qfPinnedPanel',
-    ready: 'ov.qfReadyToClaim',
-    available: 'ov.qfAvailableTasks',
-    recurring: 'ov.qfRecurring',
-    near: 'ov.qfNearUnlock',
-    limited: 'ov.qfLimited',
-    inferred: 'ov.qfInferredCount',
-    unknown: 'ov.qfUnknownCount',
-};
-
 const PERIOD_KEYS: Record<QuestPeriod, string> = {
     once: 'ov.qfPeriodOnce',
     daily: 'ov.qfPeriodDaily',
@@ -79,6 +64,7 @@ const PERIOD_KEYS: Record<QuestPeriod, string> = {
     monthly: 'ov.qfPeriodMonthly',
     quarterly: 'ov.qfPeriodQuarterly',
     yearly: 'ov.qfPeriodYearly',
+    seasonal: 'ov.qfPeriodSeasonal',
     other: 'ov.qfPeriodOther',
     unknown: 'ov.qfPeriodUnknown',
 };
@@ -93,43 +79,90 @@ const STATUS_KEYS: Record<QuestStatus, string> = {
     unknown: 'ov.qfStatusUnknown',
     expired: 'ov.qfStatusExpired',
 };
+const LIST_FACET_KEYS: Record<(typeof QUEST_LIST_FACETS)[number], string> = {
+    'in-progress': 'ov.qfStatusInProgress',
+    ready: 'ov.qfStatusReadyToClaim',
+    available: 'ov.qfStatusAvailable',
+    near: 'ov.qfNearUnlockBadge',
+};
+const PROGRESS_FACET_KEYS: Record<(typeof QUEST_PROGRESS_FACETS)[number], string> = {
+    done: 'ov.qfProgressDone',
+    todo: 'ov.qfProgressTodo',
+    unknown: 'ov.qfStatusUnknown',
+};
+/** 「更多條件」摺疊區裡的組；清單狀態與完成進度常駐在工具列。 */
+const MORE_GROUPS: QuestFacetGroup[] = ['period', 'category', 'reward', 'map'];
+const MAP_LABEL = /^\d-\d$/;
 
 const defaultPrefs = (): QuestFlowPrefs => ({
     targetNo: null,
     manualComplete: [],
     pinned: [],
     focus: 'focus',
-    bucket: 'none',
     query: '',
-    category: 'all',
-    period: 'all',
-    status: 'all',
+    filters: {},
+    pinnedOnly: false,
+    headOpen: false,
     tab: 'path',
     graphDone: false,
 });
+
+function allowedFacetValues(group: QuestFacetGroup): ((value: string) => boolean) {
+    if (group === 'list') return value => (QUEST_LIST_FACETS as readonly string[]).includes(value);
+    if (group === 'progress') return value => (QUEST_PROGRESS_FACETS as readonly string[]).includes(value);
+    if (group === 'period') return value => (QUEST_PERIOD_FACETS as readonly string[]).includes(value);
+    if (group === 'category') return value => (CATEGORIES as readonly string[]).includes(value);
+    if (group === 'reward') return value => (QUEST_REWARD_FACETS as readonly string[]).includes(value);
+    return value => MAP_LABEL.test(value);
+}
+
+function normalizeFilters(raw: unknown): QuestFacetSelection {
+    const filters: QuestFacetSelection = {};
+    if (!raw || typeof raw !== 'object') return filters;
+    for (const group of QUEST_FACET_GROUPS) {
+        const values = (raw as Record<string, unknown>)[group];
+        if (!Array.isArray(values)) continue;
+        const allowed = allowedFacetValues(group);
+        const kept = [...new Set(values.filter((value): value is string => typeof value === 'string' && allowed(value)))];
+        if (kept.length) filters[group] = kept;
+    }
+    return filters;
+}
+
+/** 舊版的單選統計列與分類／週期下拉，換算成對應的多選條件。 */
+function legacyFilters(value: Record<string, unknown>): { filters: QuestFacetSelection; pinnedOnly: boolean } {
+    const filters: Record<string, string[]> = {};
+    const add = (group: QuestFacetGroup, ...values: string[]) => { filters[group] = [...(filters[group] ?? []), ...values]; };
+    if (typeof value.category === 'string' && value.category !== 'all') add('category', value.category);
+    if (typeof value.period === 'string' && value.period !== 'all') add('period', value.period);
+    const bucket = value.bucket;
+    if (bucket === 'current') add('list', 'in-progress', 'ready');
+    else if (bucket === 'ready') add('list', 'ready');
+    else if (bucket === 'available') add('list', 'available');
+    else if (bucket === 'near') add('list', 'near');
+    else if (bucket === 'recurring') add('period', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'seasonal');
+    else if (bucket === 'limited') add('period', 'limited');
+    else if (bucket === 'inferred') add('progress', 'done');
+    else if (bucket === 'unknown') add('progress', 'unknown');
+    return { filters: normalizeFilters(filters), pinnedOnly: bucket === 'pinned' };
+}
 
 function loadPrefs(): QuestFlowPrefs {
     const fallback = defaultPrefs();
     return loadJsonPrefs(PREFS_KEY, fallback, raw => {
         if (!raw || typeof raw !== 'object') return fallback;
-        const value = raw as Partial<QuestFlowPrefs>;
+        const value = raw as Partial<QuestFlowPrefs> & Record<string, unknown>;
         const targetNo = Number(value.targetNo);
-        const category = CATEGORIES.includes(value.category as QuestCategory)
-            ? value.category as QuestCategory : 'all';
-        const period = PERIODS.includes(value.period as QuestPeriod)
-            ? value.period as QuestPeriod : 'all';
-        const status = STATUSES.includes(value.status as QuestStatus)
-            ? value.status as QuestStatus : 'all';
-        const bucket = STAT_BUCKETS.includes(value.bucket as StatBucket)
-            ? value.bucket as StatBucket : 'none';
+        const legacy = 'filters' in value ? null : legacyFilters(value);
         return {
             targetNo: Number.isSafeInteger(targetNo) && targetNo > 0 ? targetNo : null,
             manualComplete: normalizeQuestApiNos(value.manualComplete),
             pinned: normalizeQuestApiNos(value.pinned),
             focus: value.focus === 'all' ? 'all' : 'focus',
-            bucket,
             query: typeof value.query === 'string' ? value.query : '',
-            category, period, status,
+            filters: legacy ? legacy.filters : normalizeFilters(value.filters),
+            pinnedOnly: legacy ? legacy.pinnedOnly : value.pinnedOnly === true,
+            headOpen: value.headOpen === true,
             tab: DETAIL_TABS.includes(value.tab as QuestFlowDetailTab) ? value.tab as QuestFlowDetailTab : 'path',
             graphDone: value.graphDone === true,
         };
@@ -253,7 +286,19 @@ function progressLabel(row: QuestFlowRow): string {
     return t('ov.qfProgressUnknown');
 }
 
-function rowHtml(row: QuestFlowRow, selected: boolean, pinned: boolean, manuallyComplete: boolean): string {
+/** 前因後果的短摘要：前置群組滿足幾組、完成後開放幾項。沒有已知前置且也不開放任何任務時不顯示。 */
+function causeLineHtml(model: QuestFlowModel, row: QuestFlowRow): string {
+    const cause = questCauseSummary(model, row);
+    const parts: string[] = [];
+    if (cause.groups) {
+        const met = cause.satisfied === cause.groups;
+        parts.push(`<span class="qf-cause-prereq${met ? ' met' : ''}" title="${esc(t('ov.qfCausePrereqTitle'))}">${esc(t('ov.qfCausePrereq', { done: cause.satisfied, total: cause.groups }))}</span>`);
+    }
+    if (cause.unlocks) parts.push(`<span>${esc(t('ov.qfCauseUnlocksShort', { n: cause.unlocks }))}</span>`);
+    return parts.length ? `<span class="qf-cause-line">${parts.join('')}</span>` : '';
+}
+
+function rowHtml(model: QuestFlowModel, row: QuestFlowRow, selected: boolean, pinned: boolean, manuallyComplete: boolean): string {
     return `<article class="qf-row${selected ? ' selected' : ''}${row.nearUnlock ? ' near' : ''}">
         <button type="button" class="qf-row-main" data-qf-target="${row.definition.apiNo}">
             <span class="qf-row-top">
@@ -262,7 +307,7 @@ function rowHtml(row: QuestFlowRow, selected: boolean, pinned: boolean, manually
             </span>
             <strong class="qf-row-name">${categoryMark(row)}${esc(taskName(row))}</strong>
             <span class="qf-row-meta">${rowMeta(row)}</span>
-            <span class="qf-progress">${esc(progressLabel(row))}</span>
+            <span class="qf-row-foot"><span class="qf-progress">${esc(progressLabel(row))}</span>${causeLineHtml(model, row)}</span>
         </button>
         <div class="qf-row-actions">
             <button type="button" class="qf-row-action${pinned ? ' on' : ''}" data-qf-pin="${row.definition.apiNo}"
@@ -430,13 +475,15 @@ function pathPaneHtml(model: QuestFlowModel, row: QuestFlowRow, doneOpen: boolea
 }
 
 /** 關係圖：分層節點圖，預設只畫尚未完成的上游與目標。 */
-function graphPaneHtml(model: QuestFlowModel, row: QuestFlowRow, showDone: boolean): string {
+/** expandable＝顯示「放大檢視」；放大檢視裡的同一張圖不再提供。 */
+function graphPaneHtml(model: QuestFlowModel, row: QuestFlowRow, showDone: boolean, expandable = true): string {
     const target = row.definition.apiNo;
     const plan = questUnlockPlan(model, target)!;
     if (!plan.ancestors.length) return `<p class="qf-empty-line">${esc(t('ov.qfNoPrerequisites'))}</p>`;
     const tools = `<div class="qf-graph-tools">
         <label class="qf-graph-toggle"><input type="checkbox" data-qf-graph-done${showDone ? ' checked' : ''}> ${esc(t('ov.qfGraphShowDone', { n: plan.done.size + plan.covered.size }))}</label>
         <span class="qf-graph-hint">${esc(t('ov.qfGraphHint'))}</span>
+        ${expandable ? `<button type="button" class="ov-btn qf-graph-expand" data-qf-graph-expand>${esc(t('ov.qfGraphExpand'))}</button>` : ''}
     </div>`;
     if (!showDone && !plan.needed.length) return `${tools}<p class="qf-empty-line">${esc(t('ov.qfGraphAllDone'))}</p>`;
     const nos = showDone ? [...plan.ancestors, target] : [...plan.needed, target];
@@ -604,6 +651,8 @@ export interface QuestFlowDetailView {
     manual: boolean;
     japaneseOriginalOpen: boolean;
     doneOpen: boolean;
+    /** 標頭「任務內容與獎勵」是否展開；未指定時展開（離線預覽與測試沿用完整標頭）。 */
+    headOpen?: boolean;
 }
 
 /** 標頭已用第一個 Wiki ID 當代號，這裡只列其餘的別名。 */
@@ -616,13 +665,44 @@ function headMeta(row: QuestFlowRow): string {
         ${aliases ? `<span class="qf-meta-item qf-wiki-ids">${aliases}</span>` : ''}`;
 }
 
-function headHtml(row: QuestFlowRow, view: QuestFlowDetailView): string {
+/** 標頭的前因後果：前置滿足幾組、解鎖還要完成幾項、完成後開放幾項；點了切到對應分頁。 */
+function causeStripHtml(model: QuestFlowModel, row: QuestFlowRow): string {
+    const cause = questCauseSummary(model, row);
+    const plan = questUnlockPlan(model, row.definition.apiNo);
+    const need = plan?.needed.length ?? 0;
+    const item = (tab: QuestFlowDetailTab, text: string, extra = '', title = '') =>
+        `<button type="button" class="qf-cause-item${extra}" data-qf-goto="${tab}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</button>`;
+    const prereq = cause.groups
+        ? item('path', t('ov.qfCausePrereq', { done: cause.satisfied, total: cause.groups }),
+            cause.satisfied === cause.groups ? ' met' : '', t('ov.qfCausePrereqTitle'))
+        : item('path', row.relation.operator === 'none' ? t('ov.qfCausePrereqNone') : relationLabel(row));
+    return `<span class="qf-cause">
+        ${prereq}
+        ${need ? item('path', t('ov.qfCauseNeed', { n: need })) : ''}
+        ${item('post', t('ov.qfCauseUnlocks', { n: cause.unlocks }), cause.unlocks ? '' : ' zero')}
+    </span>`;
+}
+
+/** 實裝期間：開始日是實裝當天的維護更新；結束多由營運視情況公告，未公告時明寫。 */
+function limitedWindowText(window: { start: string; end: string | null } | undefined): string {
+    if (!window) return t('ov.qfLimitedUnknown');
+    // 來源日期是日本時間的日曆日，以本機午夜建立只為走共用的年/月/日格式
+    const date = (iso: string) => {
+        const [y, m, d] = iso.split('-').map(Number);
+        return formatDate(new Date(y, m - 1, d).getTime());
+    };
+    return window.end
+        ? t('ov.qfLimitedWindow', { start: date(window.start), end: date(window.end) })
+        : t('ov.qfLimitedOpenEnded', { start: date(window.start) });
+}
+
+function headHtml(model: QuestFlowModel, row: QuestFlowRow, view: QuestFlowDetailView): string {
     const no = row.definition.apiNo;
     const unresolved = row.relation.unresolvedPrerequisites.length
         ? `<div class="qf-warning"><b>${esc(t('ov.qfUnresolved'))}</b><span>${row.relation.unresolvedPrerequisites.map(value => esc(value)).join('、')}</span></div>`
         : '';
     const limited = row.definition.limited
-        ? `<div class="qf-warning"><b>${esc(t('ov.qfLimited'))}</b><span>${esc(t('ov.qfLimitedUnknown'))}</span></div>`
+        ? `<div class="qf-warning"><b>${esc(t('ov.qfLimited'))}</b><span>${esc(limitedWindowText(row.definition.limitedWindow))}</span></div>`
         : '';
     const flags = [view.pinned ? t('ov.qfPinned') : '', view.manual ? t('ov.qfManual') : ''].filter(Boolean).join(' · ');
     return `<header class="qf-head">
@@ -634,16 +714,20 @@ function headHtml(row: QuestFlowRow, view: QuestFlowDetailView): string {
             ${statusTagHtml(row)}
             ${flags ? `<span class="qf-now-flags">${esc(flags)}</span>` : ''}
             <span class="qf-row-meta">${headMeta(row)}</span>
+            ${causeStripHtml(model, row)}
             <span class="qf-head-actions">
                 <button type="button" class="ov-btn" data-qf-pin="${no}" aria-pressed="${view.pinned}">${esc(view.pinned ? t('ov.qfUnpin') : t('ov.qfPin'))}</button>
                 <button type="button" class="ov-btn" data-qf-manual="${no}" aria-pressed="${view.manual}">${esc(view.manual ? t('ov.qfManualUnmark') : t('ov.qfManualMark'))}</button>
             </span>
         </div>
         ${isReusedQuest(row) ? `<p class="qf-reused-note" role="note">${esc(t('ov.qfReusedNote'))}</p>` : ''}
-        <p class="qf-task-detail">${lineBreaks(taskDetail(row))}</p>
-        ${isReusedQuest(row) ? pendingQuestRewardHtml(getLang()) : localizedQuestRewardHtml(no, getLang())}
-        ${japaneseOriginalHtml(row, view.japaneseOriginalOpen)}
         ${unresolved}${limited}
+        <details class="qf-head-more" data-qf-head-more${view.headOpen === false ? '' : ' open'}>
+            <summary><span class="qf-head-more-label">${esc(t('ov.qfHeadMore'))}</span><span class="qf-head-more-peek">${esc(taskDetail(row).replace(/\s+/g, ' '))}</span></summary>
+            <p class="qf-task-detail">${lineBreaks(taskDetail(row))}</p>
+            ${isReusedQuest(row) ? pendingQuestRewardHtml(getLang()) : localizedQuestRewardHtml(no, getLang())}
+            ${japaneseOriginalHtml(row, view.japaneseOriginalOpen)}
+        </details>
     </header>`;
 }
 
@@ -686,7 +770,7 @@ export function questFlowDetailHtml(
     const panes = DETAIL_TABS.map(tab => `<div class="qf-pane" role="tabpanel" id="qf-pane-${tab}" data-qf-pane="${tab}"
         aria-labelledby="qf-tab-${tab}"${tab === view.tab ? '' : ' hidden'}>${questFlowPaneHtml(model, row, tab, view)}${tab === 'evidence' ? tools : ''}</div>`).join('');
     return `<section class="qf-panel qf-main">
-        ${headHtml(row, view)}
+        ${headHtml(model, row, view)}
         <div class="qf-tabs" role="tablist" aria-label="${esc(t('ov.qfTabsLabel'))}">${tabs}</div>
         ${panes}
     </section>`;
@@ -701,9 +785,9 @@ function boardPanel(title: string, hint: string, inner: string, extra?: { titleA
     </section>`;
 }
 
-function listInner(rows: QuestFlowRow[], selectedNo: number | undefined, pinned: Set<number>, prefs: QuestFlowPrefs, empty: string): string {
+function listInner(model: QuestFlowModel, rows: QuestFlowRow[], selectedNo: number | undefined, pinned: Set<number>, prefs: QuestFlowPrefs, empty: string): string {
     if (!rows.length) return `<div class="ov-empty">${esc(empty)}</div>`;
-    return `<div class="qf-list" role="list">${rows.map(row => rowHtml(row, row.definition.apiNo === selectedNo, pinned.has(row.definition.apiNo), prefs.manualComplete.includes(row.definition.apiNo))).join('')}</div>`;
+    return `<div class="qf-list" role="list">${rows.map(row => rowHtml(model, row, row.definition.apiNo === selectedNo, pinned.has(row.definition.apiNo), prefs.manualComplete.includes(row.definition.apiNo))).join('')}</div>`;
 }
 
 function focusRow(row: QuestFlowRow): boolean {
@@ -718,35 +802,26 @@ function focusRow(row: QuestFlowRow): boolean {
             && recurringIncomplete);
 }
 
-function bucketRow(row: QuestFlowRow, bucket: StatBucket, pinned: Set<number>): boolean {
-    if (bucket === 'current') return !!row.current;
-    if (bucket === 'pinned') return pinned.has(row.definition.apiNo);
-    if (bucket === 'ready') return row.status === 'ready-to-claim';
-    if (bucket === 'available') return row.status === 'available';
-    if (bucket === 'recurring') {
-        return !['once', 'unknown', 'other'].includes(row.definition.period);
-    }
-    if (bucket === 'near') return row.nearUnlock;
-    if (bucket === 'limited') return row.definition.limited;
-    if (bucket === 'inferred') return row.status === 'inferred-complete';
-    return row.status === 'unknown';
+function matches(row: QuestFlowRow, facets: QuestRowFacets, prefs: QuestFlowPrefs, pinned: Set<number>): boolean {
+    if (!matchesQueryAndPin(row, prefs, pinned)) return false;
+    if (!matchesFacets(facets, prefs.filters)) return false;
+    // 有搜尋或任何篩選條件時比對整個目錄；都沒有時才套用「聚焦導覽」的預設範圍。
+    return filtering(prefs) || prefs.focus === 'all' || focusRow(row);
 }
 
-function matches(row: QuestFlowRow, prefs: QuestFlowPrefs, pinned: Set<number>): boolean {
+function filtering(prefs: QuestFlowPrefs): boolean {
+    return !!normalizeQuestSearch(prefs.query) || prefs.pinnedOnly || hasFacetSelection(prefs.filters);
+}
+
+/** 搜尋字與「只看釘選」；篩選標籤的計數在這個範圍內算。 */
+function matchesQueryAndPin(row: QuestFlowRow, prefs: QuestFlowPrefs, pinned: Set<number>): boolean {
+    if (prefs.pinnedOnly && !pinned.has(row.definition.apiNo)) return false;
     const query = normalizeQuestSearch(prefs.query);
-    const inSearch = !query || questSearchHaystack({
+    return !query || questSearchHaystack({
         name: `${taskName(row)} ${row.name} ${row.definition.name}`,
         detail: `${taskDetail(row)} ${row.detail} ${row.definition.detail}`,
         definition: row.definition,
     }).includes(query);
-    if (!inSearch) return false;
-    const inBucket = prefs.bucket === 'none'
-        || bucketRow(row, prefs.bucket, pinned)
-        || (!!query && prefs.bucket !== 'pinned');
-    const inFocus = !!query || prefs.bucket !== 'none' || prefs.focus === 'all' || focusRow(row);
-    return inBucket && inFocus
-        && (prefs.category === 'all' || row.definition.category === prefs.category)
-        && (prefs.period === 'all' || row.definition.period === prefs.period);
 }
 
 function listRank(row: QuestFlowRow): number {
@@ -757,12 +832,108 @@ function listRank(row: QuestFlowRow): number {
     return 5;
 }
 
-function statHtml(bucket: StatBucket, value: number, on: boolean): string {
-    const label = t(STAT_BUCKET_KEYS[bucket]);
-    return `<button type="button" class="qf-stat ${bucket}${on ? ' on' : ''}" data-qf-bucket="${bucket}"
-        aria-pressed="${on}" title="${esc(t('ov.qfBucketTitle', { label }))}">
-        <span>${esc(label)}</span><b>${value}</b>
-    </button>`;
+const FACET_GROUP_KEYS: Record<QuestFacetGroup, string> = {
+    list: 'ov.qfFacetList',
+    progress: 'ov.qfFacetProgress',
+    period: 'ov.qfPeriodLabel',
+    category: 'ov.qfCategoryLabel',
+    reward: 'ov.qfFacetReward',
+    map: 'ov.qfFacetMap',
+};
+
+function facetLabel(group: QuestFacetGroup, value: string): string {
+    if (group === 'list') return t(LIST_FACET_KEYS[value as keyof typeof LIST_FACET_KEYS]);
+    if (group === 'progress') return t(PROGRESS_FACET_KEYS[value as keyof typeof PROGRESS_FACET_KEYS]);
+    if (group === 'period') return value === 'limited' ? t('ov.qfLimited') : periodLabel(value as QuestPeriod);
+    if (group === 'category') return categoryLabel(value as QuestCategory);
+    if (group === 'reward') {
+        if (value === '戦果') return t('ov.qfRewardRanking');
+        if (value === '装備運用枠') return t('ov.qfRewardSlots');
+        return questRewardItemLabel(value, getLang());
+    }
+    return value;
+}
+
+/** 計數（<b>）與按下狀態在每次重繪時原地更新，按鈕本身只建一次。 */
+/** titleLabel：提示框裡用的完整名稱（例：海域標籤只寫「1-5」，提示寫「1-5 鎮守府近海」）。 */
+function facetChipHtml(
+    group: QuestFacetGroup | 'pinned', value: string, label: string, on: boolean,
+    extra: { style?: string; titleLabel?: string } = {},
+): string {
+    return `<button type="button" class="qf-fchip qf-fchip-${group}" data-qf-facet="${group}" data-qf-value="${esc(value)}"
+        ${extra.titleLabel ? `data-qf-title="${esc(extra.titleLabel)}"` : ''}${extra.style ? ` style="${esc(extra.style)}"` : ''}
+        aria-pressed="${on}"><span>${esc(label)}</span><b></b></button>`;
+}
+
+/** 出擊海域：一個世界一列，各關固定在自己的欄位（x-1 永遠在第一欄），沒有任務的關卡留空不遞補。 */
+function mapFacetHtml(values: readonly string[], selected: Set<string>): string {
+    const lang = getLang();
+    const parts = (value: string) => value.split('-').map(Number);
+    const worlds = [...new Set(values.map(value => parts(value)[0]))].sort((a, b) => a - b);
+    const columns = Math.max(1, ...values.map(value => parts(value)[1]));
+    // 海域名稱欄依語言給寬：英文最長「South Western Waters」，中日文最長「南西諸島海域」
+    const labelWidth = lang === 'en' ? 140 : 96;
+    return `<div class="qf-map-worlds" style="--qf-map-cols:${columns};--qf-map-label:${labelWidth}px">${worlds.map(world => {
+        const name = areaName(world, lang) ?? '';
+        const chips = values.filter(value => parts(value)[0] === world).map(value => facetChipHtml('map', value, value, selected.has(value), {
+            style: `grid-column:${parts(value)[1] + 1}`,
+            titleLabel: [value, mapName(value, lang)].filter(Boolean).join(' '),
+        })).join('');
+        return `<div class="qf-map-world"><span class="qf-map-world-label" title="${esc(`${world} ${name}`)}"><b>${world}</b><span>${esc(name)}</span></span>${chips}</div>`;
+    }).join('')}</div>`;
+}
+
+function facetGroupHtml(group: QuestFacetGroup, values: readonly string[], prefs: QuestFlowPrefs): string {
+    const selected = new Set(prefs.filters[group] ?? []);
+    const chips = (list: readonly string[]) => list
+        .map(value => facetChipHtml(group, value, facetLabel(group, value), selected.has(value))).join('');
+    // 出擊海域依世界分行，一列一個海域群
+    const body = group === 'map' ? mapFacetHtml(values, selected) : `<div class="qf-fchips">${chips(values)}</div>`;
+    return `<fieldset class="qf-facet-group qf-facet-${group}" data-qf-group="${group}">
+        <legend>${esc(t(FACET_GROUP_KEYS[group]))}</legend>${body}</fieldset>`;
+}
+
+/** 目錄裡實際出現過的選項（週期、分類、報酬、海域）；清單狀態與完成進度固定全列。 */
+function facetValues(all: readonly QuestRowFacets[]): Record<QuestFacetGroup, string[]> {
+    const present = (group: QuestFacetGroup) => new Set(all.flatMap(facets => facets[group]));
+    const period = present('period');
+    const category = present('category');
+    const reward = present('reward');
+    return {
+        list: [...QUEST_LIST_FACETS],
+        progress: [...QUEST_PROGRESS_FACETS],
+        period: QUEST_PERIOD_FACETS.filter(value => period.has(value)),
+        category: CATEGORIES.filter(value => category.has(value)),
+        reward: QUEST_REWARD_FACETS.filter(value => reward.has(value)),
+        map: [...present('map')].sort(compareQuestMapLabels),
+    };
+}
+
+/**
+ * 「更多條件」是錨定工具列的浮層（設計規範 §4.4b），展開時蓋在目錄上方、不推擠下方版面；
+ * 重新進入分區時一律收起。已選條件以可個別移除的標籤列在同一列，只有選了條件才佔一行。
+ */
+function facetPanelHtml(values: Record<QuestFacetGroup, string[]>, prefs: QuestFlowPrefs): string {
+    return `<div class="qf-facets" role="group" aria-label="${esc(t('ov.qfFiltersGroup'))}">
+        <div class="qf-facets-main">
+            ${facetGroupHtml('list', values.list, prefs)}
+            ${facetGroupHtml('progress', values.progress, prefs)}
+            <fieldset class="qf-facet-group qf-facet-pinned"><legend>${esc(t('ov.qfFacetPinned'))}</legend>
+                <div class="qf-fchips">${facetChipHtml('pinned', 'only', t('ov.qfPinnedOnly'), prefs.pinnedOnly)}</div></fieldset>
+            <details class="qf-more">
+                <summary><span>${esc(t('ov.qfMoreFilters'))}</span><em class="qf-more-count"></em></summary>
+                <div class="qf-more-body">
+                    ${MORE_GROUPS.map(group => facetGroupHtml(group, values[group], prefs)).join('')}
+                    <div class="qf-more-foot"><button type="button" class="ov-btn qf-more-close">${esc(t('ov.qfMoreDone'))}</button></div>
+                </div>
+            </details>
+        </div>
+        <div class="qf-selected" hidden>
+            <span class="qf-selected-label">${esc(t('ov.qfSelectedLabel'))}</span>
+            <span class="qf-selected-tags"></span>
+            <button type="button" class="qf-clear">${esc(t('ov.qfClearFilters'))}</button>
+        </div>
+    </div>`;
 }
 
 function pickerHtml(model: QuestFlowModel, selectedNo: number | undefined): string {
@@ -784,32 +955,50 @@ export const questFlowSection: OverviewSection = {
             savePrefs(prefs);
         }
         clearHashParams();
+        // 篩選選項只依目錄建一次；之後重繪只更新計數與按下狀態。
+        const initialModel = buildQuestFlow(ctx.state, new Set(prefs.manualComplete));
         // 免責說明固定顯示在頂端，不收進可摺疊的簡介。
         el.innerHTML = `<div class="qf">
-            <p class="qf-disclaimer" role="note">${esc(t('ov.qfDisclaimer'))}</p>
-            <details class="qf-intro">
-                <summary><span class="qf-kicker">${esc(t('ov.qfKicker'))}</span> ${esc(t('ov.qfHelp'))}</summary>
-                <p>${esc(t('ov.qfIntro'))}</p>
-                <p class="qf-intro-note">${esc(t('ov.qfIdentityNote'))}</p>
-            </details>
+            <div class="qf-topline">
+                <p class="qf-disclaimer" role="note">${esc(t('ov.qfDisclaimer'))}</p>
+                <details class="qf-intro">
+                    <summary><span class="qf-kicker">${esc(t('ov.qfKicker'))}</span> ${esc(t('ov.qfHelp'))}</summary>
+                    <p>${esc(t('ov.qfIntro'))}</p>
+                    <p class="qf-intro-note">${esc(t('ov.qfIdentityNote'))}</p>
+                </details>
+            </div>
             <div class="ov-toolbar qf-toolbar">
                 <label class="qf-search"><span class="sr-only">${esc(t('ov.qfSearch'))}</span><input class="rs-search qf-query" type="search" autocomplete="off" value="${esc(prefs.query)}" placeholder="${esc(t('ov.qfSearchPlaceholder'))}"></label>
                 <div class="qf-focus" role="group" aria-label="${esc(t('ov.qfViewMode'))}">
                     <button type="button" class="ov-btn${prefs.focus === 'focus' ? ' on' : ''}" data-qf-focus="focus" aria-pressed="${prefs.focus === 'focus'}">${esc(t('ov.qfFilterFocus'))}</button>
                     <button type="button" class="ov-btn${prefs.focus === 'all' ? ' on' : ''}" data-qf-focus="all" aria-pressed="${prefs.focus === 'all'}">${esc(t('ov.qfFilterAll'))}</button>
                 </div>
-                <label class="qf-select"><span>${esc(t('ov.qfCategoryLabel'))}</span><select class="qf-category"><option value="all">${esc(t('ov.qfAll'))}</option>${CATEGORIES.map(value => `<option value="${value}"${prefs.category === value ? ' selected' : ''}>${esc(categoryLabel(value))}</option>`).join('')}</select></label>
-                <label class="qf-select"><span>${esc(t('ov.qfPeriodLabel'))}</span><select class="qf-period"><option value="all">${esc(t('ov.qfAll'))}</option>${PERIODS.map(value => `<option value="${value}"${prefs.period === value ? ' selected' : ''}>${esc(periodLabel(value))}</option>`).join('')}</select></label>
-                <div class="qf-stats" role="group" aria-label="${esc(t('ov.qfStatsGroup'))}"></div>
+                ${facetPanelHtml(facetValues(initialModel.rows.map(questRowFacets)), prefs)}
             </div>
             <div class="qf-body"></div>
+            <dialog class="qf-graph-dialog" aria-labelledby="qf-graph-dialog-title">
+                <div class="qf-graph-dialog-head">
+                    <h3 id="qf-graph-dialog-title"></h3>
+                    <div class="qf-graph-zoom-tools" role="group" aria-label="${esc(t('ov.qfGraphZoom'))}">
+                        <button type="button" class="ov-btn" data-qf-zoom="out" title="${esc(t('ov.qfGraphZoomOut'))}" aria-label="${esc(t('ov.qfGraphZoomOut'))}">−</button>
+                        <output class="qf-graph-zoom-value" aria-live="polite"></output>
+                        <button type="button" class="ov-btn" data-qf-zoom="in" title="${esc(t('ov.qfGraphZoomIn'))}" aria-label="${esc(t('ov.qfGraphZoomIn'))}">+</button>
+                        <button type="button" class="ov-btn" data-qf-zoom="fit">${esc(t('ov.qfGraphFit'))}</button>
+                        <button type="button" class="ov-btn" data-qf-zoom="actual">100%</button>
+                    </div>
+                    <span class="qf-graph-photo-status" role="status" aria-live="polite"></span>
+                    <button type="button" class="ov-btn qf-graph-photo" data-qf-graph-photo title="${esc(t('ov.qfGraphPhotoTitle'))}">${esc(t('ov.qfGraphPhoto'))}</button>
+                    <button type="button" class="ov-btn" data-qf-graph-close>${esc(t('ov.qfGraphClose'))}</button>
+                </div>
+                <div class="qf-graph-dialog-body"></div>
+            </dialog>
         </div>`;
 
         const body = el.querySelector<HTMLElement>('.qf-body')!;
-        const stats = el.querySelector<HTMLElement>('.qf-stats')!;
+        const facetPanel = el.querySelector<HTMLElement>('.qf-facets')!;
+        const more = el.querySelector<HTMLDetailsElement>('.qf-more')!;
+        const graphDialog = el.querySelector<HTMLDialogElement>('.qf-graph-dialog')!;
         const query = el.querySelector<HTMLInputElement>('.qf-query')!;
-        const category = el.querySelector<HTMLSelectElement>('.qf-category')!;
-        const period = el.querySelector<HTMLSelectElement>('.qf-period')!;
         let japaneseOriginalOpenNo: number | null = null;
         let doneOpen = false;
         let drawn: { model: QuestFlowModel; selected: QuestFlowRow | null } | null = null;
@@ -821,13 +1010,56 @@ export const questFlowSection: OverviewSection = {
             manual: prefs.manualComplete.includes(row.definition.apiNo),
             japaneseOriginalOpen: japaneseOriginalOpenNo === row.definition.apiNo,
             doneOpen,
+            headOpen: prefs.headOpen,
         });
+
+        /** 標籤計數與「已選」摘要：搜尋與只看釘選之內，其他組的條件照常套用、本組不套用。 */
+        const updateFacets = (model: QuestFlowModel, facetsByNo: Map<number, QuestRowFacets>, pinned: Set<number>) => {
+            const scope = model.rows.filter(row => matchesQueryAndPin(row, prefs, pinned));
+            const scopeFacets = scope.map(row => facetsByNo.get(row.definition.apiNo)!);
+            const counts = questFacetCounts(scopeFacets, prefs.filters);
+            const pinnedCount = model.rows.filter(row => pinned.has(row.definition.apiNo)
+                && matchesFacets(facetsByNo.get(row.definition.apiNo)!, prefs.filters)).length;
+            const done = scope.filter(row => {
+                const facets = facetsByNo.get(row.definition.apiNo)!;
+                return facets.progress.includes('done') && matchesFacets(facets, prefs.filters, 'progress');
+            });
+            const doneBy = (status: QuestStatus) => done.filter(row => row.status === status).length;
+            facetPanel.querySelectorAll<HTMLButtonElement>('[data-qf-facet]').forEach(chip => {
+                const group = chip.dataset.qfFacet as QuestFacetGroup | 'pinned';
+                const value = chip.dataset.qfValue ?? '';
+                const on = group === 'pinned' ? prefs.pinnedOnly : (prefs.filters[group] ?? []).includes(value);
+                const count = group === 'pinned' ? pinnedCount : counts[group].get(value) ?? 0;
+                const label = chip.dataset.qfTitle ?? chip.querySelector('span')?.textContent ?? '';
+                chip.setAttribute('aria-pressed', String(on));
+                chip.classList.toggle('zero', count === 0 && !on);
+                chip.querySelector('b')!.textContent = String(count);
+                chip.title = group === 'progress' && value === 'done'
+                    ? t('ov.qfDoneBreakdown', {
+                        observed: doneBy('observed-complete'), inferred: doneBy('inferred-complete'), manual: doneBy('manual-complete'),
+                    })
+                    : t('ov.qfChipTitle', { label, n: count });
+            });
+            const chosen: [QuestFacetGroup | 'pinned', string, string][] = [
+                ...(prefs.pinnedOnly ? [['pinned', 'only', t('ov.qfPinnedOnly')] as [QuestFacetGroup | 'pinned', string, string]] : []),
+                ...QUEST_FACET_GROUPS.flatMap(group => (prefs.filters[group] ?? [])
+                    .map(value => [group, value, facetLabel(group, value)] as [QuestFacetGroup, string, string])),
+            ];
+            const selectedBox = facetPanel.querySelector<HTMLElement>('.qf-selected')!;
+            selectedBox.hidden = chosen.length === 0;
+            selectedBox.querySelector('.qf-selected-tags')!.innerHTML = chosen.map(([group, value, label]) =>
+                `<button type="button" class="qf-selected-tag" data-qf-remove="${group}" data-qf-value="${esc(value)}"
+                    title="${esc(t('ov.qfRemoveFilter', { label }))}">${esc(label)}<span aria-hidden="true">×</span></button>`).join('');
+            const moreCount = MORE_GROUPS.reduce((sum, group) => sum + (prefs.filters[group]?.length ?? 0), 0);
+            facetPanel.querySelector('.qf-more-count')!.textContent = moreCount ? String(moreCount) : '';
+        };
 
         const draw = () => {
             const model = buildQuestFlow(ctx.state, new Set(prefs.manualComplete));
             const pinned = new Set(prefs.pinned);
+            const facetsByNo = new Map(model.rows.map(row => [row.definition.apiNo, questRowFacets(row)]));
             const rows = model.rows
-                .filter(row => matches(row, prefs, pinned))
+                .filter(row => matches(row, facetsByNo.get(row.definition.apiNo)!, prefs, pinned))
                 .sort((a, b) => listRank(a) - listRank(b)
                     || a.definition.apiNo - b.definition.apiNo);
             const selectedNo = prefs.targetNo && model.byNo.has(prefs.targetNo)
@@ -837,32 +1069,21 @@ export const questFlowSection: OverviewSection = {
                     ?? rows.find(row => row.available)?.definition.apiNo
                     ?? rows[0]?.definition.apiNo;
             const selected = selectedNo == null ? null : model.byNo.get(selectedNo) ?? null;
-            const counts: Record<StatBucket, number> = {
-                current: model.rows.filter(row => row.current).length,
-                pinned: prefs.pinned.length,
-                ready: model.rows.filter(row => row.status === 'ready-to-claim').length,
-                available: model.rows.filter(row => row.status === 'available').length,
-                recurring: model.rows.filter(row => !['once', 'unknown', 'other'].includes(row.definition.period)).length,
-                near: model.rows.filter(row => row.nearUnlock).length,
-                limited: model.rows.filter(row => row.definition.limited).length,
-                inferred: model.rows.filter(row => row.status === 'inferred-complete').length,
-                unknown: model.rows.filter(row => row.status === 'unknown').length,
-            };
             const listHint = query.value.trim()
                 ? t('ov.qfSearchHint')
-                : prefs.bucket === 'none'
-                    ? (prefs.focus === 'focus' ? t('ov.qfFocusHint') : t('ov.qfAllHint'))
-                    : t('ov.qfBucketHint', { label: t(STAT_BUCKET_KEYS[prefs.bucket]) });
+                : filtering(prefs)
+                    ? t('ov.qfFilterHint')
+                    : prefs.focus === 'focus' ? t('ov.qfFocusHint') : t('ov.qfAllHint');
             const catalogHint = t('ov.qfCatalogCount', { n: rows.length, total: model.rows.length });
-            const catalogEmpty = prefs.bucket === 'pinned' ? t('ov.qfNoPinned') : t('ov.qfNoResults');
-            stats.innerHTML = STAT_BUCKETS.map(bucket => statHtml(bucket, counts[bucket], prefs.bucket === bucket)).join('');
+            const catalogEmpty = prefs.pinnedOnly && !prefs.pinned.length ? t('ov.qfNoPinned') : t('ov.qfNoResults');
+            updateFacets(model, facetsByNo, pinned);
             // 重畫時保留目錄與同一任務分頁的捲動位置；換任務時分頁回到頂端。
             const sameTarget = drawn?.selected?.definition.apiNo === selected?.definition.apiNo;
             const catalogScroll = body.querySelector('.qf-catalog .qf-panel-body')?.scrollTop ?? 0;
             const paneScroll = new Map([...body.querySelectorAll<HTMLElement>('[data-qf-pane]')]
                 .map(pane => [pane.dataset.qfPane, pane.scrollTop] as const));
             body.innerHTML = `<div class="qf-board">
-                ${boardPanel(t('ov.qfTaskDirectory'), catalogHint, listInner(rows, selectedNo, pinned, prefs, catalogEmpty), { titleAttr: listHint, className: 'qf-catalog' })}
+                ${boardPanel(t('ov.qfTaskDirectory'), catalogHint, listInner(model, rows, selectedNo, pinned, prefs, catalogEmpty), { titleAttr: listHint, className: 'qf-catalog' })}
                 ${questFlowDetailHtml(model, selected, selected ? detailView(selected) : { ...defaultView }, pickerHtml(model, selectedNo))}
             </div>`;
             const catalogBody = body.querySelector<HTMLElement>('.qf-catalog .qf-panel-body');
@@ -890,8 +1111,8 @@ export const questFlowSection: OverviewSection = {
 
         // 滑過「需要」晶片時標出清單中對應的任務；滑過圖上節點時標出它的整條上游與下游。
         const clearHighlight = () => {
-            body.querySelectorAll('.qf-hl').forEach(node => node.classList.remove('qf-hl'));
-            body.querySelectorAll('.qf-graph.tracing').forEach(graph => graph.classList.remove('tracing'));
+            el.querySelectorAll('.qf-hl').forEach(node => node.classList.remove('qf-hl'));
+            el.querySelectorAll('.qf-graph.tracing').forEach(graph => graph.classList.remove('tracing'));
         };
         const highlight = (from: HTMLElement) => {
             clearHighlight();
@@ -923,6 +1144,105 @@ export const questFlowSection: OverviewSection = {
             const pane = chip?.closest<HTMLElement>('[data-qf-pane]');
             pane?.querySelectorAll(`[data-qf-item="${chip!.dataset.qfRef}"]`).forEach(item => item.classList.add('qf-hl'));
         };
+        // 關係圖放大檢視：原生 dialog 以接近整個視窗的大小顯示同一張圖，不受面板高度限制；
+        // 可縮放；開啟時先符合寬度（字仍可讀、只需上下捲），「符合視窗」才縮到整張可見。
+        let graphZoom: number | 'fit' | 'width' = 'width';
+        const applyGraphZoom = () => {
+            const dialogBody = graphDialog.querySelector<HTMLElement>('.qf-graph-dialog-body')!;
+            const graph = dialogBody.querySelector<HTMLElement>('.qf-graph');
+            const frame = graph?.parentElement;
+            const output = graphDialog.querySelector<HTMLOutputElement>('.qf-graph-zoom-value')!;
+            if (!graph || !frame) { output.textContent = ''; return; }
+            const width = parseFloat(graph.style.width);
+            const height = parseFloat(graph.style.height);
+            const tools = dialogBody.querySelector<HTMLElement>('.qf-graph-tools');
+            const availWidth = dialogBody.clientWidth - 32;
+            const scale = graphZoom === 'fit'
+                ? questGraphFitScale(width, height, availWidth, dialogBody.clientHeight - (tools?.offsetHeight ?? 0) - 40)
+                : graphZoom === 'width'
+                    ? questGraphFitScale(width, 1, availWidth, Infinity)
+                    : graphZoom;
+            // 縮放後的實際占位交給外框，捲動範圍才會跟著縮
+            frame.style.width = `${Math.round(width * scale)}px`;
+            frame.style.height = `${Math.round(height * scale)}px`;
+            graph.style.transform = `scale(${scale})`;
+            output.textContent = `${Math.round(scale * 100)}%`;
+            graphDialog.dataset.zoom = String(scale);
+        };
+        const fillGraphDialog = () => {
+            if (!drawn?.selected) return;
+            graphDialog.querySelector('#qf-graph-dialog-title')!.textContent = t('ov.qfGraphDialogTitle', {
+                name: `${shortLabel(drawn.selected, drawn.selected.definition.apiNo)} ${taskName(drawn.selected)}`,
+            });
+            graphDialog.querySelector('.qf-graph-dialog-body')!.innerHTML = graphPaneHtml(drawn.model, drawn.selected, prefs.graphDone, false);
+            if (graphDialog.open) applyGraphZoom();
+        };
+        // 拍照：整張圖（含捲出畫面的部分）依目前顯示狀態存成 PNG；結果寫在按鈕旁，失敗也要說明
+        const saveGraphPhoto = async (button: HTMLButtonElement) => {
+            const graph = graphDialog.querySelector<HTMLElement>('.qf-graph');
+            const status = graphDialog.querySelector<HTMLElement>('.qf-graph-photo-status')!;
+            if (!graph || !drawn?.selected) {
+                status.textContent = t('ov.qfGraphPhotoEmpty');
+                return;
+            }
+            const selected = drawn.selected;
+            button.disabled = true;
+            status.textContent = t('ov.qfGraphPhotoBusy');
+            try {
+                const ts = Date.now();
+                const title = graphDialog.querySelector('#qf-graph-dialog-title')?.textContent ?? '';
+                const blob = await renderQuestGraphPhoto(graph, title, ts);
+                const filename = questGraphPhotoFilename(selected.definition.wikiIds[0] ?? String(selected.definition.apiNo), ts);
+                downloadBlob(filename, blob);
+                status.textContent = t('ov.qfGraphPhotoSaved', { name: filename });
+            } catch (error) {
+                console.error('[overview] 關係圖拍照失敗', error);
+                status.textContent = t('ov.qfGraphPhotoFailed', { msg: String((error as Error)?.message ?? error) });
+            } finally {
+                button.disabled = false;
+            }
+        };
+        graphDialog.addEventListener('close', () => {
+            graphDialog.querySelector('.qf-graph-photo-status')!.textContent = '';
+        });
+        graphDialog.addEventListener('mouseover', event => highlight(event.target as HTMLElement));
+        graphDialog.addEventListener('mouseleave', clearHighlight);
+        graphDialog.addEventListener('focusin', event => highlight(event.target as HTMLElement));
+        graphDialog.addEventListener('focusout', clearHighlight);
+        graphDialog.addEventListener('close', clearHighlight);
+        graphDialog.addEventListener('click', event => {
+            const target = event.target as HTMLElement;
+            if (target === graphDialog || target.closest('[data-qf-graph-close]')) { graphDialog.close(); return; }
+            const photo = target.closest<HTMLButtonElement>('[data-qf-graph-photo]');
+            if (photo) {
+                void saveGraphPhoto(photo);
+                return;
+            }
+            const zoom = target.closest<HTMLElement>('[data-qf-zoom]')?.dataset.qfZoom;
+            if (zoom) {
+                const current = Number(graphDialog.dataset.zoom) || 1;
+                graphZoom = zoom === 'fit' ? 'fit' : zoom === 'actual' ? 1 : questGraphZoomStep(current, zoom === 'in' ? 1 : -1);
+                applyGraphZoom();
+                return;
+            }
+            const node = target.closest<HTMLElement>('[data-qf-target]');
+            if (!node) return;
+            // 點節點＝改看那個任務：關閉放大檢視，右欄換成該任務
+            event.stopPropagation();
+            const no = Number(node.dataset.qfTarget);
+            graphDialog.close();
+            if (Number.isSafeInteger(no) && no > 0) { prefs.targetNo = no; savePrefs(prefs); draw(); }
+        });
+        graphDialog.addEventListener('change', event => {
+            const toggle = (event.target as HTMLElement).closest<HTMLInputElement>('[data-qf-graph-done]');
+            if (!toggle) return;
+            prefs.graphDone = toggle.checked;
+            savePrefs(prefs);
+            fillGraphDialog();
+            graphDialog.querySelector<HTMLInputElement>('[data-qf-graph-done]')?.focus();
+            const pane = body.querySelector<HTMLElement>('[data-qf-pane="graph"]');
+            if (pane && drawn?.selected) pane.innerHTML = questFlowPaneHtml(drawn.model, drawn.selected, 'graph', detailView(drawn.selected));
+        });
         body.addEventListener('mouseover', event => highlight(event.target as HTMLElement));
         body.addEventListener('mouseleave', clearHighlight);
         body.addEventListener('focusin', event => highlight(event.target as HTMLElement));
@@ -943,11 +1263,49 @@ export const questFlowSection: OverviewSection = {
         body.addEventListener('toggle', event => {
             const details = event.target as HTMLElement;
             if (details.matches?.('[data-qf-done-group]')) doneOpen = (details as HTMLDetailsElement).open;
+            if (details.matches?.('[data-qf-head-more]')) {
+                prefs.headOpen = (details as HTMLDetailsElement).open;
+                savePrefs(prefs);
+            }
         }, true);
 
         query.addEventListener('input', () => { prefs.query = query.value; savePrefs(prefs); draw(); });
-        category.addEventListener('change', () => { prefs.category = category.value as QuestCategory | 'all'; savePrefs(prefs); draw(); });
-        period.addEventListener('change', () => { prefs.period = period.value as QuestPeriod | 'all'; savePrefs(prefs); draw(); });
+        facetPanel.addEventListener('click', event => {
+            const target = event.target as HTMLElement;
+            if (target.closest('.qf-clear')) {
+                prefs.filters = {};
+                prefs.pinnedOnly = false;
+                savePrefs(prefs); draw();
+                return;
+            }
+            if (target.closest('.qf-more-close')) {
+                more.open = false;
+                more.querySelector('summary')?.focus();
+                return;
+            }
+            const chip = target.closest<HTMLElement>('[data-qf-facet], [data-qf-remove]');
+            if (!chip) return;
+            const group = (chip.dataset.qfFacet ?? chip.dataset.qfRemove) as QuestFacetGroup | 'pinned';
+            if (group === 'pinned') {
+                prefs.pinnedOnly = !prefs.pinnedOnly;
+            } else {
+                const value = chip.dataset.qfValue ?? '';
+                const current = prefs.filters[group] ?? [];
+                const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
+                prefs.filters = { ...prefs.filters, [group]: next };
+                if (!next.length) delete prefs.filters[group];
+            }
+            savePrefs(prefs); draw();
+        });
+        // 「更多條件」浮層：點浮層以外的地方或按 Esc 收起，焦點回到開關。
+        el.addEventListener('click', event => {
+            if (more.open && !more.contains(event.target as Node)) more.open = false;
+        });
+        el.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || !more.open) return;
+            more.open = false;
+            more.querySelector('summary')?.focus();
+        });
         el.querySelectorAll<HTMLButtonElement>('[data-qf-focus]').forEach(button => button.addEventListener('click', () => {
             prefs.focus = button.dataset.qfFocus === 'all' ? 'all' : 'focus';
             el.querySelectorAll<HTMLButtonElement>('[data-qf-focus]').forEach(item => {
@@ -974,23 +1332,23 @@ export const questFlowSection: OverviewSection = {
             prefs.targetNo = Number.isSafeInteger(no) && no > 0 ? no : null;
             savePrefs(prefs); draw();
         });
-        stats.addEventListener('click', event => {
-            const bucketButton = (event.target as HTMLElement).closest<HTMLElement>('[data-qf-bucket]');
-            if (!bucketButton) return;
-            const next = bucketButton.dataset.qfBucket as StatBucket;
-            prefs.bucket = prefs.bucket === next ? 'none' : next;
-            if (prefs.bucket !== 'none') {
-                prefs.status = 'all';
-                prefs.period = 'all';
-                period.value = 'all';
-            }
-            savePrefs(prefs); draw();
-        });
         body.addEventListener('click', event => {
             const target = event.target as HTMLElement;
             const tabButton = target.closest<HTMLElement>('[data-qf-tab]');
             if (tabButton) {
                 selectTab(tabButton.dataset.qfTab as QuestFlowDetailTab);
+                return;
+            }
+            if (target.closest('[data-qf-graph-expand]')) {
+                graphZoom = 'width';
+                fillGraphDialog();
+                graphDialog.showModal();
+                applyGraphZoom();
+                return;
+            }
+            const goto = target.closest<HTMLElement>('[data-qf-goto]');
+            if (goto) {
+                selectTab(goto.dataset.qfGoto as QuestFlowDetailTab, true);
                 return;
             }
             const japaneseOriginal = target.closest<HTMLButtonElement>('[data-qf-ja-original-toggle]');

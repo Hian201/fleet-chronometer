@@ -2449,6 +2449,16 @@
       "detail": "在同一天的演習出動含有「Samuel B.Roberts」、「Johnston」 及 「Gambier Bay」的艦隊 （另可編入至多 3 艘不限艦種的艦艇） 取得 S 勝利 4 次"
     }
   },
+  "359": {
+    "en": {
+      "name": "Weekly [Halloween] Halloween Fleet Autumn Harvest Latest Exercises!",
+      "detail": "Secure 5 A-Rank+ victories in Exercises within the same day using any 4 of Suzuya, Abukuma, Oboro, Akebono, Murasame, Yuudachi, Nowaki, Asashio, Hayanami, Hamanami, I-201, Jervis, Minneapolis and Johnston, and up to 2 additional ships."
+    },
+    "zh-TW": {
+      "name": "（週）Halloween 艦隊 豐收之秋，最新演習！",
+      "detail": "使用「鈴谷」、「阿武隈」、「朧」、「曙」、「村雨」、「夕立」、「野分」、「朝潮」、「早波」、「濱波」、「伊201」、「Jervis」、「Minneapolis」、「Johnston」任選 4 艘以上編入艦隊，另可編入至多 2 艘不限艦種的艦艇；在同一天內於演習取得 5 次 A 勝利以上。"
+    }
+  },
   "360": {
     "en": {
       "name": "Frontline Aircraft Carrier Houshou Kai Ni, Begin Exercises!",
@@ -5609,6 +5619,46 @@
       "detail": "編入「Gambier Bay」、「Johnston」及「Samuel B. Roberts」，另可編入至多 3 艘不限艦種的艦艇；於 [W2-3]、[W2-5]、[W4-5]、[W5-5] 各王點取得 1 次 S 勝利。"
     }
   },
+  "984": {
+    "en": {
+      "name": "[Halloween] 14th Year Autumn Harvest, Pumpkin Festival Begins!",
+      "detail": "Sortie any 3 of Suzuya, Murasame, Yuudachi, Akebono, Oboro, Asashio, Nowaki, Jingei and Chougei, one as flagship, and up to 3 additional ships to [W1-3], [W1-4] and [W2-1]. S-Rank each boss node twice."
+    },
+    "zh-TW": {
+      "name": "【期間限定任務】第 14 年豐收之秋，南瓜祭開始！",
+      "detail": "從「鈴谷」、「村雨」、「夕立」、「曙」、「朧」、「朝潮」、「野分」、「迅鯨」、「長鯨」中編入 3 艘以上，其中 1 艘任旗艦，另可編入至多 3 艘不限艦種的艦艇。在 [W1-3]、[W1-4]、[W2-1] 的王點各取得 2 次 S 勝利。"
+    }
+  },
+  "985": {
+    "en": {
+      "name": "Weekly [Halloween] Special Escort Squadron, Weigh Anchor!",
+      "detail": "Sortie any 3 of Tsushima, Ukuru, Inagi, Ootomari, Jingei, Chougei, Asahi, Murasame, Makinami, Hayanami, Hamanami and Kashi, and up to 3 additional ships to [W1-2], [W1-5], [W2-2] and [W2-3]. S-Rank each boss node."
+    },
+    "zh-TW": {
+      "name": "（週）【期間限定任務】特務護衛戰隊，拔錨吧！",
+      "detail": "從「對馬」、「鵜來」、「稻木」、「大泊」、「迅鯨」、「長鯨」、「朝日」、「村雨」、「卷波」、「早波」、「濱波」、「樫」中編入 3 艘以上，另可編入至多 3 艘不限艦種的艦艇。在 [W1-2]、[W1-5]、[W2-2]、[W2-3] 的王點各取得 1 次 S 勝利。"
+    }
+  },
+  "986": {
+    "en": {
+      "name": "[Halloween] USS Trick or Treat!",
+      "detail": "Sortie any 3 of Minneapolis, Tuscaloosa, Gambier Bay, Brooklyn, Johnston, Richard P. Leary and Indiana, and up to 3 additional ships to [W2-1], [W2-5] and [W3-1]. S-Rank each boss node twice."
+    },
+    "zh-TW": {
+      "name": "【期間限定任務】USS Trick or Treat！",
+      "detail": "從「Minneapolis」、「Tuscaloosa」、「Gambier Bay」、「Brooklyn」、「Johnston」、「Richard P.Leary」、「Indiana」中編入 3 艘以上，另可編入至多 3 艘不限艦種的艦艇。在 [W2-1]、[W2-5]、[W3-1] 的王點各取得 2 次 S 勝利。"
+    }
+  },
+  "987": {
+    "en": {
+      "name": "Monthly [Halloween] Western Pumpkin Festival! Buono!",
+      "detail": "Sortie any 3 of Roma, Luigi Torelli, Maestrale, Grecale, Libeccio, Scirocco, Jervis, I-47, I-201, Suzuya, Murasame, Oboro and Akebono, one as flagship, and up to 3 additional ships to [W4-2], [W4-3] and [W4-4]. S-Rank each boss node."
+    },
+    "zh-TW": {
+      "name": "（月）【期間限定任務】西方南瓜祭！Buono！",
+      "detail": "從「Roma」、「Luigi Torelli」、「Maestrale」、「Grecale」、「Libeccio」、「Scirocco」、「Jervis」、「伊47」、「伊201」、「鈴谷」、「村雨」、「朧」、「曙」中編入 3 艘以上，其中 1 艘任旗艦，另可編入至多 3 艘不限艦種的艦艇。在 [W4-2]、[W4-3]、[W4-4] 的王點各取得 1 次 S 勝利。"
+    }
+  },
   "989": {
     "en": {
       "name": "Carrier Task Force Flagship Houshou Kai Ni, to the Front!",
@@ -5677,6 +5727,16 @@
     "zh-TW": {
       "name": "主力中的主力「清霜改二」出擊！",
       "detail": "編入「清霜改二」或「清霜改二丁」，並從「霞」、「朝霜」、「大淀」、「足柄」中編入 2 艘，另可編入至多 3 艘不限艦種的艦艇；於 [W2-2]、[W2-3]、[W2-4]、[W7-4] 各王點取得 1 次 S 勝利。"
+    }
+  },
+  "1002": {
+    "en": {
+      "name": "[Halloween] Pumpkin Festival 2026, Northern Operation!",
+      "detail": "Sortie any 3 of Minneapolis, Tuscaloosa, Gambier Bay, Johnston, Suzuya, Abukuma, Akebono, Oboro, Kiyoshimo and Kashi, one as flagship, and up to 3 additional ships to [W3-2], [W3-4] and [W3-5]. S-Rank each boss node."
+    },
+    "zh-TW": {
+      "name": "【限定擴張作戰】南瓜祭 2026，北方作戰！",
+      "detail": "從「Minneapolis」、「Tuscaloosa」、「Gambier Bay」、「Johnston」、「鈴谷」、「阿武隈」、「曙」、「朧」、「清霜」、「樫」中編入 3 艘以上，其中 1 艘任旗艦，另可編入至多 3 艘不限艦種的艦艇。在 [W3-2]、[W3-4]、[W3-5] 的王點各取得 1 次 S 勝利。"
     }
   },
   "1003": {
@@ -5909,6 +5969,36 @@
       "detail": "編入揚陸艦與補給艦合計至少 2 艘、海防艦至少 2 艘，另可編入至多 2 艘不限艦種的艦艇；於 [W1-2]、[W1-3]、[W1-4]、[W1-5] 各王點取得 2 次 A 勝利以上。"
     }
   },
+  "1038": {
+    "en": {
+      "name": "[Halloween] Halloween Refills Have Begun!",
+      "detail": "Sortie any 4 of Suzuya, Akebono, Oboro, Kashi, Asahi, Jingei, Chougei, Mizuho, Johnston and Richard P. Leary, one as flagship, and up to 2 additional ships to [W1-1] and [W1-3]. S-Rank each boss node four times."
+    },
+    "zh-TW": {
+      "name": "【限定擴張作戰】Halloween，再來一份！",
+      "detail": "從「鈴谷」、「曙」、「朧」、「樫」、「朝日」、「迅鯨」、「長鯨」、「瑞穗」、「Johnston」、「Richard P.Leary」中編入 4 艘以上，其中 1 艘任旗艦，另可編入至多 2 艘不限艦種的艦艇。在 [W1-1]、[W1-3] 的王點各取得 4 次 S 勝利。"
+    }
+  },
+  "1039": {
+    "en": {
+      "name": "Weekly [Halloween] Halloween Maritime Escort Squadron, Sortie!",
+      "detail": "Sortie any 4 of Tsushima, Kashi, Asashio, Makinami, Hamanami, Abukuma, Ukuru, Inagi, Noumi, Kaiboukan No.4, Kaiboukan No.22 and Kaiboukan No.30, and up to 2 additional ships to [W1-2], [W1-4] and [W1-5]. S-Rank each boss node."
+    },
+    "zh-TW": {
+      "name": "（週）【限定擴張作戰】Halloween 海上護衛隊出擊！",
+      "detail": "從「對馬」、「樫」、「朝潮」、「卷波」、「濱波」、「阿武隈」、「鵜來」、「稻木」、「能美」或丁型海防艦（「第四號海防艦」、「第二十二號海防艦」、「第三〇號海防艦」）中編入 4 艘以上，另可編入至多 2 艘不限艦種的艦艇。在 [W1-2]、[W1-4]、[W1-5] 的王點各取得 1 次 S 勝利。"
+    }
+  },
+  "1040": {
+    "en": {
+      "name": "Monthly [Halloween] Halloween Wolf Squad, Night Raid!",
+      "detail": "Sortie any 3 of Oboro, Yuudachi, Nowaki, Hayanami, Kumano Maru, Jingei Kai, Tuscaloosa and Indiana, one as flagship, and up to 3 additional ships to [W2-1] and [W2-2]. S-Rank each boss node twice."
+    },
+    "zh-TW": {
+      "name": "（月）【限定擴張作戰】Halloween 狼隊，夜間襲擊！",
+      "detail": "從「朧」、「夕立」、「野分」、「早波」、「熊野丸」、「迅鯨改」、「Tuscaloosa」、「Indiana」中編入 3 艘以上，其中 1 艘任旗艦，另可編入至多 3 艘不限艦種的艦艇。在 [W2-1]、[W2-2] 的王點各取得 2 次 S 勝利。"
+    }
+  },
   "1041": {
     "en": {
       "name": "DesDiv 32 Hayanami Kai Ni, Ready to Go!",
@@ -6007,6 +6097,16 @@
     "zh-TW": {
       "name": "改裝多目的搭載母艦「北上改三」，出擊！",
       "detail": "以「北上改三」任旗艦，並從「花月」、「潮」、「響」、「竹」、「桐」、「榧」、「杉」、「樫」中編入至少 2 艘，另可編入至多 3 艘不限艦種的艦艇。在 [W1-3]、[W2-4]、[W4-5] 的王點各取得 2 次 S 勝利。"
+    }
+  },
+  "1053": {
+    "en": {
+      "name": "Reorganized DesDiv 20 Amagiri and Sagiri, Deploy to the Southern Waters!",
+      "detail": "Sortie Amagiri Kai Ni+, Sagiri Kai Ni and up to 4 additional ships to [W5-1], [W5-3], [W5-4] and [W5-6-Z]. S-Rank each boss node."
+    },
+    "zh-TW": {
+      "name": "再編二十驅「天霧」「狹霧」，向南方展開吧！",
+      "detail": "編入「天霧改二／丁」與「狹霧改二」，另可編入至多 4 艘不限艦種的艦艇。在 [W5-1]、[W5-3]、[W5-4]、[W5-6-Z] 的王點各取得 1 次 S 勝利。"
     }
   },
   "1101": {
@@ -6177,6 +6277,16 @@
     "zh-TW": {
       "name": "【工廠任務】 配備Hedgehog",
       "detail": "「Samuel B.Roberts Mk.II」為旗艦，在第一格裝備「5inch單裝砲 Mk.30」（無改修可），並準備15 個「開發資材」、2 個「新型兵裝資材」、2 個「新型噴進裝備開發資材」及彈藥 960。（任務達成後，準備的資源將會被消耗）"
+    }
+  },
+  "1119": {
+    "en": {
+      "name": "Monthly [Halloween] Halloween Pumpkin, Wanna Eat Some?",
+      "detail": "Have 10 Type 99 Dive Bombers, 10 Type 97 Torpedo Bombers and 1031 Furniture Coins. Scrap 9 Small Caliber Main Guns, 9 Medium Caliber Main Guns and 9 Recon Seaplanes."
+    },
+    "zh-TW": {
+      "name": "（月）【期間限定】Halloween 的南瓜，要吃嗎？",
+      "detail": "廢棄「小口徑主砲」、「中口徑主砲」、「水上偵察機」各 9 個，並準備「九九式艦爆」、「九七式艦攻」各 10 架與家具幣 1,031 枚。任務完成後，準備的裝備與家具幣會被消耗。"
     }
   },
   "1120": {
@@ -6527,6 +6637,16 @@
     "zh-TW": {
       "name": "運用既有裝備研發對空兵裝",
       "detail": "將「北上改二／改三」設為秘書艦。廢棄「12.7cm連裝高角砲」12 門、「8cm高角砲」8 門及「25mm三連裝機槍」4 挺；並備妥 36 個開發資材、750 彈藥及 8 個改修資材。"
+    }
+  },
+  "1171": {
+    "en": {
+      "name": "[Halloween] Organizing Anti-Submarine Equipment! 2026",
+      "detail": "Have 2 Pumpkins, 5 Type 3 Depth Charge Projectors and 30 Development Materials. Scrap 12 Type 94 Depth Charge Projectors, 8 Type 95 Depth Charges and 6 Type 93 Passive Sonars."
+    },
+    "zh-TW": {
+      "name": "【限定擴張作戰】對潛裝備的整理整頓！2026",
+      "detail": "廢棄「九四式爆雷投射機」12 個、「九五式爆雷」8 個、「九三式水中聽音機」6 個，並準備「南瓜」2 個、「三式爆雷投射機」5 個與開發資材 30 個。任務完成後，準備的裝備與資材會被消耗。"
     }
   }
 }

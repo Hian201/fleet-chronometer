@@ -2449,6 +2449,16 @@
     },
     "otherJa": "選択報酬1\n・給糧艦「伊良湖」x1\n・改修資材 x2\n\n選択報酬2\n・開発資材 x10\n・TBF x1\n・SG レーダー(初期型) x1"
   },
+  "359": {
+    "sourceWikiId": "2610C1",
+    "resources": {
+      "fuel": 500,
+      "ammo": 500,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・高速建造材 x6\n・勲章 x1\n\n選択報酬2\n・南瓜 x1\n・燃料 x4300\n・ボーキサイト x2800"
+  },
   "360": {
     "sourceWikiId": "C70",
     "resources": {
@@ -5609,6 +5619,46 @@
     },
     "otherJa": "選択報酬\n・補強増設 x2\n・FM-2★7 x1\n・改修資材 x7\n\n確定報酬\n・Mk.32 対潜魚雷(Mk.2落射機) x1"
   },
+  "984": {
+    "sourceWikiId": "2610B1",
+    "resources": {
+      "fuel": 370,
+      "ammo": 370,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x8\n・高速修復材 x6\n・勲章 x1\n\n確定報酬\n・南瓜 x1"
+  },
+  "985": {
+    "sourceWikiId": "2610B2",
+    "resources": {
+      "fuel": 580,
+      "ammo": 580,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・給糧艦「間宮」x2\n・開発資材 x20\n・勲章 x2\n\n選択報酬2\n・給糧艦「間宮」x2\n・南瓜 x2\n・新型航空兵装資材 x2"
+  },
+  "986": {
+    "sourceWikiId": "2610B3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 800,
+      "bauxite": 800
+    },
+    "otherJa": "選択報酬1\n・南瓜 x2\n・SKレーダー x4\n・勲章 x2\n\n選択報酬2\n・南瓜 x3\n・改装設計図 x1\n・海外艦最新技術 x3"
+  },
+  "987": {
+    "sourceWikiId": "2610B4",
+    "resources": {
+      "fuel": 880,
+      "ammo": 880,
+      "steel": 0,
+      "bauxite": 880
+    },
+    "otherJa": "選択報酬1\n・開発資材 x8\n・勲章 x1\n・海外艦最新技術 x1\n\n選択報酬2\n・Ro.44水上戦闘機 x2\n・南瓜 x2\n・工廠資源 x3"
+  },
   "989": {
     "sourceWikiId": "B188",
     "resources": {
@@ -5678,6 +5728,16 @@
       "bauxite": 0
     },
     "otherJa": "選択報酬1\n・新型砲熕兵装資材x3\n・12.7cm連装砲D型改二x1\n・61cm四連装(酸素)魚雷後期型x1\n\n選択報酬2\n・改修資材x7\n・開発資材x30\n・22号対水上電探改四(後期調整型)x1"
+  },
+  "1002": {
+    "sourceWikiId": "2610B8",
+    "resources": {
+      "fuel": 2026,
+      "ammo": 1031,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・改修資材 x9\n・試製 秋水 x1\n・工廠資源 x3\n\n選択報酬2\n・戦闘詳報 x1\n・南瓜 x3\n・改装設計図 x1"
   },
   "1003": {
     "sourceWikiId": "B195",
@@ -5909,6 +5969,36 @@
     },
     "otherJa": "選択報酬1\n・装備運用枠\n+2装備分\n・燃料 x2000\n・新型噴進装備開発資材 x1\n\n選択報酬2\n・勲章 x2\n・改修資材 x9\n・ボーキサイト x3600"
   },
+  "1038": {
+    "sourceWikiId": "2610B5",
+    "resources": {
+      "fuel": 300,
+      "ammo": 300,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x16\n・南瓜 x1\n・装備運用枠\n +2装備分\n\n確定報酬\n・南瓜 x1"
+  },
+  "1039": {
+    "sourceWikiId": "2610B6",
+    "resources": {
+      "fuel": 480,
+      "ammo": 0,
+      "steel": 480,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬\n・開発資材 x16\n・南瓜 x1\n・勲章 x1\n\n確定報酬\n・南瓜 x1"
+  },
+  "1040": {
+    "sourceWikiId": "2610B7",
+    "resources": {
+      "fuel": 480,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 480
+    },
+    "otherJa": "選択報酬1\n・南瓜 x1\n・給糧艦「間宮」x2\n\n選択報酬2\n・勲章 x3\n・南瓜 x2\n・開発資材 x36"
+  },
   "1041": {
     "sourceWikiId": "B213",
     "resources": {
@@ -6008,6 +6098,16 @@
       "bauxite": 0
     },
     "otherJa": "選択報酬1\n・補強増設x1\n・大発動艇x4\n・61cm五連装(酸素)魚雷★+5x1\n\n選択報酬2\n・勲章x3\n・特大発動艇＋チハ★+2x1\n・甲標的 丁型改(蛟龍改)x1"
+  },
+  "1053": {
+    "sourceWikiId": "B218",
+    "resources": {
+      "fuel": 2026,
+      "ammo": 1941,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・工廠資源 x3\n・開発資材 x28\n・三式水中探信儀 x3\n\n選択報酬2\n・新型兵装資材 x3\n・12.7cm連装砲B型改二★max x1\n・勲章 x3"
   },
   "1101": {
     "sourceWikiId": "F96",
@@ -6178,6 +6278,16 @@
       "bauxite": 0
     },
     "otherJa": "確定報酬\n・Hedgehog(初期型) x1"
+  },
+  "1119": {
+    "sourceWikiId": "2610F1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 880,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・勲章 x2\n・南瓜 x1\n・開発資材 x14\n\n選択報酬2\n・ボーキサイト x2026\n・勲章 x3\n・南瓜 x2"
   },
   "1120": {
     "sourceWikiId": "Fy9",
@@ -6528,5 +6638,15 @@
       "bauxite": 100
     },
     "otherJa": "選択報酬1\n・新型兵装資材x3\n・12.7cm単装高角砲改二★+3x1\n・新型航空兵装資材x3\n\n選択報酬2\n・25mm三連装機銃 集中配備★+4x1\n・12.7cm単装高角砲改三x1\n・装備運用枠\n+5装備分"
+  },
+  "1171": {
+    "sourceWikiId": "2610F2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 360,
+      "steel": 0,
+      "bauxite": 180
+    },
+    "otherJa": "選択報酬1\n・開発資材 x45\n・南瓜 x4\n・三式水中探信儀 x10\n\n選択報酬2\n・装備運用枠\n +15装備分\n・Type124 ASDIC★+3 x1\n・海外艦最新技術 x3"
   }
 }

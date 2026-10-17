@@ -14,6 +14,7 @@ import { esc, gearIconHtml, matIconHtml } from '../../utils/html-escape';
 import { formationRects } from '../../utils/formation-geometry';
 import { setLang, t } from '../../utils/ui-i18n';
 import { GameState, type ShipView } from '../../utils/state';
+import { condTier, fleetCondRecoveryEta } from '../../utils/cond';
 import { openingAswBadge } from '../../entrypoints/panel/opening-asw';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -88,7 +89,7 @@ const stClass = (s: Ship) => {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     return r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
 };
-const condClass = (s: Ship) => s.cond >= 50 ? 'sparkle' : s.cond <= 19 ? 'heavy' : s.cond <= 29 ? 'tired' : '';
+const condClass = (s: Ship) => { const tier = condTier(s.cond); return tier === 'normal' ? '' : tier; };
 const FLEET_REGULAR_SLOTS = 5;
 const taihaMark = (s: Ship) => {
     if (s.escaped || s.inDock || stClass(s) !== 'st-major') return '';
@@ -236,6 +237,7 @@ const repairOp = (accelerated = false, time = '20:00', n = 6) => `<span class="f
   <span class="fs-op-label">${t('repair.repairBadge', { n })}</span>${accelerated ? `<span class="fs-op-mode">${t('repair.accelLabel')}</span>` : ''}<span class="fs-op-time ${accelerated ? 'accelerated' : 'normal'}">${time}</span>
 </span>`;
 const moraleOp = (time = '15:00', n = 6) => `<span class="fs-op supply" title="${t('repair.moraleTitle')}"><span class="fs-op-label">${t('repair.moraleBadge', { n })}</span><span class="fs-op-time normal">${time}</span></span>`;
+const condRecoverOp = (time: string, n: number) => `<span class="fs-op cond-recover" title="${t('cond.recoverTitle', { n })}"><span class="fs-op-label">${t('cond.recoverBadge')}</span><span class="fs-op-time ccd">${time}</span></span>`;
 const moraleUnknownOp = (n = 0) => `<span class="fs-op supply" title="${t('repair.moraleTitle')}"><span class="fs-op-label">${t('repair.moraleBadge', { n })}</span></span><span class="fs-op-unknown" title="${t('repair.unknownAnchorTitle')}">${t('repair.unknownAnchor')}</span>`;
 
 const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven fleet-no-ops">
@@ -3708,7 +3710,7 @@ for (const lang of ['zh-TW', 'en', 'ja'] as const) {
             return instance;
         });
         return { api_id: index + 1, api_ship_id: row.mst, api_lv: 99, api_taisen: [row.asw, row.asw],
-            api_nowhp: mst.api_taik[0], api_maxhp: mst.api_taik[0], api_cond: 49,
+            api_nowhp: mst.api_taik[0], api_maxhp: mst.api_taik[0], api_cond: [85, 12, 25, 35, 45, 49, 53][index],
             api_fuel: mst.api_fuel_max, api_bull: mst.api_bull_max,
             api_slot: [...slots, ...Array(Math.max(0, mst.api_slot_num - slots.length)).fill(-1)],
             api_slot_ex: -1, api_onslot: mst.api_maxeq };
@@ -3723,10 +3725,17 @@ for (const lang of ['zh-TW', 'en', 'ja'] as const) {
     const seven = sevenFleetHtml(ships);
     const six = sixFleetHtml(ships.slice(0, 6));
     const ops = sevenFleetHtml(ships, moraleOp());
+    // 最擠的摘要列：泊地修理（加速）＋給糧＋疲勞回復，倒數與「回母港即消」兩種文字都要放得下。
+    // 倒數用正式推算函式算，不寫死：取全隊最慢的一艘（此組最低 cond 12）。
+    const eta = fleetCondRecoveryEta(state.fleets()[0]);
+    const etaMs = eta?.at == null ? 0 : eta.at - Date.now();
+    const etaText = `${Math.floor(etaMs / 60_000)}:${String(Math.floor(etaMs / 1000) % 60).padStart(2, '0')}`;
+    const fatigue = sevenFleetHtml(ships, repairOp(true, '18:42', 6) + moraleOp('14:05', 5) + condRecoverOp(etaText, eta?.below ?? 0));
+    const fatigueReady = sevenFleetHtml(ships, repairOp(true, '18:42', 6) + moraleOp('14:05', 5) + condRecoverOp(t('cond.recoverReady'), eta?.below ?? 0));
     const combined = `<div class="c-fleet-row">${combinedFleetColumn(ships.slice(0, 6), 1)}${combinedFleetColumn(ships.slice(0, 6), 2)}</div>`;
     const body = `<div class="pv-intro">ASW · ${lang} · 370px · 離線配裝示意 / Offline fixtures</div>
       <button id="theme">Light / Dark</button><div class="asw-previews">
-      ${[['7 ships', seven], ['6 ships', six], ['7 ships + operations', ops], ['Combined fleet', combined]].map(([label, fleet]) =>
+      ${[['7 ships', seven], ['6 ships', six], ['7 ships + operations', ops], ['7 ships + repair/provision/fatigue', fatigue], ['fatigue ready', fatigueReady], ['Combined fleet', combined]].map(([label, fleet]) =>
         `<div><p>${label}</p><div class="asw-panel">${fleet}</div></div>`).join('')}</div>`;
     writeFileSync(resolve(root, `.preview/panel-asw-${lang}.html`), `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>ASW fleet preview</title><style>${css}
       html,body{height:auto;overflow:auto}body{display:block;padding:16px;background:var(--bg);color:var(--text)}

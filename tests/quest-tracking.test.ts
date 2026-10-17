@@ -222,7 +222,7 @@ describe('文字級：只從官方說明文字抽必要條件', () => {
 
 describe('formatQuestTime', () => {
     it('時間一律帶年月日', () => {
-        expect(formatQuestTime(new Date(2026, 8, 28, 21, 32).getTime())).toBe('2026-09-28 21:32');
+        expect(formatQuestTime(new Date(2026, 8, 28, 21, 32).getTime())).toBe('2026/09/28 21:32');
     });
 });
 

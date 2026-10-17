@@ -3,7 +3,7 @@ import {
     KC3_UNLOCKS_RAW, QUEST_CATALOG_RAW, QUEST_CATALOG_TEXT_OVERRIDES,
 } from './quest-catalog-data';
 import {
-    KCWIKI_QUEST_GRAPH_RAW, QUEST_CATALOG_SUPPLEMENT_RAW, QUEST_PLANNER_GRAPH_RAW,
+    KCWIKI_QUEST_GRAPH_RAW, LIMITED_QUEST_WINDOWS_RAW, QUEST_CATALOG_SUPPLEMENT_RAW, QUEST_PLANNER_GRAPH_RAW,
     TSUKINOHASHI_QUEST_GRAPH_RAW, WIKI_QUEST_GRAPH_RAW, ZEKAMASHI_QUEST_GRAPH_RAW,
 } from './quest-graph-data';
 import { questCatalogIdentity } from './quest-identity';
@@ -12,7 +12,7 @@ import { QUEST_REVIEWED_RELATIONS } from './quest-graph-reviewed';
 import type { QuestCategory } from './quest-category';
 
 export type QuestPeriod =
-    | 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'other' | 'unknown';
+    | 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'seasonal' | 'other' | 'unknown';
 
 export type QuestEvidence = 'confirmed' | 'single-source' | 'checking' | 'conflict';
 export type QuestRelationOperator = 'none' | 'all' | 'any' | 'same-period' | 'unknown' | 'conflict';
@@ -40,6 +40,8 @@ export interface QuestDefinition {
     period: QuestPeriod;
     limited: boolean;
     limitedState: 'active' | 'unknown';
+    /** 期間限定任務的實裝期間（日本時間日期 YYYY-MM-DD；end 為 null＝結束未公告）；來源沒寫時不給。 */
+    limitedWindow?: { start: string; end: string | null };
     apiCategory: number | null;
     apiType: number | null;
     wikiPrerequisites: number[];
@@ -247,6 +249,11 @@ const KCWIKI = new Map<number, ZekamashiCondition>(
     }]),
 );
 
+const LIMITED_WINDOWS = new Map<number, { start: string; end: string | null }>(
+    (LIMITED_QUEST_WINDOWS_RAW as readonly (readonly [number, string, string | null])[])
+        .map(([no, start, end]) => [no, { start, end }]),
+);
+
 /** 目錄缺 wiki 代號／名稱的任務，由 KC3 日文任務表補上（例：1020＝2409B1）。 */
 const CATALOG_SUPPLEMENT = new Map<number, { code: string; name: string }>(
     (QUEST_CATALOG_SUPPLEMENT_RAW as readonly (readonly [number, string, string])[])
@@ -324,6 +331,7 @@ const rawEntry = (value: RawCatalogEntry): QuestDefinition => {
             ? wiki.period : period,
         limited,
         limitedState: limited ? 'unknown' : (name || supplement?.name) ? 'active' : 'unknown',
+        ...(limited && LIMITED_WINDOWS.has(apiNo) ? { limitedWindow: { ...LIMITED_WINDOWS.get(apiNo)! } } : {}),
         apiCategory,
         apiType,
         wikiPrerequisites: wiki
@@ -712,8 +720,15 @@ function currentCycleKey(period: QuestPeriod, ts: number): string | null {
     return `W:${resetDate.getUTCFullYear()}-${pad(resetDate.getUTCMonth() + 1)}-${pad(resetDate.getUTCDate())}`;
 }
 
+// 季節大演習（wikiwiki「季節大演習」表）每季重新發出，遊戲仍回報 api_type 4（單發），開放期間每年不同。
+// 2016–2026 歷年同一任務單季最長 146 天、兩季之間最短隔 211 天，180 天內觀測到的完成必屬同一季。
+const SEASONAL_SAME_SEASON_MS = 180 * 24 * 60 * 60 * 1000;
+
 function observedIsCurrentPeriod(definition: QuestDefinition, observed: QuestObservedCompletion, nowTs: number): boolean {
     if (definition.period === 'once') return true;
+    if (definition.period === 'seasonal') {
+        return Number.isFinite(observed.lastTs) && nowTs - observed.lastTs < SEASONAL_SAME_SEASON_MS;
+    }
     const observedCycle = currentCycleKey(definition.period, observed.lastTs);
     const currentCycle = currentCycleKey(definition.period, nowTs);
     return observedCycle !== null && observedCycle === currentCycle;
@@ -844,7 +859,8 @@ export function buildQuestFlow(
             }),
             postrequisiteNos: [...(postByNo.get(definition.apiNo) ?? [])].sort((a, b) => a - b),
             blockers,
-            nearUnlock: knownAll && blockers.length > 0 && blockers.length <= 2,
+            // 已出現在任務清單＝已經開放，不算「前置接近完成」
+            nearUnlock: !quest && !availableQuest && knownAll && blockers.length > 0 && blockers.length <= 2,
         });
     }
 

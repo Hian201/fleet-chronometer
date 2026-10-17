@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ResourceMarkRow, ResourceRow } from '../utils/db';
 import {
-    bucketSamples, buildEventPeriods, delta, downsample, localDayKey, normalizeSamples,
+    bucketSamples, buildEventPeriods, buildEventSummary, delta, downsample, localDayKey, normalizeSamples,
     sampleAt, toCsv, type Sample,
 } from '../utils/resource-log';
 import { multiChartGeometry, nearestIndex, niceTicks, type ChartBox } from '../utils/line-chart';
@@ -127,6 +127,82 @@ describe('buildEventPeriods', () => {
     it('多次活動各自成群，最近的排前面', () => {
         const older: ResourceMarkRow = { key: 'open:611', kind: 'stage-open', mapKey: 611, ts: 100, eventId: 0 };
         expect(buildEventPeriods([...marks, older], samples).map(p => p.area)).toEqual([62, 61]);
+    });
+});
+
+describe('buildEventSummary', () => {
+    const DAY = 86_400_000;
+    // 前段 E1–E2、後段 E3 起（firstMap 切法同 event-calendar）
+    const partOf = (mapNo: number) => (mapNo >= 3 ? 1 : 0);
+    const mk = (key: string, kind: ResourceMarkRow['kind'], mapNo: number, ts: number, seq?: number): ResourceMarkRow =>
+        ({ key, kind, mapKey: 620 + mapNo, ts, eventId: ts, ...(seq === undefined ? {} : { seq }) });
+    const samples = [
+        at(0, 1_000_000),
+        at(1 * DAY, 900_000),       // E1 歸零
+        at(2 * DAY, 800_000),       // E2 歸零（前段打完）
+        at(3 * DAY, 790_000),       // 撈前段後回港
+        at(5 * DAY, 810_000),       // 等後段：只有遠征收入
+        at(6 * DAY, 700_000),       // E3 歸零
+        at(7 * DAY, 690_000),       // 撈後段後回港
+    ];
+    const marks = [
+        mk('open:621', 'stage-open', 1, 0),
+        mk('clear:621#0', 'gauge-clear', 1, 1 * DAY, 0),
+        mk('open:622', 'stage-open', 2, 1 * DAY + 1),
+        mk('clear:622#0', 'gauge-clear', 2, 2 * DAY, 0),
+        mk('open:623', 'stage-open', 3, 5 * DAY),
+        mk('clear:623#0', 'gauge-clear', 3, 6 * DAY, 0),
+    ];
+    const sorties = [0.5 * DAY, 1.5 * DAY, 2.5 * DAY, 5.5 * DAY, 6.5 * DAY];
+
+    it('各段攻略各自計算，合計＝各段相加', () => {
+        const [period] = buildEventPeriods(marks, samples);
+        const s = buildEventSummary(period, samples, sorties, new Set(), partOf);
+        expect(s.parts.map(p => [p.index, p.from, p.to, p.delta![0], p.done])).toEqual([
+            [0, 0, 2 * DAY, -200_000, true],
+            [1, 5 * DAY, 6 * DAY, -110_000, true],
+        ]);
+        expect(s.attack!.delta![0]).toBe(-310_000);
+        expect(s.attack!.days).toBe(3);
+    });
+
+    it('歸零後仍出擊的時間窗算攻略後；段間沒出擊的空檔（只有遠征收入）不計', () => {
+        const [period] = buildEventPeriods(marks, samples);
+        const s = buildEventSummary(period, samples, sorties, new Set(), partOf);
+        expect(s.after!.windows.map(w => [w.from, w.to, w.delta![0]])).toEqual([
+            [2 * DAY, 2.5 * DAY, -10_000],   // 前段歸零 → 撈完回港（3 DAY 那筆）
+            [6 * DAY, 6.5 * DAY, -10_000],
+        ]);
+        expect(s.after!.delta![0]).toBe(-20_000);
+        expect(s.span).toEqual({ from: 0, to: 6.5 * DAY });
+    });
+
+    it('跨段的區段（前段打完到後段開打）標成 crossPart，不歸任何一段', () => {
+        const [period] = buildEventPeriods(marks, samples);
+        const s = buildEventSummary(period, samples, sorties, new Set(), partOf);
+        const cross = s.segments.filter(seg => seg.crossPart).map(seg => seg.to.mapNo);
+        expect(cross).toEqual([3]);
+        expect(s.segments.find(seg => seg.to.kind === 'clear' && seg.to.mapNo === 3)!.part).toBe(1);
+    });
+
+    it('仍有量表守衛的關卡不算打完：算到最後一次出擊，並列出未歸零的那張圖', () => {
+        const [period] = buildEventPeriods(marks, samples);
+        const s = buildEventSummary(period, samples, sorties, new Set([623]), partOf);
+        const back = s.parts[1];
+        expect(back.done).toBe(false);
+        expect(back.openMap).toBe(3);
+        expect(back.to).toBe(6.5 * DAY);
+        expect(back.delta![0]).toBe(-120_000);   // 810000 → 690000（最後出擊後第一筆）
+        expect(s.trailing).toEqual({ part: 1, mapNo: 3, to: 6.5 * DAY, delta: [-10_000, 0, 0, 0, 0, 0, 0, 0] });
+        expect(s.after!.windows).toHaveLength(1);
+    });
+
+    it('任一段不可考時合計也不可考，不以 0 頂替', () => {
+        const sparse = samples.filter(x => x.ts !== 0);
+        const [period] = buildEventPeriods(marks, sparse);
+        const s = buildEventSummary(period, sparse, sorties, new Set(), partOf);
+        expect(s.parts[0].delta).toBeNull();
+        expect(s.attack!.delta).toBeNull();
     });
 });
 

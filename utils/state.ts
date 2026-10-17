@@ -87,6 +87,9 @@ export interface ShipView {
     inDock: boolean;
     // 入渠完成時刻（api_ndock 的 api_complete_time，毫秒）。未入渠為 null。
     dockCompleteAt: number | null;
+    // 自上次母港以來用高速修復材（入渠時直接用或入渠途中用）的請求時刻：cond 未滿 40 在此刻
+    // 補到 40（見 utils/cond.ts）。沒有這件事為 null／省略。
+    condFloorAt?: number | null;
     // 本次出擊已由艦隊司令部施設退避：已離開艦隊，不再參戰，也不計入該隊的
     // 等級／制空／索敵／TP（見 GameState.escapedShipIds）。回港即歸零。
     escaped: boolean;
@@ -646,6 +649,8 @@ export interface FleetView {
     name: string; ships: ShipView[]; mission: boolean;
     repairAnchor: number | null | undefined;
     moraleAnchor: number | null | undefined;
+    /** cond 的觀測時刻＝最近一次 api_port/port（伺服器在此刻補算自然回復）；未觀測過為 undefined。 */
+    condAsOf?: number;
 }
 // missionId＝遠征 master id（`api_mission[1]`）。顯示層要靠它辨識活動限定的支援遠征
 // （301/302），dispNo 是給人看的字串、不當鍵用。
@@ -1159,6 +1164,12 @@ export class GameState {
     // 「經過15分時給糧已結算、修理還沒」這種不同步狀態，結算後重新起算也會互相打架。
     repairAnchorByDeck = new Map<number, number | null>();
     moraleAnchorByDeck = new Map<number, number | null>();
+    // 最近一次 api_port/port 的時間戳：伺服器只在進入母港時補算士氣自然回復，
+    // 推算「何時回到 49」必須從這個時刻起算（見 utils/cond.ts）。
+    portAt: number | undefined;
+    // 自上次母港以來用高速修復材的時刻（key: 艦實例 id；入渠時直接用與入渠途中用皆記）。
+    // 母港封包的 cond 已含補值，回港即清空。
+    bucketDockAtByShip = new Map<number, number>();
 
     private resetRepairAnchor(deckIdx: number, ts: number) {
         if (deckIdx < 0) return;
@@ -1816,6 +1827,8 @@ export class GameState {
                 this.questTracking.delete(questId);
             }
         } else if (path === 'api_port/port') {
+            this.portAt = ts;
+            this.bucketDockAtByShip.clear();
             this.ships.clear();
             this.ingestShips(api.api_ship);
             this.decks = api.api_deck_port;
@@ -2165,6 +2178,8 @@ export class GameState {
             if (req.api_highspeed === '1') {
                 // 高速修復（バケツ）：即時全快、不占入渠槽
                 if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+                // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
+                if (Number.isFinite(shipId)) this.bucketDockAtByShip.set(shipId, ts);
             } else {
                 const idx = Number(req.api_ndock_id) - 1;
                 const dock = this.ndockData[idx];
@@ -2197,6 +2212,22 @@ export class GameState {
                 api.api_material.forEach((m: any, i: number) => {
                     this.materials[i] = typeof m === 'number' ? m : m.api_value;
                 });
+            }
+        } else if (path === 'api_req_nyukyo/speedchange' && req) {
+            // 入渠途中用高速修復材：當下完成。回應不帶資料，請求的 api_ndock_id 是 1 起算的入渠槽編號
+            // （無本專案樣本；依 KC3Kai src/library/modules/Kcsapi.js 與 ElectronicObserver
+            // Observer/kcsapi/api_req_nyukyo/speedchange.cs、Data/DockData.cs 的解析交叉比對）。
+            // 找不到該槽或槽內沒有艦時不動作，等母港封包校正。
+            const dockId = Number(req.api_ndock_id);
+            const dock = this.ndockData.find((d: any) => Number(d?.api_id) === dockId);
+            const shipId = Number(dock?.api_ship_id);
+            if (dock && dock.api_state === 1 && shipId > 0) {
+                const ship = this.ships.get(shipId);
+                if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+                this.bucketDockAtByShip.set(shipId, ts);
+                dock.api_state = 0;
+                dock.api_ship_id = 0;
+                dock.api_complete_time = 0;
             }
             // ── 基地航空隊 ──────────────────────────────
         } else if (path === 'api_get_member/base_air_corps') {
@@ -4203,6 +4234,7 @@ export class GameState {
             mission: d.api_mission?.[0] > 0,
             repairAnchor: this.repairAnchorByDeck.get(i),
             moraleAnchor: this.moraleAnchorByDeck.get(i),
+            condAsOf: this.portAt,
             ships: d.api_ship
                 .filter((id: number) => id > 0)
                 .flatMap((id: number): ShipView[] => {
@@ -4227,6 +4259,7 @@ export class GameState {
                         ndockTime: Number(s.api_ndock_time ?? 0),
                         inDock: dockCompleteById.has(id),
                         dockCompleteAt: dockCompleteById.get(id) || null,
+                        condFloorAt: this.bucketDockAtByShip.get(id) ?? null,
                         escaped: this.escapedShipIds.has(id),
                         lv: s.api_lv, hp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
                         fuel: s.api_fuel ?? 0, maxFuel: mst?.fuelMax ?? 0,

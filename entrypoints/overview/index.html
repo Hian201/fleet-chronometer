@@ -336,9 +336,11 @@
             padding: 16px 20px;
         }
 
-        /* 任務導覽以四格填滿剩餘視窗，格內自捲，避免整頁先捲過導言與統計卡。 */
+        /* 任務導覽以目錄／右欄填滿剩餘視窗、格內自捲；視窗矮到放不下面板保底高度（.qf-body）時，
+           才讓整頁往下捲，不把面板壓扁到內容被切掉。 */
         #content:has(.qf) {
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
             padding-bottom: 12px;
@@ -5902,62 +5904,238 @@
 
         .rl-tip-row .rl-swatch { background: currentColor; }
 
-        /* ── 活動區段消耗 ── */
-        .rl-events { margin-top: 16px; }
+        /* ── 活動資源消耗：左清單（篩選＋年份分組）／右明細或比較 ──
+           活動身分只在清單呈現一次，數字只在表格；表格內不插標題列。
+           容器夠寬時左右並排（§4.7），太窄才上下疊、清單限高自捲。 */
+        .rl-ev { margin-top: 16px; container-type: inline-size; }
 
-        .rl-events h3 {
+        .rl-ev[hidden] { display: none; }
+
+        .rl-ev h3 {
             margin: 0 0 4px;
             color: var(--brass);
             font-size: 11px;
             letter-spacing: var(--track-label);
         }
 
-        .rl-event {
-            margin-bottom: 10px;
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            background: var(--panel);
-        }
-
-        .rl-event-head {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 6px 10px;
-            border-bottom: 1px solid var(--line);
-            font-size: 12px;
-        }
-
-        .rl-event-name { color: var(--sparkle); }
-
-        /* 一段一行、成員資訊直接攤開（同活動作戰板的標籤列：藏起來讓人找等於沒做） */
-        .rl-seg-row {
+        .rl-ev-grid {
             display: grid;
-            grid-template-columns: minmax(110px, auto) minmax(120px, auto) minmax(0, 1fr);
-            gap: 4px 10px;
-            align-items: baseline;
-            padding: 4px 10px;
+            grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
+            margin-top: 8px;
+        }
+
+        .rl-ev-filter {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .rl-ev-filter .rs-search { width: 100%; min-width: 0; box-sizing: border-box; }
+
+        .rl-ev-selects {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .rl-ev-selects select {
+            min-height: 30px;
+            padding: 4px 6px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
             font-size: 12px;
         }
 
-        .rl-seg-row+.rl-seg-row {
-            border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-        }
-
-        .rl-seg-total .rl-seg-name {
-            color: var(--sparkle);
-            font-weight: 600;
-        }
-
-        .rl-seg-time {
+        .rl-ev-count {
+            margin-left: auto;
             font-size: 11px;
             font-variant-numeric: tabular-nums;
         }
 
-        .rl-seg-chips {
+        .rl-ev-list {
+            max-height: 640px;
+            overflow-y: auto;
+            padding-right: 2px;
+            border-top: 1px solid var(--line);
+        }
+
+        .rl-ev-year[hidden] { display: none; }
+
+        /* 年份分組標題捲動時釘在清單頂端；卡片內不再寫年份 */
+        .rl-ev-year > summary {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            padding: 6px 4px;
+            background: var(--bg);
+            color: var(--brass);
+            font-size: 12px;
+            letter-spacing: var(--track-label);
+            cursor: pointer;
+        }
+
+        .rl-ev-ycount { font-size: 11px; font-variant-numeric: tabular-nums; }
+
+        .rl-ev-items {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 2px 0 8px;
+        }
+
+        .rl-ev-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: border-color 100ms ease-out, transform 100ms ease-out;
+        }
+
+        .rl-ev-item[hidden] { display: none; }
+
+        .rl-ev-item:hover { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
+
+        .rl-ev-item:active { transform: scale(.99); }
+
+        .rl-ev-item.on {
+            border-color: var(--sparkle);
+            background: color-mix(in srgb, var(--brass) 12%, var(--panel));
+            box-shadow: inset 3px 0 0 var(--sparkle);
+        }
+
+        .rl-ev-term { color: var(--sparkle); font-size: 12.5px; }
+
+        /* 段標＋作戰名：名稱不截斷，原名在上、譯名小一級放下一行 */
+        .rl-ev-op {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 0 6px;
+            align-items: baseline;
+        }
+
+        .rl-ev-op:has(> .rl-ev-names:only-child) { grid-template-columns: minmax(0, 1fr); }
+
+        .rl-ev-tag {
+            padding: 0 calc(4px - var(--track-tag)) 0 4px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            color: var(--dim);
+            font-size: 10.5px;
+            letter-spacing: var(--track-tag);
+            white-space: nowrap;
+        }
+
+        .rl-ev-names { display: flex; flex-direction: column; min-width: 0; }
+
+        .rl-ev-jp { font-size: 12.5px; overflow-wrap: anywhere; }
+
+        .rl-ev-tr { color: var(--dim); font-size: 11px; overflow-wrap: anywhere; }
+
+        .rl-ev-bar {
             display: flex;
             flex-wrap: wrap;
-            gap: 4px 8px;
+            gap: 6px 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .rl-ev-main .rl-table-wrap { margin-top: 0; }
+
+        .rl-ev-h {
+            margin: 12px 0 6px;
+            color: var(--brass);
+            font-size: 11px;
+            letter-spacing: var(--track-label);
+        }
+
+        .rl-ev-table th,
+        .rl-ev-table td { padding: 5px 8px; white-space: nowrap; }
+
+        .rl-ev-table .rl-ev-k,
+        .rl-ev-table .rl-ev-ph,
+        .rl-ev-table .rl-ev-pt { text-align: left; }
+
+        .rl-ev-table tbody .rl-ev-k { color: var(--text); font-weight: 500; letter-spacing: normal; }
+
+        .rl-ev-k small { margin-left: 2px; color: var(--dim); font-size: 10.5px; }
+
+        .rl-ev-per {
+            color: var(--dim);
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            text-align: left;
+        }
+
+        .rl-ev-num { font-variant-numeric: tabular-nums; text-align: right; }
+
+        .rl-ev-sumrow > * { border-top: 1px solid var(--line); font-weight: 600; }
+
+        .rl-ev-table tbody .rl-ev-sumrow .rl-ev-k { color: var(--sparkle); }
+
+        .rl-ev-table tbody .rl-ev-afterrow .rl-ev-k { color: var(--brass); }
+
+        .rl-ev-ph {
+            vertical-align: top;
+            border-right: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+            color: var(--brass);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .rl-ev-grp > * { border-top: 1px solid var(--line); }
+
+        .rl-ev-crow[hidden] { display: none; }
+
+        .rl-ev-crow + .rl-ev-crow > * { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+
+        .rl-ev-crow.on > * { background: color-mix(in srgb, var(--brass) 12%, transparent); }
+
+        .rl-ev-jump {
+            padding: 0;
+            border: 0;
+            background: none;
+            color: var(--sparkle);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .rl-ev-jump:hover { text-decoration: underline; }
+
+        /* 合計／日均、明細／比較、比較項目都只切外層 data 屬性，不重繪表格 */
+        .rl-ev[data-ev-mode="total"] .rl-ev-avg,
+        .rl-ev[data-ev-mode="avg"] .rl-ev-tot { display: none; }
+
+        .rl-ev[data-ev-view="detail"] .rl-ev-cmp,
+        .rl-ev[data-ev-view="detail"] .rl-ev-cmpsel,
+        .rl-ev[data-ev-view="compare"] .rl-ev-detail { display: none; }
+
+        .rl-ev:not([data-ev-cmp="attack"]) .rl-ev-c-attack,
+        .rl-ev:not([data-ev-cmp="after"]) .rl-ev-c-after,
+        .rl-ev:not([data-ev-cmp="both"]) .rl-ev-c-both { display: none; }
+
+        .rl-ev-main[hidden] { display: none; }
+
+        @container (max-width: 820px) {
+            .rl-ev-grid { grid-template-columns: minmax(0, 1fr); }
+            .rl-ev-list { max-height: 300px; }
         }
 
         /* ── 詳細清單 ── */
@@ -6151,23 +6329,26 @@
             font-size: 12px;
         }
 
+        /* 「更多條件」浮層錨定整條工具列（§4.4b），所以工具列要是定位元素 */
         .qf-toolbar {
             flex: none;
-            position: static;
-            align-items: end;
+            position: relative;
+            align-items: flex-start;
             margin: 0 0 8px;
             padding: 0 0 8px;
             background: transparent;
             border-bottom: 1px solid var(--line);
         }
 
-        .qf-toolbar .qf-stats {
-            flex: 1 1 100%;
+        .qf-toolbar .qf-facets {
+            flex: 1000 1 auto;
         }
 
+        /* 寬度夠時搜尋、聚焦切換與篩選標籤排在同一行，多留高度給下方面板；放不下才換行 */
         .qf-search {
-            flex: 1 1 160px;
-            min-width: 0;
+            flex: 1 1 260px;
+            min-width: min(260px, 100%);
+            max-width: 420px;
         }
 
         .qf-query {
@@ -6185,17 +6366,6 @@
             color: var(--sparkle);
         }
 
-        .qf-select {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-            min-width: 0;
-            flex: 0 1 116px;
-            color: var(--dim);
-            font-size: 11px;
-        }
-
-        .qf-select select,
         .qf-target-picker select {
             min-height: 30px;
             max-width: 100%;
@@ -6207,74 +6377,285 @@
             font: inherit;
         }
 
-        .qf-stats {
+        /* 任務篩選：同組任一符合、跨組全部符合。清單狀態與完成進度常駐，兼當鎮守府任務掌握概況；
+           其餘四組收在「更多條件」。標籤只建一次，計數與按下狀態每次重繪原地更新。 */
+        .qf-facets {
             display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin: 0;
-        }
-
-        .qf-stat {
-            display: inline-flex;
-            align-items: center;
+            flex-direction: column;
             gap: 6px;
             min-width: 0;
-            min-height: 28px;
-            padding: 2px 8px 2px 7px;
-            border: 1px solid var(--line);
-            border-left-width: 3px;
-            border-radius: 6px;
-            background: var(--panel);
-            color: inherit;
-            font: inherit;
-            text-align: left;
-            cursor: pointer;
         }
 
-        .qf-stat span {
-            overflow: hidden;
+        .qf-facets-main {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 6px 16px;
+        }
+
+        .qf-facet-group {
+            min-width: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+
+        /* legend 浮動才能和標籤排在同一行；標籤列是 flex 容器，會自動讓開浮動的 legend */
+        .qf-facet-group legend {
+            float: left;
+            margin: 0 8px 0 0;
+            padding: 0;
             color: var(--dim);
             font-size: 11px;
-            line-height: 1.3;
-            text-overflow: ellipsis;
+            line-height: 24px;
             white-space: nowrap;
         }
 
-        .qf-stat:hover {
-            border-color: var(--sparkle);
+        .qf-fchips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            min-width: 0;
         }
 
-        .qf-stat.on {
-            border-color: var(--sparkle);
-            background: color-mix(in srgb, var(--brass) 14%, var(--panel));
+        .qf-fchip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 0;
+            min-height: 24px;
+            padding: 1px 7px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            font-size: 11px;
+            line-height: 1.3;
+            cursor: pointer;
         }
 
-        .qf-stat:focus-visible {
+        .qf-fchip b {
+            color: var(--dim);
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .qf-fchip:hover { border-color: var(--sparkle); }
+
+        .qf-fchip:focus-visible {
             outline: 2px solid var(--sparkle);
             outline-offset: 2px;
         }
 
-        .qf-stat b {
-            flex: none;
-            color: var(--text);
-            font-size: 13px;
-            font-variant-numeric: tabular-nums;
-            line-height: 1.2;
+        .qf-fchip[aria-pressed="true"] {
+            border-color: var(--sparkle);
+            background: color-mix(in srgb, var(--brass) 18%, var(--panel));
+            color: var(--sparkle);
         }
 
-        .qf-stat.current { border-left-color: var(--sparkle); }
-        .qf-stat.pinned { border-left-color: var(--sparkle); }
-        .qf-stat.ready { border-left-color: var(--dmg-mid); }
-        .qf-stat.available { border-left-color: var(--battle-player-strong); }
-        .qf-stat.recurring { border-left-color: var(--brass); }
-        .qf-stat.near { border-left-color: var(--sally-stamp); }
-        .qf-stat.limited { border-left-color: var(--dmg-minor); }
-        .qf-stat.inferred { border-left-color: #8eafb4; }
-        .qf-stat.unknown { border-left-color: var(--dim); }
+        .qf-fchip[aria-pressed="true"] b { color: var(--sparkle); }
+        .qf-fchip.zero { color: var(--dim); }
+        .qf-fchip.zero b { opacity: .7; }
 
+        /* 清單狀態與完成進度沿用任務狀態標籤的顏色，左緣色條一眼對上目錄裡的狀態 */
+        .qf-fchip-list,
+        .qf-fchip-progress { border-left-width: 3px; }
+        .qf-fchip-list[data-qf-value="in-progress"] { border-left-color: var(--sparkle); }
+        .qf-fchip-list[data-qf-value="ready"] { border-left-color: var(--dmg-mid); }
+        .qf-fchip-list[data-qf-value="available"] { border-left-color: var(--battle-player-strong); }
+        .qf-fchip-list[data-qf-value="near"] { border-left-color: var(--sally-stamp); }
+        .qf-fchip-progress[data-qf-value="done"] { border-left-color: var(--res-gain); }
+        .qf-fchip-progress[data-qf-value="todo"] { border-left-color: var(--brass); }
+        .qf-fchip-progress[data-qf-value="unknown"] { border-left-color: var(--dim); }
+
+        .qf-more > summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 24px;
+            padding: 1px 8px;
+            list-style: none;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .qf-more > summary::-webkit-details-marker { display: none; }
+        /* 開合用字元而非旋轉：減少動態效果時兩態仍可分辨（design-guidelines §4.3） */
+        .qf-more > summary::after { content: '▾'; color: var(--sparkle); }
+        .qf-more[open] > summary::after { content: '▴'; }
+        .qf-more > summary:hover,
+        .qf-more[open] > summary { border-color: var(--sparkle); }
+
+        .qf-more > summary:focus-visible {
+            outline: 2px solid var(--sparkle);
+            outline-offset: 2px;
+        }
+
+        .qf-more-count:not(:empty) {
+            min-width: 16px;
+            padding: 0 5px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--brass) 22%, var(--panel));
+            color: var(--sparkle);
+            font-size: 10px;
+            font-style: normal;
+            text-align: center;
+        }
+
+        /* 浮層：left/right 貼齊工具列、top 留在開關正下方（不設 top 即沿用原本位置），
+           蓋在目錄上方，不推擠下方的目錄與右欄 */
+        .qf-more-body {
+            position: absolute;
+            left: 0;
+            right: 0;
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: min(60vh, 460px);
+            margin-top: 6px;
+            padding: 10px 12px 0;
+            overflow: auto;
+            overscroll-behavior: contain;
+            border: 1px solid var(--sparkle);
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: 0 10px 28px color-mix(in srgb, #000 45%, transparent);
+        }
+
+        .qf-more-body .qf-facet-group legend { min-width: 4.5em; }
+
+        .qf-more-foot {
+            position: sticky;
+            bottom: 0;
+            display: flex;
+            justify-content: flex-end;
+            padding: 8px 0 10px;
+            background: var(--panel);
+        }
+
+        /* 出擊海域：一個世界一列，各關固定欄位上下對齊；寬時兩個世界並排、窄時一欄。
+           海域名稱欄寬由程式依語言給（--qf-map-label），標籤固定寬，關卡代號靠左、計數靠右 */
+        .qf-map-worlds {
+            --qf-map-chip: 60px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--qf-map-label) + var(--qf-map-cols) * (var(--qf-map-chip) + 4px))), 1fr));
+            gap: 6px 28px;
+            min-width: 0;
+        }
+
+        .qf-map-world {
+            display: grid;
+            grid-template-columns: var(--qf-map-label) repeat(var(--qf-map-cols), var(--qf-map-chip));
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .qf-map-world-label {
+            grid-column: 1;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            min-width: 0;
+            padding-right: 4px;
+            overflow: hidden;
+            color: var(--dim);
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .qf-map-world-label b {
+            flex: none;
+            color: var(--text);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .qf-map-world-label span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .qf-fchip-map {
+            justify-content: space-between;
+            width: var(--qf-map-chip);
+            padding: 1px 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .qf-selected {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+            min-width: 0;
+            font-size: 11px;
+        }
+
+        .qf-selected[hidden] { display: none; }
+
+        .qf-selected-label {
+            margin-right: 4px;
+            color: var(--dim);
+        }
+
+        .qf-selected-tags {
+            display: contents;
+        }
+
+        .qf-selected-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 22px;
+            padding: 0 4px 0 8px;
+            border: 1px solid color-mix(in srgb, var(--sparkle) 60%, var(--line));
+            border-radius: 11px;
+            background: color-mix(in srgb, var(--brass) 14%, var(--panel));
+            color: var(--sparkle);
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .qf-selected-tag span {
+            padding: 0 3px;
+            color: var(--dim);
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .qf-selected-tag:hover span { color: var(--text); }
+
+        .qf-selected-tag:focus-visible,
+        .qf-clear:focus-visible {
+            outline: 2px solid var(--sparkle);
+            outline-offset: 2px;
+        }
+
+        .qf-clear {
+            margin-left: 4px;
+            padding: 2px 4px;
+            border: 0;
+            background: transparent;
+            color: var(--dim);
+            font: inherit;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .qf-clear:hover { color: var(--text); }
+
+        /* 保底高度：標頭收起後約一百 px，其餘至少三百多 px 給解鎖路線與關係圖；關係圖另有放大檢視 */
         .qf-body {
             flex: 1;
-            min-height: 0;
+            min-height: 440px;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -6342,6 +6723,42 @@
             color: var(--dim);
             font-size: 11px;
         }
+
+        /* 任務內容與獎勵收進原生 details：收起時摘要列帶說明第一句，展開時整段在標頭內捲動 */
+        .qf-head-more { margin-top: 6px; }
+
+        .qf-head-more > summary {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            min-width: 0;
+            list-style: none;
+            color: var(--dim);
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .qf-head-more > summary::-webkit-details-marker { display: none; }
+        .qf-head-more > summary::before { content: '▸'; flex: none; color: var(--sparkle); }
+        .qf-head-more[open] > summary::before { content: '▾'; }
+        .qf-head-more > summary:hover { color: var(--text); }
+
+        .qf-head-more > summary:focus-visible {
+            outline: 2px solid var(--sparkle);
+            outline-offset: 2px;
+        }
+
+        .qf-head-more-label { flex: none; }
+
+        .qf-head-more-peek {
+            min-width: 0;
+            overflow: hidden;
+            color: var(--text);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .qf-head-more[open] .qf-head-more-peek { display: none; }
 
         .qf-head .qf-task-detail {
             margin: 6px 0 0;
@@ -6619,6 +7036,67 @@
         }
 
         .qf-meta-item { white-space: nowrap; }
+
+        /* 前因後果：目錄列一行短摘要，標頭一條可點的摘要（切到解鎖路線／完成後開放） */
+        /* 進度與前因後果併成一行；目錄窄時換行，不裁掉前置數 */
+        .qf-row-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0 10px;
+            min-width: 0;
+            margin-top: 3px;
+        }
+
+        .qf-row-foot .qf-progress { margin-top: 0; }
+
+        .qf-cause-line {
+            display: flex;
+            gap: 8px;
+            min-width: 0;
+            overflow: hidden;
+            color: var(--dim);
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .qf-cause-line .met { color: var(--res-gain); }
+
+        .qf-cause {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .qf-cause-item {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 1px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+        }
+
+        .qf-cause-item:hover { border-color: var(--sparkle); }
+
+        .qf-cause-item:focus-visible {
+            outline: 2px solid var(--sparkle);
+            outline-offset: 2px;
+        }
+
+        .qf-cause-item.zero { color: var(--dim); }
+
+        .qf-cause-item.met {
+            border-color: color-mix(in srgb, var(--res-gain) 50%, var(--line));
+            color: var(--res-gain);
+        }
         .qf-wiki-ids { display: inline-flex; flex-wrap: wrap; gap: 3px; }
         .qf-id { min-height: 16px; padding: 0 4px; font-size: 9px; }
 
@@ -6706,6 +7184,20 @@
         .qf-reused-note { margin: 4px 0 0; color: var(--dim); font-size: 11.5px; line-height: 1.6; }
 
         /* 任務導覽頂端的免責說明：固定顯示、不可摺疊。只用中性色，不挪用警示語意色。 */
+        /* 免責說明固定顯示（不可摺疊）；「說明」開關排在同一行右側，展開時內容換到下一行整寬 */
+        .qf-topline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0 12px;
+            flex: none;
+            margin: 0 0 6px;
+        }
+
+        .qf-topline .qf-disclaimer { flex: 1 1 320px; margin: 0; }
+        .qf-topline .qf-intro { flex: none; margin: 0; }
+        .qf-topline .qf-intro[open] { flex: 1 1 100%; margin-top: 6px; }
+
         .qf-disclaimer {
             margin: 0 0 8px;
             padding: 6px 10px;
@@ -7158,6 +7650,88 @@
         }
 
         .qf-graph-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+        .qf-graph-expand { margin-left: auto; }
+
+        /* 關係圖放大檢視：原生 dialog，接近整個視窗，圖在內容區內雙向捲動 */
+        .qf-graph-dialog {
+            width: min(96vw, 1800px);
+            height: 92vh;
+            max-width: none;
+            max-height: none;
+            padding: 0;
+            border: 1px solid var(--sparkle);
+            border-radius: 10px;
+            background: var(--panel);
+            color: var(--text);
+        }
+
+        .qf-graph-dialog[open] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .qf-graph-dialog::backdrop { background: color-mix(in srgb, #000 55%, transparent); }
+
+        .qf-graph-dialog-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: none;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .qf-graph-dialog-head h3 {
+            flex: 1;
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            color: var(--sparkle);
+            font-size: 14px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .qf-graph-zoom-tools {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: none;
+        }
+
+        .qf-graph-zoom-tools [data-qf-zoom="in"],
+        .qf-graph-zoom-tools [data-qf-zoom="out"] { min-width: 28px; justify-content: center; }
+
+        .qf-graph-photo-status {
+            flex: 0 1 auto;
+            min-width: 0;
+            max-width: 32%;
+            overflow: hidden;
+            color: var(--dim);
+            font-size: 11px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .qf-graph-zoom-value {
+            min-width: 3.2em;
+            color: var(--dim);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+            text-align: center;
+        }
+
+        /* 縮放：外框佔縮放後的大小，圖本身以左上角為原點縮放 */
+        .qf-graph-dialog .qf-graph-scroll { margin: 0 auto; }
+        .qf-graph-dialog .qf-graph { margin: 0; transform-origin: 0 0; }
+
+        .qf-graph-dialog-body {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            overscroll-behavior: contain;
+            padding: 12px 16px 20px;
+        }
         .qf-graph { position: relative; margin: 0 auto; }
         .qf-graph-edges { position: absolute; inset: 0; overflow: visible; }
         .qf-edge { fill: none; stroke: var(--dim); stroke-width: 1.2; }
@@ -7246,7 +7820,6 @@
             .qf-board {
                 grid-template-columns: minmax(160px, 30%) minmax(0, 1fr);
             }
-            .qf-select { flex: 1 1 130px; }
             .qf-focus .ov-btn { justify-content: center; }
 
             .eq-bar { gap: 6px; }
@@ -7295,7 +7868,6 @@
 
         @media (max-width: 620px) {
             .rs-row { grid-template-columns: minmax(0, 1fr); }
-            .rl-seg-row { grid-template-columns: minmax(0, 1fr); }
             .rl-tip-chips { grid-template-columns: minmax(0, 1fr); }
             .eq-grid { grid-template-columns: minmax(0, 1fr); }
             .qf-facts { grid-template-columns: minmax(0, 1fr); }
@@ -7448,6 +8020,11 @@
                 outline: 1px solid var(--accent);
             }
 
+            .qf-fchip[aria-pressed="true"] {
+                outline: 2px solid var(--sparkle);
+                outline-offset: -1px;
+            }
+
             .ov-btn,
             #header select,
             #header button,
@@ -7516,7 +8093,7 @@
             .rl-chart,
             .rl-leg,
             .rl-colbtn,
-            .rl-event,
+            .rl-ev-item,
             .rl-table-wrap { border-color: var(--dim); }
 
             /* 開／關的差異不能只靠淡化（opacity 在高對比下幾乎看不出差別） */

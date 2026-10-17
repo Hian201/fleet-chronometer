@@ -125,6 +125,30 @@
 
 ---
 
+## 5a-2. 歷代活動作戰名與前後段分拆 (Event operation names)
+
+- **用途**：`utils/event-calendar.ts` 的 `EVENT_OPERATIONS`——情報總括「活動資源消耗」清單上的
+  各段作戰名（日文原名、英文、台灣華語）與前段／後段的關卡分界（`firstMap`）。
+- **性質**：作戰名是遊戲官方名稱與其通用英譯短語，屬事實性名稱，不受著作權保護；本專案只逐筆
+  取用名稱與「第幾關起屬後段」這類事實，表格結構與台灣華語譯名由本專案依
+  `docs/translation-guidelines.md` 自行編製，未複製任何來源的編排或其他內容。下列來源僅供追溯
+  與致意，不是授權依據。
+- **參考來源**（取得日 2026-10-04）：
+  - 日文作戰名與檔期：艦これ日記～白羊の記録紙～「イベント一覧表」——
+    https://kankore-sheep.blog.jp/archives/69942304.html （開發者提供）
+  - 前後段名稱與關卡分拆：wikiwiki.jp/kancolle 各活動頁的「前段作戦／後段作戦」標記（直接讀原始
+    HTML）；2026夏的分拆與後段名由開發者提供，2021秋前段為通常海域秋刀魚祭由開發者確認。
+  - 英文名：KanColle Wiki「Events」頁的 1st／2nd Stage Operations —— https://en.kancollewiki.net/Events
+    （CC BY-NC-SA 4.0；頁面由開發者存檔提供）。
+  - 假名部分的史料譯名：中文維基百科台灣正體條目名（https://zh.wikipedia.org/zh-tw/ ，取得日 2026-10-04）
+    核對鵝卵石行動、火炬行動、諾曼第登陸、納爾維克戰役、威嚇行動、馬來亞海戰、雷伊泰灣海戰，以及
+    `utils/map-names.ts` 7-5 的爪哇海海戰；塔薩法朗加（Lunga）海戰由開發者指定。只取用條目名稱。
+  - 前段日文名交叉比對：kcwikizh/kcdata `_maparea/*.json`（gh-pages）——
+    https://github.com/kcwikizh/kcdata （未標示授權，僅比對名稱）；yukikuri/koubrowser
+    `src/common/area_name.ts` —— https://github.com/yukikuri/koubrowser （MIT License）。53–58、61、62 兩邊一致；59、60 採 kcdata 的完整寫法。
+
+---
+
 ## 5b. 渦潮燃彈扣減與基地空襲損失種別
 
 - **用途**：`utils/maelstrom.ts`／`utils/maelstrom-data.ts`（渦潮查表＋電探減輕逐艦扣燃彈）；
@@ -227,7 +251,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 ## 10. 任務導覽目錄
 
 - **用途**：`utils/quest-catalog-data.ts`（由 `utils/quest-flow.ts` 讀取）——任務 `api_no`、週期、前置與開放邊，供情報總括任務導覽使用；`utils/quest-catalog-rewards.json`——任務資源、固定報酬與選擇報酬，供任務導覽和 panel 共用。
-- **翻譯資料**：`utils/quest-catalog-translations.json` 的英譯及早期繁中對照參考 KC3Kai kc3-translations 的 `data/en/quests.json` 與 `data/tcn/quests.json`（commit `74b37f83b52df52bb4d76f62e4463603fcc7ec3a`）。`zh-TW` 文案由本專案以台灣華語重新校訂；上游資料只作對照，不作為台灣用語或任務條件的定稿依據。上游缺少的任務由本專案補譯。
+- **翻譯資料**：`utils/quest-catalog-translations.json` 的英譯及早期繁中對照參考 KC3Kai kc3-translations 的 `data/en/quests.json` 與 `data/tcn/quests.json`（commit `74b37f83b52df52bb4d76f62e4463603fcc7ec3a`；2026 年南瓜任務與 B218 參考 commit `6fed2aac44a1ca95f2892bb1af93a6bc0e60b667`）。`zh-TW` 文案由本專案以台灣華語重新校訂；上游資料只作對照，不作為台灣用語或任務條件的定稿依據。上游缺少的任務由本專案補譯。
   - 專案：https://github.com/KC3Kai/kc3-translations
   - 授權與版權：MIT License，Copyright (c) 2015-2021 KC3改。
 - **來源**：
@@ -244,7 +268,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - 開放邊 `KC3_UNLOCKS_RAW`：KC3Kai 任務解鎖關係，只保留「前置 → 後續」的數字邊。
     https://github.com/KC3Kai/KC3Kai
   - 名稱、內文、wiki 代號、週期與前置清單：自社群任務目錄整理的事實欄位；來源網址不寫進資料檔。
-  - 開放条件 `WIKI_QUEST_GRAPH_RAW`（`utils/quest-graph-data.ts`）：由 `tools/quest-graph/generate.py` 解析 wikiwiki 任務總表「開放条件/備考」欄產生，只保留前置 `api_no`、AND／OR 組合與【検証中】等驗證旗標，不收錄頁面文字。只在開發者更新任務資料時手動執行，一次一個請求；擴充執行時不連網。
+  - 開放条件 `WIKI_QUEST_GRAPH_RAW` 與實裝期間 `LIMITED_QUEST_WINDOWS_RAW`（`utils/quest-graph-data.ts`）：由 `tools/quest-graph/generate.py` 解析 wikiwiki 任務總表「開放条件/備考」與「実装」欄產生（實裝期間只取期間限定任務的開始／結束日期），只保留前置 `api_no`、AND／OR 組合與【検証中】等驗證旗標，不收錄頁面文字。只在開發者更新任務資料時手動執行，一次一個請求；擴充執行時不連網。
     https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
   - 前提／後續 `ZEKAMASHI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析ぜかまし各任務攻略「前提に…あり。後続に…あり。」敘述，只保留任務 `api_no` 關係與「要確認」「他不明」等註記旗標，不收錄文章內容。頁面快取於 `tools/quest-graph/.cache/`（不進 git），之後只重抓 sitemap lastmod 有變動或新發表的文章，請求間隔至少 2 秒。
     https://zekamashi.net/
@@ -256,7 +280,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - 前置 `KCWIKI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析舰娘百科任務總表的「前置」欄（只抓總表一頁並快取；該站 robots.txt 為 Crawl-delay 100），只保留任務 `api_no` 關係與「待验证」等旗標，不收錄頁面文字。poi／kcQuests 的前置由此站抽出，兩者計票時合為一票。
     https://zh.kcwiki.cn/wiki/%E4%BB%BB%E5%8A%A1
     網站內容授權：知识共享署名-非商业性使用-相同方式共享（CC BY-NC-SA）；本專案只取任務關係事實。
-  - 代號與名稱補齊 `QUEST_CATALOG_SUPPLEMENT_RAW`（同檔）：目錄有 `api_no` 卻缺 wiki 代號或名稱的任務（例：1020＝2409B1），由上述 kc3-translations 同一 commit 的 `data/jp/quests.json` 補上。
+  - 代號與名稱補齊 `QUEST_CATALOG_SUPPLEMENT_RAW`（同檔）：目錄有 `api_no` 卻缺 wiki 代號或名稱的任務（例：1020＝2409B1），由 kc3-translations commit `6fed2aac44a1ca95f2892bb1af93a6bc0e60b667` 的 `data/jp/quests.json` 補上；同一份資料也提供新任務的 `api_no` 與日文任務說明原文（2026 年南瓜任務、B218）。
 - **攻略事實核對**：任務條件以遊戲日文任務原文為基礎，優先查對 wikiwiki 任務表及 Zekamashi 對應攻略；必要時參考 wikiwiki 或 Zekamashi 的海域攻略。英文任務資料只供輔助比對，不得推翻日文任務表或上述攻略。僅整理艦種、艦名、編成位置、數量、海域、節點與勝利條件等事實，文案由本專案自行撰寫。
   - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
   - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E5%87%BA%E6%92%83%E4%BB%BB%E5%8B%99
@@ -299,6 +323,8 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - https://zekamashi.net/kancolle-kouryaku/akizukikaini-suisan/
   - https://zekamashi.net/kancolle-kouryaku/tamanami-syutugeki/
   - https://zekamashi.net/kancolle-kouryaku/senryakuheitan-yusou/
+  - https://zekamashi.net/kancolle-kouryaku/2026pumpkin-1/ ～ https://zekamashi.net/kancolle-kouryaku/2026pumpkin-11/
+  - https://zekamashi.net/kancolle-kouryaku/amagiri-sagiri-nanpou/
   - https://zekamashi.net/kancolle-kouryaku/senryakuheitan-kakutyou/
   - https://zekamashi.net/kancolle-kouryaku/nansei-kiti/
   - https://zekamashi.net/kancolle-kouryaku/hisendan-yawatamaru/
@@ -350,6 +376,22 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 - **來源**：wikiwiki.jp/kancolle「対潜攻撃」的「対潜先制爆雷攻撃／発動条件」表與補充說明，核對日期 2026-10-01。
   https://wikiwiki.jp/kancolle/対潜攻撃#oasw
 - **用途**：`utils/opening-asw.ts` 自行實作艦型、改造階段、顯示對潛值與原始裝備對潛值的條件判定；未複製第三方程式碼或頁面文字。艦與裝備 ID 以本專案真實 start2 樣本核對。遊戲不提供資格旗標，因此介面標為推算。
+
+---
+
+## 士氣回復與入渠高速修復
+
+- **遊戲機制**：wikiwiki.jp/kancolle「疲労度」「野埼」兩頁（自然回復每 3 分鐘 +3、上限 49；野埼給糧
+  +2／+3、上限 54、先自然回復再給糧），核對日期 2026-10-04。入渠完成時 cond 補到 40、40 以上維持原值，
+  由使用者確認，並與 ElectronicObserver `Data/ShipData.cs` 的入渠完成處理一致。
+- **封包欄位**：`api_req_nyukyo/speedchange` 請求的 `api_ndock_id`（1 起算的入渠槽編號、回應不帶資料），
+  本專案無樣本，依下列兩個專案的解析交叉比對：
+  - KC3Kai `src/library/modules/Kcsapi.js` — https://github.com/KC3Kai/KC3Kai ，MIT License，
+    Copyright (c) 2015-2026 dragonjet
+  - ElectronicObserver `Observer/kcsapi/api_req_nyukyo/speedchange.cs`、`Data/DockData.cs` —
+    https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
+- **用途**：`utils/cond.ts`、`utils/state.ts`、`entrypoints/background.ts` 自行實作；只採用欄位名稱與語意，
+  未複製第三方程式碼。
 
 ---
 

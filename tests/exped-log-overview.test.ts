@@ -5,6 +5,7 @@ import type { ExpeditionRow } from '../utils/db';
 import { groupByMission, summarize } from '../utils/expedition-stats';
 import { COLUMNS, defaultPrefs, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
 import { setLang, t } from '../utils/ui-i18n';
+import { formatDateTime } from '../utils/date-format';
 
 beforeAll(() => setLang('zh-TW'));
 
@@ -39,14 +40,14 @@ describe('期間彙總列', () => {
         const rows = [exped({ ts: 2000 }), exped({ ts: 1000 })];
         const html = summaryHtml(summarize(rows), 0, 9_999_999, rows);
         expect(html).toContain(t('ov.expedSumRange', {
-            from: new Date(1000).toLocaleString(), to: new Date(2000).toLocaleString(),
+            from: formatDateTime(1000), to: formatDateTime(2000),
         }));
     });
 
     it('期間內沒有紀錄時明講是「這個期間沒有」，並附上所選的窗', () => {
         const html = summaryHtml(summarize([]), 1000, 2000, []);
         expect(html).toContain(t('ov.expedSumRangeNone', {
-            from: new Date(1000).toLocaleString(), to: new Date(2000).toLocaleString(),
+            from: formatDateTime(1000), to: formatDateTime(2000),
         }));
     });
 

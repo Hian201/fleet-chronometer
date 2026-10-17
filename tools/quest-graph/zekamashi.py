@@ -123,8 +123,9 @@ def title(page: str) -> str:
 
 
 _UNCERTAIN = re.compile(r'要確認|未確認|検証|かも|[?？]')
-_BLOCK = r'{kw}(?:任務)?(?:に|は)?[、,]?\s*</p>\s*(<ul[^>]*>.*?</ul>)\s*<p[^>]*>(.*?)</p>'
-_INLINE = r'{kw}(?:任務)?(?:に|は)?[、,]?(.{{0,300}}?)(?:。|</p>)'
+# 「い号作戦の前提は…」這類「〇〇の前提」是在說明別的任務的前提，不是本文任務的敘述
+_BLOCK = r'(?<!の){kw}(?:任務)?(?:に|は)?[、,]?\s*</p>\s*(<ul[^>]*>.*?</ul>)\s*<p[^>]*>(.*?)</p>'
+_INLINE = r'(?<!の){kw}(?:任務)?(?:に|は)?[、,]?(.{{0,300}}?)(?:。|</p>)'
 
 
 # 「（<a>関連</a>）」這類指向相關文章的泛稱連結，不是任務名
@@ -169,9 +170,12 @@ def _find(body: str, kw: str, start: int, limit: int | None = None) -> tuple[lis
         return _items(block.group(1)), _text(block.group(2)), start + block.start(), start + block.end()
     if inline:
         frag = inline.group(1)
+        # 行內句型的項目在第一個「あり／なし」之前；之後是補充說明（「…があり、これを出現させるには〇〇を…」），
+        # 其中的連結不是本任務的前提
+        listed = re.split(r'あり|なし|無し', frag, 1)[0]
         items = [{'url': u if u.endswith('/') else u + '/', 'name': _text(t),
                   'uncertain': bool(_UNCERTAIN.search(_text(frag)))}
-                 for u, t in _LINK.findall(frag) if '/wp-content/' not in u and _text(t)]
+                 for u, t in _LINK.findall(listed) if '/wp-content/' not in u and _text(t)]
         return items, _text(frag), start + inline.start(), start + inline.end()
     return None
 

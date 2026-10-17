@@ -415,6 +415,10 @@
     "zh-TW": "Ro.43水偵",
     "en": "Ro.43 Reconnaissance Seaplane"
   },
+  "Ro.44水上戦闘機": {
+    "zh-TW": "Ro.44水上戰鬥機",
+    "en": "Ro.44 Seaplane Fighter"
+  },
   "S-51J": {
     "zh-TW": "S-51J",
     "en": "S-51J"
@@ -478,6 +482,10 @@
   "TBM-3W＋3S": {
     "zh-TW": "TBM-3W＋3S",
     "en": "TBM-3W + 3S"
+  },
+  "Type124 ASDIC": {
+    "zh-TW": "Type124 ASDIC",
+    "en": "Type124 ASDIC"
   },
   "Z1": {
     "zh-TW": "Z1",
@@ -694,6 +702,10 @@
   "北欧ソファー家具": {
     "zh-TW": "北歐風沙發",
     "en": "Nordic Sofa"
+  },
+  "南瓜": {
+    "zh-TW": "南瓜",
+    "en": "Pumpkin"
   },
   "南西海域「基地航空隊」開設": {
     "zh-TW": "設置南西海域「基地航空隊」",

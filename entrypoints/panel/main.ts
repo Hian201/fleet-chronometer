@@ -7,6 +7,7 @@ import {
     GameState, isBossNode,
     type ShipView, type GearView, type FleetView, type BattleEnemyShipView,
 } from '@/utils/state';
+import { condTier, fleetCondRecoveryEta } from '@/utils/cond';
 import {
     planAnchorageRepair, planMoraleSupply, nextSettlementIn,
     REPAIR_INTERVAL_MS, MORALE_INTERVAL_MS,
@@ -18,6 +19,7 @@ import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
+import { formatTime } from '@/utils/date-format';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { bossHpReplaySpecificity, observedBossHp } from '@/utils/boss-hp';
@@ -184,6 +186,11 @@ const mmss = (ms: number) => {
 };
 // 泊地修理／給糧倒數的文字。0＝週期已滿，下次進母港即結算。
 const countdownText = (ms: number) => (ms <= 0 ? t('repair.ready') : mmss(ms));
+// 士氣回到 49 的倒數文字。時刻已過＝下次進母港就會回復（面板上的 cond 要等母港封包才更新）。
+const condCountdownText = (eta: number) => {
+    const ms = eta - Date.now();
+    return ms <= 0 ? t('cond.recoverReady') : mmss(ms);
+};
 // ── 狀態橫幅 ──────────────────────────────
 // 面板「看起來壞掉」的三種狀態（還在載入／讀取暫時失敗積壓中／已停止接收）都必須在
 // 畫面上說出原因：只寫 console 的話使用者只會看到一個不動的面板，無從判斷該不該重載。
@@ -492,6 +499,7 @@ function repairPlansOf(f: FleetView) {
                     ${countdown(f.moraleAnchor, MORALE_INTERVAL_MS, 'normal')}
                   </span>`
                 : '',
+            condRecoveryOp(f),
             // 範圍成立但計時錨點不可考時，明講「倒數不可考」而不是默默不顯示；
             // 否則使用者會以為是功能壞了。
             ((rep.active && f.repairAnchor === undefined) || (mor.active && f.moraleAnchor === undefined))
@@ -499,6 +507,17 @@ function repairPlansOf(f: FleetView) {
                 : '',
         ].filter(Boolean).join('');
     return { rep, mor, ops };
+}
+// 士氣未滿 49 時的回復倒數。出門中不顯示：回港時的士氣扣減未知，倒數沒有意義。
+// 時刻是絕對值（與目前時間無關），故每秒 tick 只需比對 data-eta 改文字。
+function condRecoveryOp(f: FleetView) {
+    const eta = fleetCondRecoveryEta(f);
+    if (!eta || eta.at === null) return '';
+    const title = t('cond.recoverTitle', { n: eta.below }) + (eta.supplyHelps ? t('cond.recoverSupplyNote') : '');
+    return `<span class="fs-op cond-recover" title="${esc(title)}">
+        <span class="fs-op-label">${t('cond.recoverBadge')}</span>
+        <span class="fs-op-time ccd" data-eta="${eta.at}">${condCountdownText(eta.at)}</span>
+      </span>`;
 }
 // 泊地修理／給糧的逐艦標記與左緣範圍軌。idx 為該艦在艦隊中的 0-based 位置。
 // 回傳艦列範圍樣式；逐艦維修／給糧標記不再佔用艦列空間。
@@ -530,8 +549,10 @@ function stClass(s: ShipView) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     return r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
 }
+// 對照遊戲疲勞度分級：赤（0–19）→ 橙（20–29）→ 黃（30–39 輕度疲勞）→ 通常 → キラ。
 function condClass(s: ShipView) {
-    return s.cond >= 50 ? 'sparkle' : s.cond <= 19 ? 'heavy' : s.cond <= 29 ? 'tired' : '';
+    const tier = condTier(s.cond);
+    return tier === 'normal' ? '' : tier;
 }
 const vitSupply = (s: ShipView) => {
     const pct = (v: number, max: number) => max ? Math.max(0, Math.min(100, Math.round(100 * v / max))) : 100;
@@ -779,7 +800,6 @@ function compactGearRow(s: ShipView) {
 function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }, fleetNo?: number) {
     const r = s.maxhp ? s.hp / s.maxhp : 1;
     const st = r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
-    const cond = s.cond >= 50 ? 'sparkle' : s.cond <= 19 ? 'heavy' : s.cond <= 29 ? 'tired' : '';
     const pct = (v: number, max: number) => max ? Math.round(100 * v / max) : 100;
     const fp = pct(s.fuel, s.maxFuel), bp = pct(s.bull, s.maxBull);
     // 燃彈沿用單隊檢視的雙色迷你量表，但去掉數字（寬度不夠），實數移到 title。
@@ -1544,7 +1564,7 @@ async function renderWanted() {
     const list = rows.map(r => `
       <div class="wanted-row">
         <span class="wanted-tag">${esc(r.tag)}</span>
-        <span class="grow wanted-path">${esc(r.path)}　${new Date(r.ts).toLocaleTimeString()}</span>
+        <span class="grow wanted-path">${esc(r.path)}　${formatTime(r.ts)}</span>
         <button data-copy="${r.eventId}">${t('wanted.copyJson')}</button>
         <button class="wanted-del" data-del="${r.id}" title="${esc(t('wanted.deleteTitle'))}">${t('wanted.delete')}</button>
       </div>`).join('');
@@ -1657,7 +1677,7 @@ function renderFactory() { renderFactoryLive(); }
 const replayLogBuffer: { ts: number; path: string }[] = [];
 function appendLogRow(ts: number, path: string) {
     const row = document.createElement('div');
-    row.textContent = `${new Date(ts).toLocaleTimeString()}  ${path}`;
+    row.textContent = `${formatTime(ts)}  ${path}`;
     log.prepend(row);
     while (log.children.length > 200) log.lastChild?.remove();
 }
@@ -1744,6 +1764,12 @@ function tickRepairCountdowns() {
         const ms = nextSettlementIn(anchor, interval);
         if (ms === undefined) continue;
         const text = countdownText(ms);
+        if (el.textContent !== text) el.textContent = text;
+    }
+    for (const el of document.querySelectorAll<HTMLElement>('.ccd[data-eta]')) {
+        const eta = Number(el.dataset.eta);
+        if (!Number.isFinite(eta)) continue;
+        const text = condCountdownText(eta);
         if (el.textContent !== text) el.textContent = text;
     }
 }

@@ -49,7 +49,11 @@ export function attachAxiosResponseCapture(
             const url = axiosRequestUrl(response?.config);
             const path = url ? getKcsapiPath(url) : null;
             if (!path) return response;
-            const reqBody = serializeAxiosRequestBody(response.config?.data);
+            // 頁面訊息不是私密通道；憑證須在進入觀察佇列前移除，且不可修改遊戲的 config.data。
+            const req = new URLSearchParams(serializeAxiosRequestBody(response.config?.data));
+            req.delete('api_token');
+            req.delete('api_verno');
+            const reqBody = req.toString();
             const payload = response.data;
             enqueue(path, reqBody, () => {
                 const text = serializeAxiosResponseText(payload);

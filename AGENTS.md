@@ -93,7 +93,14 @@ All `zh-TW` copy must be written and proofread as Taiwan Mandarin. Do not transl
 
 Do not invent or assume the meaning of unverified Kancolle API fields.
 
-When real packet evidence is missing:
+A field layout, index, or meaning counts as verified when either:
+
+* a real packet in `samples/` shows it, or
+* a mature open-source tool (KC3Kai, ElectronicObserver, poi, etc.) actually parses that field in its code. Cite the project and file path in a code comment, cross-check a second project when possible, re-implement clean-room without copying code, and record the source in `THIRD-PARTY-NOTICES.md`. If a real sample later disagrees, the sample wins.
+
+Wiki prose may back game mechanics and formulas, but is not evidence for a field layout on its own.
+
+When neither kind of evidence exists:
 
 * keep the field marked as unverified
 * preserve the raw value where appropriate

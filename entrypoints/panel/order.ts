@@ -355,7 +355,7 @@ function paintTable(): void {
         const body = rows.map(s => {
             const picked = selected.has(s.id);
             const condCls = s.cond >= SPARKLE_COND ? 'cond-spark'
-                : s.cond < 20 ? 'cond-red' : s.cond < 30 ? 'cond-tired' : '';
+                : s.cond < 20 ? 'cond-red' : s.cond < 30 ? 'cond-tired' : s.cond < 40 ? 'cond-mild' : '';
             const fleet = s.fleetNo != null ? 'in-fleet' : '';
             return `<tr class="${fleet} ${picked ? 'picked' : ''}">
               <td class="n" data-pick="${s.id}" title="${esc(state.shipNameJa(s.masterId))}">${esc(s.name)}</td>

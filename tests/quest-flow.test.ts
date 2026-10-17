@@ -371,6 +371,21 @@ describe('任務前置的逐條證據', () => {
         expect(relation.sources).toContain('zekamashi');
     });
 
+    it('產生資料：ぜかまし的連結掛錯或在說明前置的前置時，不算成本任務的前提', () => {
+        // Bw10（261）的攻略被別篇以「海上護衛戦」連入；以標題為準，A45／Bw4 屬於 Bw10 而非 Bw5（228）
+        expect(questRelation(228).prerequisites).toEqual([220]);
+        expect(questRelation(261).edges.find(edge => edge.no === 146)?.sources).toContain('zekamashi');
+        // Fw1（613）攻略「…があり、これを出現させるには い号作戦…。い号作戦の前提は 敵補給艦…」只有 Bw5 是本任務的前提
+        expect(questRelation(613).prerequisites).toEqual([228]);
+    });
+
+    it('季節大演習以 seasonal 週期收錄，2025／2026 年夏季版 Cs6／Cs7 沿用 326', () => {
+        for (const no of [313, 314, 315, 326]) expect(QUEST_CATALOG_BY_NO.get(no)?.period, `api_no ${no}`).toBe('seasonal');
+        expect(QUEST_CATALOG_BY_NO.get(326)?.wikiIds).toEqual(expect.arrayContaining(['Cs6', 'Cs7']));
+        // 秋季大演習是常設單發 F40 的前置
+        expect(questRelation(644).prerequisites).toContain(313);
+    });
+
     it('wikiwiki 產生資料：Fq2 與 B48 的組合依現行開放条件', () => {
         // Fq2（643）：(F38) 及び (Dw2)
         expect(questRelation(643).clauses).toEqual([[642], [410]]);
@@ -549,6 +564,32 @@ describe('任務導覽與本機狀態', () => {
         const row = model.byNo.get(187)!;
         expect(row.periodicBlockerNos).toEqual([402]);
         expect(row.remarkNos).toEqual([242]);
+    });
+
+    it('季節大演習過季不在清單時，前置都完成也不標成關聯推論完成', () => {
+        // Cs5 夏季大演習（326）前置 B6／C1／Cd1 都完成；過季後不會出現在全部 tab
+        const state = new GameState();
+        state.applyEvent('api_get_member/questlist', {
+            api_list: [{ api_no: 107, api_state: 1, api_title: '空母機動部隊を編成せよ！', api_detail: '內容' }],
+        }, { api_tab_id: '0' });
+
+        const model = buildQuestFlow(state, new Set([206, 301, 303]));
+        expect(model.byNo.get(326)?.status).not.toBe('inferred-complete');
+    });
+
+    it('季節大演習的領獎觀測只算當季；後續單發出現也不把它標成推論完成', () => {
+        const day = 24 * 60 * 60 * 1000;
+        const state = new GameState();
+        const observedAt = Date.UTC(2025, 9, 1, 3, 0);
+        state.applyEvent('api_req_quest/clearitemget', {}, { api_quest_id: '313' }, observedAt);
+        expect(buildQuestFlow(state, new Set(), observedAt + 60 * day).byNo.get(313)?.observedCurrentPeriod).toBe(true);
+        expect(buildQuestFlow(state, new Set(), Date.UTC(2026, 8, 15)).byNo.get(313)?.observedCurrentPeriod).toBe(false);
+
+        const listed = new GameState();
+        listed.applyEvent('api_get_member/questlist', {
+            api_list: [{ api_no: 644, api_state: 1, api_title: QUEST_CATALOG_BY_NO.get(644)!.name, api_detail: '內容' }],
+        }, { api_tab_id: '9' });
+        expect(buildQuestFlow(listed).byNo.get(313)?.status).not.toBe('inferred-complete');
     });
 
     it('期間限定與未解析條件的單發，不因清單缺席而標成完成', () => {

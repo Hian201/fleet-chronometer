@@ -366,6 +366,10 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
       await browser.alarms.create(`入渠ドック${req?.api_ndock_id} 修理完了`, { when: Date.now() + ndockMs });
     }
   }
+  // 入渠途中用高速修復材：當下已完成，撤掉原本排好的完成通知（api_ndock_id 依據見 state.ts 同名分支）。
+  if (path === 'api_req_nyukyo/speedchange' && req?.api_ndock_id) {
+    await browser.alarms.clear(`入渠ドック${req.api_ndock_id} 修理完了`);
+  }
 }
 
 // ── M6 事件裁剪 ────────────────────────────────────────

@@ -7,16 +7,16 @@
 ## 必須遵守的規則
 
 1. **被動觀察**：只觀察遊戲既有流量，不重放、修改、延遲、重排或代發請求，不自動執行遊戲操作。攔截器只掛在遊戲 `window.axios` 的 response interceptor；**禁止**取代 `window.fetch` 或 `XMLHttpRequest.prototype`，以免影響其他擴充的 DevTools `getContent`。契約見 `tests/interceptor-capture.test.ts`。
-2. **資料安全**：bridge 移除 `api_token`／`api_verno`；永不寫入 DB、上傳或送出。不得以任何改動默默遺失、覆寫、重複或損壞 events、歷史、replays、備份與還原資料；資料格式變更必須有相容處理或遷移。
+2. **資料安全**：axios 觀察器在入列前移除請求的 `api_token`／`api_verno`，避免憑證進入暫存佇列與頁面訊息；bridge 與 background 再次移除。永不寫入 DB、上傳或送出憑證；不得讀寫 DMM Cookie。不得以任何改動默默遺失、覆寫、重複或損壞 events、歷史、replays、備份與還原資料；資料格式變更必須有相容處理或遷移。
 3. **唯一擷取入口**：`ApiEventRow` 是 provider 邊界。MAIN world 送出正規化 path、原始 response text 與 request body；bridge 驗證同源、移除敏感欄位、建立固定 `captureId` envelope，retry 最多一次且沿用同一 envelope。background 解析 `apiText` 後只能經 `ingestEvent()` 寫入 `db.events`。單場 JSON／CSV 匯入是例外：只寫 derived tables，不寫 raw event。
 4. **持久化順序**：新 raw event 先存 `pending`，transactional claim 後才進 `processing`；副作用成功才標 `done`，失敗回到 `pending`。同 `captureId` 必須 path 與 timestamp 相同，否則拒絕 collision。SW 啟動時回收遺留 processing，recovery 與新 ingestion 共用順序 queue。
 5. **投影與裁剪**：`EventProjector` 是 derived tables 的入口；cursor 前事件只重建 state context，cursor 後事件才寫 derived rows。每筆投影成功才推進 cursor。raw event 只會在已投影且通過保護規則時裁剪；投影 metadata 無效時停止裁剪。snapshot 只作 GameState baseline，不送入 projector。
 6. **核心可獨立執行**：`utils/state.ts`、`utils/battle.ts` 及其他標示為純函式的核心不得依賴 `chrome.*` 或 DOM；要能用 samples 與 Node／Vitest 驗證。
 7. **權限精簡**：正式 manifest 的 permissions 由 `wxt.config.ts` 與 `tests/manifest.test.ts` 定義，目前為 `activeTab`、`alarms`、`notifications`、`scripting`、`tabs`；正式 build 的 `host_permissions` 必須為空。劇場模式的 DMM 存取權走 `optional_host_permissions`，只在使用者操作時請求。新增權限必須說明程式碼看不出的必要性。
-8. **未驗證欄位不得猜**：沒有真實封包證據時，保留原始值或回傳 `null`，UI 顯示「不可考」／「推算」並說明限制。演算法可參考社群資料，但欄位佈局與索引要先用 `samples/` 驗證。
-9. **UI 狀態與資訊**：同一事實只完整呈現一次；缺值不是 0，排序時缺值放最後。帶關鍵字、日期、數字輸入或使用者展開／捲動狀態的分區，不得因每次變更而全量重繪控制項。非同步分區先畫 shell、綁事件，再讀 DB；載入或錯誤必須顯示狀態，不得靜默留白。折疊使用原生 `<details>`；語意色不可跨功能挪用。面板的主色／輔助色／強調色取捨遵守 [`docs/design-guidelines.md`](docs/design-guidelines.md) §1.5 的 631 原則。改介面、可見文案或固定欄寬樣式時，台灣華語、英文、日文三種語言都要核對排版——固定幾何下拉丁文通常比漢字長，日文假名句又常比華語長，只看部分語言會漏掉溢出、重疊或裁切。放不下時先縮短文案（完整說明移到 `title`），仍不夠才縮小字型。核對項目見 [`docs/design-guidelines.md`](docs/design-guidelines.md) §2.4。
+8. **未驗證欄位不得猜**：欄位佈局、索引與語意要有證據才能用，證據為下列任一：`samples/` 的真實封包，或成熟開源工具（KC3Kai、ElectronicObserver、poi 等）實際解析該欄位的程式碼。採用外部專案時，程式註解寫明專案與檔案路徑，能交叉比對兩個專案更好；依 clean-room 重寫、不複製程式碼，並在 `THIRD-PARTY-NOTICES.md` 登錄。之後真實樣本與外部專案不一致時以樣本為準。兩種證據都沒有時，保留原始值或回傳 `null`，UI 顯示「不可考」／「推算」並說明限制。wiki 等文字說明可作遊戲機制與演算法依據，但不能單獨當作欄位佈局證據。
+9. **UI 狀態與資訊**：同一事實只完整呈現一次；缺值不是 0，排序時缺值放最後。帶關鍵字、日期、數字輸入或使用者展開／捲動狀態的分區，不得因每次變更而全量重繪控制項。非同步分區先畫 shell、綁事件，再讀 DB；載入或錯誤必須顯示狀態，不得靜默留白。折疊使用原生 `<details>`；語意色不可跨功能挪用。面板的主色／輔助色／強調色取捨遵守 [`docs/design-guidelines.md`](docs/design-guidelines.md) §1.5 的 631 原則。改介面、可見文案或固定欄寬樣式時，台灣華語、英文、日文三種語言都要核對排版——固定幾何下拉丁文通常比漢字長，日文假名句又常比華語長，只看部分語言會漏掉溢出、重疊或裁切。放不下時先縮短文案（完整說明移到 `title`），仍不夠才縮小字型。核對項目見 [`docs/design-guidelines.md`](docs/design-guidelines.md) §2.4。介面日期一律「年/月/日」順序、24 小時制，走 `utils/date-format.ts`，不得用 `toLocaleString()`（§2.6）。
 10. **語言與註解**：回應使用者一律繁體中文（台灣用語），程式碼註解使用繁體中文。註解與變更說明只寫目前行為、非顯而易見的理由、約束或風險，不保留除錯歷程、未合入方案或舊實作。
-11. **任務翻譯**：任務導覽與 panel 共用任務目錄翻譯。繁體中文須以台灣華語撰寫與校對，不得由簡體中文轉換；用語規範、辭典查證方式及任務條件核對流程見 [`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
+11. **任務翻譯**：任務導覽與 panel 共用任務目錄翻譯。繁體中文須以台灣華語撰寫與校對，不得由簡體中文轉換；專有名詞依三層順序：原文漢字沿用（英文用玩家社群譯名）、假名部分依史料、都沒有才在地化翻譯，以活動／任務／遠征譯名統一為第一順位；用語規範、辭典查證方式及任務條件核對流程見 [`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
 
 ## 建置與驗證
 
@@ -40,6 +40,7 @@ npx vite-node --config vitest.config.ts tools/preview/fleet-overview.ts
 npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts
 npx vite-node --config vitest.config.ts tools/preview/panel-general.ts
 npx vite-node --config vitest.config.ts tools/preview/quest-flow-guide.ts
+npx vite-node --config vitest.config.ts tools/preview/quest-flow-section.ts
 npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
 ```
 

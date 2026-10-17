@@ -74,6 +74,8 @@ export const COMBINED_GAP = 48;
 export const HEAD_H = 52;
 /** 基地航空隊標題列第二行（各隊行動／半徑，逐欄對齊）高度。 */
 export const LBAS_SUB_H = 34;
+/** 拍照時間頁尾高度：獨立一條，放在所有格子下方，不蓋住編成。 */
+export const FOOT_H = 34;
 
 export interface PhotoLayoutInput {
     /** fleet：單一艦隊 2 欄；combined：主力｜護衛並排；lbas：一列。 */
@@ -83,13 +85,15 @@ export interface PhotoLayoutInput {
     header: boolean;
     /** 基地航空隊標題列是否畫第二行。 */
     lbasSub?: boolean;
+    /** 是否在底部加拍照時間頁尾。 */
+    footer?: boolean;
     /** 輸出縮放（1＝原尺寸）。 */
     scale: number;
 }
 export interface PhotoCell { block: number; index: number; x: number; y: number; width: number; height: number }
 export interface PhotoLayout {
     width: number; height: number;
-    headHeight: number; subHeight: number;
+    headHeight: number; subHeight: number; footHeight: number;
     blocks: PhotoRect[];
     cells: PhotoCell[];
     /** 基地航空隊各欄左緣（標題列第二行逐欄對齊用）。 */
@@ -123,8 +127,9 @@ export function photoLayout(input: PhotoLayoutInput): PhotoLayout {
         if (input.kind === 'lbas') for (let c = 0; c < cols; c++) columnX.push(x + c * cw);
         x += cols * cw;
     });
-    const height = top + Math.max(0, ...blocks.map(bk => bk.height));
-    return { width: x, height, headHeight, subHeight, blocks, cells, columnX };
+    const footHeight = input.footer ? Math.round(FOOT_H * s) : 0;
+    const height = top + Math.max(0, ...blocks.map(bk => bk.height)) + footHeight;
+    return { width: x, height, headHeight, subHeight, footHeight, blocks, cells, columnX };
 }
 
 // ── 變更偵測 ──────────────────────────────────────

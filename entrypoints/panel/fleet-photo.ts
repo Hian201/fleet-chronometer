@@ -5,6 +5,7 @@
 // 截圖只暫存在這個面板視窗的記憶體：不寫 DB、不進備份，關閉面板即清空。
 import type { GameState } from '@/utils/state';
 import type { Lang } from '@/utils/gamedata-i18n';
+import { formatDateTime } from '@/utils/date-format';
 import { esc } from '@/utils/html-escape';
 import { getLang, LANGS, t, tFor } from '@/utils/ui-i18n';
 import {
@@ -310,7 +311,7 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
         const scale = size === '23' ? 2 / 3 : 1;
         const layout = photoLayout({
             kind, counts: groups.map(g => g.items.length), header: show.header,
-            lbasSub: show.action || show.radius, scale,
+            lbasSub: show.action || show.radius, footer: !show.header, scale,
         });
         const canvas = document.createElement('canvas');
         canvas.width = layout.width;
@@ -322,7 +323,10 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
         // 格子底色只鋪在各區塊內：未拍的格子仍看得出位置，區塊之間保留深色間距
         ctx.fillStyle = CELL_BG;
         for (const b of layout.blocks) ctx.fillRect(b.x, b.y, b.width, b.height);
-        if (layout.headHeight) drawHead(ctx, layout.headHeight, scale);
+        if (layout.headHeight) {
+            drawHead(ctx, layout.headHeight, scale);
+            drawStamp(ctx, layout.width, layout.headHeight / 2, scale);
+        }
         if (layout.subHeight) drawLbasSub(ctx, layout.headHeight, layout.subHeight, layout.columnX, scale);
         for (const cell of layout.cells) {
             const shot = shots.get(`${groups[cell.block].key}:${cell.index}`);
@@ -332,7 +336,19 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
             await img.decode();
             ctx.drawImage(img, cell.x, cell.y, cell.width, cell.height);
         }
+        // 標題列關閉時，拍照時間改放底部頁尾
+        if (layout.footHeight) drawStamp(ctx, layout.width, layout.height - layout.footHeight / 2, scale);
         return canvas;
+    }
+
+    /** 拍照時間：靠右畫在標題列（或無標題列時的頁尾）的垂直中線 `mid`，不蓋住格子。 */
+    function drawStamp(ctx: CanvasRenderingContext2D, w: number, mid: number, scale: number) {
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'right';
+        ctx.font = font(16, scale);
+        ctx.fillStyle = '#9aa6ba';
+        ctx.fillText(formatDateTime(Date.now()), w - 18 * scale, mid);
+        ctx.textAlign = 'left';
     }
 
     const outT = (key: string, vars?: Record<string, string | number>) => tFor(outLang || getLang(), key, vars);

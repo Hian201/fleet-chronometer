@@ -16,3 +16,4 @@ tools/preview/assets/*.preview.json
 # 任務關係產生器的抓取快取（避免重複抓 wikiwiki／ぜかまし）
 tools/quest-graph/.cache/
 tools/quest-goal/.cache/
+.site/

@@ -12,6 +12,7 @@
 // 1＝50%、2＝80% 是任務畫面標記的對應，換算成次數時只當「推算」下限，不當精確值。
 
 import { rankAtLeast, type BattleReason } from './quest-goals';
+import { formatDateTime } from './date-format';
 
 export type QuestTier = 'verified' | 'unchecked' | 'text' | 'server';
 export type QuestRank = 'S' | 'A' | 'B';
@@ -177,9 +178,7 @@ export function judgeTextBattle(rule: TextRule, facts: BattleFacts): QuestJudgem
     return { ...base, candidate: true, reason: null };
 }
 
-/** 判定紀錄的時間一律帶年月日（本機時區），例：2026-09-28 21:32。 */
+/** 判定紀錄的時間一律帶年月日（本機時區），例：2026/09/28 21:32。 */
 export function formatQuestTime(ts: number): string {
-    const d = new Date(ts);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return formatDateTime(ts, false);
 }

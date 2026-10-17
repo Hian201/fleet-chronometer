@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import ts from 'typescript';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const interceptorSrc = readFileSync(
@@ -68,6 +69,32 @@ describe('kcsapi 擷取不得包裝原生網路 API', () => {
                     hits.push(`${file.replace(projectRoot, '')} 匹配 ${pattern}`);
                 }
             }
+        }
+        expect(hits).toEqual([]);
+    });
+
+    it('entrypoints 與 utils 不得存取 Cookie API', () => {
+        const files = [
+            ...listTsFiles(join(projectRoot, 'entrypoints')),
+            ...listTsFiles(join(projectRoot, 'utils')),
+        ];
+        const hits: string[] = [];
+        const forbidden = new Set(['cookie', 'cookies', 'cookieStore']);
+        for (const file of files) {
+            const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+            const visit = (node: ts.Node): void => {
+                const property = ts.isPropertyAccessExpression(node) ? node.name.text
+                    : ts.isElementAccessExpression(node) && node.argumentExpression
+                        && ts.isStringLiteralLike(node.argumentExpression) ? node.argumentExpression.text
+                        : null;
+                if ((property && forbidden.has(property))
+                    || (ts.isIdentifier(node) && node.text === 'cookieStore')) {
+                    const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+                    hits.push(`${file.replace(projectRoot, '')}:${line + 1}`);
+                }
+                ts.forEachChild(node, visit);
+            };
+            visit(source);
         }
         expect(hits).toEqual([]);
     });

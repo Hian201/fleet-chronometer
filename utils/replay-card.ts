@@ -1,12 +1,12 @@
 // 出擊重播分享卡的可見層資料（純函式，無 DOM）。
 // 編成只留艦名：論壇縮圖要靠字級讀得清楚，不放編號、等級、rank、艦種。
 import type { ReplayRow } from './db';
+import { formatDate } from './date-format';
 import { eventTermLabel } from './event-calendar';
 import { nodeLabel } from './map-node-letters';
 import { eventStageLabel, isEventWorld } from './sortie-detail';
-import { getLang, t } from './ui-i18n';
+import { t } from './ui-i18n';
 
-const DATE_LOCALE = { 'zh-TW': 'zh-TW', ja: 'ja-JP', en: 'en-US' } as const;
 const COMBINED_KEYS = ['', 'ov.slCombinedCarrier', 'ov.slCombinedSurface', 'ov.slCombinedTransport'];
 
 export interface ReplayCardNode {
@@ -47,9 +47,7 @@ export function buildReplayCardModel(
         brand: t('ov.brandShort'),
         hq: row.nickname?.trim() || t('ov.replayHqUnknown'),
         combined: combinedLabel(row.combined, row.fleet1.length),
-        date: new Date(row.ts).toLocaleDateString(DATE_LOCALE[getLang()], {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-        }),
+        date: formatDate(row.ts),
         event: eventTermLabel(row.world, t) ?? '',
         map: event ? eventStageLabel(row.mapnum) : map,
         diff: row.diff > 0 ? t(`ov.slDiff${row.diff}` as 'ov.slDiff4') : '',

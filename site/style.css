@@ -1,0 +1,244 @@
+/* 介紹頁樣式。色票取自面板的暗色主調（深藍底＋黃銅強調），亮色依系統外觀切換。
+   排版依語言分開處理（台灣華語／日文／英文），規則與理由寫在各段註解。 */
+
+/* ── CJK 字面校正 ──
+   漢字與假名的字面在同字級下看起來比歐文大，混排時歐文顯得縮一號。這裡用 size-adjust
+   把系統 CJK 字型縮到 95%，unicode-range 只涵蓋 CJK 與全形符號，歐文仍走系統歐文字型。
+   local() 找不到對應字型時這組 @font-face 不生效，自然退回後面的字型堆疊。 */
+@font-face { font-family: "FC Han TC"; font-weight: 100 499; size-adjust: 95%;
+  src: local("PingFangTC-Regular"), local("NotoSansTC-Regular"), local("NotoSansCJKtc-Regular"), local("MicrosoftJhengHeiRegular");
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
+@font-face { font-family: "FC Han TC"; font-weight: 500 599; size-adjust: 95%;
+  src: local("PingFangTC-Medium"), local("NotoSansTC-Medium"), local("NotoSansCJKtc-Medium"), local("MicrosoftJhengHeiRegular");
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
+@font-face { font-family: "FC Han TC"; font-weight: 600 900; size-adjust: 95%;
+  src: local("PingFangTC-Semibold"), local("NotoSansTC-Bold"), local("NotoSansCJKtc-Bold"), local("MicrosoftJhengHeiBold");
+  unicode-range: U+2E80-2FFF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
+@font-face { font-family: "FC Kana JP"; font-weight: 100 499; size-adjust: 95%;
+  src: local("HiraginoSans-W3"), local("NotoSansJP-Regular"), local("NotoSansCJKjp-Regular"), local("YuGothic-Medium"), local("Meiryo");
+  unicode-range: U+2E80-2FFF, U+3000-30FF, U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
+@font-face { font-family: "FC Kana JP"; font-weight: 500 599; size-adjust: 95%;
+  src: local("HiraginoSans-W5"), local("NotoSansJP-Medium"), local("NotoSansCJKjp-Medium"), local("YuGothic-Medium"), local("Meiryo");
+  unicode-range: U+2E80-2FFF, U+3000-30FF, U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
+@font-face { font-family: "FC Kana JP"; font-weight: 600 900; size-adjust: 95%;
+  src: local("HiraginoSans-W6"), local("NotoSansJP-Bold"), local("NotoSansCJKjp-Bold"), local("YuGothic-Bold"), local("Meiryo-Bold");
+  unicode-range: U+2E80-2FFF, U+3000-30FF, U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
+
+:root {
+  --bg: #0e131b;
+  --bg-alt: #131a25;
+  --surface: #182030;
+  --line: #2a3548;
+  --text: #dbe1ec;
+  --dim: #8c98ad;
+  --brass: #c9971f;
+  --brass-ink: #1a1305;
+  --accent-soft: rgba(201, 151, 31, .14);
+  --shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  --latin: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f3ec;
+    --bg-alt: #efe9dd;
+    --surface: #ffffff;
+    --line: #ddd4c2;
+    --text: #1f2633;
+    --dim: #5d6779;
+    --brass: #9a6d00;
+    --brass-ink: #ffffff;
+    --accent-soft: rgba(154, 109, 0, .1);
+    --shadow: 0 20px 50px rgba(60, 45, 10, .18);
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 依語言的排版基準 ──
+   字型堆疊：調整過字面的 CJK 字型排第一（只含 CJK 字元），歐文落到系統歐文字型，
+   其餘字元再落到各語言的 CJK 字型。各語言明確列出自己的字型，避免台灣華語頁的漢字
+   被日文字型（字形不同）接手。
+   行高：CJK 字面方正、沒有升降部，段落需要比英文更大的行距才不擁擠。
+   字距：CJK 內文微幅加寬；英文內文不加，標題收緊。 */
+:lang(zh) body, body:lang(zh) {
+  font-family: "FC Han TC", var(--latin), "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  line-height: 1.8; letter-spacing: .02em;
+}
+:lang(ja) body, body:lang(ja) {
+  font-family: "FC Kana JP", var(--latin), "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+  line-height: 1.8; letter-spacing: .03em;
+}
+:lang(en) body, body:lang(en) {
+  font-family: var(--latin), sans-serif;
+  line-height: 1.6;
+}
+
+/* 中西文間距：瀏覽器支援 text-autospace 時自動在漢字／假名與歐文、數字之間補約 1/8 字寬。
+   台灣華語文案另外手打半形空格（不支援的瀏覽器也有間距）；日文不手打，交給這裡。 */
+:lang(zh), :lang(ja) { text-autospace: normal; }
+
+/* 標題與段落的斷行：
+   標題用 balance 讓各行長度接近；段落用 pretty 避免末行孤字（HTML 層另有末尾保護）。
+   日文再加 auto-phrase，讓支援的瀏覽器以文節為單位斷行（建置時的斷詞保護是其他瀏覽器的保底）。 */
+h1, h2, h3 { margin: 0 0 .6em; text-wrap: balance; }
+p { margin: 0 0 1em; text-wrap: pretty; }
+:lang(ja) :is(h1, h2, h3, p) { word-break: auto-phrase; }
+/* 禁則：嚴格模式不讓小寫假名、長音與中文標點出現在行首。 */
+:lang(zh), :lang(ja) { line-break: strict; }
+.nw { white-space: nowrap; }
+
+/* 標題的標點：日文的「、。」位於字身左下，大字標題中全形寬會在右側留出空洞，用 palt 擠成
+   比例寬（同時收緊假名）。台灣華語標點置中、左右留白對稱，維持全形；PingFang TC 的 halt
+   會把「，」擠成歐文逗號的樣子，因此不套用。內文兩種語言都維持全形標點。 */
+:lang(ja) :is(h1, h2, h3, .eyebrow, .btn) { font-feature-settings: "palt"; }
+
+/* 標題字距與行高：英文大字收緊；CJK 大字不收（方塊字收緊會黏在一起）。 */
+:lang(en) :is(h1, h2) { letter-spacing: -.02em; line-height: 1.1; }
+:lang(zh) :is(h1, h2), :lang(ja) :is(h1, h2) { letter-spacing: .01em; line-height: 1.3; }
+:lang(ja) :is(h1, h2) { letter-spacing: .02em; }
+
+h2 { font-size: clamp(1.7rem, 1.2rem + 1.8vw, 2.5rem); }
+h3 { font-size: 1.05rem; line-height: 1.4; }
+a { color: inherit; }
+
+/* 每行字數：CJK 約 30–36 字、英文約 60–70 字，超過就不易換行追視。 */
+.lead, .section-head .lead, .demo-intro p, .notice { max-width: 36em; }
+:lang(en) :is(.lead, .section-head .lead, .demo-intro p, .notice) { max-width: 66ch; }
+
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+section { padding: clamp(64px, 9vw, 112px) 0; }
+section:nth-of-type(even) { background: var(--bg-alt); }
+.section-head { text-align: center; margin-bottom: clamp(32px, 5vw, 48px); }
+.section-head .lead { margin-inline: auto; }
+
+/* ── 頂部導覽 ── */
+.top {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.top-row { display: flex; align-items: center; gap: 24px; min-height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; white-space: nowrap; letter-spacing: 0; }
+.brand img { border-radius: 6px; }
+.top-nav { display: flex; gap: 20px; margin-left: auto; font-size: .92rem; white-space: nowrap; }
+.top-nav a { color: var(--dim); text-decoration: none; }
+.top-nav a:hover { color: var(--text); }
+.langs { display: flex; gap: 4px; font-size: .85rem; letter-spacing: 0; }
+.langs a, .langs span { padding: 3px 8px; border-radius: 6px; text-decoration: none; color: var(--dim); white-space: nowrap; }
+.langs span { color: var(--text); background: var(--surface); border: 1px solid var(--line); }
+.langs a:hover { color: var(--text); }
+@media (max-width: 920px) {
+  .top-nav { display: none; }
+  .langs { margin-left: auto; }
+}
+
+/* ── 主視覺 ── */
+.hero { padding-top: clamp(72px, 11vw, 136px); background: radial-gradient(80% 60% at 50% 0%, var(--accent-soft), transparent 70%); }
+.hero .wrap { text-align: center; }
+.eyebrow { color: var(--brass); font-weight: 600; font-size: .95rem; margin-bottom: .8em; }
+:lang(en) .eyebrow { letter-spacing: .02em; }
+.hero h1 { font-size: clamp(2.3rem, 1.3rem + 4.4vw, 4.4rem); }
+.lead { color: var(--dim); font-size: 1.1rem; }
+.hero .lead { font-size: clamp(1.05rem, .98rem + .4vw, 1.25rem); margin-inline: auto; }
+.note { color: var(--dim); font-size: .88rem; margin-top: 16px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 32px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 20px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  font: inherit; font-size: .95rem; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--brass); }
+.btn.primary { background: var(--brass); border-color: var(--brass); color: var(--brass-ink); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:focus-visible, a:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* ── Demo ── */
+.demo-grid {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "device intro" "device side";
+  column-gap: clamp(28px, 5vw, 64px); align-items: start; grid-template-rows: auto 1fr;
+}
+.device { grid-area: device; }
+.demo-intro { grid-area: intro; }
+.demo-intro > p { color: var(--dim); }
+.demo-intro > .fine { margin-bottom: 20px; }
+.device {
+  width: 394px; padding: 0 12px 12px; border-radius: 18px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.device-bar { display: flex; gap: 6px; padding: 12px 2px; }
+.device-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.device-screen {
+  --scale: 1;
+  width: calc(370px * var(--scale)); height: calc(850px * var(--scale));
+  overflow: hidden; border-radius: 8px; background: #10151d;
+}
+.device-screen iframe {
+  display: block; width: 370px; height: 850px; border: 0;
+  transform: scale(var(--scale)); transform-origin: 0 0;
+}
+.demo-side { grid-area: side; position: sticky; top: 84px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
+.caption {
+  min-height: 5.6em; padding: 14px 16px; margin-bottom: 16px;
+  border-left: 3px solid var(--brass); border-radius: 0 10px 10px 0; background: var(--surface);
+}
+.steps {
+  list-style: none; counter-reset: step; margin: 0 0 16px; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px;
+  max-height: 260px; overflow: auto; letter-spacing: 0;
+}
+.steps li {
+  counter-increment: step; padding: 6px 10px; border-radius: 8px;
+  font-size: .86rem; color: var(--dim); border: 1px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.steps li::before { content: counter(step) ". "; font-variant-numeric: tabular-nums; }
+.steps li.past { color: var(--text); }
+.steps li.current { color: var(--text); border-color: var(--brass); background: var(--accent-soft); font-weight: 600; }
+.fine { font-size: .84rem; color: var(--dim); }
+@media (max-width: 920px) {
+  .demo-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "side" "device"; grid-template-rows: none; }
+  .device { width: auto; max-width: 394px; margin-inline: auto; margin-top: 8px; }
+  /* 窄螢幕上控制列貼在視窗頂部，往下看面板時仍按得到「下一步」。 */
+  .demo-side { position: sticky; top: 60px; z-index: 5; padding: 10px 0 2px; background: var(--bg-alt); }
+  .demo-side .controls { margin: 0 0 10px; }
+  .demo-side .caption { min-height: 0; margin-bottom: 8px; font-size: .92rem; }
+  .demo-side .steps { display: none; }
+}
+
+/* ── 卡片 ── */
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 680px) { .cards.two { grid-template-columns: minmax(0, 1fr); } }
+.cards li { padding: 24px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.cards h3 { color: var(--brass); }
+.cards p { color: var(--dim); margin: 0; font-size: .95rem; }
+
+.arch { margin: 0; padding: clamp(12px, 3vw, 28px); border-radius: 16px; background: #ffffff; border: 1px solid var(--line); }
+.arch img { display: block; width: 100%; height: auto; }
+
+/* ── 開始使用 ── */
+.install .cta { margin-top: 0; }
+.notice {
+  margin: 40px auto 0; padding: 14px 18px; border-radius: 12px;
+  background: var(--accent-soft); border: 1px solid var(--line); color: var(--text);
+  font-size: .92rem; text-align: center;
+}
+
+.foot { padding: 36px 0 48px; border-top: 1px solid var(--line); color: var(--dim); font-size: .85rem; }
+.foot p { max-width: 48em; margin: 0; }
+:lang(en) .foot p { max-width: 90ch; }

@@ -136,7 +136,13 @@ function rankClass(rank) {
   var r = String(rank == null ? "" : rank).trim().toUpperCase();
   return r === "S" || r === "A" || r === "B" || r === "C" || r === "D" ? r : "";
 }
-function fmtTs(ts) { try { return new Date(ts).toLocaleString(); } catch (e) { return String(ts); } }
+// 日期一律年/月/日（同 utils/date-format.ts；這段跑在匯出的獨立 HTML 裡，不能 import）
+function fmtTs(ts) {
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts);
+  function p(n) { return String(n).padStart(2, "0"); }
+  return d.getFullYear() + "/" + p(d.getMonth() + 1) + "/" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
 
 var replays = [];
 

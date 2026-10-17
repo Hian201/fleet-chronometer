@@ -192,6 +192,18 @@ export function localizedQuestRewardHtml(apiNo: number, locale: QuestRewardLocal
     return `<div class="quest-rewards"><strong class="quest-reward-title">${esc(reward.title)}</strong>${contents}</div>`;
 }
 
+/** 確定與選擇報酬中的道具日文原名（已去掉數量、強化值與引號），供依報酬篩選；沒有報酬資料時為空。 */
+export function questRewardItemNames(apiNo: number): string[] {
+    const source = REWARDS[String(apiNo)];
+    if (!source) return [];
+    return [...new Set(parseQuestRewardGroups(source.otherJa).flatMap(group => group.items.map(item => item.name)))];
+}
+
+/** 報酬道具名的介面譯名（日文介面回傳原名）。 */
+export function questRewardItemLabel(name: string, locale: QuestRewardLocale): string {
+    return localizedRewardItem(name, locale);
+}
+
 /** 獎勵尚未收錄（例：營運重用編號的新任務，不能沿用舊任務的獎勵）。與 localizedQuestRewardHtml 同一個外框。 */
 export function pendingQuestRewardHtml(locale: QuestRewardLocale): string {
     return `<div class="quest-rewards"><strong class="quest-reward-title">${esc(tFor(locale, 'quest.reward.title'))}</strong><div class="quest-reward-pending">${esc(tFor(locale, 'quest.reward.pending'))}</div></div>`;

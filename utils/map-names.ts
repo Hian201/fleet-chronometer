@@ -70,8 +70,10 @@ export const MAP_NAMES: Readonly<Record<string, Names & { jp: string }>> = {
 
 // 作戰名（start2 `api_mst_mapinfo.api_opetext`；遊戲畫面上關名下方的大字）。日文已與 wikiwiki
 // 各大區頁逐關核對一致。英文以開發者手動查閱的 en.kancollewiki.net 為準（2-2 該站日文寫作
-// 「柳輸送作戦」，遊戲為「柳作戦」，英文仍採該站）。華語以史實海戰為名者用史實譯名（5-3、5-5
-// 第一／二次所羅門海戰）；7-4「ヒ船団」的ヒ取自ヒリピン（菲律賓），保留代號並括註實際地名。
+// 「柳輸送作戦」，遊戲為「柳作戦」，英文仍採該站）。華語依 docs/translation-guidelines.md 的三層順序：
+// 漢字沿用（東京急行、馬達加斯加沖海戰維持社群慣用）→ 假名依史料（7-5 爪哇海海戰）→ 在地化。
+// 5-3、5-5 的サーモン是遊戲取自所羅門王的偽名，寫「所羅門」，不改成地名用字「索羅門」；
+// 7-4「ヒ船団」的ヒ取自ヒリピン（菲律賓），保留代號並括註實際地名。
 export const OPERATION_NAMES: Readonly<Record<string, { jp: string; zhTW: string; en: string | null }>> = {
     '1-1': { jp: '近海警備', zhTW: '近海警備', en: 'Coastal Waters Defense' },
     '1-2': { jp: '南西諸島沖警備', zhTW: '南西諸島沖警備', en: 'Nansei Islands Sea Defense' },
@@ -109,7 +111,9 @@ export const OPERATION_NAMES: Readonly<Record<string, { jp: string; zhTW: string
     '7-2': { jp: 'セレベス海戦闘哨戒', zhTW: '西里伯斯海戰鬥哨戒', en: 'Celebes Sea Combat Patrol' },
     '7-3': { jp: 'マラッカ海峡を抜けて', zhTW: '穿越麻六甲海峽', en: 'Breaking Through Malacca Strait' },
     '7-4': { jp: 'ヒ船団海上護衛作戦', zhTW: 'ヒ（菲律賓）船團海上護衛作戰', en: 'Hi Convoy Maritime Escort Operation' },
-    '7-5': { jp: 'スラバヤ沖海戦・バタビア沖海戦', zhTW: '泗水沖海戰・巴達維亞沖海戰', en: 'Battle of Surabaya and Battle of Batavia' },
+    // スラバヤ沖海戦是日方史料的名稱，華語史料通稱「爪哇海海戰」（假名部分依史料）；バタビア沖海戦
+    // 查無華語史料條目，地名在地化。
+    '7-5': { jp: 'スラバヤ沖海戦・バタビア沖海戦', zhTW: '爪哇海海戰・巴達維亞沖海戰', en: 'Battle of Surabaya and Battle of Batavia' },
 };
 
 // 地名索引：任務文、關名、作戰名裡會出現的地名詞（日文原文的最小詞），新任務或新海域的
