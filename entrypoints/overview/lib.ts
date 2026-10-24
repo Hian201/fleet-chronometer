@@ -133,6 +133,14 @@ export function paginate<T>(rows: T[], size: number, page: number): Page<T> {
 // 重建當前 GameState：共用規劃器會依 retained raw events 的第一筆 ID 選出安全 baseline。
 // overview 僅套用 reducer，不經 EventProjector，因此不寫任何 derived tables。
 export async function loadGameState(): Promise<GameState> {
+    return (await loadGameStateWithCursor()).state;
+}
+
+/**
+ * 同 loadGameState，另回傳讀取當下 db.events 的最大 id：即時更新（live-state.ts）從這個游標之後
+ * 接著套用新事件。游標取「讀到的全部事件」而不是 plan.rawEvents——baseline 之前的事件已由快照涵蓋。
+ */
+export async function loadGameStateWithCursor(): Promise<{ state: GameState; lastEventId: number }> {
     const gs = new GameState();
     const [snapshots, events, observed, seen] = await Promise.all([
         db.snapshot.toArray(),
@@ -148,7 +156,8 @@ export async function loadGameState(): Promise<GameState> {
         new Set(plan.rawEvents.flatMap(event => event.id === undefined ? [] : [event.id])),
     );
     applyArchivedQuestSeen(gs, seen);
-    return gs;
+    const lastEventId = events.reduce((max, event) => Math.max(max, event.id ?? 0), 0);
+    return { state: gs, lastEventId };
 }
 
 // hash 深連結參數：#/<sectionId>?key=value。面板「詳細紀錄」用它指定任務與分頁。

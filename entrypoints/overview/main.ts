@@ -6,9 +6,8 @@
 import { t, getLang, LANGS } from '@/utils/ui-i18n';
 import type { Lang } from '@/utils/gamedata-i18n';
 import { initLang, persistLang, getTheme, applyTheme, persistTheme, onPrefsChange } from '@/utils/ui-prefs';
-import { GameState } from '@/utils/state';
 import { esc } from '@/utils/html-escape';
-import { loadGameState } from './lib';
+import { createLiveState } from './live-state';
 import { sections } from './sections';
 import type { SectionContext } from './sections/types';
 
@@ -92,10 +91,24 @@ applyTheme();
 // 其他頁面（面板／另一個總括分頁）切換語言或主題時，本頁即時跟著套用並重繪。
 onPrefsChange(() => renderAll());
 
-// 共用狀態：載入時重播 db.events 重建一次，供各分區讀取（艦隊全覽等）。先給空 state
-// 佔位，非同步載入完成後重繪目前分區。
-let sharedState = new GameState();
-loadGameState().then(gs => { sharedState = gs; renderSection(); });
+// 共用狀態：載入時重播 db.events 重建一次，之後接收 background 廣播持續套用新事件
+// （live-state.ts，只套用 reducer、不做投影）。載入完成前 state 是空的，完成後重繪目前分區。
+// 新事件只通知本次 render 有註冊的分區；分頁在背景時累積起來，切回前景再一次送出。
+let stateListeners: ((paths: readonly string[]) => void)[] = [];
+let deferredPaths: string[] = [];
+function notifyState(paths: readonly string[]) {
+    if (document.hidden) { deferredPaths.push(...paths); return; }
+    for (const listener of stateListeners) {
+        try { listener(paths); } catch (error) { console.error('[overview] 分區即時更新失敗', error); }
+    }
+}
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !deferredPaths.length) return;
+    const paths = deferredPaths;
+    deferredPaths = [];
+    notifyState(paths);
+});
+const live = createLiveState(() => renderSection(), notifyState);
 
 // ── hash 路由（#/<sectionId>，可直接以網址深連結到特定分區）──────────
 function currentSectionId(): string {
@@ -111,8 +124,9 @@ function renderNav() {
 
 const ctx: SectionContext = {
     rerender: () => renderSection(),
-    get state() { return sharedState; },
-    reloadState: async () => { sharedState = await loadGameState(); },
+    get state() { return live.state; },
+    reloadState: () => live.reload(),
+    onStateChange: (listener) => { stateListeners.push(listener); },
 };
 
 // 路由／語言重繪世代：過期的 sec.render 只寫進已卸離的 host，不得蓋掉目前分區。
@@ -120,6 +134,7 @@ let renderGeneration = 0;
 
 async function renderSection() {
     const gen = ++renderGeneration;
+    stateListeners = [];
     const sec = sections.find(s => s.id === currentSectionId())!;
     // 分區名放前面、品牌短名放後面：瀏覽器分頁標題從尾端截斷，會變動的分區名須優先可見
     document.title = `${t(sec.titleKey)} — ${t('ov.brandShort')}`;

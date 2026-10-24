@@ -17,3 +17,7 @@ tools/preview/assets/*.preview.json
 tools/quest-graph/.cache/
 tools/quest-goal/.cache/
 .site/
+# 常規導航底圖產生器的 Natural Earth 原始檔與對位用遊戲截圖（截圖不得散布）
+tools/map-geo/.cache/
+# 到王編成參考產生器的攻略頁抓取快取
+tools/route-suggest/.cache/

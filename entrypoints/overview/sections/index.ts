@@ -6,6 +6,7 @@ import { shipsSection } from './ships';
 import { equipmentSection } from './equipment';
 import { equipRefSection } from './equip-ref';
 import { sortieLogSection } from './sortie-log';
+import { routeForecastSection } from './route-forecast';
 import { dropLogSection } from './drop-log';
 import { expedLogSection } from './exped-log';
 import { buildLogSection } from './build-log';
@@ -22,6 +23,7 @@ export const sections: OverviewSection[] = [
     equipmentSection,       // 裝備全覽（圖示篩選架＋圖磚／詳細清單雙模式）
     equipRefSection,        // 配裝參考（在案艦 × 藍字／主砲適性，全圖鑑＋庫存標記）
     sortieLogSection,       // 出擊紀錄（＋KC3Kai 重播匯出）
+    routeForecastSection,   // 常規導航（分岐法則 × 目前編成，真實地理底圖）
     dropLogSection,         // 打撈紀錄（通常／活動篩選＋可選欄位詳細清單）
     expedLogSection,        // 遠征紀錄
     buildLogSection,        // 建造紀錄

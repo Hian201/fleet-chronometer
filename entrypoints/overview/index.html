@@ -52,6 +52,22 @@
             --qc-arsenal: #6b473c;
             --qc-modernization: #a783b9;
 
+            /* 常規導航（獨立語意：底圖海陸與預測路線，禁止挪用其他功能色） */
+            --rf-sea: #13243a;
+            --rf-land: #3d5a45;
+            --rf-coast: #6f8f76;
+            --rf-reef: #5fb3c8;
+            --rf-edge: #5b6b85;
+            --rf-sure: #e6c35c;
+            --rf-maybe: #8fb8e8;
+            --rf-goal: #e06a5a;
+            --rf-wheel: #c9a24a;
+            --rf-choice: #b98ae0;
+            --rf-random: #4fc3c3;
+            --rf-drift: #f0954a;
+            --rf-wheel-dark: #6b4f1d;
+            --rf-notice: #e0a43a;
+
             /* 配船板標籤色（獨立語意，禁止挪用 --dmg-*／--sally-*／--res-*） */
             --tag-1: #9aa4b2; --tag-2: #63718a; --tag-3: #e0b25e; --tag-4: #5fa86e;
             --tag-5: #8fb8e8; --tag-6: #3f7cc0; --tag-7: #e59aa4; --tag-8: #c2564f;
@@ -80,6 +96,20 @@
             --dim: #6b7280;
             --sparkle: #8a6d1a;
             --accent: #8a6d1a;
+            --rf-sea: #d9e6ee;
+            --rf-land: #b9c9a8;
+            --rf-coast: #7f9670;
+            --rf-reef: #3a8ea6;
+            --rf-edge: #8a96a8;
+            --rf-sure: #a87a12;
+            --rf-maybe: #3f7cc0;
+            --rf-goal: #b8463a;
+            --rf-wheel: #a5802c;
+            --rf-choice: #7b45a8;
+            --rf-random: #1f8c8c;
+            --rf-drift: #c25f17;
+            --rf-wheel-dark: #5a3f12;
+            --rf-notice: #9a6410;
         }
 
         * {
@@ -4463,6 +4493,7 @@
 
         .rs-search,
         .rs-bar select,
+        .rf-bar select,
         .rs-range input {
             min-height: 30px;
             padding: 4px 8px;
@@ -4476,6 +4507,7 @@
 
         .rs-search:active,
         .rs-bar select:active,
+        .rf-bar select:active,
         .rs-range input:active {
             border-color: var(--sparkle);
             transform: scale(.97);
@@ -7809,6 +7841,407 @@
             border: 0;
         }
 
+        /* ── 常規導航 ──
+           地圖與側欄並排；用 container query 量內容區，容器 ≤ 760px（地圖下限 420 + 間距 12 +
+           側欄還能讀的 300 再留餘裕）才改單欄（design-guidelines §4.7）。 */
+        .rf {
+            container-type: inline-size;
+            container-name: rf;
+        }
+
+        .rf-body {
+            display: grid;
+            grid-template-columns: minmax(420px, 1.7fr) minmax(300px, 1fr);
+            gap: 12px;
+            align-items: start;
+            margin-top: 12px;
+        }
+
+        @container rf (max-width: 760px) {
+            .rf-body {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .rf-mapcard,
+        .rf-side {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 10px;
+            min-width: 0;
+        }
+
+        .rf-svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+
+        .rf-stage-wrap[hidden] { display: none; }
+        /* 免責聲明：常規導航最上方，刻意比一般註記醒目 */
+        .rf-disclaimer {
+            margin: 0 0 10px;
+            padding: 8px 12px;
+            border: 1px solid var(--rf-notice);
+            border-left-width: 4px;
+            border-radius: 4px;
+            background: color-mix(in srgb, var(--rf-notice) 14%, var(--panel));
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .rf-sea { fill: var(--rf-sea); }
+        .rf-land { fill: var(--rf-land); stroke: var(--rf-coast); stroke-width: 1; }
+        .rf-reef { fill: none; stroke: var(--rf-reef); stroke-width: 1.6; opacity: .8; }
+
+        .rf-e {
+            stroke: var(--rf-edge);
+            stroke-width: 2.5;
+            stroke-dasharray: 8 6;
+            opacity: .7;
+        }
+
+        .rf-e-maybe { stroke: var(--rf-maybe); stroke-width: 4; stroke-dasharray: 3 6; opacity: 1; stroke-linecap: round; }
+        .rf-e-sure { stroke: var(--rf-sure); stroke-width: 5; stroke-dasharray: none; opacity: 1; }
+        /* 分岐後的路段依成因上色：能動分岐（紫虛線）、隨機（青點線）、不可考（灰點線）、其餘分岐後路段（藍點線） */
+        .rf-e-choice { stroke: var(--rf-choice); stroke-width: 4.5; stroke-dasharray: 12 6; opacity: 1; }
+        .rf-e-random { stroke: var(--rf-random); stroke-width: 4; stroke-dasharray: 3 6; opacity: 1; stroke-linecap: round; }
+        .rf-e-unknown { stroke: var(--dim); stroke-width: 4; stroke-dasharray: 3 6; opacity: 1; stroke-linecap: round; }
+        .rf-arrow-base path { fill: var(--rf-edge); }
+        .rf-arrow-maybe path { fill: var(--rf-maybe); }
+        .rf-arrow-sure path { fill: var(--rf-sure); }
+        .rf-arrow-choice path { fill: var(--rf-choice); }
+        .rf-arrow-random path { fill: var(--rf-random); }
+        .rf-arrow-unknown path { fill: var(--dim); }
+
+        .rf-badge circle { stroke: var(--rf-sea); stroke-width: 2; }
+        .rf-badge text { fill: #fff; font-size: 15px; font-weight: 800; text-anchor: middle; pointer-events: none; }
+        .rf-badge path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; }
+        .rf-badge-choice circle { fill: var(--rf-choice); }
+        .rf-badge-random circle { fill: var(--rf-random); }
+        .rf-badge-drift circle { fill: var(--rf-drift); }
+
+        .rf-n { cursor: pointer; }
+        .rf-n circle { fill: var(--panel); stroke: var(--dim); stroke-width: 3; }
+        .rf-n text { fill: var(--text); font-size: 17px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+        .rf-n-on circle { stroke: var(--rf-sure); }
+        .rf-n-goal circle { stroke: var(--rf-goal); stroke-width: 4; }
+        .rf-n-start circle { stroke-dasharray: 3 2; }
+        .rf-n-sel circle { stroke-width: 5; fill: color-mix(in srgb, var(--rf-sure) 25%, var(--panel)); }
+        .rf-n:focus-visible { outline: none; }
+        .rf-n:focus-visible circle { stroke: var(--accent); stroke-width: 5; }
+
+        .rf-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 14px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--dim);
+        }
+
+        .rf-lg::before {
+            content: '';
+            display: inline-block;
+            width: 18px;
+            margin-right: 4px;
+            vertical-align: middle;
+            border-top: 4px solid var(--rf-sure);
+        }
+
+        .rf-lg-maybe::before { border-top: 4px dotted var(--rf-maybe); }
+        .rf-lg-choice::before { border-top: 4px dashed var(--rf-choice); }
+        .rf-lg-random::before { border-top: 4px dotted var(--rf-random); }
+        .rf-lg-unknown::before { border-top: 4px dotted var(--dim); }
+        .rf-lg-sure::before { border-top: 4px solid var(--rf-sure); }
+        .rf-lg-goal::before { width: 10px; height: 10px; border: 3px solid var(--rf-goal); border-radius: 50%; }
+
+        .rf-src { margin: 6px 0 0; font-size: 12px; color: var(--dim); }
+        .rf-src a { color: inherit; }
+
+        .rf-side h3 { margin: 12px 0 4px; font-size: 12px; color: var(--dim); letter-spacing: var(--track-label); font-weight: 600; }
+        /* 編成：同遊戲編成畫面兩欄（1 2／3 4／5 6），空位也佔格 */
+        /* 右欄標題列：「目前編成」＋艦隊分頁，下方就是該艦隊的編成，讓人一眼看出這是哪個艦隊 */
+        .rf-fleet-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+        .rf-fleet-label { font-weight: 700; white-space: nowrap; }
+        .rf-fleet-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+        .rf-fleet-tab {
+            padding: 2px 8px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--panel);
+            color: var(--dim);
+            font: inherit;
+            font-size: 12px;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .rf-fleet-tab:hover, .rf-fleet-tab:focus-visible { border-color: var(--rf-maybe); color: var(--text); outline: none; }
+        .rf-fleet-tab[aria-pressed="true"] { border-color: var(--rf-sure); color: var(--rf-sure); font-weight: 700; }
+        .rf-fleet-name { margin: 0 0 4px; font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rf-fleetgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+        .rf-slot {
+            display: grid;
+            grid-template-columns: 14px auto minmax(0, 1fr) auto;
+            align-items: baseline;
+            gap: 4px;
+            min-height: 26px;
+            padding: 3px 6px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .rf-slot-flag { border-color: color-mix(in srgb, var(--rf-sure) 60%, var(--line)); }
+        .rf-slot-empty { border-style: dashed; }
+        .rf-slot-no { color: var(--dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+        .rf-slot-stype { color: var(--dim); white-space: nowrap; }
+        .rf-slot-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rf-slot-lv { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+        .rf-slot-lv::before { content: 'Lv'; font-size: 9px; margin-right: 1px; }
+
+        .rf-verdict {
+            margin-top: 8px;
+            padding: 6px 10px;
+            border-left: 3px solid var(--rf-edge);
+            border-radius: 4px;
+            font-weight: 700;
+            background: color-mix(in srgb, var(--rf-edge) 12%, transparent);
+        }
+
+        .rf-verdict-fixed { border-left-color: var(--rf-sure); background: color-mix(in srgb, var(--rf-sure) 14%, transparent); }
+        .rf-verdict-possible { border-left-color: var(--rf-maybe); background: color-mix(in srgb, var(--rf-maybe) 14%, transparent); }
+        .rf-verdict-never { border-left-color: var(--rf-goal); background: color-mix(in srgb, var(--rf-goal) 12%, transparent); }
+        .rf-verdict-choice { border-left-color: var(--rf-choice); background: color-mix(in srgb, var(--rf-choice) 14%, transparent); }
+        .rf-h-drift::before, .rf-h-choice::before, .rf-h-random::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+        .rf-h-drift::before { background: var(--rf-drift); }
+        .rf-h-choice::before { background: var(--rf-choice); }
+        .rf-h-random::before { background: var(--rf-random); }
+
+        .rf-devs { margin: 0; padding-left: 18px; font-size: 13px; }
+        /* 長航路要能換行：li 用 flex-wrap，編號改用 counter（flex 項目沒有 ::marker） */
+        .rf-paths { margin: 0; padding: 0; list-style: none; counter-reset: rf-path; font-size: 13px; }
+        .rf-paths li {
+            position: relative;
+            counter-increment: rf-path;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            padding: 2px 0 2px 22px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rf-paths li::before { content: counter(rf-path) '.'; position: absolute; left: 0; color: var(--dim); }
+        .rf-hop { font-weight: 700; }
+        .rf-arr { margin: 0 3px; color: var(--dim); }
+        .rf-arr-choice { color: var(--rf-choice); font-weight: 700; cursor: help; }
+        .rf-arr-random { color: var(--rf-random); font-weight: 700; cursor: help; }
+        .rf-arr-unknown, .rf-arr-uncertain { color: var(--dim); text-decoration: underline dotted; cursor: help; }
+        .rf-arrkey { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; margin: 4px 0 0; font-size: 11px; color: var(--dim); }
+        .rf-arrkey .rf-arr { margin-left: 8px; }
+        .rf-arrkey .rf-arr:first-child { margin-left: 0; }
+        .rf-goal-mark { color: var(--rf-sure); font-weight: 700; }
+        .rf-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted; }
+
+        .rf-rules { margin: 0; padding-left: 0; list-style: none; font-size: 13px; }
+        .rf-rules .rf-rules { margin: 4px 0 0 18px; }
+        .rf-r {
+            display: grid;
+            grid-template-columns: 16px minmax(0, 1fr) auto;
+            gap: 2px 6px;
+            padding: 4px 4px;
+            border-bottom: 1px solid var(--line);
+            align-items: baseline;
+        }
+
+        .rf-r > .rf-rules { grid-column: 1 / -1; }
+        .rf-r-mark::before { content: '·'; color: var(--dim); }
+        .rf-r-hit { background: color-mix(in srgb, var(--rf-sure) 14%, transparent); }
+        .rf-r-hit > .rf-r-mark::before { content: '✓'; color: var(--rf-sure); font-weight: 700; }
+        .rf-r-true > .rf-r-mark::before { content: '✓'; color: var(--dim); }
+        .rf-r-false > .rf-r-mark::before { content: '✕'; color: var(--dim); }
+        .rf-r-unknown > .rf-r-mark::before { content: '?'; color: var(--rf-maybe); font-weight: 700; }
+        .rf-r-skip { opacity: .55; }
+        .rf-r-false > .rf-r-cond { color: var(--dim); }
+        .rf-to { font-weight: 700; white-space: nowrap; }
+        .rf-tag { font-size: 10px; border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; color: var(--dim); white-space: nowrap; }
+        .rf-note { margin: 4px 0; font-size: 12px; color: var(--dim); }
+
+        .rf-sg {
+            margin-top: 12px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .rf-sg > summary { cursor: pointer; font-weight: 700; }
+        .rf-sg-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .rf-sg-card {
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 6px 8px;
+            min-width: 0;
+            font-size: 13px;
+        }
+        .rf-sg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+        .rf-sg-battles { font-size: 12px; color: var(--dim); white-space: nowrap; }
+        .rf-sg-route { white-space: nowrap; }
+        .rf-sg-route + .rf-sg-route::before { content: '/'; margin-right: 8px; color: var(--dim); font-weight: 400; }
+        .rf-sg-route .rf-arr { margin: 0 2px; }
+        .rf-hop-opt { font-weight: 400; color: var(--dim); }
+        .rf-sg-reqs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .rf-sg-comps { margin: 4px 0 0; padding: 0; list-style: none; }
+        .rf-sg-comps li { padding: 2px 0; border-top: 1px dashed var(--line); overflow-wrap: anywhere; }
+        .rf-sg-comps li:first-child { border-top: 0; }
+        .rf-sg-part + .rf-sg-part::before { content: ' '; }
+        .rf-sg-v { font-size: 10px; border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; cursor: help; }
+        .rf-sg-v-partial { color: var(--rf-random); }
+        .rf-sg-v-mismatch { color: var(--rf-drift); }
+        .rf-sg-v-skip { color: var(--dim); }
+
+        /* 出擊點船舵與王點赤鬼（自繪剪影；字母標在右下，同遊戲配置） */
+        .rf-wheel-spokes line { stroke: var(--rf-wheel); stroke-width: 5; stroke-linecap: round; }
+        .rf-wheel-spokes circle { fill: var(--rf-wheel); stroke: var(--rf-wheel-dark); stroke-width: 1.5; }
+        .rf-wheel-ring { fill: none; stroke: var(--rf-wheel); stroke-width: 6; }
+        .rf-wheel-hub { fill: var(--rf-wheel); stroke: var(--rf-wheel-dark); stroke-width: 2; }
+        .rf-oni-face { fill: var(--rf-goal); stroke: color-mix(in srgb, var(--rf-goal) 55%, #000); stroke-width: 2; stroke-linejoin: round; }
+        .rf-oni-eye { fill: #fff; }
+        .rf-oni-mouth { fill: color-mix(in srgb, var(--rf-goal) 35%, #000); }
+        .rf-halo { fill: none; stroke: transparent; stroke-width: 4; }
+        .rf-n-on .rf-halo { stroke: var(--rf-sure); }
+        .rf-n-sel .rf-halo { stroke: var(--rf-sure); stroke-width: 7; }
+        .rf-n:focus-visible .rf-halo { stroke: var(--accent); stroke-width: 7; }
+        .rf-n text.rf-n-tag { font-size: 20px; text-anchor: start; paint-order: stroke; stroke: var(--rf-sea); stroke-width: 5px; stroke-linejoin: round; }
+        .rf-lg-icon { display: inline-flex; align-items: center; gap: 3px; }
+        .rf-lg-icon svg { width: 18px; height: 18px; }
+
+        /* 世界地圖選擇：浮層錨定整條工具列（§4.4b），蓋在內容上方不推擠版面 */
+        .rf-bar { position: relative; }
+        .rf-world > summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 24px;
+            padding: 1px 8px;
+            list-style: none;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .rf-world > summary::-webkit-details-marker { display: none; }
+        .rf-world > summary::after { content: '▾'; color: var(--sparkle); }
+        .rf-world[open] > summary::after { content: '▴'; }
+        .rf-world > summary:hover,
+        .rf-world[open] > summary { border-color: var(--sparkle); }
+        .rf-world > summary:focus-visible { outline: 2px solid var(--sparkle); outline-offset: 2px; }
+
+        .rf-world-pop {
+            position: absolute;
+            left: 0;
+            right: 0;
+            z-index: 30;
+            margin-top: 6px;
+            padding: 10px;
+            background: var(--panel);
+            border: 1px solid var(--sparkle);
+            border-radius: 6px;
+            box-shadow: 0 8px 24px color-mix(in srgb, #000 35%, transparent);
+        }
+
+        .rf-world-view { position: relative; }
+        .rf-world-scroll { overflow: auto; max-height: min(70vh, 620px); }
+        .rf-world-scroll.rf-dragging { cursor: grabbing; user-select: none; }
+        /* 可再往左／右捲時，該側加漸層與箭頭按鈕 */
+        .rf-world-view::before,
+        .rf-world-view::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 48px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .15s;
+            z-index: 1;
+        }
+        .rf-world-view::before { left: 0; background: linear-gradient(to right, var(--panel), transparent); }
+        .rf-world-view::after { right: 0; background: linear-gradient(to left, var(--panel), transparent); }
+        .rf-world-view.rf-can-l::before,
+        .rf-world-view.rf-can-r::after { opacity: 1; }
+        .rf-world-pan {
+            position: absolute;
+            top: 50%;
+            z-index: 2;
+            width: 32px;
+            height: 56px;
+            transform: translateY(-50%);
+            padding: 0;
+            border: 1px solid var(--sparkle);
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--panel) 88%, transparent);
+            color: var(--sparkle);
+            font: inherit;
+            font-size: 24px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .rf-world-pan:hover, .rf-world-pan:focus-visible { background: var(--panel); outline: none; }
+        .rf-world-pan[hidden], .rf-world-panhint[hidden] { display: none; }
+        .rf-world-pan-l { left: 6px; }
+        .rf-world-pan-r { right: 6px; }
+        .rf-world-panhint { margin: 6px 0 0; color: var(--sparkle); }
+        /* 各大區框是固定像素大小：地圖窄於 900px 會互相重疊，改在浮層內橫捲 */
+        .rf-world-map { position: relative; min-width: 900px; }
+        .rf-world-map svg { display: block; width: 100%; height: auto; border-radius: 4px; }
+        .rf-wd { fill: var(--panel); stroke: var(--dim); stroke-width: 2; }
+        .rf-wd-unk { stroke-dasharray: 2 2; }
+        .rf-wd-sel { fill: var(--rf-sure); stroke: var(--rf-sure); }
+        .rf-wd-hl { fill: var(--rf-maybe); stroke: var(--rf-maybe); r: 8; }
+
+        .rf-wbox {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            max-width: 176px;
+            padding: 4px 6px;
+            background: color-mix(in srgb, var(--panel) 88%, transparent);
+            border: 1px solid var(--line);
+            border-radius: 5px;
+        }
+
+        .rf-wbox-title { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rf-wchips { display: flex; flex-wrap: wrap; gap: 3px; }
+        .rf-wchip {
+            min-width: 26px;
+            padding: 1px 5px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .rf-wchip:hover, .rf-wchip:focus-visible { border-color: var(--rf-maybe); outline: none; }
+        .rf-wchip.on { border-color: var(--rf-sure); color: var(--rf-sure); }
+        .rf-wchip.off { color: var(--dim); font-weight: 400; }
+        .rf-world-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+
         /* ── 窄視窗 ──
            側欄在 ≤760px 一律轉成浮層（main.ts applyNav 依 innerWidth 決定），這裡處理
            內容區自身：縮內距、讓工具列的每組控制項各佔一行、圖磚採單欄。
@@ -7887,6 +8320,7 @@
             .ov-btn,
             .rs-search,
             .rs-bar select,
+            .rf-bar select,
             .rs-range input,
             .rs-seg button,
             .rs-mini,
@@ -7913,6 +8347,7 @@
             .ov-btn:active,
             .rs-search:active,
             .rs-bar select:active,
+            .rf-bar select:active,
             .rs-range input:active,
             .rs-seg button:active,
             .rs-mini:active,
@@ -8030,6 +8465,7 @@
             #header button,
             .rs-search,
             .rs-bar select,
+            .rf-bar select,
             .rs-range input,
             .rs-seg button,
             .rs-mini,

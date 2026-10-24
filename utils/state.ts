@@ -17,6 +17,7 @@ import {
     type FleetFacts, type QuestGoalDef,
 } from './quest-goals';
 import { nodeLetter } from './map-node-letters';
+import { COND_DOCK_FLOOR } from './cond';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
     LBAS_COND_EXHAUSTED, LBAS_COND_MILD, LBAS_COND_TIRED,
@@ -90,6 +91,9 @@ export interface ShipView {
     // 自上次母港以來用高速修復材（入渠時直接用或入渠途中用）的請求時刻：cond 未滿 40 在此刻
     // 補到 40（見 utils/cond.ts）。沒有這件事為 null／省略。
     condFloorAt?: number | null;
+    // 補值前、最近一次母港觀測的 cond。`cond` 已是補到 40 後畫面上的值，推算自然回復仍須從
+    // 母港時刻的原值起算，否則會把母港到補值之間的回復重複計入。沒有補值時省略。
+    condAtPort?: number;
     // 本次出擊已由艦隊司令部施設退避：已離開艦隊，不再參戰，也不計入該隊的
     // 等級／制空／索敵／TP（見 GameState.escapedShipIds）。回港即歸零。
     escaped: boolean;
@@ -1167,9 +1171,19 @@ export class GameState {
     // 最近一次 api_port/port 的時間戳：伺服器只在進入母港時補算士氣自然回復，
     // 推算「何時回到 49」必須從這個時刻起算（見 utils/cond.ts）。
     portAt: number | undefined;
-    // 自上次母港以來用高速修復材的時刻（key: 艦實例 id；入渠時直接用與入渠途中用皆記）。
-    // 母港封包的 cond 已含補值，回港即清空。
-    bucketDockAtByShip = new Map<number, number>();
+    // 自上次母港以來用高速修復材的時刻與補值前的 cond（key: 艦實例 id；入渠時直接用與
+    // 入渠途中用皆記）。母港封包的 cond 已含補值，回港即清空。
+    bucketDockAtByShip = new Map<number, { at: number; condBefore: number }>();
+
+    // 高速修復：遊戲當下就把未滿 40 的 cond 補到 40，面板跟著改，不必等母港封包。
+    // 同一次母港之間重複用桶時保留第一次的補值時刻與原值，推算才不會從已補過的值重算。
+    private applyBucketCondFloor(shipId: number, ship: any, ts: number) {
+        if (!ship) return;
+        const cond = Number(ship.api_cond);
+        if (!Number.isFinite(cond)) return;
+        if (!this.bucketDockAtByShip.has(shipId)) this.bucketDockAtByShip.set(shipId, { at: ts, condBefore: cond });
+        ship.api_cond = Math.max(cond, COND_DOCK_FLOOR);
+    }
 
     private resetRepairAnchor(deckIdx: number, ts: number) {
         if (deckIdx < 0) return;
@@ -2179,7 +2193,7 @@ export class GameState {
                 // 高速修復（バケツ）：即時全快、不占入渠槽
                 if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
                 // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
-                if (Number.isFinite(shipId)) this.bucketDockAtByShip.set(shipId, ts);
+                if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, ts);
             } else {
                 const idx = Number(req.api_ndock_id) - 1;
                 const dock = this.ndockData[idx];
@@ -2224,7 +2238,7 @@ export class GameState {
             if (dock && dock.api_state === 1 && shipId > 0) {
                 const ship = this.ships.get(shipId);
                 if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
-                this.bucketDockAtByShip.set(shipId, ts);
+                this.applyBucketCondFloor(shipId, ship, ts);
                 dock.api_state = 0;
                 dock.api_ship_id = 0;
                 dock.api_complete_time = 0;
@@ -4259,7 +4273,8 @@ export class GameState {
                         ndockTime: Number(s.api_ndock_time ?? 0),
                         inDock: dockCompleteById.has(id),
                         dockCompleteAt: dockCompleteById.get(id) || null,
-                        condFloorAt: this.bucketDockAtByShip.get(id) ?? null,
+                        condFloorAt: this.bucketDockAtByShip.get(id)?.at ?? null,
+                        ...(this.bucketDockAtByShip.has(id) ? { condAtPort: this.bucketDockAtByShip.get(id)!.condBefore } : {}),
                         escaped: this.escapedShipIds.has(id),
                         lv: s.api_lv, hp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
                         fuel: s.api_fuel ?? 0, maxFuel: mst?.fuelMax ?? 0,

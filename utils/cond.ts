@@ -11,7 +11,8 @@
 //     多個週期一次結算（floor(經過時間 / 15 分)），且**先自然回復、再給糧**。
 //   ・入渠（使用者確認之遊戲行為）：完成當下 cond 未滿 40 即補到 40，之後從完成時刻起照常
 //     自然回復；入渠期間的自然回復也照算。自然結束以 api_complete_time 為完成時刻，入渠時直接
-//     用高速修復材則以該請求時刻為準（見 ShipView.condFloorAt）。
+//     用高速修復材則以該請求時刻為準（見 ShipView.condFloorAt）；此時面板 cond 已補到 40，
+//     推算改從 ShipView.condAtPort（母港觀測的原值）起算。
 
 import type { FleetView, ShipView } from './state';
 import {
@@ -58,7 +59,10 @@ export function naturalRecoveryAt(cond: number, asOf: number): number | null {
     return (Math.floor(asOf / COND_STEP_MS) + steps) * COND_STEP_MS;
 }
 
-type CondShip = Pick<ShipView, 'cond' | 'inDock' | 'dockCompleteAt' | 'condFloorAt'>;
+type CondShip = Pick<ShipView, 'cond' | 'condAtPort' | 'inDock' | 'dockCompleteAt' | 'condFloorAt'>;
+
+/** 推算的起點：觀測時刻（母港）的 cond。高速修復已在畫面上補值時取補值前的原值。 */
+const portCond = (ship: CondShip) => ship.condAtPort ?? ship.cond;
 
 /**
  * 入渠把 cond 補到 40 的時刻：高速修復的請求時刻優先，否則取入渠中的完成時刻。
@@ -72,17 +76,19 @@ function dockFloorAt(ship: CondShip, asOf: number): number | null {
 /** cond 在 `at` 進母港會是多少：自然回復，加上入渠完成補到 40 後的接續回復。 */
 export function projectShipCond(ship: CondShip, asOf: number, at: number): number {
     const floorAt = dockFloorAt(ship, asOf);
-    if (floorAt === null || at < floorAt) return projectNaturalCond(ship.cond, asOf, at);
-    const floored = Math.max(projectNaturalCond(ship.cond, asOf, floorAt), COND_DOCK_FLOOR);
+    const cond = portCond(ship);
+    if (floorAt === null || at < floorAt) return projectNaturalCond(cond, asOf, at);
+    const floored = Math.max(projectNaturalCond(cond, asOf, floorAt), COND_DOCK_FLOOR);
     return projectNaturalCond(floored, floorAt, at);
 }
 
 /** 不計給糧時單艦到 49 的時刻（含入渠補值）；已達 49 回 null。 */
 export function shipRecoveryAt(ship: CondShip, asOf: number): number | null {
-    const natural = naturalRecoveryAt(ship.cond, asOf);
+    const cond = portCond(ship);
+    const natural = naturalRecoveryAt(cond, asOf);
     const floorAt = dockFloorAt(ship, asOf);
     if (natural === null || floorAt === null || floorAt >= natural) return natural;
-    const floored = Math.max(projectNaturalCond(ship.cond, asOf, floorAt), COND_DOCK_FLOOR);
+    const floored = Math.max(projectNaturalCond(cond, asOf, floorAt), COND_DOCK_FLOOR);
     return Math.min(natural, naturalRecoveryAt(floored, floorAt) ?? floorAt);
 }
 

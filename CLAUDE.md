@@ -42,6 +42,7 @@ npx vite-node --config vitest.config.ts tools/preview/panel-general.ts
 npx vite-node --config vitest.config.ts tools/preview/quest-flow-guide.ts
 npx vite-node --config vitest.config.ts tools/preview/quest-flow-section.ts
 npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
+npx vite-node --config vitest.config.ts tools/preview/route-forecast.ts
 ```
 
 需要瀏覽器檢視 `.preview/*.html` 時，依 [`AGENTS.md`](AGENTS.md) 先從專案根目錄啟動 localhost HTTP server，檢視後清理 server；不可使用 live 遊戲頁。介面改動不得只看單一語系預覽結案：台灣華語、英文、日文三種都要核對（離線對照或正式頁切語言皆可）。
@@ -54,7 +55,7 @@ npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
   → bridge.content.ts（ISOLATED，驗證同源、去 token、送 runtime message）
   → background.ts（解析、ingestEvent、snapshot、通知、資源序列、裁剪）
   → panel/main.ts（baseline + raw event projection + 即時 UI）
-  → overview/（只讀 GameState／derived tables，不做投影）
+  → overview/（只讀 GameState／derived tables，不做投影；收 kc:live 後只補套 reducer，見 overview/live-state.ts）
 ```
 
 | 範圍 | 主要檔案 | 變更前必讀 |
@@ -65,7 +66,7 @@ npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts
 | 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | 該功能在 engineering log 的同名章節、`docs/design-guidelines.md` §4.7／§4.8 |
 | 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | engineering log 劇場／拍照／編成寫真章節；不得連 live 遊戲驗證 |
 | 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | Handoff、備份還原章節；任何 schema 或格式變更先確認相容性 |
-| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | index「譯名與產生物」、各產生器與 `tools/*/README.md`；產生物勿手改 |
+| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | index「譯名與產生物」、各產生器與 `tools/*/README.md`；產生物勿手改 |
 
 ## 不可破壞的目前契約
 

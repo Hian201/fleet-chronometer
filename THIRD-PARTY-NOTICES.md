@@ -99,6 +99,54 @@
 
 ---
 
+## 5c. 海域節點座標與路線 (Map spot coordinates & routes)
+
+- **用途**：`utils/map-spots.ts`（由 `tools/map-spots/generate.py` 從 `tools/map-spots/map.json`
+  產生）——情報總括「常規導航」以遊戲畫面座標畫出節點、出擊點與路線。
+- **來源**：poi `fcd/map.json` —— https://github.com/poooi/poi （該檔由遊戲地圖資源
+  `kcs2/resources/map/<area>/<no>_info.json` 的 spots 抽出）
+- **授權**：MIT License
+- **版權**：Copyright (c) 2015-2021 poi contributors
+- **散布內容**：`tools/map-spots/map.json` 為原始檔的副本（取得日 2026-10-21，上游最後更新
+  2026-07-27）；產生物只收常規海域（world < 10），捨棄開放出擊點的虛擬路線。
+- **交叉比對**：產生器逐筆比對 route id → 終點與 KC3Kai `edges.json`（§5），37 張常規海域
+  全數一致；唯一差異 7-4 route 3 的起點，以 wikiwiki 7-4 分岐表（出撃→A／C）判定 poi 正確。
+
+## 5d. 常規導航底圖 (Normal map routes base map)
+
+- **用途**：`utils/map-geo-data.ts`（由 `tools/map-geo/generate.py` 產生）——常規導航的陸地與珊瑚礁背景。
+- **來源**：Natural Earth 1:10m Land、Minor Islands、Reefs —— https://www.naturalearthdata.com/
+- **授權**：公有領域（public domain），無須標示；此處登錄以利追溯。
+- **不使用遊戲底圖**：遊戲海域底圖是原創美術，不隨擴充散布。`tools/map-geo/georef.json` 的對位
+  參數由 `fit.py` 擬合、`review.py` 目視核對後人工寫入，核對用的遊戲截圖只放在不進版本庫的
+  `tools/map-geo/.cache/`。
+
+- **世界地圖選擇**：同一份 Natural Earth 陸地另產生印度洋～太平洋的選擇用底圖（`WORLD_PICKER`）。
+  各海域的位置標點（`utils/map-locations.ts`）參考巴哈姆特艦隊 Collection 板〈【心得】海域航海圖考證〉的
+  考證座標（地理事實，只取經緯度，不轉載內容）。
+
+## 5e. 常規導航分岐法則 (Normal map branching rules)
+
+- **用途**：`utils/route-rules-data.ts`——常規導航各分岐點的規則。
+- **來源**：wikiwiki.jp/kancolle 各海域頁「ルート分岐法則」表、「ルート分岐」頁「分岐点係数と閾値」表
+  與「注意すべき艦種表記一覧」。遊戲機制事實的人工轉寫（逐條改寫為結構化條件），不複製頁面文字。
+- **出典標示**：wikiwiki 要求轉載分岐法則時標明出典，故常規導航介面在每張圖下方標示
+  「分岐法則參考 wikiwiki」並連到該海域頁（介面不寫外部來源名稱的規則，僅此處例外）。
+- **版本**：每張圖記錄 wiki 的「ルート分岐法則更新日」與本專案核對日；頁面更新後逐條重新核對。
+
+## 5f. 常規導航到王編成參考 (Normal map boss-route fleets)
+
+- **用途**：`utils/route-suggestions.ts`——常規導航「到王編成參考」各海域的固定編成例。
+- **來源**：ぜかまし（https://zekamashi.net/kancolle-kouryaku/ ）各海域攻略頁「ルート固定」段落
+  （4-3 為第二個「マップ情報」、4-4 為「ルート情報」），取得日 2026-10-22。
+- **性質**：只取遊戲事實——艦種與隻數、路線字母、道中戰數、需求（航速、索敵門檻與分岐點係數、裝備搭載艦數）；
+  說明文字、版面與編排皆不取用，介面文案由本專案自行撰寫。產生器 `tools/route-suggest/` 以本機快取抓取
+  （請求間隔 2 秒以上，快取不進 git），並以 §5e 的分岐法則逐組推算，把核對結果（一致／另有去向／不符）
+  一併記錄；來源與規則不符時保留來源原文意義、不改寫成規則推算的結果。
+- **交叉比對**：きとんゲーム（https://kitongame.com/ ）各海域攻略記事，取得日 2026-10-22，只用來比對路線與資料新舊，
+  未取用其內容。
+- **介面**：依「介面不寫外部來源名稱」的規則，編成參考不標示來源名稱。
+
 ## 5a. 通常海域關名與作戰名（英文） (Normal map & operation names)
 
 - **用途**：`utils/map-names.ts`——出擊紀錄「不記錄的海域」選單與任務導覽的海域標示共用的

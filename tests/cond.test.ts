@@ -169,9 +169,34 @@ describe('GameState 高速修復入渠', () => {
         const docked = state.fleets()[0]!.ships[0]!;
         expect(docked.condFloorAt).toBe(AS_OF + MIN);
         expect(docked.hp).toBe(10);
+        // 面板當下就顯示補到 40，推算仍從母港的 12 起算。
+        expect(docked.cond).toBe(40);
+        expect(docked.condAtPort).toBe(12);
         expect(fleetCondRecoveryEta(state.fleets()[0]!)?.at).toBe(BOUNDARY + 9 * MIN);
         state.applyEvent('api_port/port', port, undefined, AS_OF + 2 * MIN);
         expect(state.fleets()[0]!.ships[0]!.condFloorAt).toBeNull();
+        expect(state.fleets()[0]!.ships[0]!.condAtPort).toBeUndefined();
+    });
+
+    it('cond 已滿 40 不動；同一次母港內再用桶保留第一次的原值', () => {
+        const state = new GameState();
+        const port = {
+            api_ship: [
+                { api_id: 1, api_ship_id: 2, api_lv: 1, api_nowhp: 5, api_maxhp: 10, api_cond: 45, api_ndock_time: 600_000, api_slot: [], api_slot_ex: -1, api_kyouka: [], api_fuel: 1, api_bull: 1 },
+                { api_id: 2, api_ship_id: 2, api_lv: 1, api_nowhp: 5, api_maxhp: 10, api_cond: 12, api_ndock_time: 600_000, api_slot: [], api_slot_ex: -1, api_kyouka: [], api_fuel: 1, api_bull: 1 },
+            ],
+            api_deck_port: [{ api_ship: [1, 2, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
+            api_ndock: [{ api_id: 1, api_state: 0, api_ship_id: 0, api_complete_time: 0 }],
+        };
+        state.applyEvent('api_port/port', port, undefined, AS_OF);
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '1', api_ndock_id: '1', api_highspeed: '1' }, AS_OF + MIN);
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '2', api_ndock_id: '1', api_highspeed: '1' }, AS_OF + MIN);
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '2', api_ndock_id: '1', api_highspeed: '1' }, AS_OF + 2 * MIN);
+        const [high, low] = state.fleets()[0]!.ships;
+        expect(high!.cond).toBe(45);
+        expect(low!.cond).toBe(40);
+        expect(low!.condAtPort).toBe(12);
+        expect(low!.condFloorAt).toBe(AS_OF + MIN);
     });
 
     it('入渠途中用高速修復材：以請求時刻補到 40，並清空該槽', () => {
@@ -195,6 +220,7 @@ describe('GameState 高速修復入渠', () => {
         expect(repaired.inDock).toBe(false);
         expect(repaired.hp).toBe(10);
         expect(repaired.condFloorAt).toBe(AS_OF + MIN);
+        expect(repaired.cond).toBe(40);
         expect(fleetCondRecoveryEta(state.fleets()[0]!)?.at).toBe(BOUNDARY + 9 * MIN);
     });
 

@@ -21,6 +21,13 @@ export interface SectionContext {
      * 呼叫後仍要接著呼叫 rerender() 才會重繪畫面。
      */
     reloadState(): Promise<void>;
+    /**
+     * 註冊「新封包已套用到 state」的通知（見 live-state.ts）。只在本次 render 有效：切換分區或
+     * 重繪時，main.ts 會清掉舊的註冊。分區頁在背景時通知會延後到切回前景才一次送出。
+     * 分區應只重畫受影響的內容，不得重建帶使用者輸入或展開狀態的控制項（CLAUDE.md 規則 9）。
+     * 不註冊的分區維持「進入分區時讀一次」的行為。
+     */
+    onStateChange?(listener: (paths: readonly string[]) => void): void;
 }
 
 export interface OverviewSection {
