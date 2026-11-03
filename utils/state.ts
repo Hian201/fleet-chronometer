@@ -11,12 +11,13 @@ import {
     type BattleFacts, type QuestJudgement, type QuestTier, type ServerObservation, type TextRule,
 } from './quest-tracking';
 import {
-    goalCount, goalTotal, idEntryHolds, judgeBattleGoals, judgeMissionGoals, judgePracticeGoals, judgeReachGoals,
+    factoryGains, goalCount, goalTotal, idEntryHolds, judgeBattleGoals, judgeMissionGoals, judgePracticeGoals, judgeReachGoals,
     questDay, questGoalFor,
     simpleGoalFromDef, sinkingGains,
-    type FleetFacts, type QuestGoalDef,
+    type FactoryFacts, type FleetFacts, type QuestGoalDef,
 } from './quest-goals';
 import { nodeLetter } from './map-node-letters';
+import { checkPrep, prepGateOpen, questPrepDef, type PrepCheck, type PrepFacts, type PrepFleet, type QuestPrepDef } from './quest-prep';
 import { COND_DOCK_FLOOR } from './cond';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
@@ -697,6 +698,11 @@ export interface QuestTargetView {
     shipType: number[] | null;
     /** 遠征成功的子目標：限定的遠征（名稱取自 start2）；不限遠征時為 null。 */
     missions: { id: number; name: string; dispNo: string }[] | null;
+    /** 廢棄裝備的子目標：限定的裝備類別名或裝備名（目前語言）；不限時缺席。 */
+    gearTypes?: string[];
+    gears?: string[];
+    /** 近代化改修的子目標：素材艦種與最少艘數。 */
+    material?: { types: number[]; min: number };
     count: number;
     need: number;
 }
@@ -714,8 +720,23 @@ export interface QuestTrackingView {
     hasLog: boolean;
     /** 條件表對照目前第一艦隊；沒有編成條件時為空陣列。 */
     fleetCheck: QuestConditionCheck[];
+    /** 任務達成條件（編成、裝備準備、海域攻略）對照目前鎮守府；沒有收錄時為 null。 */
+    prep: QuestPrepView | null;
     /** fleetCheck 用到的艦娘 master id → 艦名；艦級 id → 代表艦的艦名（介面顯示為「○○型」）。 */
     conditionNames: { ships: Record<number, string>; classes: Record<number, string> };
+}
+/** 任務達成條件對照目前鎮守府的結果。ready：條件與廢棄計數都齊（true）、有缺（false）、只差不可考的項目（null）。 */
+export interface QuestPrepView {
+    kind: QuestPrepDef['kind'];
+    ready: boolean | null;
+    /** 判定所用的艦隊（1 起算）；anyFleet 為任一艦隊皆可。 */
+    fleet: number | null;
+    anyFleet: boolean;
+    /** 廢棄只在秘書艦條件成立時計入。 */
+    gate: boolean;
+    checks: PrepCheck[];
+    /** 條件用到的艦娘、艦級代表艦、裝備的目前語言名稱。 */
+    names: { ships: Record<number, string>; classes: Record<number, string>; gears: Record<number, string> };
 }
 export type QuestConditionKind =
     | 'flagshipId' | 'secondshipId' | 'escortshipId' | 'escortshipIdAll' | 'flagshiptype' | 'escortshiptype'
@@ -913,6 +934,8 @@ export function speedKeyOf(minSoku: number): 'fastest' | 'fastPlus' | 'fast' | '
 export class GameState {
     nickname = '';
     hqLv = 1;
+    /** 家具幣（api_basic.api_fcoin）；尚未收到時為 null。 */
+    furnitureCoins: number | null = null;
     master = new Map<number, {
         name: string; stype: number; fuelMax: number; bullMax: number;
         slotNum?: number; maxeq?: number[]; sortno?: number;
@@ -978,7 +1001,8 @@ export class GameState {
     masterMapAreas = new Map<number, string>();
     masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number }>();
     ships = new Map<number, any>();
-    slotItems = new Map<number, { mst: number; level: number; alv: number }>();
+    // locked：api_locked（1＝鎖定）；局部資料不帶時沿用既有值，新取得的裝備為未鎖定。
+    slotItems = new Map<number, { mst: number; level: number; alv: number; locked?: boolean }>();
     masterUseItems = new Map<number, string>();
     // 道具清單是最近一次觀測到的完整快照；null 代表尚未收到，空 Map 代表收到空清單。
     useItemCounts: Map<number, number> | null = null;
@@ -1191,6 +1215,25 @@ export class GameState {
         this.moraleAnchorByDeck.set(deckIdx, ts);
     }
 
+    // 解体與近代化改修共用：移除艦娘，destroyGear 時連同一般槽與補強增設的裝備一起移出倉庫
+    // （KC3Kai ShipManager.remove 亦含補強增設）。必須在刪艦前讀 api_slot，刪後就查不到。
+    // 移出編成等同改動成員，比照 api_req_hensei/change 重置受影響艦隊的泊地修理／給糧錨點。
+    private removeShips(ids: number[], destroyGear: boolean, ts: number) {
+        for (const sid of ids) {
+            const s = this.ships.get(sid);
+            if (s && destroyGear)
+                for (const gid of [...(s.api_slot ?? []), s.api_slot_ex])
+                    if (gid > 0) this.slotItems.delete(gid);
+            this.ships.delete(sid);
+        }
+        this.decks.forEach((d, di) => {
+            if (!d.api_ship.some((id: number) => ids.includes(id))) return;
+            d.api_ship = d.api_ship.map((id: number) => (ids.includes(id) ? -1 : id));
+            this.compactDeckShips(d);
+            this.resetRepairAnchor(di, ts);
+        });
+    }
+
     /**
      * 遊戲編成不會留下空位：id>0 的艦一律往前擠，尾端補 -1，陣列長度不變（6 或遊撃 7）。
      * `api_req_hensei/change` 的回應通常不含新編成（只有一括解除才帶 api_change_count），
@@ -1294,7 +1337,8 @@ export class GameState {
         const parsedAlv = GameState.nonNegativeIntOrNull(record.api_alv);
         const level = parsedLevel ?? previous?.level ?? 0;
         const alv = parsedAlv ?? previous?.alv ?? 0;
-        this.slotItems.set(id, { mst, level, alv });
+        const locked = record.api_locked === undefined ? previous?.locked ?? false : Number(record.api_locked) === 1;
+        this.slotItems.set(id, { mst, level, alv, locked });
         // 只有封包明確送出有效熟練度時才算完成校正；僅有 id/master 或改修值的局部資料
         // 不能證明既有熟練度仍正確。
         if (parsedAlv != null) this.alvStaleGears.delete(id);
@@ -1602,6 +1646,7 @@ export class GameState {
             this.maxSlotitem = api.api_max_slotitem ?? this.maxSlotitem;
             this.nickname = api.api_nickname ?? this.nickname;
             this.hqLv = api.api_level ?? this.hqLv;
+            this.furnitureCoins = GameState.nonNegativeIntOrNull(api.api_fcoin) ?? this.furnitureCoins;
         } else if (path === 'api_get_member/record') {
             // 戰績畫面：api_ship／api_slotitem 是 [目前數量, 上限]，上限值與 api_max_chara／
             // api_max_slotitem 相同（KC3Kai 與 EO 的型別定義一致）。上限格不是非負整數時保留原值。
@@ -1661,6 +1706,7 @@ export class GameState {
                 });
                 this.newBuilds.push({ kdockId: d.api_id, shipMst: d.api_created_ship_id, secretary: this.secretaryMst(), used });
                 this.bumpQuestProgress('build');
+                this.countQuestFactory({ event: 'create_ship', amount: 1 }, ts);
             }
             this.kdockData = api;
         } else if (path === 'api_req_kousyou/getship') {
@@ -1700,8 +1746,10 @@ export class GameState {
             // 播種（未回過母港，updateMaterials 差分讀不到）時才用此值補上。
             if (!used[6]) used[6] = results.length;
             this.lastDevelop = { results, secretary: this.secretaryMst(), used };
-            // 開發任務常註明「失敗もOK」，故不論成敗、每次呼叫都算一次「開發」。
-            this.bumpQuestProgress('development');
+            // 開發任務常註明「失敗もOK」，故不論成敗都算；三連開發算 3 次（poi quests-cross-slice.ts
+            // 以 api_get_items 件數計、KC3Kai Kcsapi.js 逐件累加，兩者一致）。
+            this.bumpQuestProgress('development', results.length);
+            this.countQuestFactory({ event: 'create_item', amount: results.length }, ts);
         } else if (path === 'api_req_kousyou/remodel_slot' && req) {
             // 改修（明石の改修工廠）。已用真實封包驗證（見 state.ts 開頭註解，含成功／
             // 確実化／失敗三案例）：req.api_slot_id=對象裝備實例、req.api_certain_flag=
@@ -1727,10 +1775,11 @@ export class GameState {
                 secretary: this.secretaryMst(),
                 used,
             };
-            // remodelAttempt 不論成敗都算（任務619「装備の改修強化」明講「失敗もOK」）；
-            // remodel 僅成功才算（其餘改修類任務，見 quest-progress.ts QUEST_ID_OVERRIDES）。
+            // 條件表的改修子目標不論成敗都算（poi quests-cross-slice.ts 與 KC3Kai Kcsapi.js 對 619／1166／1167
+            // 皆不看 api_remodel_flag）；remodel 僅供文字推算的「改修 N 回」任務。
             this.bumpQuestProgress('remodelAttempt');
             if (remodelSuccess) this.bumpQuestProgress('remodel');
+            this.countQuestFactory({ event: 'remodel_item', amount: 1 }, ts);
         } else if (path === 'api_get_member/questlist') {
             // 2020-03-27 起 API 不再分頁：單一 tab 回傳該分類的**全部**任務（遊戲 UI 仍
             // 可能分頁顯示）。api_tab_id：0=全て／1=デイリー／2=ウィークリー／3=マンスリー／
@@ -1860,6 +1909,7 @@ export class GameState {
             this.maxSlotitem = api.api_basic?.api_max_slotitem ?? this.maxSlotitem;
             this.nickname = api.api_basic?.api_nickname ?? this.nickname;
             this.hqLv = api.api_basic?.api_level ?? this.hqLv;
+            this.furnitureCoins = GameState.nonNegativeIntOrNull(api.api_basic?.api_fcoin) ?? this.furnitureCoins;
             this.combinedFlag = api.api_combined_flag ?? 0;
             this.currentSortieFleetId = 0;
             this.battleInfo = null;
@@ -2057,52 +2107,57 @@ export class GameState {
             // api_data.api_combined 恆為 1，是「連合已啟用」的通用成功旗標、不是型別值；
             // 編制類型必須讀取 req.api_combined_type。
             this.combinedFlag = Number(req?.api_combined_type ?? 0);
-        } else if (path === 'api_req_kaisou/destroyship' && req) {
-            // 解体：移除艦娘（api_ship_id 可為逗號分隔多艘），面板即時反映艦娘數/編成。
+        } else if (path === 'api_req_kousyou/destroyship' && req) {
+            // 解体（工廠端點，api_ship_id 可為逗號分隔多艘）：面板即時反映艦娘數／裝備數／編成。
+            // 端點與 api_slot_dest_flag（0=保管、1=廃棄）依 KC3Kai src/library/modules/Kcsapi.js
+            // 與 ElectronicObserver Other/Information/apilist.txt 交叉比對。
             const ids = (req.api_ship_id ?? '').split(',').map(Number).filter(n => n > 0);
-            const destroyGear = req.api_slot_dest === '1';   // 「装備も解体」時は装備も倉庫から消える
-            for (const sid of ids) {
-                const s = this.ships.get(sid);
-                if (s && destroyGear)
-                    for (const gid of [...(s.api_slot ?? []), s.api_slot_ex])
-                        if (gid > 0) this.slotItems.delete(gid);
-                this.ships.delete(sid);
-            }
-            // 除籍等同改動了所在艦隊的編成成員，比照 api_req_hensei/change 的規則重置該隊
-            // 泊地修理／給糧計時器錨點；只重置真的受影響的隊，不影響其他艦隊。
-            this.decks.forEach((d, di) => {
-                if (!d.api_ship.some((id: number) => ids.includes(id))) return;
-                d.api_ship = d.api_ship.map((id: number) => (ids.includes(id) ? -1 : id));
-                this.compactDeckShips(d);
-                this.resetRepairAnchor(di, ts);
-            });
+            this.removeShips(ids, req.api_slot_dest_flag === '1', ts);
             // 解体艦娘任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務609「軍縮条約対応！」）：
             // 一次請求可逗號分隔解體多艘，逐艘計數（非逐次請求計數）。
-            if (ids.length > 0) this.bumpQuestProgress('shipScrap', ids.length);
-        } else if (path === 'api_req_kaisou/destroyitem2' && req) {
+            if (ids.length > 0) {
+                this.bumpQuestProgress('shipScrap', ids.length);
+                this.countQuestFactory({ event: 'destroy_ship', amount: ids.length }, ts);
+            }
+        } else if (path === 'api_req_kousyou/destroyitem2' && req) {
             // 装備廃棄：即時に装備数へ反映
             const gearIds = (req.api_slotitem_ids ?? '').split(',').map(Number).filter(n => n > 0);
+            // 類別／裝備限定的廢棄任務要在刪除前查 master；倉庫裡查不到的件記為 -1，只會少算。
+            const gears = gearIds.map(gid => {
+                const mst = this.slotItems.get(gid)?.mst;
+                const type = mst === undefined ? undefined : this.masterGears.get(mst)?.cat;
+                return { id: mst ?? -1, type: type || -1 };
+            });
             for (const gid of gearIds) this.slotItems.delete(gid);
-            // 廃棄装備任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務613「資源の再利用」）：
-            // 一次請求可逗號分隔廢棄多個，逐個計數（非逐次請求計數）。
-            if (gearIds.length > 0) this.bumpQuestProgress('gearScrap', gearIds.length);
+            // 任務613「資源の再利用」等「廃棄 N 回」以請求次數計，不論一次廢棄幾件
+            // （poi 條件表的 times、KC3Kai Kcsapi.js 對 613 每次請求 +1，兩者一致）。
+            if (gearIds.length > 0) {
+                this.bumpQuestProgress('gearScrap');
+                this.countQuestFactory({ event: 'destory_item', amount: 1, gears }, ts);
+            }
         } else if (path === 'api_req_kaisou/remodeling') {
             // 現代真封包樣本仍缺席，回應欄位不可拿來覆蓋完整艦／艦隊／裝備狀態。
             // 原始事件照常保存；後續已驗證的 port／require_info 快照會完成校正。
         } else if (path === 'api_req_kaisou/powerup' && req) {
             // 近代化改修：餌艦(api_id_items)消滅・強化先(api_ship)更新
             this.ingestShips(api?.api_ship);
+            // api_slot_dest_flag=1 時餌艦裝備隨艦廢棄，0 時卸下留在倉庫。回應與之後的 port 都不帶
+            // 裝備清單，漏刪會讓裝備數一直偏高到下次 require_info／slot_item。
+            // 旗標語意依 KC3Kai src/library/modules/Kcsapi.js、
+            // poi views/redux/middlewares/equips-cross-slice.ts、ElectronicObserver
+            // Observer/kcsapi/api_req_kaisou/powerup.cs 交叉比對（三者皆以非 0 為廢棄）。
             const feeders = (req.api_id_items ?? '').split(',').map(Number).filter(n => n > 0);
-            for (const sid of feeders) this.ships.delete(sid);
-            // 餌艦被移出編成同等改動成員，比照 api_req_hensei/change 的規則重置該隊計時器錨點。
-            this.decks.forEach((d, di) => {
-                if (!d.api_ship.some((id: number) => feeders.includes(id))) return;
-                d.api_ship = d.api_ship.map((id: number) => (feeders.includes(id) ? -1 : id));
-                this.compactDeckShips(d);
-                this.resetRepairAnchor(di, ts);
-            });
-            // 近代化改修没有失敗判定（有餌就必定吃成功），故每次呼叫都算一次成功。
-            this.bumpQuestProgress('modernization');
+            // 素材艦種限定的任務（714〜719 等）要在移除餌艦前查艦種。
+            const materialTypes = feeders
+                .map(id => this.master.get(Number(this.ships.get(id)?.api_ship_id))?.stype)
+                .filter((type): type is number => typeof type === 'number' && type > 0);
+            this.removeShips(feeders, req.api_slot_dest_flag === '1', ts);
+            // 任務只算 api_powerup_flag 為 1 的成功改修（poi quests-cross-slice.ts 與 KC3Kai Kcsapi.js 一致；
+            // 本專案尚無失敗樣本）。
+            if (Number(api?.api_powerup_flag) === 1) {
+                this.bumpQuestProgress('modernization');
+                this.countQuestFactory({ event: 'remodel_ship', amount: 1, materialTypes }, ts);
+            }
         } else if (path === 'api_req_kaisou/slot_exchange_index' && req) {
             // 拖曳交換同艦兩個已裝備槽位（制空／艦載機換位的主要觸發路徑）。**已用真封包
             // 驗證**（samples/slot-exchange-index.json，三筆，含互為逆操作的一組
@@ -2147,6 +2202,12 @@ export class GameState {
             }
             // 現有真封包樣本的回應只有裸 api_result；請求投影已涵蓋已驗證的動作結果。
             // 不讀取未驗證的假想回應欄位，避免局部物件覆蓋完整艦船或裝備狀態。
+        } else if (path === 'api_req_kaisou/lock' && req) {
+            // 裝備鎖定切換：請求 api_slotitem_id、回應 api_locked（KC3Kai src/library/modules/Kcsapi.js、
+            // poi views/redux/info/equips.ts 交叉比對；本專案尚無樣本）。回應欄位不是 0／1 時不改。
+            const item = this.slotItems.get(Number(req.api_slotitem_id));
+            const locked = Number(api?.api_locked);
+            if (item && (locked === 0 || locked === 1)) item.locked = locked === 1;
         } else if (path === 'api_req_kaisou/slotset_ex' && req) {
             // 補強增設（ex slot）：無 api_slot_idx，只有 api_id + api_item_id（-1=卸下）。
             // 已用真實封包驗證（req: api_id=215&api_item_id=71340，無 idx 欄位）。
@@ -2184,6 +2245,7 @@ export class GameState {
             // 入渠任務以實際送出的入渠請求計數；高速修復同樣走此端點，仍保留原始
             // 動作事實，不從本機猜測遊戲是否因修理時間而另作判斷。
             this.bumpQuestProgress('dock');
+            this.countQuestFactory({ event: 'repair', amount: 1 }, ts);
             // nyukyo/start 的回應本身不含修理時間；修復到全快所需的毫秒數
             // 記在艦船物件上（api_ship[].api_ndock_time）。用它算完成時刻，
             // 面板即可即時顯示入渠倒數，不必回母港。
@@ -2210,6 +2272,7 @@ export class GameState {
             // 補給任務（例：「艦隊酒保祭り！受注中」的補給15回）每次 charge 請求
             // 算一次，不以實際補了幾艘或補了多少資源猜測次數。
             this.bumpQuestProgress('supply');
+            this.countQuestFactory({ event: 'supply', amount: 1 }, ts);
             // 補給：即時更新艦船燃料/彈藥/艦載機，讓面板不必回母港就反應
             for (const s of api.api_ship ?? []) {
                 const ship = this.ships.get(s.api_id);
@@ -2765,11 +2828,16 @@ export class GameState {
         const local = this.questLocal(no, record);
         const previous = record.server.at(-1);
         if (previous && previous.flag === flag && previous.done === done && previous.local === (local?.count ?? null)) return;
+        // 裝備準備類：廢棄計數已滿而伺服器未達成是正常的（還差編成、裝備或持有條件），
+        // 進度旗標也混入持有條件，不以單一目標的 flag 判多算。
+        const prepExtra = this.questPrepHasExtra(no);
         record.server.push({
             ts, flag, done,
             local: local?.count ?? null,
             target: local?.target ?? null,
-            status: local ? compareWithServer(local.count, local.target, flag, done, local.single) : null,
+            status: !local ? null
+                : prepExtra && !done && local.count >= local.target ? 'consistent'
+                    : compareWithServer(local.count, local.target, flag, done, local.single && !prepExtra),
         });
         if (record.server.length > QUEST_SERVER_CAP) record.server.splice(0, record.server.length - QUEST_SERVER_CAP);
     }
@@ -2857,6 +2925,101 @@ export class GameState {
                 practice: true, reason: result.reason,
             });
         }
+    }
+
+    /** 工廠、補給入渠與近代化改修：只累加條件表的對應子目標，不記判定紀錄（沒有海域與評價可對照）。 */
+    private countQuestFactory(facts: FactoryFacts, ts: number): void {
+        let prepFacts: PrepFacts | null = null;
+        for (const [no, record] of this.questTracking) {
+            if (this.quests.get(no)?.done) continue;
+            const def = this.activeGoal(no, record, ts);
+            if (!def) continue;
+            // 機種轉換類：秘書艦與裝備要在廢棄當下就成立，否則遊戲不計入。
+            const prep = facts.event === 'destory_item' ? this.questPrep(no) : null;
+            if (prep?.gate && !prepGateOpen(prep, prepFacts ??= this.prepFacts())) continue;
+            this.addGoalCounts(def, record, factoryGains(def, facts));
+        }
+    }
+
+    /** 任務達成條件；營運重用編號（即時標題與目錄不同）時不套用。 */
+    private questPrep(no: number): QuestPrepDef | null {
+        return questCatalogIdentity(no, this.quests.get(no)?.name) === 'mismatch' ? null : questPrepDef(no);
+    }
+
+    /** 達成條件不只廢棄計數（還要編成、裝備或持有）：伺服器在條件齊備前不會回報達成。 */
+    private questPrepHasExtra(no: number): boolean {
+        const prep = this.questPrep(no);
+        return !!prep && !!(prep.reqs?.length || prep.slots || prep.hold || prep.res || prep.items);
+    }
+
+    private prepFleet(deckIdx: number): PrepFleet {
+        const ships = ((this.decks[deckIdx]?.api_ship ?? []) as number[])
+            .filter(id => id > 0).map(id => this.ships.get(id)).filter((ship): ship is any => !!ship);
+        const masters = ships.map(ship => Number(ship.api_ship_id));
+        return {
+            countsAs: masters.map(id => this.shipCountsAs(id)),
+            stype: masters.map(id => this.master.get(id)?.stype ?? -1),
+            ctype: masters.map(id => this.master.get(id)?.ctype ?? -1),
+            lv: ships.map(ship => Number(ship.api_lv) || 0),
+            soku: ships.map(ship => Number(ship.api_soku) || 0),
+        };
+    }
+
+    /** 任務達成條件用的目前鎮守府狀態。未裝備＝不在任何艦上、也不在基地航空隊。 */
+    private prepFacts(): PrepFacts {
+        const equipped = new Set<number>();
+        for (const ship of this.ships.values()) {
+            for (const id of [...(ship.api_slot ?? []), ship.api_slot_ex]) if (Number(id) > 0) equipped.add(Number(id));
+        }
+        for (const base of this.airBases.values()) {
+            for (const plane of base?.api_plane_info ?? []) if (Number(plane?.api_slotid) > 0) equipped.add(Number(plane.api_slotid));
+        }
+        const flagship = this.ships.get(Number(this.decks[0]?.api_ship?.[0]));
+        return {
+            fleets: [0, 1, 2, 3].map(index => this.prepFleet(index)),
+            secretarySlots: ((flagship?.api_slot ?? []) as number[]).map(id => {
+                const item = Number(id) > 0 ? this.slotItems.get(Number(id)) : undefined;
+                return item ? { mst: item.mst, level: item.level, alv: item.alv, locked: item.locked } : null;
+            }),
+            freeGears: this.slotItemInventoryKnown
+                ? [...this.slotItems].filter(([id]) => !equipped.has(id)).map(([, item]) => ({ mst: item.mst, level: item.level, alv: item.alv, locked: item.locked }))
+                : null,
+            materials: this.materials.length >= 8 ? this.materials : null,
+            useItems: this.useItemCounts,
+            furnitureCoins: this.furnitureCoins,
+            mapCleared: id => this.mapGauges.get(id)?.cleared ?? null,
+        };
+    }
+
+    private questPrepView(no: number, record: QuestTrackRecord): QuestPrepView | null {
+        const prep = this.questPrep(no);
+        if (!prep) return null;
+        const result = checkPrep(prep, this.prepFacts());
+        // 廢棄計數也要滿才算條件齊備。
+        const local = this.questLocal(no, record);
+        const scrapDone = !local || local.count >= local.target;
+        const ready = result.ready === false || !scrapDone ? false : result.ready;
+        const ships: Record<number, string> = {};
+        const classes: Record<number, string> = {};
+        const gears: Record<number, string> = {};
+        for (const check of result.checks) {
+            for (const id of check.ids) {
+                if (['flag', 'second', 'ships'].includes(check.kind)) ships[id] ??= localizeShip(id, this.master.get(id)?.name);
+                else if (['flagClass', 'classes', 'classesMax'].includes(check.kind)) classes[id] ??= this.classRepresentative(id);
+                else if (check.kind === 'slot' || check.kind === 'hold') gears[id] ??= localizeGear(id, this.masterGears.get(id)?.name);
+            }
+        }
+        return { kind: prep.kind, ready, fleet: result.fleet, anyFleet: prep.fleet === 'any', gate: !!prep.gate, checks: result.checks, names: { ships, classes, gears } };
+    }
+
+    /** 艦級的代表艦名：該艦級中図鑑番号最小的艦娘（id < 1500 為艦娘，其餘為深海）。 */
+    private classRepresentative(ctype: number): string {
+        let best: [number, number] | null = null;
+        for (const [id, ship] of this.master) {
+            if (id >= 1500 || ship.ctype !== ctype || !(ship.sortno! > 0)) continue;
+            if (!best || ship.sortno! < best[1]) best = [id, ship.sortno!];
+        }
+        return best ? localizeShip(best[0], this.master.get(best[0])?.name) : `#${ctype}`;
     }
 
     /** 遠征成功：只看條件表的遠征子目標；不相關的遠征不記錄。 */
@@ -2951,6 +3114,9 @@ export class GameState {
                 event: sub.event, maparea: maps, nodeLetters: letters,
                 shipType: sub.shipType ? [...sub.shipType] : null,
                 missions: sub.missionId ? sub.missionId.map(id => ({ id, name: this.masterMissions.get(id)?.name ?? `#${id}`, dispNo: this.masterMissions.get(id)?.dispNo ?? String(id) })) : null,
+                ...(sub.slotitemType2 ? { gearTypes: sub.slotitemType2.map(id => localizeEquipmentType(id, this.masterEquipTypes.get(id) || `#${id}`)) } : {}),
+                ...(sub.slotitemId ? { gears: sub.slotitemId.map(id => localizeGear(id, this.masterGears.get(id)?.name ?? `#${id}`)) } : {}),
+                ...(sub.materialShipType ? { material: { types: [...sub.materialShipType], min: sub.materialShipMinCount ?? 3 } } : {}),
                 count: Math.min(sub.required, counts[index] ?? 0), need: sub.required,
             };
         });
@@ -2960,9 +3126,10 @@ export class GameState {
         const def = this.questGoal(no);
         const local = this.questLocal(no, record);
         const latest = record.server.at(-1) ?? null;
-        const text = local ? null : this.questTextRule(no, record);
+        const prep = this.questPrepView(no, record);
+        const text = local || prep ? null : this.questTextRule(no, record);
         return {
-            tier: questTier(!!local, !!text, record.server),
+            tier: questTier(!!local || !!prep, !!text, record.server),
             recheck: needsRecheck(record.server),
             range: local ? progressRange(local.count, local.target, latest ?? undefined) : null,
             targets: def?.supported && record.goalCounts && def.subgoals.length > 1 ? this.goalViews(def, record.goalCounts) : null,
@@ -2971,6 +3138,7 @@ export class GameState {
             candidates: record.judgements.filter(item => item.candidate).length,
             hasLog: record.judgements.length > 0 || record.server.length > 0,
             ...this.questFleetConditions(def?.supported && record.goalCounts ? def : null),
+            prep,
         };
     }
 
@@ -2987,15 +3155,7 @@ export class GameState {
         const classes: Record<number, string> = {};
         for (const check of fleetCheck) {
             if (!check.kind.endsWith('class')) continue;
-            for (const ctype of check.ids) {
-                // 代表艦：該艦級中図鑑番号最小的艦娘（id < 1500 為艦娘，其餘為深海）。
-                let best: [number, number] | null = null;
-                for (const [id, ship] of this.master) {
-                    if (id >= 1500 || ship.ctype !== ctype || !(ship.sortno! > 0)) continue;
-                    if (!best || ship.sortno! < best[1]) best = [id, ship.sortno!];
-                }
-                classes[ctype] = best ? localizeShip(best[0], this.master.get(best[0])?.name) : `#${ctype}`;
-            }
+            for (const ctype of check.ids) classes[ctype] = this.classRepresentative(ctype);
         }
         return { fleetCheck, conditionNames: { ships, classes } };
     }
@@ -4998,7 +5158,7 @@ const KNOWN_SALLY_KEYS = new Set(['api_sally_area', 'api_sally_flag']);
 
 /**
  * 淺層搜尋未知的 sally 系欄位名，命中回傳該 key，否則 null。
- * 深度上限 3、陣列只看首元素——start2 這種 1MB＋、含 1751 艘艦的封包每筆都會經過這裡，
+ * 深度上限 3、陣列只看首元素——start2 這種 1MB＋、含 1755 艘艦的封包每筆都會經過這裡，
  * 不能全走訪。深度 3 足以涵蓋「新增的頂層 master 表」與「既有表元素上的新欄位」兩種形態。
  */
 function findUnknownSallyKey(node: unknown, depth = 0): string | null {

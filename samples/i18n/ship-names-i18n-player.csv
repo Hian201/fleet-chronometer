@@ -65,6 +65,7 @@
 25,20,0,25,北上,きたかみ,軽巡洋艦,Kuma #3,CL,Kitakami,北上
 25,20,1,58,北上改,きたかみ,重雷装巡洋艦,Kuma #3,CLT,Kitakami Kai,北上改
 25,20,2,119,北上改二,きたかみ,重雷装巡洋艦,Kuma #3,CLT,Kitakami Kai Ni,北上改二
+25,20,3,1071,北上改三,きたかみ,重雷装巡洋艦,Kuma #3,CLT,Kitakami Kai San,北上改三
 78,21,0,78,金剛,こんごう,戦艦,Kongou #1,FBB,Kongou,金剛
 78,21,1,209,金剛改,こんごう,戦艦,Kongou #1,FBB,Kongou Kai,金剛改
 78,21,2,149,金剛改二,こんごう,戦艦,Kongou #1,FBB,Kongou Kai Ni,金剛改二
@@ -89,9 +90,11 @@
 26,26,0,26,扶桑,ふそう,戦艦,Fusou #1,BB,Fusou,扶桑
 26,26,1,286,扶桑改,ふそう,航空戦艦,Fusou #1,BBV,Fusou Kai,扶桑改
 26,26,2,411,扶桑改二,ふそう,航空戦艦,Fusou #1,BBV,Fusou Kai Ni,扶桑改二
+26,26,3,748,扶桑改二補,ふそう,航空戦艦,Fusou #1,BBV,Fusou Kai Ni Ho,扶桑改二補
 27,27,0,27,山城,やましろ,戦艦,Fusou #2,BB,Yamashiro,山城
 27,27,1,287,山城改,やましろ,航空戦艦,Fusou #2,BBV,Yamashiro Kai,山城改
 27,27,2,412,山城改二,やましろ,航空戦艦,Fusou #2,BBV,Yamashiro Kai Ni,山城改二
+27,27,3,749,山城改二補,やましろ,航空戦艦,Fusou #2,BBV,Yamashiro Kai Ni Ho,山城改二補
 51,28,0,51,天龍,てんりゅう,軽巡洋艦,Tenryuu #1,CL,Tenryuu,天龍
 51,28,1,213,天龍改,てんりゅう,軽巡洋艦,Tenryuu #1,CL,Tenryuu Kai,天龍改
 51,28,2,477,天龍改二,てんりゅう,軽巡洋艦,Tenryuu #1,CL,Tenryuu Kai Ni,天龍改二
@@ -531,6 +534,7 @@
 479,279,3,908,天霧改二丁,あまぎり,駆逐艦,Ayanami #5,DD,Amagiri Kai Ni D,天霧改二丁
 480,280,0,480,狭霧,さぎり,駆逐艦,Ayanami #6,DD,Sagiri,狹霧
 480,280,1,391,狭霧改,さぎり,駆逐艦,Ayanami #6,DD,Sagiri Kai,狹霧改
+480,280,2,902,狭霧改二,さぎり,駆逐艦,Ayanami #6,DD,Sagiri Kai Ni,狹霧改二
 481,281,0,481,水無月,みなづき,駆逐艦,Mutsuki #6,DD,Minazuki,水無月
 481,281,1,366,水無月改,みなづき,駆逐艦,Mutsuki #6,DD,Minazuki Kai,水無月改
 483,283,0,483,伊26,い26,潜水艦,Junsen Type B #7,SS,I-26,伊26

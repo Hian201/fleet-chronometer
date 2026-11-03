@@ -55,7 +55,7 @@ function page(lang: Lang): string {
     const scenes: Scene[] = [
         { title: a, open: [1047, 984], progress: [] },
         { title: b, open: [1047], progress: [1047] },
-        { title: c, open: [342, 9001, 9002, 243], progress: [342, 9001, 9002, 243] },
+        { title: c, open: [342, 9001, 9002, 243, 655, 626, 645, 114, 967], progress: [342, 9001, 9002, 243, 655, 626, 645, 114, 967] },
         // 日文介面沒有原文分頁。
         ...(lang === 'ja' ? [] : [{ title: d, open: [1047], progress: [1047], pane: 'original' as const }]),
     ];

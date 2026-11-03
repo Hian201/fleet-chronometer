@@ -112,9 +112,9 @@ describe('任務本機進度：出擊任務 id 白名單（僅無條件任務，
         expect(resolveQuestGoal(619, '装備の改修強化', '「改修工廠」で「装備」の改修強化に努めます。'))
             .toEqual({ kind: 'remodelAttempt', target: 1 });
         expect(resolveQuestGoal(1166, '続：装備の改修強化', '工廠任務：「改修工廠」で「装備」のさらなる改修強化を実施せよ！'))
-            .toEqual({ kind: 'remodel', target: 1 });
+            .toEqual({ kind: 'remodelAttempt', target: 1 });
         expect(resolveQuestGoal(1167, '装備の改修集中強化', '工廠任務：さらなる戦力強化のため、本日中に「改修工廠」で「装備」改修強化を連続三回実施せよ！'))
-            .toEqual({ kind: 'remodel', target: 3 }); // 漢字數字「三回」非阿拉伯數字，文字解析吃不到，須靠 id 白名單
+            .toEqual({ kind: 'remodelAttempt', target: 3 }); // 漢字數字「三回」非阿拉伯數字，文字解析吃不到，須靠 id 白名單
     });
 
     it('解体艦娘一次請求可逗號分隔多艘，逐艘計數（非逐次請求計數）', () => {
@@ -123,21 +123,21 @@ describe('任務本機進度：出擊任務 id 白名單（僅無條件任務，
             api_list: [{ api_no: 609, api_state: 2, api_title: '軍縮条約対応！', api_detail: '少し艦隊規模が大きくなりすぎました！「工廠」で不要な艦を2隻「解体」してください！' }],
         }, {});
 
-        state.applyEvent('api_req_kaisou/destroyship', {}, { api_ship_id: '11,22', api_slot_dest: '0' });
+        state.applyEvent('api_req_kousyou/destroyship', {}, { api_ship_id: '11,22', api_slot_dest_flag: '0' });
         expect(state.quests_().find(q => q.no === 609)?.progress).toEqual({ count: 2, target: 2 });
     });
 
-    it('廢棄裝備一次請求可逗號分隔多個，逐個計數', () => {
+    it('廢棄裝備任務 613 以請求次數計，一次廢棄多件只算一次', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/questlist', {
             api_list: [{ api_no: 613, api_state: 2, api_title: '資源の再利用', api_detail: '「工廠」で余剰の装備アイテムをなるべく多く「廃棄」して、鋼材の再利用に努めよう！' }],
         }, {});
 
-        state.applyEvent('api_req_kaisou/destroyitem2', {}, { api_slotitem_ids: '1,2,3' });
-        expect(state.quests_().find(q => q.no === 613)?.progress).toEqual({ count: 3, target: 24 });
+        state.applyEvent('api_req_kousyou/destroyitem2', {}, { api_slotitem_ids: '1,2,3' });
+        expect(state.quests_().find(q => q.no === 613)?.progress).toEqual({ count: 1, target: 24 });
     });
 
-    it('改修「嘗試」不論成敗都累加 remodelAttempt，remodel 僅成功才累加，兩者可能不同步', () => {
+    it('改修任務 619／1166 不論成敗都計數', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/questlist', {
             api_list: [
@@ -148,11 +148,10 @@ describe('任務本機進度：出擊任務 id 白名單（僅無條件任務，
 
         state.applyEvent('api_req_kousyou/remodel_slot', { api_remodel_flag: 0 }, { api_slot_id: '1' }); // 失敗
         expect(state.quests_().find(q => q.no === 619)?.progress).toEqual({ count: 1, target: 1 });
-        expect(state.quests_().find(q => q.no === 1166)?.progress).toEqual({ count: 0, target: 1 });
+        expect(state.quests_().find(q => q.no === 1166)?.progress).toEqual({ count: 1, target: 1 });
 
         state.applyEvent('api_req_kousyou/remodel_slot', { api_remodel_flag: 1 }, { api_slot_id: '2' }); // 成功
         expect(state.quests_().find(q => q.no === 619)?.progress).toEqual({ count: 1, target: 1 }); // 已達標，不再累加
-        expect(state.quests_().find(q => q.no === 1166)?.progress).toEqual({ count: 1, target: 1 });
     });
 });
 

@@ -24,7 +24,7 @@ import sys
 import unicodedata
 import urllib.request
 
-POI_COMMIT = '013c81dc0a8725ab0b3e1af89830f9c3ee2efa52'
+POI_COMMIT = '294b4f619bd5a2b62709bfd21a652fe395dc8a25'
 URL = f'https://raw.githubusercontent.com/poooi/poi/{POI_COMMIT}/assets/data/fcd/questgoal.json'
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CACHE = pathlib.Path(__file__).resolve().parent / '.cache' / f'questgoal-{POI_COMMIT[:12]}.json'

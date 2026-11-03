@@ -1196,10 +1196,10 @@ export function applyStateRecoveryPlan(state, plan): void;   // overview 用，�
     <tr><td><code>api_req_hensei/preset_select</code></td><td>載入編成預設；<b>刻意不重置錨點</b></td></tr>
     <tr><td><code>api_req_hensei/combined</code></td><td>依 req 設 <code>combinedFlag</code></td></tr>
 
-    <tr><td rowspan="4">艦／裝備</td><td><code>api_req_kaisou/destroyship</code></td>
-      <td>解體；重置受影響艦隊錨點；bump <code>shipScrap</code>（逐艘計數）</td></tr>
-    <tr><td><code>api_req_kaisou/destroyitem2</code></td><td>廢棄裝備；bump <code>gearScrap</code>（逐個）</td></tr>
-    <tr><td><code>api_req_kaisou/powerup</code></td><td>近代化改修；bump <code>modernization</code></td></tr>
+    <tr><td rowspan="4">艦／裝備</td><td><code>api_req_kousyou/destroyship</code></td>
+      <td>解體；<code>api_slot_dest_flag=1</code> 時連同裝備（含補強增設）移出倉庫；重置受影響艦隊錨點；bump <code>shipScrap</code>（逐艘計數）</td></tr>
+    <tr><td><code>api_req_kousyou/destroyitem2</code></td><td>廢棄裝備；bump <code>gearScrap</code>（按請求次數）</td></tr>
+    <tr><td><code>api_req_kaisou/powerup</code></td><td>近代化改修；餌艦比照解體移除（同一個 <code>api_slot_dest_flag</code> 規則）；<code>api_powerup_flag=1</code> 時 bump <code>modernization</code></td></tr>
     <tr><td><code>slotset</code>／<code>slotset_ex</code>／<code>unsetslot_all</code></td>
       <td>裝備變更。<b><code>slotset_ex</code>（補強增設）是獨立端點，沒有 <code>api_slot_idx</code></b></td></tr>
 

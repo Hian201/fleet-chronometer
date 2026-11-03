@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { findUnknownGears, findUnknownShips } from '../utils/gamedata-coverage';
+import { SHIP_NAMES } from '../utils/gamedata-names';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 
@@ -15,6 +16,13 @@ describe('findUnknownShips / findUnknownGears', () => {
             master.api_mst_slotitem.map((g: any) => [g.api_id, { name: g.api_name }]));
         expect(findUnknownShips(shipMap)).toEqual([]);
         expect(findUnknownGears(gearMap)).toEqual([]);
+    });
+
+    it('master 快照的每一艘艦娘都有英文與台灣華語譯名', () => {
+        const missing = master.api_mst_ship
+            .filter((s: any) => s.api_id < 1500 && !(SHIP_NAMES[s.api_id]?.en && SHIP_NAMES[s.api_id]?.['zh-TW']))
+            .map((s: any) => `${s.api_id} ${s.api_name}`);
+        expect(missing).toEqual([]);
     });
 
     it('對照表沒有的 id 會被抓出來，且依 id 升冪排序', () => {

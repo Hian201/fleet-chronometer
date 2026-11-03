@@ -127,4 +127,11 @@ export const QUEST_GOAL_LOCAL: Readonly<Record<number, LocalQuestGoal>> = {
         written: '2026-10-17',
         goal: { resetInterval: 1, practice_win_a: { escortshipId: [[[124, 114, 93, 15, 44, 45, 415, 95, 528, 484, 881, 519, 1005, 562], 4]], required: 5, init: 0 } },
     },
+    // 修正來源條件：來源寫成「魚雷」系任意 3 件，任務原文指定「61cm三連装(酸素)魚雷」（會多算）。
+    1103: {
+        title: '潜水艦強化兵装の量産',
+        basis: ['任務說明原文（KC3Kai kc3-translations 日文任務表 e72c4261）', 'wikiwiki「任務/工廠任務」Fy5 2026-11-03', 'samples/start2-master.json（61cm三連装(酸素)魚雷 125）'],
+        written: '2026-11-03',
+        goal: { type: 106, destory_item: { slotitemId: [125], required: 3, init: 0 } },
+    },
 };

@@ -410,12 +410,40 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   計數事件、海域、節點 edge、旗艦／僚艦／艦種／艦級等篩選與所需次數。只收錄結構化條件，
   不收錄原說明文字。
 - **來源**：poi — https://github.com/poooi/poi 的 `assets/data/fcd/questgoal.json`，
-  固定 commit `013c81dc0a8725ab0b3e1af89830f9c3ee2efa52`（資料版本 2026/09/15/02）。
+  固定 commit `294b4f619bd5a2b62709bfd21a652fe395dc8a25`（資料版本 2026/10/25/01）。
 - **判定邏輯**：`utils/quest-goals.ts` 依該專案 `skills/quest-goal-data/SKILL.md` 記載的欄位語意
   （艦娘 id 表示該改造階段以後、僚艦條目的 OR／AND 與是否含旗艦、mapcell 為 edge 編號等）
-  由本專案自行實作，未複製其程式碼。
+  由本專案自行實作，未複製其程式碼。工廠類事件的計數單位（開發按取得件數、解體按艘、廢棄裝備
+  `times` 按次而類別／裝備篩選按件、近代化改修只算 `api_powerup_flag` 為 1、裝備改修不論成敗）
+  依 poi `views/redux/middlewares/quests-cross-slice.ts` 與 KC3Kai `src/library/modules/Kcsapi.js`
+  （https://github.com/KC3Kai/KC3Kai ，MIT License，Copyright (c) 2015-2026 dragonjet）交叉比對。
 - **授權**：MIT License
 - **版權**：Copyright (c) 2015-2021 poi contributors
+
+---
+
+## 11b. 任務達成條件表（編成、裝備準備／機種轉換、海域攻略）
+
+- **用途**：`tools/quest-prep/conditions.py`（人工審核資料）→ `utils/quest-prep-data.ts`（產生物），由
+  `utils/quest-prep.ts` 自行實作判定，對照目前鎮守府顯示「可完成」。只收錄結構化條件，不收錄說明文字。
+- **現行依據（2026-11-03 逐筆核對）**：
+  - wikiwiki.jp/kancolle「任務/編成任務」「任務/工廠任務」各任務列的說明與備註（遊戲機制說明，條件依據）。
+  - KC3Kai kc3-translations `data/jp/quests.json`（commit `e72c4261e7e6a39bcf4918d461b2ea15ff9f4bf3`）的任務說明原文與備註
+    （例：174／175「第一艦隊でなくても可」、149 於 2025-01-28 改為五艘中任四艘）。
+    https://github.com/KC3Kai/kc3-translations ，MIT License，Copyright (c) 2015-2026 dragonjet
+- **比對草稿（不直接採用）**：kcwiki-quest-data（commit `4bb60dd3b1069191867cd8455a898ed898eb4c36`，2024-06 後未更新），
+  `generate.py --report` 只用來列出與現行條件的差異。https://github.com/kcwikizh/kcwiki-quest-data
+- **判定語意**：ElectronicObserver `ElectronicObserver/Other/Information/kcmemo.md`「クライアント側で達成判定がなされる任務」
+  （條件齊備時 `api_state` 仍為 2、`api_progress_flag` 只反映廢棄進度）；KC3Kai `src/library/managers/QuestManager.js`
+  的 `isPrerequisiteFulfilled()`（626／643／645／654／663／1123／1138 的持有判定）交叉比對。未複製程式碼。
+  https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
+- **id**：艦娘、裝備以 `samples/start2-master.json` 換成 master id，道具 id 取自 `utils/item-catalog.ts`。
+  該樣本 2026-11-03 以使用者總括頁備份裡擴充自行擷取的 start2（2026-11-03 15:13）更新，補上 748／749／902／1071 四艘與
+  裝備 589；更新前先以公開 start2 鏡像 https://github.com/Tibowl/api_start2 （commit `23637be57ac23a7b4281f193b836fa568ead8ee4`，
+  2026-10-14）找出缺漏並交叉比對，艦娘部分兩者一致。
+- **裝備鎖定**：`api_req_kaisou/lock` 的請求 `api_slotitem_id` 與回應 `api_locked` 依 KC3Kai `src/library/modules/Kcsapi.js`
+  與 poi `views/redux/info/equips.ts` 交叉比對；「準備用的裝備須未鎖定」依 KC3Kai `src/library/managers/GearManager.js`
+  `countFree()` 與 kc3-translations 任務備註。
 
 ---
 
@@ -440,6 +468,22 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
     https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
 - **用途**：`utils/cond.ts`、`utils/state.ts`、`entrypoints/background.ts` 自行實作；只採用欄位名稱與語意，
   未複製第三方程式碼。
+
+---
+
+## 解體與近代化改修的裝備去留
+
+- **封包欄位**：解體走 `api_req_kousyou/destroyship`、廢棄裝備走 `api_req_kousyou/destroyitem2`；解體與
+  `api_req_kaisou/powerup` 的請求欄位 `api_slot_dest_flag` 為 1 時，被解體艦／餌艦的裝備隨艦廢棄，
+  為 0 時卸下保留。本專案無樣本，依下列三個專案的解析交叉比對：
+  - KC3Kai `src/library/modules/Kcsapi.js`、`src/library/managers/ShipManager.js` —
+    https://github.com/KC3Kai/KC3Kai ，MIT License，Copyright (c) 2015-2026 dragonjet
+  - poi `views/redux/middlewares/equips-cross-slice.ts` — https://github.com/poooi/poi ，
+    MIT License，Copyright (c) 2015-2021 poi contributors
+  - ElectronicObserver `Observer/kcsapi/api_req_kaisou/powerup.cs`、`Other/Information/apilist.txt` —
+    https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
+- **用途**：`utils/state.ts` 的 `removeShips()` 自行實作；只採用端點、欄位名稱與語意，未複製第三方程式碼。
+  補強增設的裝備一併移除，與 KC3Kai 一致（poi、ElectronicObserver 只處理一般槽）。
 
 ---
 

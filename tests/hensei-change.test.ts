@@ -104,7 +104,7 @@ describe('編成 change 補位', () => {
 
     it('解体中間艦後剩餘艦往前補，後續 change 的 idx 才對得上遊戲', () => {
         const state = stateWithDecks([[YAMATO, NAGATO, SHIP_C, -1, -1, -1]]);
-        state.applyEvent('api_req_kaisou/destroyship', {}, { api_ship_id: String(NAGATO), api_slot_dest: '0' });
+        state.applyEvent('api_req_kousyou/destroyship', {}, { api_ship_id: String(NAGATO), api_slot_dest_flag: '0' });
         expect(state.decks[0].api_ship).toEqual([YAMATO, SHIP_C, -1, -1, -1, -1]);
         change(state, 1, 1, -1);
         expect(state.decks[0].api_ship).toEqual([YAMATO, -1, -1, -1, -1, -1]);

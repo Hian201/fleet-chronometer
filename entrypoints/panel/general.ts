@@ -8,8 +8,8 @@ import {
 } from '@/utils/quest-catalog-localization';
 import { formatQuestTime, type QuestJudgement, type ServerObservation } from '@/utils/quest-tracking';
 import { openOverviewAt, type OverviewTabsApi } from '@/utils/open-overview';
-import { questConditionShort, questConditionText, questTargetLabel, questTargetShortLabel } from '@/utils/quest-goal-label';
-import type { GameState, QuestView } from '@/utils/state';
+import { prepCheckShort, prepCheckText, questConditionShort, questConditionText, questTargetLabel, questTargetShortLabel } from '@/utils/quest-goal-label';
+import type { GameState, QuestPrepView, QuestView } from '@/utils/state';
 import { questCatalogIdentity } from '@/utils/quest-identity';
 
 type Page = 'harbor' | 'quests' | 'items';
@@ -62,6 +62,7 @@ function questStateHtml(q: QuestView): string {
         return esc(plain);
     }
     if (tracking.recheck) return `<span class="n weak">${esc(t('quest.recheck'))}</span>`;
+    if (tracking.prep?.ready) return `<span class="n ready">${esc(t('quest.prep.ready'))}</span>`;
     if (q.progress) {
         const value = tracking.range
             ? `${tracking.range.lo}–${tracking.range.hi}/${q.progress.target}`
@@ -88,11 +89,14 @@ function questProgressHtml(q: QuestView, missionName: (id: number) => string): s
     } else if (q.progress) {
         if (tracking.latestServer?.status === 'under') lines.push(`<div>${esc(t('quest.srvUnder', { srv }))}</div>`, sub(t('quest.srvUnderNote')));
         else if (tracking.latestServer) lines.push(`<div>${esc(t('quest.srvConsistent', { srv }))}</div>`);
+    } else if (tracking.prep) {
+        lines.push(`<div>${esc(t('quest.srvPrep', { srv }))}</div>`);
     } else if (tracking.tier === 'text') {
         lines.push(`<div>${esc(t('quest.textServer', { srv }))}</div>`, sub(t('quest.textHidden')));
     } else {
         lines.push(`<div>${esc(t('quest.srvOnly', { srv }))}</div>`);
     }
+    if (tracking.prep) lines.push(prepHtml(tracking.prep));
     if (tracking.fleetCheck.length) {
         // 編成條件：每條一個短標籤，完整條件放在提示；表格版在情報總括「進度紀錄」。
         const tip = t('quest.cond.tip');
@@ -112,6 +116,22 @@ function questProgressHtml(q: QuestView, missionName: (id: number) => string): s
     if (tracking.lastJudgement) lines.push(sub(judgementLine(tracking.lastJudgement, missionName)));
     if (tracking.hasLog) lines.push(`<button type="button" class="ledger-quest-more" data-quest-log="${q.no}">${esc(t('quest.fullLog'))}</button>`);
     return `<div class="ledger-quest-prog">${lines.join('')}</div>`;
+}
+
+/** 達成條件：整體狀態一行、各條件一個短標籤（完整說明在提示）；符合 ✓、不符合 ✗、不可考 ?。 */
+function prepHtml(prep: QuestPrepView): string {
+    const state = prep.ready === true ? 'ready' : prep.ready === null ? 'unknown' : 'missing';
+    const scope = prep.anyFleet && prep.fleet ? t('quest.prep.anyFleet', { n: prep.fleet })
+        : prep.fleet ? t('quest.prep.fleet', { n: prep.fleet }) : t('quest.prep.tip');
+    const note = prep.ready === true ? t('quest.prep.readyNote') : prep.ready === null ? t('quest.prep.unknownNote') : '';
+    const mark = (ok: boolean | null) => ok === true ? '✓' : ok === false ? '✗' : '?';
+    const chips = prep.checks.map(check => {
+        const cls = check.ok === true ? 'ok' : check.ok === false ? 'ng' : 'unk';
+        return `<span class="${cls}" title="${esc(`${prepCheckText(check, prep.names)}\n${scope}`)}">${esc(prepCheckShort(check, prep.names))} ${mark(check.ok)}</span>`;
+    }).join('');
+    return `<div class="ledger-quest-prep ${state}"><b>${esc(t(`quest.prep.${state}`))}</b><span>${esc(scope)}</span></div>`
+        + (note ? `<div class="sub">${esc(note)}</div>` : '')
+        + `<div class="ledger-quest-cond">${chips}</div>`;
 }
 
 const pinMark = (label: string) => `<svg class="pin-mark" viewBox="0 0 10 10" role="img" aria-label="${esc(label)}"><path d="M3 1h4v1L6.2 2.6V5L8 6.4V7H5.5v2.5L5 10l-.5-.5V7H2v-.6L3.8 5V2.6L3 2z"/></svg>`;

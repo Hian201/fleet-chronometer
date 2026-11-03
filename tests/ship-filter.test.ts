@@ -48,10 +48,10 @@ describe('可裝備篩選（逐艦覆蓋規則）', () => {
     });
 
     // 七個選項＝「能裝大發系」與「能裝內火艇」兩個布林的組合。
-    // 數字為全 1751 艦的實算值（與獨立的 Python 統計一致），七桶皆非空。
+    // 數字為全 1755 艦的實算值（2026-10-14 start2；與獨立的 Python 統計一致），七桶皆非空。
     it.each([
-        ['landingCraft', 96], ['naikatei', 199], ['both', 62],
-        ['landingOnly', 34], ['naikateiOnly', 137], ['either', 233], ['neither', 1518],
+        ['landingCraft', 100], ['naikatei', 202], ['both', 65],
+        ['landingOnly', 35], ['naikateiOnly', 137], ['either', 237], ['neither', 1518],
     ] as [EquipFilter, number][])('%s → %i 艘', (equip, expected) => {
         expect(countWith(equip)).toBe(expected);
     });

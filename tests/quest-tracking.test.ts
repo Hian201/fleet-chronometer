@@ -8,15 +8,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-    fleetReason, judgeBattleGoals, judgeMissionGoals, judgePracticeGoals, judgeReachGoals, mapListLabel, questDay,
-    questGoalDef, simpleGoalFromDef, sinkingGains, type FleetFacts,
+    factoryGains, fleetReason, judgeBattleGoals, judgeMissionGoals, judgePracticeGoals, judgeReachGoals, mapListLabel,
+    parseGoalDef, questDay, questGoalDef, simpleGoalFromDef, sinkingGains, type FleetFacts,
 } from '../utils/quest-goals';
 import {
     compareWithServer, extractTextRule, formatQuestTime, judgeTextBattle, progressRange, questTier, serverBounds,
     type BattleFacts, type ServerObservation,
 } from '../utils/quest-tracking';
 import { GameState } from '../utils/state';
-import { questConditionShort } from '../utils/quest-goal-label';
+import { questConditionShort, questTargetLabel } from '../utils/quest-goal-label';
 import { setLang } from '../utils/ui-i18n';
 
 // 涼波改二 1034 → 涼波改二補 745；鳥海 69、玉波 674；睦月 1 當作不相關的艦。
@@ -92,7 +92,12 @@ describe('條件表：比對語意', () => {
     });
 
     it('認不得的欄位或事件：整個任務不支援（不默默放寬條件）', () => {
-        expect(questGoalDef(605)?.supported).toBe(false);   // 開發（工廠事件尚未支援）
+        expect(parseGoalDef(1, { unknown_event: { required: 1 } }).supported).toBe(false);
+        expect(parseGoalDef(1, { battle: { required: 1, unknownFilter: [1] } }).supported).toBe(false);
+        // 廢棄子目標不帶或同時帶兩種計數單位時語意不明
+        expect(parseGoalDef(1, { destory_item: { required: 1 } }).supported).toBe(false);
+        expect(parseGoalDef(1, { destory_item: { required: 1, times: [1], slotitemId: [19] } }).supported).toBe(false);
+        expect(questGoalDef(605)?.supported).toBe(true);    // 開發
         expect(questGoalDef(226)?.supported).toBe(true);
         expect(questGoalDef(307)?.supported).toBe(true);    // 演習勝利
         expect(questGoalDef(410)?.supported).toBe(true);    // 指定遠征
@@ -127,6 +132,23 @@ describe('條件表：比對語意', () => {
         const def = { no: 1, supported: true, subgoals: [{ key: 'reach_mapcell', event: 'reach_mapcell', required: 1, init: 0, maparea: [16], mapcell: [14] }] };
         expect(judgeReachGoals(def, [0], 16, 14, FLEET_OK)).toEqual({ counted: [0], reason: null });
         expect(judgeReachGoals(def, [0], 16, 13, FLEET_OK)).toBeNull();
+    });
+
+    it('工廠類：開發按件數、廢棄 times 按次而類別／裝備按件、近代化改修需足夠的素材艦種', () => {
+        expect(factoryGains(questGoalDef(607)!, { event: 'create_item', amount: 3 })).toEqual(new Map([[0, 3]]));
+        expect(factoryGains(questGoalDef(607)!, { event: 'create_ship', amount: 1 })).toEqual(new Map());
+        const gears = [{ id: 19, type: 6 }, { id: 19, type: 6 }, { id: 20, type: 6 }, { id: -1, type: -1 }];
+        expect(factoryGains(questGoalDef(613)!, { event: 'destory_item', amount: 1, gears })).toEqual(new Map([[0, 1]]));
+        // 678：九六式艦戦（19）×3、零式艦戦21型（20）×5，各自按件數計
+        expect(factoryGains(questGoalDef(678)!, { event: 'destory_item', amount: 1, gears })).toEqual(new Map([[0, 2], [1, 1]]));
+        // 638：機銃（類別 21）
+        expect(factoryGains(questGoalDef(638)!, { event: 'destory_item', amount: 1, gears })).toEqual(new Map());
+        expect(factoryGains(questGoalDef(638)!, { event: 'destory_item', amount: 1, gears: [{ id: 37, type: 21 }, { id: 39, type: 21 }] }))
+            .toEqual(new Map([[0, 2]]));
+        // 716：軽巡級（3／4／21）素材 3 艘以上
+        expect(factoryGains(questGoalDef(716)!, { event: 'remodel_ship', amount: 1, materialTypes: [3, 4, 2] })).toEqual(new Map());
+        expect(factoryGains(questGoalDef(716)!, { event: 'remodel_ship', amount: 1, materialTypes: [3, 4, 21] })).toEqual(new Map([[0, 1]]));
+        expect(factoryGains(questGoalDef(703)!, { event: 'remodel_ship', amount: 1, materialTypes: [] })).toEqual(new Map([[0, 1]]));
     });
 
     it('未支援事件的單純計數沿用舊動作計數；帶篩選或每日歸零的不沿用', () => {
@@ -381,12 +403,59 @@ describe('GameState：任務判定與伺服器對照', () => {
         expect(s.questTracking.has(1047)).toBe(false);
     });
 
-    it('條件表收錄但事件未支援、又帶篩選的任務：不用文字推算次數，只顯示伺服器回報', () => {
+    it('廢棄裝備任務：刪除前查 master 類別，只算指定類別；子目標標籤用類別名', () => {
         const s = stateWithFleet();
-        questlist(s, [{ api_no: 638, api_state: 2, api_title: '対空機銃量産', api_detail: '機銃を10個廃棄せよ！', api_progress_flag: 1 }], 3_000);
-        const quest = s.quests_().find(q => q.no === 638)!;
-        expect(quest.progress).toBeNull();
-        expect(quest.tracking).toMatchObject({ tier: 'server', latestServer: { flag: 1 } });
+        s.applyEvent('api_start2/getData', {
+            api_mst_ship: SHIPS.map(([id, name, after]) => ({ api_id: id, api_name: name, api_aftershipid: String(after), api_stype: 2 })),
+            api_mst_slotitem: [
+                { api_id: 37, api_name: '7.7mm機銃', api_type: [1, 4, 21, 15] },
+                { api_id: 2, api_name: '12.7cm連装砲', api_type: [1, 1, 1, 1] },
+            ],
+            api_mst_slotitem_equiptype: [{ api_id: 21, api_name: '対空機銃' }],
+        }, undefined, 2_500);
+        s.applyEvent('api_get_member/slot_item', [
+            { api_id: 1, api_slotitem_id: 37 }, { api_id: 2, api_slotitem_id: 37 }, { api_id: 3, api_slotitem_id: 2 },
+        ], undefined, 2_600);
+        questlist(s, [
+            { api_no: 638, api_state: 2, api_title: '対空機銃量産', api_detail: '機銃を10個廃棄せよ！', api_progress_flag: 0 },
+            { api_no: 613, api_state: 2, api_title: '資源の再利用', api_detail: '…', api_progress_flag: 0 },
+        ], 3_000);
+        s.applyEvent('api_req_kousyou/destroyitem2', {}, { api_slotitem_ids: '1,2,3' }, 3_100);
+        expect(s.quests_().find(q => q.no === 638)?.progress).toEqual({ count: 2, target: 6 });
+        expect(s.quests_().find(q => q.no === 613)?.progress).toEqual({ count: 1, target: 24 });
+        expect(s.questTrackingDetail(638)?.goals?.[0]).toMatchObject({ event: 'destory_item', gearTypes: ['対空機銃'] });
+        setLang('zh-TW');
+        expect(questTargetLabel(s.questTrackingDetail(638)!.goals![0])).toBe('廢棄 対空機銃');
+    });
+
+    it('近代化改修：只算成功，且素材艦種要足量（716 軽巡級 3 艘）', () => {
+        const s = stateWithFleet();
+        s.applyEvent('api_start2/getData', {
+            api_mst_ship: [
+                ...SHIPS.map(([id, name, after]) => ({ api_id: id, api_name: name, api_aftershipid: String(after), api_stype: 2 })),
+                { api_id: 51, api_name: '天龍', api_aftershipid: '0', api_stype: 3 },
+            ],
+        }, undefined, 2_500);
+        s.applyEvent('api_port/port', {
+            api_ship: [101, 102, 103, 104, 105, 106].map((id, i) => ({
+                api_id: id, api_ship_id: i < 3 ? 51 : 1, api_lv: 1, api_nowhp: 10, api_maxhp: 10, api_cond: 49,
+                api_slot: [-1, -1, -1, -1], api_slot_ex: 0, api_onslot: [], api_ndock_time: 0, api_exp: [0, 0, 0],
+            })),
+            api_deck_port: [{ api_ship: [104], api_mission: [0, 0, 0, 0] }],
+            api_material: [0, 0, 0, 0, 0, 0, 0, 0], api_ndock: [], api_basic: {},
+        }, undefined, 2_600);
+        questlist(s, [
+            { api_no: 716, api_state: 2, api_title: '「軽巡」級の改修工事を実施せよ！', api_detail: '…', api_progress_flag: 0 },
+            { api_no: 703, api_state: 2, api_title: '「近代化改修」を進め、戦備を整えよ！', api_detail: '…', api_progress_flag: 0 },
+        ], 3_000);
+        s.applyEvent('api_req_kaisou/powerup', { api_powerup_flag: 0 }, { api_id: '104', api_id_items: '106' }, 3_100);
+        expect(s.quests_().find(q => q.no === 703)?.progress).toEqual({ count: 0, target: 15 });
+        s.applyEvent('api_req_kaisou/powerup', { api_powerup_flag: 1 }, { api_id: '104', api_id_items: '105' }, 3_200);
+        expect(s.quests_().find(q => q.no === 703)?.progress).toEqual({ count: 1, target: 15 });
+        expect(s.quests_().find(q => q.no === 716)?.progress).toEqual({ count: 0, target: 2 });
+        s.applyEvent('api_req_kaisou/powerup', { api_powerup_flag: 1 }, { api_id: '104', api_id_items: '101,102,103' }, 3_300);
+        expect(s.quests_().find(q => q.no === 716)?.progress).toEqual({ count: 1, target: 2 });
+        expect(s.quests_().find(q => q.no === 703)?.progress).toEqual({ count: 2, target: 15 });
     });
 
     const PRACTICE_RESULT = JSON.parse(readFileSync(new URL('../samples/practice-battle-result.json', import.meta.url), 'utf8')).api_data;

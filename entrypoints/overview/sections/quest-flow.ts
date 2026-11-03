@@ -22,8 +22,9 @@ import { clearHashParams, downloadBlob, esc, fmtTs, hashParams, loadJsonPrefs, s
 import { renderQuestGraphPhoto } from '../quest-graph-photo';
 import { questGraphPhotoFilename } from '@/utils/quest-graph-photo';
 import { formatQuestTime, type ServerObservation } from '@/utils/quest-tracking';
-import { questConditionText, questTargetLabel } from '@/utils/quest-goal-label';
+import { prepCheckNow, prepCheckText, questConditionText, questTargetLabel } from '@/utils/quest-goal-label';
 import { questCatalogIdentity } from '@/utils/quest-identity';
+import { FACTORY_GOAL_EVENTS } from '@/utils/quest-goals';
 import { formatDate } from '@/utils/date-format';
 import { QUEST_CATEGORY_LABEL_KEYS, type QuestCategory } from '@/utils/quest-category';
 import { questCategoryMarkHtml } from '@/utils/html-escape';
@@ -608,6 +609,17 @@ function progressPaneHtml(row: QuestFlowRow): string {
         ].map(text => `<tr>${td(esc(text), 'wrap')}</tr>`);
         conditions = `<h4 class="qp-h">${esc(t('ov.qpTextCond'))}</h4>${table([t('ov.qpColItem')], rows)}`;
     }
+    if (d.prep) {
+        const prep = d.prep;
+        const scope = prep.anyFleet && prep.fleet ? t('quest.prep.anyFleet', { n: prep.fleet })
+            : prep.fleet ? t('quest.prep.fleet', { n: prep.fleet }) : t('quest.prep.tip');
+        const summary = prep.ready === true ? 'ready' : prep.ready === null ? 'unknown' : 'missing';
+        const rows = prep.checks.map(check => `<tr>${td(esc(prepCheckText(check, prep.names)), 'wrap')}${td(esc(prepCheckNow(check) || '—'), 'keep')}${
+            check.ok === null ? td(esc(t('ov.qpUnknownState')), 'dim') : state(check.ok)}</tr>`);
+        conditions += `<h4 class="qp-h">${esc(t('ov.qpPrepCond'))}<span class="qp-hint">${esc(`${t(`quest.prep.${summary}`)}・${scope}`)}</span></h4>`
+            + table([t('ov.qpColItem'), t('ov.qpColNow'), t('ov.qpColState')], rows)
+            + (prep.gate ? `<p class="qp-empty">${esc(t('quest.prep.gate'))}</p>` : '');
+    }
     const battles = d.judgements.length
         ? table(
             [t('ov.qpColTime'), t('ov.qpColMap'), t('ov.qpColNode'), t('ov.qpColRank'), t('ov.qpColFlagship'), t('ov.qpColResult'), t('ov.qpColReason')],
@@ -634,8 +646,10 @@ function progressPaneHtml(row: QuestFlowRow): string {
             `<tr>${td(esc(formatQuestTime(d.acceptedTs)))}${td(esc(t('ov.qpFirstSeen')), 'dim')}${td('—', 'dim')}${td('—', 'dim')}</tr>`,
         ],
     );
+    // 工廠類與只看目前狀態的任務沒有戰鬥、遠征或演習可判定，不顯示空的逐場判定區。
+    const factoryOnly = d.goals?.length ? d.goals.every(goal => FACTORY_GOAL_EVENTS.has(goal.event)) : !!d.prep;
     return `${facts}${conditions}
-        <h4 class="qp-h">${esc(t('ov.qpBattles'))}<span class="qp-hint">${esc(t('ov.qpBattlesHint'))}</span></h4>${battles}
+        ${factoryOnly ? '' : `<h4 class="qp-h">${esc(t('ov.qpBattles'))}<span class="qp-hint">${esc(t('ov.qpBattlesHint'))}</span></h4>${battles}`}
         <h4 class="qp-h">${esc(t('ov.qpServerLog'))}</h4>${server}
         <p class="qp-note">${esc(t('ov.qpNote'))}</p>`;
 }

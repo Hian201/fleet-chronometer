@@ -20,15 +20,15 @@ export type QuestActionKind =
     | 'development'     // 開發（api_req_kousyou/createitem，不論成敗——遊戲本身允許「失敗もOK」）
     | 'supply'          // 補給（api_req_hokyu/charge，每次送出補給算一次）
     | 'dock'            // 入渠（api_req_nyukyo/start，每次送出入渠算一次）
-    | 'modernization'    // 近代化改修（api_req_kaisou/powerup，遊戲機制上必定成功）
-    | 'remodel'         // 裝備改修（api_req_kousyou/remodel_slot，僅成功才算）
-    | 'remodelAttempt'  // 裝備改修「嘗試」次數（同端點，不論成敗都算，見下方 619／QUEST_ID_OVERRIDES）
+    | 'modernization'    // 近代化改修（api_req_kaisou/powerup，僅 api_powerup_flag 為 1 才算）
+    | 'remodel'         // 裝備改修（api_req_kousyou/remodel_slot，僅成功才算；只供文字推算）
+    | 'remodelAttempt'  // 裝備改修「嘗試」次數（同端點，不論成敗都算，見下方 619／1166／1167）
     | 'practiceAttempt' // 演習挑戰次數（api_req_practice/battle）
     | 'practiceWin'     // 演習勝利次數（演習結果 rank 為勝利，見下方注意事項）
     | 'battleWin'       // 出擊戰鬥勝利（battleresult rank 為 S/A/B），見下方 QUEST_ID_OVERRIDES
     | 'battleEngage'    // 出擊戰鬥「發生」次數（battleresult 觸發即算，不論勝敗），見下方 QUEST_ID_OVERRIDES
-    | 'shipScrap'       // 解體艦娘（api_req_kaisou/destroyship，一次可解體多艘，逐艘計數）
-    | 'gearScrap';       // 廢棄裝備（api_req_kaisou/destroyitem2，一次可廢棄多個，逐個計數）
+    | 'shipScrap'       // 解體艦娘（api_req_kousyou/destroyship，一次可解體多艘，逐艘計數）
+    | 'gearScrap';       // 廢棄裝備（api_req_kousyou/destroyitem2，以請求次數計，不論一次廢棄幾件）
 
 export interface QuestGoal {
     kind: QuestActionKind;
@@ -77,10 +77,10 @@ export const QUEST_ID_OVERRIDES: Readonly<Record<number, QuestGoal>> = {
     606: { kind: 'build', target: 1 },        // 新造艦「建造」指令：內文無數字，目標次數為隱含的1次。無真實封包，五方社群來源交叉比對。
     608: { kind: 'build', target: 3 },        // 艦娘「建造」艦隊強化！：內文用「3隻」非「3回」。無真實封包，五方社群來源交叉比對。
     609: { kind: 'shipScrap', target: 2 },    // 軍縮条約対応！：內文用「2隻」+「解体」。無真實封包，五方社群來源交叉比對。
-    613: { kind: 'gearScrap', target: 24 },   // 資源の再利用：內文完全無數字，24為外部知識（同あ号作戦）。無真實封包，五方社群來源交叉比對。
+    613: { kind: 'gearScrap', target: 24 },   // 資源の再利用：內文完全無數字，24為外部知識（同あ号作戦）；按廢棄次數計。無真實封包，五方社群來源交叉比對。
     619: { kind: 'remodelAttempt', target: 1 }, // 装備の改修強化：內文無數字，「失敗也可達成」故用 remodelAttempt 非 remodel。無真實封包，五方社群來源交叉比對。
-    1166: { kind: 'remodel', target: 1 },     // 続：装備の改修強化：內文無數字，此任務要求成功（沿用既有 remodel kind）。無真實封包，五方社群來源交叉比對。
-    1167: { kind: 'remodel', target: 3 },     // 装備の改修集中強化：內文用漢字數字「三回」非阿拉伯數字，故文字解析吃不到。無真實封包，五方社群來源交叉比對。
+    1166: { kind: 'remodelAttempt', target: 1 }, // 続：装備の改修強化：內文無數字；poi 與 KC3Kai 皆不論成敗計數。無真實封包。
+    1167: { kind: 'remodelAttempt', target: 3 }, // 装備の改修集中強化：內文用漢字數字「三回」，文字解析吃不到；不論成敗計數同 1166。無真實封包。
 
     // ── 出擊：限定海域/boss/rank，不涉及艦隊組成（2026-07-23 第二輪擴充）──
     // area 為 mapKey（mapArea*10+mapNo）清單；bossOnly 皆為 true（這批任務全部要求擊破 boss）；

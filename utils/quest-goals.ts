@@ -8,19 +8,29 @@
 //   - mapcell 是進入該節點的 edge 編號，maparea 是 area*10+no。
 //   - fleetlimit 為艦隊艘數上限；banshiptype 為不可編入的艦種。
 //   - missionId 是產生器依 start2 樣本把遠征名稱換成的遠征 id。
+//   - 工廠類事件的計數單位見 factoryGains()。destory_item（來源原文拼法）的 times 按次計，
+//     slotitemType2（裝備 api_type[2]）／slotitemId 按廢棄件數計，anyItem（本專案的任務達成條件表用）不限裝備按件數計；materialShipType 是近代化改修
+//     素材艦的艦種，至少 materialShipMinCount（預設 3）艘才算一次。
 // 認不得的篩選欄位不可默默忽略（會讓條件消失而多算），故整個任務標為不支援。
 import { QUEST_GOAL_RAW } from './quest-goal-data';
 import { QUEST_GOAL_LOCAL } from './quest-goal-local';
+import { questPrepDef } from './quest-prep';
 import { questCatalogIdentity, questTitleKey } from './quest-identity';
 import type { QuestGoal } from './quest-progress';
 
-/** 本專案目前會產生的計數事件：出擊、演習、遠征。工廠與補給入渠類尚未支援。 */
+/** 工廠、補給入渠與近代化改修的計數事件。 */
+export const FACTORY_GOAL_EVENTS = new Set([
+    'supply', 'repair', 'create_item', 'create_ship', 'destroy_ship', 'destory_item', 'remodel_item', 'remodel_ship',
+]);
+
+/** 本專案目前會產生的計數事件：出擊、演習、遠征與工廠類。 */
 export const SUPPORTED_GOAL_EVENTS = new Set([
     'sally', 'battle', 'battle_win', 'battle_rank_s',
     'battle_boss', 'battle_boss_win', 'battle_boss_win_rank_a', 'battle_boss_win_rank_s',
     'reach_mapcell', 'sinking',
     'practice', 'practice_win', 'practice_win_a', 'practice_win_s',
     'mission_success',
+    ...FACTORY_GOAL_EVENTS,
 ]);
 
 /** 擊沉計數只看這些敵艦種（輕空母、正規空母、潛水艦、補給艦）。 */
@@ -48,6 +58,12 @@ export interface GoalSubgoal {
     fleetlimit?: number;
     banshiptype?: readonly number[];
     missionId?: readonly number[];
+    times?: readonly number[];
+    slotitemType2?: readonly number[];
+    slotitemId?: readonly number[];
+    anyItem?: boolean;
+    materialShipType?: readonly number[];
+    materialShipMinCount?: number;
 }
 
 export interface QuestGoalDef {
@@ -63,7 +79,11 @@ const FILTER_KEYS = new Set([
     'maparea', 'mapcell', 'shipType', 'flagshipId', 'secondshipId', 'escortshipId', 'escortshipIdAll',
     'flagshiptype', 'escortshiptype', 'flagshipclass', 'secondshipclass', 'escortshipclass',
     'fleetlimit', 'banshiptype', 'missionId',
+    'times', 'slotitemType2', 'slotitemId', 'anyItem', 'materialShipType', 'materialShipMinCount',
 ]);
+// 廢棄裝備的子目標必須恰好帶一種計數單位：來源每次廢棄分別送出「按次」「按類別件數」「按裝備件數」
+// 三種事件，不帶或同時帶兩種的子目標語意不明（前者會三重計數，後者永遠不符），不支援。
+const SCRAP_UNITS = ['times', 'slotitemType2', 'slotitemId', 'anyItem'] as const;
 const QUEST_KEYS = new Set(['type', 'fuzzy', 'resetInterval']);
 const SUBGOAL_META = new Set(['required', 'init']);
 
@@ -82,6 +102,7 @@ export function parseGoalDef(no: number, raw: Record<string, unknown>): QuestGoa
         for (const field of Object.keys(fields)) {
             if (!FILTER_KEYS.has(field) && !SUBGOAL_META.has(field)) supported = false;
         }
+        if (event === 'destory_item' && SCRAP_UNITS.filter(unit => fields[unit] !== undefined).length !== 1) supported = false;
         subgoals.push({
             ...(fields as Partial<GoalSubgoal>),
             key, event,
@@ -115,18 +136,29 @@ export function localQuestGoalDef(no: number): QuestGoalDef | null {
     return def;
 }
 
+const prepCache = new Map<number, QuestGoalDef | null>();
+
+/** 任務達成條件表（quest-prep.ts）裡的廢棄條件；來源條件表沒收錄的裝備準備任務靠它計數。 */
+export function prepScrapGoalDef(no: number): QuestGoalDef | null {
+    if (prepCache.has(no)) return prepCache.get(no)!;
+    const scrap = questPrepDef(no)?.scrap;
+    const def = scrap ? parseGoalDef(no, scrap) : null;
+    prepCache.set(no, def);
+    return def;
+}
+
 /**
  * 判定用的條件，依序：
  *   1. 本機條件，且撰寫時對照的標題與遊戲即時標題相同（新活動任務即使目錄未收錄也能用）。
  *   2. 即時標題與目錄不同（營運重用編號的新任務）：舊條件不適用，回傳 null。
- *   3. 來源條件表。
+ *   3. 來源條件表，沒有時用任務達成條件表的廢棄條件。
  * 沒有即時標題時（例：尚未收到 questlist）無從核對，依 1→3 的順序採用。
  */
 export function questGoalFor(no: number, liveTitle: string | undefined): QuestGoalDef | null {
     const local = QUEST_GOAL_LOCAL[no];
     if (local && (!liveTitle || questTitleKey(local.title) === questTitleKey(liveTitle))) return localQuestGoalDef(no);
     if (questCatalogIdentity(no, liveTitle) === 'mismatch') return null;
-    return questGoalDef(no);
+    return questGoalDef(no) ?? prepScrapGoalDef(no);
 }
 
 // ── 比對 ──────────────────────────────────────────────────────────────
@@ -301,6 +333,39 @@ export function sinkingGains(def: QuestGoalDef, sunkTypes: readonly number[]): M
     def.subgoals.forEach((sub, index) => {
         if (sub.event !== 'sinking') return;
         const n = sunkTypes.filter(type => SINKING_SHIP_TYPES.includes(type) && (!sub.shipType || sub.shipType.includes(type))).length;
+        if (n > 0) gains.set(index, n);
+    });
+    return gains;
+}
+
+/** 一次工廠類動作的事實。 */
+export interface FactoryFacts {
+    event: string;
+    /** create_item 的取得件數（三連開發算 3）、destroy_ship 的艘數；其餘事件為 1。 */
+    amount: number;
+    /** destory_item：每件廢棄裝備的 master id 與類別；倉庫或 master 查不到時為 -1（不符合任何篩選，只會少算）。 */
+    gears?: readonly { id: number; type: number }[];
+    /** remodel_ship：查得到艦種的素材艦艦種。 */
+    materialTypes?: readonly number[];
+}
+
+/** 一次工廠類動作 → 各子目標可加的數量。 */
+export function factoryGains(def: QuestGoalDef, facts: FactoryFacts): Map<number, number> {
+    const gains = new Map<number, number>();
+    def.subgoals.forEach((sub, index) => {
+        if (sub.event !== facts.event) return;
+        let n = facts.amount;
+        if (sub.event === 'destory_item') {
+            const gears = facts.gears ?? [];
+            n = sub.times ? 1
+                : sub.anyItem ? gears.length
+                : sub.slotitemType2 ? gears.filter(gear => sub.slotitemType2!.includes(gear.type)).length
+                    : gears.filter(gear => sub.slotitemId?.includes(gear.id)).length;
+        }
+        if (sub.materialShipType) {
+            const hits = (facts.materialTypes ?? []).filter(type => sub.materialShipType!.includes(type)).length;
+            if (hits < (sub.materialShipMinCount ?? 3)) return;
+        }
         if (n > 0) gains.set(index, n);
     });
     return gains;

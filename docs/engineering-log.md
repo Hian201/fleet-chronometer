@@ -166,7 +166,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `utils/line-chart.ts` | 折線圖幾何（純函式，無 DOM）：`multiChartGeometry()`／`niceTicks()`／`nearestIndex()`。只算座標與刻度，SVG 標記由呼叫端組。**y 值域只看傳進來的序列**——這是「一張圖多條線可開關」能成立的關鍵 |
 | `utils/retention.ts` | 重播保留規則引擎（純函式，無 chrome.*，node 可測）：`planRetention()` 依「保護規則＋裁剪窗」決定 `db.replays` 每場去留（保護：手動釘選／新船掉落／斬殺／活動 boss／攻略中海域；其餘只留最近 N 天且保底最近 N 場）、`firstOwnedDropKeys()` 算新船場（證據制：每個 master 取最早持有紀錄，須 `source='auto'`＋`observedEventId`，再關聯同 `dropMst` 的前一筆 battle-result；baseline/手填一律不算）。控制重播層不長成 KC3Kai 300MB＋巨檔，見「母港快照與資料備份還原」 |
 | `utils/event-plan.ts` | 活動作戰板核心（純函式，無 chrome.*，node 可測）：`groupBySally()` 依 `api_sally_area` 分群、`checkStage()` 出三種燈號（ok／blocked／willStamp）、`findPlanConflicts()` 抓計畫自我矛盾、`sallyBudget()` 算自由身消耗。詳見「活動作戰板」 |
-| `utils/ship-filter.ts` | 鎮守府全船篩選（純函式，無 chrome.*，node 可測）：航速／艦種／**國籍**／可裝備／出擊標籤／關鍵字。`EquipFilter` 七選項＝「能裝大發系」與「能裝內火艇」兩個布林的組合（已對全 1751 艦驗算，七桶皆非空）。由活動作戰板與艦娘全覽共用（`ship-roster.ts` 委派共用維度、不重寫一份），UI 殼在 `entrypoints/overview/ship-picker.ts`。**國籍刻意不放進 `OwnedShipView`**——它是 `ship-nationality.ts` 的人工參照表查出來的，不是封包事實，混進 state 的 view 會讓兩層糊在一起；由呼叫端 `nationOf(ctype)` 補上 |
+| `utils/ship-filter.ts` | 鎮守府全船篩選（純函式，無 chrome.*，node 可測）：航速／艦種／**國籍**／可裝備／出擊標籤／關鍵字。`EquipFilter` 七選項＝「能裝大發系」與「能裝內火艇」兩個布林的組合（已對全 1755 艦驗算，七桶皆非空）。由活動作戰板與艦娘全覽共用（`ship-roster.ts` 委派共用維度、不重寫一份），UI 殼在 `entrypoints/overview/ship-picker.ts`。**國籍刻意不放進 `OwnedShipView`**——它是 `ship-nationality.ts` 的人工參照表查出來的，不是封包事實，混進 state 的 view 會讓兩層糊在一起；由呼叫端 `nationOf(ctype)` 補上 |
 | `utils/ship-nationality.ts` | 艦娘國籍（**建造國**）參照表，鍵＝艦型 `api_ctype`。**遊戲 API 不提供國籍**，人工維護；未列出的 ctype 一律日本。戰後移交他國並改名的形態歸建造國（見「艦娘全覽（詳細清單）」）|
 | `utils/ship-roster.ts` | 艦娘全覽**詳細清單**的篩選／排序／分頁核心（純函式，無 chrome.*，node 可測）。共用維度（航速／艦種／可裝備／標籤／關鍵字）委派 `ship-filter.ts`，本檔加上收藏視角專屬的婚艦・編入・鎖定・士氣・改造・近代化改修・射程・開幕・補強增設・多號機・等級範圍，外加十八個排序鍵與分頁。先制對潛是推算值（遊戲不送旗標），詳見「艦娘全覽（詳細清單）」 |
 | `utils/stype-label.ts` | 同名艦種消歧（純函式）。`api_mst_stype` 的 8／9 都叫「戰艦」；篩選晶片以名冊多數航速加註「高速」，逐艦欄用該艦自己的 `api_soku`。艦娘全覽與配裝參考共用，**不得用 stype id 當航速捷徑** |
@@ -175,7 +175,7 @@ collision。任何 provider 都不得繞過 `ingestEvent()` 直接寫 `db.events
 | `utils/quest-progress.ts` | 任務「本機進度」推算（純函式，無 chrome.*，node 可測）：`parseQuestGoal()` 從任務標題/內文的「N回」字樣反推目標次數與動作種類（遠征/建造/開發/近代化改修/裝備改修/演習/出撃）。**遊戲封包完全不給精確完成次數**（只有 `api_state` 受注中/達成與粗略的 `api_progress_flag`），故計數只能是「自本機面板看到這個任務起算」，可能低於遊戲內實際值（同 ship-debut-data.ts 的 baseline 誠實原則）。解不出目標的任務（單次型、或以「隻」為單位）回傳 null，UI 回退顯示受注中/達成。詳見「任務本機進度追蹤」 |
 | `utils/state.ts` | `GameState`：封包 reduce 成狀態；遠征檢查、制空/索敵、戰鬥接線、血量寫回、燃彈估算、關卡量表、TP、`wantedTag`、泊地修理計時器錨點、任務進度計數（`bumpQuestProgress()`） |
 | `utils/battle.ts` | `analyzeBattle`（傷害重放）+ `predictRank`（勝利判定） |
-| `tests/` | vitest 套件（`npm test`）。活動作戰板相關：`event-plan.test.ts`（核心純函式）、`ship-filter.test.ts`（共用篩選，可裝備七桶以真實 master 全 1751 艦驗算）、`map-master.test.ts`（海域 master，含真實 area 62）、`backup-v4-event-plans.test.ts`（envelope v4 往返與舊版相容）；出擊紀錄：`sortie-detail.test.ts`（基地航空隊各波／支援艦隊編組以真封包驗證，摘要×封包合併與「第幾次」計數）、`sortie-import.test.ts`（單場 JSON 匯入與去重）、`map-node-letters.test.ts`（節點字母查表與 61-5／6-5 兩份 ground truth）、`map-node-kind.test.ts`（節點類型，與 KC3Kai 匯出的 desc 交叉驗證）；資源紀錄：`resource-capture.test.ts`（擷取與量表狀態機，量表數值取自 61-3／61-4／61-5 真實 eventmap）、`resource-log.test.ts`（分析核心與折線幾何）、`backup-v5-resources.test.ts`（envelope v5 往返與 v4 相容）；打撈／建造紀錄 CSV：`csv.test.ts`（分隔符偵測／跳脫／往返）、`drop-log-import.test.ts`、`build-log-import.test.ts`（自家格式往返、航海日誌拡張版相容解析、去重與 event ID 借號）；遠征期間彙總：`expedition-stats.test.ts`（分組／加總／排序／CSV，含壞資料不得變 NaN）、`exped-log-overview.test.ts`（分區 HTML 產出：escape、排序箭頭、缺席文案） |
+| `tests/` | vitest 套件（`npm test`）。活動作戰板相關：`event-plan.test.ts`（核心純函式）、`ship-filter.test.ts`（共用篩選，可裝備七桶以真實 master 全 1755 艦驗算）、`map-master.test.ts`（海域 master，含真實 area 62）、`backup-v4-event-plans.test.ts`（envelope v4 往返與舊版相容）；出擊紀錄：`sortie-detail.test.ts`（基地航空隊各波／支援艦隊編組以真封包驗證，摘要×封包合併與「第幾次」計數）、`sortie-import.test.ts`（單場 JSON 匯入與去重）、`map-node-letters.test.ts`（節點字母查表與 61-5／6-5 兩份 ground truth）、`map-node-kind.test.ts`（節點類型，與 KC3Kai 匯出的 desc 交叉驗證）；資源紀錄：`resource-capture.test.ts`（擷取與量表狀態機，量表數值取自 61-3／61-4／61-5 真實 eventmap）、`resource-log.test.ts`（分析核心與折線幾何）、`backup-v5-resources.test.ts`（envelope v5 往返與 v4 相容）；打撈／建造紀錄 CSV：`csv.test.ts`（分隔符偵測／跳脫／往返）、`drop-log-import.test.ts`、`build-log-import.test.ts`（自家格式往返、航海日誌拡張版相容解析、去重與 event ID 借號）；遠征期間彙總：`expedition-stats.test.ts`（分組／加總／排序／CSV，含壞資料不得變 NaN）、`exped-log-overview.test.ts`（分區 HTML 產出：escape、排序箭頭、缺席文案） |
 | `utils/db.ts` | Dexie schema **v12**：stores 為 events、wanted、sorties、notified、factory、replays、expeditions、snapshot、shipObtained、eventPlans、resources、resourceMarks、meta；events 的 `captureId` 為 unique index，並有 `postProcessState`；v10 不猜補歷史 captureId／state／metadata；v11 純新增 `eventPlans`（主鍵 areaId）；v12 純新增 `resources`（主鍵＝來源 event id）與 `resourceMarks`（主鍵＝字串 key），既有表不變、無遷移、**不回填歷史**（v12 之前沒有任何餘額序列可考） |
 | `utils/ingestion-persistence.ts`／`utils/background-ingestion-lifecycle.ts` | raw event 持久化、captureId 去重與 collision 拒絕、pending/processing/done 狀態機，以及 SW recovery 的單一順序 queue |
 | `utils/event-projector.ts`／`utils/projection-cursor.ts`／`utils/event-pruning.ts` | derived-table 投影、`meta['projection']` version 3 cursor，以及只刪已投影 raw event 的安全裁剪 |
@@ -1198,14 +1198,14 @@ ctx)`）。`ctx`（`{area, boss, rank, missionId}`）是選填的**這次動作�
 | `development` | `api_req_kousyou/createitem` | 不論成敗——任務常註明「失敗もOK」 |
 | `supply` | `api_req_hokyu/charge` | 每次補給請求算一次，不以實補幾艘/幾多資源猜測次數（例：「艦隊酒保祭り！」補給15回） |
 | `dock` | `api_req_nyukyo/start` | 每次入渠請求算一次（含高速修復），對應上述「N隻ドック入り」白名單 |
-| `modernization` | `api_req_kaisou/powerup` | 遊戲機制上近代化改修沒有失敗判定，每次呼叫都算成功 |
+| `modernization` | `api_req_kaisou/powerup` | 僅 `api_powerup_flag === 1` 才算（poi 與 KC3Kai 一致；本專案尚無失敗樣本） |
 | `remodel` | `api_req_kousyou/remodel_slot` | 僅 `api_remodel_flag===1`（成功）才算 |
-| `remodelAttempt` | `api_req_kousyou/remodel_slot` | 同端點但不論成敗都算（任務619「失敗もOK」，與 `remodel` 各自獨立累加，可能不同步） |
+| `remodelAttempt` | `api_req_kousyou/remodel_slot` | 同端點但不論成敗都算（任務619「失敗もOK」，1166／1167 同；與 `remodel` 各自獨立累加，可能不同步） |
 | `practiceAttempt`／`practiceWin` | `api_req_practice/battle`／`api_req_practice/battle_result` | 見下方「未驗證」 |
 | `battleWin` | `api_req_sortie/battleresult`／`api_req_combined_battle/battleresult` | rank 為 S/A/B 才算 |
 | `battleEngage` | 同上 | 不論勝敗，結算觸發即算（例：任務210「10回邀撃」——是「戰鬥發生次數」不是「出擊次數」，兩者不等價：一次出擊可能打好幾場戰鬥） |
-| `shipScrap` | `api_req_kaisou/destroyship` | 逐艘計數，非逐次請求計數（`api_ship_id` 可逗號分隔一次解體多艘） |
-| `gearScrap` | `api_req_kaisou/destroyitem2` | 逐個計數，非逐次請求計數（`api_slotitem_ids` 同上可逗號分隔） |
+| `shipScrap` | `api_req_kousyou/destroyship` | 逐艘計數，非逐次請求計數（`api_ship_id` 可逗號分隔一次解體多艘） |
+| `gearScrap` | `api_req_kousyou/destroyitem2` | 按請求次數計，不論一次廢棄幾件（`api_slotitem_ids` 可逗號分隔；poi 條件表 `times` 與 KC3Kai 一致） |
 
 **出擊／工廠／改裝類任務內文常常沒有數字，或用「隻」而非「回」**（2026-07-23 clone
 KC3Kai／KanColle-YPS／ElectronicObserver 三個社群工具原始碼＋比對 zh.kcwiki.cn／
@@ -1320,11 +1320,19 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
 
 **條件表**（`utils/quest-goal-data.ts`，由 `tools/quest-goal/generate.py` 從 poi 固定 commit 的
 `questgoal.json` 產生，產生物勿手改）：
-- 收錄 425 個任務。支援出擊（`sally`、`battle*`、`reach_mapcell`、`sinking`）、演習（`practice`、`practice_win`、`_a`、`_s`）與遠征（`mission_success`）事件：
-  - 出擊：273 個全部支援，涵蓋任務目錄 311 個出擊任務中的 273 個，其餘 38 個走文字級。
-  - 演習：62 個全部支援。
-  - 遠征：43 個全部支援。
-  - 工廠、補給入渠、近代化改修類事件尚未支援。
+- 收錄 432 個任務（資料版本 2026/10/25/01），事件全部支援：出擊（`sally`、`battle*`、`reach_mapcell`、`sinking`）、演習（`practice`、`practice_win`、`_a`、`_s`）、遠征（`mission_success`），以及工廠、補給入渠與近代化改修（`create_item`、`create_ship`、`destroy_ship`、`destory_item`、`remodel_item`、`remodel_ship`、`supply`、`repair`）。
+- 工廠類的計數單位依 poi `quests-cross-slice.ts` 與 KC3Kai `Kcsapi.js` 交叉比對（`factoryGains()`）：
+  - 開發按 `api_get_items` 件數（三連開發算 3）；解體按艘；建造、改修、補給、入渠按次。裝備改修不論 `api_remodel_flag` 成敗。
+  - 近代化改修只算 `api_powerup_flag === 1`；`materialShipType` 在移除餌艦前查素材艦種，至少 `materialShipMinCount`（預設 3）艘才算。來源不檢查強化對象的艦種（KC3Kai 對 714〜717 另查），本專案照來源，可能略為多算。
+  - 廢棄裝備（來源拼法 `destory_item`）：`times` 按請求次數，`slotitemType2`（`api_type[2]`）／`slotitemId` 按件數，在刪除前查倉庫與 master；查不到的件不計（只會少算）。子目標必須恰好帶其中一種，否則不支援。
+- **任務達成條件表**（`utils/quest-prep.ts`＋產生物 `utils/quest-prep-data.ts`，人工審核資料 `tools/quest-prep/conditions.py`，2026-11-03）：
+  - 收錄編成 96、裝備準備／機種轉換 108、海域攻略 1（967：7-4 已攻略）。這類條件是「目前鎮守府狀態」而非事件計數；遊戲在任務畫面才判定，條件齊備時 `api_state` 仍為 2（ElectronicObserver kcmemo）。符合時介面標「可完成」，是否領取由玩家決定。
+  - 依 wikiwiki 與 KC3Kai kc3-translations 現行說明逐筆核對；kcwiki-quest-data（2024-06 後未更新）只當比對草稿，差異已以現行來源為準（例：149 五艘任四、155／188／190／194 艘數上限）。103（A3「水雷戦隊」を編成せよ！）的駆逐艦隻數、1130（F118 大規模改装の工廠準備）的「バルジ」範圍由使用者確認：駆逐艦 2 艘以上；遊戲的バルジ為裝備類別 27／28 全部（含艦本新設計 増設バルジ、プリエーゼ式水中防御隔壁、北方迷彩），依使用者決定暫且只計可開發的増設バルジ(中型艦)／(大型艦)，廢棄其他バルジ時本機少算。215（B3 第2艦隊、出撃せよ！）依使用者決定不做。
+  - 未指定艦隊的編成任務看任一艦隊（KC3Kai 174／175 備註）；裝備任務看第一艦隊旗艦。持有只算不在艦上、不在基地航空隊且未鎖定的裝備；會轉換或消耗的秘書艦裝備鎖定中判不符合（678 的艦戦留在艦上，`keep` 例外）。鎖定取自 `api_locked`，`api_req_kaisou/lock` 即時更新（KC3Kai、poi 交叉比對，無樣本）。道具、資源、家具幣（`api_basic.api_fcoin`）或裝備清單未收到時該項為不可考，整體不判「可完成」。
+  - 廢棄計數：任務進度條件表已收錄者沿用，否則用本表的 `scrap`（`questGoalFor()` 的最後一順位）；`anyItem` 為不限裝備按件數。`gate` 任務只在秘書艦條件當下成立時計入廢棄。1103 來源寫成「魚雷」系，任務原文指定「61cm三連装(酸素)魚雷」，以 `quest-goal-local.ts` 修正。
+  - 帶編成／裝備／持有條件的任務，廢棄計數已滿而伺服器未達成視為一致，不以單一目標的 flag 判多算。
+- 常設任務仍無條件定義：215（第二艦隊出擊一次即達成，追蹤價值低，不做）。
+- **start2 樣本更新**：`tools/start2-sample/refresh.py --backup <總括頁完整備份>`（優先，擴充自己擷取的 snapshot）或 `--file <start2> --source <來源>`。活動結束後消失的海域與活動遠征保留舊列。2026-11-03 以使用者備份的 start2（當日 15:13 擷取）補上 748 扶桑改二補、749 山城改二補、902 狭霧改二、1071 北上改三與裝備 589 XF6F-6（公開鏡像 Tibowl/api_start2 23637be5 交叉比對，艦娘一致；XF6F-6 是 2026-10-31 派發的戰果排名上位獎勵裝備，晚於鏡像（使用者說明）），三語譯名表同步補齊；`tests/gamedata-coverage.test.ts` 鎖住每艘艦娘都有英文與台灣華語譯名。
 - 遠征以名稱篩選；產生器依 `samples/start2-master.json` 的 `api_mst_mission` 把名稱換成遠征 id（`missionId`，39 個名稱全部唯一對上）。對不上的保留原欄位，任務自動標為不支援。
 - 演習艦隊取自演習戰鬥封包的 `api_deck_id`。解不出時，帶編成條件的演習子目標判為 `fleetUnknown`，不當成符合。
 - 出擊艦隊在 `map/start` 記下。戰鬥封包明示的 `api_deck_id` 與出擊時不同、或沒有出擊資訊時，本次出擊剩下的判定一律視為艦隊不可考：帶編成條件（旗艦、僚艦、艦種、艦數、禁止艦種）的子目標判為 `fleetUnknown`，不帶的照常計入。下一次 `map/start` 重新記錄。
@@ -1333,9 +1341,9 @@ area 用既有的 mapKey 慣例（`mapArea*10+mapNo`）；boss 沿用既有的 `
   - 僚艦條目 `[ids, 數量, 排除旗艦?]` 預設把旗艦算進數量。`escortshipId` 的條目 OR，`escortshipIdAll`、`escortshiptype`、`escortshipclass` 的條目 AND。
   - `mapcell` 是進入節點的 edge 編號（不經字母查表），`maparea` 是 area*10+no。
 - 認不得的事件或篩選欄位會讓整個任務標為不支援，不默默放寬條件。
-- 條件表收錄、但事件尚未支援的任務（工廠、補給入渠、近代化改修）：
+- 條件表收錄、但不支援的任務（本機條件帶認不得的欄位等）：
   - 單一子目標且不帶篩選時，才沿用舊的動作計數（`simpleGoalFromDef()`）。
-  - 其餘不用文字推算次數，只顯示伺服器回報，避免編成或評價限定的演習被當成一般勝利而多算。
+  - 其餘不用文字推算次數，只顯示伺服器回報，避免編成或評價限定的條件被當成一般計數而多算。
 - `resetInterval: 1`（「本日中」）的子目標在 05:00 JST 換日後歸回初值。
 - 擊沉只算結算後 HP 為 0 的敵輕空母、正規空母、潛水艦、補給艦（`battleInfo.enemyIds` 與 `resultFleets` 同序）。
 - 沒有出擊資訊（map/start 已被裁剪）的結算：不限海域的子目標照常計入，限定海域或王點的不計。
@@ -1727,7 +1735,7 @@ master 表已併入 `samples/start2-master.json`，該檔現有 12 張表）：
 - 類別 id（`api_mst_slotitem_equiptype` 實測）：**24 上陸用舟艇（大發系）／34 司令部施設／
   45 水上戦闘機／46 特型内火艇**。type 24 的值實測**全部是 null**（整個類別可裝），
   尚無「僅限特定裝備」的實例，故篩選忽略 `null` 與 `[ids]` 的差別。
-- **七選項下拉＝兩個布林的組合**，已對全 1751 艦驗算且與獨立的 Python 統計完全一致：
+- **七選項下拉＝兩個布林的組合**，已對全 1755 艦驗算（2026-10-14 start2）且與獨立的 Python 統計完全一致：
   大發系 96／內火 199／二者皆可 62／僅大發 34／僅內火 137／二者任一 233／皆不可 1518。
 - **航速**：`api_ship.api_soku`，427 艘實測分佈 `{10: 300, 5: 127}`＝高速／低速。
   15 高速+／20 最速**未見於樣本**，故篩選一律用「>= 門檻」比較、不列舉數值。
@@ -1813,7 +1821,7 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 
 **國籍（建造國）＝人工參照表，鍵是艦型 ctype**（`utils/ship-nationality.ts`）。遊戲 API
 不提供國籍，同「兩個日期」的處境。以 ctype 為鍵而非逐艦：國籍是艦型層級屬性，一個艦型一筆、
-新增改造形態不必回來補（逐艦列舉必然腐爛）。**未列出的 ctype 一律日本**——862 艘図鑑內艦分屬
+新增改造形態不必回來補（逐艦列舉必然腐爛）。**未列出的 ctype 一律日本**——866 艘図鑑內艦分屬
 140 個 ctype，其中只有 58 個是外國艦型，逐一列出 82 個日本艦型只會更難維護。
 
 **「建造國」而非「最後的所屬國」——這條看起來像 bug，是刻意的**：遊戲收錄了數個戰後移交

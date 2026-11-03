@@ -32,7 +32,7 @@ export type SpeedFilter = 'all' | 'slow' | 'fast' | 'fastPlus';
 
 /**
  * 可裝備篩選。七個選項＝「能裝大發系」與「能裝內火艇」兩個布林值的組合，
- * 已用真實 start2 對全 1751 艦驗算，七個桶皆非空（見 CLAUDE.md「鎮守府全船篩選」）。
+ * 已用真實 start2 對全 1755 艦驗算，七個桶皆非空（見 CLAUDE.md「鎮守府全船篩選」）。
  */
 export type EquipFilter =
     | 'all'

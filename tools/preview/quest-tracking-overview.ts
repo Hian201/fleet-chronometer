@@ -23,7 +23,7 @@ function page(lang: Lang): string {
     setLang(lang);
     const state = questTrackingFixture();
     const model = buildQuestFlow(state, new Set(), new Date(2026, 8, 28, 22, 0).getTime());
-    const blocks = [[1047, 1040], [1047, 760], [9001, 760]].map(([no, width]) => {
+    const blocks = [[1047, 1040], [1047, 760], [9001, 760], [655, 760], [645, 760], [114, 760]].map(([no, width]) => {
         const row = model.byNo.get(no) ?? null;
         return `<h2 class="pv-title">api_no ${no} · ${width}px</h2>
         <div class="pv-frame" style="width:${width}px"><div class="qf">
