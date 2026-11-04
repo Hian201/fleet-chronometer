@@ -331,7 +331,7 @@
     <text x="58" y="84" fill="#e6ebf4" font-weight="700">interceptor.content.ts — MAIN world</text>
     <text x="58" y="104" fill="#b7c0d0">觀察 window.axios response → IdleCaptureQueue</text>
     <text x="58" y="122" fill="#b7c0d0">installAudioMute()（document_start，須早於遊戲建立音訊圖）</text>
-    <text x="58" y="138" fill="#8a94a8" font-size="11.5">[debug] __kcLastBattle / __kcLastResult / __kcAudio</text>
+    <text x="58" y="138" fill="#8a94a8" font-size="11.5">[debug，僅開發建置] __kcLastBattle / __kcLastResult / __kcAudio</text>
 
     <rect x="44" y="176" width="380" height="82" rx="8" fill="#22304a" stroke="#4a5468"/>
     <text x="58" y="198" fill="#e6ebf4" font-weight="700">bridge.content.ts — ISOLATED world</text>
@@ -341,7 +341,7 @@
 
     <path d="M234,144 L234,176" stroke="#d8a93a" stroke-width="2"/>
     <polygon points="230,168 234,178 238,168" fill="#d8a93a"/>
-    <text x="244" y="166" fill="#d8a93a" font-size="11.5">window.postMessage（同源）</text>
+    <text x="244" y="166" fill="#d8a93a" font-size="11.5">MessageChannel（私有 port）</text>
 
     <!-- service worker -->
     <rect x="530" y="62" width="510" height="196" rx="10" fill="#2a3548" stroke="#b8860b" stroke-width="1.8"/>
@@ -438,7 +438,9 @@ ingestion 完成後的廣播。<strong>所有箭頭都是單向觀察或本機�
   <span class="tag">為什麼是兩支 content script</span>
   <p>MAIN world 才能碰到遊戲的 <code>window.axios</code>（ISOLATED world 看到的是另一份
   <code>window</code>）；但 MAIN world <strong>沒有 <code>browser.*</code> API</strong>。
-  故必須拆成「MAIN 觀察 → 同源 <code>postMessage</code> → ISOLATED 轉 runtime message」兩段。
+  故必須拆成「MAIN 觀察 → 私有 <code>MessagePort</code> → ISOLATED 轉 runtime message」兩段。
+  兩段之間用 <code>utils/main-channel.ts</code> 的 MessageChannel：只有 document_start 的握手經過
+  <code>window</code>，之後的封包與靜音狀態不在頁面上廣播。
   token 剝除刻意放在 ISOLATED 這一段，讓 MAIN world 那支完全不碰持久化語意。
   靜音 hook 仍必須 MAIN＋<code>document_start</code>，與擷取路徑無關。</p>
 </div>
@@ -460,31 +462,30 @@ ingestion 完成後的廣播。<strong>所有箭頭都是單向觀察或本機�
   <ul>
     <li>遊戲送出的請求與拿到的回應，與沒有本擴充時相同。</li>
     <li>不取代 <code>window.fetch</code>／<code>XMLHttpRequest.prototype</code>。</li>
-    <li>字串化與 <code>postMessage</code> 延到 idle slice，不在 interceptor 同步路徑做大拷貝。</li>
+    <li>傳輸延到下一個 task（大封包延到 idle slice），不在 interceptor 同步路徑做。</li>
+    <li>封包不經 <code>window.postMessage</code> 廣播；通道建立前在 MAIN 端緩衝，不退回 window 備援。</li>
     <li>若頁面始終沒有全域 <code>axios</code>，本擴充會抄不到封包；不得因此退回原生 API 包裝。</li>
   </ul>
 </div>
 
 <h4>IdleCaptureQueue（<code>utils/idle-capture-queue.ts</code>）</h4>
-<p>存在理由：初始登入會連續回傳 <code>start2</code>／<code>port</code>／<code>require_info</code> 等多 MB 封包。
-<strong>不能只把 <code>postMessage</code> 包在 <code>setTimeout(0)</code></strong>——axios 已在遊戲路徑
-materialize 回應，下一輪 task 若一次送完所有待處理封包仍會卡住繪製。</p>
+<p>存在理由：不在遊戲 axios 回呼內同步做事，並讓登入時的大封包（<code>start2</code> 約 2.3MB）
+不與遊戲繪製搶時間。實測單筆佔用遊戲主執行緒不到 1ms，故一般封包不再等 idle。</p>
 <ul>
-  <li>每個 idle slice <strong>只處理一筆</strong>，保序。</li>
+  <li>已知大小低於 <code>IMMEDIATE_MAX_CHARS</code>（512K 字元）的封包排到下一個 task 送出；
+      更大或大小未知者每個 idle slice <strong>只處理一筆</strong>。兩條路徑共用佇列，保序。</li>
   <li>排程用 <code>requestIdleCallback(cb, { timeout: 1000 })</code>；不支援時 fallback 為
       <code>setTimeout(cb, 50)</code>（仍維持單筆與順序）。</li>
-  <li><b>輸入靜默窗</b>：<code>INPUT_QUIET_MS = 750</code>。監看 <code>pointerdown</code>／<code>keydown</code>／
-      <code>wheel</code>（capture、除 keydown 外 passive），使用者操作後先留一段安靜時間再處理，
-      避免與遊戲的介面轉場繪製競爭。<code>nextEligibleDelayMs()</code> 回傳仍需等待的毫秒數。</li>
+  <li><b>輸入靜默窗</b>：<code>INPUT_QUIET_MS = 17</code>（一個畫面幀）。監看 <code>pointerdown</code>／<code>keydown</code>／
+      <code>wheel</code>（capture、除 keydown 外 passive），使用者操作後至少讓出一幀再處理，
+      不與該次輸入觸發的繪製擠在同一幀。<code>nextEligibleDelayMs()</code> 回傳仍需等待的毫秒數。</li>
   <li>刻意不在剩餘很短的同一個 idle slice 立即重排（<code>defer</code> 走 <code>setTimeout</code>），
       避免載入海域等連續繪製期間反覆取得短 idle budget 而空轉。</li>
 </ul>
 
 <h4>傳出格式</h4>
-<pre><code>window.postMessage(
-  { __kc_monitor__: 1, path, req: reqBody, apiText: text },
-  location.origin,          // 明確指定 targetOrigin，不用 '*'
-);</code></pre>
+<pre><code>channel.send({ kind: 'capture', path, req: reqBody, apiText: text, timing });
+// 經 MessageChannel 的私有 port 交給 bridge；timing 只供開發用延遲量測，不寫入 DB</code></pre>
 <p><strong>傳原始文字而非解析後的物件</strong>：structured clone 只需處理字串，不會在遊戲 renderer
 深拷貝 <code>start2</code> 這種多 MB 的巢狀物件。解析留給 service worker。</p>
 

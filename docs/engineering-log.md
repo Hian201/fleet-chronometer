@@ -78,8 +78,8 @@ npx tsc --skipLibCheck --target ES2020 --module ES2020 --moduleResolution bundle
 遊戲頁(*.kancolle-server.com, iframe)
   ▼ 觀察 window.axios response（不取代原生 fetch/XHR）
 interceptor.content.ts (MAIN world, document_start)
-  · 剝 svdata= → postMessage；[debug] __kcLastBattle/__kcLastResult
-  ▼ window.postMessage
+  · 剝 svdata= → 私有 MessagePort；[debug，僅開發建置] __kcLastBattle/__kcLastResult
+  ▼ MessageChannel（握手時經 window 一次，之後走私有 port）
 bridge.content.ts (ISOLATED)
   · 去 api_token → runtime.sendMessage({type:'kc:api', ...})
   ▼
@@ -101,7 +101,10 @@ panel/main.ts
 
 **Provider 合約**：`ApiEventRow`（`utils/db.ts`）是擷取來源與下游的正式邊界。MAIN world
 interceptor 被動觀察遊戲 `window.axios` 的 kcsapi 回應（不取代原生 fetch／XHR，以免 DevTools `getContent` 對其他擴充變空），經 `utils/idle-capture-queue.ts` 依序送出（輸入後至少讓出一幀；512K 字元以下排到下一個 task，更大或大小未知者等 idle；延遲量測見 `utils/capture-timing.ts`，只在開發用 UI 收集、不寫入 DB）已去 `/kcsapi/`／`svdata=` 前綴的
-path、原始 response text 與 request body；ISOLATED bridge 驗證同源訊息、移除
+path、原始 response text 與 request body。MAIN 與 bridge 之間走 `utils/main-channel.ts` 的 MessageChannel：
+只有 document_start 的握手經過 window（驗證同一 window、同源），封包與靜音狀態都走私有 port，
+不在頁面上廣播；通道建立前的封包留在 MAIN 端依序緩衝，不改走 window 備援。正式建置的 MAIN world
+不設除錯全域變數、不印封包（建置旗標在編譯期折掉，產物中沒有這段程式碼）。ISOLATED bridge 移除
 `api_token`／`api_verno`，建立一次固定 envelope（UUID `captureId`、timestamp、path、req、
 `apiText`）後送 runtime message。retry **只一次**，且重用同一 envelope；第二次仍失敗時該筆
 仍可能遺失。background 才解析大型 `apiText` 成 `api_data`，並以 `source:'main'` 交
@@ -2210,9 +2213,9 @@ Esc 全部落進框內文件，父頁**再也收不到**。解法分兩邊：
 而劇場模式是用 `executeScript` 立刻注入才會馬上生效，
 interceptor／bridge **不會**——未重新注入的既有分頁沒有靜音 hook，故
 background 在靜音回覆裡附上 `connected`（目前連上的遊戲分頁數），popup 與劇場工具列在
-`connected === 0` 時直接顯示「請在遊戲分頁按 F5」。另外 MAIN world 會掛
+`connected === 0` 時直接顯示「請在遊戲分頁按 F5」。開發建置（`npm run dev`）的 MAIN world 另會掛
 `window.__kcAudio`（`contextCount()`／`isMuted()`）：在遊戲框的 console 查得到就代表 hook 已注入，
-`contextCount()` 為 0 則代表遊戲根本沒用 WebAudio。
+`contextCount()` 為 0 則代表遊戲根本沒用 WebAudio。正式建置不掛。
 
 **狀態存放**：靜音開關與語言鏡像存 `db.meta['game-page']`（`GamePageMetaRow`）——SW 沒有
 localStorage，而 `chrome.storage` 要新增權限。語言的真相仍在擴充頁面的 localStorage
@@ -2227,6 +2230,33 @@ localStorage，讀不到鏡像時退回瀏覽器語言偵測。**這一列不參
 （`persistAcrossSessions`，日後開遊戲頁自動生效）→ 對當前分頁 `executeScript` 立即注入
 （否則要使用者自己 F5）。已注入的分頁先試 `tabs.sendMessage` 切換，失敗才注入；
 content script 另有 `__kcTheaterInstalled` 旗標防重複注入長出第二條工具列。
+
+#### 獨立視窗（popout，2026-11-04）
+
+**與視窗適應並存的第二個選項**：把**整個遊戲分頁**移進 `type:'popup'` 視窗（只有標題列＋唯讀
+網址列），回來時再移回原視窗。上面「不搬 iframe」的禁令仍成立——這裡搬的是分頁
+（`windows.create({ tabId, type:'popup' })`），與滑鼠把分頁拖成新視窗同一機制，文件與遊戲框
+不重建，故不重新整理；DevTools 綁在分頁上，連線不受搬移影響。不需新增權限（`windows` API
+免宣告）。popup 視窗的唯讀網址列是 Chromium 的安全設計，擴充無法隱藏。
+
+- **流程**：popup 選單送 `MSG_THEATER_TOGGLE {mode:'popout'}` → 劇場 content script 量遊戲區、
+  送 `MSG_POPOUT_OPEN` → background 記下原視窗 `{windowId, index}` 並搬分頁 → content script
+  等 resize 後以 popup 實際外框差重新 `fitWindow()`。初始尺寸只用原視窗外框差估算。
+- **回來**：工具列 ✕ 與 Esc 在獨立視窗中改為「回到原視窗」（`MSG_POPOUT_CLOSE`）。先
+  `tabs.move` 回原視窗原位置（超出分頁數就放最後）；原視窗已關或搬不回去時改用
+  `windows.create({ tabId, type:'normal' })` 接住分頁，同樣不重新整理。進獨立視窗前已在視窗
+  適應就維持適應，否則完全還原 DMM 頁面。
+- **狀態放 `sessionStorage`（`kc-popout`）**：跟著分頁走、F5 後仍在、關分頁即消失。F5 後先以
+  `MSG_POPOUT_STATE` 確認分頁仍在 popup 視窗才恢復版面。獨立視窗中的進出**不寫** `kc-theater`，
+  否則關掉獨立視窗後下次開遊戲會自動進入視窗適應。
+- **比例鎖定（只在獨立視窗）**：擴充無法限制拖曳比例，故 resize 停止 350ms 後依變動較大
+  的一軸算倍率（`lockedZoom()`，上限為螢幕可用區），再以帶 `zoom` 的 `MSG_THEATER_FIT_WINDOW`
+  把視窗修成遊戲比例；拖曳中途不修正，以免跟滑鼠拉扯。一般視窗不做，因為那會改到其他分頁的版面。
+- **DevTools 不能嵌入**：Chromium 只允許 DevTools 嵌入一般視窗，popup 視窗一律獨立開啟，擴充無 API 可改。
+- **直接關閉 popup 視窗＝關掉遊戲分頁**：進入時提示講明，關頁警示照常生效。
+- ⚠️ **未實機驗證**：Edge／macOS 上 `tabs.move` 從 popup 移回一般視窗是否成功（文件寫只支援
+  一般視窗之間，失敗會走新視窗後備）、嵌入式 DevTools 搬移後的行為、DevTools 型擴充是否持續
+  收封包，皆待開發者手動確認。
 
 ### 拍照（`utils/screenshot.ts`＋`MSG_CAPTURE_TAB`，2026-07-24）
 
@@ -2466,8 +2496,8 @@ crbug.com/1119438）：跨源子框與分頁本身的關閉協商是分開處理
 `api_happening`（供補 `maelstromLoss` 表）、未知 sally 系 key（標籤名是否進 API）。可由現有
 資料或社群實作驗證的機制，以及只會產生重複樣本的欄位，不得加入擷取清單。
 
-**手動擷取（備用）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
-Copy object；或切 frame 後 `copy(__kcLastBattle)`；其他 path 用 Network 篩選。
+**手動擷取（備用，僅開發建置）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
+Copy object；或切 frame 後 `copy(__kcLastBattle)`。正式建置不印封包，一律用 Network 篩選。
 
 ---
 
@@ -2730,6 +2760,6 @@ IndexedDB 塞 60 筆假遠征紀錄驗證過期間切換／表頭排序／關鍵
    逐項驗過，但**沒有登入真正的 DMM 遊戲頁**）：(a) **遊戲框與遊戲畫布之間是否隔著跨源框**——若隔著，畫布量測
    會被 `e.source` 檢查擋下而退回「不裁切」（下方仍會留白底），補救方向見上節；
    (b) 艦これ Flight-IIA 的音訊實作是 WebAudio 還是 media 元素（兩條路徑都接了，但沒有樣本
-   佐證，實機可用 `__kcAudio.contextCount()` 判斷）；(c) 是否有祖先層級的 stacking context
+   佐證，開發建置可用 `__kcAudio.contextCount()` 判斷）；(c) 是否有祖先層級的 stacking context
    造成版面偏移；(a) 可在遊戲分頁 console 跑
    `[...document.querySelectorAll('iframe')].map(f => f.src)` 看層數。

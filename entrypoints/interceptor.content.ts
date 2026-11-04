@@ -3,7 +3,7 @@ import { parseKcsapiResponse } from '../utils/kcsapi';
 import { IdleCaptureQueue, type IdleDeadlineLike, type QueueTiming } from '../utils/idle-capture-queue';
 import { wallNow, type MainCaptureTiming } from '../utils/capture-timing';
 import { installAudioMute } from '../utils/audio-mute';
-import { MUTE_MARK, type MuteBridgeMessage } from '../utils/game-page';
+import { connectMainChannel, isChannelHandshake, type HandshakeEndpoint, type PortLike } from '../utils/main-channel';
 
 export default defineContentScript({
     matches: ['*://*.kancolle-server.com/*'],
@@ -11,35 +11,51 @@ export default defineContentScript({
     runAt: 'document_start',
     allFrames: true,
     main() {
-        console.log('[KC-Monitor] interceptor 已注入:', location.href);
+        // 遊戲程式與本 world 共用全域物件與 console：正式建置不留除錯全域變數、不印封包。
+        // 直接寫建置旗標（不經函式）：正式建置在編譯期折成 false，除錯程式碼整段不進產物。
+        // 這裡的 localStorage 屬於遊戲網域，不能用 utils/debug-ui.ts 的 kc-debug-ui 開關。
+        const dev = import.meta.env.COMMAND === 'serve';
+        if (dev) console.log('[KC-Monitor] interceptor 已注入:', location.href);
 
         // 靜音 hook：**必須在遊戲建立音訊圖之前安裝**，故掛在這個 document_start 的 MAIN
-        // world 注入點。實際開關狀態由 background 持有，經 bridge（ISOLATED）同源
-        // postMessage 傳進來；background 另以分頁靜音保底涵蓋無法攔截的 BGM。
+        // world 注入點。實際開關狀態由 background 持有，經 bridge（ISOLATED）的私有通道
+        // 傳進來；background 另以分頁靜音保底涵蓋無法攔截的 BGM。
         const audio = installAudioMute(window as any);
-        // [debug] 靜音沒反應時，在**遊戲分頁**的 console（frame 選遊戲框）執行：
+        // [debug，僅開發建置] 靜音沒反應時，在遊戲分頁的 console（frame 選遊戲框）執行：
         //   __kcAudio.contextCount()   ← 0 代表遊戲根本沒用 WebAudio（那就是走 media 元素）
         //   __kcAudio.isMuted()        ← 目前狀態
-        // 最常見的原因是擴充更新後遊戲分頁沒有 F5，
-        // 那時連 __kcAudio 都不存在——這正好是判斷依據。
-        (window as any).__kcAudio = audio;
-        window.addEventListener('message', (e) => {
-            if (e.source !== window || e.origin !== location.origin) return;
-            const data = e.data as MuteBridgeMessage | undefined;
-            if (!data || (data as any)[MUTE_MARK] !== 1) return;
-            audio.setMuted(!!data.muted);
-            console.log('[KC-Monitor] 靜音', data.muted ? 'ON' : 'OFF',
-                '（已接管的 AudioContext：' + audio.contextCount() + '）');
-        });
+        if (dev) (window as any).__kcAudio = audio;
+
+        // MAIN → bridge 的私有通道（utils/main-channel.ts）。握手只在這裡經過 window，
+        // 並檢查來源為同一 window、同源。
+        const endpoint: HandshakeEndpoint = {
+            post: (message, transfer) => window.postMessage(message, location.origin, (transfer ?? []) as unknown as Transferable[]),
+            listen: (handler) => {
+                const listener = (e: MessageEvent) => {
+                    if (e.source !== window || e.origin !== location.origin) return;
+                    if (!isChannelHandshake(e.data)) return;
+                    handler(e.data, e.ports as unknown as readonly PortLike[]);
+                };
+                window.addEventListener('message', listener);
+                return () => window.removeEventListener('message', listener);
+            },
+        };
+        const channel = connectMainChannel(
+            endpoint,
+            (message) => {
+                audio.setMuted(message.muted);
+                if (dev) console.log('[KC-Monitor] 靜音', message.muted ? 'ON' : 'OFF',
+                    '（已接管的 AudioContext：' + audio.contextCount() + '）');
+            },
+            (dropped) => console.warn('[KC-Monitor] 擷取通道尚未建立，已丟棄最舊的封包', dropped),
+        );
 
         const emit = (path: string, reqBody: string, text: string, queued: QueueTiming) => {
             try {
-                // [debug] 擷取戰鬥封包，方便驗證：在「遊戲分頁」的 DevTools console 執行
-                //   copy(__kcLastBattle)   ← 複製最後一場戰鬥的完整 JSON
-                // 只為既有戰鬥 debug 解析；一般母港／編成／改裝封包一律留給 background 解析。
-                // [debug] 擷取戰鬥／結算封包，方便驗證：對印出的物件按右鍵 →「Copy object」複製 JSON
-                //   （與 console context 無關）
-                if (path.includes('battle')) {
+                // [debug，僅開發建置] 戰鬥／結算封包存到全域並印出：在遊戲框 console 執行
+                //   copy(__kcLastBattle)，或對印出的物件按右鍵 →「Copy object」複製 JSON。
+                // 一般封包一律留給 background 解析。
+                if (dev && path.includes('battle')) {
                     const api = parseKcsapiResponse(text);
                     if (path.endsWith('result')) {
                         (window as any).__kcLastResult = api;
@@ -61,10 +77,7 @@ export default defineContentScript({
                     emit: wallNow(),
                     size: text.length,
                 };
-                window.postMessage(
-                    { __kc_monitor__: 1, path, req: reqBody, apiText: text, timing },
-                    location.origin
-                );
+                channel.send({ kind: 'capture', path, req: reqBody, apiText: text, timing });
             } catch { /* 非 JSON,忽略 */ }
         };
 
@@ -121,7 +134,7 @@ export default defineContentScript({
                     (path, reqBody, readText, sizeHint) => captureQueue.enqueue(path, reqBody, readText, sizeHint),
                     (path, error) => console.warn('[KC-Monitor] axios 擷取失敗，略過此筆', path, error),
                 );
-                console.log('[KC-Monitor] 已掛上 axios 觀察');
+                if (dev) console.log('[KC-Monitor] 已掛上 axios 觀察');
             },
             (callback, delayMs) => { setTimeout(callback, delayMs); },
         );

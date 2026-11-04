@@ -160,6 +160,51 @@ export function fitZoom(viewport: Size, area: Size, padding = 0): number {
 }
 
 /**
+ * 讓視窗內容區恰好容納「遊戲畫面＋底部工具列」的外框尺寸。視窗外框（標題列、網址列、
+ * 邊框）用呼叫端當下量到的 outer−inner 差，不硬編各 OS／視窗類型的常數。
+ * 量測值不合理（非有限數、負值、遊戲區小於辨識下限）時回 null，呼叫端不調整視窗。
+ */
+export function windowSizeForGame(m: {
+    game: Size; barHeight: number; inner: Size; outer: Size; zoom?: number;
+}): Size | null {
+    const values = [m.game.width, m.game.height, m.barHeight, m.inner.width, m.inner.height, m.outer.width, m.outer.height];
+    if (!values.every(value => Number.isFinite(value) && value >= 0)) return null;
+    // 下限檢查的是遊戲原始區域（量測是否可信），不是縮放後的顯示尺寸。
+    if (m.game.width < MIN_GAME_WIDTH || m.game.height < MIN_GAME_HEIGHT) return null;
+    const zoom = m.zoom === undefined ? 1 : m.zoom;
+    if (!Number.isFinite(zoom) || zoom <= 0) return null;
+    return {
+        width: Math.round(m.game.width * zoom + Math.max(0, m.outer.width - m.inner.width)),
+        height: Math.round(m.game.height * zoom + m.barHeight + Math.max(0, m.outer.height - m.inner.height)),
+    };
+}
+
+/**
+ * 獨立視窗的比例鎖定：使用者拉完邊框後，依「變動比例較大的那一軸」決定倍率，另一軸跟著
+ * 遊戲比例調整，讓視窗剛好貼合遊戲畫面、沒有黑邊。只拉寬就以寬為準，只拉高就以高為準；
+ * 斜拉時取變動較大者。結果不超過 `max`（螢幕可用的內容區）。
+ * `prev`／`next` 為扣掉工具列後的可用區域。
+ */
+export function lockedZoom(prev: Size | null, next: Size, area: Size, max: Size): number {
+    if (area.width <= 0 || area.height <= 0) return 1;
+    const dw = prev && prev.width > 0 ? Math.abs(next.width - prev.width) / prev.width : 0;
+    const dh = prev && prev.height > 0 ? Math.abs(next.height - prev.height) / prev.height : 0;
+    let zoom = !prev || (dw === 0 && dh === 0)
+        ? Math.min(next.width / area.width, next.height / area.height)
+        : dw >= dh ? next.width / area.width : next.height / area.height;
+    if (max.width > 0 && max.height > 0) {
+        zoom = Math.min(zoom, max.width / area.width, max.height / area.height);
+    }
+    return clampZoom(zoom);
+}
+
+/** 移回原視窗的分頁位置：原位置已超出目前分頁數（原視窗期間關了分頁）時放到最後。 */
+export function restoreTabIndex(index: number, tabCount: number): number {
+    if (!Number.isInteger(index) || index < 0) return -1;
+    return index > tabCount ? -1 : index;
+}
+
+/**
  * 視窗大小改變時，保留使用者相對於「適應」的手動倍率。
  * 例如原本適應是 80%、使用者放大到 100%（1.25 倍），新視窗的適應若變成 96%，結果就
  * 應是 120%，而不是死守舊的 100% 造成黑邊。無法得知舊適應值時保守維持原倍率。

@@ -3,9 +3,10 @@ import {
     sendKcApiRuntimeMessageWithRetry,
 } from '../utils/runtime-message';
 import {
-    MUTE_MARK, PORT_GAME_FRAME, PORT_MUTE, RELAY_MARK,
-    type GameFrameReply, type GameFrameRequest, type MuteBridgeMessage, type TheaterRelayMessage,
+    PORT_GAME_FRAME, PORT_MUTE, RELAY_MARK,
+    type GameFrameReply, type GameFrameRequest, type TheaterRelayMessage,
 } from '../utils/game-page';
+import { isChannelHandshake, offerBridgeChannel, type ChannelLike, type HandshakeEndpoint, type PortLike } from '../utils/main-channel';
 import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
 import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
 
@@ -37,6 +38,44 @@ export default defineContentScript({
             });
         }
 
+        // ── 與 MAIN world interceptor 的私有通道（utils/main-channel.ts）──────
+        // 必須在 document_start 最先建立：握手要趕在遊戲程式掛上 message 監聽之前完成。
+        // 封包仍依原規則處理：移除 api_token／api_verno、建立固定 envelope、retry 最多一次。
+        const endpoint: HandshakeEndpoint = {
+            post: (message, transfer) => window.postMessage(message, location.origin, (transfer ?? []) as unknown as Transferable[]),
+            listen: (handler) => {
+                const listener = (e: MessageEvent) => {
+                    if (e.source !== window || e.origin !== location.origin) return;
+                    if (!isChannelHandshake(e.data)) return;
+                    handler(e.data, e.ports as unknown as readonly PortLike[]);
+                };
+                window.addEventListener('message', listener);
+                return () => window.removeEventListener('message', listener);
+            },
+        };
+        const mainChannel = offerBridgeChannel(
+            endpoint,
+            (d) => {
+                const req = Object.fromEntries(new URLSearchParams(d.req));
+                delete req.api_token;
+                delete req.api_verno;
+                // 量測欄位不可信：不合格就整組捨棄，不影響封包本身。
+                const timing = parseCaptureTiming(d.timing);
+                if (timing) timing.bridge = wallNow();
+                const message = createKcApiRuntimeMessage(
+                    { path: d.path, req, apiText: d.apiText, timing: timing ?? undefined },
+                    { createUuid: () => crypto.randomUUID(), now: () => Date.now() },
+                );
+                void sendKcApiRuntimeMessageWithRetry(message, {
+                    send: (runtimeMessage) => browser.runtime.sendMessage(runtimeMessage),
+                    retryDelay: () => new Promise(resolve => setTimeout(resolve, 300)),
+                }).catch((e) => {
+                    console.warn('[KC-Monitor] 送出封包重試後仍失敗，此筆遺失', e);
+                });
+            },
+            () => new MessageChannel() as unknown as ChannelLike,
+        );
+
         // ── 靜音狀態下行通道 ──────────────────────────
         // background 持有狀態，MAIN world 的 hook 執行。用長連線而非 tabs.sendMessage：
         // 後者需要對遊戲分頁的 host permission，而 content_scripts 的 matches 不等於
@@ -46,10 +85,7 @@ export default defineContentScript({
                 const port = browser.runtime.connect({ name: PORT_MUTE });
                 port.onMessage.addListener((msg: any) => {
                     if (typeof msg?.muted !== 'boolean') return;
-                    window.postMessage(
-                        { [MUTE_MARK]: 1, muted: msg.muted } satisfies MuteBridgeMessage,
-                        location.origin,
-                    );
+                    mainChannel.sendMute(msg.muted);
                 });
                 // SW 隨時會死（設計原則3）：被系統閒置回收時這個 port 會斷線（分頁本身沒關），
                 // 不是分頁關閉。不重連的話靜音鈕對這個分頁永久失效、需要使用者自行重整才會
@@ -162,26 +198,5 @@ export default defineContentScript({
             });
         });
 
-        window.addEventListener('message', (e) => {
-            if (e.source !== window || e.origin !== location.origin) return;
-            const d = e.data;
-            if (!d || d.__kc_monitor__ !== 1) return;
-            const req = Object.fromEntries(new URLSearchParams(d.req ?? ''));
-            delete req.api_token;
-            delete req.api_verno;
-            // 頁面送來的量測欄位不可信：不合格就整組捨棄，不影響封包本身。
-            const timing = parseCaptureTiming(d.timing);
-            if (timing) timing.bridge = wallNow();
-            const message = createKcApiRuntimeMessage(
-                { path: d.path, req, apiText: d.apiText, timing: timing ?? undefined },
-                { createUuid: () => crypto.randomUUID(), now: () => Date.now() },
-            );
-            void sendKcApiRuntimeMessageWithRetry(message, {
-                send: (runtimeMessage) => browser.runtime.sendMessage(runtimeMessage),
-                retryDelay: () => new Promise(resolve => setTimeout(resolve, 300)),
-            }).catch((e) => {
-                console.warn('[KC-Monitor] 送出封包重試後仍失敗，此筆遺失', e);
-            });
-        });
     },
 });

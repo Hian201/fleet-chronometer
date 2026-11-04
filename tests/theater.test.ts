@@ -4,7 +4,7 @@ import {
     CSS_CLIP, CSS_TX, CSS_TY, CSS_ZOOM,
     GAME_SCREEN_ASPECT, MAX_ZOOM, MIN_ZOOM, clampPan, clampZoom, contentArea, fallbackGameArea,
     fitZoom, framePlacement, resizeZoom,
-    pickGameFrame, theaterCss, zoomByWheel,
+    lockedZoom, pickGameFrame, restoreTabIndex, theaterCss, windowSizeForGame, zoomByWheel,
 } from '../utils/theater';
 
 describe('pickGameFrame：遊戲框辨識', () => {
@@ -208,5 +208,71 @@ describe('theaterCss', () => {
         const css = theaterCss();
         expect(css).toContain('transform: translate(');
         expect(css).toContain('scale(');
+    });
+});
+
+describe('獨立視窗幾何（windowSizeForGame／restoreTabIndex）', () => {
+    const base = {
+        game: { width: 1200, height: 720 }, barHeight: 19,
+        inner: { width: 1000, height: 600 }, outer: { width: 1000, height: 660 },
+    };
+
+    it('內容區恰好容納遊戲畫面＋工具列，外框差用當下量到的值', () => {
+        expect(windowSizeForGame(base)).toEqual({ width: 1200, height: 720 + 19 + 60 });
+    });
+
+    it('量測值不合理時回 null，不調整視窗', () => {
+        expect(windowSizeForGame({ ...base, game: { width: 300, height: 200 } })).toBeNull();
+        expect(windowSizeForGame({ ...base, inner: { width: Number.NaN, height: 600 } })).toBeNull();
+        expect(windowSizeForGame({ ...base, barHeight: -1 })).toBeNull();
+    });
+
+    it('外框差為負（瀏覽器回報異常）時視為 0，不把視窗縮得比遊戲小', () => {
+        expect(windowSizeForGame({ ...base, outer: { width: 990, height: 590 } }))
+            .toEqual({ width: 1200, height: 739 });
+    });
+
+    it('原位置仍有效就放回原位，超出目前分頁數或無效時放到最後', () => {
+        expect(restoreTabIndex(2, 5)).toBe(2);
+        expect(restoreTabIndex(5, 5)).toBe(5);
+        expect(restoreTabIndex(7, 3)).toBe(-1);
+        expect(restoreTabIndex(-1, 3)).toBe(-1);
+        expect(restoreTabIndex(1.5, 3)).toBe(-1);
+    });
+});
+
+describe('獨立視窗比例鎖定（lockedZoom）', () => {
+    const area = { width: 1200, height: 720 };
+    const max = { width: 3000, height: 2000 };
+    const prev = { width: 1200, height: 720 };
+
+    it('只拉寬時以寬為準，高度跟著遊戲比例', () => {
+        expect(lockedZoom(prev, { width: 1500, height: 720 }, area, max)).toBeCloseTo(1.25, 5);
+    });
+
+    it('只拉高時以高為準', () => {
+        expect(lockedZoom(prev, { width: 1200, height: 540 }, area, max)).toBeCloseTo(0.75, 5);
+    });
+
+    it('斜拉取變動比例較大的一軸', () => {
+        expect(lockedZoom(prev, { width: 1320, height: 900 }, area, max)).toBeCloseTo(1.25, 5);
+    });
+
+    it('不超過螢幕可用區域', () => {
+        expect(lockedZoom(prev, { width: 2400, height: 720 }, area, { width: 2400, height: 1080 }))
+            .toBeCloseTo(1.5, 5);
+    });
+
+    it('沒有前一次尺寸時退回 contain', () => {
+        expect(lockedZoom(null, { width: 1500, height: 720 }, area, max)).toBeCloseTo(1, 5);
+    });
+});
+
+describe('windowSizeForGame 帶倍率', () => {
+    it('遊戲區依倍率縮放，外框與工具列不縮放', () => {
+        expect(windowSizeForGame({
+            game: { width: 1200, height: 720 }, barHeight: 19, zoom: 0.5,
+            inner: { width: 1000, height: 600 }, outer: { width: 1000, height: 660 },
+        })).toEqual({ width: 600, height: 360 + 19 + 60 });
     });
 });

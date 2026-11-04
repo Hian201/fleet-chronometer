@@ -13,6 +13,10 @@ const axiosCaptureSrc = readFileSync(
     new URL('../utils/axios-capture.ts', import.meta.url),
     'utf8',
 );
+const bridgeSrc = readFileSync(
+    new URL('../entrypoints/bridge.content.ts', import.meta.url),
+    'utf8',
+);
 const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
 
 function listTsFiles(directory: string): string[] {
@@ -52,6 +56,32 @@ describe('kcsapi 擷取不得包裝原生網路 API', () => {
         expect(interceptorSrc).toContain('captureQueue.enqueue');
         expect(axiosCaptureSrc).toContain('interceptors.response.use');
         expect(axiosCaptureSrc).toMatch(/return response/);
+    });
+
+    it('封包經私有通道交給 bridge，不在 window 上廣播', () => {
+        // withoutComments 會把 matches 字串 '*://*…/*' 誤當註解；這裡的比對字串都不出現在註解中。
+        const interceptor = interceptorSrc;
+        const bridge = bridgeSrc;
+        expect(interceptor).toContain('connectMainChannel');
+        expect(interceptor).toContain('channel.send(');
+        expect(bridge).toContain('offerBridgeChannel');
+        // window.postMessage 只能出現在握手 endpoint 內（bridge 另有跨框的劇場 relay，不帶遊戲資料）
+        expect(interceptor.match(/window\.postMessage\(/g)).toHaveLength(1);
+        expect(interceptor).not.toContain('apiText: text },');
+        expect(bridge).not.toContain('__kc_monitor__');
+    });
+
+    it('正式建置不在遊戲頁留下除錯全域變數或封包輸出', () => {
+        const interceptor = interceptorSrc;
+        const globals = interceptor.split('\n').filter(line => /\(window as any\)\.__kc\w+\s*=/.test(line));
+        expect(globals.length).toBeGreaterThan(0);
+        // 每一處都必須在 dev 判斷之內：單行 if (dev) 或位於 `dev && ...` 區塊
+        const devBlock = interceptor.slice(interceptor.indexOf("if (dev && path.includes('battle'))"));
+        for (const line of globals) {
+            expect(line.includes('if (dev)') || devBlock.includes(line)).toBe(true);
+        }
+        expect(interceptor).toContain("if (dev && path.includes('battle'))");
+        expect(interceptor).toContain("const dev = import.meta.env.COMMAND === 'serve';");
     });
 
     it('entrypoints 與 utils 的執行碼不得取代 fetch／XHR', () => {

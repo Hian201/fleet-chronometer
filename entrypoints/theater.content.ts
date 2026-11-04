@@ -6,7 +6,8 @@
 // 1. **絕不搬動遊戲框在 DOM 裡的位置、絕不碰它的 src**。把 iframe 移到別的父節點或另一個
 //    視窗（含 Document PiP）都會依規格摧毀它的 nested browsing context ＝ 遊戲重新載入。
 //    使用者要的正是「不重新整理」，所以本檔只做兩件事：貼標記屬性、設 CSS 變數。
-//    不提供另開或替換遊戲視窗，避免產生第二個遊戲執行個體。
+//    不另開或替換遊戲頁，避免產生第二個遊戲執行個體。「獨立視窗」搬的是整個分頁
+//    （background 的 windows.create({tabId})），本檔只在搬完後套同一套適應版面。
 // 2. **還原必須是完全還原**。離開時把所有標記屬性移除，DMM 的頁首、廣告、「ポイントを
 //    チャージする」全部原樣回來（課金流程仍在原頁完成）。故一律用屬性選擇器＋外部樣式表，
 //    不寫 inline style 到 DMM 自己的元素上（那要逐項記錄原值才還原得回去）。
@@ -24,13 +25,15 @@
 import {
     ATTR_ACTIVE, ATTR_ANCESTOR, ATTR_FRAME, ATTR_HIDDEN, BAR_HEIGHT,
     CSS_CLIP, CSS_TX, CSS_TY, CSS_ZOOM,
-    contentArea, fallbackGameArea, fitZoom, framePlacement, pickGameFrame,
+    contentArea, fallbackGameArea, fitZoom, framePlacement, lockedZoom, pickGameFrame,
     theaterCss, type Rect,
 } from '@/utils/theater';
 import {
     MSG_CAPTURE_TAB, MSG_MUTE_GET, MSG_MUTE_SET, MSG_SCREENSHOT_RECT, MSG_THEATER_FIT_WINDOW,
     MSG_THEATER_TOGGLE, MSG_UI_LANG, RELAY_MARK, isGameFrameOrigin,
+    MSG_POPOUT_CLOSE, MSG_POPOUT_OPEN, MSG_POPOUT_STATE,
     type CaptureTabReply, type ScreenshotRectReply, type TheaterRelayMessage,
+    type PopoutCloseReply, type PopoutOpenReply, type PopoutOrigin, type PopoutStateReply,
 } from '@/utils/game-page';
 import { downloadCroppedScreenshot } from '@/utils/screenshot';
 import { replyWhenSettled } from '@/utils/runtime-reply';
@@ -45,6 +48,12 @@ const HOST_ATTR = 'data-kc-theater-host';
 const STORE_KEY = 'kc-theater';
 
 interface Stored { active?: boolean }
+
+// 獨立視窗狀態存 sessionStorage：它跟著分頁走（搬視窗不影響）、F5 後仍在、關分頁即消失，
+// 剛好是「這個分頁目前被移到獨立視窗」的生命週期。不寫進 kc-theater，否則關掉獨立視窗後
+// 下次開遊戲會被當成「上次在視窗適應」自動進入。
+const POPOUT_KEY = 'kc-popout';
+interface PopoutState { origin: PopoutOrigin | null; wasActive: boolean }
 
 export default defineContentScript({
     matches: ['*://play.games.dmm.com/*', '*://www.dmm.com/netgame/*'],
@@ -71,6 +80,8 @@ export default defineContentScript({
         let gameRect: Rect | null = null;   // 遊戲畫布在框內的位置（量不到就是 null＝不裁切）
         let syncScheduled = false;
         let measureTimer = 0;
+        let popout: PopoutState | null = null;
+        let popoutBusy = false;
 
         const stored: Stored = (() => {
             try { return JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as Stored; }
@@ -78,6 +89,8 @@ export default defineContentScript({
         })();
 
         const save = () => {
+            // 獨立視窗中的進出是暫時狀態，不改寫「平常是否在視窗適應」的偏好。
+            if (popout) return;
             try {
                 // 只記「是否啟用」；倍率永遠由 fit 當場算出，不持久化手動縮放。
                 localStorage.setItem(STORE_KEY, JSON.stringify({ active } satisfies Stored));
@@ -163,7 +176,7 @@ export default defineContentScript({
             ui.render();
         };
 
-        const fitWindow = () => {
+        const fitWindow = (gameZoom = 1) => {
             applyTransform();
             const shown = area();
             // 用目前視窗量到的 outer-inner 差保留各 OS 的標題列與邊框，不硬編平台常數。
@@ -173,7 +186,38 @@ export default defineContentScript({
                 barHeight: BAR_HEIGHT,
                 inner: { width: window.innerWidth, height: window.innerHeight },
                 outer: { width: window.outerWidth, height: window.outerHeight },
+                zoom: gameZoom,
             }).catch(() => { /* 視窗不可調整時，仍保留 iframe 的適應效果 */ });
+            lockedView = null;
+        };
+
+        // ── 獨立視窗的比例鎖定 ──────────────────────────
+        // 擴充無法限制視窗拖曳的比例，只能在使用者放開（resize 停止一段時間）後把視窗修正成
+        // 遊戲比例。拖曳中途不修正，否則會跟使用者的滑鼠互相拉扯。只在獨立視窗啟用：一般
+        // 瀏覽器視窗還有其他分頁，擅自改它的比例會影響別的網頁。
+        let lockedView: { width: number; height: number } | null = null;  // 上次貼合後的可用區域
+        let snapTimer = 0;
+        const snapToAspect = () => {
+            if (!popout || !active) return;
+            const view = viewport();
+            const shown = area();
+            const chrome = {
+                width: Math.max(0, window.outerWidth - window.innerWidth),
+                height: Math.max(0, window.outerHeight - window.innerHeight),
+            };
+            const max = {
+                width: Math.max(0, screen.availWidth - chrome.width),
+                height: Math.max(0, screen.availHeight - chrome.height - BAR_HEIGHT),
+            };
+            const z = lockedZoom(lockedView, view, shown, max);
+            const target = { width: shown.width * z, height: shown.height * z };
+            // 已貼合（容許取整誤差）就不再調整，避免自己觸發的 resize 形成迴圈。
+            if (Math.abs(target.width - view.width) <= 2 && Math.abs(target.height - view.height) <= 2) {
+                lockedView = view;
+                return;
+            }
+            fitWindow(z);
+            lockedView = { width: Math.round(target.width), height: Math.round(target.height) };
         };
 
         // ── 遊戲畫布量測（裁切依據）──────────────────
@@ -245,9 +289,9 @@ export default defineContentScript({
             }, 800);
         });
 
-        const enter = () => {
+        const enter = (): boolean => {
             const found = frame?.isConnected ? frame : locate();
-            if (!found) { ui.flash(t('theater.notFound')); return; }
+            if (!found) { ui.flash(t('theater.notFound')); return false; }
             frame = found;
             active = true;
             ensureStyle();
@@ -261,8 +305,9 @@ export default defineContentScript({
             // 讓「遊戲自己換版面」（例如出擊進戰鬥畫面）也還能跟上。
             clearInterval(measureTimer);
             measureTimer = window.setInterval(requestMeasure, 2000);
-            ui.flash(t('theater.hint'), 5000);
+            ui.flash(popout ? t('theater.popoutHint') : t('theater.hint'), popout ? 8000 : 5000);
             save();
+            return true;
         };
 
         const exit = () => {
@@ -277,6 +322,85 @@ export default defineContentScript({
         };
 
         const toggle = () => (active ? exit() : enter());
+
+        // ── 獨立視窗（把整個分頁移進 popup 視窗，不搬 iframe ＝ 不重新整理）──
+        const savePopout = () => {
+            try {
+                if (popout) sessionStorage.setItem(POPOUT_KEY, JSON.stringify(popout));
+                else sessionStorage.removeItem(POPOUT_KEY);
+            } catch { /* 頁面禁用儲存時只是 F5 後不會自動恢復獨立視窗版面 */ }
+        };
+        const readPopout = (): PopoutState | null => {
+            try {
+                const raw = JSON.parse(sessionStorage.getItem(POPOUT_KEY) ?? 'null');
+                if (!raw || typeof raw !== 'object') return null;
+                const o = raw.origin;
+                const origin = o && Number.isInteger(o.windowId) && Number.isInteger(o.index)
+                    ? { windowId: o.windowId, index: o.index } : null;
+                return { origin, wasActive: !!raw.wasActive };
+            } catch { return null; }
+        };
+        /** 分頁搬到新視窗後，視窗外框要等瀏覽器套用新尺寸才量得準：等下一次 resize 或逾時。 */
+        const afterResize = (ms: number) => new Promise<void>(resolve => {
+            const done = () => { window.removeEventListener('resize', done); clearTimeout(timer); resolve(); };
+            const timer = window.setTimeout(done, ms);
+            window.addEventListener('resize', done);
+        });
+
+        const popOut = async () => {
+            if (popout || popoutBusy) return;
+            const found = frame?.isConnected ? frame : locate();
+            if (!found) { ui.flash(t('theater.notFound')); return; }
+            frame = found;
+            popoutBusy = true;
+            try {
+                const shown = area();
+                const reply = await browser.runtime.sendMessage({
+                    type: MSG_POPOUT_OPEN,
+                    game: { width: Math.round(shown.width), height: Math.round(shown.height) },
+                    barHeight: BAR_HEIGHT,
+                    inner: { width: window.innerWidth, height: window.innerHeight },
+                    outer: { width: window.outerWidth, height: window.outerHeight },
+                }).catch((e): PopoutOpenReply => ({ error: String(e) })) as PopoutOpenReply | undefined;
+                if (!reply || !('origin' in reply)) {
+                    console.warn('[KC-Monitor] 獨立視窗開啟失敗', reply);
+                    ui.flash(t('theater.popoutFailed'));
+                    return;
+                }
+                popout = { origin: reply.origin, wasActive: active };
+                savePopout();
+                await afterResize(600);
+                // 以 popup 視窗實際的外框差再 fit 一次（初始尺寸只是用原視窗外框估的）。
+                if (active) fitWindow(); else enter();
+                ui.render();
+            } finally {
+                popoutBusy = false;
+            }
+        };
+
+        const popIn = async () => {
+            if (!popout || popoutBusy) return;
+            popoutBusy = true;
+            try {
+                const reply = await browser.runtime.sendMessage({ type: MSG_POPOUT_CLOSE, origin: popout.origin })
+                    .catch((e): PopoutCloseReply => ({ error: String(e) })) as PopoutCloseReply | undefined;
+                if (!reply || !('restored' in reply)) {
+                    console.warn('[KC-Monitor] 回到原視窗失敗', reply);
+                    ui.flash(t('theater.popInFailed'));
+                    return;
+                }
+                const { wasActive } = popout;
+                popout = null;
+                savePopout();
+                // 原本就在視窗適應：留在適應狀態，resize 會依原視窗重新 fit；否則完全還原 DMM 頁面。
+                if (wasActive) applyTransform(); else exit();
+            } finally {
+                popoutBusy = false;
+            }
+        };
+
+        /** 工具列 ✕、Esc 的共同出口：獨立視窗中是「回到原視窗」，否則是離開視窗適應。 */
+        const leave = () => (popout ? void popIn() : exit());
 
         // ── React 重繪後的自我修復 ────────────────────
         // SPA 會整片換掉節點：屬性會不見、新插入的廣告／頁首元素沒有標記。故每次 DOM 變動
@@ -306,6 +430,10 @@ export default defineContentScript({
             if (!active) return;
             applyTransform();
             requestMeasure();
+            if (popout) {
+                clearTimeout(snapTimer);
+                snapTimer = window.setTimeout(snapToAspect, 350);
+            }
         });
 
         // 滑鼠在遊戲框上時鍵盤事件只送到框內文件；框內的 bridge 會把 Esc 轉發上來
@@ -328,14 +456,14 @@ export default defineContentScript({
             // 刻意**不用** `e.source === frame.contentWindow`：中間隔著 DMM gadget 框時
             // 轉發來自孫框，比對直接子框會把 Esc 離開修壞。
             if (!isGameFrameOrigin(e.origin)) return;
-            if (data.kind === 'exit') exit();
+            if (data.kind === 'exit') leave();
         });
 
         // Esc：焦點在父頁時直接離開。焦點在遊戲框內時由 bridge 轉發（見下方 message）。
         // Ctrl／⌘＋滾輪留給瀏覽器原生頁面縮放，本檔不攔截滾輪。
         window.addEventListener('keydown', (e) => {
             if (!active) return;
-            if (e.key === 'Escape') exit();
+            if (e.key === 'Escape') leave();
         });
 
         // ── 靜音（狀態由 background 持有，遊戲框內的 hook 實際執行）──
@@ -386,7 +514,10 @@ export default defineContentScript({
         // 「找不到遊戲畫面」。
         browser.runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
             if (msg?.type === MSG_THEATER_TOGGLE) {
-                if (msg.mode === 'on') {
+                if (msg.mode === 'popout') {
+                    if (popout) void popIn();
+                    else void waitForFrame(locate, 20000).then(() => popOut());
+                } else if (msg.mode === 'on') {
                     if (!active) void waitForFrame(locate, 20000).then(() => enter());
                 } else toggle();
                 sendResponse(true);
@@ -407,9 +538,10 @@ export default defineContentScript({
         const ui = buildUi(shadow, {
             isActive: () => active,
             isMuted: () => muted,
+            isPopout: () => popout !== null,
             onAction: (action) => {
                 if (action === 'enter') enter();
-                else if (action === 'exit') exit();
+                else if (action === 'exit') leave();
                 else if (action === 'mute') void setMuted(!muted);
                 else if (action === 'screenshot') void doScreenshot();
             },
@@ -425,6 +557,19 @@ export default defineContentScript({
             const state: any = await browser.runtime.sendMessage({ type: MSG_MUTE_GET }).catch(() => null);
             muted = !!state?.muted;
             ui.render();
+            // F5 發生在獨立視窗裡：確認分頁仍在 popup 視窗才恢復，否則丟掉過期狀態。
+            const savedPopout = readPopout();
+            if (savedPopout) {
+                const where = await browser.runtime.sendMessage({ type: MSG_POPOUT_STATE })
+                    .catch(() => null) as PopoutStateReply | null | undefined;
+                if (where?.inPopup) {
+                    popout = savedPopout;
+                    await waitForFrame(locate, 15000);
+                    enter();
+                    return;
+                }
+                savePopout();
+            }
             if (stored.active) {
                 // 遊戲框是 SPA 動態插入的，載入當下可能還不存在：等它出現再進劇場。
                 await waitForFrame(locate, 15000);
@@ -449,6 +594,7 @@ type UiAction = 'enter' | 'exit' | 'mute' | 'screenshot';
 interface UiHooks {
     isActive(): boolean;
     isMuted(): boolean;
+    isPopout(): boolean;
     onAction(action: UiAction): void;
 }
 
@@ -539,7 +685,7 @@ function buildUi(shadow: ShadowRoot, hooks: UiHooks) {
         enterBtn.textContent = t('theater.enter');
         exitBtn.hidden = !on;
         exitGap.hidden = !on;
-        exitBtn.title = `${t('theater.exit')}（Esc）`;
+        exitBtn.title = `${hooks.isPopout() ? t('theater.popIn') : t('theater.exit')}（Esc）`;
         const isMuted = hooks.isMuted();
         muteBtn.textContent = isMuted ? '🔇' : '🔊';
         muteBtn.dataset.on = isMuted ? '1' : '0';

@@ -142,7 +142,12 @@ document.getElementById('mute')!.addEventListener('click', async () => {
 // 安裝時維持現行最小權限集，使用者第一次按下這裡才跳一次原生授權視窗，授權後
 // 以 scripting.registerContentScripts 常駐（persistAcrossSessions），日後開遊戲頁自動生效。
 // **permissions.request() 必須是點擊手勢的第一個呼叫**——先 await 別的事情會失去手勢資格。
-document.getElementById('theater')!.addEventListener('click', async () => {
+document.getElementById('theater')!.addEventListener('click', () => startTheater());
+// 獨立視窗：把遊戲分頁整個移進只有遊戲畫面的 popup 視窗（搬分頁不搬 iframe，不重新整理）。
+// 版面沿用視窗適應，故授權與注入流程完全相同，只差送給 content script 的 mode。
+document.getElementById('popout')!.addEventListener('click', () => startTheater('popout'));
+
+async function startTheater(mode?: 'popout'): Promise<void> {
     // 先擋掉「根本不在遊戲分頁」：在別的網站上按劇場模式，就算授權了也只會注入到一個
     // 沒有遊戲框的頁面。判斷用開啟 popup 當下就查好的分頁資訊（同步），下一行才是
     // permissions.request()——中間不能插入 await，否則失去手勢資格。
@@ -156,10 +161,11 @@ document.getElementById('theater')!.addEventListener('click', async () => {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (typeof tab?.id !== 'number') { status(t('theater.needGameTab')); return; }
 
-    const ok = await sendToTheaterScript(tab.id, { type: MSG_THEATER_TOGGLE }).then(() => true, () => false);
+    const message = mode ? { type: MSG_THEATER_TOGGLE, mode } : { type: MSG_THEATER_TOGGLE };
+    const ok = await sendToTheaterScript(tab.id, message).then(() => true, () => false);
     if (!ok) { status(t('theater.needGameTab')); return; }
     window.close();
-});
+}
 
 /** 常駐註冊；重複 id 時更新既有註冊，兩者都失敗只影響「下次自動生效」。 */
 async function registerTheaterScript(): Promise<void> {

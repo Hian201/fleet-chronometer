@@ -115,7 +115,28 @@ export interface TheaterFitWindowMessage {
     barHeight: number;
     inner: { width: number; height: number };
     outer: { width: number; height: number };
+    /** 遊戲區的顯示倍率（省略＝1，原始大小）；獨立視窗比例鎖定時帶入。 */
+    zoom?: number;
 }
+
+// ── 獨立視窗（popout）──────────────────────────────────
+// 把**整個遊戲分頁**移進 type:'popup' 的視窗，回來時再移回原視窗。搬的是分頁不是 iframe，
+// 文件與遊戲框都不重建，故不重新整理（與拖曳分頁成新視窗同一機制）。
+/** 原視窗位置：回來時移回這裡；視窗已不存在時改開新的一般視窗接住分頁。 */
+export interface PopoutOrigin { windowId: number; index: number }
+/** 劇場 content script → background：把發送者分頁移進獨立視窗。尺寸欄位同 fit-window。 */
+export const MSG_POPOUT_OPEN = 'kc:popout-open';
+export interface PopoutOpenMessage extends Omit<TheaterFitWindowMessage, 'type'> {
+    type: typeof MSG_POPOUT_OPEN;
+}
+export type PopoutOpenReply = { origin: PopoutOrigin } | { error: string };
+/** 劇場 content script → background：把發送者分頁移回原視窗（`origin` 為 null 時開新的一般視窗）。 */
+export const MSG_POPOUT_CLOSE = 'kc:popout-close';
+export interface PopoutCloseMessage { type: typeof MSG_POPOUT_CLOSE; origin: PopoutOrigin | null }
+export type PopoutCloseReply = { restored: 'origin' | 'new-window' | 'not-popup' } | { error: string };
+/** 劇場 content script → background：發送者分頁目前是否在 popup 視窗裡（F5 後恢復獨立視窗狀態用）。 */
+export const MSG_POPOUT_STATE = 'kc:popout-state';
+export interface PopoutStateReply { inPopup: boolean }
 export const MSG_MUTE_SET = 'kc:mute-set';
 /**
  * popup →（已注入的）劇場模式 content script：量測「遊戲畫面」在**本分頁 viewport**
@@ -197,9 +218,3 @@ export type TheaterRelayMessage =
         viewport: { width: number; height: number };
     };
 
-/** bridge（ISOLATED）→ interceptor（MAIN）的同源 postMessage：靜音狀態。 */
-export const MUTE_MARK = '__kc_mute__';
-export interface MuteBridgeMessage {
-    [MUTE_MARK]: 1;
-    muted: boolean;
-}

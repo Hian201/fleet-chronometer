@@ -5,7 +5,11 @@ import {
   MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES, PORT_GAME_FRAME,
   type FleetPhotoCaptureMessage, type FleetPhotoSource,
   type TheaterFitWindowMessage,
+  MSG_POPOUT_CLOSE, MSG_POPOUT_OPEN, MSG_POPOUT_STATE,
+  type PopoutCloseMessage, type PopoutCloseReply, type PopoutOpenMessage, type PopoutOpenReply,
+  type PopoutOrigin, type PopoutStateReply,
 } from '@/utils/game-page';
+import { restoreTabIndex, windowSizeForGame } from '@/utils/theater';
 import { FleetPhotoCapture } from '@/utils/fleet-photo-capture';
 import { BackgroundIngestionLifecycle } from '@/utils/background-ingestion-lifecycle';
 import { createEventNotificationId } from '@/utils/event-notification';
@@ -60,9 +64,13 @@ const SNAPSHOT_PATHS = new Set([
   'api_get_member/mapinfo',
 ]);
 
+// 通知與計時器的追蹤輸出只在開發建置印出：內容是使用者的遠征／入渠排程，正式建置不留在
+// service worker console。直接寫建置旗標，正式建置在編譯期折掉。
+const DEV_BUILD = import.meta.env.COMMAND === 'serve';
+
 // 立即發送系統通知
 async function notifyNow(message: string, notificationId?: string) {
-  console.log('[notify now]', message);
+  if (DEV_BUILD) console.log('[notify now]', message);
   const options = {
     type: 'basic',
     iconUrl: browser.runtime.getURL('/icon/128.png'),
@@ -187,6 +195,30 @@ export default defineBackground(() => {
     if (msg?.type === MSG_THEATER_FIT_WINDOW) {
       return replyWhenSettled(fitTheaterWindow(sender.tab?.windowId, msg), sendResponse);
     }
+    // 獨立視窗：一律以發送者分頁為對象（content script 只能搬自己所在的分頁）。
+    if (msg?.type === MSG_POPOUT_OPEN) {
+      return replyWhenSettled(
+        popOutGameTab(sender.tab, msg as PopoutOpenMessage),
+        sendResponse,
+        (e): PopoutOpenReply => ({ error: String((e as { message?: unknown })?.message ?? e) }),
+      );
+    }
+    if (msg?.type === MSG_POPOUT_CLOSE) {
+      return replyWhenSettled(
+        popInGameTab(sender.tab, (msg as PopoutCloseMessage).origin),
+        sendResponse,
+        (e): PopoutCloseReply => ({ error: String((e as { message?: unknown })?.message ?? e) }),
+      );
+    }
+    if (msg?.type === MSG_POPOUT_STATE) {
+      const windowId = sender.tab?.windowId;
+      return replyWhenSettled(
+        (typeof windowId === 'number' ? browser.windows.get(windowId) : Promise.reject(new Error('no-window')))
+          .then((win): PopoutStateReply => ({ inPopup: win.type === 'popup' })),
+        sendResponse,
+        (): PopoutStateReply => ({ inPopup: false }),
+      );
+    }
     // 拍照：content script 沒有 tabs API，一律經這裡轉手；popup 走同一條訊息，
     // 錯誤處理只寫一份。captureVisibleTab 只認 <all_urls> 或 activeTab（見 wxt.config.ts），
     // 那是分頁層級的暫時授權，跟呼叫者是 popup 還是 content script 無關。
@@ -264,11 +296,11 @@ export default defineBackground(() => {
 
   // alarm 觸發時統一使用 notifyNow
   browser.alarms.onAlarm.addListener(a => {
-    console.log('[alarm fired]', a.name);
+    if (DEV_BUILD) console.log('[alarm fired]', a.name);
     void notifyNow(a.name);
   });
 
-  browser.alarms.getAll().then(console.log)
+  if (DEV_BUILD) void browser.alarms.getAll().then(console.log);
 
   // 點擊擴充圖示改由 popup 快捷選單接手（manifest action.default_popup，
   // entrypoints/popup/）：MV3 規格下設了 default_popup 後 action.onClicked
@@ -278,16 +310,63 @@ export default defineBackground(() => {
 /** 依 content script 的實際 outer-inner 差，讓內容區精準容納原始遊戲區與底部列。 */
 async function fitTheaterWindow(windowId: number | undefined, msg: TheaterFitWindowMessage): Promise<void> {
   if (typeof windowId !== 'number') return;
-  const { game, barHeight, inner, outer } = msg;
-  const valid = [game.width, game.height, barHeight, inner.width, inner.height, outer.width, outer.height]
-    .every(value => Number.isFinite(value) && value >= 0);
-  if (!valid || game.width < 400 || game.height < 300) return;
-  const chromeWidth = Math.max(0, outer.width - inner.width);
-  const chromeHeight = Math.max(0, outer.height - inner.height);
-  await browser.windows.update(windowId, {
-    width: Math.round(game.width + chromeWidth),
-    height: Math.round(game.height + barHeight + chromeHeight),
-  }).catch(() => undefined);
+  const size = windowSizeForGame(msg);
+  if (!size) return;
+  await browser.windows.update(windowId, size).catch(() => undefined);
+}
+
+/** 獨立視窗只用到發送者分頁的這三個欄位。 */
+type SenderTab = { id?: number; windowId?: number; index: number };
+
+/**
+ * 把遊戲分頁移進 type:'popup' 視窗（只有標題列與唯讀網址列，無分頁列／工具列）。
+ * 搬的是整個分頁：文件與遊戲框不重建，故不重新整理；DevTools 連線也綁在分頁上不受影響。
+ * 初始尺寸以原視窗的外框差估算，進視窗後 content script 會以 popup 實際外框再 fit 一次。
+ */
+async function popOutGameTab(
+  tab: SenderTab | undefined, msg: PopoutOpenMessage,
+): Promise<PopoutOpenReply> {
+  if (typeof tab?.id !== 'number' || typeof tab.windowId !== 'number') return { error: 'no-tab' };
+  const win = await browser.windows.get(tab.windowId);
+  if (win.type === 'popup') return { error: 'already-popup' };
+  const origin = { windowId: tab.windowId, index: tab.index };
+  const size = windowSizeForGame(msg);
+  await browser.windows.create({
+    tabId: tab.id,
+    type: 'popup',
+    focused: true,
+    ...(size ?? {}),
+    ...(typeof win.left === 'number' && typeof win.top === 'number' ? { left: win.left, top: win.top } : {}),
+  });
+  return { origin };
+}
+
+/**
+ * 把遊戲分頁移回原視窗。原視窗已不存在或移不回去時，改用新的一般視窗接住分頁——
+ * 兩條路都是搬分頁、不重新整理；popup 視窗在最後一個分頁離開後由瀏覽器自動關閉。
+ */
+async function popInGameTab(
+  tab: SenderTab | undefined, origin: PopoutOrigin | null,
+): Promise<PopoutCloseReply> {
+  if (typeof tab?.id !== 'number' || typeof tab.windowId !== 'number') return { error: 'no-tab' };
+  const current = await browser.windows.get(tab.windowId);
+  if (current.type !== 'popup') return { restored: 'not-popup' };
+  if (origin) {
+    try {
+      const target = await browser.windows.get(origin.windowId, { populate: true });
+      if (target.type === 'normal') {
+        const index = restoreTabIndex(origin.index, target.tabs?.length ?? 0);
+        await browser.tabs.move(tab.id, { windowId: origin.windowId, index });
+        await browser.tabs.update(tab.id, { active: true });
+        await browser.windows.update(origin.windowId, { focused: true }).catch(() => undefined);
+        return { restored: 'origin' };
+      }
+    } catch (e) {
+      console.warn('[KC-Monitor] 無法移回原視窗，改開新的一般視窗', e);
+    }
+  }
+  await browser.windows.create({ tabId: tab.id, type: 'normal', focused: true });
+  return { restored: 'new-window' };
 }
 
 // ── 遊戲頁偏好的持久化（db.meta['game-page']）────────────
