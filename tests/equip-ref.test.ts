@@ -92,4 +92,15 @@ describe('equip-ref', () => {
         expect(kongou.n).toBeGreaterThan(0);
         expect(kongou.hasFit).toBe(true);
     });
+
+    it('XF6F-6 的藍字只給美國空母（Hornet 四段），日本空母沒有', () => {
+        const { gears, fitRules, byJa, shipOf } = setup();
+        const xf = byJa.get('XF6F-6');
+        expect(xf).toBe(589);
+        const linesOf = (ja: string) => collectEquipRef(shipOf(ja), gears, EQUIP_BONUS_TABLE, fitRules)
+            .find(r => r.id === xf)?.lines ?? [];
+        expect(linesOf('Hornet改').map(l => l.level)).toEqual([1, 2, 3, 4]);
+        expect(linesOf('Gambier Bay改')).toHaveLength(4);
+        expect(linesOf('赤城改二')).toHaveLength(0);
+    });
 });

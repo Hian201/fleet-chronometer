@@ -1926,6 +1926,12 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 加成表更新：覆蓋 `utils/equip-bonus-table.json` 後跑 `tests/equip-ref.test.ts`。新活動口徑未進
 適性表時不要猜。
 
+手補條目（尚未進上游加成表的新裝備）：589 XF6F-6（2026-09 戰果排名獎勵）——英文 wiki 與 wikiwiki 的
+加成表逐格一致，均為「美國空母」改修值逐級疊加：★1 回避+1、★2 對空+1、★3 火力+1、★4 以上命中+1
+（來源兩邊都標暫定，改修段位規律待調查）。對象以 `shipCountry: US`＋`shipType: [7,11,18]` 表示，
+以 start2 驗證恰為 Lexington／Yorktown／Essex／Independence／Casablanca／Ranger 六級；之後覆蓋
+加成表時若上游已收錄 589，以上游為準並移除此條。
+
 ### 資源紀錄（`utils/resource-capture.ts`＋`resource-log.ts`＋`line-chart.ts`，2026-07-22）
 
 **兩個貫穿全部設計的事實**：
