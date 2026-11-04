@@ -103,7 +103,8 @@ panel/main.ts
 interceptor 被動觀察遊戲 `window.axios` 的 kcsapi 回應（不取代原生 fetch／XHR，以免 DevTools `getContent` 對其他擴充變空），經 `utils/idle-capture-queue.ts` 依序送出（輸入後至少讓出一幀；512K 字元以下排到下一個 task，更大或大小未知者等 idle；延遲量測見 `utils/capture-timing.ts`，只在開發用 UI 收集、不寫入 DB）已去 `/kcsapi/`／`svdata=` 前綴的
 path、原始 response text 與 request body。MAIN 與 bridge 之間走 `utils/main-channel.ts` 的 MessageChannel：
 只有 document_start 的握手經過 window（驗證同一 window、同源），封包與靜音狀態都走私有 port，
-不在頁面上廣播；通道建立前的封包留在 MAIN 端依序緩衝，不改走 window 備援。正式建置的 MAIN world
+不在頁面上廣播；通道建立前的封包留在 MAIN 端依序緩衝，不改走 window 備援。MessagePort 由
+ISOLATED 經 window.postMessage 轉移到 MAIN world 已於 Edge／macOS 實機確認（2026-11-04：面板即時更新、靜音生效）。正式建置的 MAIN world
 不設除錯全域變數、不印封包（建置旗標在編譯期折掉，產物中沒有這段程式碼）。ISOLATED bridge 移除
 `api_token`／`api_verno`，建立一次固定 envelope（UUID `captureId`、timestamp、path、req、
 `apiText`）後送 runtime message。retry **只一次**，且重用同一 envelope；第二次仍失敗時該筆
@@ -2254,9 +2255,8 @@ content script 另有 `__kcTheaterInstalled` 旗標防重複注入長出第二�
   把視窗修成遊戲比例；拖曳中途不修正，以免跟滑鼠拉扯。一般視窗不做，因為那會改到其他分頁的版面。
 - **DevTools 不能嵌入**：Chromium 只允許 DevTools 嵌入一般視窗，popup 視窗一律獨立開啟，擴充無 API 可改。
 - **直接關閉 popup 視窗＝關掉遊戲分頁**：進入時提示講明，關頁警示照常生效。
-- ⚠️ **未實機驗證**：Edge／macOS 上 `tabs.move` 從 popup 移回一般視窗是否成功（文件寫只支援
-  一般視窗之間，失敗會走新視窗後備）、嵌入式 DevTools 搬移後的行為、DevTools 型擴充是否持續
-  收封包，皆待開發者手動確認。
+- **實機確認（2026-11-04，Edge／macOS）**：工具列 ✕ 從 popup 以 `tabs.move` 移回原視窗成功。
+  ⚠️ 仍待開發者手動確認：嵌入式 DevTools 搬移後的行為、DevTools 型擴充是否持續收封包。
 
 ### 拍照（`utils/screenshot.ts`＋`MSG_CAPTURE_TAB`，2026-07-24）
 
