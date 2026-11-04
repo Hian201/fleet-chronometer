@@ -19,7 +19,11 @@ import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
-import { formatTime } from '@/utils/date-format';
+import { formatDateTime, formatTime } from '@/utils/date-format';
+import {
+    formatTimingReport, parseCaptureTiming, toTimingRecord, wallNow,
+    type CaptureTiming, type CaptureTimingRecord,
+} from '@/utils/capture-timing';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { bossHpReplaySpecificity, observedBossHp } from '@/utils/boss-hp';
@@ -35,7 +39,7 @@ import { loadExcludedMaps, onExcludedMapsChange } from '@/utils/sortie-exclude';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
-    wantedEl = $('wanted'),
+    wantedEl = $('wanted'), timingEl = $('capture-timing'),
     facLiveEl = $('factory-live'),
     orderEl = $('tab-order'),
     tabpanelEl = $('tabpanel'),
@@ -77,6 +81,7 @@ onPrefsChange(() => {
     photo.relabel();
     renderAll();
     if (isDebugUiEnabled()) void renderWanted().catch(() => { });
+    relabelTiming();
 });
 // 靜態 HTML（index.html 內非 JS 產生的標題文字）的翻譯套用點：切語言時連同動態渲染一起重跑。
 function applyStaticI18n() {
@@ -1621,6 +1626,87 @@ wantedEl.addEventListener('click', async e => {
     }
     flashButton(btn, t('wanted.copied'), true);
 });
+// ── 擷取延遲量測（開發用）──────────────────────
+// 量測值只在面板記憶體中，面板關閉即消失；完整報告由「複製量測結果」一次產生。
+// 計數只更新文字，不重繪按鈕（量測期間使用者可能正要點複製）。
+const IN_FLIGHT_TIMING_LIMIT = 500;
+const TIMING_RECORD_LIMIT = 5000;
+const inFlightTimings = new Map<number, CaptureTiming>();
+let timingRecords: CaptureTimingRecord[] = [];
+let timingStartedAt = Date.now();
+let timingIncomplete = 0;
+let timingDropped = 0;
+function finishTiming(id: number, path: string) {
+    const timing = inFlightTimings.get(id);
+    if (!timing) return;
+    inFlightTimings.delete(id);
+    timing.rendered = wallNow();
+    requestAnimationFrame(() => {
+        timing.painted = wallNow();
+        const record = toTimingRecord(path, timing);
+        if (!record) { timingIncomplete++; updateTimingCount(); return; }
+        timingRecords.push(record);
+        if (timingRecords.length > TIMING_RECORD_LIMIT) {
+            timingRecords.shift();
+            timingDropped++;
+        }
+        updateTimingCount();
+    });
+}
+function updateTimingCount() {
+    const el = timingEl.querySelector('.timing-count');
+    if (el) el.textContent = t('timing.count', { n: timingRecords.length });
+}
+function mountTiming() {
+    if (!isDebugUiEnabled()) return;
+    timingEl.innerHTML = `
+      <div class="wanted-foot">
+        <span class="grow timing-count"></span>
+        <button data-timing="copy" title="${esc(t('timing.copyTitle'))}">${esc(t('timing.copy'))}</button>
+        <button data-timing="reset">${esc(t('timing.reset'))}</button>
+      </div>`;
+    updateTimingCount();
+}
+function relabelTiming() {
+    if (!isDebugUiEnabled()) return;
+    const copy = timingEl.querySelector<HTMLButtonElement>('button[data-timing="copy"]');
+    const reset = timingEl.querySelector<HTMLButtonElement>('button[data-timing="reset"]');
+    if (copy) { copy.textContent = t('timing.copy'); copy.title = t('timing.copyTitle'); }
+    if (reset) reset.textContent = t('timing.reset');
+    updateTimingCount();
+}
+timingEl.addEventListener('click', async e => {
+    const btn = (e.target as HTMLElement).closest('button[data-timing]') as HTMLButtonElement | null;
+    if (!btn) return;
+    if (btn.dataset.timing === 'reset') {
+        if (!confirm(t('timing.resetConfirm'))) return;
+        timingRecords = [];
+        inFlightTimings.clear();
+        timingStartedAt = Date.now();
+        timingIncomplete = 0;
+        timingDropped = 0;
+        updateTimingCount();
+        return;
+    }
+    const report = formatTimingReport(timingRecords, {
+        version: browser.runtime.getManifest().version,
+        userAgent: navigator.userAgent,
+        startedAt: timingStartedAt,
+        now: Date.now(),
+        incomplete: timingIncomplete,
+        dropped: timingDropped,
+        formatDateTime: ts => formatDateTime(ts),
+    });
+    try {
+        await navigator.clipboard.writeText(report);
+    } catch (err) {
+        console.warn('[KC-Monitor] 量測結果複製失敗', err);
+        flashButton(btn, t('wanted.copyFailed'), false);
+        return;
+    }
+    flashButton(btn, t('wanted.copied'), true);
+});
+mountTiming();
 // ── 工廠分頁 ──────────────────────────────
 // 最新開發/改修結果看板（state 內存，跨 session 由事件重播還原）＋歸檔紀錄
 // （db.factory，同 sorties 設計：獨立於事件裁剪、永久保留）。名稱一律渲染時經
@@ -1705,7 +1791,11 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         { id, ts, path, api, req },
         projectionThroughEventId,
         eventId => advanceProjectionCursor(db, eventId),
-        () => { t1 = ready ? performance.now() : 0; },
+        () => {
+            t1 = ready ? performance.now() : 0;
+            const timing = inFlightTimings.get(id);
+            if (timing) timing.projected = wallNow();
+        },
     );
     // meta write 失敗時不會執行到這裡，記憶體去重位置與耐久游標都保留在失敗事件之前。
     maxId = id;
@@ -1746,6 +1836,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         const t2 = performance.now();
         renderAll();
         const t3 = performance.now();
+        finishTiming(id, path);
         if (t3 - t0 > 15) {
             console.log(`[KC-Monitor][perf] ${path} state ${(t1 - t0).toFixed(1)}ms, renderAll ${(t3 - t2).toFixed(1)}ms`);
         }
@@ -1834,9 +1925,12 @@ async function pump() {
         while (pending.length) {
             const id = pending[0];
             if (id <= maxId) {
+                inFlightTimings.delete(id);
                 pending.shift();
                 continue;
             }
+            const timing = inFlightTimings.get(id);
+            if (timing) timing.picked = wallNow();
             let r: ApiEventRow | undefined;
             try {
                 r = await db.events.get(id);
@@ -1849,9 +1943,11 @@ async function pump() {
                 return;
             }
             if (!r) {
+                inFlightTimings.delete(id);
                 pending.shift();
                 continue;
             }
+            if (timing) timing.loaded = wallNow();
             try {
                 await consume(r.id!, r.ts, r.path, r.api, r.req);
             } catch (error) {
@@ -1871,6 +1967,18 @@ browser.runtime.onMessage.addListener((msg) => {
     // 已停止消費後不再累積：事件本身在 db.events 裡不會遺失，重新載入面板就會重建，
     // 繼續往 pending 塞只會讓記憶體無止境成長，而且一筆都不會被處理。
     if (projectionFailed) return;
+    if (ready && isDebugUiEnabled()) {
+        const timing = parseCaptureTiming(msg.timing);
+        if (timing) {
+            timing.panelRecv = wallNow();
+            inFlightTimings.set(msg.id, timing);
+            while (inFlightTimings.size > IN_FLIGHT_TIMING_LIMIT) {
+                const oldest = inFlightTimings.keys().next().value;
+                if (oldest === undefined) break;
+                inFlightTimings.delete(oldest);
+            }
+        }
+    }
     if (!pending.includes(msg.id)) {
         pending.push(msg.id);
         pending.sort((left, right) => left - right);

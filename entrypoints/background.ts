@@ -16,6 +16,28 @@ import { captureQuestObserved } from '@/utils/quest-observed';
 import { captureQuestSeen } from '@/utils/quest-seen';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
+import { parseCaptureTiming, wallNow, type CaptureTiming } from '@/utils/capture-timing';
+
+// 開發用延遲量測（utils/capture-timing.ts）：只在記憶體中從 kc:api 轉交到 kc:live，
+// 不進 ingestEvent() 的 row。重送的重複 envelope 不會再跑 postProcess，故設上限、丟最舊的。
+const PENDING_TIMING_LIMIT = 200;
+const pendingTimings = new Map<string, CaptureTiming>();
+function rememberTiming(captureId: unknown, timing: CaptureTiming): void {
+  if (typeof captureId !== 'string') return;
+  pendingTimings.delete(captureId);
+  pendingTimings.set(captureId, timing);
+  while (pendingTimings.size > PENDING_TIMING_LIMIT) {
+    const oldest = pendingTimings.keys().next().value;
+    if (oldest === undefined) break;
+    pendingTimings.delete(oldest);
+  }
+}
+function takeTiming(captureId: string | undefined): CaptureTiming | undefined {
+  if (!captureId) return undefined;
+  const timing = pendingTimings.get(captureId);
+  pendingTimings.delete(captureId);
+  return timing;
+}
 
 // 提前通知時間：遊戲機制中剩餘 1 分鐘回港即自動結算
 const EARLY_MS = 60_000;
@@ -194,6 +216,7 @@ export default defineBackground(() => {
       );
     }
     if (msg?.type !== 'kc:api') return;
+    const bgRecv = wallNow();
     // 新 bridge 交原始文字，讓大型封包在 service worker 解析，避開遊戲 renderer 主執行緒。
     // 保留舊 bridge 的 api object 相容路徑，擴充重新載入後尚未 F5 的既有遊戲分頁不會漏事件。
     let api = msg.api;
@@ -204,6 +227,12 @@ export default defineBackground(() => {
         console.warn('[KC-Monitor] 無法解析 kcsapi response，略過此筆事件', msg.path);
         return;
       }
+    }
+    const timing = parseCaptureTiming(msg.timing);
+    if (timing) {
+      timing.bgRecv = bgRecv;
+      timing.parseMs = wallNow() - bgRecv;
+      rememberTiming(msg.captureId, timing);
     }
     // 帳號安全紅線的第二道防線：bridge.content.ts 已經剝過 api_token/api_verno，但那是
     // 靠 URLSearchParams 解析 req 字串的單點防線——若日後某個請求體格式跳脫這個假設而
@@ -317,8 +346,10 @@ async function openPanelWindow() {
 async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<void> {
   const { id, ts, path, req } = event;
   const api = event.api as any;   // 合約保證為解析後的 api_data；此處為欄位存取放寬型別
+  const timing = takeTiming(event.captureId);
+  if (timing) timing.live = wallNow();
   // 面板未開啟時沒有 runtime receiver 是正常情況，維持既有的 best-effort broadcast。
-  browser.runtime.sendMessage({ type: 'kc:live', id, ts, path }).catch(() => { });
+  browser.runtime.sendMessage({ type: 'kc:live', id, ts, path, ...(timing ? { timing } : {}) }).catch(() => { });
 
   // 母港快照：獨立於 M6 裁剪，撐過完全解除安裝再重裝（見 utils/db.ts SnapshotRow）。
   if (SNAPSHOT_PATHS.has(path)) await db.snapshot.put({ path, ts, api, req, eventId: id });

@@ -1,6 +1,7 @@
 import { attachAxiosResponseCapture, waitForAxios } from '../utils/axios-capture';
 import { parseKcsapiResponse } from '../utils/kcsapi';
-import { IdleCaptureQueue, type IdleDeadlineLike } from '../utils/idle-capture-queue';
+import { IdleCaptureQueue, type IdleDeadlineLike, type QueueTiming } from '../utils/idle-capture-queue';
+import { wallNow, type MainCaptureTiming } from '../utils/capture-timing';
 import { installAudioMute } from '../utils/audio-mute';
 import { MUTE_MARK, type MuteBridgeMessage } from '../utils/game-page';
 
@@ -31,7 +32,7 @@ export default defineContentScript({
                 '（已接管的 AudioContext：' + audio.contextCount() + '）');
         });
 
-        const emit = (path: string, reqBody: string, text: string) => {
+        const emit = (path: string, reqBody: string, text: string, queued: QueueTiming) => {
             try {
                 // [debug] 擷取戰鬥封包，方便驗證：在「遊戲分頁」的 DevTools console 執行
                 //   copy(__kcLastBattle)   ← 複製最後一場戰鬥的完整 JSON
@@ -50,8 +51,18 @@ export default defineContentScript({
                 }
                 // 傳原始文字而非解析後的巢狀物件：structured clone 只需處理字串，不會在遊戲
                 // renderer 深拷貝 start2 等多 MB 封包。background 會用同一套規則取 api_data。
+                // timing 只供開發用延遲量測（utils/capture-timing.ts），下游不寫入 DB。
+                const timing: MainCaptureTiming = {
+                    hit: queued.enqueuedAt,
+                    head: queued.headAt,
+                    quietMs: queued.quietMs,
+                    readMs: queued.readMs,
+                    dispatch: queued.dispatchAt,
+                    emit: wallNow(),
+                    size: text.length,
+                };
                 window.postMessage(
-                    { __kc_monitor__: 1, path, req: reqBody, apiText: text },
+                    { __kc_monitor__: 1, path, req: reqBody, apiText: text, timing },
                     location.origin
                 );
             } catch { /* 非 JSON,忽略 */ }
@@ -69,9 +80,13 @@ export default defineContentScript({
             // 在不支援的瀏覽器不會永久積壓封包。
             setTimeout(() => callback({ didTimeout: true, timeRemaining: () => 0 }), 50);
         };
-        // 監看器的狀態允許晚一點更新，遊戲介面切換則不能掉幀。使用者每次點擊、按鍵或
-        // 滾動後先留出一段完整的安靜時間，尤其避免工廠載入時與裝備庫繪製撞在一起。
-        const INPUT_QUIET_MS = 750;
+        // 使用者點擊、按鍵或滾動後，至少讓出一個畫面幀（60Hz 約 16.7ms）再處理封包，
+        // 不與該次輸入觸發的繪製擠在同一幀。實測單筆佔用主執行緒不到 1ms，更長的安靜期
+        // 只會延後面板更新；封包往返通常已超過這段時間，多數情況不會額外等待。
+        const INPUT_QUIET_MS = 17;
+        // 低於此大小直接排到下一個 task 送出；實測 250K 的 api_port/port 跨 world 傳輸
+        // 不到 1ms。更大或大小未知的封包（登入 start2 等）仍等 idle。
+        const IMMEDIATE_MAX_CHARS = 512 * 1024;
         let lastUserInputAt = performance.now();
         const noteUserInput = () => { lastUserInputAt = performance.now(); };
         window.addEventListener('pointerdown', noteUserInput, { capture: true, passive: true });
@@ -86,12 +101,11 @@ export default defineContentScript({
             },
             emit,
             {
-                // 工廠等介面可能在切換時取得整個裝備庫（require_info／slot_item）。這些
-                // 回應必須保存，但不該在使用者剛點擊的轉場期間 materialize/傳輸，否則
-                // 會與遊戲 renderer 的裝備清單繪製競爭。所有 path 一律套用，無須猜測
-                // 特定未驗證端點的資料形狀。
+                // 所有 path 一律套用輸入後的安靜期，無須猜測特定端點的資料形狀。
                 nextEligibleDelayMs: () => Math.max(0, INPUT_QUIET_MS - (performance.now() - lastUserInputAt)),
                 onError: (path, error) => console.warn('[KC-Monitor] 延後讀取封包失敗，略過此筆', path, error),
+                now: wallNow,
+                immediateMaxChars: IMMEDIATE_MAX_CHARS,
             },
         );
 
@@ -104,7 +118,7 @@ export default defineContentScript({
             (axios) => {
                 attachAxiosResponseCapture(
                     axios,
-                    (path, reqBody, readText) => captureQueue.enqueue(path, reqBody, readText),
+                    (path, reqBody, readText, sizeHint) => captureQueue.enqueue(path, reqBody, readText, sizeHint),
                     (path, error) => console.warn('[KC-Monitor] axios 擷取失敗，略過此筆', path, error),
                 );
                 console.log('[KC-Monitor] 已掛上 axios 觀察');

@@ -84,6 +84,8 @@ describe('attachAxiosResponseCapture', () => {
         expect(path).toBe('api_port/port');
         expect(reqBody).toBe('');
         expect(readText()).toBe(response.data);
+        // 字串回應直接帶出長度，供佇列判斷是否可不等 idle
+        expect(enqueue.mock.calls[0][3]).toBe((response.data as string).length);
     });
 
     it.each([

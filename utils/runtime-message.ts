@@ -1,3 +1,5 @@
+import type { CaptureTiming } from './capture-timing';
+
 /** bridge 交給 background 的 kcsapi runtime message。 */
 export interface KcApiRuntimeMessage {
     type: 'kc:api';
@@ -7,12 +9,15 @@ export interface KcApiRuntimeMessage {
     req: Record<string, string>;
     // 保持原始 response text，避免在遊戲 renderer 中跨 context 複製解析後的大型巢狀物件。
     apiText: string;
+    /** 開發用延遲量測；background 不寫入 raw event（見 utils/capture-timing.ts）。 */
+    timing?: CaptureTiming;
 }
 
 export interface KcApiRuntimeMessageInput {
     path: string;
     req: Record<string, string>;
     apiText: string;
+    timing?: CaptureTiming;
 }
 
 export interface RuntimeMessageFactory {
@@ -37,6 +42,7 @@ export function createKcApiRuntimeMessage(
         path: input.path,
         req: input.req,
         apiText: input.apiText,
+        ...(input.timing ? { timing: input.timing } : {}),
     };
 }
 

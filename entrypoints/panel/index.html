@@ -5344,12 +5344,14 @@
             border-color: var(--brass);
         }
 
-        .wanted-row button.copied {
+        .wanted-row button.copied,
+        .wanted-foot button.copied {
             color: #58a55c;
             border-color: #58a55c;
         }
 
-        .wanted-row button.failed {
+        .wanted-row button.failed,
+        .wanted-foot button.failed {
             color: var(--dmg-major);
             border-color: var(--dmg-major);
         }
@@ -6015,6 +6017,8 @@
         <div id="tab-activity" style="display:none">
             <h3 data-i18n="section.wanted">待驗證封包（自動擷取）</h3>
             <div id="wanted"></div>
+            <h3 data-i18n="section.timing">擷取延遲量測</h3>
+            <div id="capture-timing"></div>
             <h3 data-i18n="section.log">事件記錄</h3>
             <div id="log"></div>
         </div>

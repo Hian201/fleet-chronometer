@@ -41,7 +41,7 @@ export function isAxiosLike(value: unknown): value is AxiosLike {
  */
 export function attachAxiosResponseCapture(
     axios: AxiosLike,
-    enqueue: (path: string, reqBody: string, readText: () => string) => void,
+    enqueue: (path: string, reqBody: string, readText: () => string, sizeHint?: number) => void,
     onError?: (path: string | undefined, error: unknown) => void,
 ): void {
     axios.interceptors.response.use((response) => {
@@ -55,11 +55,13 @@ export function attachAxiosResponseCapture(
             req.delete('api_verno');
             const reqBody = req.toString();
             const payload = response.data;
+            // 字串回應的長度不需序列化就知道；物件回應大小未知，交給佇列走保守路徑。
+            const sizeHint = typeof payload === 'string' ? payload.length : undefined;
             enqueue(path, reqBody, () => {
                 const text = serializeAxiosResponseText(payload);
                 if (text == null) throw new Error('axios response 無法序列化');
                 return text;
-            });
+            }, sizeHint);
         } catch (error) {
             onError?.(response?.config?.url, error);
         }

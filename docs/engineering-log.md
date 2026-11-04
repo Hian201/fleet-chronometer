@@ -100,7 +100,7 @@ panel/main.ts
 ```
 
 **Provider 合約**：`ApiEventRow`（`utils/db.ts`）是擷取來源與下游的正式邊界。MAIN world
-interceptor 被動觀察遊戲 `window.axios` 的 kcsapi 回應（不取代原生 fetch／XHR，以免 DevTools `getContent` 對其他擴充變空），在 idle queue 中依序送出已去 `/kcsapi/`／`svdata=` 前綴的
+interceptor 被動觀察遊戲 `window.axios` 的 kcsapi 回應（不取代原生 fetch／XHR，以免 DevTools `getContent` 對其他擴充變空），經 `utils/idle-capture-queue.ts` 依序送出（輸入後至少讓出一幀；512K 字元以下排到下一個 task，更大或大小未知者等 idle；延遲量測見 `utils/capture-timing.ts`，只在開發用 UI 收集、不寫入 DB）已去 `/kcsapi/`／`svdata=` 前綴的
 path、原始 response text 與 request body；ISOLATED bridge 驗證同源訊息、移除
 `api_token`／`api_verno`，建立一次固定 envelope（UUID `captureId`、timestamp、path、req、
 `apiText`）後送 runtime message。retry **只一次**，且重用同一 envelope；第二次仍失敗時該筆

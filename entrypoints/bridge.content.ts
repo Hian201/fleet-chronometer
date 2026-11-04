@@ -7,6 +7,7 @@ import {
     type GameFrameReply, type GameFrameRequest, type MuteBridgeMessage, type TheaterRelayMessage,
 } from '../utils/game-page';
 import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
+import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
 
 export default defineContentScript({
     matches: ['*://*.kancolle-server.com/*'],
@@ -168,8 +169,11 @@ export default defineContentScript({
             const req = Object.fromEntries(new URLSearchParams(d.req ?? ''));
             delete req.api_token;
             delete req.api_verno;
+            // 頁面送來的量測欄位不可信：不合格就整組捨棄，不影響封包本身。
+            const timing = parseCaptureTiming(d.timing);
+            if (timing) timing.bridge = wallNow();
             const message = createKcApiRuntimeMessage(
-                { path: d.path, req, apiText: d.apiText },
+                { path: d.path, req, apiText: d.apiText, timing: timing ?? undefined },
                 { createUuid: () => crypto.randomUUID(), now: () => Date.now() },
             );
             void sendKcApiRuntimeMessageWithRetry(message, {
