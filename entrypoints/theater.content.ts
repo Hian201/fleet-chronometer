@@ -161,7 +161,18 @@ export default defineContentScript({
          */
         const area = () => contentArea(frameSize(), gameRect ?? fallbackGameArea(frameSize()));
 
+        // framePlacement() 假設遊戲框的版面原點就在視窗 (0,0)。CSS 的 overflow:hidden 只禁止
+        // 之後的捲動、不會把已捲動的位置歸零；原頁面若已往下／往右捲，框會跟著偏移而被切掉。
+        // 故適應時一律捲回原點，離開時再還原使用者原本的捲動位置。
+        let scrollBeforeEnter: { x: number; y: number } | null = null;
+        const scrollToOrigin = () => {
+            if (window.scrollX !== 0 || window.scrollY !== 0) {
+                window.scrollTo({ left: 0, top: 0, behavior: 'instant' as ScrollBehavior });
+            }
+        };
+
         const applyTransform = () => {
+            scrollToOrigin();
             const view = viewport();
             const size = frameSize();
             const shown = area();
@@ -293,6 +304,7 @@ export default defineContentScript({
             const found = frame?.isConnected ? frame : locate();
             if (!found) { ui.flash(t('theater.notFound')); return false; }
             frame = found;
+            if (!active) scrollBeforeEnter = { x: window.scrollX, y: window.scrollY };
             active = true;
             ensureStyle();
             document.documentElement.setAttribute(ATTR_ACTIVE, '1');
@@ -317,6 +329,11 @@ export default defineContentScript({
             const root = document.documentElement;
             for (const name of [CSS_ZOOM, CSS_TX, CSS_TY, CSS_CLIP]) root.style.removeProperty(name);
             unmark();
+            if (scrollBeforeEnter) {
+                const { x, y } = scrollBeforeEnter;
+                scrollBeforeEnter = null;
+                window.scrollTo({ left: x, top: y, behavior: 'instant' as ScrollBehavior });
+            }
             ui.render();
             save();
         };

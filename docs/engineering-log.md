@@ -2255,8 +2255,11 @@ content script 另有 `__kcTheaterInstalled` 旗標防重複注入長出第二�
   把視窗修成遊戲比例；拖曳中途不修正，以免跟滑鼠拉扯。一般視窗不做，因為那會改到其他分頁的版面。
 - **DevTools 不能嵌入**：Chromium 只允許 DevTools 嵌入一般視窗，popup 視窗一律獨立開啟，擴充無 API 可改。
 - **直接關閉 popup 視窗＝關掉遊戲分頁**：進入時提示講明，關頁警示照常生效。
-- **實機確認（2026-11-04，Edge／macOS）**：工具列 ✕ 從 popup 以 `tabs.move` 移回原視窗成功。
-  ⚠️ 仍待開發者手動確認：嵌入式 DevTools 搬移後的行為、DevTools 型擴充是否持續收封包。
+- **實機確認（2026-11-04，Edge／macOS）**：工具列 ✕ 從 popup 以 `tabs.move` 移回原視窗成功；
+  原視窗已開的 DevTools（含 KC3Kai 面板）會隨分頁一起搬進獨立視窗，KC3Kai 在獨立視窗中持續收到資料。
+- **捲動歸零**：`framePlacement()` 假設遊戲框版面原點在視窗 (0,0)，但 `overflow:hidden` 不會把
+  已捲動的位置歸零；原頁面捲動過時，視窗適應與獨立視窗都會切掉部分遊戲畫面。`applyTransform()`
+  一律先捲回原點，`enter()` 記下原捲動位置，`exit()` 還原。
 
 ### 拍照（`utils/screenshot.ts`＋`MSG_CAPTURE_TAB`，2026-07-24）
 
