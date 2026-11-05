@@ -13,6 +13,7 @@
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
     "test": "vitest run",
+    "backup:repo": "sh tools/repo-backup.sh",
     "site:build": "vite-node --config vitest.config.ts site/build.ts",
     "site:deploy": "npm run site:build && npx wrangler pages deploy .site --project-name fleet-chronometer",
     "postinstall": "wxt prepare"

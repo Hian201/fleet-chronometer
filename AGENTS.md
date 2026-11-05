@@ -62,6 +62,8 @@ npm test            # Vitest
 - 離線 UI 預覽（不連遊戲）：`npx vite-node --config vitest.config.ts tools/preview/<name>.ts`，可用的 `<name>` 見 `tools/preview/`，輸出到 `.preview/`。
 - 370px 編成的定版參考是 `.preview/panel-width-hp-resource-zh.html` 的「試排｜七船、原位加高 HP＋油彈條」場景（英文版對應 `-en.html`）：保留原艦種徽章設計與位置、補強增設 chip 完整留在編成列內；新增面板分頁預覽時沿用這個場景的編成 markup 與樣式。
 
+- 原始碼備份：`npm run backup:repo -- <專案外的資料夾>` 產生含完整 git 歷史的 bundle；從備份還原與重建順序見 `docs/structure.html`。升 DB／備份／projection 版本時同步更新該檔的「版本錨點」（`tests/structure-doc.test.ts` 會比對）。
+
 完成前回報：改了哪些檔案、跑了哪些驗證與結果、哪些驗證沒做及原因；需要 live 驗證時附手動步驟。
 
 ## 資料流與檔案入口
