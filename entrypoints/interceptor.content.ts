@@ -1,5 +1,6 @@
 import { attachAxiosResponseCapture, waitForAxios } from '../utils/axios-capture';
-import { parseKcsapiResponse } from '../utils/kcsapi';
+import { getKcsapiPath, parseKcsapiResponse } from '../utils/kcsapi';
+import { CaptureHealthMonitor } from '../utils/capture-health';
 import { IdleCaptureQueue, type IdleDeadlineLike, type QueueTiming } from '../utils/idle-capture-queue';
 import { wallNow, type MainCaptureTiming } from '../utils/capture-timing';
 import { installAudioMute } from '../utils/audio-mute';
@@ -49,6 +50,32 @@ export default defineContentScript({
             },
             (dropped) => console.warn('[KC-Monitor] 擷取通道尚未建立，已丟棄最舊的封包', dropped),
         );
+
+        // 擷取健康度（utils/capture-health.ts）：以 resource timing 看遊戲實際完成的 kcsapi
+        // 請求，和 axios 觀察器收到的逐筆配對，遊戲改版讓觀察器失效時能在面板上說出來。
+        // PerformanceObserver 只讀瀏覽器已記錄的請求時序，不包裝、不延遲任何網路 API。
+        const health = new CaptureHealthMonitor({
+            now: () => performance.now(),
+            schedule: (callback, delayMs) => { setTimeout(callback, delayMs); },
+            onChange: (next) => {
+                channel.sendHealth(next);
+                if (dev) console.log('[KC-Monitor] 擷取健康度', next);
+            },
+        });
+        try {
+            new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    // 非 2xx 的請求 axios 會走 reject，觀察器本來就收不到，不列入配對。
+                    // responseStatus 為 0 代表瀏覽器不提供（跨源未授權等），仍列入。
+                    const status = (entry as PerformanceResourceTiming).responseStatus;
+                    if (typeof status === 'number' && status !== 0 && (status < 200 || status >= 300)) continue;
+                    const path = getKcsapiPath(entry.name);
+                    if (path) health.noteTraffic(path);
+                }
+            }).observe({ type: 'resource', buffered: true });
+        } catch {
+            // 不支援 resource timing 時只是少了失效提示，擷取本身不受影響。
+        }
 
         const emit = (path: string, reqBody: string, text: string, queued: QueueTiming) => {
             try {
@@ -129,9 +156,13 @@ export default defineContentScript({
         waitForAxios(
             () => (window as any).axios,
             (axios) => {
+                health.noteAxios();
                 attachAxiosResponseCapture(
                     axios,
-                    (path, reqBody, readText, sizeHint) => captureQueue.enqueue(path, reqBody, readText, sizeHint),
+                    (path, reqBody, readText, sizeHint) => {
+                        health.noteCapture(path);
+                        captureQueue.enqueue(path, reqBody, readText, sizeHint);
+                    },
                     (path, error) => console.warn('[KC-Monitor] axios 擷取失敗，略過此筆', path, error),
                 );
                 if (dev) console.log('[KC-Monitor] 已掛上 axios 觀察');

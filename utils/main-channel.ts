@@ -14,6 +14,7 @@
  * 否則就失去私有通道的意義。本檔不依賴 chrome.* 或 DOM，window 由呼叫端包成 HandshakeEndpoint。
  */
 import type { MainCaptureTiming } from './capture-timing';
+import { parseCaptureHealth, type CaptureHealth } from './capture-health';
 
 export const CHANNEL_MARK = '__kc_channel__';
 
@@ -24,7 +25,8 @@ export type ChannelHandshake =
 /** MAIN → bridge（私有 port 上）。 */
 export type MainToBridgeMessage =
     | { kind: 'ready' }
-    | { kind: 'capture'; path: string; req: string; apiText: string; timing?: MainCaptureTiming };
+    | { kind: 'capture'; path: string; req: string; apiText: string; timing?: MainCaptureTiming }
+    | { kind: 'health'; health: CaptureHealth };
 
 /** bridge → MAIN（私有 port 上）。 */
 export type BridgeToMainMessage = { kind: 'mute'; muted: boolean };
@@ -60,6 +62,8 @@ export const MAIN_PENDING_LIMIT = 500;
 
 export interface MainChannel {
     send(message: Extract<MainToBridgeMessage, { kind: 'capture' }>): void;
+    /** 擷取健康度只保留最新一筆；通道建立前不佔封包緩衝，建立後在積壓封包之後送出。 */
+    sendHealth(health: CaptureHealth): void;
     isReady(): boolean;
 }
 
@@ -70,6 +74,7 @@ export function connectMainChannel(
 ): MainChannel {
     let port: PortLike | null = null;
     const pending: MainToBridgeMessage[] = [];
+    let latestHealth: CaptureHealth | null = null;
     let dropped = 0;
 
     const stop = endpoint.listen((message, ports) => {
@@ -82,6 +87,7 @@ export function connectMainChannel(
         };
         port.postMessage({ kind: 'ready' } satisfies MainToBridgeMessage);
         for (const message of pending.splice(0)) port.postMessage(message);
+        if (latestHealth) port.postMessage({ kind: 'health', health: latestHealth } satisfies MainToBridgeMessage);
     });
     endpoint.post({ [CHANNEL_MARK]: 1, kind: 'hello' });
 
@@ -94,6 +100,10 @@ export function connectMainChannel(
                 dropped++;
                 onOverflow?.(dropped);
             }
+        },
+        sendHealth(health) {
+            latestHealth = health;
+            port?.postMessage({ kind: 'health', health } satisfies MainToBridgeMessage);
         },
         isReady: () => port !== null,
     };
@@ -112,6 +122,7 @@ export function offerBridgeChannel(
     endpoint: HandshakeEndpoint,
     onCapture: (message: Extract<MainToBridgeMessage, { kind: 'capture' }>) => void,
     createChannel: () => ChannelLike,
+    onHealth?: (health: CaptureHealth) => void,
 ): BridgeChannel {
     let ready: PortLike | null = null;
     let latestMute: boolean | null = null;
@@ -140,7 +151,13 @@ export function offerBridgeChannel(
                 if (!ready) accept(port);
                 return;
             }
-            if (port !== ready || data?.kind !== 'capture') return;
+            if (port !== ready) return;
+            if (data?.kind === 'health') {
+                const health = parseCaptureHealth(data.health);
+                if (health) onHealth?.(health);
+                return;
+            }
+            if (data?.kind !== 'capture') return;
             if (typeof data.path !== 'string' || typeof data.apiText !== 'string') return;
             onCapture({
                 kind: 'capture',

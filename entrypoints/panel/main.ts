@@ -19,6 +19,9 @@ import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
+import {
+    MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET, parseCaptureHealthSummary, type CaptureHealthSummary,
+} from '@/utils/capture-health';
 import { formatDateTime, formatTime } from '@/utils/date-format';
 import {
     formatTimingReport, parseCaptureTiming, toTimingRecord, wallNow,
@@ -78,6 +81,7 @@ mountOrder(orderEl, () => state);
 // （靠 expedSelLang 偵測語言），待驗證封包清單則要重讀 DB 才能換掉按鈕與說明文字。
 onPrefsChange(() => {
     applyStaticI18n();
+    if (noticeKind === 'capture') setNotice('none');
     photo.relabel();
     renderAll();
     if (isDebugUiEnabled()) void renderWanted().catch(() => { });
@@ -200,21 +204,44 @@ const condCountdownText = (eta: number) => {
 // 面板「看起來壞掉」的三種狀態（還在載入／讀取暫時失敗積壓中／已停止接收）都必須在
 // 畫面上說出原因：只寫 console 的話使用者只會看到一個不動的面板，無從判斷該不該重載。
 // fatal 一旦顯示就不再被其他訊息蓋掉——那是使用者唯一的線索，只能由重新載入清除。
-type NoticeKind = 'none' | 'loading' | 'backlog' | 'fatal';
+// 擷取失效（capture）是遊戲框回報的持續狀態：優先序最低，其他提示收掉後才顯示；
+// 重新載入面板無助於恢復，所以不放重新載入鈕。
+type NoticeKind = 'none' | 'loading' | 'backlog' | 'capture' | 'fatal';
 let noticeKind: NoticeKind = 'none';
+let captureHealth: CaptureHealthSummary = { status: 'unknown' };
 function setNotice(kind: NoticeKind, text = '', hint = '') {
     if (noticeKind === 'fatal' && kind !== 'fatal') return;
+    if (kind === 'none' && captureHealth.status === 'missed') {
+        kind = 'capture';
+        text = t('panel.captureMissed');
+        hint = t('panel.captureMissedHint');
+    }
     noticeKind = kind;
+    noticeEl.title = captureHealth.status === 'missed' && kind === 'capture'
+        ? `${t(`panel.captureReason.${captureHealth.reason}`)}\n${t('panel.captureUpdateHint')}` : '';
     if (kind === 'none') {
         noticeEl.hidden = true;
         noticeEl.innerHTML = '';
         return;
     }
     noticeEl.hidden = false;
-    noticeEl.className = kind === 'fatal' ? 'err' : '';
+    noticeEl.className = kind === 'fatal' || kind === 'capture' ? 'err' : '';
     noticeEl.innerHTML = `<span class="grow">${esc(text)}${hint ? ` ${esc(hint)}` : ''}</span>` +
         (kind === 'fatal' ? `<button data-reload="1">${esc(t('panel.reload'))}</button>` : '');
 }
+function applyCaptureHealth(value: unknown) {
+    const next = parseCaptureHealthSummary(value);
+    if (!next) return;
+    captureHealth = next;
+    // 載入中／積壓中的提示優先；它們收掉時 setNotice('none') 會改顯示擷取失效。
+    if (noticeKind === 'none' || noticeKind === 'capture') setNotice('none');
+}
+browser.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === MSG_CAPTURE_HEALTH) applyCaptureHealth(msg.health);
+});
+void browser.runtime.sendMessage({ type: MSG_CAPTURE_HEALTH_GET })
+    .then(applyCaptureHealth)
+    .catch(() => { });
 noticeEl.addEventListener('click', e => {
     if ((e.target as HTMLElement).closest('button[data-reload]')) location.reload();
 });

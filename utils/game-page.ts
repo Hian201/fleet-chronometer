@@ -1,6 +1,8 @@
 // 遊戲頁（DMM）相關的共用常數與訊息型別：劇場模式 content script、bridge、background、
 // popup 四邊都要用到同一組字串，集中一處避免各自打字。純常數，無 chrome.* 相依。
 
+import type { CaptureHealth } from './capture-health';
+
 // DMM 的遊戲入口。舊入口
 // `www.dmm.com/netgame/social/-/gadgets/=/app_id=854854/` 現在 302 導向登入頁，
 // 會導向登入頁；登入後的實際遊玩頁是 `play.games.dmm.com/game/kancolle`（Vite+React SPA，
@@ -192,11 +194,13 @@ export interface FleetPhotoCaptureMessage {
 export type FleetPhotoCaptureError = 'no-game' | 'no-canvas' | 'blank' | 'timeout' | 'failed' | 'choose-source';
 export type FleetPhotoCaptureReply = { dataUrl: string } | { error: FleetPhotoCaptureError; detail?: string };
 
-/** background ⇄ 遊戲框 bridge（PORT_GAME_FRAME 上的訊息）。 */
+/** background ⇄ 遊戲框 bridge（PORT_GAME_FRAME 上的訊息；健康度上報也走這條）。 */
 export type GameFrameRequest = { kind: 'capture'; reqId: number; region: FleetPhotoCaptureMessage['region'] };
 export type GameFrameReply =
     | { kind: 'capture-result'; reqId: number; dataUrl: string }
-    | { kind: 'capture-result'; reqId: number; error: Exclude<FleetPhotoCaptureError, 'no-game' | 'timeout' | 'choose-source'>; detail?: string };
+    | { kind: 'capture-result'; reqId: number; error: Exclude<FleetPhotoCaptureError, 'no-game' | 'timeout' | 'choose-source'>; detail?: string }
+    // 擷取健康度（utils/capture-health.ts）：框內狀態改變或 port 重連時上報，與拍照無關。
+    | { kind: 'capture-health'; health: CaptureHealth };
 
 /**
  * 遊戲框 → 最上層 DMM 頁的 window.postMessage 轉發（跨源，只送互動意圖，不含遊戲資料）。

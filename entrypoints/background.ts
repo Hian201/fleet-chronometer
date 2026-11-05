@@ -11,6 +11,7 @@ import {
 } from '@/utils/game-page';
 import { restoreTabIndex, windowSizeForGame } from '@/utils/theater';
 import { FleetPhotoCapture } from '@/utils/fleet-photo-capture';
+import { CaptureHealthRegistry, MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET } from '@/utils/capture-health';
 import { BackgroundIngestionLifecycle } from '@/utils/background-ingestion-lifecycle';
 import { createEventNotificationId } from '@/utils/event-notification';
 import { pruneRawEventsBefore } from '@/utils/event-pruning';
@@ -141,9 +142,19 @@ export default defineBackground(() => {
     });
   });
   const fleetPhotoCapture = new FleetPhotoCapture();
+  // 擷取健康度（utils/capture-health.ts）只存在記憶體：SW 重啟後由各 bridge 重連時重送。
+  const broadcastCaptureHealth = (health: unknown) => {
+    browser.runtime.sendMessage({ type: MSG_CAPTURE_HEALTH, health }).catch(() => { });
+  };
+  const captureHealth = new CaptureHealthRegistry(broadcastCaptureHealth);
   browser.runtime.onConnect.addListener(port => {
-    if (port.name === PORT_GAME_FRAME) fleetPhotoCapture.connect(port);
+    if (port.name !== PORT_GAME_FRAME) return;
+    fleetPhotoCapture.connect(port);
+    captureHealth.connect(port);
   });
+  // SW 休眠期間關閉的分頁不會送出斷線；重啟後等 bridge 重連（約 250ms）再廣播一次，
+  // 讓面板上可能過期的失效提示得到校正。
+  setTimeout(() => broadcastCaptureHealth(captureHealth.summary()), 2000);
   const fleetPhotoSources = async (): Promise<FleetPhotoSource[]> => {
     const ids = new Set(fleetPhotoCapture.tabIds());
     const tabs = await browser.tabs.query({});
@@ -172,6 +183,9 @@ export default defineBackground(() => {
         }),
         sendResponse,
       );
+    }
+    if (msg?.type === MSG_CAPTURE_HEALTH_GET) {
+      return replyWhenSettled(Promise.resolve(captureHealth.summary()), sendResponse);
     }
     // `connected` = 目前連著的遊戲分頁數。0 代表沒有任何分頁已重新注入 content script
     // （擴充更新後遊戲分頁未 F5），此時靜音一定無效；回傳連線數讓 UI 能指出這個狀態。

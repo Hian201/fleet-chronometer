@@ -58,6 +58,13 @@ describe('kcsapi 擷取不得包裝原生網路 API', () => {
         expect(axiosCaptureSrc).toMatch(/return response/);
     });
 
+    it('擷取失效偵測只讀 resource timing，並以觀察器實際收到的 path 配對', () => {
+        expect(interceptorSrc).toContain("observe({ type: 'resource', buffered: true })");
+        expect(interceptorSrc).toContain('health.noteCapture(path)');
+        expect(interceptorSrc).toContain('health.noteAxios()');
+        expect(interceptorSrc).toContain('channel.sendHealth(');
+    });
+
     it('封包經私有通道交給 bridge，不在 window 上廣播', () => {
         // withoutComments 會把 matches 字串 '*://*…/*' 誤當註解；這裡的比對字串都不出現在註解中。
         const interceptor = interceptorSrc;

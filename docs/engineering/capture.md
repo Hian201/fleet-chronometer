@@ -137,6 +137,16 @@ remodel_slot）→工廠。使用者手動切過分頁後暫停自動切換，�
   不得加入。
 - 出擊紀錄的「單場 JSON 匯入」同屬開發用 UI，預設不顯示。
 
+**擷取失效偵測**（`utils/capture-health.ts`）：擷取只靠遊戲的全域 `window.axios`，遊戲改版
+若改用私有模組或原生 fetch，觀察器會靜靜停止觸發。MAIN world 另以 `PerformanceObserver`
+（`type: 'resource'`，只讀瀏覽器已記錄的請求時序，不包裝網路 API）列出遊戲實際完成的 2xx
+kcsapi 請求，與 axios 觀察器收到的 path 逐筆配對；過了 5 秒寬限期的最近 3 筆全都沒配對、
+且期間觀察器完全沒觸發，才判定失效（原因分 `no-axios`／`not-via-axios`）。只看最近連續
+筆數是為了容忍個別端點本來就不經 axios；寬限期吸收兩邊先後不定的時序。沒看到任何 kcsapi
+通訊（例如停在標題畫面）時不回報。狀態經私有通道 → bridge → `PORT_GAME_FRAME` 上報
+background（只存記憶體；SW 回收後 bridge 重連時重送最新一筆，background 啟動 2 秒後再
+廣播一次校正），面板以 `#notice.err` 顯示，優先序低於載入中、積壓與 fatal。
+
 **手動擷取（僅開發建置）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
 Copy object，或切 frame 後 `copy(__kcLastBattle)`。正式建置不印封包，一律用 Network 篩選。
 拿到樣本先存 `samples/`，再寫 Vitest 驗證。

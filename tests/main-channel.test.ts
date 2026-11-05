@@ -128,4 +128,40 @@ describe('main-channel', () => {
         for (let i = 0; i < MAIN_PENDING_LIMIT + 2; i++) main.send(capture(String(i)));
         expect(overflow).toEqual([1, 2]);
     });
+
+    it('擷取健康度只送最新一筆，不佔封包緩衝，建立後排在積壓封包之後', async () => {
+        const win = new FakeWindow();
+        const order: string[] = [];
+        const main = connectMainChannel(win.endpoint(), () => { });
+        main.sendHealth({ status: 'missed', reason: 'no-axios' });
+        main.send(capture('a'));
+        main.sendHealth({ status: 'ok' });
+        offerBridgeChannel(
+            win.endpoint(),
+            m => order.push(m.path),
+            createChannel,
+            h => order.push(`health:${h.status}`),
+        );
+        await settle();
+        expect(order).toEqual(['a', 'health:ok']);
+
+        main.sendHealth({ status: 'missed', reason: 'not-via-axios' });
+        await settle();
+        expect(order).toEqual(['a', 'health:ok', 'health:missed']);
+    });
+
+    it('bridge 丟棄不合格的健康度訊息', async () => {
+        const win = new FakeWindow();
+        const health: unknown[] = [];
+        offerBridgeChannel(win.endpoint(), () => { }, createChannel, h => health.push(h));
+        let port: PortLike | undefined;
+        win.endpoint().listen((message, ports) => { if (message.kind === 'offer' && !port) port = ports[0]; });
+        await settle();
+        port!.onmessage = () => { };
+        port!.postMessage({ kind: 'ready' });
+        port!.postMessage({ kind: 'health', health: { status: 'missed', reason: 'guess' } });
+        port!.postMessage({ kind: 'health', health: { status: 'ok' } });
+        await settle();
+        expect(health).toEqual([{ status: 'ok' }]);
+    });
 });

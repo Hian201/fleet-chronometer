@@ -9,6 +9,7 @@ import {
 import { isChannelHandshake, offerBridgeChannel, type ChannelLike, type HandshakeEndpoint, type PortLike } from '../utils/main-channel';
 import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
 import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
+import type { CaptureHealth } from '../utils/capture-health';
 
 export default defineContentScript({
     matches: ['*://*.kancolle-server.com/*'],
@@ -53,6 +54,16 @@ export default defineContentScript({
                 return () => window.removeEventListener('message', listener);
             },
         };
+        // 擷取健康度經 PORT_GAME_FRAME 上報 background；SW 回收後 port 重連時要重送最新一筆，
+        // 否則 background 重啟後就不知道這個框的擷取已失效。
+        let latestHealth: CaptureHealth | null = null;
+        let gameFramePort: ReturnType<typeof browser.runtime.connect> | null = null;
+        const reportHealth = () => {
+            if (!latestHealth || !gameFramePort) return;
+            try { gameFramePort.postMessage({ kind: 'capture-health', health: latestHealth } satisfies GameFrameReply); }
+            catch { /* 已斷線；重連後會再送 */ }
+        };
+
         const mainChannel = offerBridgeChannel(
             endpoint,
             (d) => {
@@ -74,6 +85,7 @@ export default defineContentScript({
                 });
             },
             () => new MessageChannel() as unknown as ChannelLike,
+            (health) => { latestHealth = health; reportHealth(); },
         );
 
         // ── 靜音狀態下行通道 ──────────────────────────
@@ -138,6 +150,7 @@ export default defineContentScript({
         const connectGameFramePort = () => {
             try {
                 const port = browser.runtime.connect({ name: PORT_GAME_FRAME });
+                gameFramePort = port;
                 port.onMessage.addListener((msg: GameFrameRequest) => {
                     if (msg?.kind !== 'capture') return;
                     void captureRegion(msg.region).then(result => {
@@ -147,7 +160,11 @@ export default defineContentScript({
                     });
                 });
                 // SW 閒置回收會斷線；同靜音通道，短延遲重連
-                port.onDisconnect.addListener(() => { setTimeout(connectGameFramePort, 250); });
+                port.onDisconnect.addListener(() => {
+                    if (gameFramePort === port) gameFramePort = null;
+                    setTimeout(connectGameFramePort, 250);
+                });
+                reportHealth();
             } catch (e) {
                 console.warn('[KC-Monitor] 編成寫真通道連線失敗', e);
             }
