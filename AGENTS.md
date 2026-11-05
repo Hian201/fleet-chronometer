@@ -9,6 +9,7 @@
 - 封包欄位、公式、樣本證據、功能細節：[`docs/engineering/`](docs/engineering/README.md)，依主題分檔；先看索引 README，只讀相關的主題檔。
 - 介面、圖示、面板尺寸：[`docs/design-guidelines.md`](docs/design-guidelines.md)。
 - 譯名與台灣華語：[`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
+- `docs/archive/`：封存的原始設計，只在調查原始設計意圖時查閱，平常不讀、不據以實作。
 
 文件與程式碼或測試不一致時，以目前程式碼與測試為準。
 
