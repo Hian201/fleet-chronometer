@@ -5,11 +5,11 @@
 // 因此「未填 = 顯示日文」，永不出現空白或壞掉的畫面；可逐步補譯、任何時候都能上線。
 //
 // 為何獨立成模組：本檔為純資料 + 純函式，不含 chrome.*，符合「核心零瀏覽器依賴」
-// （見 docs/engineering-log.md 設計原則4）——state.ts 可照常獨立編譯、用 node 餵封包測試。
+// （見 AGENTS.md 硬約束 6）——state.ts 可照常獨立編譯、用 node 餵封包測試。
 //
 // ── 譯名表從哪裡來 ──
 // SHIP_NAMES / GEAR_NAMES 由 utils/gamedata-names.ts 提供，該檔是 tools/gamedata-names/
-// generate.py 的產出物，來源是人工整理的 samples/i18n/*.csv（見 docs/engineering-log.md「艦名／
+// generate.py 的產出物，來源是人工整理的 samples/i18n/*.csv（見 docs/engineering/roster.md「艦名／
 // 裝備名譯名表」）。**要補譯名一律改 CSV 後重跑產生器，不要手改 gamedata-names.ts**。
 // JSON 形狀即下面的 NameTable：{ "<masterId>": { "zh-TW": "…", "en": "…" }, ... }；
 // 日文欄不用填（回退用封包原名即可），缺譯的語言欄整個不出現（見該檔生成規則）。

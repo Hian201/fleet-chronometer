@@ -3,7 +3,7 @@
 // 不影響血量歸屬與 rank 判定。
 //
 // 全部數字取自**真封包**（samples/*.json 為 KC3Kai logger 匯出，battles[].data 就是原封的
-// kcsapi 戰鬥封包），欄位佈局照 docs/engineering-log.md 驗證原則先對照過再實作：
+// kcsapi 戰鬥封包），欄位佈局照 AGENTS.md 硬約束 8 先對照過再實作：
 //   · `api_air_base_attack` 是陣列，一波一個元素（基地防空的同名欄位是物件，不走這裡）。
 //   · 陸航損失＝`api_stage1.api_f_lostcount`（制空戰）＋`api_stage2.api_f_lostcount`（對空砲火）。
 //   · 陸航對敵傷害＝`api_stage3.api_edam` ＋ `api_stage3_combined.api_edam`，先切捨再加總。

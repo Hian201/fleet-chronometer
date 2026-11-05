@@ -2693,7 +2693,7 @@ export class GameState {
             }
         } else if (path === 'api_req_practice/battle_result') {
             // 演習結果端點：路徑名稱依社群工具（poi/KC3Kai）慣例推定，本專案尚無真封包樣本
-            // 驗證（見 docs/engineering-log.md 驗證原則）。rank S/A/B 判定「勝利」同樣是社群慣例、非本專案
+            // 驗證（見 AGENTS.md 硬約束 8）。rank S/A/B 判定「勝利」同樣是社群慣例、非本專案
             // 逐一驗證過的封包事實——只用於「演習N回勝利」這類任務的粗略計數，不影響戰鬥
             // 預測主邏輯，錯了也只會讓進度多算/少算一次，不會誤導大破等安全相關判斷。
             if (this.battleInfo) {
@@ -3303,7 +3303,7 @@ export class GameState {
      *
      * `api_plane_from`（哪些艦放了飛機）刻意不使用：它的索引基準（連合艦隊時主隊／隨伴
      * 怎麼編號）沒有真封包佐證，讀錯會把損失整批攤到錯的艦上——寧可攤得平一點，也不要
-     * 建立在沒驗證過的欄位語意上（見 docs/engineering-log.md 驗證原則）。
+     * 建立在沒驗證過的欄位語意上（見 AGENTS.md 硬約束 8）。
      */
     private queuePlaneLoss(api: any) {
         // 噴式強襲／航空戰／二巡航空戰各自結算。夜戰封包沒有這些欄位，故夜戰接續把
@@ -4384,8 +4384,8 @@ export class GameState {
         // **一顆不成立要繼續看下一顆**：旗艦可能同時帶著 272＋413（例：輕巡旗艦的六艘
         // 水雷戦隊），272 因艦數不是 7 而不成立時若直接回 none，實際成立的 413 單艦退避
         // 就會被謊報成「沒有退避選項」——那正是「沒出現退避選項 ≠ 沒有人大破」的誤讀。
-        // 遊撃部隊＝七艘編成。七艘這件事本身就是 272 做出來的（封包事實，見 docs/engineering-log.md
-        // 出擊紀錄「連合艦隊編成類型」），故艦數即編制的判準。
+        // 遊撃部隊＝七艘編成。七艘這件事本身就是 272 做出來的（封包事實，見 docs/engineering/records.md
+        // 「出擊紀錄的展開檢視」），故艦數即編制的判準。
         if (ships.length === 7 && this.flagshipHasGear(deckIdx, [GameState.COMMAND_FACILITY_STRIKING])) {
             return { state: 'ready', kind: 'striking' };
         }
@@ -4563,7 +4563,7 @@ export class GameState {
      *
      * 素質一律是 master 的**基礎值、未含改修 ★ 加成**——改修加成的公式依裝備類別與
      * 戰鬥情境（晝戰／夜戰／對潛…）而異，本專案不自行推導未經封包驗證的公式
-     * （docs/engineering-log.md 驗證原則），故只呈現遊戲直接給的數字，由 UI 標示語意。
+     * （AGENTS.md 硬約束 8），故只呈現遊戲直接給的數字，由 UI 標示語意。
      *
      * 持有者反查涵蓋**艦（含補強增設）與基地航空隊**兩種。基地航空隊吃的是同一批裝備
      * 實例，漏掉它會把配置在基地的陸攻整批誤報成「閒置」。

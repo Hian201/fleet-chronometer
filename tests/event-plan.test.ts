@@ -1,7 +1,7 @@
 // utils/event-plan.ts（活動作戰板核心）的純函式驗證。
 //
 // 情境資料照使用者提供的真實活動表格建：標籤 #1 第三十一戦隊(9艘)、#2 増強第三十一戦隊(8艘)、
-// #5 仏地中海艦隊（尚未產生）。機制前提見該檔檔頭與 docs/engineering-log.md「活動作戰板」。
+// #5 仏地中海艦隊（尚未產生）。機制前提見該檔檔頭與 docs/engineering/event-ops.md。
 import { describe, expect, it } from 'vitest';
 import {
     checkStage, ensureUniqueStageKeys, establishedTags, findPlanConflicts, freeShips,

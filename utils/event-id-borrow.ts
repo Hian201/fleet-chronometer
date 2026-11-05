@@ -3,7 +3,7 @@
 // 但這些路徑本身**不是** raw ingestion（見各檔頭註解），故不可經 background.ts 的
 // ingestEvent() 走正常流程，只能直接借用 events table 的 key generator：新增一筆佔位 row、
 // 在同一個呼叫端 transaction 內立即刪除，只推進 generator 不回頭，且從不留下任何一筆
-// 可被當成本機觀測封包的 raw event（provider 合約例外路徑，見 docs/engineering-log.md 設計原則 3）。
+// 可被當成本機觀測封包的 raw event（provider 合約例外路徑，見 AGENTS.md 硬約束 3）。
 import type { Table } from 'dexie';
 import type { ApiEventRow } from './db';
 

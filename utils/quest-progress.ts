@@ -36,7 +36,7 @@ export interface QuestGoal {
     // 以下皆為選填的額外過濾條件，只有 `battleWin`／`battleEngage`／`expedition` 部分任務
     // 會用到；缺席時代表該條件不受限制。見 QUEST_ID_OVERRIDES 226/229/241/242/243/
     // 261/265（海域/boss/rank）與 410/411/424（遠征任務 id）。
-    area?: readonly number[];       // 限定海域 mapKey（`mapArea*10+mapNo`，與 docs/engineering-log.md「海域編號結構」同一套）
+    area?: readonly number[];       // 限定海域 mapKey（`mapArea*10+mapNo`，與 docs/engineering/event-ops.md「海域編號結構」同一套）
     bossOnly?: boolean;             // 是否限定 boss 節點（`color===5`）
     minRank?: 'S' | 'A' | 'B';      // battleWin 的勝利門檻（預設 'B'；battleEngage 不看 rank，忽略此欄位）
     missionIds?: readonly number[]; // 限定的遠征任務 master id（`api_mst_mission.api_id`）清單
@@ -55,8 +55,7 @@ export function meetsRank(rank: string | undefined, min: 'S' | 'A' | 'B'): boole
 // 「艦隊を出撃させ、敵艦隊を捕捉、これを撃滅せよ！」沒有任何數字），工廠/改修類任務也常見
 // 同樣情況（例：605「新装備「開発」指令」內文完全沒有數字，目標次數=1 是隱含的）。
 // 這些任務多數還帶艦隊組成／海域限制／敵艦種擊沉數等複合條件——這些條件本專案尚無法驗證
-// （需要逐艦種/艦名/海域比對，見下方 QUEST_SPECIAL_CONDITIONS 與 docs/engineering-log.md「出擊任務目前
-// 實際涵蓋率很低」段落），勉強套用會誤算，故刻意不做。
+// （需要逐艦種/艦名/海域比對，見下方 QUEST_SPECIAL_CONDITIONS 與 docs/engineering/quests.md「任務判定與可信度」），勉強套用會誤算，故刻意不做。
 //
 // 這裡只收錄**完全無條件**的任務（任意海域、任意節點、不要求 boss、不要求特定編成、
 // 不要求特定敵艦種）：目標次數與判定條件皆已交叉核對社群工具原始碼與 wiki 彼此一致——

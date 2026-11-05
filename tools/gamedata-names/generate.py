@@ -61,7 +61,7 @@ def main():
     OUT.write_text(f"""// 艦娘／裝備譯名表。純資料模組、無 chrome.*（設計原則 4）。
 //
 // **本檔由 tools/gamedata-names/generate.py 產生，請勿手改**——要補譯名請改
-// samples/i18n/*.csv 的 name_tw／name_en 欄（來源見 docs/engineering-log.md「艦名／裝備名譯名表」）後重跑
+// samples/i18n/*.csv 的 name_tw／name_en 欄（來源見 docs/engineering/roster.md「艦名／裝備名譯名表」）後重跑
 // 產生器。只有「有值」的語言欄會寫進來，缺譯的 id 完全不會出現在表裡——
 // utils/gamedata-i18n.ts 的 localizeShip()/localizeGear() 查無 id 或該語言欄時
 // 會自動回退封包原始日文名，這裡不需要（也不應該）補空字串或猜測值。

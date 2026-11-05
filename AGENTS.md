@@ -6,7 +6,7 @@
 
 本檔只放跨功能硬約束與查閱索引。細節按需讀取，不要整本載入：
 
-- 封包欄位、公式、樣本證據、功能細節：[`docs/engineering-log.md`](docs/engineering-log.md)，先查 [`docs/engineering-log-index.md`](docs/engineering-log-index.md) 再讀對應行號區間。
+- 封包欄位、公式、樣本證據、功能細節：[`docs/engineering/`](docs/engineering/README.md)，依主題分檔；先看索引 README，只讀相關的主題檔。
 - 介面、圖示、面板尺寸：[`docs/design-guidelines.md`](docs/design-guidelines.md)。
 - 譯名與台灣華語：[`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
 
@@ -76,13 +76,13 @@ npm test            # Vitest
 
 | 範圍 | 主要檔案 | 變更前必讀 |
 |---|---|---|
-| 擷取與生命週期 | `entrypoints/interceptor.content.ts`、`entrypoints/bridge.content.ts`、`entrypoints/background.ts`、`utils/ingestion-persistence.ts`、`utils/background-ingestion-lifecycle.ts` | 本檔硬約束 1–5、index「擷取／Handoff／驗證原則」、對應 tests |
-| 狀態與投影 | `utils/state.ts`、`utils/battle.ts`、`utils/event-projector.ts`、`utils/projection-cursor.ts`、`utils/event-pruning.ts` | index「戰鬥／大破／艦載機／關卡」、samples |
+| 擷取與生命週期 | `entrypoints/interceptor.content.ts`、`entrypoints/bridge.content.ts`、`entrypoints/background.ts`、`utils/ingestion-persistence.ts`、`utils/background-ingestion-lifecycle.ts` | 本檔硬約束 1–5、`docs/engineering/capture.md`、對應 tests |
+| 狀態與投影 | `utils/state.ts`、`utils/battle.ts`、`utils/event-projector.ts`、`utils/projection-cursor.ts`、`utils/event-pruning.ts` | `docs/engineering/battle.md`、`maps.md`、samples |
 | 面板 | `entrypoints/panel/`、`panel/index.html` | design-guidelines §7、面板相關 tests、離線 preview |
-| 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | engineering log 同名章節、design-guidelines §4.7／§4.8 |
-| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | engineering log 劇場／拍照／編成寫真章節 |
-| 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | Handoff、備份還原章節；schema 或格式變更先確認相容性 |
-| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | index「譯名與產生物」、各產生器與 `tools/*/README.md`；產生物勿手改 |
+| 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | `docs/engineering/` 對應主題檔、design-guidelines §4.7／§4.8 |
+| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | `docs/engineering/game-page.md`、`fleet-photo.md` |
+| 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | `docs/engineering/capture.md`、`backup.md`；schema 或格式變更先確認相容性 |
+| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | `docs/engineering/roster.md`「艦名／裝備名譯名表」、各產生器與 `tools/*/README.md`；產生物勿手改 |
 
 ## 不可破壞的目前契約
 
@@ -98,7 +98,7 @@ npm test            # Vitest
 
 ## 會影響取捨的待辦
 
-詳細狀態以程式碼、測試與 engineering log 同名章節為準。
+詳細狀態以程式碼、測試與 `docs/engineering/` 對應主題檔為準。
 
 - 新活動的 edge 對照表、活動特殊燃彈費率、TP 量表與新裝備值仍需資料或真封包。
 - 掉落統計彙總視圖未完成；斬殺偵測的即時觸發待實際 mapinfo 時序觀測。
@@ -108,4 +108,4 @@ npm test            # Vitest
 
 ## 單一真相來源
 
-版本看 `package.json`，manifest 看 `wxt.config.ts` 與 `tests/manifest.test.ts`，資料庫版本看 `utils/db.ts`，測試命令看 `package.json`。本檔不維護里程碑；盤點進度時查 git、測試與 engineering log 的現行段落。
+版本看 `package.json`，manifest 看 `wxt.config.ts` 與 `tests/manifest.test.ts`，資料庫版本看 `utils/db.ts`，測試命令看 `package.json`。本檔不維護里程碑；盤點進度時查 git 與測試。

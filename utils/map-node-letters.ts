@@ -16,7 +16,7 @@
 // ── 為什麼不是從 `api_get_master/mapcell` 推導 ────────────────────────
 // 那類 master 端點給的是**格子**（`api_id` 全海域通號／`api_no` 同海域內編號／顏色…），
 // 沒有字母、也不是我們手上的 edge id；字母本身是攻略圈的命名慣例，不在任何封包裡。
-// 詳見 docs/engineering-log.md「節點字母」。
+// 詳見 docs/engineering/maps.md「節點字母」。
 import { EDGE_LETTERS } from './map-edge-letters';
 
 /**

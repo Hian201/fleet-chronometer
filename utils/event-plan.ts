@@ -1,6 +1,6 @@
 // 活動作戰板：出擊標籤（api_sally_area）的分群、關卡標籤約束檢查與自由身消耗預告。
 //
-// 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵資料驗證（docs/engineering-log.md 設計原則 4）。
+// 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵資料驗證（AGENTS.md 硬約束 6）。
 //
 // ── 機制前提（使用者提供，2026-07-21）──────────────────────────────────
 // 1. 標籤是**船身上的屬性**，不是編成的容器。一艘船同時只能有一個標籤，貼上後不可逆。
@@ -657,7 +657,7 @@ export function observeUsedOnMaps(
 
 /**
  * 該標籤是否「已確立」＝遊戲裡實際已有船帶著它。
- * 已確立的標籤與其關卡約束應鎖定不可改（見 docs/engineering-log.md「活動作戰板」的鎖定規則）：
+ * 已確立的標籤與其關卡約束應鎖定不可改（見 docs/engineering/event-ops.md「鎖定規則」）：
  * 實際貼標是不可逆的事實，計畫端再去改名或改約束只會讓兩邊對不上。
  */
 export function establishedTags(ships: SallyShip[]): Set<number> {

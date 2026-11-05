@@ -6,7 +6,7 @@
 // 屬「一經確定就別亂動」的邊界。快照從 GameState 的公開原始欄位（ships/decks/slotItems）
 // 讀取，故 state.ts 不必新增方法、維持可獨立編譯（設計原則 4）。
 //
-// 格式來源（見 docs/engineering-log.md 出擊紀錄章節）：KC3Kai player.js 解析端 ＋ poi→kc3 轉換器
+// 格式來源（見 docs/engineering/records.md「出擊重播」）：KC3Kai player.js 解析端 ＋ poi→kc3 轉換器
 // 交叉確認——替播物件頂層 { fleet1, fleet2, fleetnum, combined, battles:[{node,data,yasen}],
 // world, mapnum, time }；每個 battles[].data 就是一則原始 kcsapi 戰鬥封包
 // （與 samples/61-5-jibun-rengou-node52.json 同格式，該樣本本身即 KC3Kai logger 匯出）。

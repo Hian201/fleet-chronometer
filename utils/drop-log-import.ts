@@ -6,7 +6,7 @@
 //
 // ── 為什麼可以直接寫 db.sorties ──────────────────────────────────────────
 // db.sorties 是 provider-contract 的 derived table，正常只能經 EventProjector 投影寫入
-// （docs/engineering-log.md 設計原則 3）。這裡走 utils/sortie-import.ts 已建立的例外路徑：event ID 向
+// （AGENTS.md 硬約束 3）。這裡走 utils/sortie-import.ts 已建立的例外路徑：event ID 向
 // events key generator 借（add→delete，只推進不回頭），確保匯入列不會與未來擷取的 raw event
 // 撞號；但**不寫任何 raw event**——匯入的不是本機觀測到的封包。每一列匯入都標 `imported: true`
 // 供 UI 顯示徽章，不得偽裝成本機擷取。
@@ -23,7 +23,7 @@
 //   · マス＝`MapCellDto.getReportString()`＝`"マップ:{area}-{mapNo} セル:{cell}"`
 //     （或啟用字母化設定時 `"マップ:{area}-{mapNo}-{字母}({cell})"`）——**唯一**能可靠取出
 //     `world-mapnum` 的欄位；セル／字母是該工具自己的格子概念，與本專案的 edge id 不是同一種
-//     東西（見 docs/engineering-log.md「節點字母」），故只取 world-mapnum 前綴，node 一律當不可考（0）。
+//     東西（見 docs/engineering/maps.md「節點字母」），故只取 world-mapnum 前綴，node 一律當不可考（0）。
 //   · 出撃＝`getBossText()`（"出撃"/"ボス" 之類的組合文字），只用來偵測是否含「ボス」。
 //   · ランク＝`ResultRank.toString()`，可能是簡寫 "S" 或完整文字如「完全勝利!!S」「敗北E」——
 //     兩種形式恰好都以 rank 字母結尾，故取尾字元。

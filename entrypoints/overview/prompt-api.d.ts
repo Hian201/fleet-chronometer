@@ -3,7 +3,7 @@
 // 故手動宣告目前實際會用到的最小介面。
 // 只在 overview 分頁使用（llm.ts）：官方文件明載「只在 top-level window 及其
 // same-origin iframe 可用，Web Worker 不可用」——故不適用於 background service worker，
-// 不影響 docs/engineering-log.md 設計原則 4（state.ts 核心零瀏覽器依賴）。
+// 不影響 AGENTS.md 硬約束 6（state.ts 核心零瀏覽器依賴）。
 interface LanguageModelSession {
     prompt(input: string, options?: { signal?: AbortSignal }): Promise<string>;
     promptStreaming(input: string, options?: { signal?: AbortSignal }): AsyncIterable<string>;

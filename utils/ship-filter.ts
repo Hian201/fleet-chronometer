@@ -1,6 +1,6 @@
 // 鎮守府全船篩選：航速／艦種／可裝備／出擊標籤／關鍵字。
 //
-// 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵資料驗證（docs/engineering-log.md 設計原則 4）。
+// 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵資料驗證（AGENTS.md 硬約束 6）。
 // 由「活動作戰板」與「艦娘全覽」兩個分區共用（UI 殼在 overview/ship-picker.ts）。
 //
 // ── 資料來源與驗證狀態 ────────────────────────────────────────────────
@@ -32,7 +32,7 @@ export type SpeedFilter = 'all' | 'slow' | 'fast' | 'fastPlus';
 
 /**
  * 可裝備篩選。七個選項＝「能裝大發系」與「能裝內火艇」兩個布林值的組合，
- * 已用真實 start2 對全 1755 艦驗算，七個桶皆非空（見 docs/engineering-log.md「鎮守府全船篩選」）。
+ * 已用真實 start2 對全 1755 艦驗算，七個桶皆非空（見 docs/engineering/roster.md「鎮守府全船篩選」）。
  */
 export type EquipFilter =
     | 'all'

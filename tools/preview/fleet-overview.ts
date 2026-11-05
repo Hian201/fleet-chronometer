@@ -29,7 +29,7 @@ setLang('zh-TW');
 state.applyEvent('api_start2/getData', master);
 
 // samples/slot_to_port.json 的全部 427 艦是 api_slot 皆為 -1 的「無裝備」快照（該樣本
-// 該樣本用於驗證槽位／國籍篩選，見 docs/engineering-log.md「鎮守府全船篩選」——裝備清單版面
+// 該樣本用於驗證槽位／國籍篩選，見 docs/engineering/roster.md「鎮守府全船篩選」——裝備清單版面
 // 因此需要另外注入幾組真實 master id 的裝備才看得出縱向清單的實際樣子（含超長全名
 // 的省略號、改修星、補強增設）。只動第1艦隊前兩個槽位的艦（用 deck_port 的實例 id
 // 反查，不能假設 api_ship 陣列順序＝deck 順序——兩者互不相干）。

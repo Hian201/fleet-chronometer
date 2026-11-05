@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """utils/gamedata-known-ids.ts 產生器（同 tools/ship-debut 慣例：產出物勿手改，改這裡再重跑）。
 
-輸入：samples/i18n/*.csv（三份 wiki 對照表的 master_id 欄，見 docs/engineering-log.md「艦名／裝備名譯名表」）
+輸入：samples/i18n/*.csv（三份 wiki 對照表的 master_id 欄，見 docs/engineering/roster.md「艦名／裝備名譯名表」）
 輸出：utils/gamedata-known-ids.ts —— 純資料，兩個 Set<number>（已知艦娘/深海棲艦、已知裝備）
 
 用途：鎮守府情報總括 LLM 分區的「匯出翻譯缺漏」——拿目前封包載入的 GameState.master／

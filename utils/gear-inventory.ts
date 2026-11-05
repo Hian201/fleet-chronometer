@@ -1,7 +1,7 @@
 // 裝備全覽的彙總／篩選／排序核心。
 //
 // 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵真實 `ownedGears()` 輸出驗證
-// （docs/engineering-log.md 設計原則 4）。UI 殼在 entrypoints/overview/sections/equipment.ts。
+// （AGENTS.md 硬約束 6）。UI 殼在 entrypoints/overview/sections/equipment.ts。
 //
 // ── 為什麼母集合是「實例」但呈現是「種類」────────────────────────────────
 // 遊戲的裝備庫是一顆一顆的實例（各自有改修 ★、熟練度、裝備在誰身上），但玩家問的問題

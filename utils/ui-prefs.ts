@@ -1,7 +1,7 @@
 // UI 偏好（顯示語言／亮暗主題）的持久化共用層 —— 給「擴充頁面」用（panel／popup／
 // overview 皆為同一 extension origin，localStorage 直接共享）。
 //
-// 分工（沿 docs/engineering-log.md 設計原則 4/5）：
+// 分工（沿 AGENTS.md 硬約束 6／7）：
 //   - utils/ui-i18n.ts／gamedata-i18n.ts：純函式＋記憶體變數，零瀏覽器依賴（state.ts 可獨立編譯）。
 //   - 本檔：localStorage＋navigator 等瀏覽器 API 集中於此，三個頁面共用同一份持久化邏輯，
 //     三個頁面共用同一份持久化邏輯，避免各頁面產生不同的偏好語意。

@@ -1,7 +1,7 @@
 // 艦娘全覽（詳細清單）的篩選／排序／分頁核心。
 //
 // 純函式、無 chrome.* 與 DOM，可獨立編譯用 node 餵真實 `ownedShips()` 輸出驗證
-// （docs/engineering-log.md 設計原則 4）。UI 殼在 entrypoints/overview/sections/ships.ts。
+// （AGENTS.md 硬約束 6）。UI 殼在 entrypoints/overview/sections/ships.ts。
 //
 // ── 與 utils/ship-filter.ts 的分工 ────────────────────────────────────────
 // ship-filter 是「鎮守府全船篩選」的**共用**核心（活動作戰板的右欄清單也吃它），

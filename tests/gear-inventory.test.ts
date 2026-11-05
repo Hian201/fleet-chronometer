@@ -1,8 +1,7 @@
 // utils/gear-inventory.ts 的純函式驗證，以及 GameState.ownedGears() 的持有者反查。
 //
 // 裝備素質／類別名／圖示 id 一律以 samples/start2-master.json（真實完整 start2 的
-// 去識別化子集）餵進 GameState 後取得，不手捏 master——docs/engineering-log.md「涉及封包欄位結構的
-// 機制先拿真實封包對照」。
+// 去識別化子集）餵進 GameState 後取得，不手捏 master——AGENTS.md 硬約束 8「未驗證欄位不得猜」。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState, type OwnedGearView } from '../utils/state';
