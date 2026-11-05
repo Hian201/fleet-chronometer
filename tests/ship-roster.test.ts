@@ -1,6 +1,6 @@
 // utils/ship-roster.ts 的純函式驗證。素質／改修上限／補強增設等欄位一律以
 // samples/start2-master.json（真實完整 start2 的去識別化子集）餵進 GameState 後取得，
-// 不手捏 master——CLAUDE.md「涉及封包欄位結構的機制先拿真實封包對照」。
+// 不手捏 master——docs/engineering-log.md「涉及封包欄位結構的機制先拿真實封包對照」。
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { GameState, type OwnedShipView } from '../utils/state';

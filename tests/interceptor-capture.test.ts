@@ -17,7 +17,7 @@ const bridgeSrc = readFileSync(
     new URL('../entrypoints/bridge.content.ts', import.meta.url),
     'utf8',
 );
-const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
+const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 
 function listTsFiles(directory: string): string[] {
     return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
@@ -42,12 +42,12 @@ const NATIVE_NETWORK_WRAP = [
 ];
 
 describe('kcsapi 擷取不得包裝原生網路 API', () => {
-    it('硬約束寫在 CLAUDE.md，並指向本測試', () => {
-        expect(claude).toContain('window.axios');
-        expect(claude).toContain('禁止');
-        expect(claude).toContain('window.fetch');
-        expect(claude).toContain('XMLHttpRequest.prototype');
-        expect(claude).toContain('tests/interceptor-capture.test.ts');
+    it('硬約束寫在 AGENTS.md，並指向本測試', () => {
+        expect(agents).toContain('window.axios');
+        expect(agents).toContain('禁止');
+        expect(agents).toContain('window.fetch');
+        expect(agents).toContain('XMLHttpRequest.prototype');
+        expect(agents).toContain('tests/interceptor-capture.test.ts');
     });
 
     it('interceptor 只經 axios response 觀察，並把傳輸留給 idle queue', () => {

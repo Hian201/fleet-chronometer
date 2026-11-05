@@ -4,7 +4,7 @@
 // 12 隻敵艦…），用手捏的假資料看不出真正的版面問題。本腳本拿 `samples/` 的 KC3Kai
 // logger 匯出（本身就是原封的 kcsapi 戰鬥封包＋艦隊/基地航空隊快照）轉成本專案的
 // ReplayRow／SortieLogRow，套 overview 的同一份 CSS，輸出一個純靜態 HTML 供瀏覽器檢視。
-// **完全離線、不連遊戲、不需要登入**（帳號安全紅線，見 CLAUDE.md 設計原則 1）。
+// **完全離線、不連遊戲、不需要登入**（帳號安全紅線，見 AGENTS.md「Live 遊戲安全」）。
 //
 //   npx vite-node tools/preview/sortie-log.ts
 //   → .preview/sortie-log.html（可直接用瀏覽器開，或用 headless Chrome 截圖）

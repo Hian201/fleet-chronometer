@@ -220,7 +220,7 @@ export function chartGeo(samples: Sample[], visible: MatIndex[], from: number, t
 
 // ── 活動資源消耗：左側清單（篩選＋依年份分組）＋右側明細／比較 ─────────────────
 // 活動的身分（年份季節、各段作戰名）只在清單完整呈現一次；數字只出現在明細與比較表。
-// 篩選只切換 `hidden`、不重繪控制項（CLAUDE.md 規則 9：帶關鍵字輸入的分區不得全量重繪）。
+// 篩選只切換 `hidden`、不重繪控制項（AGENTS.md 硬約束 9：帶關鍵字輸入的分區不得全量重繪）。
 
 export interface EventEntryOp {
     /** 日文原名（遊戲畫面上的寫法）。 */

@@ -104,7 +104,7 @@ describe('computeExpeditionBonus', () => {
     });
 
     // 以下五例逐字取自 wikiwiki.jp/kancolle/特大発動艇 #bonus 的實際算例，鎖住整體公式；
-    // 數字直接取自該頁原始 HTML 表格與例題（非摘要），見 CLAUDE.md 說明。
+    // 數字直接取自該頁原始 HTML 表格與例題（非摘要）。
     describe('wiki 原文算例（回歸鎖定）', () => {
         it('特大発1台＋大発動艇4台（全部★0）＝+22%', () => {
             const bonus = computeExpeditionBonus(gears(...nOf(TOKU_DAIHATSU_MST, 1), ...nOf(DAIHATSU, 4)));

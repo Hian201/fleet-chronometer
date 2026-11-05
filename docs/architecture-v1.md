@@ -1,7 +1,7 @@
 # 架構書 v1.0（2026-07）— 原始設計基準
 
 > 本文件為專案啟動時的原始架構書，**保留作為設計對照基準**。
-> 現況與本書的偏差、可交接的實作契約，見 `CLAUDE.md`「Handoff：持久化、投影與發布契約」。
+> 現況與本書的偏差、可交接的實作契約，見 `docs/engineering-log.md`「Handoff：持久化、投影與發布契約」。
 > 主要偏差摘要：
 > - 未拆 monorepo/`kcs-core` 套件——核心（`utils/state.ts`+`battle.ts`）保持零瀏覽器依賴，等 macOS 共用需求出現再拆包。
 > - 戰鬥預測未嵌入 KC3Kai `kc3bp.js` 單檔，改為 **clean-room 重寫**（`utils/battle.ts`），授權更乾淨、且已按現行新版 API 格式實作（KC3 舊格式反而不適用）。
@@ -55,7 +55,7 @@
 ## 4. 事件日誌與快照（歷史設計，非目前實作契約）
 
 > 本節保留原始設計供對照。現況不保存 `snapshot.state` 或最近 N 個完整快照，也不以
-> `snapshot.lastEventId` 當 replay 邊界；請以 `CLAUDE.md` 的 handoff 契約與
+> `snapshot.lastEventId` 當 replay 邊界；請以 `docs/engineering-log.md` 的 handoff 契約與
 > `utils/state-recovery.ts`／`utils/event-pruning.ts` 為準。
 
 - **快照時機 = `api_port/port`**。port 本來就是全量狀態同步點（母港畫面刷新），語意上等同「天然存檔點」，不需另設計時器快照。

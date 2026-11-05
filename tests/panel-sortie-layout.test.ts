@@ -6,7 +6,7 @@ import { setLang, t } from '../utils/ui-i18n';
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const panelMain = readFileSync(new URL('../entrypoints/panel/main.ts', import.meta.url), 'utf8');
 const preview = readFileSync(new URL('../tools/preview/panel-sortie.ts', import.meta.url), 'utf8');
-const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
+const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 
 describe('出擊面板的固定資訊密度', () => {
     it('敵艦晶片只保留血條，不在卡內重複顯示目前 HP 數字', () => {
@@ -149,8 +149,8 @@ describe('出擊面板的固定資訊密度', () => {
         expect(panelMain).toContain("taihaDetailsHidden ? 'sortie.taihaExpandHint' : 'sortie.taihaCollapseHint'");
         expect(panelHtml).toContain('.s-taiha-toggle.details-hidden .taiha-flip');
         expect(panelHtml).toContain('.s-taiha-toggle:hover .taiha-flip');
-        expect(claude).not.toContain('收縮態浮在');
-        expect(claude).not.toContain('預設只收成一條 banner');
+        expect(agents).not.toContain('收縮態浮在');
+        expect(agents).not.toContain('預設只收成一條 banner');
     });
 
     it('斬殺期 Final 沿用量表內的小型淡金字，不被後段覆寫成白色粗字', () => {

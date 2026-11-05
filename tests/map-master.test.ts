@@ -30,7 +30,7 @@ describe('活動海域（area 62，真實資料）', () => {
         expect(state.mapsOfArea(62).map(m => m.no)).toEqual([1, 2, 3, 4, 5]);
     });
 
-    // 活動關卡以「作戰名」為關卡名、「海域名」為副標題（見 CLAUDE.md）。
+    // 活動關卡以「作戰名」為關卡名、「海域名」為副標題（見 docs/engineering-log.md「活動作戰板」）。
     it('每關都有海域名與作戰名', () => {
         const maps = state.mapsOfArea(62);
         expect(maps[0]).toEqual({

@@ -1,6 +1,6 @@
 // utils/ship-filter.ts（鎮守府全船篩選的共用核心）的驗證。
 // 可裝備規則一律以 samples/start2-master.json（真實完整 start2 的去識別化子集）餵進
-// GameState 後取得，不手捏 master——CLAUDE.md「涉及封包欄位結構的機制先拿真實封包對照」。
+// GameState 後取得，不手捏 master——AGENTS.md 硬約束 8「未驗證欄位不得猜」。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';

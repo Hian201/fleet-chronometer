@@ -8,7 +8,7 @@
 // 語言狀態單一入口：跟 gamedata-i18n.ts 共用同一個 Lang、同一次 setLang() 呼叫，
 // 呼叫端（面板）不必分別呼叫兩個 setter。持久化（localStorage）、瀏覽器語言偵測留在
 // 面板層（entrypoints/panel/main.ts），這裡只放記憶體變數＋純函式，讓 state.ts
-// 可繼續獨立編譯、用 node 餵封包測試（CLAUDE.md 設計原則4：核心零瀏覽器依賴）。
+// 可繼續獨立編譯、用 node 餵封包測試（docs/engineering-log.md 設計原則4：核心零瀏覽器依賴）。
 import { setDisplayLang, type Lang } from './gamedata-i18n';
 
 // 支援語系的單一真相來源。label 用各語言的自稱（下拉選單直接顯示）。

@@ -8,7 +8,7 @@ import { buildStypeLabels, stypeDisplayLabel, type StypeLabelShip } from '../uti
 import { setLang, t } from '../utils/ui-i18n';
 
 const guidelines = readFileSync(new URL('../docs/design-guidelines.md', import.meta.url), 'utf8');
-const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
+const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 const mstShips: any[] = master.api_mst_ship;
@@ -27,11 +27,11 @@ function shipRow(name: string): StypeLabelShip {
 beforeAll(() => setLang('zh-TW'));
 
 describe('同名艦種的篩選標籤', () => {
-    it('硬約束寫在 design-guidelines §4.8 與 CLAUDE.md', () => {
+    it('硬約束寫在 design-guidelines §4.8 與 AGENTS.md', () => {
         expect(guidelines).toContain('### 4.8 同名艦種標籤：不得兩顆都叫「戰艦」（硬約束）');
         expect(guidelines).toContain('utils/stype-label.ts');
-        expect(claude).toContain('stype-label.ts');
-        expect(claude).toContain('§4.8');
+        expect(agents).toContain('stype-label.ts');
+        expect(agents).toContain('§4.8');
     });
 
     it('真封包佐證：stype 8／9 同名「戰艦」，且各自都有反例，故 id 不能當航速捷徑', () => {

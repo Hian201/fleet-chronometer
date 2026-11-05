@@ -7,13 +7,13 @@ const overviewHtml = readFileSync(new URL('../entrypoints/overview/index.html', 
 const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml.indexOf('</style>'));
 const preview = readFileSync(new URL('../tools/preview/equip-ref.ts', import.meta.url), 'utf8');
 const guidelines = readFileSync(new URL('../docs/design-guidelines.md', import.meta.url), 'utf8');
-const claude = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8');
+const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 
 describe('情報總括雙欄不得過早改單欄', () => {
-    it('硬約束寫在 design-guidelines §4.7 與 CLAUDE.md，並指向本測試', () => {
+    it('硬約束寫在 design-guidelines §4.7 與 AGENTS.md，並指向本測試', () => {
         expect(guidelines).toContain('### 4.7 情報總括雙欄：容器夠寬就並排（硬約束）');
         expect(guidelines).toContain('tests/overview-two-pane-layout.test.ts');
-        expect(claude).toContain('§4.7');
+        expect(agents).toContain('§4.7');
     });
 
     it('配裝參考以 .er 容器寬度決定單欄，不用 viewport 820／760 堆疊', () => {

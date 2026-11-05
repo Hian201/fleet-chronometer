@@ -3,7 +3,7 @@
 // id 41–46/103–105/112–115/131–133/141–142 の出撃条件は ElectronicObserver（MIT）から、
 // 収益数字（reward_fuel/bullet/steel/alum/items）は wikiwiki.jp/kancolle/遠征 の詳細一覧表
 // から補完（2026-08-03、api_win_mat_level の 0/非0 パターンと全件突合済み）。詳細は
-// CLAUDE.md「遠征資料完整性」節参照。
+// docs/engineering-log.md「遠征資料完整性」節参照。
 const data = [
   {
     "id": 1,

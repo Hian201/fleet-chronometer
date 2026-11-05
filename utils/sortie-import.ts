@@ -11,12 +11,12 @@
 // 嚴格規則；本模組只加**一場**紀錄，且必須能加進已經有資料的安裝，所以走另一條路：
 // 從 events key generator 借出真正的 event ID（同 backup 的 reservation 手法），確保匯入的
 // derived rows 不會與未來擷取的 raw event 撞號。**不寫 db.events**——匯入的是別處的紀錄，
-// 不是本機觀測到的封包，不得偽裝成 raw event（provider 合約，見 CLAUDE.md 設計原則 3）。
+// 不是本機觀測到的封包，不得偽裝成 raw event（provider 合約，見 docs/engineering-log.md 設計原則 3）。
 //
 // ── 結算資訊：KC3Kai 匯出有，本專案自己的匯出沒有 ──────────────────
 // **KC3Kai logger 的匯出每個 battle 都帶結算欄位**（欄位名與 kcsapi 不同，解析時以這些鍵為準）：
 //   · `rating` ＝ rank。**KC3Kai 會吐 `SS`（完全勝利），遊戲的 `api_win_rank` 只吐 `S`**
-//     （已實測，見 CLAUDE.md predictRank），故一律正規化成 `S`，與本機擷取的紀錄同形狀。
+//     （已實測，見 docs/engineering-log.md predictRank），故一律正規化成 `S`，與本機擷取的紀錄同形狀。
 //   · `drop`   ＝ 掉落艦的 **master id**（0＝沒掉）。61-5 樣本的 boss 節點是 135＝長波。
 //   · `mvp`    ＝ [主隊, 隨伴] 位置（1-based，同 api_mvp / api_mvp_combined）。
 //   · `hqEXP`  ＝ 提督經驗值（同 api_get_exp）、`baseEXP` ＝ 基礎經驗值（遊戲封包沒有這欄，

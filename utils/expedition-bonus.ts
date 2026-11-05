@@ -5,7 +5,7 @@
 // 規則來源：wikiwiki.jp/kancolle/遠征（#daihatsu 節，裝備基礎加成率表）與
 // wikiwiki.jp/kancolle/特大発動艇（#bonus 節，完整公式＋特大発超頂 2D 表），2026-08-03
 // 直接讀取原始 HTML 逐字核對（非摘要），以保留表格中的完整數字與欄位關係；同類資料缺口
-// 亦須以原始 HTML 為準，見 CLAUDE.md 開發流程記錄。
+// 亦須以原始 HTML 為準，見 docs/engineering-log.md 開發流程記錄。
 //
 // 公式（wikiwiki.jp 原文逐字）：
 //   獲得資源量 ＝ [ 基本量 × 大成功 × ( 100% ＋ min(大発系の素補正の合計,20%)

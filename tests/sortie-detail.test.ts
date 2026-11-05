@@ -1,6 +1,6 @@
 // utils/sortie-detail.ts 的驗證。基地航空隊各波與支援艦隊編組的欄位佈局一律以**真封包**
 // 對照（samples/61-3.json、61-5-jibun-rengou-node52.json 皆為 KC3Kai logger 匯出，
-// battles[].data 就是原封的 kcsapi 戰鬥封包）——CLAUDE.md 驗證原則：欄位結構先拿真封包對照。
+// battles[].data 就是原封的 kcsapi 戰鬥封包）——docs/engineering-log.md 驗證原則：欄位結構先拿真封包對照。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ReplayRow, ReplayShip, SortieLogRow } from '../utils/db';

@@ -9,7 +9,7 @@
 // 設 0 即全靜音、設 1 即完全還原，**不改變遊戲的任何行為或音訊圖結構**。
 //
 // ⚠️ 未經真封包／實機驗證的部分：艦これ Flight-IIA 究竟用 WebAudio 還是 <audio>／<video>
-// 播音，本專案沒有樣本可考（同 CLAUDE.md 的驗證原則）。故兩條路徑都接：WebAudio 走上述
+// 播音，本專案沒有樣本可考（同 docs/engineering-log.md 的驗證原則）。故兩條路徑都接：WebAudio 走上述
 // master gain，media 元素走 `muted` 屬性。任一環節失敗只 console.warn，**絕不讓例外冒進
 // 遊戲自己的程式碼**——靜音是便利功能，弄壞遊戲不可接受。
 

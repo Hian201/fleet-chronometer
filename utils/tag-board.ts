@@ -1,6 +1,6 @@
 // 活動配船板核心：卡片狀態、欄位歸屬、slots→planByShip 遷移、路線檢查、艦種分組。
 //
-// 純函式、無 chrome.* 與 DOM（CLAUDE.md 設計原則 4）。標籤語意／名稱仍以
+// 純函式、無 chrome.* 與 DOM（docs/engineering-log.md 設計原則 4）。標籤語意／名稱仍以
 // utils/event-plan.ts 檔頭為準——本模組不猜測未驗證的 API 欄位。
 import type { PlanStage, PlanTag, SallyShip } from './event-plan';
 import { newStageKey } from './event-plan';

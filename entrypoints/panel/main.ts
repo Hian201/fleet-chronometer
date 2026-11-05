@@ -1503,7 +1503,7 @@ function renderSortie() {
     sortieEl.innerHTML = html;
 }
 // 待驗證封包（自動擷取）：顯示清單＋一鍵複製完整 JSON，取代手動翻 Network 面板。
-// 見 utils/state.ts 的 wantedTag() 與 CLAUDE.md「怎麼撈封包驗證」。
+// 見 utils/state.ts 的 wantedTag() 與 docs/engineering-log.md「怎麼撈封包驗證」。
 //
 // **擷取有上限**：db.wanted 引用的 raw event 會被 M6 裁剪永久保護（見
 // utils/event-pruning.ts 的 protectedEventIds），一筆待驗證紀錄＝一整包原始封包永遠留在
@@ -1519,7 +1519,7 @@ let wantedSkipped = false;
 /**
  * 開發用：把資料存成 JSON 檔案觸發瀏覽器下載（落地到使用者的預設下載資料夾，一般是
  * `~/Downloads/`）。用 Blob＋`<a download>` 即可，不需要 `downloads` 權限
- * （見 CLAUDE.md 設計原則 5 權限精簡）；只在 `isDebugUiEnabled()` 的呼叫路徑上使用。
+ * （見 docs/engineering-log.md 設計原則 5 權限精簡）；只在 `isDebugUiEnabled()` 的呼叫路徑上使用。
  */
 function downloadJson(filename: string, data: unknown) {
     try {

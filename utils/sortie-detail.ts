@@ -281,7 +281,7 @@ export interface LbasWave {
     /**
      * 該波制空（0互角/1確保/2優勢/3劣勢/4喪失）；stage1 缺席**或這一波沒有制空戰**時
      * 為 null。後者是必要的：雙方都沒出動艦載機時遊戲照樣送 `api_disp_seiku: 1`，
-     * 照抄會誤報「確保」（判準與面板同一條，見 CLAUDE.md「別只改一邊」）。
+     * 照抄會誤報「確保」（判準與面板同一條，見 docs/engineering-log.md「別只改一邊」）。
      */
     seiku: number | null;
     fCount: number; fLost: number;

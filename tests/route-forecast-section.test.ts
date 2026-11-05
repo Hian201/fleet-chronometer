@@ -1,4 +1,4 @@
-// 常規導航分區的即時更新：編成改變只重畫內容區，工具列與展開中的浮層不重建（CLAUDE.md 規則 9）。
+// 常規導航分區的即時更新：編成改變只重畫內容區，工具列與展開中的浮層不重建（AGENTS.md 硬約束 9）。
 import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
 import { beforeEach, describe, expect, it } from 'vitest';

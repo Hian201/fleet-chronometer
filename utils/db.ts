@@ -8,7 +8,7 @@ import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 //   · path：已去 `/kcsapi/` 前綴與 `svdata=`，形如 `api_port/port`（interceptor 負責）
 //   · api ：已 JSON.parse 且取出 `api_data`（無則為整包）
 //   · req ：URLSearchParams 解出的表單欄位，且已剔除 `api_token`、`api_verno`
-//           （token 不落地為硬約束，見 CLAUDE.md 設計原則 2，bridge 負責）
+//           （token 不落地為硬約束，見 docs/engineering-log.md 設計原則 2，bridge 負責）
 // 交件唯一入口是 background.ts 的 ingestEvent()，勿在他處直接 db.events.add（繞過合約）。
 export interface ApiEventRow {
     id?: number;
@@ -26,7 +26,7 @@ export interface ApiEventRow {
 }
 
 // 待驗證封包（自動擷取）：GameState.wantedTag() 判定符合待驗證條件時記一筆，
-// 供「動態」分頁直接複製，不必再手動翻 Network 面板。見 CLAUDE.md「怎麼撈封包驗證」。
+// 供「動態」分頁直接複製，不必再手動翻 Network 面板。見 docs/engineering-log.md「怎麼撈封包驗證」。
 export interface WantedRow {
     id?: number;
     eventId: number;   // 對應 events.id，取完整 api 時用
@@ -130,7 +130,7 @@ export interface FactoryLogRow {
 //     put 冪等、面板重播自動回填（同 sorties 設計）。
 // 欄位命名對齊 KC3Kai 替播物件（fleet1/fleet2/battles[].data/yasen/node…），
 // 匯出時 utils/replay.ts 的 toKc3Replay() 直接組裝，不需再做欄位翻譯（格式已用
-// player.js 解析端與 poi→kc3 轉換器交叉確認，見 CLAUDE.md 出擊紀錄章節）。
+// player.js 解析端與 poi→kc3 轉換器交叉確認，見 docs/engineering-log.md 出擊紀錄章節）。
 export interface ReplayShip {
     mst_id: number;          // api_ship_id（艦 master id）
     lv: number;

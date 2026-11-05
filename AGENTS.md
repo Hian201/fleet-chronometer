@@ -1,134 +1,111 @@
-# Codex project instructions
+# fleet-chronometer 開發指引
 
-## Comment and change-description policy (highest priority)
+本檔是 Claude Code、Codex 等 coding agent 共用的唯一專案指引；不另維護 CLAUDE.md，避免兩份規則分歧。
 
-This policy overrides lower-level documentation and applies to code comments, maintenance guidance, and pull-request descriptions.
+艦これ（KanColle）用 MV3 被動監控擴充：觀察 `kcsapi` 封包，在面板與「鎮守府情報總括」顯示艦隊、遠征、入渠、基地航空隊、關卡、戰鬥與歷史資料。技術棧為 WXT、TypeScript、Dexie（IndexedDB），純前端、無後端。
 
-1. Comments explain only non-obvious reasons, constraints, or risks that cannot be read directly from the code.
-2. Do not preserve intermediate attempts, debugging history, rejected alternatives, prior implementations, or states that were never merged.
-3. Pull-request descriptions state the final behavior and trade-offs that are not visible in the diff. They must not mention unmerged intermediate states.
-4. When maintaining project guidance, express a constraint as the current rule plus its reason, without narrating how the project arrived there.
+本檔只放跨功能硬約束與查閱索引。細節按需讀取，不要整本載入：
 
-Before doing any work:
+- 封包欄位、公式、樣本證據、功能細節：[`docs/engineering-log.md`](docs/engineering-log.md)，先查 [`docs/engineering-log-index.md`](docs/engineering-log-index.md) 再讀對應行號區間。
+- 介面、圖示、面板尺寸：[`docs/design-guidelines.md`](docs/design-guidelines.md)。
+- 譯名與台灣華語：[`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
 
-1. Read `CLAUDE.md` in full.
-2. Treat `CLAUDE.md` as important project guidance, but verify important details against the current code because some documentation may be outdated.
-3. Preserve the existing architecture, naming conventions, and toolchain unless the task explicitly requires changing them.
-4. Do not rewrite or replace existing implementations merely to match personal preferences.
-5. Make only the changes required for the current task.
-6. Do not perform unrelated cleanup or refactoring.
-7. Run the validation commands documented in `CLAUDE.md` before declaring work complete.
-8. When `CLAUDE.md` conflicts with this file, follow `AGENTS.md`.
+文件與程式碼或測試不一致時，以目前程式碼與測試為準。
 
-## Live Kancolle safety
+## 工作方式
 
-Browser use is allowed for local UI development and visual inspection.
+- 回應使用者一律用繁體中文（台灣用語）；程式碼註解用繁體中文。
+- 只做當前任務需要的改動；保留既有架構、命名與工具鏈，不做無關的整理或重構，也不因個人偏好改寫既有實作。
+- 註解、專案文件與變更說明（commit、PR）只寫目前行為，以及從程式碼看不出的理由、約束或風險。不保留除錯歷程、未合入方案或舊實作；規則寫成「現行規則＋理由」，不敘述演變經過。
 
-The agent may use a browser to inspect:
+## 硬約束
 
-* local development pages
-* extension popup pages
-* extension side panel pages
-* overview pages
-* replay viewer pages
-* local mock pages
-* localhost pages
-* screenshots and layout dimensions
+1. **被動觀察**：只觀察遊戲既有流量，不重放、修改、延遲、重排或代發請求，不注入指令、不自動執行遊戲操作、不改變遊戲行為。攔截器只掛在遊戲 `window.axios` 的 response interceptor；**禁止**取代 `window.fetch` 或 `XMLHttpRequest.prototype`，以免影響其他擴充的 DevTools `getContent`。契約見 `tests/interceptor-capture.test.ts`。
+2. **資料安全**：axios 觀察器在入列前移除請求的 `api_token`／`api_verno`，避免憑證進入暫存佇列與頁面訊息；bridge 與 background 再次移除。永不寫入 DB、上傳或送出憑證；不得讀寫 DMM Cookie。不得以任何改動默默遺失、覆寫、重複或損壞 events、IndexedDB、出擊／遠征／工廠歷史、replays、備份與還原資料；資料格式變更必須有相容處理或遷移。
+3. **唯一擷取入口**：`ApiEventRow` 是 provider 邊界。MAIN world 送出正規化 path、原始 response text 與 request body；bridge 驗證同源、移除敏感欄位、建立固定 `captureId` envelope，retry 最多一次且沿用同一 envelope。background 解析 `apiText` 後只能經 `ingestEvent()` 寫入 `db.events`。單場 JSON／CSV 匯入是例外：只寫 derived tables，不寫 raw event。
+4. **持久化順序**：新 raw event 先存 `pending`，transactional claim 後才進 `processing`；副作用成功才標 `done`，失敗回到 `pending`。同 `captureId` 必須 path 與 timestamp 相同，否則拒絕 collision。SW 啟動時回收遺留 processing，recovery 與新 ingestion 共用順序 queue。
+5. **投影與裁剪**：`EventProjector` 是 derived tables 的入口；cursor 前事件只重建 state context，cursor 後事件才寫 derived rows。每筆投影成功才推進 cursor。raw event 只會在已投影且通過保護規則時裁剪；投影 metadata 無效時停止裁剪。snapshot 只作 GameState baseline，不送入 projector。
+6. **核心可獨立執行**：`utils/state.ts`、`utils/battle.ts` 及其他標示為純函式的核心不得依賴 `chrome.*` 或 DOM，要能用 samples 與 Node／Vitest 驗證。
+7. **權限精簡**：正式 manifest 的 permissions 由 `wxt.config.ts` 與 `tests/manifest.test.ts` 定義，目前為 `activeTab`、`alarms`、`notifications`、`scripting`、`tabs`；正式 build 的 `host_permissions` 必須為空。劇場模式的 DMM 存取權走 `optional_host_permissions`，只在使用者操作時請求。新增權限必須說明程式碼看不出的必要性。
+8. **未驗證欄位不得猜**：欄位佈局、索引與語意需要下列任一證據：`samples/` 的真實封包，或成熟開源工具（KC3Kai、ElectronicObserver、poi 等）實際解析該欄位的程式碼。採用外部專案時，在註解寫明專案與檔案路徑，能交叉比對兩個專案更好；依 clean-room 重寫、不複製程式碼，並登錄於 `THIRD-PARTY-NOTICES.md`。真實樣本與外部專案不一致時以樣本為準。兩者都沒有時保留原始值或回傳 `null`，UI 顯示「不可考」／「推算」並說明限制，同時註明需要手動驗證或真實封包。wiki 文字可作遊戲機制與公式依據，但不能單獨證明欄位佈局。
+9. **UI 狀態與資訊**：
+   - 同一事實只完整呈現一次；缺值不是 0，排序時缺值放最後。
+   - 帶關鍵字、日期、數字輸入或使用者展開／捲動狀態的分區，不得因每次變更而全量重繪控制項。
+   - 非同步分區先畫 shell、綁事件，再讀 DB；載入中或錯誤必須顯示狀態，不得留白。
+   - 折疊用原生 `<details>`；語意色不可跨功能挪用；面板主色／輔助色／強調色依 design-guidelines §1.5 的 631 原則。
+   - 日期一律「年/月/日」、24 小時制，走 `utils/date-format.ts`，不得用 `toLocaleString()`（§2.6）。
+   - 所有可見文案（含 `title`、無障礙說明）只寫功能意義、條件與必要限制，不寫資料來源名稱、網站、連結或「依 Wiki 推算」等歸屬；來源只登錄於 `THIRD-PARTY-NOTICES.md` 與專案文件（§2.5）。
+   - 改介面、可見文案或固定欄寬樣式時，台灣華語、英文、日文三語都要核對排版：拉丁文通常比漢字長，日文假名句常比華語長，只看部分語言會漏掉溢出、重疊或裁切。放不下先縮短文案（完整說明移到 `title`），仍不夠才縮小字型。通過條件見 §2.4。
+10. **翻譯**：任務導覽與 panel 共用任務目錄翻譯。繁體中文以台灣華語撰寫與校對，不得由簡體中文轉換。專有名詞依三層順序：原文漢字沿用（英文用玩家社群譯名）→ 假名部分依史料 → 都沒有才在地化，活動／任務／遠征譯名統一是第一順位。任務條件以日文原文為準，英文資料只作輔助。
 
-The agent must never access or interact with the live Kancolle game.
+## Live 遊戲安全
 
-The agent must not:
+只有開發者本人可以登入與操作 live 艦これ。agent 不得登入 DMM、開啟已登入的遊戲頁、操作或自動化遊戲、對 live 伺服器送請求，或從 live 遊戲擷取新封包。
 
-* log into any DMM account
-* open the authenticated Kancolle game
-* perform gameplay
-* automate gameplay
-* send requests to live Kancolle servers
-* capture new packets from the live game
-* interact with a real player account
-* use browser automation against the live game
+瀏覽器只用於本機頁面：開發頁、擴充 popup／side panel／overview、重播檢視、mock 頁與 `.preview/*.html`。瀏覽器工具無法開 `file://` 時，從專案根目錄在背景啟動 `python3 -m http.server <port>`，改開 `http://localhost:<port>/.preview/<name>.html`，檢視後關閉 server。
 
-If a task requires live-game verification, stop and provide a manual verification checklist for the developer instead.
+需要 live 驗證時，停下來提供開發者手動檢查步驟；除非開發者提供 log、截圖或封包，不得宣稱已驗證 live 行為。
 
-Only the developer may log into and operate the live Kancolle game.
+## 建置與驗證
 
-## Local preview and browser tool usage
+```bash
+npm run build       # 正式 Chrome MV3，輸出 .output/chrome-mv3
+npm run dev         # 開發模式，輸出 .output/chrome-mv3-dev
+npx tsc --noEmit    # 型別檢查
+npx wxt prepare     # 型別生成（首次或型別錯誤時）
+npm test            # Vitest
+```
 
-* The browser tool (`browser_subagent`) does not support the `file://` protocol due to sandbox restrictions.
-* When offline preview pages (`.preview/*.html`) or mock pages need visual inspection and DOM measurement:
-  1. The agent must start a background HTTP server (e.g., `python3 -m http.server <port>` with `IsDaemon: true`) from the project root before invoking the browser tool.
-  2. Pass `http://localhost:<port>/.preview/<filename>.html` (or the corresponding localhost route) to `browser_subagent`.
-  3. Clean up the background server task after inspection is complete.
+- 一般改動最低驗證：正式 build 與型別檢查。戰鬥／狀態／資料格式改動另跑相關 Vitest 與 samples 驗證。
+- 修改 source 後需重新 build、在 `chrome://extensions` 重新整理擴充；已開啟的遊戲分頁要 F5 才會重新注入 content script。
+- 離線 UI 預覽（不連遊戲）：`npx vite-node --config vitest.config.ts tools/preview/<name>.ts`，可用的 `<name>` 見 `tools/preview/`，輸出到 `.preview/`。
+- 370px 編成的定版參考是 `.preview/panel-width-hp-resource-zh.html` 的「試排｜七船、原位加高 HP＋油彈條」場景（英文版對應 `-en.html`）：保留原艦種徽章設計與位置、補強增設 chip 完整留在編成列內；新增面板分頁預覽時沿用這個場景的編成 markup 與樣式。
 
-## Passive observation requirement
+完成前回報：改了哪些檔案、跑了哪些驗證與結果、哪些驗證沒做及原因；需要 live 驗證時附手動步驟。
 
-This extension must remain passive.
+## 資料流與檔案入口
 
-The agent must not add code that:
+```text
+遊戲 iframe
+  → interceptor.content.ts（MAIN，觀察 axios response）
+  → bridge.content.ts（ISOLATED，驗證同源、去 token、送 runtime message）
+  → background.ts（解析、ingestEvent、snapshot、通知、資源序列、裁剪）
+  → panel/main.ts（baseline + raw event projection + 即時 UI）
+  → overview/（只讀 GameState／derived tables，不做投影；收 kc:live 後只補套 reducer，見 overview/live-state.ts）
+```
 
-* changes outgoing game requests
-* modifies incoming game responses
-* injects gameplay commands
-* automates player actions
-* delays, reorders, or resends game requests
-* changes game behaviour
+| 範圍 | 主要檔案 | 變更前必讀 |
+|---|---|---|
+| 擷取與生命週期 | `entrypoints/interceptor.content.ts`、`entrypoints/bridge.content.ts`、`entrypoints/background.ts`、`utils/ingestion-persistence.ts`、`utils/background-ingestion-lifecycle.ts` | 本檔硬約束 1–5、index「擷取／Handoff／驗證原則」、對應 tests |
+| 狀態與投影 | `utils/state.ts`、`utils/battle.ts`、`utils/event-projector.ts`、`utils/projection-cursor.ts`、`utils/event-pruning.ts` | index「戰鬥／大破／艦載機／關卡」、samples |
+| 面板 | `entrypoints/panel/`、`panel/index.html` | design-guidelines §7、面板相關 tests、離線 preview |
+| 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | engineering log 同名章節、design-guidelines §4.7／§4.8 |
+| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | engineering log 劇場／拍照／編成寫真章節 |
+| 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | Handoff、備份還原章節；schema 或格式變更先確認相容性 |
+| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | index「譯名與產生物」、各產生器與 `tools/*/README.md`；產生物勿手改 |
 
-The extension may only observe existing traffic and derive local state.
+## 不可破壞的目前契約
 
-## User-facing explanation policy
+- **IndexedDB**：schema v14。`events` 以 `captureId` unique index 去重並保存 `postProcessState`；`resources` 以來源 event id 冪等保存，`resourceMarks` 保存活動時間點；`questObserved` 保存本機觀測到的任務領獎，`questSeen` 保存曾出現在任務清單的任務（單發前置推論的永久證據）。歷史資料不回填不存在的 capture／processing／projection metadata，也不把 snapshot 當 raw event。
+- **匯入與備份**：單場 JSON 只接受本專案 `toKc3Replay()` version 4，或已有 fixture 證實的 KC3Kai logger 格式；CSV 與單場匯入都借 event id 但不寫 raw event。備份還原是乾淨環境的完整 transaction，不是 merge；空資料不得寫成備份。
+- **關卡量表**：`mapInFinalPhase()` 對 gaugeType 2 使用同一血條的 Boss HP，門檻為 `nowHp <= bossHp`；`nowHp === 1` 是不需 Boss HP 的唯一特例。gaugeType 3 的量表欄位尚未以真封包驗證，不能用未證實的場數公式取代。
+- **戰鬥**：血量與敵方陣列為 0-indexed，沒有舊格式的 leading `-1`；`battleresult` 必須排除 battle 分支。聯合艦隊、航空／基地、友軍與支援欄位只依 samples 與 tests 維護。
+- **重播**：原始戰鬥封包存在 `db.replays`；裁剪只影響詳細重播，`db.sorties` 摘要保留。缺出擊開始事件或必要艦隊快照時，只保存可建立的摘要，不補猜編成。
+- **待驗證擷取**：`wantedTag()` 只留渦潮表外且真有 `api_happening`、以及未知 sally 系 key。正式 build 預設關閉 debug UI（`utils/debug-ui.ts`）。`db.wanted` 會永久保護對應 raw event，達上限必須明說，不可靜默略過，也不可擴充會洗版的鉤子。
+- **活動資料**：節點字母只走 `utils/map-node-letters.ts` 查表，新海域沒有對照時顯示原始 edge id。活動標籤的未驗證語意、`api_sally_flag` 與其他待驗證欄位保留原始值，不自行命名或推導。
+- **版面**：面板 content 寬 370px，popup 啟動時把內容區補到 370；編成六／七船在有無 `.fs-ops` 下都以 730px 為目標、740px 為硬上限，七艘完整顯示、裝備槽單行、出擊警告不推動下方系統列。摘要與遠征雙欄以 370px 實際排版核對，9 項以上條件逐列雙欄並允許換行。情報總括左右並排分區在內容區放得下兩欄時不得改單欄（§4.7）；同名艦種篩選／標籤走 `utils/stype-label.ts`（§4.8）。改面板或 overview 版面前先讀 design-guidelines 對應節，其他 CSS 數值以該文件為準。
+- **圖示與第三方**：panel 系統圖示維持 design-guidelines §5.1 的剪影語言；第三方邏輯 clean-room 重寫，來源登錄於 `THIRD-PARTY-NOTICES.md`。
 
-All explanations in every interface, including the panel, overview, popup, dialogs, hover tooltips, `title` attributes, and accessible descriptions, must be concise and clear. State only the feature meaning, relevant conditions, and necessary limitations. Do not include data-source names, websites, reference links, or attribution phrases such as “according to Wiki” or “estimated from Wiki conditions”. Record third-party sources and attribution only in `THIRD-PARTY-NOTICES.md` and the relevant project Markdown documents; repeating them in the interface adds noise to operational guidance.
+## 會影響取捨的待辦
 
-## Taiwan Traditional Chinese localization
+詳細狀態以程式碼、測試與 engineering log 同名章節為準。
 
-All `zh-TW` copy must be written and proofread as Taiwan Mandarin. Do not translate by converting Simplified Chinese. For uncertain vocabulary, check the Ministry of Education Revised Mandarin Dictionary. Quest names and descriptions are shared by task guide and panel, so verify ship names, fleet positions, counts, map IDs/nodes, and victory ranks against the Japanese source, the wikiwiki quest table, and the matching Zekamashi guide. English quest data is auxiliary and must not override those references. Follow [`docs/translation-guidelines.md`](docs/translation-guidelines.md).
+- 新活動的 edge 對照表、活動特殊燃彈費率、TP 量表與新裝備值仍需資料或真封包。
+- 掉落統計彙總視圖未完成；斬殺偵測的即時觸發待實際 mapinfo 時序觀測。
+- 部分艦載機損耗後的熟練度下降量、第二艦隊旗艦不沉時的殘 HP、遠征回航道具欄位仍不可考，維持估算／原始值／null。
+- 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗、劇場跨源框與音訊路徑待開發者以 live 遊戲手動驗證。
+- M4 尚有 side panel、視窗位置記憶與 Firefox 打包驗證。
 
-## 370px fleet preview reference
+## 單一真相來源
 
-* The accepted 370px fleet reference is the `試排｜七船、原位加高 HP＋油彈條` scene in `.preview/panel-width-hp-resource-zh.html`; use the matching English preview when checking English text.
-* Preserve the original ship-type badge design and placement, and keep the full enhancement equipment chip inside the fleet row bounds.
-* When adding another panel-tab preview, reuse this scene’s fleet markup and styling so the fleet remains visually consistent.
-
-## Unverified game data
-
-Do not invent or assume the meaning of unverified Kancolle API fields.
-
-A field layout, index, or meaning counts as verified when either:
-
-* a real packet in `samples/` shows it, or
-* a mature open-source tool (KC3Kai, ElectronicObserver, poi, etc.) actually parses that field in its code. Cite the project and file path in a code comment, cross-check a second project when possible, re-implement clean-room without copying code, and record the source in `THIRD-PARTY-NOTICES.md`. If a real sample later disagrees, the sample wins.
-
-Wiki prose may back game mechanics and formulas, but is not evidence for a field layout on its own.
-
-When neither kind of evidence exists:
-
-* keep the field marked as unverified
-* preserve the raw value where appropriate
-* avoid implementing guessed behaviour
-* state clearly that manual validation or real packet samples are required
-
-## Data safety
-
-Do not make changes that can silently lose, overwrite, duplicate, or corrupt:
-
-* captured events
-* IndexedDB data
-* sortie history
-* expedition history
-* factory history
-* replay data
-* backup data
-* restored data
-
-Any database or backup-format change must preserve existing user data or include a clear migration path.
-
-## Completion requirements
-
-Before declaring a task complete:
-
-1. Confirm which files were changed.
-2. Run the available compile, build, and test commands relevant to the task.
-3. Report any validation that could not be performed.
-4. Provide manual browser verification steps when live-game testing would otherwise be required.
-5. Do not claim that live Kancolle behaviour was verified unless the developer supplied the relevant logs, screenshots, or packet captures.
-6. UI, visible copy, or fixed-width style changes must be inspected in at least Taiwan Traditional Chinese (`zh-TW`) and English. Latin strings are usually longer than the matching CJK in the same column, so a layout that fits one language can overflow, overlap, or clip in the other. Also check Japanese when its length is clearly different. Do not declare the layout correct from a single-language screenshot. Pass criteria are in `docs/design-guidelines.md` §2.4.
+版本看 `package.json`，manifest 看 `wxt.config.ts` 與 `tests/manifest.test.ts`，資料庫版本看 `utils/db.ts`，測試命令看 `package.json`。本檔不維護里程碑；盤點進度時查 git、測試與 engineering log 的現行段落。

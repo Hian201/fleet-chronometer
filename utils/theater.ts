@@ -1,6 +1,6 @@
 // 視窗適應（把 DMM 頁面裡的遊戲框等比填滿瀏覽器視窗）的**純函式核心**：
 // 遊戲框辨識、fit 幾何、注入用 CSS 產生器。無 chrome.*、無 DOM 型別依賴
-// （只吃 `{src,width,height}` 這種最小形狀），故可用 node 直接測（CLAUDE.md 設計原則 4）。
+// （只吃 `{src,width,height}` 這種最小形狀），故可用 node 直接測（docs/engineering-log.md 設計原則 4）。
 // UI 不暴露手動縮放／平移；`zoomByWheel`／`clampPan` 等僅供幾何／測試使用。
 //
 // 為什麼需要這一層：DMM 遊戲頁已改版為 `play.games.dmm.com/game/kancolle`，是 Vite+React

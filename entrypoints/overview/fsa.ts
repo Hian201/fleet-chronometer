@@ -2,7 +2,7 @@
 //
 // 為何走這條而非 Google Drive / WebDAV 原生 API：後兩者需要 identity(OAuth)＋
 // host_permissions（googleapis.com）或 optional_host_permissions（WebDAV 主機），
-// 都會增加本專案的權限範圍（見 CLAUDE.md 設計原則 5）。FSA 是 secure context 的網頁 API，
+// 都會增加本專案的權限範圍（見 docs/engineering-log.md 設計原則 5）。FSA 是 secure context 的網頁 API，
 // overview 是一般 extension 頁面即可用；
 // 使用者選一次資料夾（可指向 Google Drive Desktop 同步夾／WebDAV 掛載的網路磁碟／
 // Dropbox…），上雲同步是桌面同步客戶端的事，擴充只負責「寫檔進那個資料夾」——

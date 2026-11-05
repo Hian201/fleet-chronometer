@@ -90,7 +90,7 @@ export default defineConfig({
     hooks: {
         // WXT 對 `registration: 'runtime'` 的 content script 會**自動把 matches 塞進
         // `host_permissions`**（見 wxt/dist/types.d.mts 的 registration 說明）。那等於安裝時
-        // 就要求 dmm.com 權限，正是本專案「權限精簡」硬約束要避免的事（CLAUDE.md 設計原則 5）。
+        // 就要求 dmm.com 權限，正是本專案「權限精簡」硬約束要避免的事（AGENTS.md 硬約束 7）。
         // 故剝掉網站權限；存取權改由上方的 optional_host_permissions 於執行期索取。
         //
         // **開發模式例外**：WXT serve 會把 Vite origin（localhost:3000）寫進

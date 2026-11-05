@@ -87,7 +87,7 @@ export interface EventGaugeState {
 /**
  * `api_get_member/mapinfo` 裡各活動海域的量表狀態。
  *
- * 歸零判定與 EventProjector.isGaugeBroken 逐條相同（欄位皆已實測，見 CLAUDE.md
+ * 歸零判定與 EventProjector.isGaugeBroken 逐條相同（欄位皆已實測，見 docs/engineering-log.md
  * 「關卡進度與剩餘次數」）：`api_cleared`、HP 量表 `api_now_maphp === 0`、
  * 擊破數式達標。**只認 `now_maphp === 0`**——`=== 1` 是「最終段、還差一沉」，不是通關。
  */
