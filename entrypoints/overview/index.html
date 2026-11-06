@@ -5922,10 +5922,11 @@
             letter-spacing: var(--track-label);
         }
 
+        /* 欄界（design-guidelines §4.1.2）：左欄以數值收尾，欄距需明顯大於欄內 5px。 */
         .rl-tip-chips {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 2px 8px;
+            gap: 2px 14px;
         }
 
         .rl-tip-row {

@@ -7,6 +7,7 @@
 艦數＝軍艦側影（參照遊戲原圖 samples/ships.png：黃綠 #b3c96f 艦體、深綠細節）。
 裝備數＝金銀雙齒輪（參照遊戲原圖 samples/equips.png：金齒輪前、銀齒輪後，
 　　　　齒輪幾何沿用開発資材的 12 齒語彙）。
+給糧＝玻璃腳杯冰淇淋（母港「泊地」分組與艦隊編號鈕的給糧標記，與入渠吊臂成對）。
 明度規則與裝備族一致（FLOOR 0.26）。
 """
 import os, sys, math, colorsys
@@ -252,6 +253,55 @@ def airraid():
     p.append(f'<rect x="10.4" y="24.0" width="11.2" height="3.0" rx="1.0" fill="{bd}"/>')
     return svg(''.join(p))
 OUT['airraid'] = airraid()
+
+# ── 給糧：腳杯冰淇淋（母港給糧＝野埼的甜點補給）──
+def provision():
+    """玻璃腳杯盛兩球冰淇淋，上球插檸檬片與薄荷，杯腳落在淺藍托盤上。
+    16px 只靠四個層次辨識：奶油色球體（主體）、檸檬黃（點綴）、淺青玻璃杯身、藍托盤。
+    杯中的下球以「奶油混玻璃青」的實色畫在杯內，讓「杯中有冰」讀得出來；全部實色、不用近黑，維持 FLOOR。"""
+    cream = "#f3e9c8"; cd = shade(cream, 0.8); cl = light(cream, 0.5)
+    glass = "#cfe6ee"; gd = shade(glass, 0.72); gl = light(glass, 0.5)
+    seen = "#e8e3c6"     # 下球隔著玻璃：比奶油色略灰、仍偏暖，與杯身的青色分得開
+    lemon = "#f4cf3e"; ll = light(lemon, 0.5); ld = shade(lemon, 0.78)
+    mint = "#5fb24c"; md = shade(mint, 0.7)
+    plate = "#5aa6d6"; pd = shade(plate, 0.72); pl = light(plate, 0.4)
+    p = []
+    # 托盤（橢圓，前緣暗階）
+    p.append(f'<ellipse cx="16" cy="28.0" rx="11.6" ry="2.4" fill="{plate}"/>')
+    p.append(f'<path fill="{pd}" opacity="0.6" d="M4.6 28.4 Q16 32.2 27.4 28.4 Q16 30.6 4.6 28.4 Z"/>')
+    p.append(f'<ellipse cx="13.0" cy="27.4" rx="4.2" ry="0.7" fill="{pl}" opacity="0.6"/>')
+    # 杯腳：底座＋細柄
+    p.append(f'<ellipse cx="16" cy="27.0" rx="4.8" ry="1.25" fill="{glass}"/>')
+    p.append(f'<path fill="{glass}" d="M15.0 22.6 L17.0 22.6 L17.4 26.6 L14.6 26.6 Z"/>')
+    p.append(f'<rect x="15.2" y="23.0" width="0.6" height="3.4" fill="{gl}" opacity="0.8"/>')
+    # 杯身用實色：半透明會透出 normalize.py 墊在底下的深墨描邊、把玻璃染灰。
+    p.append(f'<path fill="{glass}" d="M6.6 14.2 L25.4 14.2 '
+             'C25.4 20.4 21.4 23.4 16.0 23.4 C10.6 23.4 6.6 20.4 6.6 14.2 Z"/>')
+    # 杯中下球：奶油色混玻璃青的實色（隔著玻璃看到的冰），只畫杯口以下的部分。
+    p.append(f'<path fill="{seen}" d="M9.15 14.2 A6.6 6.6 0 1 0 22.05 14.2 Z"/>')
+    p.append(f'<path fill="{gd}" opacity="0.45" d="M8.4 19.4 C10.4 22.2 13.2 23.0 16.0 23.0 '
+             'C18.8 23.0 21.6 22.2 23.6 19.4 C21.4 21.0 18.8 21.8 16.0 21.8 C13.2 21.8 10.6 21.0 8.4 19.4 Z"/>')
+    p.append(f'<path fill="{gl}" opacity="0.85" d="M8.4 15.4 L9.8 15.4 C10.0 18.6 11.2 20.4 12.6 21.4 '
+             'C10.4 20.8 8.6 18.6 8.4 15.4 Z"/>')
+    p.append(f'<rect x="6.6" y="13.6" width="18.8" height="1.2" rx="0.6" fill="{gl}"/>')
+    # 上球：亮階在左上、暗階在下緣
+    p.append(f'<circle cx="15.2" cy="9.4" r="6.2" fill="{cream}"/>')
+    p.append(f'<path fill="{cd}" opacity="0.6" d="M9.4 11.4 C10.6 14.4 13.0 15.4 15.2 15.4 '
+             'C17.6 15.4 19.8 14.4 21.0 11.6 C19.4 13.4 17.4 14.0 15.2 14.0 C13.0 14.0 10.8 13.2 9.4 11.4 Z"/>')
+    p.append(f'<circle cx="12.6" cy="7.0" r="1.8" fill="{cl}" opacity="0.8"/>')
+    # 檸檬片（半月切面，斜插在上球右側）
+    p.append(f'<g transform="rotate(-24 22.4 12.0)">'
+             f'<path fill="{lemon}" d="M17.4 12.0 A5.0 5.0 0 0 1 27.4 12.0 Z"/>'
+             f'<path fill="{ll}" d="M18.6 12.0 A3.8 3.8 0 0 1 26.2 12.0 Z"/>'
+             f'<path fill="{ld}" opacity="0.7" d="M22.4 12.0 L19.8 9.6 M22.4 12.0 L22.4 8.4 M22.4 12.0 L25.0 9.6" '
+             f'stroke="{ld}" stroke-width="0.5"/>'
+             f'</g>')
+    # 薄荷葉兩片（上球右上）
+    p.append(f'<ellipse cx="20.4" cy="3.6" rx="2.6" ry="1.4" fill="{mint}" transform="rotate(-38 20.4 3.6)"/>')
+    p.append(f'<ellipse cx="23.0" cy="5.2" rx="2.4" ry="1.3" fill="{mint}" transform="rotate(22 23.0 5.2)"/>')
+    p.append(f'<path d="M19.0 4.8 L21.8 2.6 M21.4 5.6 L24.4 4.8" stroke="{md}" stroke-width="0.45"/>')
+    return svg(''.join(p))
+OUT['provision'] = provision()
 
 if __name__ == '__main__':
     d = sys.argv[1]

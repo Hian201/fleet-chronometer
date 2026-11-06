@@ -19,7 +19,7 @@ state.payItemCounts = new Map(itemCatalog.flatMap((item, index) =>
     item.countSource.kind === 'payitem' ? [[item.countSource.id, index % 4 + 1] as [number, number]] : []));
 if (params.has('pins')) localStorage.setItem('kc-item-pins', JSON.stringify(params.get('pins')!.split(',')));
 else localStorage.removeItem('kc-item-pins');
-mountGeneral(state, () => '0:00:00');
+mountGeneral(state, () => '0:00:00', () => '0:00');
 document.querySelector<HTMLButtonElement>('#general-nav [data-page="items"]')?.click();
 if (params.get('inventory')) document.querySelector<HTMLButtonElement>(`[data-inventory="${params.get('inventory')}"]`)?.click();
 if (params.has('q')) {

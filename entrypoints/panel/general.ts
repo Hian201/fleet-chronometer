@@ -11,23 +11,28 @@ import { openOverviewAt, type OverviewTabsApi } from '@/utils/open-overview';
 import { prepCheckShort, prepCheckText, questConditionShort, questConditionText, questTargetLabel, questTargetShortLabel } from '@/utils/quest-goal-label';
 import type { GameState, QuestPrepView, QuestView } from '@/utils/state';
 import { questCatalogIdentity } from '@/utils/quest-identity';
+import {
+    MORALE_INTERVAL_MS, REPAIR_INTERVAL_MS, nextSettlementIn, planAnchorageRepair, planMoraleSupply,
+} from '@/utils/repair';
 
 type Page = 'harbor' | 'quests' | 'items';
-type Operation = 'exped' | 'dock' | 'build';
+// anchor＝泊地修理／給糧：只在有艦隊運作時出現（見 render 的 upkeep）。
+type Operation = 'exped' | 'dock' | 'build' | 'anchor';
+const OPERATIONS = ['exped', 'dock', 'build', 'anchor'] as const;
 // 任務展開後的分頁：說明／原文／進度三選一，同時只顯示一個，面板高度不因進度判定而疊加。
 type QuestPane = 'detail' | 'original' | 'progress';
 const copy = {
-    'zh-TW': { harbor: '母港', quests: '任務', items: '道具', exped: '遠征', dock: '入渠', build: '建造',
+    'zh-TW': { harbor: '母港', quests: '任務', items: '道具', exped: '遠征', dock: '入渠', build: '建造', anchor: '泊地',
         standard: '道具欄', expansion: '擴張欄', other: '其他', searchOpen: '搜尋道具', searchClose: '關閉搜尋', searchPlaceholder: '名稱', search: '搜尋所有道具欄（繁體中文／日文／英文）',
         pin: '釘選', unpin: '取消釘選', pinned: '已釘選',
         index: '持有量依最近取得的遊戲資料顯示', unavailable: '尚未取得', unknown: '資料尚未取得',
         waiting: '尚未觀測到道具資料', none: '沒有符合的道具', detail: '用途', detailUnknown: '用途說明尚未取得', locked: '未開放' },
-    ja: { harbor: '母港', quests: '任務', items: 'アイテム', exped: '遠征', dock: '入渠', build: '建造',
+    ja: { harbor: '母港', quests: '任務', items: 'アイテム', exped: '遠征', dock: '入渠', build: '建造', anchor: '泊地',
         standard: '保有アイテム', expansion: '拡張アイテム', other: 'その他', searchOpen: 'アイテムを検索', searchClose: '検索を閉じる', searchPlaceholder: 'アイテム名', search: 'すべてのアイテム欄を検索（繁体字・日本語・英語）',
         pin: 'ピン留め', unpin: 'ピン留め解除', pinned: 'ピン留め中',
         index: '保有数は最後に取得したゲームデータを表示', unavailable: '未取得', unknown: 'データ未取得',
         waiting: 'アイテムデータを未観測', none: '該当するアイテムなし', detail: '用途', detailUnknown: '日本語の説明は未登録', locked: '未開放' },
-    en: { harbor: 'Harbor', quests: 'Quests', items: 'Items', exped: 'Expeditions', dock: 'Repairs', build: 'Construction',
+    en: { harbor: 'Harbor', quests: 'Quests', items: 'Items', exped: 'Expeditions', dock: 'Repairs', build: 'Construction', anchor: 'Upkeep',
         standard: 'Standard', expansion: 'Expansion', other: 'Other', searchOpen: 'Search items', searchClose: 'Close search', searchPlaceholder: 'Item name', search: 'Search all inventories (Traditional Chinese / Japanese / English)',
         pin: 'Pin', unpin: 'Unpin', pinned: 'Pinned',
         index: 'Counts use the latest observed game response', unavailable: 'Unavailable', unknown: 'Data unavailable',
@@ -136,7 +141,7 @@ function prepHtml(prep: QuestPrepView): string {
 
 const pinMark = (label: string) => `<svg class="pin-mark" viewBox="0 0 10 10" role="img" aria-label="${esc(label)}"><path d="M3 1h4v1L6.2 2.6V5L8 6.4V7H5.5v2.5L5 10l-.5-.5V7H2v-.6L3.8 5V2.6L3 2z"/></svg>`;
 
-export function mountGeneral(state: GameState, countdown: (time: number) => string) {
+export function mountGeneral(state: GameState, countdown: (time: number) => string, repairCountdown: (ms: number) => string) {
     const nav = byId('general-nav');
     const operationNav = byId('operation-nav');
     const inventoryNav = byId('inventory-nav');
@@ -166,7 +171,7 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     }
     function showOperation(next: Operation) {
         operation = next;
-        for (const key of ['exped', 'dock', 'build'] as const) {
+        for (const key of OPERATIONS) {
             byId('operation-' + key).hidden = key !== operation;
             operationNav.querySelector(`[data-operation="${key}"]`)?.setAttribute('aria-selected', String(key === operation));
         }
@@ -340,6 +345,36 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         itemSignature = signature;
     }
 
+    // 每個在港運作的艦隊一列，修理與給糧各一欄。四隊可同時運作（明石／野埼可重複持有）。
+    function upkeepRows() {
+        return state.fleets().flatMap((fleet, index) => {
+            const rep = planAnchorageRepair(fleet);
+            const mor = planMoraleSupply(fleet);
+            return rep.active || mor.active ? [{ fleet, no: index + 1, rep, mor }] : [];
+        });
+    }
+    // 倒數一律是推算（遊戲不送這兩個機制的封包）；錨點不可考時明講「不可考」而不是留白，
+    // 出擊中（錨點 null）回港前不會結算，不顯示倒數。.rcd 由面板每秒只改文字。
+    function upkeepTime(anchor: number | null | undefined, interval: number) {
+        if (anchor === undefined) return `<span class="time unknown" title="${esc(t('repair.unknownAnchorTitle'))}">${esc(t('repair.unknownAnchor'))}</span>`;
+        const ms = nextSettlementIn(anchor, interval);
+        if (ms === undefined) return '<span class="time"></span>';
+        return `<span class="time rcd" data-anchor="${anchor}" data-interval="${interval}">${esc(repairCountdown(ms))}</span>`;
+    }
+    function upkeepHtml(rows: ReturnType<typeof upkeepRows>) {
+        const none = '<span class="upkeep-cell none" aria-hidden="true">—</span>';
+        return `<div class="upkeep-row upkeep-head"><span></span><span title="${esc(t('repair.repairTitle'))}"><img class="upkeep-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">${esc(t('repair.colRepair'))}</span><span title="${esc(t('repair.moraleTitle'))}"><img class="upkeep-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">${esc(t('repair.colMorale'))}</span></div>` +
+            rows.map(({ fleet, no, rep, mor }) => {
+                const repCell = rep.active
+                    ? `<span class="upkeep-cell${rep.accelerated ? ' accel' : ''}"><span class="n">${esc(t('repair.shipCount', { n: rep.coverage }))}</span>${rep.accelerated ? `<em class="mode">${esc(t('repair.accelLabel'))}</em>` : ''}${upkeepTime(fleet.repairAnchor, REPAIR_INTERVAL_MS)}</span>`
+                    : none;
+                const morCell = mor.active
+                    ? `<span class="upkeep-cell"><span class="n">${esc(t('repair.shipCount', { n: mor.slots.filter(slot => slot.willRecover).length }))}</span>${upkeepTime(fleet.moraleAnchor, MORALE_INTERVAL_MS)}</span>`
+                    : none;
+                return `<div class="upkeep-row"><span class="slot">${no}</span>${repCell}${morCell}</div>`;
+            }).join('');
+    }
+
     function render() {
         const l = label();
         nav.setAttribute('aria-label', t('tab.general'));
@@ -354,10 +389,16 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         const missions = state.missions();
         const activeDock = state.ndocks();
         const activeBuild = state.kdocks();
-        const groupCounts = { exped: missions.length, dock: activeDock.length, build: activeBuild.length };
-        operationNav.innerHTML = (['exped', 'dock', 'build'] as const).map(key =>
+        const upkeep = upkeepRows();
+        // 「泊地」分組只在有艦隊泊地修理或給糧時出現；運作結束時退回遠征分組。
+        if (!upkeep.length && operation === 'anchor') operation = 'exped';
+        const shownOps = OPERATIONS.filter(key => key !== 'anchor' || upkeep.length > 0);
+        const groupCounts = { exped: missions.length, dock: activeDock.length, build: activeBuild.length, anchor: upkeep.length };
+        operationNav.classList.toggle('has-anchor', upkeep.length > 0);
+        operationNav.innerHTML = shownOps.map(key =>
             `<button type="button" data-operation="${key}" role="tab" aria-selected="${key === operation}"><span>${esc(l[key])}</span><span class="count">${groupCounts[key]}</span></button>`).join('');
-        for (const key of ['exped', 'dock', 'build'] as const) byId('heading-' + key).innerHTML = `<strong>${esc(l[key])}</strong>`;
+        for (const key of OPERATIONS) byId('heading-' + key).innerHTML = `<strong>${esc(l[key])}</strong>`;
+        byId('anchorage').innerHTML = upkeep.length ? upkeepHtml(upkeep) : '';
         byId('missions').innerHTML = missions.map(mm => {
             const name = expedDisplayName(mm.missionId, mm.name);
             return `<div class="ledger-op"><span class="slot">${esc(mm.fleet)}</span><span class="name" title="${esc(name)}">${esc(name)}</span><span class="time" data-countdown-at="${esc(String(mm.completeAt))}">${countdown(mm.completeAt)}</span></div>`;
@@ -418,6 +459,14 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         showOperation(operation);
         if (page !== 'items') renderItems();
     }
+    /** 切到母港「泊地」分組；沒有艦隊運作時不動並回傳 false。 */
+    function showUpkeep(): boolean {
+        if (!upkeepRows().length) return false;
+        page = 'harbor';
+        operation = 'anchor';
+        render();
+        return true;
+    }
     render();
-    return render;
+    return Object.assign(render, { showUpkeep });
 }

@@ -25,7 +25,7 @@ function renderQuests(lang: Lang, scene: Scene): string {
     setLang(lang);
     const { document, window } = parseHTML(panelHtml);
     Object.assign(globalThis, { document, window });
-    mountGeneral(questTrackingFixture(), () => '');
+    mountGeneral(questTrackingFixture(), () => '', () => '');
     const list = document.getElementById('quests')!;
     for (const node of list.querySelectorAll('.ledger-quest')) {
         const no = Number(node.getAttribute('data-no'));

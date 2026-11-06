@@ -1115,6 +1115,56 @@
             padding: 3px 10px;
             font-size: 12px;
             cursor: pointer;
+            /* 換行會把艦隊列撐高、七船推出安全線；放不下要縮短文案，不能靠換行。 */
+            white-space: nowrap;
+        }
+
+        /* 編號鈕：收窄內距，讓四顆都帶 AR／AO 標記時列寬仍不超過未帶標記前。 */
+        #fleetnav button.num {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        #fleetnav button.has-ops {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+
+        /* 泊地修理（AR）／給糧（AO）文字標記：只在兩個並存時出現、上下疊；高度固定，不撐高按鈕。
+           色同艦列範圍軌（修理 --brass、給糧 --sparkle）。 */
+        .nav-ops {
+            display: inline-flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 1px;
+            max-height: 14px;
+        }
+
+        .nav-op {
+            display: block;
+            font-size: 8px;
+            font-weight: 600;
+            line-height: 6.5px;
+            letter-spacing: 0.02em;
+        }
+
+        .nav-op.ar {
+            color: var(--brass);
+        }
+
+        .nav-op.ao {
+            color: var(--sparkle);
+        }
+
+        /* 單一狀態的圖示標記：與雙標記的 AR／AO 欄同寬（12px），四隊任意組合下鈕寬一致。 */
+        .nav-op-icon {
+            display: block;
+            flex: none;
+            width: 12px;
+            height: 12px;
         }
 
         #fleetnav button.on {
@@ -1964,17 +2014,7 @@
             border-left: 1px solid var(--line);
         }
 
-        .fs-op-icon {
-            display: block;
-            flex: 0 0 10px;
-            width: 10px;
-            height: 10px;
-            margin-right: 3px;
-            object-fit: contain;
-        }
-
         .fs-op-label,
-        .fs-op-mode,
         .fs-op-time {
             font-weight: 400;
         }
@@ -1983,36 +2023,14 @@
             color: var(--text);
         }
 
-        .fs-op-mode {
-            margin-left: 4px;
-            color: var(--brass);
-        }
-
         .fs-op-time {
             margin-left: 4px;
             color: var(--text);
             font-variant-numeric: tabular-nums;
         }
 
-        .fs-op.repair[data-accelerated="true"] .fs-op-time {
-            color: var(--sparkle);
-        }
-
         .fs-op.mission {
             color: var(--text);
-        }
-
-        .fs-op-unknown {
-            display: inline-flex;
-            align-items: center;
-            min-height: 11px;
-            margin-left: 6px;
-            padding-left: 6px;
-            border-left: 1px solid var(--line);
-            color: var(--dim);
-            font-size: 9px;
-            line-height: 1;
-            white-space: nowrap;
         }
 
         .fs-metrics {
@@ -3200,7 +3218,8 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             align-content: start;
             align-items: start;
-            column-gap: 10px;
+            /* 欄界（§4.1.2）：左欄以靠右的目前值收尾；右欄以 ✓／✗ 記號開頭，欄距需為欄內間距的 2 倍以上且 ≥12px。 */
+            column-gap: 14px;
             row-gap: 4px;
             min-width: 0;
         }
@@ -5801,6 +5820,20 @@
         .ledger-group-tabs button{appearance:none;display:flex;justify-content:center;align-items:center;gap:5px;min-width:0;margin-bottom:-1px;padding:4px 8px 5px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dim);font:inherit;font-size:12px;font-weight:500;line-height:1.2;text-align:center;white-space:nowrap;cursor:pointer}
         .ledger-group-tabs button[aria-selected=true]{border-bottom-color:var(--brass);color:var(--text);font-weight:600}
         .ledger-group-tabs .count{color:var(--dim);font-size:10.5px;font-weight:400;font-variant-numeric:tabular-nums}
+        .ledger-group-tabs.has-anchor{grid-template-columns:repeat(4,minmax(0,1fr))}.ledger-group-tabs.has-anchor button{padding-left:4px;padding-right:4px}
+        /* 泊地：每隊一列、修理與給糧各一欄；加速倒數用 --sparkle，與艦列範圍軌的配色一致。
+           欄界（design-guidelines §4.1.2）：修理欄以靠右倒數收尾、給糧欄以艦數開頭，兩欄之間留 12px 並加分隔線，
+           避免左欄倒數被讀成右欄的值。 */
+        .upkeep-row{display:grid;grid-template-columns:23px minmax(0,1fr) minmax(0,1fr);align-items:center;column-gap:12px;min-height:23px;padding:1px 4px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.3}
+        .upkeep-row>:last-child{padding-left:12px;border-left:1px solid var(--line);align-self:stretch;display:flex;align-items:center}
+        .upkeep-row .slot{color:var(--brass);font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
+        .upkeep-head{min-height:16px;padding-top:0;padding-bottom:0;border-bottom-color:transparent;color:var(--dim);font-size:10px}
+        .upkeep-icon{width:11px;height:11px;margin-right:4px;vertical-align:-1px}
+        .upkeep-cell{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;font-variant-numeric:tabular-nums}
+        .upkeep-cell .n{color:var(--dim);font-size:11px}.upkeep-cell .mode{font-style:normal;color:var(--brass);font-size:10.5px}
+        .upkeep-cell .time{margin-left:auto;color:var(--text);font-size:11.5px;font-weight:600}.upkeep-cell.accel .time{color:var(--sparkle)}
+        .upkeep-cell .time.unknown{color:var(--dim);font-size:10.5px;font-weight:400}
+        .upkeep-cell.none{color:var(--stub)}
         .ledger-group{display:flex;flex-direction:column;min-height:0;border-top:0}
         .ledger-group-heading{flex:none;display:flex;justify-content:space-between;align-items:center;height:20px;color:var(--text);font-size:11px;font-weight:600}.ledger-group-heading .sub{color:var(--dim);font-size:10.5px;font-weight:400;font-variant-numeric:tabular-nums}
         .ledger-group-list{overflow-y:auto;min-height:0;scrollbar-width:thin}
@@ -5877,7 +5910,7 @@
         .ledger-item-tools input{box-sizing:border-box;width:100%;min-width:0;padding:3px 7px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:11.5px;line-height:1.25}
         .ledger-item-page{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden;scrollbar-width:thin}
         .ledger-item-page[hidden],.ledger-item-tools[hidden],.ledger-item-row[hidden],.ledger-item-empty[hidden]{display:none}
-        .ledger-item-grid{display:grid;flex:1;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 7px;align-content:start;min-height:0;overflow-y:auto}
+        .ledger-item-grid{display:grid;flex:1;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 12px;align-content:start;min-height:0;overflow-y:auto}
         html[lang="en"] .ledger-item-grid,html[lang="ja"] .ledger-item-grid{grid-template-columns:minmax(0,1fr)}
         .ledger-item-row{min-width:0;margin:0;border-bottom:1px solid color-mix(in srgb,var(--line) 78%,transparent)}
         .ledger-item-row>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 12px;align-items:center;gap:5px;box-sizing:border-box;min-height:27px;padding:3px 4px;color:var(--text);font-size:11.5px;line-height:1.25;list-style:none;cursor:pointer}
@@ -5988,6 +6021,7 @@
                 <section class="ledger-group" id="operation-exped"><div class="ledger-group-heading" id="heading-exped"></div><div class="ledger-group-list" id="missions"></div></section>
                 <section class="ledger-group" id="operation-dock" hidden><div class="ledger-group-heading" id="heading-dock"></div><div class="ledger-group-list" id="ndocks"></div></section>
                 <section class="ledger-group" id="operation-build" hidden><div class="ledger-group-heading" id="heading-build"></div><div class="ledger-group-list" id="kdocks"></div></section>
+                <section class="ledger-group" id="operation-anchor" hidden><div class="ledger-group-heading" id="heading-anchor"></div><div class="ledger-group-list" id="anchorage"></div></section>
             </div>
             <div class="ledger-page ledger-quests" id="general-quests" hidden><div class="ledger-quest-heading" id="quest-heading"></div><div class="ledger-quest-list" id="quests"></div></div>
             <div class="ledger-page ledger-items" id="general-items" hidden>

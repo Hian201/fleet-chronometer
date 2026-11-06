@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 //   npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const panelMain = readFileSync(new URL('../entrypoints/panel/main.ts', import.meta.url), 'utf8');
+const general = readFileSync(new URL('../entrypoints/panel/general.ts', import.meta.url), 'utf8');
 const preview = readFileSync(new URL('../tools/preview/panel-sortie.ts', import.meta.url), 'utf8');
 const expedPreview = readFileSync(new URL('../tools/preview/panel-exped.ts', import.meta.url), 'utf8');
 const expedEditorialPreview = readFileSync(new URL('../tools/preview/panel-exped-editorial.ts', import.meta.url), 'utf8');
@@ -143,7 +144,6 @@ describe('編成版面', () => {
         expect(panelMain).toContain('class="fs-op');
         expect(panelMain).toContain('class="fs-metric fs-los');
         expect(panelMain).toContain('class="fs-scale');
-        expect(panelMain).toContain('data-accelerated');
         expect(panelMain).toContain('function speedTone');
         expect(panelMain).toContain("t('fleet.airPowerShort')");
         expect(panelMain).toContain("t('fleet.scouting33Short')");
@@ -153,7 +153,6 @@ describe('編成版面', () => {
         expect(panelMain).toContain('sum.f33.toFixed(1)');
         expect(css).toMatch(/\.fs-metric \.fs-value,[\s\S]*?font-weight:\s*400/);
         expect(css).toMatch(/\.fs-scale select\.cn\s*\{[\s\S]*?color-scheme:\s*dark/);
-        expect(css).toMatch(/\.fs-op\.repair\[data-accelerated="true"\] \.fs-op-time\s*\{[\s\S]*?color:\s*var\(--sparkle\)/);
         expect(css).toMatch(/\.fs-metrics\s*\{[^}]*gap:\s*3px/);
         expect(css).toMatch(/\.fs-metrics\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*70px\)\s+minmax\(0,\s*86px\)\s+minmax\(0,\s*62px\)\s+minmax\(0,\s*52px\)\s+minmax\(0,\s*48px\)/);
         expect(css).toMatch(/\.fs-metrics\s*\{[^}]*width:\s*100%/);
@@ -175,7 +174,6 @@ describe('編成版面', () => {
         expect(css).toMatch(/\.fs-metric\s*\{[\s\S]*?width:\s*100%/);
         expect(css).toMatch(/\.fs-metric\s*\{[\s\S]*?overflow:\s*hidden/);
         expect(css).not.toMatch(/:root\[lang="en"\] \.fs-metrics/);
-        expect(css).toMatch(/\.fs-op-unknown\s*\{[\s\S]*?border-left:\s*1px solid var\(--line\)/);
         expect(css).toMatch(/\.fs-scale select\.cn\s*\{[\s\S]*?background:\s*var\(--panel\)/);
         expect(panelMain).toContain('const tp = sum.tp');
         expect(panelMain).not.toContain('sum.tp.gear > 0');
@@ -275,18 +273,56 @@ describe('編成版面', () => {
         expect(preview).toContain('.pv-app .sortie-combined-fleet .c-fleet-row {\n  gap: 6px;\n}');
     });
 
-    it('六船／七船功能艦的泊地修理／給糧狀態列納入離線安全線案例', () => {
-        expect(preview).toContain('SEVEN_FLEET_REPAIR_HTML');
-        expect(preview).toContain('SEVEN_FLEET_MORALE_HTML');
-        expect(preview).toContain('SEVEN_FLEET_REPAIR_MORALE_HTML');
-        expect(preview).toContain('SEVEN_FLEET_MORALE_UNKNOWN_HTML');
-        expect(preview).toContain('SIX_FLEET_MORALE_UNKNOWN_HTML');
-        expect(preview).toContain('data-accelerated="${accelerated}"');
+    it('編成摘要狀態列只放遠征中與疲勞倒數，六／七船狀態列納入離線安全線案例', () => {
+        // 泊地修理／給糧可能四隊同時運作，艦數與倒數集中在一般分頁母港「泊地」分組。
+        const plansFn = panelMain.slice(panelMain.indexOf('function repairPlansOf'), panelMain.indexOf('function condRecoveryOp'));
+        expect(plansFn).toContain("t('fleet.onMission')");
+        expect(plansFn).toContain('condRecoveryOp(f)');
+        expect(plansFn).not.toContain('fs-op repair');
+        expect(plansFn).not.toContain('fs-op supply');
+        expect(panelMain).not.toContain('fs-op-unknown');
+        expect(preview).toContain('SEVEN_FLEET_FATIGUE_HTML');
+        expect(preview).toContain('SEVEN_FLEET_FATIGUE_READY_HTML');
+        expect(preview).toContain('SIX_FLEET_FATIGUE_HTML');
         expect(preview).toContain('fleet-seven${ops ? \' fleet-ops\' : \' fleet-no-ops\'}');
         expect(preview).toContain('${ops ? \' fleet-ops\' : \' fleet-no-ops\'}');
-        expect(preview).toContain('第一艘為明石改的七船編成');
-        expect(preview).toContain('第一艘為野埼改的七船編成');
-        expect(preview).toContain('六船單隊出現給糧摘要列');
+        expect(preview).not.toContain('repairOp(');
+        expect(preview).not.toContain('moraleOp(');
+    });
+
+    it('艦隊編號鈕：單一狀態用圖示、兩種並存用 AR／AO，四隊同時運作也不撐寬或撐高艦隊列', () => {
+        const navFn = panelMain.slice(panelMain.indexOf('function fleetOpsMarks'), panelMain.indexOf('fleetnavEl.addEventListener'));
+        expect(navFn).toContain('planAnchorageRepair(f)');
+        expect(navFn).toContain('planMoraleSupply(f)');
+        expect(navFn).toContain('if (rep.active && mor.active)');
+        expect(navFn).toContain('<span class="nav-op ar">AR</span><span class="nav-op ao">AO</span>');
+        expect(navFn).toContain('src="/icons/ui/dock.svg"');
+        expect(navFn).toContain('src="/icons/ui/provision.svg"');
+        expect(css).toMatch(/\.nav-op-icon\s*\{[^}]*width:\s*12px[^}]*height:\s*12px/);
+        expect(navFn).toContain('aria-label=');
+        expect(css).toMatch(/#fleetnav button\s*\{[^}]*white-space:\s*nowrap/);
+        expect(css).toMatch(/#fleetnav button\.num\s*\{[^}]*padding-left:\s*8px/);
+        expect(css).toMatch(/#fleetnav button\.has-ops\s*\{[^}]*padding-left:\s*5px/);
+        expect(css).toMatch(/\.nav-ops\s*\{[^}]*flex-direction:\s*column[^}]*max-height:\s*14px/);
+        expect(css).toMatch(/\.nav-op\.ar\s*\{[^}]*color:\s*var\(--brass\)/);
+        expect(css).toMatch(/\.nav-op\.ao\s*\{[^}]*color:\s*var\(--sparkle\)/);
+    });
+
+    it('點有泊地修理／給糧的艦隊時切到母港「泊地」分組，出擊中與編成寫真開著時不切', () => {
+        const clickFn = panelMain.slice(panelMain.indexOf("fleetnavEl.addEventListener('click'"), panelMain.indexOf('const blankChip'));
+        expect(clickFn).toContain("currentContext !== 'sortie' && !photo.isOpen() && fleetHasUpkeep(state.fleets()[f])");
+        expect(clickFn).toContain("setTab('general', true);");
+        expect(clickFn).toContain('renderGeneral.showUpkeep();');
+        expect(panelMain).toContain('planAnchorageRepair(f).active || planMoraleSupply(f).active');
+    });
+
+    it('連合部隊種類在艦隊列用短稱，全名放提示（英文全名會換行撐高）', () => {
+        const navFn = panelMain.slice(panelMain.indexOf('function renderFleetNav'), panelMain.indexOf('fleetnavEl.addEventListener'));
+        expect(navFn).toContain('fleet.combinedTypeShort.');
+        expect(navFn).toContain('title="${esc(combinedTitle)}"');
+        expect(i18n).toMatch(/'fleet\.combinedTypeShort\.1': 'CTF'/);
+        expect(i18n).toMatch(/'fleet\.combinedTypeShort\.2': 'STF'/);
+        expect(i18n).toMatch(/'fleet\.combinedTypeShort\.3': 'TCF'/);
     });
 
     it('單艦隊艦種、遠征與入渠標籤對齊目前 renderer 的 .ship-body 莖結構', () => {
@@ -298,8 +334,8 @@ describe('編成版面', () => {
         expect(css).toMatch(/\.dock-mark\s*\{[^}]*color:\s*#7fd0ff/);
     });
 
-    it('倒數 tick 仍只改 .rcd，不整塊重繪艦隊', () => {
-        expect(panelMain).toContain(' rcd ');
+    it('倒數 tick 仍只改 .rcd，不整塊重繪', () => {
+        expect(general).toContain('class="time rcd"');
         expect(panelMain).toContain('function tickRepairCountdowns');
         expect(panelMain).toContain('.rcd[data-anchor]');
     });
@@ -315,6 +351,6 @@ describe('編成版面', () => {
         expect(css).toMatch(/#header \.stat b\s*\{[^}]*color:\s*var\(--text\)/);
         expect(css).toMatch(/\.g-chip \.g-eta\.grow\s*\{[^}]*color:\s*var\(--dim\)/);
         expect(panelHtml).toContain('id="general-quests" hidden');
-        expect(panelMain).toContain('mountGeneral(state, fmt)');
+        expect(panelMain).toContain('mountGeneral(state, fmt, countdownText)');
     });
 });

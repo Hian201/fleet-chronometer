@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { itemCatalog, itemMatches } from '../utils/item-catalog';
 
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
@@ -15,7 +15,7 @@ describe('一般分頁', () => {
         expect(panelHtml).toContain('id="general-items" hidden');
         expect(css).toMatch(/#tabpanel\.has-general\s*\{[^}]*overflow:\s*hidden/);
         expect(css).toMatch(/#tabpanel\.has-general>#tab-general\.ledger\{[^}]*grid-template-rows:27px minmax\(0,1fr\)/);
-        expect(panelMain).toContain('mountGeneral(state, fmt)');
+        expect(panelMain).toContain('mountGeneral(state, fmt, countdownText)');
     });
 
     it('八項資源只顯示圖示和數量，名稱保留給輔助說明', () => {
@@ -47,6 +47,33 @@ describe('一般分頁', () => {
         expect(general).toContain('state.kdockData.map');
         expect(general).toContain('stateCode === -1');
         expect(general).toContain('state.kdockData.length');
+    });
+
+    it('泊地分組只在有艦隊泊地修理或給糧時出現，每隊一列、修理與給糧各一欄', () => {
+        expect(panelHtml).toContain('id="operation-anchor" hidden');
+        expect(panelHtml).toContain('id="anchorage"');
+        expect(general).toContain("OPERATIONS.filter(key => key !== 'anchor' || upkeep.length > 0)");
+        expect(general).toContain("if (!upkeep.length && operation === 'anchor') operation = 'exped'");
+        expect(general).toContain('rep.active || mor.active ?');
+        expect(general).toContain('data-interval="${interval}"');
+        expect(general).toContain("t('repair.unknownAnchor')");
+        // 欄頭圖示成對：吊臂＝泊地修理、冰淇淋＝給糧。
+        expect(general).toContain('<img class="upkeep-icon" src="/icons/ui/dock.svg"');
+        expect(general).toContain('<img class="upkeep-icon" src="/icons/ui/provision.svg"');
+        expect(existsSync(new URL('../public/icons/ui/provision.svg', import.meta.url))).toBe(true);
+        expect(css).toMatch(/\.ledger-group-tabs\.has-anchor\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}/);
+        expect(css).toMatch(/\.upkeep-row\{display:grid;grid-template-columns:23px minmax\(0,1fr\) minmax\(0,1fr\)/);
+        // 欄界（design-guidelines §4.1.2）：左欄以倒數收尾、右欄以艦數開頭，要欄距＋分隔線。
+        expect(css).toMatch(/\.upkeep-row\{[^}]*column-gap:12px/);
+        expect(css).toMatch(/\.upkeep-row>:last-child\{padding-left:12px;border-left:1px solid var\(--line\)/);
+        expect(css).toMatch(/\.upkeep-cell\.accel \.time\{color:var\(--sparkle\)\}/);
+    });
+
+    it('並排成欄的清單遵守欄界：欄距明顯大於欄內間距', () => {
+        expect(css).toMatch(/\.ledger-item-grid\{[^}]*gap:1px 12px/);
+        expect(css).toMatch(/\.exped-check-group\s*\{[^}]*column-gap:\s*14px/);
+        const guide = readFileSync(new URL('../docs/design-guidelines.md', import.meta.url), 'utf8');
+        expect(guide).toContain('### 4.1.2 多欄資訊的欄界（硬約束）');
     });
 
     it('任務用原生 details 展開完整敘述，保留展開和捲動位置', () => {

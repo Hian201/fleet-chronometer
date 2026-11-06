@@ -10,7 +10,6 @@ import {
 import { condTier, fleetCondRecoveryEta } from '@/utils/cond';
 import {
     planAnchorageRepair, planMoraleSupply, nextSettlementIn,
-    REPAIR_INTERVAL_MS, MORALE_INTERVAL_MS,
     type AnchorageRepairPlan, type MoralePlan,
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
@@ -358,7 +357,7 @@ document.getElementById('battle-content')!.addEventListener('click', e => {
     taihaDetailsHidden = !taihaDetailsHidden;
     renderSortie();
 });
-const renderGeneral = mountGeneral(state, fmt);
+const renderGeneral = mountGeneral(state, fmt, countdownText);
 // 目前是否為聯合檢視（恰好第一＋第二艦隊）——view 無序，故用集合語意判斷。
 function isCombinedView() {
     return view.length === 2 && view.includes(0) && view.includes(1);
@@ -410,22 +409,50 @@ function switchFleetViewToSortie() {
     if (!Number.isSafeInteger(fleetId) || fleetId < 0 || fleetId > 3) return;
     view = state.combinedFlag > 0 && fleetId === 0 ? [0, 1] : [fleetId];
 }
+// 艦隊編號鈕上的泊地修理／給糧標記：不切換艦隊也看得出哪幾隊在運作。
+// 只有一種時用圖示（吊臂＝修理、冰淇淋＝給糧，與母港「泊地」欄頭同一組），比文字好認；
+// 兩種並存時兩顆圖示擠不進 370px 艦隊列（四隊全開會溢出），改用上下疊的 AR／AO 文字
+// （三語共用的艦種代號，色同艦列範圍軌）。艦數放提示，倒數在母港「泊地」分組
+// （提示不放倒數，因為鈕不會每秒重繪）。
+function fleetOpsMarks(f: FleetView | undefined, n: number) {
+    if (!f) return { tags: '', label: '' };
+    const rep = planAnchorageRepair(f);
+    const mor = planMoraleSupply(f);
+    const lines: string[] = [];
+    if (rep.active) lines.push(t('repair.navRepair', { f: n, n: rep.coverage }) + (rep.accelerated ? `（${t('repair.accelLabel')}）` : ''));
+    if (mor.active) lines.push(t('repair.navMorale', { f: n, n: mor.slots.filter(s => s.willRecover).length }));
+    const label = lines.join('\n');
+    if (rep.active && mor.active) {
+        return { tags: '<span class="nav-ops" aria-hidden="true"><span class="nav-op ar">AR</span><span class="nav-op ao">AO</span></span>', label };
+    }
+    if (rep.active) return { tags: '<img class="nav-op-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">', label };
+    if (mor.active) return { tags: '<img class="nav-op-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">', label };
+    return { tags: '', label: '' };
+}
+const fleetHasUpkeep = (f: FleetView | undefined) => !!f && (planAnchorageRepair(f).active || planMoraleSupply(f).active);
 function renderFleetNav() {
     const names = ['1', '2', '3', '4'];
     const all = state.fleets();
     const lbasCond = lbasCondSeverity();
+    const combinedLabel = state.combinedFlag ? t(`fleet.combinedTypeShort.${state.combinedFlag}`) : t('fleet.combined');
+    const combinedTitle = state.combinedFlag
+        ? `${t(`fleet.combinedType.${state.combinedFlag}`)}\n${t('fleet.combinedTitle')}`
+        : t('fleet.combinedTitle');
     fleetnavEl.innerHTML =
         names.map((n, i) => {
             const visible = !showLbas && view.includes(i);
+            const marks = fleetOpsMarks(all[i], i + 1);
             // 大破／未補給只以編成編號的紅框提醒，故目前正在顯示的艦隊也要保留紅框；
             // 不再於艦隊資訊列重複塞「未補給」文字，避免七船編成多出一行而捲動。
-            const cls = [visible ? 'on' : '', all[i] && fleetNeedsAttention(all[i]) ? 'attn' : ''].filter(Boolean).join(' ');
-            return `<button data-i="${i}" class="${cls}">${n}</button>`;
+            const cls = ['num', visible ? 'on' : '', all[i] && fleetNeedsAttention(all[i]) ? 'attn' : '', marks.tags ? 'has-ops' : ''].filter(Boolean).join(' ');
+            const label = marks.label ? ` title="${esc(marks.label)}" aria-label="${esc(marks.label)}"` : '';
+            return `<button data-i="${i}" class="${cls}"${label}>${n}${marks.tags}</button>`;
         }).join('') +
         // 聯合艦隊＝1+2 同時檢視的捷徑。遊戲當下若真的組了連合艦隊
         // （state.combinedFlag: 1=機動/2=水上/3=輸送），按鈕文字改顯示對應部隊種類，
         // 讓使用者不用猜就知道現在是哪種連合；未組連合時維持通用「連合艦隊」字樣。
-        `<button data-combined="1" class="${!showLbas && isCombinedView() ? 'on' : ''}" title="${esc(t('fleet.combinedTitle'))}">${state.combinedFlag ? t(`fleet.combinedType.${state.combinedFlag}`) : t('fleet.combined')}</button>` +
+        // 按鈕用短稱（英文全名在 370px 會換成兩行、把七船推出安全線），全名放提示。
+        `<button data-combined="1" class="${!showLbas && isCombinedView() ? 'on' : ''}" title="${esc(combinedTitle)}">${combinedLabel}</button>` +
         // 疲勞（中隊 cond）與未補給（機數耗損）是兩種不同的提醒，各走各的 class：
         // 前者染文字與外框（分黃/紅兩段），後者維持既有的紅框。兩者可同時成立。
         `<span class="grow"></span><button data-lbas="1" class="${[showLbas ? 'on' : '', lbasNeedsAttention() ? 'attn' : '', lbasCond ? `cond-${lbasCond}` : ''].filter(Boolean).join(' ')}" ${state.airBases.size === 0 ? `title="${esc(t('lbas.selectAreaFirst'))}"` : ''}>${t('lbas.button')}</button>`;
@@ -466,6 +493,12 @@ fleetnavEl.addEventListener('click', e => {
     const f = Number(b.dataset.i);
     view = [f];
     renderFleetNav(); renderFleets(); renderExped(); photo.refresh();
+    // 點有泊地修理／給糧的艦隊時，資訊區同步切到一般分頁母港「泊地」分組（艦數與倒數在那裡）。
+    // 出擊中不切：使用者多半只是瞄一眼別隊，不能把戰況畫面換掉；編成寫真開著時點艦隊是在選拍攝對象。
+    if (currentContext !== 'sortie' && !photo.isOpen() && fleetHasUpkeep(state.fleets()[f])) {
+        setTab('general', true);
+        renderGeneral.showUpkeep();
+    }
 });
 // 空白 chip（未裝備槽位／跨艦補位槽共用）：子元素與有裝備的 chip 完全一致，寬高由
 // 這些子元素自然撐出，不必硬編尺寸追平。ex=true（打洞格）先天裝不了有熟練度的裝備、
@@ -500,44 +533,14 @@ function gearChip(g: NonNullable<ShipView['exGear']>, ex = false) {
         `${gearIconHtml(g.icon, g.short)}<span class="r-col"><span class="r-top">${alvU(g.alv)}<b>${impMark(g.level)}</b></span>` +
         `<em class="oc ${ocCls}">${g.count ?? ''}</em></span></span>`;
 }
-// 泊地修理／給糧：算出該艦隊的兩份計畫＋摘要 badge。
-// 倒數一律標為估算（遊戲不送這兩個機制的封包，計時器靠觀察編成封包推算）；
-// 錨點不可考（面板剛裝、或該筆編成封包已被裁剪）時只顯示範圍、不顯示倒數。
+// 泊地修理／給糧的兩份計畫（艦列範圍軌用）＋編成摘要的狀態列。
+// 修理／給糧的艦數與倒數不放在編成摘要：四個艦隊可能同時運作（明石／野埼可重複持有），
+// 只看所選艦隊會漏掉別隊，故集中在一般分頁母港的「泊地」分組，並在艦隊編號鈕上標記（見 fleetOpsMarks）。
 function repairPlansOf(f: FleetView) {
     const now = Date.now();
     const rep = planAnchorageRepair(f, f.repairAnchor == null ? undefined : now - f.repairAnchor);
     const mor = planMoraleSupply(f, f.moraleAnchor == null ? undefined : now - f.moraleAnchor);
-    // 倒數獨立成 .rcd 元素並把錨點/週期存進 data-*，讓每秒 tick 只改這顆的文字；
-    // 這裡顯示的是共享的結算週期，不把配對修理的 5/6 速度倍率誤套到 20 分鐘計時器。
-    const countdown = (anchor: number | null | undefined, interval: number, tone: string) => {
-        const ms = nextSettlementIn(anchor, interval);
-        if (ms === undefined) return '';
-        return `<span class="fs-op-time rcd ${tone}" data-anchor="${anchor}" data-interval="${interval}">${countdownText(ms)}</span>`;
-    };
-    const ops = f.mission
-        ? `<span class="fs-op mission">${t('fleet.onMission')}</span>`
-        : [
-            rep.active
-                ? `<span class="fs-op repair" data-accelerated="${rep.accelerated}" title="${esc(t('repair.repairTitle'))}">
-                    <img class="fs-op-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">
-                    <span class="fs-op-label">${t('repair.repairBadge', { n: rep.coverage })}</span>
-                    ${rep.accelerated ? `<span class="fs-op-mode">${t('repair.accelLabel')}</span>` : ''}
-                    ${countdown(f.repairAnchor, REPAIR_INTERVAL_MS, rep.accelerated ? 'accelerated' : 'normal')}
-                  </span>`
-                : '',
-            mor.active
-                ? `<span class="fs-op supply" title="${esc(t('repair.moraleTitle'))}">
-                    <span class="fs-op-label">${t('repair.moraleBadge', { n: mor.slots.filter(s => s.willRecover).length })}</span>
-                    ${countdown(f.moraleAnchor, MORALE_INTERVAL_MS, 'normal')}
-                  </span>`
-                : '',
-            condRecoveryOp(f),
-            // 範圍成立但計時錨點不可考時，明講「倒數不可考」而不是默默不顯示；
-            // 否則使用者會以為是功能壞了。
-            ((rep.active && f.repairAnchor === undefined) || (mor.active && f.moraleAnchor === undefined))
-                ? `<span class="fs-op-unknown" title="${esc(t('repair.unknownAnchorTitle'))}">${t('repair.unknownAnchor')}</span>`
-                : '',
-        ].filter(Boolean).join('');
+    const ops = f.mission ? `<span class="fs-op mission">${t('fleet.onMission')}</span>` : condRecoveryOp(f);
     return { rep, mor, ops };
 }
 // 士氣未滿 49 時的回復倒數。出門中不顯示：回港時的士氣扣減未知，倒數沒有意義。
@@ -1872,8 +1875,8 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         if (replayLogBuffer.length > 200) replayLogBuffer.shift();
     }
 }
-// 泊地修理／給糧倒數：只改 .rcd 的文字，不重繪艦隊區塊（理由見 repairPlansOf 的
-// countdown 註解）。錨點與週期存在 data-* 上，故這裡不需要重算 GameState。
+// 泊地修理／給糧倒數（一般分頁母港「泊地」分組）：只改 .rcd 的文字，不重繪分組。
+// 錨點與週期存在 data-* 上，故這裡不需要重算 GameState。
 function tickRepairCountdowns() {
     for (const el of document.querySelectorAll<HTMLElement>('.rcd[data-anchor]')) {
         const anchor = Number(el.dataset.anchor);
@@ -1922,7 +1925,7 @@ function tickGeneralCountdowns() {
 setInterval(() => {
     tickGeneralCountdowns();
     if (tab === 'factory') renderFactoryLive();   // 建造渠倒數
-    tickRepairCountdowns();                       // 泊地修理/給糧倒數（艦隊區塊常駐顯示）
+    tickRepairCountdowns();                       // 泊地修理/給糧倒數＋疲勞倒數
     tickLbasCond();                               // 基地航空隊疲勞回復（無封包可觸發）
 }, 1000);
 // 事件消費採「單一有序佇列」：所有 live 事件 id 進 pending，由 pump() 逐一 await

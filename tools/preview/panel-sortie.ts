@@ -48,7 +48,6 @@ type Ship = {
     gears: (Gear | null)[];
     ex?: Gear | 'empty' | 'none';
     cap?: (number | undefined)[];
-    opsMark?: string;
     aswShip?: ShipView;
 };
 
@@ -232,13 +231,7 @@ const summaryMetrics = ({
   <span class="fs-metric fs-tp fs-sec"><span class="fs-label">${t('fleet.transportTP')}</span><b class="fs-value">${tp}</b></span>
 </div>`;
 
-const repairOp = (accelerated = false, time = '20:00', n = 6) => `<span class="fs-op repair" data-accelerated="${accelerated}" title="${t('repair.repairTitle')}">
-  <img class="fs-op-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">
-  <span class="fs-op-label">${t('repair.repairBadge', { n })}</span>${accelerated ? `<span class="fs-op-mode">${t('repair.accelLabel')}</span>` : ''}<span class="fs-op-time ${accelerated ? 'accelerated' : 'normal'}">${time}</span>
-</span>`;
-const moraleOp = (time = '15:00', n = 6) => `<span class="fs-op supply" title="${t('repair.moraleTitle')}"><span class="fs-op-label">${t('repair.moraleBadge', { n })}</span><span class="fs-op-time normal">${time}</span></span>`;
 const condRecoverOp = (time: string, n: number) => `<span class="fs-op cond-recover" title="${t('cond.recoverTitle', { n })}"><span class="fs-op-label">${t('cond.recoverBadge')}</span><span class="fs-op-time ccd">${time}</span></span>`;
-const moraleUnknownOp = (n = 0) => `<span class="fs-op supply" title="${t('repair.moraleTitle')}"><span class="fs-op-label">${t('repair.moraleBadge', { n })}</span></span><span class="fs-op-unknown" title="${t('repair.unknownAnchorTitle')}">${t('repair.unknownAnchor')}</span>`;
 
 const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven fleet-no-ops">
   <div class="fsummary">
@@ -315,48 +308,14 @@ const combinedFleetColumn = (ships: Ship[], fleetNo = 2) =>
 // 這組只用來重現使用者提供的連合艦隊版面；裝備槽沿用既有 fixture，避免把未提供的
 // 封包資料當成真實遊戲資料。艦名、等級、HP、cond 與總覽數字依參考畫面抄錄。
 const previewShip = (base: Ship, over: Partial<Ship>): Ship => ({ ...base, ...over, nameJa: String(over.name ?? base.name) });
-const SEVEN_FUNCTION_FLEET = (name: string, stype: string) => [
-    previewShip(SEVEN_SHIPS[0], { stype, name }),
-    ...SEVEN_SHIPS.slice(1),
-];
-const withOpsMarks = (ships: Ship[], kind: 'repair' | 'morale' | 'both'): Ship[] =>
-    ships.map((s, i) => {
-        const bits: string[] = [];
-        if (kind === 'repair' || kind === 'both') {
-            bits.push(`<span class="rmark rep">${t('repair.markRepair')}+3</span>`);
-        }
-        if ((kind === 'morale' || kind === 'both') && i > 0) {
-            bits.push(`<span class="rmark mor">${t('repair.markMorale')}49</span>`);
-        }
-        return { ...s, opsMark: bits.join('') };
-    });
-const SEVEN_FLEET_REPAIR_HTML = sevenFleetHtml(
-    withOpsMarks(SEVEN_FUNCTION_FLEET('明石改', 'AR'), 'repair'),
-    repairOp(true),
-);
-const SEVEN_FLEET_MORALE_HTML = sevenFleetHtml(
-    withOpsMarks(SEVEN_FUNCTION_FLEET('野埼改', 'AO'), 'morale'),
-    moraleOp(),
-);
-const SEVEN_FLEET_REPAIR_MORALE_HTML = sevenFleetHtml(
-    withOpsMarks(SEVEN_FUNCTION_FLEET('明石改', 'AR'), 'both'),
-    `${repairOp(false)}${moraleOp()}`,
-);
-const SEVEN_FLEET_MORALE_UNKNOWN_HTML = sevenFleetHtml(
-    SEVEN_FUNCTION_FLEET('野埼改', 'AO'),
-    moraleUnknownOp(),
-    { air: '1234', lv: '1234', tp: '104' },
-);
-const SIX_FLEET_MORALE_UNKNOWN_HTML = sixFleetHtml(
-    withOpsMarks(SEVEN_FUNCTION_FLEET('野埼改', 'AO').slice(0, 6), 'morale'),
-    moraleUnknownOp(4),
-    { air: '0', los: '-12.8', lv: '540', tp: '102' },
-);
+// 編成摘要的狀態列只剩遠征中與疲勞倒數；泊地修理／給糧的艦數與倒數在一般分頁母港「泊地」分組。
+const fatigueOp = (time = '10:34', n = 3) => condRecoverOp(time, n);
+const missionOp = () => `<span class="fs-op mission">${t('fleet.onMission')}</span>`;
+const SEVEN_FLEET_FATIGUE_HTML = sevenFleetHtml(SEVEN_SHIPS, fatigueOp());
+const SEVEN_FLEET_FATIGUE_READY_HTML = sevenFleetHtml(SEVEN_SHIPS, fatigueOp(t('cond.recoverReady')), { air: '1234', lv: '1234', tp: '104' });
+const SIX_FLEET_FATIGUE_HTML = sixFleetHtml(SEVEN_SHIPS.slice(0, 6), fatigueOp('7:12', 2), { air: '0', los: '-12.8', lv: '540', tp: '102' });
 const FIVE_FLEET_SPACING_HTML = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5));
-const FIVE_FLEET_SPACING_OPS_HTML = fiveFleetHtml(
-    withOpsMarks(SEVEN_SHIPS.slice(0, 5), 'morale'),
-    moraleOp('15:00', 5),
-);
+const FIVE_FLEET_SPACING_OPS_HTML = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5), fatigueOp());
 // 五格空母的搭載數是 compact 裝備列最容易觸發換行的案例；這是離線版面 fixture，
 // 不是對任何真實艦娘裝備狀態的推定。
 const FIVE_SLOT_CARRIER = previewShip(SEVEN_SHIPS[2], {
@@ -2417,44 +2376,28 @@ const SCENES = [
         fleet: SEVEN_FLEET_TAIHA_HTML,
     },
     {
-        id: 'single-fleet-repair',
-        label: '編成預覽｜七船泊地修理標籤',
-        note: '第一艘為明石改的七船編成，確認泊地修理摘要標籤出現時第 7 艘仍留在固定面板安全線內。',
+        id: 'single-fleet-fatigue',
+        label: '編成預覽｜七船疲勞倒數',
+        note: '七船編成出現疲勞倒數狀態列時，第 7 艘仍留在固定面板安全線內。泊地修理／給糧不進編成摘要，改在一般分頁母港「泊地」分組。',
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
-        fleet: SEVEN_FLEET_REPAIR_HTML,
+        fleet: SEVEN_FLEET_FATIGUE_HTML,
     },
     {
-        id: 'single-fleet-morale',
-        label: '編成預覽｜七船給糧標籤',
-        note: '第一艘為野埼改的七船編成，確認給糧摘要標籤出現時第 7 艘仍留在固定面板安全線內。',
+        id: 'single-fleet-fatigue-ready',
+        label: '編成預覽｜七船疲勞「回母港即消」＋四位數摘要',
+        note: '狀態列最長文字搭配四位數制空／等級，確認狀態列與摘要指標都不換行。',
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
-        fleet: SEVEN_FLEET_MORALE_HTML,
+        fleet: SEVEN_FLEET_FATIGUE_READY_HTML,
     },
     {
-        id: 'single-fleet-repair-morale',
-        label: '編成預覽｜泊地修理＋給糧共存',
-        note: '泊地修理與給糧可同時顯示；兩個操作各自保有圖示、文字與倒數，並沿用相同垂直基準。',
+        id: 'six-fleet-fatigue',
+        label: '編成預覽｜六船疲勞倒數',
+        note: '六船單隊出現狀態列時，檢查艦列間距並保留 730px 排版目標。',
         current: REFERENCE_SORTIE_HTML,
         proposed: REFERENCE_SORTIE_HTML,
-        fleet: SEVEN_FLEET_REPAIR_MORALE_HTML,
-    },
-    {
-        id: 'single-fleet-morale-unknown',
-        label: '編成預覽｜給糧倒數不可考',
-        note: '給糧範圍仍可判斷但時間錨點不存在時，將「倒數不可考」與給糧資訊分隔，不與艦數黏在一起。',
-        current: REFERENCE_SORTIE_HTML,
-        proposed: REFERENCE_SORTIE_HTML,
-        fleet: SEVEN_FLEET_MORALE_UNKNOWN_HTML,
-    },
-    {
-        id: 'six-fleet-morale-unknown',
-        label: '編成預覽｜六船給糧倒數不可考',
-        note: '六船單隊出現給糧摘要列時，檢查艦列間距並保留 730px 排版目標。',
-        current: REFERENCE_SORTIE_HTML,
-        proposed: REFERENCE_SORTIE_HTML,
-        fleet: SIX_FLEET_MORALE_UNKNOWN_HTML,
+        fleet: SIX_FLEET_FATIGUE_HTML,
     },
     {
         id: 'combined-boss',
@@ -3496,10 +3439,7 @@ const enOverlay = (hint: string, flagship = false) => `<div class="s-air-wrap co
 const enSix = `<section class="fleet fleet-six fleet-no-ops">${SIX_TAIHA_SHIPS.map(s => shipRow(s)).join('')}</section>`;
 const enSeven = sevenFleetHtml(SEVEN_TAIHA_SHIPS);
 const enFiveNoOps = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5));
-const enFiveOps = fiveFleetHtml(
-    withOpsMarks(SEVEN_SHIPS.slice(0, 5), 'morale'),
-    moraleOp('15:00', 5),
-);
+const enFiveOps = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5), fatigueOp());
 const enCombinedDual = combinedFleetHtml(COMBINED_FIRST_SHIPS, COMBINED_SECOND_SHIPS);
 const enCombinedSixGear = combinedFleetHtml(COMBINED_SIX_GEAR_FIRST_SHIPS, COMBINED_SECOND_SHIPS);
 const enCombined = combinedFleetHtml(COMBINED_TAIHA_FIRST_SHIPS, COMBINED_TAIHA_SECOND_SHIPS);
@@ -3669,7 +3609,7 @@ const summaryLanguagePage = (lang: 'zh-TW' | 'en' | 'ja') => {
     const speedSamples = [
         t('speed.slow'), t('speed.fast'), t('speed.fastPlus'), t('speed.fastest'),
     ].map((speed, index) => summaryMetrics({ speed, air: `${69 + index}`, los: `${24 + index}.0` })).join('');
-    const fleet = sevenFleetHtml(SEVEN_SHIPS, `${repairOp(true)}${moraleOp()}`);
+    const fleet = sevenFleetHtml(SEVEN_SHIPS, fatigueOp(t('cond.recoverReady')));
     return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>Summary ${lang}</title><style>
 ${css}
 html,body{height:auto;overflow:auto}body{display:block;margin:0;padding:16px;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,sans-serif}.pv-lang{width:370px;border:1px solid var(--line);box-sizing:border-box;margin-bottom:16px}.pv-lang h1{font-size:14px;color:var(--sparkle);margin:0 10px 10px;padding-top:8px}.pv-lang .fsummary{margin-bottom:8px}.pv-lang .fs-metrics{margin-bottom:4px}
@@ -3724,18 +3664,18 @@ for (const lang of ['zh-TW', 'en', 'ja'] as const) {
     }));
     const seven = sevenFleetHtml(ships);
     const six = sixFleetHtml(ships.slice(0, 6));
-    const ops = sevenFleetHtml(ships, moraleOp());
-    // 最擠的摘要列：泊地修理（加速）＋給糧＋疲勞回復，倒數與「回母港即消」兩種文字都要放得下。
+    const ops = sevenFleetHtml(ships, missionOp());
+    // 狀態列：疲勞回復的倒數與「回母港即消」兩種文字都要放得下。
     // 倒數用正式推算函式算，不寫死：取全隊最慢的一艘（此組最低 cond 12）。
     const eta = fleetCondRecoveryEta(state.fleets()[0]);
     const etaMs = eta?.at == null ? 0 : eta.at - Date.now();
     const etaText = `${Math.floor(etaMs / 60_000)}:${String(Math.floor(etaMs / 1000) % 60).padStart(2, '0')}`;
-    const fatigue = sevenFleetHtml(ships, repairOp(true, '18:42', 6) + moraleOp('14:05', 5) + condRecoverOp(etaText, eta?.below ?? 0));
-    const fatigueReady = sevenFleetHtml(ships, repairOp(true, '18:42', 6) + moraleOp('14:05', 5) + condRecoverOp(t('cond.recoverReady'), eta?.below ?? 0));
+    const fatigue = sevenFleetHtml(ships, condRecoverOp(etaText, eta?.below ?? 0));
+    const fatigueReady = sevenFleetHtml(ships, condRecoverOp(t('cond.recoverReady'), eta?.below ?? 0));
     const combined = `<div class="c-fleet-row">${combinedFleetColumn(ships.slice(0, 6), 1)}${combinedFleetColumn(ships.slice(0, 6), 2)}</div>`;
     const body = `<div class="pv-intro">ASW · ${lang} · 370px · 離線配裝示意 / Offline fixtures</div>
       <button id="theme">Light / Dark</button><div class="asw-previews">
-      ${[['7 ships', seven], ['6 ships', six], ['7 ships + operations', ops], ['7 ships + repair/provision/fatigue', fatigue], ['fatigue ready', fatigueReady], ['Combined fleet', combined]].map(([label, fleet]) =>
+      ${[['7 ships', seven], ['6 ships', six], ['7 ships + operations', ops], ['7 ships + fatigue', fatigue], ['fatigue ready', fatigueReady], ['Combined fleet', combined]].map(([label, fleet]) =>
         `<div><p>${label}</p><div class="asw-panel">${fleet}</div></div>`).join('')}</div>`;
     writeFileSync(resolve(root, `.preview/panel-asw-${lang}.html`), `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>ASW fleet preview</title><style>${css}
       html,body{height:auto;overflow:auto}body{display:block;padding:16px;background:var(--bg);color:var(--text)}
