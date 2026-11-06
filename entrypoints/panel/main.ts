@@ -317,8 +317,11 @@ function renderTabs() {
 // 切換分頁的共用函式（manual=true 代表使用者手動點選，會暫停自動切換）
 function setTab(next: typeof tab, manual: boolean) {
     // 正式建置沒有動態分頁：若收到 activity 狀態，退回一般。
+    const previous = tab;
     tab = next === 'activity' && !isDebugUiEnabled() ? 'general' : next;
     if (manual) manualOverride = true;
+    // 切回一般分頁時入渠分組先顯示渠位；自動切換會重複呼叫，同分頁內不重設使用者選的檢視。
+    if (tab === 'general' && previous !== 'general') renderGeneral.showDockSlots();
     generalEl.style.display = tab === 'general' ? '' : 'none';
     document.getElementById('tab-exped')!.style.display = tab === 'exped' ? '' : 'none';
     document.getElementById('tab-sortie')!.style.display = tab === 'sortie' ? '' : 'none';
@@ -336,14 +339,16 @@ function setTab(next: typeof tab, manual: boolean) {
 // 依情境自動切換分頁：
 //   - 進入新情境（ctx 改變）→ 一律切換並解除手動暫停
 //   - 同一情境內（例如出擊中連續戰鬥）→ 若使用者手動切過分頁則尊重之，不強行切回
-function autoSwitch(desired: typeof tab, ctx: string) {
+// 回傳是否剛進入新情境，供需要「進入時才定位一次」的子分頁使用。
+function autoSwitch(desired: typeof tab, ctx: string): boolean {
     if (ctx !== currentContext) {
         currentContext = ctx;
         manualOverride = false;
         setTab(desired, false);
-    } else if (!manualOverride) {
-        setTab(desired, false);
+        return true;
     }
+    if (!manualOverride) setTab(desired, false);
+    return false;
 }
 tabsEl.addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest('button');
@@ -1849,6 +1854,13 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         // 任務圖示為遊戲全域頭部列常駐圖示，任何畫面下點選都會送這個封包 → 切到一般
         // 分頁（任務清單顯示於此，見 index.html #quests）。
         else if (path === 'api_get_member/questlist') autoSwitch('general', 'quest');
+        // 進入入渠畫面（api_get_member/ndock）或入渠操作 → 一般分頁母港「入渠」分組的渠位。
+        // 只在剛進入入渠情境時定位；同一畫面內入渠後再送的 ndock 不把使用者選的待修清單切回渠位。
+        else if (path === 'api_get_member/ndock'
+            || path === 'api_req_nyukyo/start'
+            || path === 'api_req_nyukyo/speedchange') {
+            if (autoSwitch('general', 'dock')) renderGeneral.showDock();
+        }
         // 進入工廠（preset_dev_items）/改修工廠（remodel_slotlist）或工廠操作
         // （開發/建造/領艦/改修）→ 工廠分頁（僅顯示當下看板，歷史清單見情報總括）
         else if (path === 'api_get_member/preset_dev_items'

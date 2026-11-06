@@ -117,7 +117,8 @@ state recovery 必須傳原始 `event.ts`，否則計時器錨點會被重播當
 
 `autoSwitch`：`api_port/port`→一般、`api_req_map/start`／戰鬥→出擊、`api_get_member/mission`／
 `api_req_mission/start`→遠征、`api_get_member/questlist`→一般（任務圖示在遊戲全域頭部列，任何畫面
-都會送）、`preset_dev_items`／`remodel_slotlist`／工廠操作（createitem／createship／getship／
+都會送）、`api_get_member/ndock`／`api_req_nyukyo/start`／`speedchange`→一般分頁母港「入渠」分組的渠位
+（只在剛進入入渠情境時定位，同畫面內不重設使用者選的待修檢視）、`preset_dev_items`／`remodel_slotlist`／工廠操作（createitem／createship／getship／
 remodel_slot）→工廠。使用者手動切過分頁後暫停自動切換，直到情境變化。
 
 補強增設裝備是獨立端點 `api_req_kaisou/slotset_ex`（沒有 `api_slot_idx`，已實測）。

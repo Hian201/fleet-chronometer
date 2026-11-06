@@ -678,6 +678,14 @@ export interface RetreatAvailability {
 interface EscapeSlot { id: number; escort: boolean; index: number }
 export interface MissionView { fleet: string; missionId: number; dispNo: string; name: string; completeAt: number }
 export interface NdockView { ship: string; completeAt: number }
+// 入渠渠位：state -1＝未開放、0＝空渠、1＝入渠中（api_get_member/ndock／port 的 api_ndock）。
+export interface NdockSlotView { id: number; state: number; ship: string | null; completeAt: number | null }
+// 待修艦：耐久未滿且不在入渠中的艦。ndockTime 是遊戲給的入渠所需毫秒（api_ndock_time）；
+// 出擊中的艦血量已依戰鬥更新，但這個值要回港才會刷新，因此給 null 而不沿用舊值。
+export interface DamagedShipView {
+    id: number; name: string; nameJa: string; stypeId: number; lv: number; hp: number; maxhp: number;
+    fleet: number | null; onExpedition: boolean; ndockTime: number | null;
+}
 // state：-1=未解鎖、0=空塢、2=建造中、3=建造完成待領取（已用真實 api_get_member/kdock 封包驗證）
 export interface KdockView { id: number; state: number; ship: string; completeAt: number }
 // progress：本機觀測到的「已完成次數/目標次數」，null＝任務內文解不出可累加的目標
@@ -4718,6 +4726,63 @@ export class GameState {
                 ship: this.shipName(this.ships.get(n.api_ship_id)?.api_ship_id),
                 completeAt: n.api_complete_time as number,
             }));
+    }
+
+    ndockSlots(): NdockSlotView[] {
+        return this.ndockData.map((n, i) => {
+            const state = Number(n.api_state);
+            const busy = state > 0 && n.api_ship_id > 0;
+            const at = Number(n.api_complete_time);
+            return {
+                id: Number(n.api_id) || i + 1,
+                state,
+                ship: busy ? this.shipName(this.ships.get(n.api_ship_id)?.api_ship_id) : null,
+                completeAt: busy && Number.isFinite(at) && at > 0 ? at : null,
+            };
+        });
+    }
+
+    // 遊戲入渠艦船選擇清單的預設「損傷順」：耐久比例由低到高；比例相同時依 api_sort_id 升冪，
+    // 與其他遊戲清單的同值次序一致（開發者提供的入渠畫面截圖：滿血的金剛改二丙 1017→比叡改二丙 1027
+    // →榛名改二丙 1038→霧島 1041→霧島改二丙 1047；圖鑑編號與艦實例 id 都排不出這個順序）。
+    // 遠征中的艦遊戲同樣列出（蓋「遠征」章、無法選取）。sort_id 不可考的放最後，再以艦實例 id 穩定排序。
+    damagedShips(): DamagedShipView[] {
+        const inDock = this.shipsInDock();
+        const fleetOf = new Map<number, number>();
+        const expedDecks = new Set<number>();
+        this.decks.forEach((d, i) => {
+            if (d?.api_mission?.[0] > 0) expedDecks.add(i);
+            for (const id of d?.api_ship ?? []) if (id > 0 && !fleetOf.has(id)) fleetOf.set(id, i);
+        });
+        const sortieDecks = new Set<number>();
+        if (this.sortieInfo) {
+            sortieDecks.add(this.currentSortieFleetId);
+            if (this.combinedFlag > 0 && this.currentSortieFleetId === 0) sortieDecks.add(1);
+        }
+        const rows: (DamagedShipView & { sortId: number | undefined })[] = [];
+        for (const [id, s] of this.ships) {
+            const hp = Number(s.api_nowhp);
+            const maxhp = Number(s.api_maxhp);
+            if (!(maxhp > 0) || !(hp >= 0) || hp >= maxhp || inDock.has(id)) continue;
+            const deck = fleetOf.get(id);
+            const time = Number(s.api_ndock_time);
+            rows.push({
+                id,
+                name: this.shipName(s.api_ship_id),
+                nameJa: this.shipNameJa(s.api_ship_id),
+                stypeId: this.master.get(s.api_ship_id)?.stype ?? 0,
+                lv: Number(s.api_lv) || 0,
+                hp, maxhp,
+                fleet: deck === undefined ? null : deck + 1,
+                onExpedition: deck !== undefined && expedDecks.has(deck),
+                ndockTime: (deck !== undefined && sortieDecks.has(deck)) || !(time > 0) ? null : time,
+                sortId: this.master.get(s.api_ship_id)?.sortId,
+            });
+        }
+        const sortKey = (v: number | undefined) => v ?? Number.POSITIVE_INFINITY;
+        return rows
+            .sort((a, b) => a.hp * b.maxhp - b.hp * a.maxhp || sortKey(a.sortId) - sortKey(b.sortId) || a.id - b.id)
+            .map(({ sortId: _sortId, ...row }) => row);
     }
 
     // 只列「建造中／完成待領取」（state 2/3）；已解鎖但空塢(0)或未解鎖(-1)不算需要關注的計時項目，

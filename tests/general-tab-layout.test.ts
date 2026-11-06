@@ -18,6 +18,19 @@ describe('一般分頁', () => {
         expect(panelMain).toContain('mountGeneral(state, fmt, countdownText)');
     });
 
+    it('入渠分組可切換渠位與待修，每次進入入渠都先顯示渠位', () => {
+        expect(panelHtml).toContain('<div class="ledger-group-list" id="damaged" hidden></div>');
+        expect(general).toContain("let dockView: DockView = 'slots';");
+        expect(general).toContain("if (button.dataset.operation === 'dock') showDockSlots();");
+        expect(general).toContain("if (button.dataset.page === 'harbor') showDockSlots();");
+        expect(panelMain).toContain("if (tab === 'general' && previous !== 'general') renderGeneral.showDockSlots();");
+        // 遊戲進入入渠畫面時自動切到入渠分組的渠位。
+        expect(panelMain).toMatch(/path === 'api_get_member\/ndock'[\s\S]{0,160}if \(autoSwitch\('general', 'dock'\)\) renderGeneral\.showDock\(\);/);
+        expect(general).toMatch(/function showDock\(\) \{\s*page = 'harbor';\s*operation = 'dock';\s*dockView = 'slots';/);
+        // 時間欄固定寬，HP 條在不同位數的時間下仍對齊。
+        expect(css).toMatch(/\.dock-row\{[^}]*grid-template-columns:16px minmax\(0,1fr\) 40px 38px 34px 54px/);
+    });
+
     it('八項資源只顯示圖示和數量，名稱保留給輔助說明', () => {
         expect(general).toContain("const materialKeys = ['fuel', 'ammo', 'steel', 'bauxite', 'torch', 'drum', 'devmat', 'screw']");
         expect(general).toContain('matIconHtml(key, title)');

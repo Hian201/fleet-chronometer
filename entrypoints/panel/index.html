@@ -5839,6 +5839,29 @@
         .ledger-group-list{overflow-y:auto;min-height:0;scrollbar-width:thin}
         .ledger-op{display:grid;grid-template-columns:23px minmax(0,1fr) max-content;align-items:center;min-height:25px;gap:7px;padding:2px 4px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.3}
         .ledger-op .slot{color:var(--brass);font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}.ledger-op .name{min-width:0;font-weight:500;overflow-wrap:anywhere;line-height:1.3}.ledger-op .time{color:var(--text);font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+        /* 入渠：渠位／待修切換。待修列＝艦隊、艦名、HP 條、耐久、損傷、入渠所需時間；HP 條沿用編成的損傷色。
+           時間欄固定寬，位數不同時 HP 條仍對齊。 */
+        .dock-seg{display:flex}
+        .dock-seg button{appearance:none;display:inline-flex;gap:4px;align-items:center;padding:1px 7px;border:1px solid var(--line);background:var(--bg);color:var(--dim);font:inherit;font-size:10.5px;font-weight:500;line-height:1.3;white-space:nowrap;cursor:pointer}
+        .dock-seg button+button{border-left:none}
+        .dock-seg button:first-child{border-radius:4px 0 0 4px}.dock-seg button:last-child{border-radius:0 4px 4px 0}
+        .dock-seg button[aria-pressed="true"]{border-color:var(--brass);color:var(--sparkle);background:color-mix(in srgb,var(--brass) 14%,var(--bg))}
+        .dock-seg button:focus-visible{outline:2px solid var(--sparkle);outline-offset:-2px}
+        .dock-seg .n{font-variant-numeric:tabular-nums;font-weight:400}
+        .ledger-op.dock-empty .name{color:var(--stub)}
+        .dock-row{display:grid;grid-template-columns:16px minmax(0,1fr) 40px 38px 34px 54px;align-items:center;gap:6px;min-height:25px;padding:2px 4px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.3}
+        .dock-row .fl{display:inline-flex;justify-content:center;align-items:center;width:14px;height:14px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--brass) 70%,transparent);border-radius:3px;color:var(--brass);font-size:9.5px;font-weight:700;font-variant-numeric:tabular-nums}
+        .dock-row .fl:empty{border:0}
+        .dock-row .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+        .dock-row .hpbar{width:40px}
+        .dock-row .hp{text-align:right;color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .dock-row .tag{font-size:10px;font-weight:700;text-align:center;white-space:nowrap}
+        .dock-row.st-major .tag,.dock-row.st-major .hp{color:var(--dmg-major)}
+        .dock-row.st-mid .tag,.dock-row.st-mid .hp{color:var(--dmg-mid)}
+        .dock-row.st-minor .tag,.dock-row.st-minor .hp{color:var(--dmg-minor)}
+        .dock-row .time{text-align:right;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+        .dock-row .time.unknown{color:var(--dim);font-size:10.5px;font-weight:500}
+        .dock-row.away{opacity:.5}.dock-row.away .fl{border-style:dashed}
         .ledger-op.done .time{color:#58a55c}.ledger-op.locked{color:var(--dim)}.ledger-op.locked .time{color:var(--dim);font-weight:400}
         /* 任務種類色標：名稱前的細色塊；unknown 只畫空框，不借用任何種類色。 */
         .qc-mark { display: inline-block; flex: none; width: 4px; height: .95em; margin-right: 5px; border-radius: 1px; vertical-align: -.12em; background: var(--qc, transparent); }
@@ -6019,7 +6042,7 @@
                 <div class="ledger-materials" id="resline"></div>
                 <div class="ledger-group-tabs" id="operation-nav"></div>
                 <section class="ledger-group" id="operation-exped"><div class="ledger-group-heading" id="heading-exped"></div><div class="ledger-group-list" id="missions"></div></section>
-                <section class="ledger-group" id="operation-dock" hidden><div class="ledger-group-heading" id="heading-dock"></div><div class="ledger-group-list" id="ndocks"></div></section>
+                <section class="ledger-group" id="operation-dock" hidden><div class="ledger-group-heading" id="heading-dock"></div><div class="ledger-group-list" id="ndocks"></div><div class="ledger-group-list" id="damaged" hidden></div></section>
                 <section class="ledger-group" id="operation-build" hidden><div class="ledger-group-heading" id="heading-build"></div><div class="ledger-group-list" id="kdocks"></div></section>
                 <section class="ledger-group" id="operation-anchor" hidden><div class="ledger-group-heading" id="heading-anchor"></div><div class="ledger-group-list" id="anchorage"></div></section>
             </div>

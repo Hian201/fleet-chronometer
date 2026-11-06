@@ -21,24 +21,46 @@ type Operation = 'exped' | 'dock' | 'build' | 'anchor';
 const OPERATIONS = ['exped', 'dock', 'build', 'anchor'] as const;
 // 任務展開後的分頁：說明／原文／進度三選一，同時只顯示一個，面板高度不因進度判定而疊加。
 type QuestPane = 'detail' | 'original' | 'progress';
+// 入渠分組的兩個檢視：每次進入入渠分組都先顯示渠位（見 showDockSlots）。
+type DockView = 'slots' | 'damaged';
 const copy = {
     'zh-TW': { harbor: '母港', quests: '任務', items: '道具', exped: '遠征', dock: '入渠', build: '建造', anchor: '泊地',
         standard: '道具欄', expansion: '擴張欄', other: '其他', searchOpen: '搜尋道具', searchClose: '關閉搜尋', searchPlaceholder: '名稱', search: '搜尋所有道具欄（繁體中文／日文／英文）',
         pin: '釘選', unpin: '取消釘選', pinned: '已釘選',
         index: '持有量依最近取得的遊戲資料顯示', unavailable: '尚未取得', unknown: '資料尚未取得',
-        waiting: '尚未觀測到道具資料', none: '沒有符合的道具', detail: '用途', detailUnknown: '用途說明尚未取得', locked: '未開放' },
+        waiting: '尚未觀測到道具資料', none: '沒有符合的道具', detail: '用途', detailUnknown: '用途說明尚未取得', locked: '未開放',
+        docks: '渠位', damaged: '待修', emptyDock: '空渠', noDamaged: '沒有待修的艦', dmgMajor: '大破', dmgMid: '中破', dmgMinor: '小破',
+        dockRow: '{stype}・Lv{lv}・耐久 {hp}/{max}・入渠 {time}', onExpedition: '遠征中：回港後才能入渠',
+        afterPort: '回港後', afterPortTitle: '出擊中：入渠時間回港後才會更新' },
     ja: { harbor: '母港', quests: '任務', items: 'アイテム', exped: '遠征', dock: '入渠', build: '建造', anchor: '泊地',
         standard: '保有アイテム', expansion: '拡張アイテム', other: 'その他', searchOpen: 'アイテムを検索', searchClose: '検索を閉じる', searchPlaceholder: 'アイテム名', search: 'すべてのアイテム欄を検索（繁体字・日本語・英語）',
         pin: 'ピン留め', unpin: 'ピン留め解除', pinned: 'ピン留め中',
         index: '保有数は最後に取得したゲームデータを表示', unavailable: '未取得', unknown: 'データ未取得',
-        waiting: 'アイテムデータを未観測', none: '該当するアイテムなし', detail: '用途', detailUnknown: '日本語の説明は未登録', locked: '未開放' },
+        waiting: 'アイテムデータを未観測', none: '該当するアイテムなし', detail: '用途', detailUnknown: '日本語の説明は未登録', locked: '未開放',
+        docks: 'ドック', damaged: '要修理', emptyDock: '空き', noDamaged: '修理が必要な艦はありません', dmgMajor: '大破', dmgMid: '中破', dmgMinor: '小破',
+        dockRow: '{stype}・Lv{lv}・耐久 {hp}/{max}・入渠 {time}', onExpedition: '遠征中：帰投後に入渠できます',
+        afterPort: '帰投後', afterPortTitle: '出撃中：入渠時間は帰投後に更新されます' },
     en: { harbor: 'Harbor', quests: 'Quests', items: 'Items', exped: 'Expeditions', dock: 'Repairs', build: 'Construction', anchor: 'Upkeep',
         standard: 'Standard', expansion: 'Expansion', other: 'Other', searchOpen: 'Search items', searchClose: 'Close search', searchPlaceholder: 'Item name', search: 'Search all inventories (Traditional Chinese / Japanese / English)',
         pin: 'Pin', unpin: 'Unpin', pinned: 'Pinned',
         index: 'Counts use the latest observed game response', unavailable: 'Unavailable', unknown: 'Data unavailable',
-        waiting: 'Item data has not been observed', none: 'No matching items', detail: 'Use', detailUnknown: 'Description unavailable', locked: 'Locked' },
+        waiting: 'Item data has not been observed', none: 'No matching items', detail: 'Use', detailUnknown: 'Description unavailable', locked: 'Locked',
+        docks: 'Docks', damaged: 'Damaged', emptyDock: 'Empty', noDamaged: 'No damaged ships', dmgMajor: 'Taiha', dmgMid: 'Chuuha', dmgMinor: 'Shouha',
+        dockRow: '{stype} · Lv{lv} · HP {hp}/{max} · Repair {time}', onExpedition: 'On expedition: dock after it returns',
+        afterPort: 'Pending', afterPortTitle: 'On sortie: repair time updates after returning to port' },
 } as const;
 const byId = (id: string) => document.getElementById(id)!;
+const fillText = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k] ?? ''));
+// 入渠所需時間（毫秒）→ h:mm:ss；與倒數同格式，長時間的大型艦會超過 24 小時，不進位成天。
+function durationText(ms: number) {
+    const sec = Math.ceil(ms / 1000);
+    return `${Math.floor(sec / 3600)}:${String(Math.floor(sec / 60) % 60).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+}
+// 損傷分級門檻與編成列相同：≤25% 大破、≤50% 中破、≤75% 小破。
+function damageClass(hp: number, max: number): 'major' | 'mid' | 'minor' | '' {
+    const r = hp / max;
+    return r <= 0.25 ? 'major' : r <= 0.5 ? 'mid' : r <= 0.75 ? 'minor' : '';
+}
 const detailHtml = (s: string) => esc(s).replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\r?\n/g, '<br>');
 
 function serverLabel(obs: ServerObservation | null): string {
@@ -152,6 +174,9 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     const questsEl = byId('quests');
     let page: Page = 'harbor';
     let operation: Operation = 'exped';
+    let dockView: DockView = 'slots';
+    let damagedSignature = '';
+    let dockHeadingSignature = '';
     let inventory: ItemInventory = 'standard';
     let questSignature = '';
     let itemSignature = '';
@@ -169,6 +194,17 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         }
         if (page === 'items') renderItems();
     }
+    function showDockView(next: DockView) {
+        dockView = next;
+        byId('ndocks').hidden = dockView !== 'slots';
+        byId('damaged').hidden = dockView !== 'damaged';
+        for (const button of byId('heading-dock').querySelectorAll<HTMLButtonElement>('[data-dock-view]'))
+            button.setAttribute('aria-pressed', String(button.dataset.dockView === dockView));
+    }
+    /** 進入入渠分組（點分組、回到母港頁或切回一般分頁）時一律先顯示正在入渠的渠位。 */
+    function showDockSlots() {
+        showDockView('slots');
+    }
     function showOperation(next: Operation) {
         operation = next;
         for (const key of OPERATIONS) {
@@ -182,11 +218,19 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     }
     nav.addEventListener('click', event => {
         const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-page]');
-        if (button) showPage(button.dataset.page as Page);
+        if (!button) return;
+        if (button.dataset.page === 'harbor') showDockSlots();
+        showPage(button.dataset.page as Page);
     });
     operationNav.addEventListener('click', event => {
         const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-operation]');
-        if (button) showOperation(button.dataset.operation as Operation);
+        if (!button) return;
+        if (button.dataset.operation === 'dock') showDockSlots();
+        showOperation(button.dataset.operation as Operation);
+    });
+    byId('heading-dock').addEventListener('click', event => {
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-dock-view]');
+        if (button) showDockView(button.dataset.dockView as DockView);
     });
     inventoryNav.addEventListener('click', event => {
         const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-inventory]');
@@ -397,14 +441,55 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         operationNav.classList.toggle('has-anchor', upkeep.length > 0);
         operationNav.innerHTML = shownOps.map(key =>
             `<button type="button" data-operation="${key}" role="tab" aria-selected="${key === operation}"><span>${esc(l[key])}</span><span class="count">${groupCounts[key]}</span></button>`).join('');
-        for (const key of OPERATIONS) byId('heading-' + key).innerHTML = `<strong>${esc(l[key])}</strong>`;
+        const slots = state.ndockSlots();
+        const damaged = state.damagedShips();
+        for (const key of OPERATIONS) if (key !== 'dock') byId('heading-' + key).innerHTML = `<strong>${esc(l[key])}</strong>`;
+        const openSlots = slots.filter(slot => slot.state >= 0).length;
+        const pressed = (view: DockView) => String(view === dockView);
+        // 標題內容沒變就不重建，鍵盤操作切換鈕時焦點不會被每筆封包的重繪沖掉；按下狀態由 showDockView 更新。
+        const dockHeading = `<strong>${esc(l.dock)}</strong><span class="dock-seg" role="group" aria-label="${esc(l.dock)}">`
+            + `<button type="button" data-dock-view="slots" aria-pressed="${pressed('slots')}">${esc(l.docks)}<span class="n">${slots.length ? `${activeDock.length}/${openSlots}` : '—'}</span></button>`
+            + `<button type="button" data-dock-view="damaged" aria-pressed="${pressed('damaged')}">${esc(l.damaged)}<span class="n">${state.ships.size ? damaged.length : '—'}</span></button></span>`;
+        const headingKey = dockHeading.replace(/ aria-pressed="(true|false)"/g, '');
+        if (headingKey !== dockHeadingSignature) {
+            byId('heading-dock').innerHTML = dockHeading;
+            dockHeadingSignature = headingKey;
+        }
         byId('anchorage').innerHTML = upkeep.length ? upkeepHtml(upkeep) : '';
         byId('missions').innerHTML = missions.map(mm => {
             const name = expedDisplayName(mm.missionId, mm.name);
             return `<div class="ledger-op"><span class="slot">${esc(mm.fleet)}</span><span class="name" title="${esc(name)}">${esc(name)}</span><span class="time" data-countdown-at="${esc(String(mm.completeAt))}">${countdown(mm.completeAt)}</span></div>`;
         }).join('') || `<div class="g-empty">${esc(t('common.empty'))}</div>`;
-        byId('ndocks').innerHTML = activeDock.map(n =>
-            `<div class="ledger-op"><span class="slot">•</span><span class="name">${esc(n.ship)}</span><span class="time" data-countdown-at="${esc(String(n.completeAt))}">${countdown(n.completeAt)}</span></div>`).join('') || `<div class="g-empty">${esc(state.ndockData.length ? t('common.empty') : l.unknown)}</div>`;
+        byId('ndocks').innerHTML = slots.length ? slots.map(slot => {
+            if (slot.state < 0) return `<div class="ledger-op locked"><span class="slot">${slot.id}</span><span class="name">${esc(l.locked)}</span><span class="time"></span></div>`;
+            if (slot.ship === null) return `<div class="ledger-op dock-empty"><span class="slot">${slot.id}</span><span class="name">${esc(l.emptyDock)}</span><span class="time"></span></div>`;
+            return `<div class="ledger-op"><span class="slot">${slot.id}</span><span class="name" title="${esc(slot.ship)}">${esc(slot.ship)}</span>`
+                + (slot.completeAt === null ? '<span class="time"></span>'
+                    : `<span class="time" data-countdown-at="${esc(String(slot.completeAt))}">${countdown(slot.completeAt)}</span>`) + '</div>';
+        }).join('') : `<div class="g-empty">${esc(l.unknown)}</div>`;
+        // 待修清單內容沒變就不重繪，保留使用者的捲動位置。
+        const damagedKey = JSON.stringify([getLang(), state.ships.size > 0, damaged]);
+        if (damagedKey !== damagedSignature) {
+            const list = byId('damaged');
+            const scrollTop = list.scrollTop;
+            list.innerHTML = damaged.map(ship => {
+                const dmg = damageClass(ship.hp, ship.maxhp);
+                const tag = dmg === 'major' ? l.dmgMajor : dmg === 'mid' ? l.dmgMid : dmg === 'minor' ? l.dmgMinor : '';
+                const time = ship.ndockTime === null ? l.afterPort : durationText(ship.ndockTime);
+                const title = [ship.name,
+                    fillText(l.dockRow, { stype: t('stype.' + ship.stypeId), lv: ship.lv, hp: ship.hp, max: ship.maxhp, time }),
+                    ...(ship.ndockTime === null ? [l.afterPortTitle] : []),
+                    ...(ship.onExpedition ? [l.onExpedition] : [])].join('\n');
+                const pct = Math.max(0, Math.min(100, (ship.hp / ship.maxhp) * 100));
+                return `<div class="dock-row${dmg ? ' st-' + dmg : ''}${ship.onExpedition ? ' away' : ''}" title="${esc(title)}">`
+                    + `<span class="fl">${ship.fleet ?? ''}</span><span class="name">${esc(ship.name)}</span>`
+                    + `<span class="hpbar"><i style="width:${pct.toFixed(1)}%"></i></span>`
+                    + `<span class="hp">${ship.hp}/${ship.maxhp}</span><span class="tag">${esc(tag)}</span>`
+                    + `<span class="time${ship.ndockTime === null ? ' unknown' : ''}">${esc(time)}</span></div>`;
+            }).join('') || `<div class="g-empty">${esc(state.ships.size ? l.noDamaged : l.unknown)}</div>`;
+            list.scrollTop = scrollTop;
+            damagedSignature = damagedKey;
+        }
         byId('kdocks').innerHTML = state.kdockData.length ? state.kdockData.map((raw, index) => {
             const id = Number(raw.api_id) || index + 1;
             const view = activeBuild.find(entry => entry.id === id);
@@ -457,7 +542,15 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         }
         showPage(page);
         showOperation(operation);
+        showDockView(dockView);
         if (page !== 'items') renderItems();
+    }
+    /** 遊戲進入入渠畫面時：切到母港「入渠」分組並顯示渠位。 */
+    function showDock() {
+        page = 'harbor';
+        operation = 'dock';
+        dockView = 'slots';
+        render();
     }
     /** 切到母港「泊地」分組；沒有艦隊運作時不動並回傳 false。 */
     function showUpkeep(): boolean {
@@ -468,5 +561,5 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         return true;
     }
     render();
-    return Object.assign(render, { showUpkeep });
+    return Object.assign(render, { showUpkeep, showDockSlots, showDock });
 }
