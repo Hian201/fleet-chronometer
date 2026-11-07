@@ -1,5 +1,6 @@
-/* 介紹頁樣式。色票取自面板的暗色主調（深藍底＋黃銅強調），亮色依系統外觀切換。
-   排版依語言分開處理（台灣華語／日文／英文），規則與理由寫在各段註解。 */
+/* 介紹頁樣式。色票、圓角量表（4／6／8px）、631 強調色比例與按下回饋都照面板的設計綱要
+   （docs/design-guidelines.md §1、§3、§4.1），讓介紹頁與 demo 裡的正式面板是同一套視覺語言；
+   亮色依系統外觀切換。排版依語言分開處理（台灣華語／日文／英文），規則與理由寫在各段註解。 */
 
 /* ── CJK 字面校正 ──
    漢字與假名的字面在同字級下看起來比歐文大，混排時歐文顯得縮一號。這裡用 size-adjust
@@ -25,33 +26,41 @@
   unicode-range: U+2E80-2FFF, U+3000-30FF, U+31F0-31FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF; }
 
 :root {
-  --bg: #0e131b;
-  --bg-alt: #131a25;
+  /* 面板角色變數（design-guidelines §1.1）；--surface 對應面板的 --panel。 */
+  --bg: #10151d;
   --surface: #182030;
   --line: #2a3548;
-  --text: #dbe1ec;
-  --dim: #8c98ad;
-  --brass: #c9971f;
+  --text: #cfd6e4;
+  --dim: #7d8aa0;
+  --brass: #b8860b;
+  --sparkle: #e6c35c;
   --brass-ink: #1a1305;
-  --accent-soft: rgba(201, 151, 31, .14);
-  --shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  --accent-soft: color-mix(in srgb, var(--brass) 14%, transparent);
+  --shadow: 0 16px 40px color-mix(in srgb, #000 45%, transparent);
   --latin: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #f6f3ec;
-    --bg-alt: #efe9dd;
+    --bg: #eef0f4;
     --surface: #ffffff;
-    --line: #ddd4c2;
-    --text: #1f2633;
-    --dim: #5d6779;
-    --brass: #9a6d00;
+    --line: #d3d8e2;
+    --text: #26303f;
+    --dim: #6b7688;
+    --brass: #9a6b0b;
+    --sparkle: #8a6d1a;
     --brass-ink: #ffffff;
-    --accent-soft: rgba(154, 109, 0, .1);
-    --shadow: 0 20px 50px rgba(60, 45, 10, .18);
+    --shadow: 0 12px 32px color-mix(in srgb, #26303f 14%, transparent);
     color-scheme: light;
   }
+}
+/* 高對比偏好：分隔線與次要文字提高對比（design-guidelines §3.2）。 */
+@media (prefers-contrast: more) {
+  :root { --line: #4a5872; --dim: #a4afc2; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --line: #9aa4b5; --dim: #4a5466; } }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --accent-soft: color-mix(in srgb, var(--brass) 14%, var(--surface)); }
 }
 
 * { box-sizing: border-box; }
@@ -117,7 +126,7 @@ a { color: inherit; }
 
 .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
 section { padding: clamp(64px, 9vw, 112px) 0; }
-section:nth-of-type(even) { background: var(--bg-alt); }
+section + section { border-top: 1px solid var(--line); }
 .section-head { text-align: center; margin-bottom: clamp(32px, 5vw, 48px); }
 .section-head .lead { margin-inline: auto; }
 
@@ -135,8 +144,9 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 .top-nav a { color: var(--dim); text-decoration: none; }
 .top-nav a:hover { color: var(--text); }
 .langs { display: flex; gap: 4px; font-size: .85rem; letter-spacing: 0; }
-.langs a, .langs span { padding: 3px 8px; border-radius: 6px; text-decoration: none; color: var(--dim); white-space: nowrap; }
-.langs span { color: var(--text); background: var(--surface); border: 1px solid var(--line); }
+.langs a, .langs span { padding: 3px 8px; border-bottom: 2px solid transparent; text-decoration: none; color: var(--dim); white-space: nowrap; }
+/* 目前語言比照面板分頁：黃銅底線＋主要文字色。 */
+.langs span { color: var(--text); border-bottom-color: var(--brass); font-weight: 600; }
 .langs a:hover { color: var(--text); }
 @media (max-width: 920px) {
   .top-nav { display: none; }
@@ -144,7 +154,7 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 }
 
 /* ── 主視覺 ── */
-.hero { padding-top: clamp(72px, 11vw, 136px); background: radial-gradient(80% 60% at 50% 0%, var(--accent-soft), transparent 70%); }
+.hero { padding-top: clamp(72px, 11vw, 136px); }
 .hero .wrap { text-align: center; }
 .eyebrow { color: var(--brass); font-weight: 600; font-size: .95rem; margin-bottom: .8em; }
 :lang(en) .eyebrow { letter-spacing: .02em; }
@@ -156,10 +166,14 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  min-height: 44px; padding: 0 20px; border-radius: 999px;
+  min-height: 44px; padding: 0 20px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--surface); color: var(--text);
   font: inherit; font-size: .95rem; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: border-color 100ms ease-out, color 100ms ease-out, transform 100ms ease-out;
 }
+/* 按下即回饋（design-guidelines §3.1）：不等 click 處理完成。 */
+.btn:active:not(:disabled) { border-color: var(--sparkle); transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) { .btn:active:not(:disabled) { transform: none; } }
 .btn:hover:not(:disabled) { border-color: var(--brass); }
 .btn.primary { background: var(--brass); border-color: var(--brass); color: var(--brass-ink); }
 .btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
@@ -177,7 +191,7 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 .demo-intro > p { color: var(--dim); }
 .demo-intro > .fine { margin-bottom: 20px; }
 .device {
-  width: 394px; padding: 0 12px 12px; border-radius: 18px;
+  width: 394px; padding: 0 12px 12px; border-radius: 8px;
   background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
 }
 .device-bar { display: flex; gap: 6px; padding: 12px 2px; }
@@ -185,7 +199,7 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 .device-screen {
   --scale: 1;
   width: calc(370px * var(--scale)); height: calc(850px * var(--scale));
-  overflow: hidden; border-radius: 8px; background: #10151d;
+  overflow: hidden; border-radius: 6px; background: #10151d;
 }
 .device-screen iframe {
   display: block; width: 370px; height: 850px; border: 0;
@@ -195,7 +209,7 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 .controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
 .caption {
   min-height: 5.6em; padding: 14px 16px; margin-bottom: 16px;
-  border-left: 3px solid var(--brass); border-radius: 0 10px 10px 0; background: var(--surface);
+  border-left: 3px solid var(--brass); border-radius: 0 6px 6px 0; background: var(--surface);
 }
 .steps {
   list-style: none; counter-reset: step; margin: 0 0 16px; padding: 0;
@@ -203,7 +217,7 @@ section:nth-of-type(even) { background: var(--bg-alt); }
   max-height: 260px; overflow: auto; letter-spacing: 0;
 }
 .steps li {
-  counter-increment: step; padding: 6px 10px; border-radius: 8px;
+  counter-increment: step; padding: 6px 10px; border-radius: 4px;
   font-size: .86rem; color: var(--dim); border: 1px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .steps li::before { content: counter(step) ". "; font-variant-numeric: tabular-nums; }
@@ -214,7 +228,7 @@ section:nth-of-type(even) { background: var(--bg-alt); }
   .demo-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "side" "device"; grid-template-rows: none; }
   .device { width: auto; max-width: 394px; margin-inline: auto; margin-top: 8px; }
   /* 窄螢幕上控制列貼在視窗頂部，往下看面板時仍按得到「下一步」。 */
-  .demo-side { position: sticky; top: 60px; z-index: 5; padding: 10px 0 2px; background: var(--bg-alt); }
+  .demo-side { position: sticky; top: 60px; z-index: 5; padding: 10px 0 2px; background: var(--bg); }
   .demo-side .controls { margin: 0 0 10px; }
   .demo-side .caption { min-height: 0; margin-bottom: 8px; font-size: .92rem; }
   .demo-side .steps { display: none; }
@@ -224,17 +238,18 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 680px) { .cards.two { grid-template-columns: minmax(0, 1fr); } }
-.cards li { padding: 24px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
-.cards h3 { color: var(--brass); }
+.cards li { padding: 20px 22px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
+/* 卡片標題用主要文字色；黃銅只留給選中、主要操作與關鍵提示（631 的 10%），不把整排標題染成金色。 */
+.cards h3 { color: var(--text); }
 .cards p { color: var(--dim); margin: 0; font-size: .95rem; }
 
-.arch { margin: 0; padding: clamp(12px, 3vw, 28px); border-radius: 16px; background: #ffffff; border: 1px solid var(--line); }
+.arch { margin: 0; padding: clamp(12px, 3vw, 28px); border-radius: 8px; background: #ffffff; border: 1px solid var(--line); }
 .arch img { display: block; width: 100%; height: auto; }
 
 /* ── 開始使用 ── */
 .install .cta { margin-top: 0; }
 .notice {
-  margin: 40px auto 0; padding: 14px 18px; border-radius: 12px;
+  margin: 40px auto 0; padding: 14px 18px; border-radius: 6px;
   background: var(--accent-soft); border: 1px solid var(--line); color: var(--text);
   font-size: .92rem; text-align: center;
 }
@@ -242,3 +257,16 @@ section:nth-of-type(even) { background: var(--bg-alt); }
 .foot { padding: 36px 0 48px; border-top: 1px solid var(--line); color: var(--dim); font-size: .85rem; }
 .foot p { max-width: 48em; margin: 0; }
 :lang(en) .foot p { max-width: 90ch; }
+
+/* 隱私權政策頁（site/privacy.ts）：純文件版面，表格窄螢幕時橫向捲動而非撐破頁面。 */
+.doc-body { max-width: 760px; padding: clamp(40px, 7vw, 72px) 0 96px; }
+.doc-body h1 { font-size: clamp(1.8rem, 1.3rem + 1.8vw, 2.4rem); }
+.doc-body h2 { font-size: 1.35rem; margin-top: 1.6em; }
+.doc-body ul { padding-left: 1.3em; margin: 0 0 1em; }
+.doc-body li { margin-bottom: .45em; }
+.doc-body hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+.doc-body code { font-size: .88em; padding: .1em .35em; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); }
+.doc-table { overflow-x: auto; margin: 0 0 1.2em; }
+.doc-table table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: .92rem; }
+.doc-table th, .doc-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.doc-table th { color: var(--dim); font-weight: 600; }

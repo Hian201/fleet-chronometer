@@ -177,7 +177,7 @@ ${lang === 'en' ? ROOT_REDIRECT : ''}
         </header>
         <div class="cta">
           <a class="btn primary" href="${LINKS.store}" rel="noopener">${esc(c.install.store)}</a>
-          <a class="btn" href="${LINKS.source}" rel="noopener">${esc(c.install.source)}</a>
+          <a class="btn" href="${LINKS.contact}">${esc(c.install.contact)}</a>
           <a class="btn ghost" href="${LINKS.privacy}" rel="noopener">${esc(c.install.privacyPolicy)}</a>
         </div>
         <p class="notice" role="note">${p(c.install.notice)}</p>

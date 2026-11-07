@@ -1,13 +1,13 @@
 # Privacy Policy — Fleet Chronometer
 
-**Last updated:** 2026-07-25
+**Last updated:** 2026-11-07
 
 This privacy policy applies to the **Fleet Chronometer** browser extension
 (「航海鐘」／「クロノメーター」), a fan-made companion for KanColle
 (艦隊これくしょん -艦これ-).
 
-Contact for privacy questions: open an issue on the project repository, or
-use the contact email listed on the Chrome Web Store listing.
+Contact for privacy questions: use the contact email listed on the Chrome Web
+Store listing.
 
 ---
 

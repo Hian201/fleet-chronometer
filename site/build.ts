@@ -10,6 +10,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGE_PATH, type SiteLang } from './content';
 import { renderPage } from './page';
+import { renderPrivacyPage } from './privacy';
 import type { DemoData } from './demo/scenario';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,9 +85,11 @@ for (const lang of Object.keys(PAGE_PATH) as SiteLang[]) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(resolve(dir, 'index.html'), renderPage(lang, ORIGIN));
 }
+mkdirSync(resolve(out, 'privacy'), { recursive: true });
+writeFileSync(resolve(out, 'privacy/index.html'), renderPrivacyPage(resolve(root, 'PRIVACY.md'), ORIGIN));
 writeFileSync(resolve(out, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /demo/\nSitemap: ${ORIGIN}/sitemap.xml\n`);
 writeFileSync(resolve(out, 'sitemap.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + Object.values(PAGE_PATH).map(p => `  <url><loc>${ORIGIN}${p}</loc></url>`).join('\n') + '\n</urlset>\n');
+    + [...Object.values(PAGE_PATH), '/privacy/'].map(p => `  <url><loc>${ORIGIN}${p}</loc></url>`).join('\n') + '\n</urlset>\n');
 // Cloudflare Pages 的回應標頭：demo 資料與圖示可長快取，頁面每次重新驗證。
 writeFileSync(resolve(out, '_headers'), [
     '/*',

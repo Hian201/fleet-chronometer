@@ -8,8 +8,10 @@ export type SiteLang = 'zh-TW' | 'en' | 'ja';
 
 export const LINKS = {
     store: 'https://chromewebstore.google.com/detail/fleet-chronometer-kancoll/akinifhdgdafifijckbbahfeoikkknip',
-    source: 'https://gitlab.com/Syuan201/fleet-chronometer',
-    privacy: 'https://gitlab.com/Syuan201/fleet-chronometer/-/blob/main/PRIVACY.md',
+    // 聯絡信箱與商店頁的開發人員聯絡信箱相同；介紹頁不連到程式碼託管平台。
+    contact: 'mailto:yisyuan201@gmail.com',
+    // 隱私權政策由 PRIVACY.md 建置成站內頁（site/privacy.ts），商店的隱私權政策網址也指向這裡。
+    privacy: '/privacy/',
 };
 
 // 各語言頁面的路徑；根目錄是英文版，首次造訪會依瀏覽器語言導向。
@@ -38,7 +40,7 @@ export interface SiteCopy {
     features: { title: string; lead: string; items: { title: string; text: string }[] };
     how: { title: string; lead: string; alt: string };
     privacy: { title: string; items: { title: string; text: string }[] };
-    install: { title: string; text: string; notice: string; store: string; source: string; privacyPolicy: string };
+    install: { title: string; text: string; notice: string; store: string; contact: string; privacyPolicy: string };
     footer: string;
 }
 
@@ -116,7 +118,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
             text: `從 Chrome 線上應用程式商店安裝，打開遊戲後點擴充圖示即可開啟面板。${EDGE} 等 Chromium 瀏覽器同樣適用。`,
             notice: '本專案仍在公開測試，建議與其他輔助工具並行並交叉確認重要資訊；重要紀錄請自行備份。',
             store: '前往 Chrome 線上應用程式商店',
-            source: '原始碼',
+            contact: '聯絡開發者',
             privacyPolicy: '隱私權政策',
         },
         footer: '航海鐘是玩家自製的同人工具，與 DMM.com 及 Kadokawa Games 無任何關係，也未經其認可或贊助。「艦隊これくしょん -艦これ-」及遊戲素材版權皆屬原權利人。',
@@ -194,7 +196,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
             text: `Install it from the ${CWS_EN}, open the game, and click the extension icon to open the panel. It also works in ${EDGE} and other Chromium browsers.`,
             notice: 'The project is in public testing. Run it alongside another companion tool, cross-check important information, and back up records you care about.',
             store: `Open the ${CWS_EN}`,
-            source: 'Source code',
+            contact: 'Contact',
             privacyPolicy: 'Privacy policy',
         },
         footer: `${FC} is a fan-made tool. It is not affiliated with, endorsed by, or sponsored by DMM.com or Kadokawa Games. “KanColle” and all game assets belong to their respective owners.`,
@@ -272,7 +274,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
             text: `Chromeウェブストアからインストールし、ゲームを開いて拡張機能のアイコンをクリックするとパネルが開きます。${EDGE}などのChromium系ブラウザでも使えます。`,
             notice: '本プロジェクトは公開テスト中です。他の補助ツールと併用して重要な情報を相互確認し、大切な記録はご自身でバックアップしてください。',
             store: 'Chromeウェブストアを開く',
-            source: 'ソースコード',
+            contact: 'お問い合わせ',
             privacyPolicy: 'プライバシーポリシー',
         },
         footer: 'クロノメーターはファンによる非公式ツールであり、DMM.comおよび角川ゲームスとは一切関係なく、公認・後援も受けていません。「艦隊これくしょん -艦これ-」およびゲーム内素材の著作権は各権利者に帰属します。',
