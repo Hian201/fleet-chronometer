@@ -5,16 +5,19 @@ README 用架構圖的產生器。**`docs/architecture-*.svg` 是產生物，勿
 
 ```bash
 python3 tools/architecture/generate.py
-# → docs/architecture-en.svg / architecture-zh-TW.svg / architecture-ja.svg
+# → docs/architecture-{en,zh-TW,ja}.svg       亮色版（README 用）
+# → docs/architecture-{en,zh-TW,ja}-dark.svg  暗色版（介紹頁暗色主題用）
 ```
 
-三份 README（`README.md` / `README.zh-TW.md` / `README.ja.md`）各引用同語言那一份。
+三份 README（`README.md` / `README.zh-TW.md` / `README.ja.md`）各引用同語言的亮色版。
+介紹頁（`site/`）依頁面主題在亮／暗兩份之間切換。色票集中在 `generate.py` 的 `LIGHT`／`DARK`，
+以角色命名；亮色裡同一個海軍藍兼任標題、圖示與徽章，暗色版拆成 `HEAD`／`INK`／`BADGE` 分別給色。
 
 ## 設計約束
 
 - **面向一般使用者**：主軸是「遊戲照常運作 → 只複製一份唯讀副本 → 全在本機處理」，
   技術詞只出現在卡片的小標（content script／service worker／IndexedDB），不出現在主句。
-- **自帶不透明底色**：GitHub 亮／暗兩種主題都要可讀，不做 `prefers-color-scheme` 分歧。
+- **自帶不透明底色**：README 只用亮色版，GitHub 亮／暗兩種主題都要可讀，SVG 內不做 `prefers-color-scheme` 分歧（亮暗切換由介紹頁選圖）。
 - **不用 `<style>` 與 CSS class**：GitHub 會清洗 README 內嵌的 SVG，樣式一律走
   presentation attribute（`fill=` / `font-size=` …）才保證顯示一致。
 - **不用 `marker`／漸層**：同上，箭頭一律畫成顯式 `<polygon>`，圖示用平塗色。

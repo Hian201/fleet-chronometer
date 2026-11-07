@@ -38,10 +38,26 @@
   --accent-soft: color-mix(in srgb, var(--brass) 14%, transparent);
   --shadow: 0 16px 40px color-mix(in srgb, #000 45%, transparent);
   --latin: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --arch-frame: var(--surface);
   color-scheme: dark;
 }
+/* 亮色主題：<html data-theme="light">（site/theme.ts 依系統外觀或使用者選擇設定）。
+   沒有 JS 時退回系統外觀，所以同一組變數另外掛在 prefers-color-scheme 底下。 */
+:root[data-theme="light"] {
+  --bg: #eef0f4;
+  --surface: #ffffff;
+  --line: #d3d8e2;
+  --text: #26303f;
+  --dim: #6b7688;
+  --brass: #9a6b0b;
+  --sparkle: #8a6d1a;
+  --brass-ink: #ffffff;
+  --shadow: 0 12px 32px color-mix(in srgb, #26303f 14%, transparent);
+  --arch-frame: #ffffff;
+  color-scheme: light;
+}
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
+  :root:not([data-theme]) {
     --bg: #eef0f4;
     --surface: #ffffff;
     --line: #d3d8e2;
@@ -51,13 +67,14 @@
     --sparkle: #8a6d1a;
     --brass-ink: #ffffff;
     --shadow: 0 12px 32px color-mix(in srgb, #26303f 14%, transparent);
+    --arch-frame: #ffffff;
     color-scheme: light;
   }
 }
 /* 高對比偏好：分隔線與次要文字提高對比（design-guidelines §3.2）。 */
 @media (prefers-contrast: more) {
   :root { --line: #4a5872; --dim: #a4afc2; }
-  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --line: #9aa4b5; --dim: #4a5466; } }
+  :root[data-theme="light"] { --line: #9aa4b5; --dim: #4a5466; }
 }
 @media (prefers-reduced-transparency: reduce) {
   :root { --accent-soft: color-mix(in srgb, var(--brass) 14%, var(--surface)); }
@@ -199,7 +216,7 @@ section + section { border-top: 1px solid var(--line); }
 .device-screen {
   --scale: 1;
   width: calc(370px * var(--scale)); height: calc(850px * var(--scale));
-  overflow: hidden; border-radius: 6px; background: #10151d;
+  overflow: hidden; border-radius: 6px; background: var(--bg);
 }
 .device-screen iframe {
   display: block; width: 370px; height: 850px; border: 0;
@@ -243,8 +260,16 @@ section + section { border-top: 1px solid var(--line); }
 .cards h3 { color: var(--text); }
 .cards p { color: var(--dim); margin: 0; font-size: .95rem; }
 
-.arch { margin: 0; padding: clamp(12px, 3vw, 28px); border-radius: 8px; background: #ffffff; border: 1px solid var(--line); }
+.arch { margin: 0; padding: clamp(12px, 3vw, 28px); border-radius: 8px; background: var(--arch-frame); border: 1px solid var(--line); }
 .arch img { display: block; width: 100%; height: auto; }
+/* 架構圖亮／暗兩張只顯示符合主題的一張；display:none 的 lazy 圖片不會下載。 */
+.arch .arch-light { display: none; }
+:root[data-theme="light"] .arch .arch-light { display: block; }
+:root[data-theme="light"] .arch .arch-dark { display: none; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .arch .arch-light { display: block; }
+  :root:not([data-theme]) .arch .arch-dark { display: none; }
+}
 
 /* ── 開始使用 ── */
 .install .cta { margin-top: 0; }

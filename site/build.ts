@@ -77,7 +77,9 @@ cpSync(resolve(root, 'public/icons'), resolve(out, 'icons'), { recursive: true }
 cpSync(resolve(root, 'public/icon'), resolve(out, 'icon'), { recursive: true });
 mkdirSync(resolve(out, 'img'), { recursive: true });
 for (const lang of ['zh-TW', 'en', 'ja']) {
-    cpSync(resolve(root, `docs/architecture-${lang}.svg`), resolve(out, `img/architecture-${lang}.svg`));
+    for (const suffix of ['', '-dark']) {
+        cpSync(resolve(root, `docs/architecture-${lang}${suffix}.svg`), resolve(out, `img/architecture-${lang}${suffix}.svg`));
+    }
 }
 cpSync(resolve(root, 'site/style.css'), resolve(out, 'style.css'));
 for (const lang of Object.keys(PAGE_PATH) as SiteLang[]) {

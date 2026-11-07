@@ -27,19 +27,27 @@ FONT = ("-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', "
         "'Noto Sans CJK TC', 'Noto Sans CJK JP', 'PingFang TC', 'Hiragino Sans', "
         "'Microsoft JhengHei', Roboto, Helvetica, Arial, sans-serif")
 
-# 取自 entrypoints/panel/index.html 的亮色主題變數與 docs/design-guidelines.md 的語意色。
-# 圖自帶不透明底色，故在 GitHub 亮/暗兩種主題下都可讀。
-BG = '#f4f6fa'
-CARD = '#ffffff'
-TINT = '#f8fafc'
-LINE = '#d3d8e2'
-TEXT = '#26303f'
-DIM = '#6b7688'
-SEA = '#182c46'
-BRASS = '#9a6b0b'
-OK = '#2f7d4f'
-NO = '#c0392b'
-TAP = '#2f8fcf'
+# 色票以「角色」命名。亮色取自 entrypoints/panel/index.html 的亮色主題變數，暗色取自面板的
+# 暗色主題變數；語意色見 docs/design-guidelines.md §1.2。亮色版自帶不透明底色，GitHub 亮／暗
+# 兩種主題都可讀（README 只用亮色版）；暗色版給介紹頁的暗色主題用。
+# 亮色裡「海軍藍」同時是標題字、圖示線條與編號徽章底色；暗底上這三種用途要分開給色，
+# 否則深藍標題會看不見、淺色徽章配白字會糊掉，所以拆成 HEAD／INK／BADGE 三個角色。
+LIGHT = {
+    'BG': '#f4f6fa', 'CARD': '#ffffff', 'TINT': '#f8fafc', 'LINE': '#d3d8e2',
+    'TEXT': '#26303f', 'DIM': '#6b7688',
+    'HEAD': '#182c46', 'INK': '#182c46', 'BADGE': '#182c46', 'BADGE_TEXT': '#ffffff',
+    'MARK': '#182c46', 'WINDOW': '#ffffff',
+    'BRASS': '#9a6b0b', 'OK': '#2f7d4f', 'NO': '#c0392b', 'TAP': '#2f8fcf',
+}
+DARK = {
+    'BG': '#131a25', 'CARD': '#182030', 'TINT': '#1c2638', 'LINE': '#2a3548',
+    'TEXT': '#cfd6e4', 'DIM': '#7d8aa0',
+    'HEAD': '#e3e8f0', 'INK': '#9fb3cf', 'BADGE': '#2f4263', 'BADGE_TEXT': '#e6ebf3',
+    'MARK': '#182c46', 'WINDOW': '#182030',
+    # 暗底上的文字需要更亮的語意色：綠取面板 HP 條、紅取面板 --dmg-major，黃銅取面板暗色 --brass。
+    'BRASS': '#b8860b', 'OK': '#58a55c', 'NO': '#e05555', 'TAP': '#4aa3df',
+}
+P = LIGHT  # build() 執行期間的目前色票
 
 BOX_Y, BOX_H = 172, 100
 SERVER_X, GAME_X, BOX_W = 210, 730, 340
@@ -63,13 +71,15 @@ def rect(x, y, w, h, fill, stroke=None, rx=12, sw=1.5) -> str:
     return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{s}/>'
 
 
-def text(x, y, s, size=14, fill=TEXT, weight='400', anchor='start', tracking=None) -> str:
+def text(x, y, s, size=14, fill=None, weight='400', anchor='start', tracking=None) -> str:
+    fill = fill or P['TEXT']
     t = f' letter-spacing="{tracking}"' if tracking else ''
     return (f'<text x="{x}" y="{y}" font-family="{FONT}" font-size="{size}" '
             f'font-weight="{weight}" fill="{fill}" text-anchor="{anchor}"{t}>{esc(s)}</text>')
 
 
-def line(x1, y1, x2, y2, stroke=LINE, sw=1.5, dash=None) -> str:
+def line(x1, y1, x2, y2, stroke=None, sw=1.5, dash=None) -> str:
+    stroke = stroke or P['LINE']
     d = f' stroke-dasharray="{dash}"' if dash else ''
     return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" stroke-width="{sw}"{d}/>'
 
@@ -85,27 +95,29 @@ def tri(cx, cy, direction, size, fill) -> str:
     return f'<polygon points="{pts}" fill="{fill}"/>'
 
 
-def cross(cx, cy, r=5.2, stroke=NO) -> str:
+def cross(cx, cy, r=5.2, stroke=None) -> str:
+    stroke = stroke or P['NO']
     return (f'<path d="M{cx - r},{cy - r} L{cx + r},{cy + r} M{cx + r},{cy - r} L{cx - r},{cy + r}" '
             f'fill="none" stroke="{stroke}" stroke-width="2.4" stroke-linecap="round"/>')
 
 
-def check(cx, cy, stroke=OK) -> str:
+def check(cx, cy, stroke=None) -> str:
+    stroke = stroke or P['OK']
     return (f'<path d="M{cx - 5.5},{cy - 0.2} L{cx - 1.8},{cy + 4} L{cx + 5.8},{cy - 5}" '
             f'fill="none" stroke="{stroke}" stroke-width="2.6" '
             f'stroke-linecap="round" stroke-linejoin="round"/>')
 
 
 def badge(cx, cy, label) -> str:
-    return (f'<circle cx="{cx}" cy="{cy}" r="15" fill="{SEA}"/>'
-            + text(cx, cy + 5, label, 14.5, '#ffffff', '700', 'middle'))
+    return (f'<circle cx="{cx}" cy="{cy}" r="15" fill="{P["BADGE"]}"/>'
+            + text(cx, cy + 5, label, 14.5, P['BADGE_TEXT'], '700', 'middle'))
 
 
 def mark(x, y) -> str:
     """扁平化的計時器標記（取自 tools/app-icon/chronometer.svg，去漸層以利清洗器）。"""
     return (f'<g transform="translate({x},{y})">'
-            f'<rect x="0" y="0" width="46" height="46" rx="11" fill="{SEA}"/>'
-            f'<circle cx="23" cy="24" r="15.5" fill="{BRASS}"/>'
+            f'<rect x="0" y="0" width="46" height="46" rx="11" fill="{P["MARK"]}"/>'
+            f'<circle cx="23" cy="24" r="15.5" fill="{LIGHT["BRASS"]}"/>'
             f'<circle cx="23" cy="24" r="12" fill="#f3ead0"/>'
             f'<path d="M23,24 L23,16.5" stroke="#202b35" stroke-width="2.2" stroke-linecap="round"/>'
             f'<path d="M23,24 L28.6,27.2" stroke="#202b35" stroke-width="1.8" stroke-linecap="round"/>'
@@ -276,7 +288,11 @@ STRINGS = {
 }
 
 
-def build(s: dict) -> str:
+def build(s: dict, palette: dict) -> str:
+    global P
+    P = palette
+    BG, CARD, TINT, LINE, TEXT, DIM = (P[k] for k in ('BG', 'CARD', 'TINT', 'LINE', 'TEXT', 'DIM'))
+    HEAD, INK, BRASS, OK, NO, TAP = (P[k] for k in ('HEAD', 'INK', 'BRASS', 'OK', 'NO', 'TAP'))
     o: list[str] = []
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
              f'viewBox="0 0 {W} {H}" role="img" aria-label="{esc(s["title"])}">')
@@ -286,7 +302,7 @@ def build(s: dict) -> str:
 
     # ── 標頭 ──
     o.append(mark(48, 22))
-    o.append(text(112, 50, s['title'], 27, SEA, '700', tracking='-0.01em'))
+    o.append(text(112, 50, s['title'], 27, HEAD, '700', tracking='-0.01em'))
     o.append(text(112, 76, s['subtitle'], 14.5, DIM))
     o.append(line(48, 98, 1232, 98))
 
@@ -296,22 +312,22 @@ def build(s: dict) -> str:
 
     o.append(rect(SERVER_X, BOX_Y, BOX_W, BOX_H, CARD, LINE))
     for i, gy in enumerate((206, 218, 230)):
-        o.append(rect(236, gy, 30, 9, SEA, rx=2.5))
+        o.append(rect(236, gy, 30, 9, INK, rx=2.5))
         o.append(f'<circle cx="{261}" cy="{gy + 4.5}" r="1.8" fill="#f3ce72"/>')
     o.append(text(282, 216, s['server'], 16.5, TEXT, '700'))
     o.append(text(282, 240, s['serverSub'], 12.5, DIM))
 
     o.append(rect(GAME_X, BOX_Y, BOX_W, BOX_H, CARD, LINE))
-    o.append(rect(756, 210, 30, 24, '#ffffff', SEA, rx=3.5, sw=1.8))
-    o.append(line(756, 217.5, 786, 217.5, SEA, 1.8))
+    o.append(rect(756, 210, 30, 24, P['WINDOW'], INK, rx=3.5, sw=1.8))
+    o.append(line(756, 217.5, 786, 217.5, INK, 1.8))
     for i in range(3):
-        o.append(f'<circle cx="{760.5 + i * 4.5}" cy="{213.8}" r="1.1" fill="{SEA}"/>')
+        o.append(f'<circle cx="{760.5 + i * 4.5}" cy="{213.8}" r="1.1" fill="{INK}"/>')
     o.append(text(802, 216, s['game'], 16.5, TEXT, '700'))
     o.append(text(802, 240, s['gameSub'], 12.5, DIM))
 
-    o.append(line(566, 222, 714, 222, SEA, 2.6))
-    o.append(tri(562, 222, 'l', 8, SEA))
-    o.append(tri(718, 222, 'r', 8, SEA))
+    o.append(line(566, 222, 714, 222, INK, 2.6))
+    o.append(tri(562, 222, 'l', 8, INK))
+    o.append(tri(718, 222, 'r', 8, INK))
 
     # ── ② 唯讀副本（虛線＝只複製，不介入）──
     o.append(line(900, BOX_Y + BOX_H, 900, EXT_Y - 8, TAP, 2.4, dash='7 6'))
@@ -322,7 +338,7 @@ def build(s: dict) -> str:
 
     # ── 擴充邊界 ──
     o.append(rect(EXT_X, EXT_Y, EXT_W, EXT_H, CARD, BRASS, rx=16, sw=2))
-    o.append(text(72, 390, s['extTitle'], 16, SEA, '700'))
+    o.append(text(72, 390, s['extTitle'], 16, HEAD, '700'))
 
     for i, (title, sub, body) in enumerate(s['stages']):
         x = STAGE_XS[i]
@@ -377,9 +393,10 @@ def main() -> None:
     docs = pathlib.Path(__file__).resolve().parents[2] / 'docs'
     docs.mkdir(exist_ok=True)
     for lang, strings in STRINGS.items():
-        out = docs / f'architecture-{lang}.svg'
-        out.write_text(build(strings), encoding='utf-8')
-        print(f'wrote {out.relative_to(docs.parent)}')
+        for suffix, palette in (('', LIGHT), ('-dark', DARK)):
+            out = docs / f'architecture-{lang}{suffix}.svg'
+            out.write_text(build(strings, palette), encoding='utf-8')
+            print(f'wrote {out.relative_to(docs.parent)}')
 
 
 if __name__ == '__main__':

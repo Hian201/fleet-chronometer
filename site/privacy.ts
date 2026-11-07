@@ -3,6 +3,7 @@
 // （標題、段落、清單含縮排續行、表格、分隔線、粗體、行內程式碼、連結），
 // 遇到不支援的語法時建置失敗，避免政策內容被默默吃掉。
 import { readFileSync } from 'node:fs';
+import { THEME_BOOT } from './theme';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const CJK = /[぀-ヿ㐀-鿿豈-﫿＀-￯]/u;
@@ -75,6 +76,8 @@ export function renderPrivacyPage(markdownPath: string, origin: string): string 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  ${THEME_BOOT}
   <title>${esc(title)}</title>
   <meta name="description" content="Privacy policy for the Fleet Chronometer browser extension.">
   <link rel="canonical" href="${origin}/privacy/">

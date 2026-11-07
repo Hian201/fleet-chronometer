@@ -1,5 +1,6 @@
-// 介紹頁的 demo 控制：iframe 內是正式面板，這裡只負責送出「下一步」、顯示步驟說明。
-// 主題切換寫進同源 localStorage，面板會經 storage 事件自行套用，不必重新載入。
+// 介紹頁的 demo 控制：iframe 內是正式面板，這裡只負責送出「下一步」、顯示步驟說明，
+// 以及讓網頁、架構圖與面板的亮／暗主題成套切換（見下方 applyTheme）。
+import { SITE_THEME_KEY } from './theme';
 
 interface StepCopy { label: string; text: string }
 interface DemoCopy {
@@ -87,6 +88,26 @@ autoBtn.addEventListener('click', () => {
     autoTimer = window.setInterval(next, AUTO_DELAY_MS);
     autoBtn.textContent = copy.pause;
 });
+// 主題：網頁、架構圖與 demo 面板成套切換。網頁主題由 <head> 的 THEME_BOOT 先決定（site/theme.ts），
+// 面板沿用同一個值：開啟時以 ?theme= 帶入，之後改 kc-theme，面板透過 storage 事件同步。
+const currentTheme = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+const panelSrc = () => `/demo/panel.html?lang=${encodeURIComponent(copy.lang)}&theme=${currentTheme()}&t=${Date.now()}`;
+function applyTheme(theme: 'light' | 'dark', remember: boolean) {
+    document.documentElement.dataset.theme = theme;
+    try {
+        if (remember) localStorage.setItem(SITE_THEME_KEY, theme);
+        localStorage.setItem('kc-theme', theme);
+    } catch { /* 儲存被拒時只切換這一次，不記憶 */ }
+}
+themeBtn.addEventListener('click', () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light', true));
+// 沒有手動選過主題時，系統外觀改變就跟著改。
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+    let remembered: string | null = null;
+    try { remembered = localStorage.getItem(SITE_THEME_KEY); } catch { /* 視為未記憶 */ }
+    if (remembered !== 'light' && remembered !== 'dark') applyTheme(e.matches ? 'light' : 'dark', false);
+});
+frame.src = panelSrc();
+
 restartBtn.addEventListener('click', () => {
     stopAuto();
     steps = [];
@@ -95,13 +116,7 @@ restartBtn.addEventListener('click', () => {
     caption.textContent = copy.loading;
     list.innerHTML = '';
     nextBtn.disabled = autoBtn.disabled = true;
-    frame.src = `/demo/panel.html?lang=${encodeURIComponent(copy.lang)}&t=${Date.now()}`;
-});
-themeBtn.addEventListener('click', () => {
-    try {
-        const light = localStorage.getItem('kc-theme') === 'light';
-        localStorage.setItem('kc-theme', light ? 'dark' : 'light');
-    } catch { /* 儲存被拒時主題維持不變 */ }
+    frame.src = panelSrc();
 });
 
 // 窄螢幕上把 370px 的面板等比縮小，避免頁面橫向捲動。

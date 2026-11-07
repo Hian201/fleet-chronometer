@@ -1,9 +1,11 @@
 // 產品介紹頁的 HTML 模板：每種語言輸出一份靜態頁，demo 控制只依賴頁內的 JSON 文案。
 import { COPY, LINKS, PAGE_PATH, type SiteLang } from './content';
+import { THEME_BOOT } from './theme';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const LANGS: SiteLang[] = ['zh-TW', 'en', 'ja'];
-const ARCH_SVG: Record<SiteLang, string> = { 'zh-TW': 'architecture-zh-TW.svg', en: 'architecture-en.svg', ja: 'architecture-ja.svg' };
+// 架構圖有亮／暗兩份（tools/architecture/generate.py），依頁面主題只顯示其中一張；隱藏的那張不會載入。
+const ARCH_SVG: Record<SiteLang, string> = { 'zh-TW': 'architecture-zh-TW', en: 'architecture-en', ja: 'architecture-ja' };
 
 // 標題：「|」切出的每一段包成不換行的 span，只在段與段之間斷行。CJK 的瀏覽器斷行不認詞，
 // 不標的話「看懂整支艦隊」可能在任何兩字之間被切開。
@@ -70,6 +72,8 @@ export function renderPage(lang: SiteLang, origin: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  ${THEME_BOOT}
   <title>${esc(c.title)}</title>
   <meta name="description" content="${esc(c.description)}">
   <meta property="og:title" content="${esc(c.title)}">
@@ -115,7 +119,7 @@ ${lang === 'en' ? ROOT_REDIRECT : ''}
         <div class="device">
           <div class="device-bar"><i></i><i></i><i></i></div>
           <div class="device-screen">
-            <iframe id="panel" title="${esc(c.demo.frameTitle)}" src="/demo/panel.html?lang=${lang}" loading="lazy"></iframe>
+            <iframe id="panel" title="${esc(c.demo.frameTitle)}" loading="lazy"></iframe>
           </div>
         </div>
         <div class="demo-intro">
@@ -154,7 +158,7 @@ ${lang === 'en' ? ROOT_REDIRECT : ''}
           <h2>${heading(c.how.title)}</h2>
           <p class="lead">${p(c.how.lead)}</p>
         </header>
-        <figure class="arch"><img src="/img/${ARCH_SVG[lang]}" alt="${esc(c.how.alt)}" loading="lazy"></figure>
+        <figure class="arch"><img class="arch-light" src="/img/${ARCH_SVG[lang]}.svg" alt="${esc(c.how.alt)}" loading="lazy"><img class="arch-dark" src="/img/${ARCH_SVG[lang]}-dark.svg" alt="${esc(c.how.alt)}" loading="lazy"></figure>
       </div>
     </section>
 
