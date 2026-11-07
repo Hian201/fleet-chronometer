@@ -9,6 +9,7 @@
 - 封包欄位、公式、樣本證據、功能細節：[`docs/engineering/`](docs/engineering/README.md)，依主題分檔；先看索引 README，只讀相關的主題檔。
 - 介面、圖示、面板尺寸：[`docs/design-guidelines.md`](docs/design-guidelines.md)。
 - 譯名與台灣華語：[`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
+- GitHub／GitLab 等程式碼託管平台的操作界線：[`docs/code-hosting-safety.md`](docs/code-hosting-safety.md)。動 git 遠端、release、`gh`／`glab` 前必讀。
 - `docs/archive/`：封存的原始設計，只在調查原始設計意圖時查閱，平常不讀、不據以實作。
 
 文件與程式碼或測試不一致時，以目前程式碼與測試為準。
@@ -38,6 +39,7 @@
    - 所有可見文案（含 `title`、無障礙說明）只寫功能意義、條件與必要限制，不寫資料來源名稱、網站、連結或「依 Wiki 推算」等歸屬；來源只登錄於 `THIRD-PARTY-NOTICES.md` 與專案文件（§2.5）。
    - 改介面、可見文案或固定欄寬樣式時，台灣華語、英文、日文三語都要核對排版：拉丁文通常比漢字長，日文假名句常比華語長，只看部分語言會漏掉溢出、重疊或裁切。放不下先縮短文案（完整說明移到 `title`），仍不夠才縮小字型。通過條件見 §2.4。
 10. **翻譯**：任務導覽與 panel 共用任務目錄翻譯。繁體中文以台灣華語撰寫與校對，不得由簡體中文轉換。專有名詞依三層順序：原文漢字沿用（英文用玩家社群譯名）→ 假名部分依史料 → 都沒有才在地化，活動／任務／遠征譯名統一是第一順位。任務條件以日文原文為準，英文資料只作輔助。
+11. **程式碼託管平台**：agent 用的是開發者本人的帳號，自動偵測一旦判定濫用就是個人帳號停權。對 GitHub／GitLab 的寫入一律逐一、低頻、開發者要求才做；force push、刪除 tag／分支／release、上傳附檔、開 issue／PR／留言每次都要明確同意；帳號與安全設定、按星追蹤、大量 API 呼叫、與專案無關的 CI 一律不做；遇到 403／429、帳號被標記等訊息立刻停止並回報，不重試。細則與條款依據見 [`docs/code-hosting-safety.md`](docs/code-hosting-safety.md)。
 
 ## Live 遊戲安全
 
