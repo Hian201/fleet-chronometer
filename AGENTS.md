@@ -110,6 +110,7 @@ npm test            # Vitest
 - 部分艦載機損耗後的熟練度下降量、第二艦隊旗艦不沉時的殘 HP、遠征回航道具欄位仍不可考，維持估算／原始值／null。
 - 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗、劇場跨源框與音訊路徑待開發者以 live 遊戲手動驗證。
 - M4 尚有 side panel、視窗位置記憶與 Firefox 打包驗證。
+- GitHub 帳號 2026-11-09 解除停權；開發者決定恢復以 GitHub 為主，但先暫停，**等 2026-11-11 秋刀魚活動的改動測試完、出 `v1.1.1.0-rc.2` 之後再提醒開發者重啟 GitHub 同步**。在那之前 `git push` 仍只推 GitLab，不動 GitHub；重啟步驟見 `docs/code-hosting-safety.md` §7。
 
 ## 單一真相來源
 

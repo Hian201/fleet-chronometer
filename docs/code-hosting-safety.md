@@ -65,6 +65,16 @@
 - `origin` 同時設有 GitHub 與 GitLab 兩個 push URL；**不要直接 `git push origin`**，那會推到 GitHub。
 - GitLab 操作用 `glab`，GitHub 操作用 `gh`；兩者都依本檔分級。
 
+### 恢復以 GitHub 為主（待秋刀魚 rc.2 之後，開發者同意才開始）
+
+GitHub 目前停在 `1a49fd6`，還留著舊的 `v1.1.1.0` tag 與附 zip 的舊 Pre-release。每一步分開做、各自取得同意，寫入之間間隔至少一天：
+
+1. 開發者執行 `gh auth login` 重新登入（舊 token 已失效）。
+2. 推送 main 到 GitHub（一次）。
+3. 推送現有的 rc tag（一次一個）。
+4. 處理舊的 Pre-release 與舊 `v1.1.1.0` tag（刪除屬每次都要同意的操作），改由最新 rc 的 Pre-release 取代。
+5. 遠端設定改回：`branch.main.remote=origin`、移除 `remote.pushDefault`（`origin` 同時推 GitHub 與 GitLab），並改寫本節。
+
 ## 參考來源
 
 - GitHub Acceptable Use Policies：https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies
