@@ -7230,6 +7230,35 @@
         .qf-topline .qf-disclaimer { flex: 1 1 320px; margin: 0; }
         .qf-topline .qf-intro { flex: none; margin: 0; }
         .qf-topline .qf-intro[open] { flex: 1 1 100%; margin-top: 6px; }
+        /* 定期換期摘要：中性資訊，不用警示色；排在免責說明下方，說明展開時仍在說明之前 */
+        .qf-topline .qf-cycles { flex: 1 1 100%; order: 1; }
+        .qf-topline .qf-intro[open] { order: 2; }
+        .qf-cycles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px 16px;
+            margin: 4px 0 0;
+            color: var(--dim);
+            font-size: 11.5px;
+            line-height: 1.6;
+        }
+        .qf-cycles:empty { display: none; }
+        .qf-cycles-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+        .qf-cycles-item b { font-weight: 600; }
+        .qf-cycles-time { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .qf-cycles-link {
+            padding: 0;
+            border: 0;
+            background: none;
+            color: var(--brass);
+            font: inherit;
+            cursor: pointer;
+            text-decoration: underline dotted;
+            text-underline-offset: 3px;
+        }
+        .qf-cycles-link:hover { color: var(--sparkle); }
+        .qf-yearly-cycle { font-variant-numeric: tabular-nums; }
+        .qf-cycles-link:focus-visible { outline: 1px solid var(--brass); outline-offset: 2px; }
 
         .qf-disclaimer {
             margin: 0 0 8px;

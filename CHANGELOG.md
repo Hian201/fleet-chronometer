@@ -44,6 +44,12 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - Item counts now drop as soon as you use an item that costs one per use: marriage papers and ring, reinforcement expansion, dock keys (preset slots, construction and repair docks), emergency repair material, construction corps (base expansion and maintenance level), special aviation rations, pumpkins for luck modernization, and Mamiya / Irako. Before, they stayed at the login value because the game does not resend the item list after these actions.
 - Equipment received from item exchanges appears in the equipment list right away instead of after the next login.
 
+**Quarterly and yearly quest cycles**
+- The top of the Quest Navigator shows the current quarterly cycle (quarterly quests reset on Mar, Jun, Sep and Dec 1) and the next yearly reset, with how many yearly quests reset then and how many of them you have completed this cycle. Click it to list those quests.
+- Each yearly quest resets in its own month. Its header shows its current cycle, for example "Yearly 2026/09/01 – 2027/09/01", with exact times in the tooltip. Catalog rows show the reset month, and **More filters** has a new **Yearly reset** filter.
+- Reset months come from the game's quest list when you open it, so new yearly quests and changed months are picked up without an update.
+- Yearly quests you completed this cycle now count as done for this cycle, like daily to quarterly quests.
+
 **Layout fixes**
 - In English, the combined-fleet button now shows CTF / STF / TCF, with the full name in the tooltip. The full name wrapped to two lines and pushed the seventh ship past the panel's layout target.
 - Side-by-side columns are easier to tell apart: the Upkeep columns have a divider, and expedition conditions, the two-column item list (Traditional Chinese) and the resource log tooltip have wider column gaps.

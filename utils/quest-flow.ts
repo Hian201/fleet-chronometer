@@ -4,9 +4,10 @@ import {
 } from './quest-catalog-data';
 import {
     KCWIKI_QUEST_GRAPH_RAW, LIMITED_QUEST_WINDOWS_RAW, QUEST_CATALOG_SUPPLEMENT_RAW, QUEST_PLANNER_GRAPH_RAW,
-    TSUKINOHASHI_QUEST_GRAPH_RAW, WIKI_QUEST_GRAPH_RAW, ZEKAMASHI_QUEST_GRAPH_RAW,
+    TSUKINOHASHI_QUEST_GRAPH_RAW, WIKI_QUEST_GRAPH_RAW, YEARLY_QUEST_RESET_MONTH_RAW, ZEKAMASHI_QUEST_GRAPH_RAW,
 } from './quest-graph-data';
 import { questCatalogIdentity } from './quest-identity';
+import { questCycleWindow } from './quest-cycle';
 import { QUEST_REVIEWED_RELATIONS } from './quest-graph-reviewed';
 
 import type { QuestCategory } from './quest-category';
@@ -42,6 +43,8 @@ export interface QuestDefinition {
     limitedState: 'active' | 'unknown';
     /** 期間限定任務的實裝期間（日本時間日期 YYYY-MM-DD；end 為 null＝結束未公告）；來源沒寫時不給。 */
     limitedWindow?: { start: string; end: string | null };
+    /** 年任的換期月（1–12，該月 1 日 05:00 日本時間換期）；目錄沒有或來源不一致時不給。 */
+    yearlyResetMonth?: number;
     apiCategory: number | null;
     apiType: number | null;
     wikiPrerequisites: number[];
@@ -254,6 +257,10 @@ const LIMITED_WINDOWS = new Map<number, { start: string; end: string | null }>(
         .map(([no, start, end]) => [no, { start, end }]),
 );
 
+const YEARLY_RESET_MONTHS = new Map<number, number>(
+    YEARLY_QUEST_RESET_MONTH_RAW as readonly (readonly [number, number])[],
+);
+
 /** 目錄缺 wiki 代號／名稱的任務，由 KC3 日文任務表補上（例：1020＝2409B1）。 */
 const CATALOG_SUPPLEMENT = new Map<number, { code: string; name: string }>(
     (QUEST_CATALOG_SUPPLEMENT_RAW as readonly (readonly [number, string, string])[])
@@ -332,6 +339,7 @@ const rawEntry = (value: RawCatalogEntry): QuestDefinition => {
         limited,
         limitedState: limited ? 'unknown' : (name || supplement?.name) ? 'active' : 'unknown',
         ...(limited && LIMITED_WINDOWS.has(apiNo) ? { limitedWindow: { ...LIMITED_WINDOWS.get(apiNo)! } } : {}),
+        ...(YEARLY_RESET_MONTHS.has(apiNo) ? { yearlyResetMonth: YEARLY_RESET_MONTHS.get(apiNo)! } : {}),
         apiCategory,
         apiType,
         wikiPrerequisites: wiki
@@ -369,6 +377,24 @@ export const QUEST_CATALOG: QuestDefinition[] =
 export const QUEST_CATALOG_BY_NO = new Map<number, QuestDefinition>(
     QUEST_CATALOG.map(definition => [definition.apiNo, definition]),
 );
+
+/**
+ * 最近的下一次年任換期：時間、換期月與該月換期的任務。年任依換期月分組，同月的起訖相同。
+ * 傳入 `buildQuestFlow()` 的定義（已套用遊戲標示的換期月）；沒有任何帶換期月的年任時回傳 null。
+ */
+export function nextYearlyReset(
+    definitions: Iterable<QuestDefinition>, nowTs: number,
+): { ts: number; month: number; nos: number[] } | null {
+    let best: { ts: number; month: number; nos: number[] } | null = null;
+    for (const definition of definitions) {
+        if (definition.period !== 'yearly' || !definition.yearlyResetMonth) continue;
+        const end = questCycleWindow('yearly', nowTs, definition.yearlyResetMonth)?.end;
+        if (end === undefined) continue;
+        if (!best || end < best.ts) best = { ts: end, month: definition.yearlyResetMonth, nos: [definition.apiNo] };
+        else if (end === best.ts) best.nos.push(definition.apiNo);
+    }
+    return best;
+}
 
 const KC3_INCOMING = (() => {
     const incoming = new Map<number, number[]>();
@@ -698,28 +724,6 @@ function inferAbsentOnceQuests(
     }
 }
 
-// 日／週／月以日本時間 05:00 為日界：UTC+9 再扣 5 小時，等於時間戳加 4 小時後取 UTC 日曆。
-// 季任不是西曆季，重置日是 3／6／9／12 月 1 日 05:00（12–2 月、3–5 月、6–8 月、9–11 月）。
-// 年任開始月尚未進目錄，不在這裡對齊。
-function currentCycleKey(period: QuestPeriod, ts: number): string | null {
-    if (!Number.isFinite(ts) || !['daily', 'weekly', 'monthly', 'quarterly'].includes(period)) return null;
-    const resetDate = new Date(ts + (4 * 60 * 60 * 1000));
-    const year = resetDate.getUTCFullYear();
-    const month = resetDate.getUTCMonth();
-    const day = resetDate.getUTCDate();
-    const pad = (value: number) => String(value).padStart(2, '0');
-    if (period === 'daily') return `D:${year}-${pad(month + 1)}-${pad(day)}`;
-    if (period === 'monthly') return `M:${year}-${pad(month + 1)}`;
-    if (period === 'quarterly') {
-        if (month < 2) return `Q:${year - 1}-12`;
-        const startMonth = month < 5 ? 3 : month < 8 ? 6 : month < 11 ? 9 : 12;
-        return `Q:${year}-${pad(startMonth)}`;
-    }
-    const mondayOffset = (resetDate.getUTCDay() + 6) % 7;
-    resetDate.setUTCDate(day - mondayOffset);
-    return `W:${resetDate.getUTCFullYear()}-${pad(resetDate.getUTCMonth() + 1)}-${pad(resetDate.getUTCDate())}`;
-}
-
 // 季節大演習（wikiwiki「季節大演習」表）每季重新發出，遊戲仍回報 api_type 4（單發），開放期間每年不同。
 // 2016–2026 歷年同一任務單季最長 146 天、兩季之間最短隔 211 天，180 天內觀測到的完成必屬同一季。
 const SEASONAL_SAME_SEASON_MS = 180 * 24 * 60 * 60 * 1000;
@@ -729,9 +733,9 @@ function observedIsCurrentPeriod(definition: QuestDefinition, observed: QuestObs
     if (definition.period === 'seasonal') {
         return Number.isFinite(observed.lastTs) && nowTs - observed.lastTs < SEASONAL_SAME_SEASON_MS;
     }
-    const observedCycle = currentCycleKey(definition.period, observed.lastTs);
-    const currentCycle = currentCycleKey(definition.period, nowTs);
-    return observedCycle !== null && observedCycle === currentCycle;
+    // 換期規則見 quest-cycle.ts；年任缺換期月時不判定為本期
+    const current = questCycleWindow(definition.period, nowTs, definition.yearlyResetMonth);
+    return current !== null && observed.lastTs >= current.start && observed.lastTs < current.end;
 }
 
 export function buildQuestFlow(
@@ -759,6 +763,13 @@ export function buildQuestFlow(
     }
     for (const no of manualComplete) {
         if (!definitions.has(no)) definitions.set(no, dynamicDefinition(no));
+    }
+    // 遊戲在任務清單標示的年任換期月（api_label_type 101–112）是真封包，優先於目錄：
+    // 目錄未收錄的新年任、營運調整換期月、重用編號的新任務都以它為準。
+    for (const [no, month] of state.questYearlyResetMonths_()) {
+        const definition = definitions.get(no);
+        if (!definition || (definition.period === 'yearly' && definition.yearlyResetMonth === month)) continue;
+        definitions.set(no, { ...definition, period: 'yearly', yearlyResetMonth: month });
     }
 
     const relationByNo = new Map<number, QuestRelation>();

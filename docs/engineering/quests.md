@@ -246,7 +246,21 @@ tab 9（遂行中）只同步受注中／達成，不得清掉 tab 0 看到的�
 `localStorage`（`kc-overview-quest-flow`），並隨完整備份的 `questFlow` 往返；搜尋／
 聚焦等暫時 UI 不進備份。舊備份沒有此欄時，還原不得清空本機既有釘選。本機觀測完成
 （`clearitemget`）另存 `db.questObserved` 並進備份：日／週／月以日本時間 05:00 為界，
-季任以 3／6／9／12 月 1 日 05:00 為界；年任保存紀錄但不對齊年度週期（開始月尚未進目錄）。
+季任以 3／6／9／12 月 1 日 05:00 為界，年任以各任務換期月的 1 日 05:00 為界（`utils/quest-cycle.ts`）。
+
+**定期任務的本期（`utils/quest-cycle.ts`）**：
+- 季任不是西曆季，3–5、6–8、9–11、12–隔年 2 月各為一期（KC3Kai `QuestManager.js` 同此劃分）。
+- 年任每個任務換期月不同。遊戲的 `api_label_type` 101–112 即 100＋換期月：`samples/Quest.json` 18 個年任，
+  ElectronicObserver `Data/QuestData.cs` 的 LabelType 註解、KC3Kai `Quest.js` 的 `isYearly()` 同此解讀。
+  `api_label_type` 7 同時涵蓋季任與 Bd4／Bd6 等特定日日任，不能單獨判定季任。
+- 目錄的換期月由 `tools/quest-graph/generate.py` 從 wikiwiki 年任表產生（`YEARLY_QUEST_RESET_MONTH_RAW`）：
+  「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」必須一致；期間限定表的代號目錄沒有時，
+  只在任務名與目錄唯一完全相同時採用。`tests/quest-cycle.test.ts` 以樣本的 `api_label_type` 逐筆鎖住。
+  缺換期月的年任不判定本期，週期標籤只寫「每年」並在 title 註明換期月不可考。
+- 任務清單封包帶的 `api_label_type` 101–112 由 `GameState` 保存（`questYearlyResetMonths_()`），`buildQuestFlow()`
+  以它覆寫目錄的換期月與週期：目錄未收錄的新年任、營運調整換期月、重用編號的新任務都以封包為準。
+  只由保留的 raw events 重建，不新增 DB 表；裁剪後退回目錄值。
+- 任務導覽頂端的換期摘要（`questCycleSummaryHtml()`）：季任全部同一期，只寫一次本期起訖；年任依換期月分 12 組，只提示最近一次換期的時間、月份、項數與本期已完成數（`nextYearlyReset()`；已完成只計本機觀測的領獎，只會少算）。點了以「年任換期月」篩選（facet `reset`，在「更多條件」裡）列出那一組，其他已選條件保留。各年任的換期月放在週期標籤（「每年・9 月」），任務標頭另寫該任務的本期起訖（年任各組起訖不同；季任全部同一期，只寫在頂端）。換期在日本時間 05:00，時間依專案規則以本機時區顯示，規則寫在 title。摘要隨每次重繪更新，分頁開著跨過換期也會換新。
 
 **季節大演習（`seasonal`）**：秋季／冬季／春季／夏季大演習（313／314／315／326，wikiwiki
 「季節大演習」表）每季重新發出，遊戲仍回報 api_type 4，但不是一次性任務：過季不在清單是因為沒開放，

@@ -24,7 +24,7 @@ function listed(...entries: [number, number][]): GameState {
 }
 
 const facets = (partial: Partial<QuestRowFacets>): QuestRowFacets => ({
-    list: [], progress: [], period: [], category: [], reward: [], map: [], ...partial,
+    list: [], progress: [], period: [], reset: [], category: [], reward: [], map: [], ...partial,
 });
 
 describe('任務導覽篩選標籤', () => {
@@ -178,5 +178,24 @@ describe('任務導覽篩選工具列', () => {
         expect(saved().filters).toEqual({});
         expect(weekly.getAttribute('aria-pressed')).toBe('false');
         expect(host.querySelector<HTMLElement>('.qf-selected')!.hidden).toBe(true);
+    });
+
+    it('頂端的年任換期提醒點了以換期月篩選，保留其他已選條件', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            // 2026/11/09：最近的年任換期是 12/01，只有 1120【機種整理統合】新型戦闘機の量産計画
+            vi.setSystemTime(Date.UTC(2026, 10, 9, 3, 0));
+            const { host, chip, saved, catalog } = await mount({ filters: { category: ['arsenal'] } });
+            const link = host.querySelector<HTMLButtonElement>('.qf-cycles [data-qf-reset-month]')!;
+            expect(link.dataset.qfResetMonth).toBe('12');
+            expect(link.textContent).toBe('12 月換期 1 項（本期已完成 0）');
+            link.click();
+            expect(saved().filters).toEqual({ category: ['arsenal'], reset: ['12'] });
+            expect(chip('reset', '12').getAttribute('aria-pressed')).toBe('true');
+            expect(catalog()).toEqual([1120]);
+            expect(host.querySelector('.qf-cycles')!.textContent).toContain('季任本期');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

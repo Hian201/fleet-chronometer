@@ -72,6 +72,12 @@ const SCENES: Scene[] = [
     // 期間限定任務標頭的實裝期間（2026 南瓜：10/14 更新後開始、結束未公告）
     { title: '筆電 1366×768 螢幕：期間限定任務（實裝期間）', viewport: [1366, 657], navPinned: true, prefs: { targetNo: 1039, tab: 'path' } },
     { title: '窄視窗 760×640（側欄浮層）：期間限定任務（實裝期間）', viewport: [760, 640], navPinned: false, prefs: { targetNo: 1039, tab: 'path' } },
+    // 頂端的定期換期摘要與年任的換期月標籤（以產生預覽當下的時間計算）
+    { title: '筆電 1366×768 螢幕：季任（頂端換期摘要）', viewport: [1366, 657], navPinned: true, prefs: { targetNo: 637, tab: 'path' } },
+    { title: '筆電 1366×768 螢幕：年任 9 月換期（週期標籤與本期起訖）', viewport: [1366, 657], navPinned: true, prefs: { targetNo: 657, tab: 'path' } },
+    { title: '窄視窗 760×640（側欄浮層）：年任 12 月換期（週期標籤與本期起訖）', viewport: [760, 640], navPinned: false, prefs: { targetNo: 1120, tab: 'path' } },
+    { title: '窄視窗 760×640（側欄浮層）：年任 9 月換期 歴戦「第十方面艦隊」', viewport: [760, 640], navPinned: false, prefs: { targetNo: 928, tab: 'path' } },
+    { title: '筆電 1366×768 螢幕：點了年任換期提醒（年任換期月＝12 月）', viewport: [1366, 657], navPinned: true, prefs: { targetNo: 1120, tab: 'path', filters: { reset: ['12'] } } },
 ];
 
 async function renderScene(lang: Lang, scene: Scene): Promise<string> {

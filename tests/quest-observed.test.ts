@@ -87,13 +87,15 @@ describe('applyArchivedQuestObservations', () => {
             .byNo.get(284)?.observedCurrentPeriod).toBe(false);
     });
 
-    it('年任保存觀測紀錄，但不自行對齊年度週期', () => {
+    it('年任依目錄的換期月對齊年度週期', () => {
+        // 946（By8）6 月換期：2026/06/01 05:00（日本時間）起到 2027/06/01 05:00 前同一期
         const state = new GameState();
         applyArchivedQuestObservations(state, [
             { eventId: 1, questNo: 946, ts: Date.UTC(2026, 8, 1) },
         ], new Set());
         const model = buildQuestFlow(state, new Set(), Date.UTC(2026, 8, 2));
         expect(model.byNo.get(946)?.status).toBe('observed-complete');
-        expect(model.byNo.get(946)?.observedCurrentPeriod).toBe(false);
+        expect(model.byNo.get(946)?.observedCurrentPeriod).toBe(true);
+        expect(buildQuestFlow(state, new Set(), Date.UTC(2027, 4, 31, 20, 0)).byNo.get(946)?.observedCurrentPeriod).toBe(false);
     });
 });

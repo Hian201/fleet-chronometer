@@ -5,6 +5,7 @@ import { expedItemDisplayName, expedItemFullName, getLang, t } from './ui-i18n';
 import { AREA_NAMES, areaName } from './map-names';
 import { parseQuestGoal, resolveQuestGoal, meetsRank, QUEST_ID_OVERRIDES, type QuestActionKind, type QuestGoal } from './quest-progress';
 import { questCatalogIdentity } from './quest-identity';
+import { yearlyResetMonthFromLabel } from './quest-cycle';
 import { questCategoryFromApi, type QuestCategory } from './quest-category';
 import {
     compareWithServer, extractTextRule, judgeTextBattle, needsRecheck, progressRange, questTier,
@@ -1070,6 +1071,9 @@ export class GameState {
     // 曾經出現在任何 questlist tab 的任務（受注中／達成／可接受）。單發前置因此永久可推為完成；
     // 已裁剪的觀測由 db.questSeen 經 ingestArchivedQuestSeen 補回（見 quest-seen.ts）。
     questSeenNos = new Set<number>();
+    // questlist 的 api_label_type 101–112＝年任換期月（見 quest-cycle.ts）。任務離開清單後保留，
+    // 下次出現時以新值覆寫；只由保留的 raw events 重建，裁剪後退回目錄的換期月。
+    private questYearlyResetMonths = new Map<number, number>();
     consumableGearIds = new Set<number>();
     airBases = new Map<string, any>();   // key: `${area_id}_${rid}`
     // `api_get_member/mapinfo.api_air_base_expanded_info[]`：以海域 area_id 為單位的
@@ -1876,6 +1880,11 @@ export class GameState {
                     });
                     else if (identity === 'match') this.questCatalogMismatches.delete(q.api_no);
                     if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) this.questSeenNos.add(q.api_no);
+                    if (typeof q.api_label_type === 'number') {
+                        const resetMonth = yearlyResetMonthFromLabel(q.api_label_type);
+                        if (resetMonth !== null) this.questYearlyResetMonths.set(q.api_no, resetMonth);
+                        else this.questYearlyResetMonths.delete(q.api_no);
+                    }
                     if (q.api_state === 2 || q.api_state === 3) {
                         this.quests.set(q.api_no, {
                             name: q.api_title,
@@ -3924,6 +3933,11 @@ export class GameState {
 
     questSeenNos_(): ReadonlySet<number> {
         return new Set(this.questSeenNos);
+    }
+
+    /** 遊戲在任務清單標示的年任換期月（api_no → 1–12）。 */
+    questYearlyResetMonths_(): ReadonlyMap<number, number> {
+        return new Map(this.questYearlyResetMonths);
     }
 
     /**

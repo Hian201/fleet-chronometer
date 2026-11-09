@@ -308,6 +308,27 @@ def wiki_page(offline: bool) -> str:
 WINDOWS: dict[int, tuple[str, str | None]] = {}
 IMPL_DATE = re.compile(r'(20\d\d)\s*(\d{1,2})/(\d{1,2})')
 
+# api_no → 年任重置月（1–12）。wikiwiki 年任表的「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」
+# 兩處都寫；兩者不一致時不輸出，留給遊戲即時的 api_label_type（100＋月份）判定。
+YEARLY_MONTHS: dict[int, int] = {}
+YEARLY_CONFLICTS: set[int] = set()
+YEARLY_GROUP = re.compile(r'^(\d{1,2})月スタート$')
+YEARLY_MARK = re.compile(r'イヤーリー\((\d{1,2})月\)')
+
+
+def record_yearly_month(no: int, wiki_id: str, cell: str, group_month: int | None) -> None:
+    marks = {int(m) for m in YEARLY_MARK.findall(html.unescape(cell))}
+    months = marks | ({group_month} if group_month else set())
+    if not months:
+        return
+    if no in YEARLY_MONTHS:
+        months.add(YEARLY_MONTHS[no])
+    if len(months) != 1 or not 1 <= min(months) <= 12:
+        print(f'警告：api_no {no}（{wiki_id}）的年任重置月不一致：{sorted(months)}', file=sys.stderr)
+        YEARLY_CONFLICTS.add(no)
+        return
+    YEARLY_MONTHS[no] = months.pop()
+
 
 def implementation_window(cell: str) -> tuple[str, str | None] | None:
     text = html.unescape(cell)
@@ -351,7 +372,12 @@ def parse_wiki(page: str, by_wiki, names) -> tuple[dict[int, tuple], dict[int, s
         impl_col = header.index('実装') if '実装' in header else None
         # 總表依週期分表（「単発 【単】Once」「デイリー 【日】Daily」…）；新着、期間限定等表沒有週期資訊
         period = next((value for key, value in TABLE_PERIODS if heading.startswith(key)), '')
+        group_month: int | None = None
         for row in rows:
+            # 年任表以跨欄的「N月スタート」列分組，組內任務都在該月重置
+            if period == 'yearly' and row and len(set(row)) == 1 and (m := YEARLY_GROUP.match(row[0].strip())):
+                group_month = int(m.group(1))
+                continue
             # 期間限定任務的代號在 wiki 以換行拆成兩段（「2610<br>B1」）
             wiki_id = re.sub(r'\s+', '', row[id_col]) if len(row) > id_col else ''
             if len(row) <= cond_col or not ID_CELL.match(wiki_id):
@@ -363,10 +389,15 @@ def parse_wiki(page: str, by_wiki, names) -> tuple[dict[int, tuple], dict[int, s
             no = resolve(wiki_id, row[name_col], by_wiki, names)
             if no is None:
                 unmapped_rows.append(wiki_id)
+                # 期間限定表的代號（「2609B1」）目錄沒有；年任換期月只在任務名與目錄唯一完全相同時採用
+                same = [n for n, title in names.items() if norm(title) == norm(row[name_col])]
+                if len(same) == 1:
+                    record_yearly_month(same[0], wiki_id, row[cond_col], None)
                 continue
             wiki_names[no] = row[name_col].strip()
             if impl_col is not None and len(row) > impl_col and (window := implementation_window(row[impl_col])):
                 WINDOWS[no] = window
+            record_yearly_month(no, wiki_id, row[cond_col], group_month if period == 'yearly' else None)
             parsed = parse_condition(html.unescape(row[cond_col]), by_wiki, names)
             clauses, flags, unresolved = parsed if parsed else ([], 0, [])
             entry = (clauses, flags, unresolved, period)
@@ -727,6 +758,10 @@ def main() -> None:
     limited_nos = {entry[0] for entry in json.loads(re.search(
         r'QUEST_CATALOG_RAW = (\[.*?\]) as const', CATALOG.read_text(encoding='utf-8'), re.S).group(1)) if entry[6]}
     window_body = ','.join(compact([no, start, end]) for no, (start, end) in sorted(WINDOWS.items()) if no in limited_nos)
+    yearly_body = ','.join(compact([no, month]) for no, month in sorted(YEARLY_MONTHS.items())
+                           if no not in YEARLY_CONFLICTS)
+    print(f'wikiwiki 年任重置月：{len(YEARLY_MONTHS) - len(YEARLY_CONFLICTS & YEARLY_MONTHS.keys())} 筆，'
+          f'不一致 {len(YEARLY_CONFLICTS)} 筆', file=sys.stderr)
     supplement_body = ','.join(compact([no, code, name]) for no, (code, name) in sorted(SUPPLEMENT.items()))
     OUT.write_text(
         '/* 由 tools/quest-graph/generate.py 產生，勿手改。 */\n\n'
@@ -766,7 +801,12 @@ def main() -> None:
         '/**\n'
         ' * 實施中期間限定任務的實裝期間（wikiwiki「実装」欄）：[api_no, 開始日, 結束日或 null（未公告）]，日期為日本時間。\n'
         ' */\n'
-        f'export const LIMITED_QUEST_WINDOWS_RAW = [{window_body}] as const;\n',
+        f'export const LIMITED_QUEST_WINDOWS_RAW = [{window_body}] as const;\n\n'
+        '/**\n'
+        ' * 年任的重置月（wikiwiki 年任表「N月スタート」分組與「イヤーリー(N月)」標記一致者）：[api_no, 月份 1–12]。\n'
+        ' * 該月 1 日 05:00（日本時間）重置；遊戲的 api_label_type 101–112 即 100＋此月份。\n'
+        ' */\n'
+        f'export const YEARLY_QUEST_RESET_MONTH_RAW = [{yearly_body}] as const;\n',
         encoding='utf-8',
     )
     print(f'已寫入 {OUT.relative_to(ROOT)}', file=sys.stderr)

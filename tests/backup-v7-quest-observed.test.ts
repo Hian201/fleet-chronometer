@@ -92,7 +92,7 @@ describe('匯出與還原往返', () => {
         const model = buildQuestFlow(state, new Set(), TS + 60_000);
         expect(model.byNo.get(201)?.observedCurrentPeriod).toBe(true);
         expect(model.byNo.get(946)?.status).toBe('observed-complete');
-        expect(model.byNo.get(946)?.observedCurrentPeriod).toBe(false);
+        expect(model.byNo.get(946)?.observedCurrentPeriod).toBe(true);
         fresh.close();
     });
 

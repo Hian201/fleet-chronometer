@@ -318,6 +318,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - 名稱、內文、wiki 代號、週期與前置清單：自社群任務目錄整理的事實欄位；來源網址不寫進資料檔。
   - 開放条件 `WIKI_QUEST_GRAPH_RAW` 與實裝期間 `LIMITED_QUEST_WINDOWS_RAW`（`utils/quest-graph-data.ts`）：由 `tools/quest-graph/generate.py` 解析 wikiwiki 任務總表「開放条件/備考」與「実装」欄產生（實裝期間只取期間限定任務的開始／結束日期），只保留前置 `api_no`、AND／OR 組合與【検証中】等驗證旗標，不收錄頁面文字。只在開發者更新任務資料時手動執行，一次一個請求；擴充執行時不連網。
     https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
+  - 年任換期月 `YEARLY_QUEST_RESET_MONTH_RAW`（同檔）：同一產生器解析 wikiwiki 任務總表年任表的「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」，兩者一致才收錄月份。遊戲 `api_label_type` 101–112＝100＋換期月的解讀，與季任 3／6／9／12 月換期的劃分，以本專案 `samples/Quest.json` 為準，並對照 ElectronicObserver `ElectronicObserver/Data/QuestData.cs`（LabelType 註解）與 KC3Kai `src/library/objects/Quest.js`、`src/library/managers/QuestManager.js`；`utils/quest-cycle.ts` 為 clean-room 重寫，未複製程式碼。
   - 前提／後續 `ZEKAMASHI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析ぜかまし各任務攻略「前提に…あり。後続に…あり。」敘述，只保留任務 `api_no` 關係與「要確認」「他不明」等註記旗標，不收錄文章內容。頁面快取於 `tools/quest-graph/.cache/`（不進 git），之後只重抓 sitemap lastmod 有變動或新發表的文章，請求間隔至少 2 秒。
     https://zekamashi.net/
   - 前置 `QUEST_PLANNER_GRAPH_RAW`（同檔）：同一產生器讀取 poi-plugin-quest-planner 固定 commit（`8b18557b8c19e4d3caa8ff08b6d129c20da825ba`）的 `data/quests.json`，只保留 `dependencies` 的任務 `api_no` 與期間限定前置代號，取代目錄裡同源（kcQuests）的舊版 poi 前置。

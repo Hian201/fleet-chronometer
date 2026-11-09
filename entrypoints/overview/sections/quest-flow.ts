@@ -7,7 +7,7 @@ import type {
     QuestFlowModel, QuestFlowRow, QuestPeriod, QuestStatus, QuestUnlockPlan,
 } from '@/utils/quest-flow';
 import {
-    buildQuestFlow, isCompletedQuestRow, normalizeQuestSearch, questDownstreamLayers,
+    buildQuestFlow, isCompletedQuestRow, nextYearlyReset, normalizeQuestSearch, questDownstreamLayers,
     questRequirementGroups, questSearchHaystack, questUnlockPlan,
 } from '@/utils/quest-flow';
 import { layoutQuestGraph } from '@/utils/quest-graph-layout';
@@ -25,13 +25,14 @@ import { formatQuestTime, type ServerObservation } from '@/utils/quest-tracking'
 import { prepCheckNow, prepCheckText, questConditionText, questTargetLabel } from '@/utils/quest-goal-label';
 import { questCatalogIdentity } from '@/utils/quest-identity';
 import { FACTORY_GOAL_EVENTS } from '@/utils/quest-goals';
-import { formatDate } from '@/utils/date-format';
+import { formatDate, formatDateTime } from '@/utils/date-format';
+import { questCycleWindow } from '@/utils/quest-cycle';
 import { QUEST_CATEGORY_LABEL_KEYS, type QuestCategory } from '@/utils/quest-category';
 import { questCategoryMarkHtml } from '@/utils/html-escape';
 import { loadExcludedMaps } from '@/utils/sortie-exclude';
 import { areaName, mapName } from '@/utils/map-names';
 import {
-    QUEST_FACET_GROUPS, QUEST_LIST_FACETS, QUEST_PERIOD_FACETS, QUEST_PROGRESS_FACETS, QUEST_REWARD_FACETS,
+    QUEST_FACET_GROUPS, QUEST_LIST_FACETS, QUEST_PERIOD_FACETS, QUEST_PROGRESS_FACETS, QUEST_RESET_MONTH_FACETS, QUEST_REWARD_FACETS,
     compareQuestMapLabels, hasFacetSelection, matchesFacets, questCauseSummary, questFacetCounts, questGraphFitScale,
     questGraphZoomStep, questRowFacets,
     type QuestFacetGroup, type QuestFacetSelection, type QuestRowFacets,
@@ -92,7 +93,7 @@ const PROGRESS_FACET_KEYS: Record<(typeof QUEST_PROGRESS_FACETS)[number], string
     unknown: 'ov.qfStatusUnknown',
 };
 /** 「更多條件」摺疊區裡的組；清單狀態與完成進度常駐在工具列。 */
-const MORE_GROUPS: QuestFacetGroup[] = ['period', 'category', 'reward', 'map'];
+const MORE_GROUPS: QuestFacetGroup[] = ['period', 'reset', 'category', 'reward', 'map'];
 const MAP_LABEL = /^\d-\d$/;
 
 const defaultPrefs = (): QuestFlowPrefs => ({
@@ -112,6 +113,7 @@ function allowedFacetValues(group: QuestFacetGroup): ((value: string) => boolean
     if (group === 'list') return value => (QUEST_LIST_FACETS as readonly string[]).includes(value);
     if (group === 'progress') return value => (QUEST_PROGRESS_FACETS as readonly string[]).includes(value);
     if (group === 'period') return value => (QUEST_PERIOD_FACETS as readonly string[]).includes(value);
+    if (group === 'reset') return value => QUEST_RESET_MONTH_FACETS.includes(value);
     if (group === 'category') return value => (CATEGORIES as readonly string[]).includes(value);
     if (group === 'reward') return value => (QUEST_REWARD_FACETS as readonly string[]).includes(value);
     return value => MAP_LABEL.test(value);
@@ -277,7 +279,7 @@ function wikiIds(row: QuestFlowRow): string {
 function rowMeta(row: QuestFlowRow): string {
     return `<span class="qf-meta-item">api_no ${row.definition.apiNo}</span>
         <span class="qf-meta-item">${esc(categoryLabel(row.definition.category))}</span>
-        <span class="qf-meta-item">${esc(periodLabel(row.definition.period))}</span>
+        ${periodMetaHtml(row)}
         <span class="qf-meta-item qf-wiki-ids">${wikiIds(row)}</span>`;
 }
 
@@ -667,16 +669,34 @@ export interface QuestFlowDetailView {
     doneOpen: boolean;
     /** 標頭「任務內容與獎勵」是否展開；未指定時展開（離線預覽與測試沿用完整標頭）。 */
     headOpen?: boolean;
+    /** 計算年任本期用的目前時間；未指定時用 Date.now()（測試固定時間用）。 */
+    nowTs?: number;
 }
 
 /** 標頭已用第一個 Wiki ID 當代號，這裡只列其餘的別名。 */
-function headMeta(row: QuestFlowRow): string {
+function headMeta(row: QuestFlowRow, nowTs: number): string {
     const aliases = row.definition.wikiIds.slice(1)
         .map(id => `<span class="qf-id qf-wiki-id">${esc(id)}</span>`).join('');
     return `<span class="qf-meta-item">api_no ${row.definition.apiNo}</span>
         <span class="qf-meta-item">${esc(categoryLabel(row.definition.category))}</span>
-        <span class="qf-meta-item">${esc(periodLabel(row.definition.period))}</span>
+        ${yearlyCycleMetaHtml(row, nowTs) || periodMetaHtml(row)}
         ${aliases ? `<span class="qf-meta-item qf-wiki-ids">${aliases}</span>` : ''}`;
+}
+
+/**
+ * 年任依換期月各自起訖，任務標頭的週期標籤直接寫這個任務的本期（「每年 2026/09/01 – 2027/09/01」，
+ * 換期月由起訖可知）；季任全部同一期，只寫在頂端摘要。換期月不可考時回傳空字串，改用一般週期標籤。
+ */
+function yearlyCycleMetaHtml(row: QuestFlowRow, nowTs: number): string {
+    const { period, yearlyResetMonth } = row.definition;
+    const window = period === 'yearly' ? questCycleWindow(period, nowTs, yearlyResetMonth) : null;
+    if (!window) return '';
+    // 標頭寬度有限只寫日期；換期時刻（本機時區）與規則寫在 title
+    const exact = t('ov.qfCycleRange', { start: formatDateTime(window.start, false), end: formatDateTime(window.end, false) });
+    const rule = t('ov.qfPeriodYearlyMonthTitle', { month: yearlyResetMonth!, monthName: ENGLISH_MONTHS[yearlyResetMonth! - 1] });
+    return `<span class="qf-meta-item qf-yearly-cycle" title="${esc(`${rule}：${exact}\n${t('ov.qfCycleTitle')}`)}">${esc(t('ov.qfYearlyCycle', {
+        start: formatDate(window.start), end: formatDate(window.end),
+    }))}</span>`;
 }
 
 /** 標頭的前因後果：前置滿足幾組、解鎖還要完成幾項、完成後開放幾項；點了切到對應分頁。 */
@@ -710,6 +730,45 @@ function limitedWindowText(window: { start: string; end: string | null } | undef
         : t('ov.qfLimitedOpenEnded', { start: date(window.start) });
 }
 
+/** 英文介面的月份縮寫（ov.qfPeriodYearlyMonth、ov.qfCycleYearlyNext 的 {monthName}）。 */
+const ENGLISH_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * 頂端的定期換期摘要：季任全部同一期，只寫一次本期起訖；年任依換期月分 12 組，只提示最近一次換期的
+ * 時間、月份、項數與本期已完成數（本機觀測，只會少算），點了以「年任換期月」篩選出那一組。
+ * 換期在日本時間 05:00，時間依專案規則以本機時區顯示。
+ */
+export function questCycleSummaryHtml(model: QuestFlowModel, nowTs: number): string {
+    const quarter = questCycleWindow('quarterly', nowTs);
+    const yearly = nextYearlyReset(model.rows.map(row => row.definition), nowTs);
+    const range = (start: number, end: number) => t('ov.qfCycleRange', {
+        start: formatDateTime(start, false), end: formatDateTime(end, false),
+    });
+    const yearlyHtml = () => {
+        if (!yearly) return '';
+        const done = yearly.nos.filter(no => model.byNo.get(no)?.observedCurrentPeriod).length;
+        const vars = { month: yearly.month, monthName: ENGLISH_MONTHS[yearly.month - 1], n: yearly.nos.length, done };
+        return `<span class="qf-cycles-item"><b>${esc(t('ov.qfCycleYearly'))}</b><span class="qf-cycles-time">${esc(formatDateTime(yearly.ts, false))}</span>`
+            + `<button type="button" class="qf-cycles-link" data-qf-reset-month="${yearly.month}" title="${esc(t('ov.qfCycleYearlyFilter', vars))}">${esc(t('ov.qfCycleYearlyNext', vars))}</button></span>`;
+    };
+    return [
+        quarter ? `<span class="qf-cycles-item"><b>${esc(t('ov.qfCycleQuarterly'))}</b><span class="qf-cycles-time">${esc(range(quarter.start, quarter.end))}</span></span>` : '',
+        yearlyHtml(),
+    ].join('');
+}
+
+/** 週期標籤：年任附換期月（title 寫完整規則）；換期月不可考時明寫在 title。 */
+function periodMetaHtml(row: QuestFlowRow): string {
+    const { period, yearlyResetMonth } = row.definition;
+    // 重用編號的新任務不帶目錄週期；只有遊戲標示的換期月會出現在這裡
+    if (period !== 'yearly') return `<span class="qf-meta-item">${esc(periodLabel(period))}</span>`;
+    if (!yearlyResetMonth) {
+        return `<span class="qf-meta-item" title="${esc(t('ov.qfPeriodYearlyUnknownTitle'))}">${esc(periodLabel(period))}</span>`;
+    }
+    const vars = { month: yearlyResetMonth, monthName: ENGLISH_MONTHS[yearlyResetMonth - 1] };
+    return `<span class="qf-meta-item" title="${esc(t('ov.qfPeriodYearlyMonthTitle', vars))}">${esc(t('ov.qfPeriodYearlyMonth', vars))}</span>`;
+}
+
 function headHtml(model: QuestFlowModel, row: QuestFlowRow, view: QuestFlowDetailView): string {
     const no = row.definition.apiNo;
     const unresolved = row.relation.unresolvedPrerequisites.length
@@ -727,7 +786,7 @@ function headHtml(model: QuestFlowModel, row: QuestFlowRow, view: QuestFlowDetai
         <div class="qf-head-meta">
             ${statusTagHtml(row)}
             ${flags ? `<span class="qf-now-flags">${esc(flags)}</span>` : ''}
-            <span class="qf-row-meta">${headMeta(row)}</span>
+            <span class="qf-row-meta">${headMeta(row, view.nowTs ?? Date.now())}</span>
             ${causeStripHtml(model, row)}
             <span class="qf-head-actions">
                 <button type="button" class="ov-btn" data-qf-pin="${no}" aria-pressed="${view.pinned}">${esc(view.pinned ? t('ov.qfUnpin') : t('ov.qfPin'))}</button>
@@ -850,15 +909,22 @@ const FACET_GROUP_KEYS: Record<QuestFacetGroup, string> = {
     list: 'ov.qfFacetList',
     progress: 'ov.qfFacetProgress',
     period: 'ov.qfPeriodLabel',
+    reset: 'ov.qfFacetReset',
     category: 'ov.qfCategoryLabel',
     reward: 'ov.qfFacetReward',
     map: 'ov.qfFacetMap',
 };
 
+/** 年任換期月：浮層裡在「年任換期月」組下只寫月份；已選列沒有組名，寫完整「12 月換期」。 */
+function resetMonthLabel(value: string, key: 'ov.qfResetMonth' | 'ov.qfResetMonthSelected'): string {
+    return t(key, { month: value, monthName: ENGLISH_MONTHS[Number(value) - 1] ?? value });
+}
+
 function facetLabel(group: QuestFacetGroup, value: string): string {
     if (group === 'list') return t(LIST_FACET_KEYS[value as keyof typeof LIST_FACET_KEYS]);
     if (group === 'progress') return t(PROGRESS_FACET_KEYS[value as keyof typeof PROGRESS_FACET_KEYS]);
     if (group === 'period') return value === 'limited' ? t('ov.qfLimited') : periodLabel(value as QuestPeriod);
+    if (group === 'reset') return resetMonthLabel(value, 'ov.qfResetMonth');
     if (group === 'category') return categoryLabel(value as QuestCategory);
     if (group === 'reward') {
         if (value === '戦果') return t('ov.qfRewardRanking');
@@ -911,12 +977,14 @@ function facetGroupHtml(group: QuestFacetGroup, values: readonly string[], prefs
 function facetValues(all: readonly QuestRowFacets[]): Record<QuestFacetGroup, string[]> {
     const present = (group: QuestFacetGroup) => new Set(all.flatMap(facets => facets[group]));
     const period = present('period');
+    const reset = present('reset');
     const category = present('category');
     const reward = present('reward');
     return {
         list: [...QUEST_LIST_FACETS],
         progress: [...QUEST_PROGRESS_FACETS],
         period: QUEST_PERIOD_FACETS.filter(value => period.has(value)),
+        reset: QUEST_RESET_MONTH_FACETS.filter(value => reset.has(value)),
         category: CATEGORIES.filter(value => category.has(value)),
         reward: QUEST_REWARD_FACETS.filter(value => reward.has(value)),
         map: [...present('map')].sort(compareQuestMapLabels),
@@ -975,6 +1043,7 @@ export const questFlowSection: OverviewSection = {
         el.innerHTML = `<div class="qf">
             <div class="qf-topline">
                 <p class="qf-disclaimer" role="note">${esc(t('ov.qfDisclaimer'))}</p>
+                <p class="qf-cycles" title="${esc(t('ov.qfCycleTitle'))}">${questCycleSummaryHtml(initialModel, Date.now())}</p>
                 <details class="qf-intro">
                     <summary><span class="qf-kicker">${esc(t('ov.qfKicker'))}</span> ${esc(t('ov.qfHelp'))}</summary>
                     <p>${esc(t('ov.qfIntro'))}</p>
@@ -1057,7 +1126,7 @@ export const questFlowSection: OverviewSection = {
             const chosen: [QuestFacetGroup | 'pinned', string, string][] = [
                 ...(prefs.pinnedOnly ? [['pinned', 'only', t('ov.qfPinnedOnly')] as [QuestFacetGroup | 'pinned', string, string]] : []),
                 ...QUEST_FACET_GROUPS.flatMap(group => (prefs.filters[group] ?? [])
-                    .map(value => [group, value, facetLabel(group, value)] as [QuestFacetGroup, string, string])),
+                    .map(value => [group, value, group === 'reset' ? resetMonthLabel(value, 'ov.qfResetMonthSelected') : facetLabel(group, value)] as [QuestFacetGroup, string, string])),
             ];
             const selectedBox = facetPanel.querySelector<HTMLElement>('.qf-selected')!;
             selectedBox.hidden = chosen.length === 0;
@@ -1068,8 +1137,11 @@ export const questFlowSection: OverviewSection = {
             facetPanel.querySelector('.qf-more-count')!.textContent = moreCount ? String(moreCount) : '';
         };
 
+        const cycles = el.querySelector<HTMLElement>('.qf-cycles')!;
         const draw = () => {
             const model = buildQuestFlow(ctx.state, new Set(prefs.manualComplete));
+            // 分頁開著跨過換期時隨重繪更新；只有一個按鈕，點擊由 el 上的委派處理，重建不影響狀態
+            cycles.innerHTML = questCycleSummaryHtml(model, Date.now());
             const pinned = new Set(prefs.pinned);
             const facetsByNo = new Map(model.rows.map(row => [row.definition.apiNo, questRowFacets(row)]));
             const rows = model.rows
@@ -1284,6 +1356,13 @@ export const questFlowSection: OverviewSection = {
         }, true);
 
         query.addEventListener('input', () => { prefs.query = query.value; savePrefs(prefs); draw(); });
+        // 頂端的年任換期提醒：改用「年任換期月」篩選出那一組，其他已選條件保留（已選列可個別移除）
+        cycles.addEventListener('click', event => {
+            const month = (event.target as HTMLElement).closest<HTMLElement>('[data-qf-reset-month]')?.dataset.qfResetMonth;
+            if (!month || !QUEST_RESET_MONTH_FACETS.includes(month)) return;
+            prefs.filters = { ...prefs.filters, reset: [month] };
+            savePrefs(prefs); draw();
+        });
         facetPanel.addEventListener('click', event => {
             const target = event.target as HTMLElement;
             if (target.closest('.qf-clear')) {

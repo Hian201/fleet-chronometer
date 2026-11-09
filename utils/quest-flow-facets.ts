@@ -1,13 +1,15 @@
 // 任務導覽的多選篩選與前因後果摘要（純函式，無 chrome.*／DOM）。
-// 每列任務的標籤分成六組：同一組選了多個時任一符合即可，不同組之間要全部符合。
+// 每列任務的標籤分成七組：同一組選了多個時任一符合即可，不同組之間要全部符合。
 import type { QuestFlowModel, QuestFlowRow, QuestPeriod } from './quest-flow';
 import { isCompletedQuestRow, questRequirementGroups } from './quest-flow';
 import { questGoalFor } from './quest-goals';
 import { questRewardItemNames } from './quest-catalog-localization';
 import { questCatalogIdentity } from './quest-identity';
 
-export type QuestFacetGroup = 'list' | 'progress' | 'period' | 'category' | 'reward' | 'map';
-export const QUEST_FACET_GROUPS: readonly QuestFacetGroup[] = ['list', 'progress', 'period', 'category', 'reward', 'map'];
+export type QuestFacetGroup = 'list' | 'progress' | 'period' | 'reset' | 'category' | 'reward' | 'map';
+export const QUEST_FACET_GROUPS: readonly QuestFacetGroup[] = ['list', 'progress', 'period', 'reset', 'category', 'reward', 'map'];
+/** 年任換期月（'1'–'12'）；換期月不可考的年任沒有這組標籤。 */
+export const QUEST_RESET_MONTH_FACETS: readonly string[] = Array.from({ length: 12 }, (_, index) => String(index + 1));
 
 /** 清單狀態：受注中（未達成）、達成待領取、可接受、前置接近完成。 */
 export const QUEST_LIST_FACETS = ['in-progress', 'ready', 'available', 'near'] as const;
@@ -88,6 +90,8 @@ export function questRowFacets(row: QuestFlowRow): QuestRowFacets {
         list,
         progress: [progressFacet(row)],
         period,
+        reset: row.definition.period === 'yearly' && row.definition.yearlyResetMonth
+            ? [String(row.definition.yearlyResetMonth)] : [],
         category: [row.definition.category],
         reward: isReused ? [] : rewardFacets(row.definition.apiNo),
         map: isReused ? [] : mapFacets(row),
