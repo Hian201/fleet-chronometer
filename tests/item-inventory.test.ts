@@ -124,6 +124,86 @@ describe('道具持有量', () => {
         expect([state.useItemCount(78), state.useItemCount(75)]).toEqual([8, 9]);
     });
 
+    it('近代化改修帶 api_limited_feed_type=1 時扣 1 個南瓜；一般改修與未取得清單時不動', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/useitem', [{ api_id: 96, api_count: 3 }]);
+        const powerup = (req: Record<string, string>) =>
+            state.applyEvent('api_req_kaisou/powerup', { api_powerup_flag: 1 }, req);
+
+        powerup({ api_id: '1', api_id_items: '2', api_slot_dest_flag: '0' });
+        expect(state.useItemCount(96)).toBe(3);
+        powerup({ api_id: '1', api_id_items: '2', api_limited_feed_type: '1' });
+        expect(state.useItemCount(96)).toBe(2);
+        powerup({ api_id: '1', api_id_items: '3', api_limited_feed_type: '1' });
+        powerup({ api_id: '1', api_id_items: '4', api_limited_feed_type: '1' });
+        powerup({ api_id: '1', api_id_items: '5', api_limited_feed_type: '1' });
+        expect(state.useItemCount(96)).toBe(0);   // 不會扣成負數
+
+        const unknown = new GameState();
+        unknown.applyEvent('api_req_kaisou/powerup', { api_powerup_flag: 1 },
+            { api_id: '1', api_id_items: '2', api_limited_feed_type: '1' });
+        expect(unknown.useItemCount(96)).toBeNull();
+    });
+
+    it('遊戲不再重送 useitem 的固定消耗操作：每次請求補扣 1 個', () => {
+        const cases: [string, number][] = [
+            ['api_req_kaisou/marriage', 55], ['api_req_kaisou/open_exslot', 64],
+            ['api_req_hensei/preset_expand', 49], ['api_req_kaisou/preset_slot_expand', 49],
+            ['api_req_kousyou/open_new_dock', 49], ['api_req_nyukyo/open_new_dock', 49],
+            ['api_req_map/anchorage_repair', 91], ['api_req_air_corps/expand_base', 73],
+            ['api_req_air_corps/expand_maintenance_level', 73], ['api_req_air_corps/cond_recovery', 102],
+        ];
+        for (const [path, id] of cases) {
+            const state = new GameState();
+            state.applyEvent('api_get_member/useitem', [{ api_id: id, api_count: 2 }]);
+            state.applyEvent(path, {}, {});
+            expect([path, state.useItemCount(id)]).toEqual([path, 1]);
+            const unknown = new GameState();
+            unknown.applyEvent(path, {}, {});
+            expect(unknown.useItemCount(id)).toBeNull();
+        }
+    });
+
+    it('道具兌換得到的裝備依回應實例加入裝備清單，不推算道具消耗量', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/useitem', [{ api_id: 68, api_count: 50 }]);
+        state.applyEvent('api_get_member/slot_item', [{ api_id: 1, api_slotitem_id: 10, api_level: 0, api_locked: 0 }]);
+        expect(state.slotItems.size).toBe(1);
+
+        state.applyEvent('api_req_member/itemuse', {
+            api_caution_flag: 0, api_flag: 1,
+            api_getitem: [
+                null,
+                { api_usemst: 2, api_mst_id: 118, api_getcount: 1,
+                  api_slotitem: { api_id: 77, api_slotitem_id: 118, api_level: 0, api_locked: 0 } },
+                { api_usemst: 6, api_mst_id: 70, api_getcount: 2 },
+            ],
+        }, { api_useitem_id: '68', api_exchange_type: '34', api_force_flag: '0' });
+        expect(state.slotItems.size).toBe(2);
+        expect(state.slotItems.get(77)?.mst).toBe(118);
+        expect(state.useItemCount(68)).toBe(50);
+
+        // 缺欄位或格式不明的回應不動既有資料
+        state.applyEvent('api_req_member/itemuse', { api_getitem: null }, {});
+        state.applyEvent('api_req_member/itemuse', { api_getitem: [{ api_slotitem: { api_id: 78 } }] }, {});
+        state.applyEvent('api_req_member/itemuse', {}, {});
+        expect(state.slotItems.size).toBe(2);
+    });
+
+    it('間宮／伊良湖依 api_use_type 位元各扣 1 個', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/useitem', [{ api_id: 54, api_count: 5 }, { api_id: 59, api_count: 5 }]);
+        const use = (type: string) => state.applyEvent('api_req_member/itemuse_cond', {}, { api_deck_id: '1', api_use_type: type });
+        use('1');
+        expect([state.useItemCount(54), state.useItemCount(59)]).toEqual([4, 5]);
+        use('2');
+        expect([state.useItemCount(54), state.useItemCount(59)]).toEqual([4, 4]);
+        use('3');
+        expect([state.useItemCount(54), state.useItemCount(59)]).toEqual([3, 3]);
+        state.applyEvent('api_req_member/itemuse_cond', {}, { api_deck_id: '1' });
+        expect([state.useItemCount(54), state.useItemCount(59)]).toEqual([3, 3]);
+    });
+
     it('以 payitem、材料 API id 與裝備 master 名稱讀取不同來源的數量', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/payitem', [

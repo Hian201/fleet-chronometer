@@ -40,6 +40,10 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - Ships on expedition are listed but dimmed, as in the game. Ships in an active sortie show the repair time as pending until they return to port, because the game only refreshes it there.
 - Entering the docking screen in the game switches the panel to Repairs and shows the dock slots. Opening Repairs in the panel also starts on the dock slots.
 
+**Item counts after using items**
+- Item counts now drop as soon as you use an item that costs one per use: marriage papers and ring, reinforcement expansion, dock keys (preset slots, construction and repair docks), emergency repair material, construction corps (base expansion and maintenance level), special aviation rations, pumpkins for luck modernization, and Mamiya / Irako. Before, they stayed at the login value because the game does not resend the item list after these actions.
+- Equipment received from item exchanges appears in the equipment list right away instead of after the next login.
+
 **Layout fixes**
 - In English, the combined-fleet button now shows CTF / STF / TCF, with the full name in the tooltip. The full name wrapped to two lines and pushed the seventh ship past the panel's layout target.
 - Side-by-side columns are easier to tell apart: the Upkeep columns have a divider, and expedition conditions, the two-column item list (Traditional Chinese) and the resource log tooltip have wider column gaps.

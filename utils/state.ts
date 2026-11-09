@@ -939,6 +939,20 @@ export function speedKeyOf(minSoku: number): 'fastest' | 'fastPlus' | 'fast' | '
     return minSoku >= 20 ? 'fastest' : minSoku >= 15 ? 'fastPlus' : minSoku >= 10 ? 'fast' : 'slow';
 }
 
+/** 每次請求固定消耗 1 個的道具操作：path → useitem id。來源與限制見 applyUseItemDelta。 */
+const USEITEM_COST_PER_REQUEST: Readonly<Record<string, number>> = {
+    'api_req_kaisou/marriage': 55,                      // 書類一式與戒指
+    'api_req_kaisou/open_exslot': 64,                   // 補強增設
+    'api_req_hensei/preset_expand': 49,                 // 船塢開放鑰匙：編成預設槽
+    'api_req_kaisou/preset_slot_expand': 49,            // 船塢開放鑰匙：艦裝預設槽
+    'api_req_kousyou/open_new_dock': 49,                // 船塢開放鑰匙：建造船塢
+    'api_req_nyukyo/open_new_dock': 49,                 // 船塢開放鑰匙：入渠船塢
+    'api_req_map/anchorage_repair': 91,                 // 應急修理材
+    'api_req_air_corps/expand_base': 73,                // 設營隊：增設基地
+    'api_req_air_corps/expand_maintenance_level': 73,   // 設營隊：提升整備等級
+    'api_req_air_corps/cond_recovery': 102,             // 航空特別增量糧食
+};
+
 export class GameState {
     nickname = '';
     hqLv = 1;
@@ -1426,6 +1440,29 @@ export class GameState {
             }
             return;
         }
+        // HTML5 版遊戲在下列操作後不會重送 api_get_member/useitem，不補扣就會停在登入時的數量。
+        // 扣量與道具對應取自 KC3Kai src/library/modules/Kcsapi.js 各端點（clean-room 重寫）；
+        // 本專案尚無這些請求的真封包樣本，poi 也未處理。每次請求固定消耗 1 個。
+        const fixed = USEITEM_COST_PER_REQUEST[path];
+        if (fixed !== undefined) {
+            this.changeUseItemCount(fixed, -1);
+            return;
+        }
+        // 近代化改修的「南瓜運氣改修」：請求帶 api_limited_feed_type=1 時消耗南瓜（useitem 96）。
+        // 欄位名另見 poi 的 kcsapi 型別（APIReqKaisouPowerupRequest）。
+        if (path === 'api_req_kaisou/powerup') {
+            if (req?.api_limited_feed_type === '1') this.changeUseItemCount(96, -1);
+            return;
+        }
+        // 間宮（54）／伊良湖（59）：api_use_type 的 bit0／bit1（KC3Kai api_req_member/itemuse_cond）。
+        if (path === 'api_req_member/itemuse_cond') {
+            const flags = Number(req?.api_use_type);
+            if (Number.isSafeInteger(flags)) {
+                if (flags & 1) this.changeUseItemCount(54, -1);
+                if (flags & 2) this.changeUseItemCount(59, -1);
+            }
+            return;
+        }
         if (path === 'api_req_mission/result') {
             const reward = api?.api_get_item1;
             if (Number(reward?.api_useitem_id) > 0)
@@ -1758,6 +1795,20 @@ export class GameState {
             // 以 api_get_items 件數計、KC3Kai Kcsapi.js 逐件累加，兩者一致）。
             this.bumpQuestProgress('development', results.length);
             this.countQuestFactory({ event: 'create_item', amount: results.length }, ts);
+        } else if (path === 'api_req_member/itemuse') {
+            // 道具兌換（活動道具換裝備等）。兌換得到的裝備放在 api_getitem[].api_slotitem，
+            // 之後不會再重送 api_get_member/slot_item，不加入就要等下次登入才看得到。
+            // 只依回應帶的實例資料新增，不論是哪一件裝備；道具消耗量每年不同，不在此推算，
+            // 數量等遊戲重送 api_get_member/useitem。作法與 KC3Kai Kcsapi.js 的
+            // api_req_member/itemuse、poi equips.ts 一致；欄位見 poi kcsapi 型別
+            // APIReqMemberItemuseResponse。本專案尚無該回應的真封包樣本。
+            const rewards = Array.isArray(api?.api_getitem) ? api.api_getitem : [api?.api_getitem];
+            for (const reward of rewards) {
+                const gear = reward?.api_slotitem;
+                for (const record of Array.isArray(gear) ? gear : [gear]) {
+                    if (record && typeof record === 'object') this.upsertSlotItem(record);
+                }
+            }
         } else if (path === 'api_req_kousyou/remodel_slot' && req) {
             // 改修（明石の改修工廠）。已用真實封包驗證（見 state.ts 開頭註解，含成功／
             // 確実化／失敗三案例）：req.api_slot_id=對象裝備實例、req.api_certain_flag=
