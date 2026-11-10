@@ -86,26 +86,27 @@ npm test            # Vitest
 
 ## 不可破壞的目前契約
 
-- **IndexedDB**：schema 版本見 `utils/db.ts`。`events` 以 `captureId` unique index 去重並保存 `postProcessState`；`resources` 以來源 event id 冪等保存，`resourceMarks` 保存活動時間點；`questObserved` 保存本機觀測到的任務領獎，`questSeen` 保存曾出現在任務清單的任務（單發前置推論的永久證據）。歷史資料不回填不存在的 capture／processing／projection metadata，也不把 snapshot 當 raw event。
+- **IndexedDB**：`events` 以 `captureId` unique index 去重；`resources`、任務觀測與 derived rows 以來源 event id 冪等寫入。版本升級不回填歷史資料沒有的 capture／processing／projection metadata。各表與寫入者見 `docs/engineering/capture.md`，版本見 `utils/db.ts`。
 - **匯入與備份**：單場 JSON 只接受本專案 `toKc3Replay()` version 4，或已有 fixture 證實的 KC3Kai logger 格式；CSV 與單場匯入都借 event id 但不寫 raw event。備份還原是乾淨環境的完整 transaction，不是 merge；空資料不得寫成備份。
 - **關卡量表**：`mapInFinalPhase()` 對 gaugeType 2 使用同一血條的 Boss HP，門檻為 `nowHp <= bossHp`；`nowHp === 1` 是不需 Boss HP 的唯一特例。gaugeType 3 的量表欄位尚未以真封包驗證，不能用未證實的場數公式取代。
 - **戰鬥**：血量與敵方陣列為 0-indexed，沒有舊格式的 leading `-1`；`battleresult` 必須排除 battle 分支。聯合艦隊、航空／基地、友軍與支援欄位只依 samples 與 tests 維護。
 - **重播**：原始戰鬥封包存在 `db.replays`；裁剪只影響詳細重播，`db.sorties` 摘要保留。缺出擊開始事件或必要艦隊快照時，只保存可建立的摘要，不補猜編成。
-- **待驗證擷取**：`wantedTag()` 只留渦潮表外且真有 `api_happening`、以及未知 sally 系 key。正式 build 預設關閉 debug UI（`utils/debug-ui.ts`）。`db.wanted` 會永久保護對應 raw event，達上限必須明說，不可靜默略過，也不可擴充會洗版的鉤子。
+- **待驗證擷取**：`db.wanted` 會永久保護對應 raw event，所以不得擴充 `wantedTag()` 的鉤子，達上限必須明說、不可靜默略過；正式 build 預設關閉 debug UI。現有鉤子與上限見 `docs/engineering/capture.md`。
 - **活動資料**：節點字母只走 `utils/map-node-letters.ts` 查表，新海域沒有對照時顯示原始 edge id。活動標籤的未驗證語意、`api_sally_flag` 與其他待驗證欄位保留原始值，不自行命名或推導。
-- **版面**：面板內容寬、編成高度目標與硬上限見 design-guidelines §7.1，預覽基準見 §7.5。情報總括左右並排分區在內容區放得下兩欄時不得改單欄（§4.7）；同名艦種篩選／標籤走 `utils/stype-label.ts`（§4.8）。改面板或 overview 版面前先讀 design-guidelines 對應節，CSS 數值以該文件為準。
-- **圖示與第三方**：panel 系統圖示維持 design-guidelines §5.1 的剪影語言；第三方邏輯 clean-room 重寫，來源登錄於 `THIRD-PARTY-NOTICES.md`。
+- **版面與圖示**：面板內容寬、編成高度目標與硬上限見 design-guidelines §7.1，預覽基準見 §7.5。情報總括左右並排分區在內容區放得下兩欄時不得改單欄（§4.7）；同名艦種篩選／標籤走 `utils/stype-label.ts`（§4.8）；panel 系統圖示維持 §5.1 的剪影語言。改面板或 overview 版面前先讀 design-guidelines 對應節，CSS 數值以該文件為準。
 
-## 會影響取捨的待辦
+## 尚未驗證、不得補猜的項目
 
-詳細狀態以程式碼、測試與 `docs/engineering/` 對應主題檔為準。
+下列項目沒有真封包或資料佐證：維持估算／原始值／`null`，不得宣稱已驗證。詳細狀態見 `docs/engineering/` 對應主題檔。
 
-- 新活動的 edge 對照表、活動特殊燃彈費率、TP 量表與新裝備值仍需資料或真封包。
-- 掉落統計彙總視圖未完成；斬殺偵測的即時觸發待實際 mapinfo 時序觀測。
-- 部分艦載機損耗後的熟練度下降量、第二艦隊旗艦不沉時的殘 HP、遠征回航道具欄位仍不可考，維持估算／原始值／null。
-- 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗、劇場跨源框與音訊路徑待開發者以 live 遊戲手動驗證。
-- M4 尚有 side panel、視窗位置記憶與 Firefox 打包驗證。
-- `git push` 目前只推 GitLab，不動 GitHub；出 `v1.1.1.0-rc.2` 之後要提醒開發者重啟 GitHub 同步，條件與步驟見 `docs/code-hosting-safety.md` §7。
+- 新活動的 edge 對照表、活動特殊燃彈費率、TP 量表與新裝備值。
+- 斬殺偵測的即時觸發時序（待實際 mapinfo 觀測）。
+- 部分艦載機損耗後的熟練度下降量、第二艦隊旗艦不沉時的殘 HP、遠征回航道具欄位。
+- 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗、劇場跨源框與音訊路徑：待開發者以 live 遊戲手動驗證。
+
+## 遠端同步現況
+
+`git push` 目前只推 GitLab，不動 GitHub；出 `v1.1.1.0-rc.2` 之後要提醒開發者重啟 GitHub 同步，條件與步驟見 `docs/code-hosting-safety.md` §7。
 
 ## 單一真相來源
 
