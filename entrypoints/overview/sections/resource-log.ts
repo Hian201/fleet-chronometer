@@ -20,8 +20,8 @@ import {
     type EventSeason, type SeasonGroup,
 } from '@/utils/event-calendar';
 import {
-    copyWithFeedback, downloadText, esc, fmtShortTs, fmtTs, loadJsonPrefs, matIconHtml,
-    paginate, saveJsonPrefs,
+    copyWithFeedback, downloadText, esc, fmtNum, fmtShortTs, fmtTs, loadJsonPrefs, matIconHtml,
+    paginate, parsePageSize, saveJsonPrefs,
 } from '../lib';
 import { multiChartGeometry, nearestIndex, type ChartBox, type MultiChartGeometry } from '@/utils/line-chart';
 import {
@@ -91,7 +91,7 @@ function loadPrefs(): Prefs {
                 ? ALL_COLS.filter(i => (r.cols as unknown[]).includes(i)) : d.cols,
             showDelta: r.showDelta !== false,
             marks: r.marks !== false,
-            size: (PAGE_SIZES as readonly number[]).includes(r.size as number) ? r.size as PageSize : d.size,
+            size: parsePageSize(r.size, PAGE_SIZES, d.size),
             evView: r.evView === 'compare' ? 'compare' : 'detail',
             evCmp: r.evCmp === 'after' || r.evCmp === 'both' ? r.evCmp : 'attack',
             evAvg: r.evAvg === true,
@@ -103,7 +103,6 @@ const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
 
 // ── 小工具 ───────────────────────────────────────────────────────────────
 
-const fmtNum = (n: number) => n.toLocaleString();
 /** 消長：正負號一律顯示（沒有符號就分不出「增加 3000」與「剩 3000」）。 */
 const fmtDelta = (n: number) => (n > 0 ? `+${fmtNum(n)}` : n < 0 ? fmtNum(n) : '0');
 const deltaClass = (n: number) => (n > 0 ? 'rl-gain' : n < 0 ? 'rl-drain' : 'rl-flat');

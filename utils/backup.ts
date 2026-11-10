@@ -7,6 +7,7 @@ import type {
     ShipObtainedRow, SnapshotRow, SortieLogRow, WantedRow,
 } from './db';
 import { borrowEventId } from './event-id-borrow';
+import { isPlainObject } from './plain-object';
 import {
     applyQuestFlowBackupPrefs, hasQuestFlowBackupPrefs, readQuestFlowBackupPrefs,
     type QuestFlowBackupPrefs,
@@ -109,12 +110,6 @@ function invalid(message: string): never {
 
 function destinationInvalid(message: string): never {
     throw new BackupDestinationError(message);
-}
-
-function isPlainObject(value: unknown): value is UnknownRecord {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
 }
 
 function objectAt(value: unknown, where: string): UnknownRecord {

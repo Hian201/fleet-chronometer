@@ -36,6 +36,24 @@ export function saveJsonPrefs(key: string, prefs: unknown): void {
     try { localStorage.setItem(key, JSON.stringify(prefs)); } catch { /* 隱私模式等：靜默 */ }
 }
 
+/**
+ * 偏好裡的欄位清單：依 `all` 的順序保留 `raw` 內出現的欄位。`raw` 不是陣列、或過濾後一個
+ * 欄位都沒有時退回 `fallback`——不能沒有可見欄位，否則表格失去內容與可恢復控制項。
+ */
+export function parseColumnIds<T extends string>(raw: unknown, all: readonly { id: T }[], fallback: T[]): T[] {
+    if (!Array.isArray(raw)) return fallback;
+    const cols = all.filter(c => raw.includes(c.id)).map(c => c.id);
+    return cols.length ? cols : fallback;
+}
+
+/** 偏好裡的每頁筆數：必須是 `sizes` 內的值，否則退回 `fallback`。 */
+export function parsePageSize<S extends number>(raw: unknown, sizes: readonly S[], fallback: S): S {
+    return (sizes as readonly number[]).includes(raw as number) ? raw as S : fallback;
+}
+
+/** 千分位數字（依瀏覽器語言）。 */
+export const fmtNum = (n: number) => n.toLocaleString();
+
 /** 活動下拉：`all`＋各次活動。跨年時依年份 optgroup，組內只寫季節以免重複年份。 */
 export function eventFilterSelectHtml(
     groups: EventMapFilterPlan['eventGroups'],
@@ -278,6 +296,16 @@ export function dropDisplayName(
         if (named && named !== '?') return named;
     }
     return row.drop || null;
+}
+
+/** 掉落艦顯示名（艦名解析走 `state`）。 */
+export function dropName(row: { drop: string | null; dropMst?: number }, state: GameState): string | null {
+    return dropDisplayName(row, mst => state.shipName(mst));
+}
+
+/** 活動主標（master 海域名走 `state`）。 */
+export function eventNameOf(world: number, state: GameState): string {
+    return eventDisplayName(world, state.masterMapAreas.get(world));
 }
 
 export function fleetMarkdown(state: GameState, h = '##', scope?: FleetMarkdownScope): string {

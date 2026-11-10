@@ -21,8 +21,8 @@ import {
     type ExpeditionStat, type ExpeditionTotals, type StatSortKey,
 } from '@/utils/expedition-stats';
 import {
-    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtTs, loadJsonPrefs,
-    matIconHtml, paginate, saveJsonPrefs,
+    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtNum, fmtTs, loadJsonPrefs,
+    matIconHtml, paginate, parseColumnIds, parsePageSize, saveJsonPrefs,
 } from '../lib';
 import { rowsToCsv } from '@/utils/csv';
 
@@ -144,15 +144,10 @@ function loadPrefs(): Prefs {
             cols?: unknown; range?: unknown; size?: unknown; sort?: unknown; desc?: unknown;
             statsOpen?: unknown;
         } | null;
-        const ids = new Set(COLUMNS.map(c => c.id));
-        const cols = Array.isArray(r?.cols)
-            ? COLUMNS.filter(c => (r!.cols as unknown[]).includes(c.id) && ids.has(c.id)).map(c => c.id)
-            : d.cols;
         return {
-            // 不能沒有可見欄位，否則表格失去內容與可恢復控制項。
-            cols: cols.length ? cols : d.cols,
+            cols: parseColumnIds(r?.cols, COLUMNS, d.cols),
             range: RANGES.some(range => range.key === r?.range) ? r!.range as Prefs['range'] : d.range,
-            size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : d.size,
+            size: parsePageSize(r?.size, PAGE_SIZES, d.size),
             sort: STAT_COLUMNS.some(c => c.key === r?.sort) ? r!.sort as Prefs['sort'] : d.sort,
             desc: typeof r?.desc === 'boolean' ? r.desc : d.desc,
             statsOpen: typeof r?.statsOpen === 'boolean' ? r.statsOpen : d.statsOpen,
@@ -173,8 +168,6 @@ function dateInputValue(ts: number): string {
     const d = new Date(ts);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
-const fmtNum = (n: number) => n.toLocaleString();
 
 const matChip = (index: number, value: string, cls = '') =>
     `<span class="el-sum-chip ${cls}" title="${esc(t(MAT_LABELS[index] + '.full'))}">`

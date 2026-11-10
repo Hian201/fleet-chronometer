@@ -68,9 +68,9 @@ import {
 import { PSEUDONYM_NOTES_EN, mapName, operationName } from '@/utils/map-names';
 import {
     esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
-    eventDisplayName, eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter,
-    loadJsonPrefs, mapFilterSelectHtml, paginate, readEventWorldFilter, saveJsonPrefs,
-    dropDisplayName, hashParams, clearHashParams,
+    eventDisplayTitle, eventFilterSelectHtml, eventNameOf, eventTermForFilter,
+    loadJsonPrefs, mapFilterSelectHtml, paginate, parsePageSize, readEventWorldFilter, saveJsonPrefs,
+    dropName, hashParams, clearHashParams,
 } from '../lib';
 
 const SEIKU_KEYS = ['seiku.even', 'seiku.secured', 'seiku.superior', 'seiku.inferior', 'seiku.lost'];
@@ -116,8 +116,7 @@ function loadPrefs(): Prefs {
         const cat = value
             && (value.cat === 'normal' || value.cat === 'event')
             ? value.cat : 'all';
-        const size = (PAGE_SIZES as readonly number[]).includes(value?.size as number)
-            ? value!.size as PageSize : fallback.size;
+        const size = parsePageSize(value?.size, PAGE_SIZES, fallback.size);
         return { cat, size };
     });
 }
@@ -144,12 +143,6 @@ const seikuLabel = (v: number | null) => (v == null ? '' : t(SEIKU_KEYS[v] ?? 's
 const alertIcon = () =>
     `<img class="sl-alert" src="/icons/ui/airraid.svg" alt="${esc(t('history.raid'))}" title="${esc(t('history.raid'))}">`;
 
-/**
- * 掉落艦名：有 master id 就依當前語言解析；只有舊資料缺 id 時才用擷取當下存的字串。
- */
-function dropName(row: { drop: string | null; dropMst?: number }, state: SectionContext['state']): string | null {
-    return dropDisplayName(row, mst => state.shipName(mst));
-}
 // class 只吃白名單後綴；文字節點另走 esc（匯入／異常 rank 不得進 class）。
 const rankClass = (rank: string) => {
     const suf = rank.trim().toUpperCase();
@@ -247,10 +240,6 @@ function nodePill(row: SortieLogRow, night: boolean, state: SectionContext['stat
     return `<span class="${cls.join(' ')}" title="${esc(tip)}" aria-label="${esc(`${t('ov.slNodeN', { n: nodeLabel(row.map, row.node) })}・${kindLabel}`)}">`
         + `<span class="sl-route-node-label">${esc(nodeLabel(row.map, row.node))}</span>`
         + `<span class="sl-route-node-signal" aria-hidden="true"></span>${mark}</span>`;
-}
-
-function eventNameOf(world: number, state: SectionContext['state']): string {
-    return eventDisplayName(world, state.masterMapAreas.get(world));
 }
 
 function mapDisplayLabel(entry: Entry, qualifyEventWorld: boolean, state: SectionContext['state']): string {

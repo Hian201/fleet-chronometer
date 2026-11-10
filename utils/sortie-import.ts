@@ -29,6 +29,7 @@ import type {
 } from './db';
 import { analyzeBattle } from './battle';
 import { borrowEventId } from './event-id-borrow';
+import { isPlainObject } from './plain-object';
 
 /** JSON 結構不符（缺欄位、型別錯、空 battles…）。UI 需與「已存在」分流顯示。 */
 export class SortieImportError extends Error {
@@ -141,12 +142,6 @@ type ImportFormat = ParsedSortie['format'];
 const fail = (where: string, message: string): never => {
     throw new SortieImportError(`${where} ${message}`);
 };
-
-function isPlainObject(value: unknown): value is UnknownRecord {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-    const proto = Object.getPrototypeOf(value);
-    return proto === Object.prototype || proto === null;
-}
 
 function objectAt(value: unknown, where: string): UnknownRecord {
     return isPlainObject(value) ? value : fail(where, '必須是一般物件。');

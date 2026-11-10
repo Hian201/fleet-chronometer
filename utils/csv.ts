@@ -68,3 +68,16 @@ export function parseDelimitedText(text: string): DelimitedText | null {
     const [header, ...rows] = all;
     return { header, rows, delimiter };
 }
+
+/** ISO 字串（本專案匯出）或 "yyyy-MM-dd HH:mm:ss"（航海日誌，當本地時間解析）；解不出來回 null。 */
+export function parseTimestamp(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const iso = Date.parse(trimmed);
+    if (Number.isFinite(iso)) return iso;
+    const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(trimmed);
+    if (!m) return null;
+    const [, y, mo, d, h, mi, s] = m;
+    const local = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)).getTime();
+    return Number.isFinite(local) ? local : null;
+}

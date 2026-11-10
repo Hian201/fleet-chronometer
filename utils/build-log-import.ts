@@ -13,7 +13,7 @@
 // `FactoryLogRow.used` 的 index 0/1/2/3/6（燃彈鋼鋁／開発資材）；該報表沒有「高速建造材」欄，
 // 故 used[4] 一律為 0，匯入列 kind 固定為 'build'（航海日誌沒有另外記錄「高速完工」事件）。
 import type { FactoryLogRow, KcDb } from './db';
-import { parseDelimitedText, rowsToCsv } from './csv';
+import { parseDelimitedText, parseTimestamp, rowsToCsv } from './csv';
 import { borrowEventId } from './event-id-borrow';
 
 export class BuildLogImportError extends Error {
@@ -44,18 +44,6 @@ export interface BuildLogParseResult {
     format: 'own' | 'logbook';
     rows: ParsedBuildRow[];
     skipped: { line: number; reason: string }[];
-}
-
-function parseTimestamp(raw: string): number | null {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    const iso = Date.parse(trimmed);
-    if (Number.isFinite(iso)) return iso;
-    const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(trimmed);
-    if (!m) return null;
-    const [, y, mo, d, h, mi, s] = m;
-    const local = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)).getTime();
-    return Number.isFinite(local) ? local : null;
 }
 
 function isOwnHeader(header: string[]): boolean {

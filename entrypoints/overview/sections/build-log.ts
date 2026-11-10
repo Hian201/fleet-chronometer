@@ -10,7 +10,7 @@ import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import {
     copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtTs, fuzzyMatch,
-    loadJsonPrefs, matIconHtml, paginate, saveJsonPrefs,
+    loadJsonPrefs, matIconHtml, paginate, parseColumnIds, parsePageSize, saveJsonPrefs,
 } from '../lib';
 
 const PREFS_KEY = 'kc-build-log-view';
@@ -78,11 +78,9 @@ function loadPrefs(): Prefs {
     const d = defaultPrefs();
     return loadJsonPrefs(PREFS_KEY, d, raw => {
         const r = raw as { cols?: unknown; size?: unknown } | null;
-        const cols = Array.isArray(r?.cols)
-            ? COLUMNS.filter(c => (r!.cols as unknown[]).includes(c.id)).map(c => c.id) : d.cols;
         return {
-            cols: cols.length ? cols : d.cols,
-            size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : d.size,
+            cols: parseColumnIds(r?.cols, COLUMNS, d.cols),
+            size: parsePageSize(r?.size, PAGE_SIZES, d.size),
         };
     });
 }

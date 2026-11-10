@@ -3,7 +3,7 @@ import type { OverviewSection } from './types';
 import { db, type FactoryLogRow } from '@/utils/db';
 import { t } from '@/utils/ui-i18n';
 import {
-    dateEnd, dateStart, esc, fmtTs, fuzzyMatch, loadJsonPrefs, paginate, saveJsonPrefs,
+    dateEnd, dateStart, esc, fmtTs, fuzzyMatch, loadJsonPrefs, paginate, parseColumnIds, parsePageSize, saveJsonPrefs,
 } from '../lib';
 
 const PREFS_KEY = 'kc-dev-log-view';
@@ -45,12 +45,9 @@ function loadPrefs(): Prefs {
     const fallback = defaultPrefs();
     return loadJsonPrefs(PREFS_KEY, fallback, raw => {
         const r = raw as { cols?: unknown; size?: unknown } | null;
-        const cols = Array.isArray(r?.cols)
-            ? COLUMNS.filter(column => (r!.cols as unknown[]).includes(column.id)).map(column => column.id)
-            : fallback.cols;
         return {
-            cols: cols.length ? cols : fallback.cols,
-            size: (PAGE_SIZES as readonly number[]).includes(r?.size as number) ? r!.size as PageSize : fallback.size,
+            cols: parseColumnIds(r?.cols, COLUMNS, fallback.cols),
+            size: parsePageSize(r?.size, PAGE_SIZES, fallback.size),
         };
     });
 }

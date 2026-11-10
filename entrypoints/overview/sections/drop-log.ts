@@ -15,9 +15,9 @@ import {
 import { t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import {
-    copyWithFeedback, dateEnd, dateStart, downloadText, dropDisplayName, esc, eventDisplayName,
-    eventDisplayTitle, eventFilterSelectHtml, eventTermForFilter, fmtTs,
-    fuzzyMatch, loadJsonPrefs, mapFilterSelectHtml, paginate, rankClassSuffix,
+    copyWithFeedback, dateEnd, dateStart, downloadText, dropName, esc, eventDisplayName,
+    eventDisplayTitle, eventFilterSelectHtml, eventNameOf, eventTermForFilter, fmtTs,
+    fuzzyMatch, loadJsonPrefs, mapFilterSelectHtml, paginate, parseColumnIds, parsePageSize, rankClassSuffix,
     readEventWorldFilter, saveJsonPrefs,
 } from '../lib';
 import type { OverviewSection, SectionContext } from './types';
@@ -39,17 +39,9 @@ interface Column {
     cell(row: SortieLogRow, ctx: SectionContext, view: MapView): string;
 }
 
-function dropName(row: SortieLogRow, ctx: SectionContext): string | null {
-    return dropDisplayName(row, mst => ctx.state.shipName(mst));
-}
-
 function catalogItem(row: SortieLogRow) {
     const parsed = parseMapCode(row.map);
     return { map: row.map, world: parsed.world, mapnum: parsed.mapnum, event: isEventWorld(parsed.world) };
-}
-
-function eventNameOf(world: number, ctx: SectionContext): string {
-    return eventDisplayName(world, ctx.state.masterMapAreas.get(world));
 }
 
 export function dropMapLabel(row: SortieLogRow, qualifyEventWorld: boolean): string {
@@ -72,7 +64,7 @@ const COLUMNS: Column[] = [
     { id: 'time', labelKey: 'ov.dropColTime', cell: row => `<time>${esc(fmtTs(row.ts))}</time>${importedBadge(row)}` },
     { id: 'map', labelKey: 'ov.dropColMap', cell: (row, ctx, view) =>
         `<span class="dl-map" title="${esc(dropMapTitle(row, ctx))}">${esc(dropMapLabel(row, view.qualifyEventWorld))}</span>` },
-    { id: 'drop', labelKey: 'ov.dropColDrop', cell: (row, ctx) => `<b>${esc(dropName(row, ctx) ?? t('ov.dropUnknown'))}</b>` },
+    { id: 'drop', labelKey: 'ov.dropColDrop', cell: (row, ctx) => `<b>${esc(dropName(row, ctx.state) ?? t('ov.dropUnknown'))}</b>` },
     {
         id: 'node', labelKey: 'ov.dropColNode',
         cell: row => {
@@ -93,12 +85,9 @@ function loadPrefs(): Prefs {
     return loadJsonPrefs(PREFS_KEY, fallback, raw => {
         const r = raw as { cat?: unknown; cols?: unknown; size?: unknown } | null;
         const cat: Category = r?.cat === 'event' ? 'event' : 'normal';
-        const cols = Array.isArray(r?.cols)
-            ? COLUMNS.filter(c => (r!.cols as unknown[]).includes(c.id)).map(c => c.id)
-            : fallback.cols;
-        const size = (PAGE_SIZES as readonly number[]).includes(r?.size as number)
-            ? r!.size as PageSize : fallback.size;
-        return { cat, cols: cols.length ? cols : fallback.cols, size };
+        const cols = parseColumnIds(r?.cols, COLUMNS, fallback.cols);
+        const size = parsePageSize(r?.size, PAGE_SIZES, fallback.size);
+        return { cat, cols, size };
     });
 }
 
@@ -191,7 +180,7 @@ export const dropLogSection: OverviewSection = {
             return item.event === (prefs.cat === 'event')
                 && (eventFilter === 'all' || item.world === eventFilter)
                 && (mapFilter === 'all' || item.map === mapFilter)
-                && (fuzzyMatch(dropName(row, ctx) ?? '', keyword.value)
+                && (fuzzyMatch(dropName(row, ctx.state) ?? '', keyword.value)
                     || fuzzyMatch(row.drop ?? '', keyword.value))
                 && (from == null || row.ts >= from) && (to == null || row.ts <= to)
                 && (newShip === 'all' || (newShipEventIds.has(row.eventId) === (newShip === 'new')));
@@ -203,7 +192,7 @@ export const dropLogSection: OverviewSection = {
                 eventFilter,
                 mapFilter,
                 pinLatestEvent,
-                worldLabel: world => eventNameOf(world, ctx),
+                worldLabel: world => eventNameOf(world, ctx.state),
                 eventTerm: eventTermForFilter,
                 normalGroupLabel: t('ov.dropNormal'),
             });
@@ -320,12 +309,12 @@ export const dropLogSection: OverviewSection = {
                     db.sorties.orderBy('ts').reverse().toArray(),
                     db.shipObtained.toArray(),
                 ]);
-                rows = sorties.filter(row => row.kind === 'battle' && !!dropName(row, ctx));
+                rows = sorties.filter(row => row.kind === 'battle' && !!dropName(row, ctx.state));
                 shipObtained = obtained;
                 // 依歷史上的首次自動入手觀測定位「入手那一撈」，並以 eventId 對應單筆掉落。
                 // 這樣同一場出擊內的多筆掉落不會互相影響。
                 recalculateNewShipEventIds();
-                const drops = [...new Set(rows.map(row => dropName(row, ctx)).filter((n): n is string => !!n))];
+                const drops = [...new Set(rows.map(row => dropName(row, ctx.state)).filter((n): n is string => !!n))];
                 el.querySelector('#dl-drops')?.remove();
                 el.querySelector('.dl-keyword')!.insertAdjacentHTML('afterend',
                     `<datalist id="dl-drops">${drops.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>`);

@@ -33,7 +33,7 @@
 // 這些都是依原始碼轉寫、非猜測；但 **CSV 本身沒有位置測試樣本**，故解析器對任何不符預期的列
 // 一律跳過並記錄原因，不猜出一個可能錯誤的值（同 map-node-kind.ts 的「沒有樣本佐證的一律不猜」）。
 import type { KcDb, SortieLogRow } from './db';
-import { parseDelimitedText, rowsToCsv } from './csv';
+import { parseDelimitedText, parseTimestamp, rowsToCsv } from './csv';
 import { borrowEventId } from './event-id-borrow';
 
 export class DropLogImportError extends Error {
@@ -74,19 +74,6 @@ function normalizeRank(raw: string): string {
     if (RANK_LETTERS.has(trimmed)) return trimmed;
     const last = trimmed.slice(-1).toUpperCase();
     return RANK_LETTERS.has(last) ? last : '';
-}
-
-/** ISO 字串（本專案匯出）或 "yyyy-MM-dd HH:mm:ss"（航海日誌，當本地時間解析）。 */
-function parseTimestamp(raw: string): number | null {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    const iso = Date.parse(trimmed);
-    if (Number.isFinite(iso)) return iso;
-    const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(trimmed);
-    if (!m) return null;
-    const [, y, mo, d, h, mi, s] = m;
-    const local = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)).getTime();
-    return Number.isFinite(local) ? local : null;
 }
 
 /** 從航海日誌「マス」欄取出 world-mapnum；解不出來回 null（呼叫端跳過整列）。 */
