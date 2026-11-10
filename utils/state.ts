@@ -1533,161 +1533,9 @@ export class GameState {
     applyEvent(path: string, api: any, req?: Record<string, string>, ts: number = Date.now()) {
         this.applyUseItemDelta(path, api, req);
         if (path === 'api_start2/getData') {
-            this.remodelPrev.clear();
-            this.baseShipIdCache.clear();   // 反解來源要重建了，舊答案一律作廢
-            this.shipCountsAsCache.clear();
-            this.masterUseItems.clear();
-            for (const s of api.api_mst_ship) {
-                this.master.set(s.api_id, {
-                    name: s.api_name, stype: s.api_stype ?? 0,
-                    fuelMax: s.api_fuel_max ?? 0, bullMax: s.api_bull_max ?? 0,
-                    // api_ctype＝艦型（艦級）id。補強增設的逐艦例外表 api_mst_equip_exslot_ship
-                    // 以 ship_ids／stypes／**ctypes** 三種方式指定對象，缺這欄就查不了 ctype 條件。
-                    ctype: s.api_ctype ?? 0,
-                    // 改造鏈：api_afterlv＝下一段改造所需等級，api_aftershipid（**字串**）＝
-                    // 改造後 master id，'0' 表示已是最終形態。「完成改造」篩選只認後者。
-                    afterLv: s.api_afterlv ?? 0,
-                    afterShipId: Number(s.api_aftershipid ?? 0) || 0,
-                    // 近代化改修上限：master 的 api_houg/raig/tyku/souk 是 [初期値, 最大値]，
-                    // 兩者差＝該項可改修的總量，恰好對得上 api_ship.api_kyouka 的累計值。
-                    // **已用真封包核對**（叢雲改二 420：houg[14,57] 差 43＝kyouka[0]、
-                    // raig[32,89] 差 57＝kyouka[1]、tyku[27,74] 差 47＝kyouka[2]、
-                    // souk[14,51] 差 37＝kyouka[3]，四項全中），故「改修已滿」是精確判定。
-                    kyoukaMax: [
-                        (s.api_houg?.[1] ?? 0) - (s.api_houg?.[0] ?? 0),
-                        (s.api_raig?.[1] ?? 0) - (s.api_raig?.[0] ?? 0),
-                        (s.api_tyku?.[1] ?? 0) - (s.api_tyku?.[0] ?? 0),
-                        (s.api_souk?.[1] ?? 0) - (s.api_souk?.[0] ?? 0),
-                    ],
-                    // api_slot_num：該艦真實裝備槽數。api_ship.api_slot 陣列本身可能帶超出
-                    // 真實槽數的 -1 padding（例如 3 槽驅逐艦仍收到長度較長的陣列），需靠這個
-                    // 欄位截斷，否則會把 padding 誤畫成「未裝備的空槽」。
-                    // 已用真實 start2 核對（samples/start2-master.json：必填 number）。
-                    slotNum: s.api_slot_num,
-                    // api_maxeq：各槽滿載機數（判定艦載機戰損用）。真實 start2 核對為 number[]
-                    // （例 睦月 [0,0,0,0,0]）；undefined 時面板僅顯示搭載數、不做戰損變色。
-                    maxeq: s.api_maxeq,
-                    // api_sortno＝図鑑番号。已與獨立來源的公開図鑑資料交叉驗證（sortno 1~10
-                    // ＝長門/陸奥/伊勢/日向/雪風/赤城/加賀/蒼龍/飛龍/島風，與 samples/
-                    // ship-debut-dates.json 的排列完全一致）。0/缺 = 不在図鑑（深海棲艦等）。
-                    sortno: s.api_sortno,
-                    // api_sort_id：艦船選択依等級排序時，同等級依此值升冪（samples/
-                    // start2-master.json 核對：金剛改二丙 1017 < 比叡改二丙 1027 < … < 長門改二 1096，
-                    // 與遊戲畫面次序一致）。0／缺視為不可考。
-                    sortId: Number(s.api_sort_id) > 0 ? Number(s.api_sort_id) : undefined,
-                    taik0: Number(s.api_taik?.[0]) || 0,
-                });
-                // api_aftershipid 是**字串**（真封包實證，例 睦月 '254'），'0' 代表無後續改造。
-                // 當 number 比對會靜默失效，務必先 Number() 解析。
-                const after = Number(s.api_aftershipid ?? 0);
-                if (Number.isSafeInteger(after) && after > 0) {
-                    const preds = this.remodelPrev.get(after);
-                    if (preds) preds.push(s.api_id); else this.remodelPrev.set(after, [s.api_id]);
-                }
-            }
-            // 改造 → 基礎形態的直接對應（主要解法，見 upgradeOriginal 宣告處說明）
-            this.upgradeOriginal.clear();
-            for (const u of api.api_mst_shipupgrade ?? []) {
-                const id = u?.api_id, base = u?.api_original_ship_id;
-                if (Number.isSafeInteger(id) && Number.isSafeInteger(base) && id > 0 && base > 0
-                    && !this.upgradeOriginal.has(id)) this.upgradeOriginal.set(id, base);
-            }
-            for (const g of api.api_mst_slotitem ?? []) {
-                this.masterGears.set(g.api_id, {
-                    name: g.api_name, icon: g.api_type?.[3] ?? 0,
-                    cat: g.api_type?.[2] ?? 0, aa: g.api_tyku ?? 0, los: g.api_saku ?? 0,
-                    distance: g.api_distance ?? 0, sortNo: g.api_sortno ?? 0,
-                    stats: {
-                        houg: g.api_houg ?? 0, houm: g.api_houm ?? 0, leng: g.api_leng ?? 0,
-                        luck: g.api_luck ?? 0, houk: g.api_houk ?? 0, baku: g.api_baku ?? 0,
-                        raig: g.api_raig ?? 0, saku: g.api_saku ?? 0, tais: g.api_tais ?? 0,
-                        tyku: g.api_tyku ?? 0, souk: g.api_souk ?? 0,
-                    },
-                });
-                if (CONSUMABLE_NAMES.has(g.api_name)) this.consumableGearIds.add(g.api_id);
-            }
-            for (const item of api.api_mst_useitem ?? []) {
-                const id = GameState.positiveId(item?.api_id);
-                if (id != null && typeof item?.api_name === 'string' && item.api_name.length > 0)
-                    this.masterUseItems.set(id, item.api_name);
-            }
-            // 補強增設三張表（見宣告處的欄位說明）。任一缺席就維持空集合，呼叫端需可降級。
-            this.exSlotTypes = new Set(
-                (Array.isArray(api.api_mst_equip_exslot) ? api.api_mst_equip_exslot : []).map(Number));
-            this.exSlotItemShips.clear();
-            const exShip = api.api_mst_equip_exslot_ship;
-            if (exShip && typeof exShip === 'object') {
-                for (const [itemId, entry] of Object.entries<any>(exShip)) {
-                    this.exSlotItemShips.set(Number(itemId), {
-                        // 三個欄位皆可能是 null（＝不以這種方式指定）；只收值為 1 的 key。
-                        shipIds: new Set(Object.keys(entry?.api_ship_ids ?? {}).map(Number)),
-                        stypes: new Set(Object.keys(entry?.api_stypes ?? {}).map(Number)),
-                        ctypes: new Set(Object.keys(entry?.api_ctypes ?? {}).map(Number)),
-                        reqLevel: entry?.api_req_level ?? 0,
-                    });
-                }
-            }
-            this.exSlotLimit.clear();
-            const exLimit = api.api_mst_equip_limit_exslot;
-            if (exLimit && typeof exLimit === 'object') {
-                for (const [mstId, types] of Object.entries<any>(exLimit)) {
-                    if (Array.isArray(types)) this.exSlotLimit.set(Number(mstId), new Set(types.map(Number)));
-                }
-            }
-            for (const m of api.api_mst_maparea ?? []) {
-                this.masterMapAreas.set(m.api_id, m.api_name);
-            }
-            // 活動結束後該活動的海域會從 master 消失，故每次 start2 全量重建（不 merge）。
-            this.masterMapInfo.clear();
-            for (const m of api.api_mst_mapinfo ?? []) {
-                if (!m?.api_id) continue;
-                this.masterMapInfo.set(m.api_id, {
-                    area: m.api_maparea_id ?? 0, no: m.api_no ?? 0,
-                    name: m.api_name ?? '', opetext: m.api_opetext ?? '',
-                });
-            }
-            // 裝備類別名（「裝備全覽」的種類標示與圖示篩選架的標籤用）。
-            this.masterEquipTypes.clear();
-            for (const e of api.api_mst_slotitem_equiptype ?? []) {
-                if (e?.api_id != null) this.masterEquipTypes.set(Number(e.api_id), String(e.api_name ?? ''));
-            }
-            // 可裝備類別。api_equip_type 是 { 類別id: 0|1 } 的物件（key 為字串），取值 1 者。
-            this.stypeEquip.clear();
-            for (const s of api.api_mst_stype ?? []) {
-                const et = s?.api_equip_type;
-                if (!et || typeof et !== 'object') continue;
-                this.stypeEquip.set(s.api_id, new Set(
-                    Object.entries(et).filter(([, v]) => v === 1).map(([k]) => Number(k))));
-            }
-            // 逐艦例外。key 為艦 master id（字串），值 { api_equip_type: { 類別id: null|number[] } }。
-            // **這裡刻意忽略 null / [ids] 的差別**：null＝該類別全可裝、[ids]＝僅限特定裝備。
-            // 目前唯一的消費者是「這艘艦能不能裝這個類別」的篩選，兩者答案都是「能」；
-            // 真封包實測 type 24（上陸用舟艇）全部是 null，尚無需要區分的實例。
-            this.shipEquipOverride.clear();
-            const equipShip = api.api_mst_equip_ship;
-            if (equipShip && typeof equipShip === 'object') {
-                for (const [mstId, entry] of Object.entries<any>(equipShip)) {
-                    const et = entry?.api_equip_type;
-                    if (!et || typeof et !== 'object') continue;
-                    this.shipEquipOverride.set(Number(mstId), new Set(Object.keys(et).map(Number)));
-                }
-            }
-            for (const m of api.api_mst_mission ?? [])
-                this.masterMissions.set(m.api_id, {
-                    dispNo: m.api_disp_no, name: m.api_name,
-                    maparea: m.api_maparea_id ?? 0, time: m.api_time ?? 0,
-                    deckNum: m.api_deck_num ?? 0,
-                });
+            this.onStart2GetData(path, api, req, ts);
         } else if (path === 'api_get_member/require_info' || path === 'api_get_member/slot_item') {
-            const list = api.api_slot_item ?? api;
-            // 整批刷新＝所有格的熟練度都回到封包事實。**不可在 api_port/port 歸零**：
-            // 回港封包根本不帶裝備資料，歸在那裡等於謊稱已校正（見 alvStaleGears）。
-            // ingestSlotItems 只有整批形狀完整時才會清 map，並同時清掉整批過時標記。
-            this.ingestSlotItems(list, true);
-            if (path === 'api_get_member/require_info') this.observeUseItems(api.api_useitem ?? []);
-            // 登入必送的 require_info 也帶 api_kdock（KC3/poi 一登入就能顯示建造渠的資料源）。
-            // 防禦性讀取：欄位存在才覆蓋，避免 slot_item 端點（無此欄位）誤清空。
-            if (Array.isArray(api.api_kdock)) this.kdockData = api.api_kdock;
+            this.onGetMemberRequireInfo(path, api, req, ts);
         } else if (path === 'api_get_member/basic') {
             // 提督基本資料：欄位與 api_port/port 的 api_basic 同名，但直接放在 api_data。
             // 任務獎勵擴充艦娘／裝備保有上限後，遊戲在回港前就會以此封包送出新上限。
@@ -1709,55 +1557,9 @@ export class GameState {
             this.observePayItems(api);
         } else if (path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
             || path === 'api_get_member/ship2') {
-            // KC3Kai／EO：ship3 的 `api_slot_data`＝**未裝備清單（等同 unsetslot）**，不是
-            // 裝備實例＋alv。熟練度刷新只靠 require_info／slot_item。這裡只合併船／艦隊。
-            // 要求每筆帶 api_ship_id，才不把「只有 api_id」的局部物件寫入狀態；
-            // ingestShips 會保留封包未送出的 api_slot／其他欄位，明確送出的欄位則照原值更新。
-            // ship2 的 decks 在我們的 api_data 邊界外（KC3Kai 讀 response.api_data_deck），
-            // 本管線拿不到就略過，等 port／ship3 校正。
-            if (path === 'api_get_member/ship2') {
-                this.ingestShips(api, { requireMaster: true });
-            } else {
-                this.ingestShips(api?.api_ship_data, { requireMaster: true });
-                this.mergeDeckData(api?.api_deck_data);
-            }
+            this.onGetMemberShipDeck(path, api, req, ts);
         } else if (path === 'api_get_member/kdock') {
-            // 建造渠狀態：api_port/port 只帶解鎖數（api_count_kdock），不含每個渠的即時狀態。
-            // 這個端點是「動作觸發」而非「進畫面觸發」——已實測：單純進工廠/點建造分頁不會送，
-            // 只有實際送出建造（api_req_kousyou/createship）或領取完成船艦（.../getship）
-            // 才會順便拉一次。登入時的初始狀態則來自 require_info 的 api_kdock（見上分支）。
-            // state 已用真實封包驗證：-1=未解鎖/2=建造中/3=完成待領取。
-            //
-            // 新建造單偵測（已用 samples/build_1.json、build_2.json 驗證）：每個渠物件帶
-            // api_item1~api_item5（真實投入的燃彈鋼鋁＋開發資材，見 BuildStartView 註解）。
-            // 拿新舊快照比對，「created_ship_id 換成沒見過的值」即為一筆新送出的建造——
-            // 比猜 createship 的 req 可靠。判斷式刻意不要求 api_state===2：用高速建造材
-            // （createship_speedchange，不觸發 kdock 重拉）完工的渠，若 SW 剛好在它還是
-            // state 2 時重啟、沒能親眼看到那個瞬間，下次看到時已經是 state 3——只認
-            // created_ship_id 是否為「這個渠上沒見過的新值」，兩種 state 都算，才不會漏記
-            // （已用 build_1.json 的 dock1＝已高速完工/state 3/ship 56 驗證此案例，
-            // 且不會對「同一艘船從 state 2 進展到 3」的正常流程重複觸發，因為 created_ship_id
-            // 沒變）。newBuilds 每次先清空再視偵測結果推入，避免 getship 觸發的 kdock 刷新
-            // （無新建造）誤用上一筆殘留值（EventProjector 依 newBuilds 是否非空
-            // 判斷要不要歸檔；用陣列而非單一值，見 newBuilds 欄位註解的邊界情況）。
-            this.newBuilds = [];
-            const prevById = new Map(this.kdockData.map((k: any) => [k.api_id, k]));
-            for (const d of api as any[]) {
-                const prev = prevById.get(d.api_id);
-                const isNewBuild = (d.api_state === 2 || d.api_state === 3) && d.api_created_ship_id > 0
-                    && (!prev || prev.api_created_ship_id !== d.api_created_ship_id);
-                if (!isNewBuild) continue;
-                const used = [d.api_item1, d.api_item2, d.api_item3, d.api_item4, 0, 0, d.api_item5, 0]
-                    .map((v: any) => Number(v) || 0);
-                used.forEach((v, i) => {
-                    if (v > 0 && typeof this.materials[i] === 'number')
-                        this.materials[i] = Math.max(0, this.materials[i] - v);
-                });
-                this.newBuilds.push({ kdockId: d.api_id, shipMst: d.api_created_ship_id, secretary: this.secretaryMst(), used });
-                this.bumpQuestProgress('build');
-                this.countQuestFactory({ event: 'create_ship', amount: 1 }, ts);
-            }
-            this.kdockData = api;
+            this.onGetMemberKdock(path, api, req, ts);
         } else if (path === 'api_req_kousyou/getship') {
             // 建造完成領取：回應本身就帶更新後的 api_kdock（該渠回到 state 0）＋新船 api_ship＋
             // 隨船裝備 api_slotitem，面板可立即反映，不用等下次 api_port/port 才刷新。已用真實封包驗證。
@@ -1765,406 +1567,27 @@ export class GameState {
             this.ingestShips(api.api_ship);
             this.ingestSlotItems(api.api_slotitem);
         } else if (path === 'api_req_kousyou/createship_speedchange' && req) {
-            // 高速建造材：response 不帶任何資料，只能靠 req.api_kdock_id（已用真實封包驗證）
-            // 找到對應渠，直接標記為完成待領取（state 3, complete_time 0）。領取仍走 getship 分支。
-            // 消耗顆數：普通1／大型10（LARGE_BUILD_MIN 判定，使用者提供之遊戲設定，見常數註解），
-            // 用該渠自己的 api_item1-4（送出建造當下的真實投入量，此刻尚未被清空）判斷。
-            const dock = this.kdockData.find((k: any) => k.api_id === Number(req.api_kdock_id));
-            if (dock) {
-                const large = LARGE_BUILD_MIN.every((min, i) => (Number(dock[`api_item${i + 1}`]) || 0) >= min);
-                const qty = large ? 10 : 1;
-                this.materials[4] = Math.max(0, (this.materials[4] ?? 0) - qty);
-                this.lastSpeedup = { kdockId: dock.api_id, shipMst: dock.api_created_ship_id, qty, secretary: this.secretaryMst() };
-                dock.api_state = 3;
-                dock.api_complete_time = 0;
-            }
+            this.onReqKousyouCreateshipSpeedchange(path, api, req, ts);
         } else if (path === 'api_req_kousyou/createitem') {
-            // 裝備開發。已用真實封包驗證（samples/kousyou_1.json 單發失敗、
-            // kousyou_2.json 三發連續）：api_get_items 恆為陣列（每項
-            // {api_id, api_slotitem_id}，失敗時 api_id=-1/api_slotitem_id=-1）、
-            // api_material 為 8 項純數字餘額（見 DevelopView 註解）。
-            const items: any[] = Array.isArray(api?.api_get_items) ? api.api_get_items : [];
-            const results: { mst: number }[] = [];
-            for (const it of items) {
-                const mst = Number(it?.api_slotitem_id ?? -1);
-                this.upsertSlotItem(it);
-                results.push({ mst: mst > 0 ? mst : -1 });
-            }
-            const used = this.updateMaterials(api?.api_material);
-            // 開發資材每次嘗試固定消耗 1 顆（日wiki明載的固定常數，非估算）；資材尚未
-            // 播種（未回過母港，updateMaterials 差分讀不到）時才用此值補上。
-            if (!used[6]) used[6] = results.length;
-            this.lastDevelop = { results, secretary: this.secretaryMst(), used };
-            // 開發任務常註明「失敗もOK」，故不論成敗都算；三連開發算 3 次（poi quests-cross-slice.ts
-            // 以 api_get_items 件數計、KC3Kai Kcsapi.js 逐件累加，兩者一致）。
-            this.bumpQuestProgress('development', results.length);
-            this.countQuestFactory({ event: 'create_item', amount: results.length }, ts);
+            this.onReqKousyouCreateitem(path, api, req, ts);
         } else if (path === 'api_req_member/itemuse') {
-            // 道具兌換（活動道具換裝備等）。兌換得到的裝備放在 api_getitem[].api_slotitem，
-            // 之後不會再重送 api_get_member/slot_item，不加入就要等下次登入才看得到。
-            // 只依回應帶的實例資料新增，不論是哪一件裝備；道具消耗量每年不同，不在此推算，
-            // 數量等遊戲重送 api_get_member/useitem。作法與 KC3Kai Kcsapi.js 的
-            // api_req_member/itemuse、poi equips.ts 一致；欄位見 poi kcsapi 型別
-            // APIReqMemberItemuseResponse。本專案尚無該回應的真封包樣本。
-            const rewards = Array.isArray(api?.api_getitem) ? api.api_getitem : [api?.api_getitem];
-            for (const reward of rewards) {
-                const gear = reward?.api_slotitem;
-                for (const record of Array.isArray(gear) ? gear : [gear]) {
-                    if (record && typeof record === 'object') this.upsertSlotItem(record);
-                }
-            }
+            this.onReqMemberItemuse(path, api, req, ts);
         } else if (path === 'api_req_kousyou/remodel_slot' && req) {
-            // 改修（明石の改修工廠）。已用真實封包驗證（見 state.ts 開頭註解，含成功／
-            // 確実化／失敗三案例）：req.api_slot_id=對象裝備實例、req.api_certain_flag=
-            // 確実化；回應失敗時 api_after_slot 整個不存在（undefined），api_use_slot_id
-            // 仍會出現（飼料無論成敗都被消耗）——以下 optional chaining／回退鏈天然覆蓋兩案例。
-            const before = this.slotItems.get(Number(req.api_slot_id ?? 0));
-            const levelBefore = before?.level ?? 0;
-            const after = api?.api_after_slot;
-            const afterId = this.upsertSlotItem(after);
-            const afterItem = afterId == null ? undefined : this.slotItems.get(afterId);
-            for (const cid of api?.api_use_slot_id ?? []) {
-                const id = GameState.positiveId(cid);
-                if (id != null) this.slotItems.delete(id);
-            }
-            const used = this.updateMaterials(api?.api_after_material);
-            const remodelSuccess = Number(api?.api_remodel_flag ?? 0) === 1;
-            this.lastImprove = {
-                gearMst: afterItem?.mst ?? before?.mst ?? 0,
-                levelBefore,
-                levelAfter: afterItem?.level ?? levelBefore,
-                success: remodelSuccess,
-                certain: req.api_certain_flag === '1',
-                secretary: this.secretaryMst(),
-                used,
-            };
-            // 條件表的改修子目標不論成敗都算（poi quests-cross-slice.ts 與 KC3Kai Kcsapi.js 對 619／1166／1167
-            // 皆不看 api_remodel_flag）；remodel 僅供文字推算的「改修 N 回」任務。
-            this.bumpQuestProgress('remodelAttempt');
-            if (remodelSuccess) this.bumpQuestProgress('remodel');
-            this.countQuestFactory({ event: 'remodel_item', amount: 1 }, ts);
+            this.onReqKousyouRemodelSlot(path, api, req, ts);
         } else if (path === 'api_get_member/questlist') {
-            // 2020-03-27 起 API 不再分頁：單一 tab 回傳該分類的**全部**任務（遊戲 UI 仍
-            // 可能分頁顯示）。api_tab_id：0=全て／1=デイリー／2=ウィークリー／3=マンスリー／
-            // 4=単発／5=他／9=遂行中（EO apilist／KC3Kai QuestManager.definePage）。
-            // 受注中／達成只在 tab 0 與 9 缺席時刪除；可接受任務只有 tab 0 才是完整集合，
-            // tab 9 本來就不含未受注列，缺席不得清掉「全部」剛看到的可接受任務。
-            // 單發缺席推論只採 tab 0／4：這兩個才是該範圍當下的完整清單。
-            const tabId = Number(req?.api_tab_id);
-            const syncActive = tabId === 0 || tabId === 9;
-            const syncAvailable = tabId === 0;
-            const catalogTab = tabId === 0 || tabId === 4;
-            const list = api.api_list;
-            const recordOnceCatalog = (nos: number[]) => {
-                this.questOnceCatalogNos = nos;
-            };
-            // api_list 為 null：該 tab 目前 0 件（EO：任務完遂時會變 null）。
-            // 子集 tab 的 null 不代表其他分類也空了。
-            if (list == null) {
-                if (syncActive) {
-                    this.quests.clear();
-                    this.questProgress.clear();
-                    this.questTracking.clear();
-                }
-                if (syncAvailable) this.availableQuests.clear();
-                if (catalogTab) recordOnceCatalog([]);
-            } else if (Array.isArray(list)) {
-                const seen = new Set<number>();
-                for (const q of list) {
-                    // 空欄是 -1（不是物件），不可當任務讀。
-                    if (!q || typeof q !== 'object' || !(q.api_no > 0)) continue;
-                    seen.add(q.api_no);
-                    const identity = questCatalogIdentity(q.api_no, q.api_title);
-                    if (identity === 'mismatch') this.questCatalogMismatches.set(q.api_no, {
-                        name: q.api_title, detail: q.api_detail ?? '', category: questCategoryFromApi(q.api_category),
-                    });
-                    else if (identity === 'match') this.questCatalogMismatches.delete(q.api_no);
-                    if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) this.questSeenNos.add(q.api_no);
-                    if (typeof q.api_label_type === 'number') {
-                        const resetMonth = yearlyResetMonthFromLabel(q.api_label_type);
-                        if (resetMonth !== null) this.questYearlyResetMonths.set(q.api_no, resetMonth);
-                        else this.questYearlyResetMonths.delete(q.api_no);
-                    }
-                    if (q.api_state === 2 || q.api_state === 3) {
-                        this.quests.set(q.api_no, {
-                            name: q.api_title,
-                            detail: q.api_detail ?? '',
-                            done: q.api_state === 3,
-                            category: questCategoryFromApi(q.api_category),
-                        });
-                        this.availableQuests.delete(q.api_no);
-                        // 進度只在「本機第一次看到這個任務編號」時初始化——重複的 questlist
-                        // 不得把已累積的計數洗回 0。
-                        const def = this.questGoal(q.api_no);
-                        if (!this.questProgress.has(q.api_no) && !def?.supported) {
-                            // 條件表有收錄但事件尚未支援時，不用文字推算次數：那類任務多帶編成或評價條件，
-                            // 文字推算會多算。只接受人工核對的目標或單純計數。營運重用編號的新任務
-                            // （標題與目錄不同）不套用以編號對應的人工目標，只剩文字推算。
-                            const reused = questCatalogIdentity(q.api_no, q.api_title) === 'mismatch';
-                            const goal = def
-                                ? QUEST_ID_OVERRIDES[q.api_no] ?? simpleGoalFromDef(def)
-                                : reused
-                                    ? parseQuestGoal(q.api_title ?? '', q.api_detail ?? '')
-                                    : resolveQuestGoal(q.api_no, q.api_title ?? '', q.api_detail ?? '');
-                            if (goal) this.questProgress.set(q.api_no, { ...goal, count: 0 });
-                        }
-                        this.observeQuestServer(q.api_no, q.api_detail ?? '', q.api_progress_flag, q.api_state === 3, ts);
-                    } else {
-                        // state 1=未受注：若已追蹤過（例如放棄後），從面板拿掉。
-                        this.quests.delete(q.api_no);
-                        this.questProgress.delete(q.api_no);
-                        this.questTracking.delete(q.api_no);
-                        this.availableQuests.set(q.api_no, {
-                            name: q.api_title ?? '', detail: q.api_detail ?? '',
-                            category: questCategoryFromApi(q.api_category),
-                        });
-                    }
-                }
-                if (syncActive) {
-                    for (const no of [...this.quests.keys()]) {
-                        if (seen.has(no)) continue;
-                        this.quests.delete(no);
-                        this.questProgress.delete(no);
-                        this.questTracking.delete(no);
-                    }
-                }
-                if (syncAvailable) {
-                    for (const no of [...this.availableQuests.keys()]) {
-                        if (!seen.has(no)) this.availableQuests.delete(no);
-                    }
-                }
-                if (catalogTab) recordOnceCatalog([...seen].sort((a, b) => a - b));
-            }
+            this.onGetMemberQuestlist(path, api, req, ts);
         } else if ((path === 'api_req_quest/clearitemget' || path === 'api_req_quest/stop') && req) {
-            // 達成後領取獎勵（clearitemget）或放棄任務（stop）：該任務即從清單消失。
-            // 即時刪除；完整 tab 的下一次 questlist 也會以缺席同步清掉（見上方）。
-            // 獎勵欄只在它真的帶「實例 api_id＋master api_slotitem_id」時才寫入。舊格式／
-            // 未驗證的 api_bounus.api_id 可能只是 master id，不能拿它當裝備實例鍵；保留原始
-            // 事件，等待後續 slot_item 或局部快照補齊，避免把兩件後期裝備誤合併成假實例。
-            this.ingestSlotItems(api?.api_slot_data);
-            this.ingestSlotItems(api?.api_slotitem);
-            this.ingestSlotItems(api?.api_slot_item);
-            const questId = Number(req.api_quest_id);
-            if (Number.isFinite(questId) && questId > 0) {
-                if (path === 'api_req_quest/clearitemget') {
-                    const previous = this.questObservedCompletions.get(questId);
-                    this.questObservedCompletions.set(questId, {
-                        count: (previous?.count ?? 0) + 1,
-                        lastTs: ts,
-                    });
-                }
-                this.quests.delete(questId);
-                this.questProgress.delete(questId);
-                this.questTracking.delete(questId);
-            }
+            this.onReqQuestClearitemget(path, api, req, ts);
         } else if (path === 'api_port/port') {
-            this.portAt = ts;
-            this.bucketDockAtByShip.clear();
-            this.ships.clear();
-            this.ingestShips(api.api_ship);
-            this.decks = api.api_deck_port;
-            // 遠征中的艦隊：記錄其 mission id 為該艦隊「上次遠征」（回港後 api_mission 歸零，故在此捕捉）
-            this.decks.forEach((d: any, i: number) => {
-                const mid = d.api_mission?.[1] ?? 0;
-                if (mid > 0) this.lastMissionByDeck.set(i, mid);
-            });
-            this.pendingConsumption = [];
-            this.pendingPlaneLoss = [];
-            this.ndockData = api.api_ndock;
-            this.kdockCap = api.api_count_kdock ?? this.kdockCap;
-            this.materials = (api.api_material ?? []).map((m: any) => m.api_value);
-            this.maxChara = api.api_basic?.api_max_chara ?? this.maxChara;
-            this.maxSlotitem = api.api_basic?.api_max_slotitem ?? this.maxSlotitem;
-            this.nickname = api.api_basic?.api_nickname ?? this.nickname;
-            this.hqLv = api.api_basic?.api_level ?? this.hqLv;
-            this.furnitureCoins = GameState.nonNegativeIntOrNull(api.api_basic?.api_fcoin) ?? this.furnitureCoins;
-            this.combinedFlag = api.api_combined_flag ?? 0;
-            this.currentSortieFleetId = 0;
-            this.battleInfo = null;
-            this.sortieInfo = null;
-            this.lastDayBattle = null;
-            this.lastDayDamecons = null;
-            // 回港＝出擊結束，退避狀態隨之解除（退避艦本來就已經先回到母港）。
-            this.escapedShipIds.clear();
-            this.pendingEscape = null;
-            this.goddessRestored.clear();
-            // 母港封包帶的是搭載數實數（api_onslot，上面 api_ship 已整批覆蓋），
-            // 途中的估算到此校正完畢，估算標記隨之解除。
-            this.planeLossEstimated.clear();
-            // 熟練度也在「回港這一刻」結算（全滅→歸零／部分損耗→標過時）。必須排在
-            // api_ship 已寫入 this.ships 之後，比較的才是帰投時的實數。
-            this.settlePlaneProficiency();
-            // 計時器在「進入母港畫面」這一刻推進，故兩件事都在這裡處理：
-            // (1) 出門中（anchor=null）的艦隊回港 → 重新起算；仍在遠征的隊維持 null。
-            // (2) 已跑滿一個週期 → 遊戲就是在此刻結算的，結算後重新起算下一輪。
-            //     未滿一個週期時進母港**不重置**（wiki 明載 20 分未到就查看母港，計數繼續）。
-            // 從未觀測過的艦隊不在此建立錨點——沒看過就是「不可考」，UI 顯示範圍但不顯示倒數，
-            // 比拿回港時間硬湊一個假倒數誠實。
-            const advance = (m: Map<number, number | null>, i: number, deck: any, intervalMs: number) => {
-                const anchor = m.get(i);
-                if (anchor === undefined) return;                       // 不可考，不硬湊
-                if (anchor === null) {                                  // 出門中
-                    if (!(deck.api_mission?.[0] > 0)) m.set(i, ts);     // 已回港
-                    return;
-                }
-                if (ts - anchor >= intervalMs) m.set(i, ts);            // 本次進港已結算 → 下一輪
-            };
-            this.decks.forEach((d: any, i: number) => {
-                advance(this.repairAnchorByDeck, i, d, 20 * 60_000);
-                advance(this.moraleAnchorByDeck, i, d, 15 * 60_000);
-            });
+            this.onPortPort(path, api, req, ts);
         } else if (path === 'api_req_map/select_eventmap_rank' && req) {
-            const area = Number(req.api_maparea_id);
-            const mapNo = Number(req.api_map_no);
-            const rank = Number(req.api_rank);
-            const maphp = api?.api_maphp;
-            const nowHp = Number(maphp?.api_now_maphp);
-            const maxHp = Number(maphp?.api_max_maphp);
-            const gaugeType = Number(maphp?.api_gauge_type);
-            if (Number.isSafeInteger(area) && area > 0
-                && Number.isSafeInteger(mapNo) && mapNo > 0
-                && Number.isSafeInteger(rank) && rank > 0
-                && Number.isSafeInteger(nowHp) && nowHp >= 0
-                && Number.isSafeInteger(maxHp) && maxHp > 0) {
-                const mapId = area * 10 + mapNo;
-                const previous = this.mapGauges.get(mapId);
-                const gaugeNum = rawGaugeNum(maphp?.api_gauge_num)
-                    ?? rawGaugeNum(maphp?.api_eventmap?.api_gauge_num)
-                    ?? previous?.gaugeNum;
-                const nextGaugeType = Number.isSafeInteger(gaugeType) && gaugeType >= 0
-                    ? gaugeType : (previous?.gaugeType ?? 0);
-                // 斬殺線依難度／血條而異；切換到另一條血條時只切換目前快取，
-                // 其他 gauge 的 baseHp 證據仍保留。
-                if (previous && (previous.selectedRank !== rank
-                    || previous.gaugeType !== nextGaugeType
-                    || previous.gaugeNum !== gaugeNum)) this.clearMapBossHp(mapId);
-                this.mapGauges.set(mapId, {
-                    cleared: previous?.cleared ?? false,
-                    gaugeType: nextGaugeType,
-                    defeatCount: previous?.defeatCount ?? 0,
-                    requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
-                    nowHp,
-                    maxHp,
-                    selectedRank: rank,
-                    ...(gaugeNum === undefined ? {} : { gaugeNum }),
-                });
-                this.syncMapBossHp(mapId);
-            }
+            this.onReqMapSelectEventmapRank(path, api, req, ts);
         } else if (path === 'api_req_map/start' && req) {
-            this.currentSortieFleetId = Number(req.api_deck_id) - 1;
-            // 出擊中：計時器歸零、且要等回港才重新起算，故先標 null（見 repairAnchorByDeck）。
-            this.markFleetAway(this.currentSortieFleetId);
-            if (this.combinedFlag > 0 && this.currentSortieFleetId === 0) this.markFleetAway(1);
-            this.battleInfo = null;
-            this.lastDayBattle = null;
-            this.lastDayDamecons = null;
-            this.pendingConsumption = [];
-            this.pendingPlaneLoss = [];
-            this.damaconUsed.clear();
-            this.goddessRestored.clear();
-            this.escapedShipIds.clear();
-            this.pendingEscape = null;
-            this.planeLossEstimated.clear();
-            // 熟練度是回港時依「出撃時 vs 帰投時の残数」結算的，故出擊當下要先拍一份
-            // 搭載數實數留著比（見 settlePlaneProficiency）。
-            this.snapshotSortieOnslot();
-            this.sortieFleetMasters = this.deckMasters(this.currentSortieFleetId);
-            this.sortieFleetDeckIdx = this.currentSortieFleetId;
-            this.sortieFleetMismatch = false;
-            this.bossEntryTaiha = null;
-            const startNode = sortieNodeOf(api);
-            const bossCellNo = Number(api?.api_bosscell_no);
-            this.sortieInfo = {
-                mapArea: api.api_maparea_id,
-                mapNo: api.api_mapinfo_no,
-                nodes: [startNode],
-                ...(Number.isSafeInteger(bossCellNo) && bossCellNo > 0 ? { bossCellNo } : {}),
-            };
-            const eventmap = api?.api_eventmap;
-            const nowHp = Number(eventmap?.api_now_maphp);
-            const maxHp = Number(eventmap?.api_max_maphp);
-            if (Number.isSafeInteger(nowHp) && nowHp >= 0
-                && Number.isSafeInteger(maxHp) && maxHp > 0) {
-                const mapId = api.api_maparea_id * 10 + api.api_mapinfo_no;
-                const previous = this.mapGauges.get(mapId);
-                const gaugeNum = rawGaugeNum(api?.api_gauge_num)
-                    ?? rawGaugeNum(eventmap?.api_gauge_num)
-                    ?? previous?.gaugeNum;
-                const eventmapGaugeType = Number(eventmap?.api_gauge_type ?? api?.api_gauge_type);
-                const gaugeType = Number.isSafeInteger(eventmapGaugeType) && eventmapGaugeType >= 0
-                    ? eventmapGaugeType : previous?.gaugeType ?? 0;
-                const selectedRank = positiveRank(eventmap?.api_selected_rank)
-                    ?? positiveRank(api?.api_selected_rank)
-                    ?? previous?.selectedRank ?? 0;
-                const fullGaugeReset = !!previous && previous.nowHp < previous.maxHp && nowHp === maxHp;
-                if (previous && (previous.selectedRank !== selectedRank
-                    || previous.gaugeType !== gaugeType
-                    || previous.gaugeNum !== gaugeNum || fullGaugeReset)) {
-                    this.clearMapBossHp(mapId, fullGaugeReset && previous.gaugeNum === gaugeNum);
-                }
-                this.mapGauges.set(mapId, {
-                    cleared: previous?.cleared ?? false,
-                    gaugeType,
-                    defeatCount: previous?.defeatCount ?? 0,
-                    requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
-                    nowHp,
-                    maxHp,
-                    selectedRank,
-                    ...(gaugeNum === undefined ? {} : { gaugeNum }),
-                });
-                this.syncMapBossHp(mapId);
-            }
-            this.noteBossEntry(startNode);
-            this.applyMaelstromIfAny(api, startNode.id);
-            this.bumpQuestProgress('sortie');
-            this.countQuestSally(ts);
+            this.onReqMapStart(path, api, req, ts);
         } else if (path === 'api_req_map/next') {
-            if (this.sortieInfo) {
-                const node = sortieNodeOf(api);
-                this.sortieInfo.nodes.push(node);
-                const bossCellNo = Number(api?.api_bosscell_no);
-                if (Number.isSafeInteger(bossCellNo) && bossCellNo > 0) {
-                    this.sortieInfo.bossCellNo = bossCellNo;
-                }
-                // 血量此刻＝上一個節點戰鬥寫回後的值（戰鬥封包就即時寫回，見 applyEvent
-                // 的戰鬥分支），故這裡量到的正是「踏進這個節點時」的狀態。
-                this.noteBossEntry(node);
-                this.applyMaelstromIfAny(api, node.id);
-                this.judgeQuestReach(this.sortieInfo, node, ts);
-            }
+            this.onReqMapNext(path, api, req, ts);
         } else if (path === 'api_req_hensei/change' && req) {
-            const deck = this.decks[Number(req.api_id) - 1];
-            if (!deck || !Array.isArray(deck.api_ship)) return;
-            const deckIdx = Number(req.api_id) - 1;
-            const idx = Number(req.api_ship_idx);
-            const newId = Number(req.api_ship_id);
-            if (newId === -2) {
-                // 隨伴艦一括解除：遊戲內部**不算**編成調整，泊地修理計時器不重置
-                // （使用者實測的既知 bug feature，見 repairAnchorByDeck 註解）。
-                deck.api_ship = deck.api_ship.map((v: number, i: number) => (i === 0 ? v : -1));
-                return;
-            }
-            if (!Number.isInteger(idx) || idx < 0 || idx >= deck.api_ship.length) return;
-            const oldId = deck.api_ship[idx];
-            if (newId > 0) {
-                for (const d of this.decks) {
-                    const j = d.api_ship.indexOf(newId);
-                    if (j >= 0) {
-                        d.api_ship[j] = oldId;
-                        // 換上來的艦若位於別隊，那一隊的成員也被改動了 → 一併重置。
-                        // 目標格若是空的，來源格會變成 -1，必須立刻補位，否則來源艦隊也會留洞。
-                        if (d !== deck) {
-                            this.compactDeckShips(d);
-                            this.resetRepairAnchor(this.decks.indexOf(d), ts);
-                        }
-                    }
-                }
-            }
-            // 寫入指定格後一律補位：移除（-1）會把後面的艦往前擠；點到空格加入時
-            // req.api_ship_idx 只是點擊格、不是最終落點（與裝備 slotset 空格補位同一類行為）。
-            deck.api_ship[idx] = newId;
-            this.compactDeckShips(deck);
-            this.resetRepairAnchor(deckIdx, ts);
+            this.onReqHenseiChange(path, api, req, ts);
         } else if (path === 'api_req_hensei/preset_select' && req) {
             const idx = Number(req.api_deck_id) - 1;
             if (api && this.decks[idx]) this.decks[idx] = api;
@@ -2176,100 +1599,18 @@ export class GameState {
             // 編制類型必須讀取 req.api_combined_type。
             this.combinedFlag = Number(req?.api_combined_type ?? 0);
         } else if (path === 'api_req_kousyou/destroyship' && req) {
-            // 解体（工廠端點，api_ship_id 可為逗號分隔多艘）：面板即時反映艦娘數／裝備數／編成。
-            // 端點與 api_slot_dest_flag（0=保管、1=廃棄）依 KC3Kai src/library/modules/Kcsapi.js
-            // 與 ElectronicObserver Other/Information/apilist.txt 交叉比對。
-            const ids = (req.api_ship_id ?? '').split(',').map(Number).filter(n => n > 0);
-            this.removeShips(ids, req.api_slot_dest_flag === '1', ts);
-            // 解体艦娘任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務609「軍縮条約対応！」）：
-            // 一次請求可逗號分隔解體多艘，逐艘計數（非逐次請求計數）。
-            if (ids.length > 0) {
-                this.bumpQuestProgress('shipScrap', ids.length);
-                this.countQuestFactory({ event: 'destroy_ship', amount: ids.length }, ts);
-            }
+            this.onReqKousyouDestroyship(path, api, req, ts);
         } else if (path === 'api_req_kousyou/destroyitem2' && req) {
-            // 装備廃棄：即時に装備数へ反映
-            const gearIds = (req.api_slotitem_ids ?? '').split(',').map(Number).filter(n => n > 0);
-            // 類別／裝備限定的廢棄任務要在刪除前查 master；倉庫裡查不到的件記為 -1，只會少算。
-            const gears = gearIds.map(gid => {
-                const mst = this.slotItems.get(gid)?.mst;
-                const type = mst === undefined ? undefined : this.masterGears.get(mst)?.cat;
-                return { id: mst ?? -1, type: type || -1 };
-            });
-            for (const gid of gearIds) this.slotItems.delete(gid);
-            // 任務613「資源の再利用」等「廃棄 N 回」以請求次數計，不論一次廢棄幾件
-            // （poi 條件表的 times、KC3Kai Kcsapi.js 對 613 每次請求 +1，兩者一致）。
-            if (gearIds.length > 0) {
-                this.bumpQuestProgress('gearScrap');
-                this.countQuestFactory({ event: 'destory_item', amount: 1, gears }, ts);
-            }
+            this.onReqKousyouDestroyitem2(path, api, req, ts);
         } else if (path === 'api_req_kaisou/remodeling') {
             // 現代真封包樣本仍缺席，回應欄位不可拿來覆蓋完整艦／艦隊／裝備狀態。
             // 原始事件照常保存；後續已驗證的 port／require_info 快照會完成校正。
         } else if (path === 'api_req_kaisou/powerup' && req) {
-            // 近代化改修：餌艦(api_id_items)消滅・強化先(api_ship)更新
-            this.ingestShips(api?.api_ship);
-            // api_slot_dest_flag=1 時餌艦裝備隨艦廢棄，0 時卸下留在倉庫。回應與之後的 port 都不帶
-            // 裝備清單，漏刪會讓裝備數一直偏高到下次 require_info／slot_item。
-            // 旗標語意依 KC3Kai src/library/modules/Kcsapi.js、
-            // poi views/redux/middlewares/equips-cross-slice.ts、ElectronicObserver
-            // Observer/kcsapi/api_req_kaisou/powerup.cs 交叉比對（三者皆以非 0 為廢棄）。
-            const feeders = (req.api_id_items ?? '').split(',').map(Number).filter(n => n > 0);
-            // 素材艦種限定的任務（714〜719 等）要在移除餌艦前查艦種。
-            const materialTypes = feeders
-                .map(id => this.master.get(Number(this.ships.get(id)?.api_ship_id))?.stype)
-                .filter((type): type is number => typeof type === 'number' && type > 0);
-            this.removeShips(feeders, req.api_slot_dest_flag === '1', ts);
-            // 任務只算 api_powerup_flag 為 1 的成功改修（poi quests-cross-slice.ts 與 KC3Kai Kcsapi.js 一致；
-            // 本專案尚無失敗樣本）。
-            if (Number(api?.api_powerup_flag) === 1) {
-                this.bumpQuestProgress('modernization');
-                this.countQuestFactory({ event: 'remodel_ship', amount: 1, materialTypes }, ts);
-            }
+            this.onReqKaisouPowerup(path, api, req, ts);
         } else if (path === 'api_req_kaisou/slot_exchange_index' && req) {
-            // 拖曳交換同艦兩個已裝備槽位（制空／艦載機換位的主要觸發路徑）。**已用真封包
-            // 驗證**（samples/slot-exchange-index.json，三筆，含互為逆操作的一組
-            // src/dst_idx=3/0 與 0/3）：請求為 api_id/api_src_idx/api_dst_idx（0-based，
-            // 與 slotset 的 api_slot_idx 同慣例），回應的 api_ship_data 是**完整艦快照**
-            // （與 api_port/port 單艦記錄同形，含 api_slot／api_onslot／hp／燃彈／cond／
-            // 各項素質／api_sally_area 等），不是局部物件，故直接整艦 ingestShips 覆蓋，
-            // 不必也不該手動拼湊挑選欄位。api_id 需與請求一致才採信，避免格式異常時
-            // 誤植出一艘幽靈艦。
-            const shipData = api?.api_ship_data;
-            if (shipData && typeof shipData === 'object'
-                && GameState.positiveId(shipData.api_id) === GameState.positiveId(req.api_id)) {
-                this.ingestShips([shipData]);
-            }
+            this.onReqKaisouSlotExchangeIndex(path, api, req, ts);
         } else if (path === 'api_req_kaisou/slotset' && req) {
-            // 一般裝備欄（0-3 番）。已用真實封包排除補強增設走這條的假設——現行版本
-            // 補強增設是獨立端點 api_req_kaisou/slotset_ex（見下），這裡恆定收到有效 idx。
-            const s = this.ships.get(Number(req.api_id));
-            if (s) {
-                const idx = GameState.slotIndex(req.api_slot_idx);
-                const itemId = Number(req.api_item_id);   // -1 = 卸下
-                if (idx != null && Number.isSafeInteger(itemId) && Array.isArray(s.api_slot)
-                    && idx < s.api_slot.length) {
-                    // 裝備到「目前是空格」的槽位時，遊戲會自動塞進當下第一個空槽，
-                    // req.api_slot_idx 只是使用者點擊當下的格位、不是最終落點——已用真封包
-                    // 驗證（samples/equip_slot.json + slot_to_port.json：全空裝艦點第三格
-                    // [idx=2]，回港快照證實實際落在 index 0）。換裝／替換既有裝備（目標格
-                    // 本身已有東西，非空格）不涉及遞補，idx 才是真正目標格，維持直接寫入。
-                    // 若 itemId 已在同一艘艦的另一格，則是同艦換位／拖曳的另一種請求形態，
-                    // 必須把來源格清成目標格原值，不能只寫目標格造成同一顆裝備被重複引用。
-                    const sourceIdx = itemId > 0
-                        ? s.api_slot.findIndex((v: number) => Number(v) === itemId) : -1;
-                    if (sourceIdx >= 0 && sourceIdx !== idx) {
-                        this.swapShipSlots(s, sourceIdx, idx);
-                    } else if (itemId > 0 && Number(s.api_slot[idx]) <= 0) {
-                        const emptyIdx = s.api_slot.findIndex((v: number) => Number(v) <= 0);
-                        if (emptyIdx >= 0) s.api_slot[emptyIdx] = itemId;
-                    } else {
-                        s.api_slot[idx] = itemId;
-                    }
-                }
-            }
-            // 現有真封包樣本的回應只有裸 api_result；請求投影已涵蓋已驗證的動作結果。
-            // 不讀取未驗證的假想回應欄位，避免局部物件覆蓋完整艦船或裝備狀態。
+            this.onReqKaisouSlotset(path, api, req, ts);
         } else if (path === 'api_req_kaisou/lock' && req) {
             // 裝備鎖定切換：請求 api_slotitem_id、回應 api_locked（KC3Kai src/library/modules/Kcsapi.js、
             // poi views/redux/info/equips.ts 交叉比對；本專案尚無樣本）。回應欄位不是 0／1 時不改。
@@ -2297,226 +1638,23 @@ export class GameState {
             const deck = this.decks[Number(req.api_deck_id) - 1];
             if (deck && api?.api_mission) deck.api_mission = api.api_mission;
         } else if (path === 'api_req_mission/result') {
-            // 遠征成功／大成功判定：api_clear_result（0=失敗、≥1=成功），與
-            // EventProjector.archiveExpedition 讀取的是同一個已驗證欄位。提早回航
-            // （return_instruction）不會走這個端點、故不會被誤算成一次成功。
-            // 部分任務限定特定遠征任務 id（例：410/411限定「東京急行」系，見 quest-progress.ts
-            // QUEST_ID_OVERRIDES）——missionId 與 EventProjector.archiveExpedition 同一支
-            // lastMissionByDeck 查表（req.api_deck_id 兩者皆有，已用真實封包驗證）。
-            if (Number(api?.api_clear_result ?? 0) >= 1) {
-                const deckId = Number(req?.api_deck_id ?? 0);
-                const missionId = this.lastMissionByDeck.get(deckId - 1);
-                this.bumpQuestProgress('expedition', 1, { missionId });
-                this.judgeQuestMission(missionId, ts);
-            }
+            this.onReqMissionResult(path, api, req, ts);
         } else if (path === 'api_req_nyukyo/start' && req) {
-            // 入渠任務以實際送出的入渠請求計數；高速修復同樣走此端點，仍保留原始
-            // 動作事實，不從本機猜測遊戲是否因修理時間而另作判斷。
-            this.bumpQuestProgress('dock');
-            this.countQuestFactory({ event: 'repair', amount: 1 }, ts);
-            // nyukyo/start 的回應本身不含修理時間；修復到全快所需的毫秒數
-            // 記在艦船物件上（api_ship[].api_ndock_time）。用它算完成時刻，
-            // 面板即可即時顯示入渠倒數，不必回母港。
-            const shipId = Number(req.api_ship_id);
-            const ship = this.ships.get(shipId);
-            if (req.api_highspeed === '1') {
-                // 高速修復（バケツ）：即時全快、不占入渠槽
-                if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
-                // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
-                if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, ts);
-            } else {
-                const idx = Number(req.api_ndock_id) - 1;
-                const dock = this.ndockData[idx];
-                if (dock) {
-                    dock.api_state = 1;
-                    dock.api_ship_id = shipId;
-                    // 使用 reducer 收到的事件時間：歷史重播／SW 恢復時必須以原始 event.ts
-                    // 計算，不能把完成時刻錯誤延到重播當下。未傳 ts 的 live 呼叫仍由
-                    // applyEvent 的預設值 Date.now() 維持既有行為。
-                    dock.api_complete_time = ts + Number(ship?.api_ndock_time ?? 0);
-                }
-            }
+            this.onReqNyukyoStart(path, api, req, ts);
         } else if (path === 'api_req_hokyu/charge') {
-            // 補給任務（例：「艦隊酒保祭り！受注中」的補給15回）每次 charge 請求
-            // 算一次，不以實際補了幾艘或補了多少資源猜測次數。
-            this.bumpQuestProgress('supply');
-            this.countQuestFactory({ event: 'supply', amount: 1 }, ts);
-            // 補給：即時更新艦船燃料/彈藥/艦載機，讓面板不必回母港就反應
-            for (const s of api.api_ship ?? []) {
-                const ship = this.ships.get(s.api_id);
-                if (!ship) continue;
-                ship.api_fuel = s.api_fuel;
-                ship.api_bull = s.api_bull;
-                if (s.api_onslot) ship.api_onslot = s.api_onslot;
-            }
-            // charge 回應的 api_material 只含前 4 項（燃/弾/鋼/ボ），
-            // 直接覆蓋整個陣列會把桶/開/ネジ（index 5,6,7）抹成 undefined。
-            // 故只就地更新回傳到的索引，其餘資材沿用母港封包的值。
-            // （元素可能是數字或 {api_value} 物件，兩者都相容）
-            if (Array.isArray(api.api_material)) {
-                api.api_material.forEach((m: any, i: number) => {
-                    this.materials[i] = typeof m === 'number' ? m : m.api_value;
-                });
-            }
+            this.onReqHokyuCharge(path, api, req, ts);
         } else if (path === 'api_req_nyukyo/speedchange' && req) {
-            // 入渠途中用高速修復材：當下完成。回應不帶資料，請求的 api_ndock_id 是 1 起算的入渠槽編號
-            // （無本專案樣本；依 KC3Kai src/library/modules/Kcsapi.js 與 ElectronicObserver
-            // Observer/kcsapi/api_req_nyukyo/speedchange.cs、Data/DockData.cs 的解析交叉比對）。
-            // 找不到該槽或槽內沒有艦時不動作，等母港封包校正。
-            const dockId = Number(req.api_ndock_id);
-            const dock = this.ndockData.find((d: any) => Number(d?.api_id) === dockId);
-            const shipId = Number(dock?.api_ship_id);
-            if (dock && dock.api_state === 1 && shipId > 0) {
-                const ship = this.ships.get(shipId);
-                if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
-                this.applyBucketCondFloor(shipId, ship, ts);
-                dock.api_state = 0;
-                dock.api_ship_id = 0;
-                dock.api_complete_time = 0;
-            }
-            // ── 基地航空隊 ──────────────────────────────
+            this.onReqNyukyoSpeedchange(path, api, req, ts);
         } else if (path === 'api_get_member/base_air_corps') {
-            this.airBases.clear();
-            this.airBaseCondAsOf.clear();
-            this.airBaseCondMinRate.clear();
-            if (Array.isArray(api)) {
-                for (const ab of api) {
-                    const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
-                    this.airBases.set(key, ab);
-                    this.markAirBaseCondObserved(key, ts);
-                }
-            }
+            this.onGetMemberBaseAirCorps(path, api, req, ts);
         } else if (path === 'api_get_member/mapinfo') {
-            if (api?.api_air_base && Array.isArray(api.api_air_base)) {
-                for (const ab of api.api_air_base) {
-                    const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
-                    this.airBases.set(key, ab);
-                    this.markAirBaseCondObserved(key, ts);
-                }
-            }
-            // 基地整備為「海域」層級，不在 api_air_base 個別航空隊物件上。資料缺席時保留
-            // 既有觀測值：mapinfo 的完整性尚未有本專案真封包佐證，不能把缺席誤作 Lv.0。
-            if (Array.isArray(api?.api_air_base_expanded_info)) {
-                for (const info of api.api_air_base_expanded_info) {
-                    const areaId = Number(info?.api_area_id);
-                    const level = Number(info?.api_maintenance_level);
-                    if (Number.isSafeInteger(areaId) && areaId > 0
-                        && Number.isSafeInteger(level) && level >= 0) {
-                        this.airBaseMaintenanceLevels.set(areaId, level);
-                    }
-                }
-            }
-            // 關卡進度：已用真實封包驗證（見 MapGaugeView 註解、samples/6-5-mapinfo.json）。
-            const mapList = api?.api_map_info;
-            if (Array.isArray(mapList)) {
-                for (const m of mapList) {
-                    if (!m?.api_id) continue;
-                    const ev = m.api_eventmap;
-                    const previous = this.mapGauges.get(m.api_id);
-                    // mapinfo 不是固定欄位集合：活動圖在部分更新／已攻略狀態可能省略
-                    // api_selected_rank。欄位缺席不代表未選難度，必須保留上一筆已驗證值；
-                    // 只有封包明示 0 才清成「未選」。
-                    const hasSelectedRank = !!ev && typeof ev === 'object'
-                        && Object.prototype.hasOwnProperty.call(ev, 'api_selected_rank');
-                    const selectedRank = positiveRank(ev?.api_selected_rank)
-                        ?? (hasSelectedRank ? 0 : previous?.selectedRank ?? 0);
-                    const gaugeNum = rawGaugeNum(m?.api_gauge_num)
-                        ?? rawGaugeNum(ev?.api_gauge_num)
-                        ?? previous?.gaugeNum;
-                    const gaugeTypeValue = Number(m.api_gauge_type);
-                    const gaugeType = Number.isSafeInteger(gaugeTypeValue) && gaugeTypeValue >= 0
-                        ? gaugeTypeValue : previous?.gaugeType ?? 0;
-                    const hasCleared = Object.prototype.hasOwnProperty.call(m, 'api_cleared');
-                    const cleared = hasCleared
-                        ? (m.api_cleared === '1' || m.api_cleared === 1)
-                        : (previous?.cleared ?? false);
-                    const nowValue = Number(ev?.api_now_maphp);
-                    const maxValue = Number(ev?.api_max_maphp);
-                    const nowHp = Number.isSafeInteger(nowValue) && nowValue >= 0
-                        ? nowValue : previous?.nowHp ?? 0;
-                    const maxHp = Number.isSafeInteger(maxValue) && maxValue > 0
-                        ? maxValue : previous?.maxHp ?? 0;
-                    // mapinfo 可能在換難度／血條後先於出擊到達；只切換目前快取。
-                    // `api_gauge_num` 只當血條身分鍵，不解讀其數字。
-                    const fullGaugeReset = !!previous && previous.nowHp < previous.maxHp
-                        && maxHp > 0 && nowHp === maxHp;
-                    const identityChanged = !!previous && (previous.selectedRank !== selectedRank
-                        || previous.gaugeType !== gaugeType
-                        || previous.gaugeNum !== gaugeNum
-                        || (previous.cleared && !cleared));
-                    if (identityChanged || fullGaugeReset) {
-                        this.clearMapBossHp(m.api_id, fullGaugeReset && !identityChanged
-                            && previous?.gaugeNum === gaugeNum);
-                    }
-                    this.mapGauges.set(m.api_id, {
-                        cleared,
-                        gaugeType,
-                        defeatCount: m.api_defeat_count ?? 0,
-                        requiredDefeatCount: m.api_required_defeat_count ?? 0,
-                        nowHp,
-                        maxHp,
-                        selectedRank,
-                        ...(gaugeNum === undefined ? {} : { gaugeNum }),
-                    });
-                    this.syncMapBossHp(m.api_id);
-                }
-            }
+            this.onGetMemberMapinfo(path, api, req, ts);
         } else if (path === 'api_req_air_corps/set_plane' && req) {
-            // api 回應包含更新後的 api_plane_info + api_distance
-            const keys = this.resolveAirBaseKeys(req);
-            const key = keys.length === 1 ? keys[0]!.key : undefined;
-            const ab = key ? this.airBases.get(key) : undefined;
-            if (ab && key && api) {
-                if (api.api_plane_info) {
-                    ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
-                    this.markAirBaseCondObserved(key, ts);
-                }
-                if (api.api_distance) ab.api_distance = api.api_distance;
-            } else {
-                // 同 supply 分支：解不出唯一基地（api_base_id 逗號分隔、或 api_area_id 缺席
-                // 且 rid 撞號）時**不猜**，但一定要留下痕跡——靜默 no-op 正是 2026-08-04
-                // 「面板一直顯示補給前機數」那個 bug 難查的原因，這條路徑會讓中隊配置
-                // 停在變更前而 console 一片乾淨。
-                console.warn('[KC-Monitor] 基地航空隊配置變更無法套用，面板中隊可能停在變更前',
-                    { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
-            }
+            this.onReqAirCorpsSetPlane(path, api, req, ts);
         } else if (path === 'api_req_air_corps/set_action' && req) {
-            // set_action 可同時設定多個航空隊 (api_base_id=1,2 / api_action_kind=1,2)
-            const actions = (req.api_action_kind ?? '').split(',');
-            this.resolveAirBaseKeys(req).forEach(({ key, index: i }) => {
-                const ab = this.airBases.get(key);
-                if (!ab) return;
-                ab.api_action_kind = Number(actions[i] ?? actions[0]);
-                // 札一改，回復速度就變了。取「這段期間看過的最慢速度」作為推論依據
-                // ——中途從休息改成出撃時，若還用現在的札回算，會把疲勞提早判定成回復。
-                const prev = this.airBaseCondMinRate.get(key);
-                const rate = lbasRecoveryRate(ab.api_action_kind);
-                this.airBaseCondMinRate.set(key, prev == null ? rate : Math.min(prev, rate));
-            });
+            this.onReqAirCorpsSetAction(path, api, req, ts);
         } else if (path === 'api_req_air_corps/supply' && req) {
-            // 補給後的機數只能從這裡更新——戰鬥封包不帶 api_count，下一次 base_air_corps／
-            // mapinfo 才會校正。這裡漏掉就等於面板一直顯示補給前的機數。
-            // 補給後的資材餘額（samples/air-corps-supply.json 實測：只送燃料與鋁土，
-            // 那正是配置飛機會消耗的兩項）。只就地更新這兩格，其餘沿用母港封包
-            // ——同 api_req_hokyu/charge 的既定寫法，絕不整批覆蓋 materials。
-            // 資源紀錄（db.resources）不受影響：那條路徑只認帶完整八項的封包。
-            if (Number.isFinite(api?.api_after_fuel)) this.materials[0] = api.api_after_fuel;
-            if (Number.isFinite(api?.api_after_bauxite)) this.materials[3] = api.api_after_bauxite;
-            const keys = this.resolveAirBaseKeys(req);
-            if (keys.length === 1 && api?.api_plane_info) {
-                const key = keys[0]!.key;
-                const ab = this.airBases.get(key);
-                if (ab) {
-                    ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
-                    this.markAirBaseCondObserved(key, ts);
-                }
-            } else {
-                // 多個基地一次補給時，無法確定回應的 api_plane_info 各屬哪一個基地
-                // （沒有樣本，squadron id 在各基地內都是 1–4，硬分會分錯）；查不到基地
-                // 亦同。兩種情況都**不猜**，但要留下痕跡——靜默失敗正是這個 bug 難查的原因。
-                console.warn('[KC-Monitor] 基地航空隊補給無法套用，面板機數可能停在補給前',
-                    { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
-            }
+            this.onReqAirCorpsSupply(path, api, req, ts);
         } else if (path === 'api_req_air_corps/change_name' && req) {
             // 同 set_plane／supply：一律經 resolveAirBaseKeys，別自己組鍵（api_base_id
             // 可能逗號分隔、api_area_id 可能缺席）。改名只影響顯示，故解不出來時
@@ -2535,250 +1673,1245 @@ export class GameState {
             && !path.endsWith('result')   // 排除 battleresult：startsWith('...battle') 會誤吞它
             && api?.api_f_nowhps          // 只處理帶有戰鬥血量的封包（現行格式），避免 goback_port 等把 battleInfo 洗空
         ) {
-            try {
-                // 遊撃部隊的戰鬥封包本身會明示 api_deck_id（本次第3艦隊七船封包實證）。
-                // currentSortieFleetId 是 map/start 時的快照；面板中途開啟、歷史事件裁剪或
-                // 狀態不完整時，不能讓它的預設第1艦隊把這場戰鬥的 HP 寫到錯誤艦隊。
-                // 僅接受 1–4 且目前確有該編成的值，缺席仍沿用 map/start 的既有狀態。
-                const battleDeckId = Number(api?.api_deck_id);
-                const battleDeckIdx = battleDeckId - 1;
-                if (Number.isInteger(battleDeckIdx) && battleDeckIdx >= 0
-                    && battleDeckIdx < this.decks.length && this.decks[battleDeckIdx]) {
-                    this.currentSortieFleetId = battleDeckIdx;
-                    if (!path.startsWith('api_req_practice/') && battleDeckIdx !== this.sortieFleetDeckIdx) {
-                        this.sortieFleetMismatch = true;
+            this.onReqSortieBattle(path, api, req, ts);
+        } else if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') {
+            this.onReqSortieBattleresult(path, api, req, ts);
+        } else if (path.endsWith('/goback_port')) {
+            this.onGobackPort(path, api, req, ts);
+        } else if (path === 'api_req_practice/battle_result') {
+            this.onReqPracticeBattleResult(path, api, req, ts);
+        }
+    }
+
+    // ── applyEvent 各 path 分支的本體。只由 applyEvent 呼叫，參數與其相同。
+    private onStart2GetData(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        this.remodelPrev.clear();
+        this.baseShipIdCache.clear();   // 反解來源要重建了，舊答案一律作廢
+        this.shipCountsAsCache.clear();
+        this.masterUseItems.clear();
+        for (const s of api.api_mst_ship) {
+            this.master.set(s.api_id, {
+                name: s.api_name, stype: s.api_stype ?? 0,
+                fuelMax: s.api_fuel_max ?? 0, bullMax: s.api_bull_max ?? 0,
+                // api_ctype＝艦型（艦級）id。補強增設的逐艦例外表 api_mst_equip_exslot_ship
+                // 以 ship_ids／stypes／**ctypes** 三種方式指定對象，缺這欄就查不了 ctype 條件。
+                ctype: s.api_ctype ?? 0,
+                // 改造鏈：api_afterlv＝下一段改造所需等級，api_aftershipid（**字串**）＝
+                // 改造後 master id，'0' 表示已是最終形態。「完成改造」篩選只認後者。
+                afterLv: s.api_afterlv ?? 0,
+                afterShipId: Number(s.api_aftershipid ?? 0) || 0,
+                // 近代化改修上限：master 的 api_houg/raig/tyku/souk 是 [初期値, 最大値]，
+                // 兩者差＝該項可改修的總量，恰好對得上 api_ship.api_kyouka 的累計值。
+                // **已用真封包核對**（叢雲改二 420：houg[14,57] 差 43＝kyouka[0]、
+                // raig[32,89] 差 57＝kyouka[1]、tyku[27,74] 差 47＝kyouka[2]、
+                // souk[14,51] 差 37＝kyouka[3]，四項全中），故「改修已滿」是精確判定。
+                kyoukaMax: [
+                    (s.api_houg?.[1] ?? 0) - (s.api_houg?.[0] ?? 0),
+                    (s.api_raig?.[1] ?? 0) - (s.api_raig?.[0] ?? 0),
+                    (s.api_tyku?.[1] ?? 0) - (s.api_tyku?.[0] ?? 0),
+                    (s.api_souk?.[1] ?? 0) - (s.api_souk?.[0] ?? 0),
+                ],
+                // api_slot_num：該艦真實裝備槽數。api_ship.api_slot 陣列本身可能帶超出
+                // 真實槽數的 -1 padding（例如 3 槽驅逐艦仍收到長度較長的陣列），需靠這個
+                // 欄位截斷，否則會把 padding 誤畫成「未裝備的空槽」。
+                // 已用真實 start2 核對（samples/start2-master.json：必填 number）。
+                slotNum: s.api_slot_num,
+                // api_maxeq：各槽滿載機數（判定艦載機戰損用）。真實 start2 核對為 number[]
+                // （例 睦月 [0,0,0,0,0]）；undefined 時面板僅顯示搭載數、不做戰損變色。
+                maxeq: s.api_maxeq,
+                // api_sortno＝図鑑番号。已與獨立來源的公開図鑑資料交叉驗證（sortno 1~10
+                // ＝長門/陸奥/伊勢/日向/雪風/赤城/加賀/蒼龍/飛龍/島風，與 samples/
+                // ship-debut-dates.json 的排列完全一致）。0/缺 = 不在図鑑（深海棲艦等）。
+                sortno: s.api_sortno,
+                // api_sort_id：艦船選択依等級排序時，同等級依此值升冪（samples/
+                // start2-master.json 核對：金剛改二丙 1017 < 比叡改二丙 1027 < … < 長門改二 1096，
+                // 與遊戲畫面次序一致）。0／缺視為不可考。
+                sortId: Number(s.api_sort_id) > 0 ? Number(s.api_sort_id) : undefined,
+                taik0: Number(s.api_taik?.[0]) || 0,
+            });
+            // api_aftershipid 是**字串**（真封包實證，例 睦月 '254'），'0' 代表無後續改造。
+            // 當 number 比對會靜默失效，務必先 Number() 解析。
+            const after = Number(s.api_aftershipid ?? 0);
+            if (Number.isSafeInteger(after) && after > 0) {
+                const preds = this.remodelPrev.get(after);
+                if (preds) preds.push(s.api_id); else this.remodelPrev.set(after, [s.api_id]);
+            }
+        }
+        // 改造 → 基礎形態的直接對應（主要解法，見 upgradeOriginal 宣告處說明）
+        this.upgradeOriginal.clear();
+        for (const u of api.api_mst_shipupgrade ?? []) {
+            const id = u?.api_id, base = u?.api_original_ship_id;
+            if (Number.isSafeInteger(id) && Number.isSafeInteger(base) && id > 0 && base > 0
+                && !this.upgradeOriginal.has(id)) this.upgradeOriginal.set(id, base);
+        }
+        for (const g of api.api_mst_slotitem ?? []) {
+            this.masterGears.set(g.api_id, {
+                name: g.api_name, icon: g.api_type?.[3] ?? 0,
+                cat: g.api_type?.[2] ?? 0, aa: g.api_tyku ?? 0, los: g.api_saku ?? 0,
+                distance: g.api_distance ?? 0, sortNo: g.api_sortno ?? 0,
+                stats: {
+                    houg: g.api_houg ?? 0, houm: g.api_houm ?? 0, leng: g.api_leng ?? 0,
+                    luck: g.api_luck ?? 0, houk: g.api_houk ?? 0, baku: g.api_baku ?? 0,
+                    raig: g.api_raig ?? 0, saku: g.api_saku ?? 0, tais: g.api_tais ?? 0,
+                    tyku: g.api_tyku ?? 0, souk: g.api_souk ?? 0,
+                },
+            });
+            if (CONSUMABLE_NAMES.has(g.api_name)) this.consumableGearIds.add(g.api_id);
+        }
+        for (const item of api.api_mst_useitem ?? []) {
+            const id = GameState.positiveId(item?.api_id);
+            if (id != null && typeof item?.api_name === 'string' && item.api_name.length > 0)
+                this.masterUseItems.set(id, item.api_name);
+        }
+        // 補強增設三張表（見宣告處的欄位說明）。任一缺席就維持空集合，呼叫端需可降級。
+        this.exSlotTypes = new Set(
+            (Array.isArray(api.api_mst_equip_exslot) ? api.api_mst_equip_exslot : []).map(Number));
+        this.exSlotItemShips.clear();
+        const exShip = api.api_mst_equip_exslot_ship;
+        if (exShip && typeof exShip === 'object') {
+            for (const [itemId, entry] of Object.entries<any>(exShip)) {
+                this.exSlotItemShips.set(Number(itemId), {
+                    // 三個欄位皆可能是 null（＝不以這種方式指定）；只收值為 1 的 key。
+                    shipIds: new Set(Object.keys(entry?.api_ship_ids ?? {}).map(Number)),
+                    stypes: new Set(Object.keys(entry?.api_stypes ?? {}).map(Number)),
+                    ctypes: new Set(Object.keys(entry?.api_ctypes ?? {}).map(Number)),
+                    reqLevel: entry?.api_req_level ?? 0,
+                });
+            }
+        }
+        this.exSlotLimit.clear();
+        const exLimit = api.api_mst_equip_limit_exslot;
+        if (exLimit && typeof exLimit === 'object') {
+            for (const [mstId, types] of Object.entries<any>(exLimit)) {
+                if (Array.isArray(types)) this.exSlotLimit.set(Number(mstId), new Set(types.map(Number)));
+            }
+        }
+        for (const m of api.api_mst_maparea ?? []) {
+            this.masterMapAreas.set(m.api_id, m.api_name);
+        }
+        // 活動結束後該活動的海域會從 master 消失，故每次 start2 全量重建（不 merge）。
+        this.masterMapInfo.clear();
+        for (const m of api.api_mst_mapinfo ?? []) {
+            if (!m?.api_id) continue;
+            this.masterMapInfo.set(m.api_id, {
+                area: m.api_maparea_id ?? 0, no: m.api_no ?? 0,
+                name: m.api_name ?? '', opetext: m.api_opetext ?? '',
+            });
+        }
+        // 裝備類別名（「裝備全覽」的種類標示與圖示篩選架的標籤用）。
+        this.masterEquipTypes.clear();
+        for (const e of api.api_mst_slotitem_equiptype ?? []) {
+            if (e?.api_id != null) this.masterEquipTypes.set(Number(e.api_id), String(e.api_name ?? ''));
+        }
+        // 可裝備類別。api_equip_type 是 { 類別id: 0|1 } 的物件（key 為字串），取值 1 者。
+        this.stypeEquip.clear();
+        for (const s of api.api_mst_stype ?? []) {
+            const et = s?.api_equip_type;
+            if (!et || typeof et !== 'object') continue;
+            this.stypeEquip.set(s.api_id, new Set(
+                Object.entries(et).filter(([, v]) => v === 1).map(([k]) => Number(k))));
+        }
+        // 逐艦例外。key 為艦 master id（字串），值 { api_equip_type: { 類別id: null|number[] } }。
+        // **這裡刻意忽略 null / [ids] 的差別**：null＝該類別全可裝、[ids]＝僅限特定裝備。
+        // 目前唯一的消費者是「這艘艦能不能裝這個類別」的篩選，兩者答案都是「能」；
+        // 真封包實測 type 24（上陸用舟艇）全部是 null，尚無需要區分的實例。
+        this.shipEquipOverride.clear();
+        const equipShip = api.api_mst_equip_ship;
+        if (equipShip && typeof equipShip === 'object') {
+            for (const [mstId, entry] of Object.entries<any>(equipShip)) {
+                const et = entry?.api_equip_type;
+                if (!et || typeof et !== 'object') continue;
+                this.shipEquipOverride.set(Number(mstId), new Set(Object.keys(et).map(Number)));
+            }
+        }
+        for (const m of api.api_mst_mission ?? [])
+            this.masterMissions.set(m.api_id, {
+                dispNo: m.api_disp_no, name: m.api_name,
+                maparea: m.api_maparea_id ?? 0, time: m.api_time ?? 0,
+                deckNum: m.api_deck_num ?? 0,
+            });
+    }
+
+    private onGetMemberRequireInfo(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        const list = api.api_slot_item ?? api;
+        // 整批刷新＝所有格的熟練度都回到封包事實。**不可在 api_port/port 歸零**：
+        // 回港封包根本不帶裝備資料，歸在那裡等於謊稱已校正（見 alvStaleGears）。
+        // ingestSlotItems 只有整批形狀完整時才會清 map，並同時清掉整批過時標記。
+        this.ingestSlotItems(list, true);
+        if (path === 'api_get_member/require_info') this.observeUseItems(api.api_useitem ?? []);
+        // 登入必送的 require_info 也帶 api_kdock（KC3/poi 一登入就能顯示建造渠的資料源）。
+        // 防禦性讀取：欄位存在才覆蓋，避免 slot_item 端點（無此欄位）誤清空。
+        if (Array.isArray(api.api_kdock)) this.kdockData = api.api_kdock;
+    }
+
+    private onGetMemberShipDeck(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // KC3Kai／EO：ship3 的 `api_slot_data`＝**未裝備清單（等同 unsetslot）**，不是
+        // 裝備實例＋alv。熟練度刷新只靠 require_info／slot_item。這裡只合併船／艦隊。
+        // 要求每筆帶 api_ship_id，才不把「只有 api_id」的局部物件寫入狀態；
+        // ingestShips 會保留封包未送出的 api_slot／其他欄位，明確送出的欄位則照原值更新。
+        // ship2 的 decks 在我們的 api_data 邊界外（KC3Kai 讀 response.api_data_deck），
+        // 本管線拿不到就略過，等 port／ship3 校正。
+        if (path === 'api_get_member/ship2') {
+            this.ingestShips(api, { requireMaster: true });
+        } else {
+            this.ingestShips(api?.api_ship_data, { requireMaster: true });
+            this.mergeDeckData(api?.api_deck_data);
+        }
+    }
+
+    private onGetMemberKdock(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 建造渠狀態：api_port/port 只帶解鎖數（api_count_kdock），不含每個渠的即時狀態。
+        // 這個端點是「動作觸發」而非「進畫面觸發」——已實測：單純進工廠/點建造分頁不會送，
+        // 只有實際送出建造（api_req_kousyou/createship）或領取完成船艦（.../getship）
+        // 才會順便拉一次。登入時的初始狀態則來自 require_info 的 api_kdock（見上分支）。
+        // state 已用真實封包驗證：-1=未解鎖/2=建造中/3=完成待領取。
+        //
+        // 新建造單偵測（已用 samples/build_1.json、build_2.json 驗證）：每個渠物件帶
+        // api_item1~api_item5（真實投入的燃彈鋼鋁＋開發資材，見 BuildStartView 註解）。
+        // 拿新舊快照比對，「created_ship_id 換成沒見過的值」即為一筆新送出的建造——
+        // 比猜 createship 的 req 可靠。判斷式刻意不要求 api_state===2：用高速建造材
+        // （createship_speedchange，不觸發 kdock 重拉）完工的渠，若 SW 剛好在它還是
+        // state 2 時重啟、沒能親眼看到那個瞬間，下次看到時已經是 state 3——只認
+        // created_ship_id 是否為「這個渠上沒見過的新值」，兩種 state 都算，才不會漏記
+        // （已用 build_1.json 的 dock1＝已高速完工/state 3/ship 56 驗證此案例，
+        // 且不會對「同一艘船從 state 2 進展到 3」的正常流程重複觸發，因為 created_ship_id
+        // 沒變）。newBuilds 每次先清空再視偵測結果推入，避免 getship 觸發的 kdock 刷新
+        // （無新建造）誤用上一筆殘留值（EventProjector 依 newBuilds 是否非空
+        // 判斷要不要歸檔；用陣列而非單一值，見 newBuilds 欄位註解的邊界情況）。
+        this.newBuilds = [];
+        const prevById = new Map(this.kdockData.map((k: any) => [k.api_id, k]));
+        for (const d of api as any[]) {
+            const prev = prevById.get(d.api_id);
+            const isNewBuild = (d.api_state === 2 || d.api_state === 3) && d.api_created_ship_id > 0
+                && (!prev || prev.api_created_ship_id !== d.api_created_ship_id);
+            if (!isNewBuild) continue;
+            const used = [d.api_item1, d.api_item2, d.api_item3, d.api_item4, 0, 0, d.api_item5, 0]
+                .map((v: any) => Number(v) || 0);
+            used.forEach((v, i) => {
+                if (v > 0 && typeof this.materials[i] === 'number')
+                    this.materials[i] = Math.max(0, this.materials[i] - v);
+            });
+            this.newBuilds.push({ kdockId: d.api_id, shipMst: d.api_created_ship_id, secretary: this.secretaryMst(), used });
+            this.bumpQuestProgress('build');
+            this.countQuestFactory({ event: 'create_ship', amount: 1 }, ts);
+        }
+        this.kdockData = api;
+    }
+
+    private onReqKousyouCreateshipSpeedchange(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 高速建造材：response 不帶任何資料，只能靠 req.api_kdock_id（已用真實封包驗證）
+        // 找到對應渠，直接標記為完成待領取（state 3, complete_time 0）。領取仍走 getship 分支。
+        // 消耗顆數：普通1／大型10（LARGE_BUILD_MIN 判定，使用者提供之遊戲設定，見常數註解），
+        // 用該渠自己的 api_item1-4（送出建造當下的真實投入量，此刻尚未被清空）判斷。
+        const dock = this.kdockData.find((k: any) => k.api_id === Number(req.api_kdock_id));
+        if (dock) {
+            const large = LARGE_BUILD_MIN.every((min, i) => (Number(dock[`api_item${i + 1}`]) || 0) >= min);
+            const qty = large ? 10 : 1;
+            this.materials[4] = Math.max(0, (this.materials[4] ?? 0) - qty);
+            this.lastSpeedup = { kdockId: dock.api_id, shipMst: dock.api_created_ship_id, qty, secretary: this.secretaryMst() };
+            dock.api_state = 3;
+            dock.api_complete_time = 0;
+        }
+    }
+
+    private onReqKousyouCreateitem(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 裝備開發。已用真實封包驗證（samples/kousyou_1.json 單發失敗、
+        // kousyou_2.json 三發連續）：api_get_items 恆為陣列（每項
+        // {api_id, api_slotitem_id}，失敗時 api_id=-1/api_slotitem_id=-1）、
+        // api_material 為 8 項純數字餘額（見 DevelopView 註解）。
+        const items: any[] = Array.isArray(api?.api_get_items) ? api.api_get_items : [];
+        const results: { mst: number }[] = [];
+        for (const it of items) {
+            const mst = Number(it?.api_slotitem_id ?? -1);
+            this.upsertSlotItem(it);
+            results.push({ mst: mst > 0 ? mst : -1 });
+        }
+        const used = this.updateMaterials(api?.api_material);
+        // 開發資材每次嘗試固定消耗 1 顆（日wiki明載的固定常數，非估算）；資材尚未
+        // 播種（未回過母港，updateMaterials 差分讀不到）時才用此值補上。
+        if (!used[6]) used[6] = results.length;
+        this.lastDevelop = { results, secretary: this.secretaryMst(), used };
+        // 開發任務常註明「失敗もOK」，故不論成敗都算；三連開發算 3 次（poi quests-cross-slice.ts
+        // 以 api_get_items 件數計、KC3Kai Kcsapi.js 逐件累加，兩者一致）。
+        this.bumpQuestProgress('development', results.length);
+        this.countQuestFactory({ event: 'create_item', amount: results.length }, ts);
+    }
+
+    private onReqMemberItemuse(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 道具兌換（活動道具換裝備等）。兌換得到的裝備放在 api_getitem[].api_slotitem，
+        // 之後不會再重送 api_get_member/slot_item，不加入就要等下次登入才看得到。
+        // 只依回應帶的實例資料新增，不論是哪一件裝備；道具消耗量每年不同，不在此推算，
+        // 數量等遊戲重送 api_get_member/useitem。作法與 KC3Kai Kcsapi.js 的
+        // api_req_member/itemuse、poi equips.ts 一致；欄位見 poi kcsapi 型別
+        // APIReqMemberItemuseResponse。本專案尚無該回應的真封包樣本。
+        const rewards = Array.isArray(api?.api_getitem) ? api.api_getitem : [api?.api_getitem];
+        for (const reward of rewards) {
+            const gear = reward?.api_slotitem;
+            for (const record of Array.isArray(gear) ? gear : [gear]) {
+                if (record && typeof record === 'object') this.upsertSlotItem(record);
+            }
+        }
+    }
+
+    private onReqKousyouRemodelSlot(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 改修（明石の改修工廠）。已用真實封包驗證（見 state.ts 開頭註解，含成功／
+        // 確実化／失敗三案例）：req.api_slot_id=對象裝備實例、req.api_certain_flag=
+        // 確実化；回應失敗時 api_after_slot 整個不存在（undefined），api_use_slot_id
+        // 仍會出現（飼料無論成敗都被消耗）——以下 optional chaining／回退鏈天然覆蓋兩案例。
+        const before = this.slotItems.get(Number(req.api_slot_id ?? 0));
+        const levelBefore = before?.level ?? 0;
+        const after = api?.api_after_slot;
+        const afterId = this.upsertSlotItem(after);
+        const afterItem = afterId == null ? undefined : this.slotItems.get(afterId);
+        for (const cid of api?.api_use_slot_id ?? []) {
+            const id = GameState.positiveId(cid);
+            if (id != null) this.slotItems.delete(id);
+        }
+        const used = this.updateMaterials(api?.api_after_material);
+        const remodelSuccess = Number(api?.api_remodel_flag ?? 0) === 1;
+        this.lastImprove = {
+            gearMst: afterItem?.mst ?? before?.mst ?? 0,
+            levelBefore,
+            levelAfter: afterItem?.level ?? levelBefore,
+            success: remodelSuccess,
+            certain: req.api_certain_flag === '1',
+            secretary: this.secretaryMst(),
+            used,
+        };
+        // 條件表的改修子目標不論成敗都算（poi quests-cross-slice.ts 與 KC3Kai Kcsapi.js 對 619／1166／1167
+        // 皆不看 api_remodel_flag）；remodel 僅供文字推算的「改修 N 回」任務。
+        this.bumpQuestProgress('remodelAttempt');
+        if (remodelSuccess) this.bumpQuestProgress('remodel');
+        this.countQuestFactory({ event: 'remodel_item', amount: 1 }, ts);
+    }
+
+    private onGetMemberQuestlist(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 2020-03-27 起 API 不再分頁：單一 tab 回傳該分類的**全部**任務（遊戲 UI 仍
+        // 可能分頁顯示）。api_tab_id：0=全て／1=デイリー／2=ウィークリー／3=マンスリー／
+        // 4=単発／5=他／9=遂行中（EO apilist／KC3Kai QuestManager.definePage）。
+        // 受注中／達成只在 tab 0 與 9 缺席時刪除；可接受任務只有 tab 0 才是完整集合，
+        // tab 9 本來就不含未受注列，缺席不得清掉「全部」剛看到的可接受任務。
+        // 單發缺席推論只採 tab 0／4：這兩個才是該範圍當下的完整清單。
+        const tabId = Number(req?.api_tab_id);
+        const syncActive = tabId === 0 || tabId === 9;
+        const syncAvailable = tabId === 0;
+        const catalogTab = tabId === 0 || tabId === 4;
+        const list = api.api_list;
+        const recordOnceCatalog = (nos: number[]) => {
+            this.questOnceCatalogNos = nos;
+        };
+        // api_list 為 null：該 tab 目前 0 件（EO：任務完遂時會變 null）。
+        // 子集 tab 的 null 不代表其他分類也空了。
+        if (list == null) {
+            if (syncActive) {
+                this.quests.clear();
+                this.questProgress.clear();
+                this.questTracking.clear();
+            }
+            if (syncAvailable) this.availableQuests.clear();
+            if (catalogTab) recordOnceCatalog([]);
+        } else if (Array.isArray(list)) {
+            const seen = new Set<number>();
+            for (const q of list) {
+                // 空欄是 -1（不是物件），不可當任務讀。
+                if (!q || typeof q !== 'object' || !(q.api_no > 0)) continue;
+                seen.add(q.api_no);
+                const identity = questCatalogIdentity(q.api_no, q.api_title);
+                if (identity === 'mismatch') this.questCatalogMismatches.set(q.api_no, {
+                    name: q.api_title, detail: q.api_detail ?? '', category: questCategoryFromApi(q.api_category),
+                });
+                else if (identity === 'match') this.questCatalogMismatches.delete(q.api_no);
+                if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) this.questSeenNos.add(q.api_no);
+                if (typeof q.api_label_type === 'number') {
+                    const resetMonth = yearlyResetMonthFromLabel(q.api_label_type);
+                    if (resetMonth !== null) this.questYearlyResetMonths.set(q.api_no, resetMonth);
+                    else this.questYearlyResetMonths.delete(q.api_no);
+                }
+                if (q.api_state === 2 || q.api_state === 3) {
+                    this.quests.set(q.api_no, {
+                        name: q.api_title,
+                        detail: q.api_detail ?? '',
+                        done: q.api_state === 3,
+                        category: questCategoryFromApi(q.api_category),
+                    });
+                    this.availableQuests.delete(q.api_no);
+                    // 進度只在「本機第一次看到這個任務編號」時初始化——重複的 questlist
+                    // 不得把已累積的計數洗回 0。
+                    const def = this.questGoal(q.api_no);
+                    if (!this.questProgress.has(q.api_no) && !def?.supported) {
+                        // 條件表有收錄但事件尚未支援時，不用文字推算次數：那類任務多帶編成或評價條件，
+                        // 文字推算會多算。只接受人工核對的目標或單純計數。營運重用編號的新任務
+                        // （標題與目錄不同）不套用以編號對應的人工目標，只剩文字推算。
+                        const reused = questCatalogIdentity(q.api_no, q.api_title) === 'mismatch';
+                        const goal = def
+                            ? QUEST_ID_OVERRIDES[q.api_no] ?? simpleGoalFromDef(def)
+                            : reused
+                                ? parseQuestGoal(q.api_title ?? '', q.api_detail ?? '')
+                                : resolveQuestGoal(q.api_no, q.api_title ?? '', q.api_detail ?? '');
+                        if (goal) this.questProgress.set(q.api_no, { ...goal, count: 0 });
+                    }
+                    this.observeQuestServer(q.api_no, q.api_detail ?? '', q.api_progress_flag, q.api_state === 3, ts);
+                } else {
+                    // state 1=未受注：若已追蹤過（例如放棄後），從面板拿掉。
+                    this.quests.delete(q.api_no);
+                    this.questProgress.delete(q.api_no);
+                    this.questTracking.delete(q.api_no);
+                    this.availableQuests.set(q.api_no, {
+                        name: q.api_title ?? '', detail: q.api_detail ?? '',
+                        category: questCategoryFromApi(q.api_category),
+                    });
+                }
+            }
+            if (syncActive) {
+                for (const no of [...this.quests.keys()]) {
+                    if (seen.has(no)) continue;
+                    this.quests.delete(no);
+                    this.questProgress.delete(no);
+                    this.questTracking.delete(no);
+                }
+            }
+            if (syncAvailable) {
+                for (const no of [...this.availableQuests.keys()]) {
+                    if (!seen.has(no)) this.availableQuests.delete(no);
+                }
+            }
+            if (catalogTab) recordOnceCatalog([...seen].sort((a, b) => a - b));
+        }
+    }
+
+    private onReqQuestClearitemget(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 達成後領取獎勵（clearitemget）或放棄任務（stop）：該任務即從清單消失。
+        // 即時刪除；完整 tab 的下一次 questlist 也會以缺席同步清掉（見上方）。
+        // 獎勵欄只在它真的帶「實例 api_id＋master api_slotitem_id」時才寫入。舊格式／
+        // 未驗證的 api_bounus.api_id 可能只是 master id，不能拿它當裝備實例鍵；保留原始
+        // 事件，等待後續 slot_item 或局部快照補齊，避免把兩件後期裝備誤合併成假實例。
+        this.ingestSlotItems(api?.api_slot_data);
+        this.ingestSlotItems(api?.api_slotitem);
+        this.ingestSlotItems(api?.api_slot_item);
+        const questId = Number(req.api_quest_id);
+        if (Number.isFinite(questId) && questId > 0) {
+            if (path === 'api_req_quest/clearitemget') {
+                const previous = this.questObservedCompletions.get(questId);
+                this.questObservedCompletions.set(questId, {
+                    count: (previous?.count ?? 0) + 1,
+                    lastTs: ts,
+                });
+            }
+            this.quests.delete(questId);
+            this.questProgress.delete(questId);
+            this.questTracking.delete(questId);
+        }
+    }
+
+    private onPortPort(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        this.portAt = ts;
+        this.bucketDockAtByShip.clear();
+        this.ships.clear();
+        this.ingestShips(api.api_ship);
+        this.decks = api.api_deck_port;
+        // 遠征中的艦隊：記錄其 mission id 為該艦隊「上次遠征」（回港後 api_mission 歸零，故在此捕捉）
+        this.decks.forEach((d: any, i: number) => {
+            const mid = d.api_mission?.[1] ?? 0;
+            if (mid > 0) this.lastMissionByDeck.set(i, mid);
+        });
+        this.pendingConsumption = [];
+        this.pendingPlaneLoss = [];
+        this.ndockData = api.api_ndock;
+        this.kdockCap = api.api_count_kdock ?? this.kdockCap;
+        this.materials = (api.api_material ?? []).map((m: any) => m.api_value);
+        this.maxChara = api.api_basic?.api_max_chara ?? this.maxChara;
+        this.maxSlotitem = api.api_basic?.api_max_slotitem ?? this.maxSlotitem;
+        this.nickname = api.api_basic?.api_nickname ?? this.nickname;
+        this.hqLv = api.api_basic?.api_level ?? this.hqLv;
+        this.furnitureCoins = GameState.nonNegativeIntOrNull(api.api_basic?.api_fcoin) ?? this.furnitureCoins;
+        this.combinedFlag = api.api_combined_flag ?? 0;
+        this.currentSortieFleetId = 0;
+        this.battleInfo = null;
+        this.sortieInfo = null;
+        this.lastDayBattle = null;
+        this.lastDayDamecons = null;
+        // 回港＝出擊結束，退避狀態隨之解除（退避艦本來就已經先回到母港）。
+        this.escapedShipIds.clear();
+        this.pendingEscape = null;
+        this.goddessRestored.clear();
+        // 母港封包帶的是搭載數實數（api_onslot，上面 api_ship 已整批覆蓋），
+        // 途中的估算到此校正完畢，估算標記隨之解除。
+        this.planeLossEstimated.clear();
+        // 熟練度也在「回港這一刻」結算（全滅→歸零／部分損耗→標過時）。必須排在
+        // api_ship 已寫入 this.ships 之後，比較的才是帰投時的實數。
+        this.settlePlaneProficiency();
+        // 計時器在「進入母港畫面」這一刻推進，故兩件事都在這裡處理：
+        // (1) 出門中（anchor=null）的艦隊回港 → 重新起算；仍在遠征的隊維持 null。
+        // (2) 已跑滿一個週期 → 遊戲就是在此刻結算的，結算後重新起算下一輪。
+        //     未滿一個週期時進母港**不重置**（wiki 明載 20 分未到就查看母港，計數繼續）。
+        // 從未觀測過的艦隊不在此建立錨點——沒看過就是「不可考」，UI 顯示範圍但不顯示倒數，
+        // 比拿回港時間硬湊一個假倒數誠實。
+        const advance = (m: Map<number, number | null>, i: number, deck: any, intervalMs: number) => {
+            const anchor = m.get(i);
+            if (anchor === undefined) return;                       // 不可考，不硬湊
+            if (anchor === null) {                                  // 出門中
+                if (!(deck.api_mission?.[0] > 0)) m.set(i, ts);     // 已回港
+                return;
+            }
+            if (ts - anchor >= intervalMs) m.set(i, ts);            // 本次進港已結算 → 下一輪
+        };
+        this.decks.forEach((d: any, i: number) => {
+            advance(this.repairAnchorByDeck, i, d, 20 * 60_000);
+            advance(this.moraleAnchorByDeck, i, d, 15 * 60_000);
+        });
+    }
+
+    private onReqMapSelectEventmapRank(path: string, api: any, req: Record<string, string>, ts: number) {
+        const area = Number(req.api_maparea_id);
+        const mapNo = Number(req.api_map_no);
+        const rank = Number(req.api_rank);
+        const maphp = api?.api_maphp;
+        const nowHp = Number(maphp?.api_now_maphp);
+        const maxHp = Number(maphp?.api_max_maphp);
+        const gaugeType = Number(maphp?.api_gauge_type);
+        if (Number.isSafeInteger(area) && area > 0
+            && Number.isSafeInteger(mapNo) && mapNo > 0
+            && Number.isSafeInteger(rank) && rank > 0
+            && Number.isSafeInteger(nowHp) && nowHp >= 0
+            && Number.isSafeInteger(maxHp) && maxHp > 0) {
+            const mapId = area * 10 + mapNo;
+            const previous = this.mapGauges.get(mapId);
+            const gaugeNum = rawGaugeNum(maphp?.api_gauge_num)
+                ?? rawGaugeNum(maphp?.api_eventmap?.api_gauge_num)
+                ?? previous?.gaugeNum;
+            const nextGaugeType = Number.isSafeInteger(gaugeType) && gaugeType >= 0
+                ? gaugeType : (previous?.gaugeType ?? 0);
+            // 斬殺線依難度／血條而異；切換到另一條血條時只切換目前快取，
+            // 其他 gauge 的 baseHp 證據仍保留。
+            if (previous && (previous.selectedRank !== rank
+                || previous.gaugeType !== nextGaugeType
+                || previous.gaugeNum !== gaugeNum)) this.clearMapBossHp(mapId);
+            this.mapGauges.set(mapId, {
+                cleared: previous?.cleared ?? false,
+                gaugeType: nextGaugeType,
+                defeatCount: previous?.defeatCount ?? 0,
+                requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
+                nowHp,
+                maxHp,
+                selectedRank: rank,
+                ...(gaugeNum === undefined ? {} : { gaugeNum }),
+            });
+            this.syncMapBossHp(mapId);
+        }
+    }
+
+    private onReqMapStart(path: string, api: any, req: Record<string, string>, ts: number) {
+        this.currentSortieFleetId = Number(req.api_deck_id) - 1;
+        // 出擊中：計時器歸零、且要等回港才重新起算，故先標 null（見 repairAnchorByDeck）。
+        this.markFleetAway(this.currentSortieFleetId);
+        if (this.combinedFlag > 0 && this.currentSortieFleetId === 0) this.markFleetAway(1);
+        this.battleInfo = null;
+        this.lastDayBattle = null;
+        this.lastDayDamecons = null;
+        this.pendingConsumption = [];
+        this.pendingPlaneLoss = [];
+        this.damaconUsed.clear();
+        this.goddessRestored.clear();
+        this.escapedShipIds.clear();
+        this.pendingEscape = null;
+        this.planeLossEstimated.clear();
+        // 熟練度是回港時依「出撃時 vs 帰投時の残数」結算的，故出擊當下要先拍一份
+        // 搭載數實數留著比（見 settlePlaneProficiency）。
+        this.snapshotSortieOnslot();
+        this.sortieFleetMasters = this.deckMasters(this.currentSortieFleetId);
+        this.sortieFleetDeckIdx = this.currentSortieFleetId;
+        this.sortieFleetMismatch = false;
+        this.bossEntryTaiha = null;
+        const startNode = sortieNodeOf(api);
+        const bossCellNo = Number(api?.api_bosscell_no);
+        this.sortieInfo = {
+            mapArea: api.api_maparea_id,
+            mapNo: api.api_mapinfo_no,
+            nodes: [startNode],
+            ...(Number.isSafeInteger(bossCellNo) && bossCellNo > 0 ? { bossCellNo } : {}),
+        };
+        const eventmap = api?.api_eventmap;
+        const nowHp = Number(eventmap?.api_now_maphp);
+        const maxHp = Number(eventmap?.api_max_maphp);
+        if (Number.isSafeInteger(nowHp) && nowHp >= 0
+            && Number.isSafeInteger(maxHp) && maxHp > 0) {
+            const mapId = api.api_maparea_id * 10 + api.api_mapinfo_no;
+            const previous = this.mapGauges.get(mapId);
+            const gaugeNum = rawGaugeNum(api?.api_gauge_num)
+                ?? rawGaugeNum(eventmap?.api_gauge_num)
+                ?? previous?.gaugeNum;
+            const eventmapGaugeType = Number(eventmap?.api_gauge_type ?? api?.api_gauge_type);
+            const gaugeType = Number.isSafeInteger(eventmapGaugeType) && eventmapGaugeType >= 0
+                ? eventmapGaugeType : previous?.gaugeType ?? 0;
+            const selectedRank = positiveRank(eventmap?.api_selected_rank)
+                ?? positiveRank(api?.api_selected_rank)
+                ?? previous?.selectedRank ?? 0;
+            const fullGaugeReset = !!previous && previous.nowHp < previous.maxHp && nowHp === maxHp;
+            if (previous && (previous.selectedRank !== selectedRank
+                || previous.gaugeType !== gaugeType
+                || previous.gaugeNum !== gaugeNum || fullGaugeReset)) {
+                this.clearMapBossHp(mapId, fullGaugeReset && previous.gaugeNum === gaugeNum);
+            }
+            this.mapGauges.set(mapId, {
+                cleared: previous?.cleared ?? false,
+                gaugeType,
+                defeatCount: previous?.defeatCount ?? 0,
+                requiredDefeatCount: previous?.requiredDefeatCount ?? 0,
+                nowHp,
+                maxHp,
+                selectedRank,
+                ...(gaugeNum === undefined ? {} : { gaugeNum }),
+            });
+            this.syncMapBossHp(mapId);
+        }
+        this.noteBossEntry(startNode);
+        this.applyMaelstromIfAny(api, startNode.id);
+        this.bumpQuestProgress('sortie');
+        this.countQuestSally(ts);
+    }
+
+    private onReqMapNext(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        if (this.sortieInfo) {
+            const node = sortieNodeOf(api);
+            this.sortieInfo.nodes.push(node);
+            const bossCellNo = Number(api?.api_bosscell_no);
+            if (Number.isSafeInteger(bossCellNo) && bossCellNo > 0) {
+                this.sortieInfo.bossCellNo = bossCellNo;
+            }
+            // 血量此刻＝上一個節點戰鬥寫回後的值（戰鬥封包就即時寫回，見 applyEvent
+            // 的戰鬥分支），故這裡量到的正是「踏進這個節點時」的狀態。
+            this.noteBossEntry(node);
+            this.applyMaelstromIfAny(api, node.id);
+            this.judgeQuestReach(this.sortieInfo, node, ts);
+        }
+    }
+
+    private onReqHenseiChange(path: string, api: any, req: Record<string, string>, ts: number) {
+        const deck = this.decks[Number(req.api_id) - 1];
+        if (!deck || !Array.isArray(deck.api_ship)) return;
+        const deckIdx = Number(req.api_id) - 1;
+        const idx = Number(req.api_ship_idx);
+        const newId = Number(req.api_ship_id);
+        if (newId === -2) {
+            // 隨伴艦一括解除：遊戲內部**不算**編成調整，泊地修理計時器不重置
+            // （使用者實測的既知 bug feature，見 repairAnchorByDeck 註解）。
+            deck.api_ship = deck.api_ship.map((v: number, i: number) => (i === 0 ? v : -1));
+            return;
+        }
+        if (!Number.isInteger(idx) || idx < 0 || idx >= deck.api_ship.length) return;
+        const oldId = deck.api_ship[idx];
+        if (newId > 0) {
+            for (const d of this.decks) {
+                const j = d.api_ship.indexOf(newId);
+                if (j >= 0) {
+                    d.api_ship[j] = oldId;
+                    // 換上來的艦若位於別隊，那一隊的成員也被改動了 → 一併重置。
+                    // 目標格若是空的，來源格會變成 -1，必須立刻補位，否則來源艦隊也會留洞。
+                    if (d !== deck) {
+                        this.compactDeckShips(d);
+                        this.resetRepairAnchor(this.decks.indexOf(d), ts);
                     }
                 }
-                const isNightOnly = path.includes('sp_midnight');
-                // `night_to_day` 是完整的「夜戰起始＋日戰收尾」封包：雖然名稱沒有
-                // midnight，KC3Kai／poi 都把它當夜戰流程處理，且其中的 api_n_hougeki*
-                // 不能遺失。它已自帶整場 HP，不能再和前一則白天封包重放一次。
-                const isNightToDay = path.endsWith('/night_to_day') || path.endsWith('/ec_night_to_day');
-                const isNight = path.includes('midnight') || isNightToDay;
-                // 夜轉日的資材消耗規則沒有在本專案驗證；先維持原本將該端點視為
-                // 普通日戰的消耗路徑，僅把它納入夜戰資料解析，不自行推算雙階段費用。
-                const isNightContinuation = isNight && !isNightToDay;
-                // 演習「挑戰次數」在晝戰當下就算一次，不必等結果——夜戰接續是同一場
-                // 演習的延續，不會重複觸發 api_req_practice/battle。
-                if (path === 'api_req_practice/battle') {
-                    this.bumpQuestProgress('practiceAttempt');
-                    const practiceDeck = [Number(api?.api_deck_id), Number(req?.api_deck_id)]
-                        .find(id => Number.isInteger(id) && id >= 1 && id <= this.decks.length && this.decks[id - 1]);
-                    this.practiceFleetMasters = practiceDeck === undefined ? null
-                        : this.deckMasters(practiceDeck - 1);
-                }
-
-                // Get player damecons
-                const playerDamecons = this.getPlayerDamecons(api);
-                // 退避艦的位置旗標（與 damecons 同序）：已退避者不列入大破警告與 rank。
-                const escaped = this.getEscapedFlags(api);
-                // 夜戰裝備是否發動需要出擊當下的 master id；只把目前出擊的主／隨伴
-                // 位置送進純解析器，不能用 `fleets()` 的顯示 view 反推槽位。
-                const gearRows = (deck: any): number[][] => (deck?.api_ship ?? [])
-                    .filter((id: number) => id > 0)
-                    .map((id: number) => {
-                        const ship = this.ships.get(id);
-                        const slots = [...(ship?.api_slot ?? []), ship?.api_slot_ex > 0 ? ship.api_slot_ex : -1];
-                        return slots.map((slotId: number) => this.slotItems.get(slotId)?.mst ?? 0)
-                            .filter((mst: number) => mst > 0);
-                    });
-                const aaciShipRows = (deck: any): ({ id: number; masterId?: number } | null)[] =>
-                    (deck?.api_ship ?? []).map((id: number) => {
-                        if (!(id > 0)) return null;
-                        const ship = this.ships.get(id);
-                        return {
-                            id,
-                            ...(ship?.api_ship_id > 0 ? { masterId: ship.api_ship_id } : {}),
-                        };
-                    });
-                const opts = {
-                    escapedMain: escaped.main,
-                    escapedEscort: escaped.escort,
-                    playerGearIds: {
-                        main: gearRows(this.decks[this.currentSortieFleetId]),
-                        escort: GameState.hasEscortFleet(api) && this.currentSortieFleetId === 0
-                            ? gearRows(this.decks[1]) : [],
-                    },
-                    playerAaciShips: {
-                        main: aaciShipRows(this.decks[this.currentSortieFleetId]),
-                        escort: GameState.hasEscortFleet(api) && this.currentSortieFleetId === 0
-                            ? aaciShipRows(this.decks[1]) : [],
-                    },
-                };
-
-                // 實際餵給 analyzeBattle 的損管狀態。**必須與 apiList 的第一包同一時刻**：
-                // 夜戰接續是把晝戰整場重放一次，用當下重算的 playerDamecons 會讓晝戰已觸發
-                // 損管的艦在重放時無損管可用 → 誤報轟沈（見 lastDayDamecons 宣告處）。
-                let usedDamecons = playerDamecons;
-                const previousBattleInfo = this.battleInfo;
-                let analyzedPackets: any[] = [api];
-                // Record daytime battle data for MVP prediction if needed
-                if (isNightToDay) {
-                    analyzedPackets = [api];
-                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
-                    // 夜轉日已是一個完整節點；不要把它留成下一則夜戰的白天基準。
-                    this.lastDayBattle = null;
-                    this.lastDayDamecons = null;
-                } else if (!isNight) {
-                    this.lastDayBattle = api;
-                    this.lastDayDamecons = playerDamecons;
-                    analyzedPackets = [api];
-                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
-                } else if (this.lastDayBattle && isNight && !isNightOnly) {
-                    usedDamecons = this.lastDayDamecons ?? playerDamecons;
-                    analyzedPackets = [this.lastDayBattle, api];
-                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
-                } else {
-                    analyzedPackets = [api];
-                    this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
-                }
-                if (this.battleInfo && isNight) {
-                    // 端點名稱本身已證實夜戰流程開始；即使該包沒有重送
-                    // api_midnight_flag／夜戰效果欄位，入口圖示仍須保留，並把白天上下文
-                    // 交給合併器補回，不讓 gauge／重播起點造成「陣形 ?」或整列消失。
-                    this.battleInfo = {
-                        ...mergeNightBattleContext(this.battleInfo, isNightOnly ? null : previousBattleInfo, analyzedPackets, true),
-                        midnightFlag: true,
-                    };
-                }
-                // 把戰鬥模擬後的 HP 寫回 this.ships，讓編成面板即時反映受損
-                if (this.battleInfo?.resultFleets) {
-                    this.applyBattleHp(this.battleInfo.resultFleets);
-                    // 比對基準同樣要用餵進去的那一份（Set 皆為冪等，夜戰重放時重複標記同一艘
-                    // 不會有副作用）。
-                    this.markDameconConsumed(usedDamecons, this.battleInfo.resultFleets);
-                }
-                // 艦載機戰損（估算）：只累積、不當場寫回——戰鬥中要看的是這一場交戰時的
-                // 制空值，結算才一併扣（見 pendingPlaneLoss／queuePlaneLoss）。
-                this.queuePlaneLoss(api);
-                // ── 依節點類型套用燃彈消耗率（日wiki「資材」頁實測值，2024/03 版）──
-                // 每戰獨立計算、切捨（0<x<1 時進位為 1）；夜戰彈藥 = 晝彈×1.5 切り上げ。
-                // 活動特殊點（PT 4/8・雷達 4/0・對潛空襲 12/6）無法純靠 path 區分，按普通處理；回港校正。
-                let fuelRate: number, bullRate: number;
-                let nightAmmoBoost = false;
-                const map = this.sortieInfo;
-                const atBoss = map ? isBossNode(map.nodes[map.nodes.length - 1]) : false;
-                if (path.includes('ld_airbattle')) {
-                    // 空襲戰（單向）：6-4/6-5 = 4/8；其他（5-2/7-2/活動圖）= 6/4
-                    const is64or65 = map?.mapArea === 6 && (map.mapNo === 4 || map.mapNo === 5);
-                    fuelRate = is64or65 ? 0.04 : 0.06;
-                    bullRate = is64or65 ? 0.08 : 0.04;
-                } else if (path.includes('airbattle')) {       // 航空戰（雙向）
-                    fuelRate = 0.20; bullRate = 0.20;
-                } else if (isNightOnly) {                      // 開幕夜戰點
-                    fuelRate = 0.10; bullRate = 0.10;
-                } else if (isNightContinuation) {
-                    // 夜戰接續：燃料不追加；彈藥補到 ceil(晝彈×1.5)（差額在 applyConsumption 算）
-                    fuelRate = 0; bullRate = 0; nightAmmoBoost = true;
-                } else {                                       // 普通水上晝戰
-                    fuelRate = 0.20; bullRate = 0.20;
-                    // 反潛點（敵主隊全為潛水艦）→ 8/0。
-                    // 例外仍 20/20：Boss 節點、4-1 D/4-3 C（wiki 明載的道中潛水例外）
-                    const eIds = this.battleInfo?.enemyIds ?? [];
-                    const allSubs = eIds.length > 0 && eIds.every(id => {
-                        const st = this.master.get(id)?.stype ?? 0;
-                        return st === 13 || st === 14;
-                    });
-                    const aswException = atBoss || (map?.mapArea === 4 && (map.mapNo === 1 || map.mapNo === 3));
-                    if (allSubs && !aswException) { fuelRate = 0.08; bullRate = 0; }
-                }
-                // 燃彈消耗延後到結算（battleresult）才寫回：出擊途中面板顯示的油彈維持戰前值，
-                // 與遊戲戰鬥畫面一致（油彈餘量會影響戰鬥傷害，過早顯示會誤導）。此處只記錄待套用費率。
-                this.pendingConsumption.push({ fuelRate, bullRate, nightAmmoBoost, hasEscort: GameState.hasEscortFleet(api) });
-                // 只有目前 gauge 的目標 Boss 節點可更新 baseHp。破甲路線回打舊階段 Boss
-                // 時 api_event_id 仍是 5；若只用 atBoss，舊 Boss HP 會污染現行斬殺線。
-                const currentNode = map?.nodes[map.nodes.length - 1];
-                const atGaugeBoss = isGaugeBossNode(currentNode, map?.bossCellNo, (map?.mapArea ?? 0) >= 10);
-                if (atGaugeBoss && map) {
-                    const bossHp = this.battleInfo?.resultFleets?.enemyMain?.[0]?.maxHp ?? 0;
-                    this.observeMapBossHp(map.mapArea, map.mapNo, bossHp);
-                }
-            } catch (e) {
-                console.error("BattlePrediction Error", e);
             }
-        } else if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') {
-            if (this.battleInfo) {
-                this.battleInfo.hasResult = true;
-                this.battleInfo.drop = api.api_get_ship ? localizeShip(api.api_get_ship.api_ship_id, api.api_get_ship.api_ship_name) : null;
-                // 是否為「本鎮守府還沒有的船」。**在這裡判定而不是留給面板**：新船要等
-                // api_port/port 才會進 this.ships，回港後再問就永遠答「已持有」。
-                this.battleInfo.dropIsNew = api.api_get_ship
-                    ? !this.ownsShip(Number(api.api_get_ship.api_ship_id))
-                    : false;
-                if (api.api_win_rank) this.battleInfo.rank = api.api_win_rank;
-            }
-            // 出擊戰鬥任務（見 quest-progress.ts QUEST_ID_OVERRIDES）。多數任務任意海域/節點
-            // 皆可（201/210/216 等），少數限定海域＋boss＋rank 門檻（226/229/241/242/243/
-            // 261/265）——這批的過濾條件存在 questProgress 各自的 area/bossOnly/minRank
-            // 欄位，bumpQuestProgress() 內部判斷，這裡只需照實提供這次結算的上下文。
-            // battleEngage 不論勝敗、每次結算就算一次（例：任務210「10回邀撃」）；
-            // battleWin 只在 rank 達到門檻（預設 S/A/B，個別任務可能收窄到 A 或 S）才算。
-            const map = this.sortieInfo;
-            const battleCtx = {
-                area: map ? map.mapArea * 10 + map.mapNo : undefined,
-                boss: map ? isBossNode(map.nodes[map.nodes.length - 1]) : false,
-                rank: api?.api_win_rank,
-            };
-            this.judgeQuestBattle(map, api?.api_win_rank, ts);
-            this.bumpQuestProgress('battleEngage', 1, battleCtx);
-            this.bumpQuestProgress('battleWin', 1, battleCtx);
-            // 結算畫面（顯示 rank+掉落）才一併套用本節點各戰累積的燃彈消耗，寫回 this.ships。
-            for (const c of this.pendingConsumption) this.applyConsumption(c.fuelRate, c.bullRate, c.nightAmmoBoost, c.hasEscort);
-            this.pendingConsumption = [];
-            // 艦載機戰損同樣延到結算才寫回，理由與燃彈相同（見 pendingPlaneLoss）。
-            // 逐段套用：分攤按各格當下搭載數的比例算，一段一段來才與實際順序一致。
-            for (const lost of this.pendingPlaneLoss) this.spreadPlaneLoss(lost);
-            this.pendingPlaneLoss = [];
-            // 応急修理女神：HP 全快（battle.ts 已寫回）＋燃彈全快。放在消耗之後才不會被
-            // 這一節點的燃彈消耗再扣一次。
-            this.restoreGoddessSupply();
-            // 退避位置：結算畫面先給選項，玩家按 goback_port 才算數（見 parseEscapeIdx）。
-            this.pendingEscape = GameState.parseEscapeIdx(api?.api_escape);
-        } else if (path.endsWith('/goback_port')) {
-            // 艦隊司令部施設的退避（KC3Kai 同：取各陣列 [0]）。解不出就不標。
-            for (const at of this.pendingEscape ? this.resolveEscape(this.pendingEscape) : []) {
-                this.escapedShipIds.add(at.id);
-                // 同步標記戰鬥檢視上的同一格，讓下面的大破警告重算看得到這艘已離隊。
-                // 隊別與隊內索引直接沿用 shipAtSortiePos 解出來的結果（不在這裡重推一次
-                // 連合／索引規則），且只處理它解得出 id 的位置，兩邊不會各自漂移。
-                const views = at.escort
-                    ? this.battleInfo?.resultFleets?.playerEscort
-                    : this.battleInfo?.resultFleets?.playerMain;
-                const view = views?.[at.index];
-                if (view) view.escaped = true;
-                // 退避的代價（大破艦與護衛艦皆同，使用者提供之遊戲設定、非封包驗證）：
-                // 燃料歸 0、cond 一律變成 22（不論退避前是多少）。回港時另有 cond-15
-                // ＝合計 7，那一段由 api_port/port 的實數覆蓋，此處不模擬。
-                const s = this.ships.get(at.id);
-                if (s) { s.api_fuel = 0; s.api_cond = 22; }
-            }
-            this.pendingEscape = null;
-            // **退避後按剩下的船重算大破警告**：退避的意義就是「讓剩下的船繼續進擊」，
-            // 退掉唯一那艘大破艦之後還掛著警告，等於叫玩家別做他剛剛才做完的事。
-            // 這裡沒有新的戰鬥封包會觸發重算，故必須在這條路徑自己算一次。
-            if (this.battleInfo?.resultFleets) {
-                Object.assign(this.battleInfo, taihaFlags(this.battleInfo.resultFleets));
-            }
-        } else if (path === 'api_req_practice/battle_result') {
-            // 演習結果端點：路徑名稱依社群工具（poi/KC3Kai）慣例推定，本專案尚無真封包樣本
-            // 驗證（見 AGENTS.md 硬約束 8）。rank S/A/B 判定「勝利」同樣是社群慣例、非本專案
-            // 逐一驗證過的封包事實——只用於「演習N回勝利」這類任務的粗略計數，不影響戰鬥
-            // 預測主邏輯，錯了也只會讓進度多算/少算一次，不會誤導大破等安全相關判斷。
-            if (this.battleInfo) {
-                this.battleInfo.hasResult = true;
-                if (api?.api_win_rank) this.battleInfo.rank = api.api_win_rank;
-            }
-            if (['S', 'A', 'B'].includes(api?.api_win_rank)) this.bumpQuestProgress('practiceWin');
-            this.judgeQuestPractice(api?.api_win_rank, ts);
-            this.practiceFleetMasters = null;
-            // 演習不消耗實際燃彈（遊戲機制），故不呼叫 applyConsumption；但演習戰鬥分支
-            // 一樣會把費率 push 進 pendingConsumption（與正式出擊共用同一段計算），這裡若不清空
-            // 就會在陣列裡留下不會被套用的殘留項——目前僅因 api_req_map/start 無條件重置才不
-            // 會誤扣，但那個防護不屬於這段程式碼本身保證，故仍在此明確清空。
-            this.pendingConsumption = [];
-            // 演習同樣不消耗艦載機，累積的損失一併丟棄（理由同上）。
-            this.pendingPlaneLoss = [];
         }
+        // 寫入指定格後一律補位：移除（-1）會把後面的艦往前擠；點到空格加入時
+        // req.api_ship_idx 只是點擊格、不是最終落點（與裝備 slotset 空格補位同一類行為）。
+        deck.api_ship[idx] = newId;
+        this.compactDeckShips(deck);
+        this.resetRepairAnchor(deckIdx, ts);
+    }
+
+    private onReqKousyouDestroyship(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 解体（工廠端點，api_ship_id 可為逗號分隔多艘）：面板即時反映艦娘數／裝備數／編成。
+        // 端點與 api_slot_dest_flag（0=保管、1=廃棄）依 KC3Kai src/library/modules/Kcsapi.js
+        // 與 ElectronicObserver Other/Information/apilist.txt 交叉比對。
+        const ids = (req.api_ship_id ?? '').split(',').map(Number).filter(n => n > 0);
+        this.removeShips(ids, req.api_slot_dest_flag === '1', ts);
+        // 解体艦娘任務（見 quest-progress.ts QUEST_ID_OVERRIDES，例：任務609「軍縮条約対応！」）：
+        // 一次請求可逗號分隔解體多艘，逐艘計數（非逐次請求計數）。
+        if (ids.length > 0) {
+            this.bumpQuestProgress('shipScrap', ids.length);
+            this.countQuestFactory({ event: 'destroy_ship', amount: ids.length }, ts);
+        }
+    }
+
+    private onReqKousyouDestroyitem2(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 装備廃棄：即時に装備数へ反映
+        const gearIds = (req.api_slotitem_ids ?? '').split(',').map(Number).filter(n => n > 0);
+        // 類別／裝備限定的廢棄任務要在刪除前查 master；倉庫裡查不到的件記為 -1，只會少算。
+        const gears = gearIds.map(gid => {
+            const mst = this.slotItems.get(gid)?.mst;
+            const type = mst === undefined ? undefined : this.masterGears.get(mst)?.cat;
+            return { id: mst ?? -1, type: type || -1 };
+        });
+        for (const gid of gearIds) this.slotItems.delete(gid);
+        // 任務613「資源の再利用」等「廃棄 N 回」以請求次數計，不論一次廢棄幾件
+        // （poi 條件表的 times、KC3Kai Kcsapi.js 對 613 每次請求 +1，兩者一致）。
+        if (gearIds.length > 0) {
+            this.bumpQuestProgress('gearScrap');
+            this.countQuestFactory({ event: 'destory_item', amount: 1, gears }, ts);
+        }
+    }
+
+    private onReqKaisouPowerup(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 近代化改修：餌艦(api_id_items)消滅・強化先(api_ship)更新
+        this.ingestShips(api?.api_ship);
+        // api_slot_dest_flag=1 時餌艦裝備隨艦廢棄，0 時卸下留在倉庫。回應與之後的 port 都不帶
+        // 裝備清單，漏刪會讓裝備數一直偏高到下次 require_info／slot_item。
+        // 旗標語意依 KC3Kai src/library/modules/Kcsapi.js、
+        // poi views/redux/middlewares/equips-cross-slice.ts、ElectronicObserver
+        // Observer/kcsapi/api_req_kaisou/powerup.cs 交叉比對（三者皆以非 0 為廢棄）。
+        const feeders = (req.api_id_items ?? '').split(',').map(Number).filter(n => n > 0);
+        // 素材艦種限定的任務（714〜719 等）要在移除餌艦前查艦種。
+        const materialTypes = feeders
+            .map(id => this.master.get(Number(this.ships.get(id)?.api_ship_id))?.stype)
+            .filter((type): type is number => typeof type === 'number' && type > 0);
+        this.removeShips(feeders, req.api_slot_dest_flag === '1', ts);
+        // 任務只算 api_powerup_flag 為 1 的成功改修（poi quests-cross-slice.ts 與 KC3Kai Kcsapi.js 一致；
+        // 本專案尚無失敗樣本）。
+        if (Number(api?.api_powerup_flag) === 1) {
+            this.bumpQuestProgress('modernization');
+            this.countQuestFactory({ event: 'remodel_ship', amount: 1, materialTypes }, ts);
+        }
+    }
+
+    private onReqKaisouSlotExchangeIndex(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 拖曳交換同艦兩個已裝備槽位（制空／艦載機換位的主要觸發路徑）。**已用真封包
+        // 驗證**（samples/slot-exchange-index.json，三筆，含互為逆操作的一組
+        // src/dst_idx=3/0 與 0/3）：請求為 api_id/api_src_idx/api_dst_idx（0-based，
+        // 與 slotset 的 api_slot_idx 同慣例），回應的 api_ship_data 是**完整艦快照**
+        // （與 api_port/port 單艦記錄同形，含 api_slot／api_onslot／hp／燃彈／cond／
+        // 各項素質／api_sally_area 等），不是局部物件，故直接整艦 ingestShips 覆蓋，
+        // 不必也不該手動拼湊挑選欄位。api_id 需與請求一致才採信，避免格式異常時
+        // 誤植出一艘幽靈艦。
+        const shipData = api?.api_ship_data;
+        if (shipData && typeof shipData === 'object'
+            && GameState.positiveId(shipData.api_id) === GameState.positiveId(req.api_id)) {
+            this.ingestShips([shipData]);
+        }
+    }
+
+    private onReqKaisouSlotset(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 一般裝備欄（0-3 番）。已用真實封包排除補強增設走這條的假設——現行版本
+        // 補強增設是獨立端點 api_req_kaisou/slotset_ex（見下），這裡恆定收到有效 idx。
+        const s = this.ships.get(Number(req.api_id));
+        if (s) {
+            const idx = GameState.slotIndex(req.api_slot_idx);
+            const itemId = Number(req.api_item_id);   // -1 = 卸下
+            if (idx != null && Number.isSafeInteger(itemId) && Array.isArray(s.api_slot)
+                && idx < s.api_slot.length) {
+                // 裝備到「目前是空格」的槽位時，遊戲會自動塞進當下第一個空槽，
+                // req.api_slot_idx 只是使用者點擊當下的格位、不是最終落點——已用真封包
+                // 驗證（samples/equip_slot.json + slot_to_port.json：全空裝艦點第三格
+                // [idx=2]，回港快照證實實際落在 index 0）。換裝／替換既有裝備（目標格
+                // 本身已有東西，非空格）不涉及遞補，idx 才是真正目標格，維持直接寫入。
+                // 若 itemId 已在同一艘艦的另一格，則是同艦換位／拖曳的另一種請求形態，
+                // 必須把來源格清成目標格原值，不能只寫目標格造成同一顆裝備被重複引用。
+                const sourceIdx = itemId > 0
+                    ? s.api_slot.findIndex((v: number) => Number(v) === itemId) : -1;
+                if (sourceIdx >= 0 && sourceIdx !== idx) {
+                    this.swapShipSlots(s, sourceIdx, idx);
+                } else if (itemId > 0 && Number(s.api_slot[idx]) <= 0) {
+                    const emptyIdx = s.api_slot.findIndex((v: number) => Number(v) <= 0);
+                    if (emptyIdx >= 0) s.api_slot[emptyIdx] = itemId;
+                } else {
+                    s.api_slot[idx] = itemId;
+                }
+            }
+        }
+        // 現有真封包樣本的回應只有裸 api_result；請求投影已涵蓋已驗證的動作結果。
+        // 不讀取未驗證的假想回應欄位，避免局部物件覆蓋完整艦船或裝備狀態。
+    }
+
+    private onReqMissionResult(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 遠征成功／大成功判定：api_clear_result（0=失敗、≥1=成功），與
+        // EventProjector.archiveExpedition 讀取的是同一個已驗證欄位。提早回航
+        // （return_instruction）不會走這個端點、故不會被誤算成一次成功。
+        // 部分任務限定特定遠征任務 id（例：410/411限定「東京急行」系，見 quest-progress.ts
+        // QUEST_ID_OVERRIDES）——missionId 與 EventProjector.archiveExpedition 同一支
+        // lastMissionByDeck 查表（req.api_deck_id 兩者皆有，已用真實封包驗證）。
+        if (Number(api?.api_clear_result ?? 0) >= 1) {
+            const deckId = Number(req?.api_deck_id ?? 0);
+            const missionId = this.lastMissionByDeck.get(deckId - 1);
+            this.bumpQuestProgress('expedition', 1, { missionId });
+            this.judgeQuestMission(missionId, ts);
+        }
+    }
+
+    private onReqNyukyoStart(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 入渠任務以實際送出的入渠請求計數；高速修復同樣走此端點，仍保留原始
+        // 動作事實，不從本機猜測遊戲是否因修理時間而另作判斷。
+        this.bumpQuestProgress('dock');
+        this.countQuestFactory({ event: 'repair', amount: 1 }, ts);
+        // nyukyo/start 的回應本身不含修理時間；修復到全快所需的毫秒數
+        // 記在艦船物件上（api_ship[].api_ndock_time）。用它算完成時刻，
+        // 面板即可即時顯示入渠倒數，不必回母港。
+        const shipId = Number(req.api_ship_id);
+        const ship = this.ships.get(shipId);
+        if (req.api_highspeed === '1') {
+            // 高速修復（バケツ）：即時全快、不占入渠槽
+            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+            // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
+            if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, ts);
+        } else {
+            const idx = Number(req.api_ndock_id) - 1;
+            const dock = this.ndockData[idx];
+            if (dock) {
+                dock.api_state = 1;
+                dock.api_ship_id = shipId;
+                // 使用 reducer 收到的事件時間：歷史重播／SW 恢復時必須以原始 event.ts
+                // 計算，不能把完成時刻錯誤延到重播當下。未傳 ts 的 live 呼叫仍由
+                // applyEvent 的預設值 Date.now() 維持既有行為。
+                dock.api_complete_time = ts + Number(ship?.api_ndock_time ?? 0);
+            }
+        }
+    }
+
+    private onReqHokyuCharge(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 補給任務（例：「艦隊酒保祭り！受注中」的補給15回）每次 charge 請求
+        // 算一次，不以實際補了幾艘或補了多少資源猜測次數。
+        this.bumpQuestProgress('supply');
+        this.countQuestFactory({ event: 'supply', amount: 1 }, ts);
+        // 補給：即時更新艦船燃料/彈藥/艦載機，讓面板不必回母港就反應
+        for (const s of api.api_ship ?? []) {
+            const ship = this.ships.get(s.api_id);
+            if (!ship) continue;
+            ship.api_fuel = s.api_fuel;
+            ship.api_bull = s.api_bull;
+            if (s.api_onslot) ship.api_onslot = s.api_onslot;
+        }
+        // charge 回應的 api_material 只含前 4 項（燃/弾/鋼/ボ），
+        // 直接覆蓋整個陣列會把桶/開/ネジ（index 5,6,7）抹成 undefined。
+        // 故只就地更新回傳到的索引，其餘資材沿用母港封包的值。
+        // （元素可能是數字或 {api_value} 物件，兩者都相容）
+        if (Array.isArray(api.api_material)) {
+            api.api_material.forEach((m: any, i: number) => {
+                this.materials[i] = typeof m === 'number' ? m : m.api_value;
+            });
+        }
+    }
+
+    private onReqNyukyoSpeedchange(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 入渠途中用高速修復材：當下完成。回應不帶資料，請求的 api_ndock_id 是 1 起算的入渠槽編號
+        // （無本專案樣本；依 KC3Kai src/library/modules/Kcsapi.js 與 ElectronicObserver
+        // Observer/kcsapi/api_req_nyukyo/speedchange.cs、Data/DockData.cs 的解析交叉比對）。
+        // 找不到該槽或槽內沒有艦時不動作，等母港封包校正。
+        const dockId = Number(req.api_ndock_id);
+        const dock = this.ndockData.find((d: any) => Number(d?.api_id) === dockId);
+        const shipId = Number(dock?.api_ship_id);
+        if (dock && dock.api_state === 1 && shipId > 0) {
+            const ship = this.ships.get(shipId);
+            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+            this.applyBucketCondFloor(shipId, ship, ts);
+            dock.api_state = 0;
+            dock.api_ship_id = 0;
+            dock.api_complete_time = 0;
+        }
+        // ── 基地航空隊 ──────────────────────────────
+    }
+
+    private onGetMemberBaseAirCorps(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        this.airBases.clear();
+        this.airBaseCondAsOf.clear();
+        this.airBaseCondMinRate.clear();
+        if (Array.isArray(api)) {
+            for (const ab of api) {
+                const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
+                this.airBases.set(key, ab);
+                this.markAirBaseCondObserved(key, ts);
+            }
+        }
+    }
+
+    private onGetMemberMapinfo(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        if (api?.api_air_base && Array.isArray(api.api_air_base)) {
+            for (const ab of api.api_air_base) {
+                const key = airBaseKey({ areaId: ab.api_area_id, rid: ab.api_rid });
+                this.airBases.set(key, ab);
+                this.markAirBaseCondObserved(key, ts);
+            }
+        }
+        // 基地整備為「海域」層級，不在 api_air_base 個別航空隊物件上。資料缺席時保留
+        // 既有觀測值：mapinfo 的完整性尚未有本專案真封包佐證，不能把缺席誤作 Lv.0。
+        if (Array.isArray(api?.api_air_base_expanded_info)) {
+            for (const info of api.api_air_base_expanded_info) {
+                const areaId = Number(info?.api_area_id);
+                const level = Number(info?.api_maintenance_level);
+                if (Number.isSafeInteger(areaId) && areaId > 0
+                    && Number.isSafeInteger(level) && level >= 0) {
+                    this.airBaseMaintenanceLevels.set(areaId, level);
+                }
+            }
+        }
+        // 關卡進度：已用真實封包驗證（見 MapGaugeView 註解、samples/6-5-mapinfo.json）。
+        const mapList = api?.api_map_info;
+        if (Array.isArray(mapList)) {
+            for (const m of mapList) {
+                if (!m?.api_id) continue;
+                const ev = m.api_eventmap;
+                const previous = this.mapGauges.get(m.api_id);
+                // mapinfo 不是固定欄位集合：活動圖在部分更新／已攻略狀態可能省略
+                // api_selected_rank。欄位缺席不代表未選難度，必須保留上一筆已驗證值；
+                // 只有封包明示 0 才清成「未選」。
+                const hasSelectedRank = !!ev && typeof ev === 'object'
+                    && Object.prototype.hasOwnProperty.call(ev, 'api_selected_rank');
+                const selectedRank = positiveRank(ev?.api_selected_rank)
+                    ?? (hasSelectedRank ? 0 : previous?.selectedRank ?? 0);
+                const gaugeNum = rawGaugeNum(m?.api_gauge_num)
+                    ?? rawGaugeNum(ev?.api_gauge_num)
+                    ?? previous?.gaugeNum;
+                const gaugeTypeValue = Number(m.api_gauge_type);
+                const gaugeType = Number.isSafeInteger(gaugeTypeValue) && gaugeTypeValue >= 0
+                    ? gaugeTypeValue : previous?.gaugeType ?? 0;
+                const hasCleared = Object.prototype.hasOwnProperty.call(m, 'api_cleared');
+                const cleared = hasCleared
+                    ? (m.api_cleared === '1' || m.api_cleared === 1)
+                    : (previous?.cleared ?? false);
+                const nowValue = Number(ev?.api_now_maphp);
+                const maxValue = Number(ev?.api_max_maphp);
+                const nowHp = Number.isSafeInteger(nowValue) && nowValue >= 0
+                    ? nowValue : previous?.nowHp ?? 0;
+                const maxHp = Number.isSafeInteger(maxValue) && maxValue > 0
+                    ? maxValue : previous?.maxHp ?? 0;
+                // mapinfo 可能在換難度／血條後先於出擊到達；只切換目前快取。
+                // `api_gauge_num` 只當血條身分鍵，不解讀其數字。
+                const fullGaugeReset = !!previous && previous.nowHp < previous.maxHp
+                    && maxHp > 0 && nowHp === maxHp;
+                const identityChanged = !!previous && (previous.selectedRank !== selectedRank
+                    || previous.gaugeType !== gaugeType
+                    || previous.gaugeNum !== gaugeNum
+                    || (previous.cleared && !cleared));
+                if (identityChanged || fullGaugeReset) {
+                    this.clearMapBossHp(m.api_id, fullGaugeReset && !identityChanged
+                        && previous?.gaugeNum === gaugeNum);
+                }
+                this.mapGauges.set(m.api_id, {
+                    cleared,
+                    gaugeType,
+                    defeatCount: m.api_defeat_count ?? 0,
+                    requiredDefeatCount: m.api_required_defeat_count ?? 0,
+                    nowHp,
+                    maxHp,
+                    selectedRank,
+                    ...(gaugeNum === undefined ? {} : { gaugeNum }),
+                });
+                this.syncMapBossHp(m.api_id);
+            }
+        }
+    }
+
+    private onReqAirCorpsSetPlane(path: string, api: any, req: Record<string, string>, ts: number) {
+        // api 回應包含更新後的 api_plane_info + api_distance
+        const keys = this.resolveAirBaseKeys(req);
+        const key = keys.length === 1 ? keys[0]!.key : undefined;
+        const ab = key ? this.airBases.get(key) : undefined;
+        if (ab && key && api) {
+            if (api.api_plane_info) {
+                ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
+                this.markAirBaseCondObserved(key, ts);
+            }
+            if (api.api_distance) ab.api_distance = api.api_distance;
+        } else {
+            // 同 supply 分支：解不出唯一基地（api_base_id 逗號分隔、或 api_area_id 缺席
+            // 且 rid 撞號）時**不猜**，但一定要留下痕跡——靜默 no-op 正是 2026-08-04
+            // 「面板一直顯示補給前機數」那個 bug 難查的原因，這條路徑會讓中隊配置
+            // 停在變更前而 console 一片乾淨。
+            console.warn('[KC-Monitor] 基地航空隊配置變更無法套用，面板中隊可能停在變更前',
+                { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
+        }
+    }
+
+    private onReqAirCorpsSetAction(path: string, api: any, req: Record<string, string>, ts: number) {
+        // set_action 可同時設定多個航空隊 (api_base_id=1,2 / api_action_kind=1,2)
+        const actions = (req.api_action_kind ?? '').split(',');
+        this.resolveAirBaseKeys(req).forEach(({ key, index: i }) => {
+            const ab = this.airBases.get(key);
+            if (!ab) return;
+            ab.api_action_kind = Number(actions[i] ?? actions[0]);
+            // 札一改，回復速度就變了。取「這段期間看過的最慢速度」作為推論依據
+            // ——中途從休息改成出撃時，若還用現在的札回算，會把疲勞提早判定成回復。
+            const prev = this.airBaseCondMinRate.get(key);
+            const rate = lbasRecoveryRate(ab.api_action_kind);
+            this.airBaseCondMinRate.set(key, prev == null ? rate : Math.min(prev, rate));
+        });
+    }
+
+    private onReqAirCorpsSupply(path: string, api: any, req: Record<string, string>, ts: number) {
+        // 補給後的機數只能從這裡更新——戰鬥封包不帶 api_count，下一次 base_air_corps／
+        // mapinfo 才會校正。這裡漏掉就等於面板一直顯示補給前的機數。
+        // 補給後的資材餘額（samples/air-corps-supply.json 實測：只送燃料與鋁土，
+        // 那正是配置飛機會消耗的兩項）。只就地更新這兩格，其餘沿用母港封包
+        // ——同 api_req_hokyu/charge 的既定寫法，絕不整批覆蓋 materials。
+        // 資源紀錄（db.resources）不受影響：那條路徑只認帶完整八項的封包。
+        if (Number.isFinite(api?.api_after_fuel)) this.materials[0] = api.api_after_fuel;
+        if (Number.isFinite(api?.api_after_bauxite)) this.materials[3] = api.api_after_bauxite;
+        const keys = this.resolveAirBaseKeys(req);
+        if (keys.length === 1 && api?.api_plane_info) {
+            const key = keys[0]!.key;
+            const ab = this.airBases.get(key);
+            if (ab) {
+                ab.api_plane_info = mergeSquadrons(ab.api_plane_info, api.api_plane_info);
+                this.markAirBaseCondObserved(key, ts);
+            }
+        } else {
+            // 多個基地一次補給時，無法確定回應的 api_plane_info 各屬哪一個基地
+            // （沒有樣本，squadron id 在各基地內都是 1–4，硬分會分錯）；查不到基地
+            // 亦同。兩種情況都**不猜**，但要留下痕跡——靜默失敗正是這個 bug 難查的原因。
+            console.warn('[KC-Monitor] 基地航空隊補給無法套用，面板機數可能停在補給前',
+                { req, bases: keys, hasPlaneInfo: !!api?.api_plane_info });
+        }
+    }
+
+    private onReqSortieBattle(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        try {
+            // 遊撃部隊的戰鬥封包本身會明示 api_deck_id（本次第3艦隊七船封包實證）。
+            // currentSortieFleetId 是 map/start 時的快照；面板中途開啟、歷史事件裁剪或
+            // 狀態不完整時，不能讓它的預設第1艦隊把這場戰鬥的 HP 寫到錯誤艦隊。
+            // 僅接受 1–4 且目前確有該編成的值，缺席仍沿用 map/start 的既有狀態。
+            const battleDeckId = Number(api?.api_deck_id);
+            const battleDeckIdx = battleDeckId - 1;
+            if (Number.isInteger(battleDeckIdx) && battleDeckIdx >= 0
+                && battleDeckIdx < this.decks.length && this.decks[battleDeckIdx]) {
+                this.currentSortieFleetId = battleDeckIdx;
+                if (!path.startsWith('api_req_practice/') && battleDeckIdx !== this.sortieFleetDeckIdx) {
+                    this.sortieFleetMismatch = true;
+                }
+            }
+            const isNightOnly = path.includes('sp_midnight');
+            // `night_to_day` 是完整的「夜戰起始＋日戰收尾」封包：雖然名稱沒有
+            // midnight，KC3Kai／poi 都把它當夜戰流程處理，且其中的 api_n_hougeki*
+            // 不能遺失。它已自帶整場 HP，不能再和前一則白天封包重放一次。
+            const isNightToDay = path.endsWith('/night_to_day') || path.endsWith('/ec_night_to_day');
+            const isNight = path.includes('midnight') || isNightToDay;
+            // 夜轉日的資材消耗規則沒有在本專案驗證；先維持原本將該端點視為
+            // 普通日戰的消耗路徑，僅把它納入夜戰資料解析，不自行推算雙階段費用。
+            const isNightContinuation = isNight && !isNightToDay;
+            // 演習「挑戰次數」在晝戰當下就算一次，不必等結果——夜戰接續是同一場
+            // 演習的延續，不會重複觸發 api_req_practice/battle。
+            if (path === 'api_req_practice/battle') {
+                this.bumpQuestProgress('practiceAttempt');
+                const practiceDeck = [Number(api?.api_deck_id), Number(req?.api_deck_id)]
+                    .find(id => Number.isInteger(id) && id >= 1 && id <= this.decks.length && this.decks[id - 1]);
+                this.practiceFleetMasters = practiceDeck === undefined ? null
+                    : this.deckMasters(practiceDeck - 1);
+            }
+
+            // Get player damecons
+            const playerDamecons = this.getPlayerDamecons(api);
+            // 退避艦的位置旗標（與 damecons 同序）：已退避者不列入大破警告與 rank。
+            const escaped = this.getEscapedFlags(api);
+            // 夜戰裝備是否發動需要出擊當下的 master id；只把目前出擊的主／隨伴
+            // 位置送進純解析器，不能用 `fleets()` 的顯示 view 反推槽位。
+            const gearRows = (deck: any): number[][] => (deck?.api_ship ?? [])
+                .filter((id: number) => id > 0)
+                .map((id: number) => {
+                    const ship = this.ships.get(id);
+                    const slots = [...(ship?.api_slot ?? []), ship?.api_slot_ex > 0 ? ship.api_slot_ex : -1];
+                    return slots.map((slotId: number) => this.slotItems.get(slotId)?.mst ?? 0)
+                        .filter((mst: number) => mst > 0);
+                });
+            const aaciShipRows = (deck: any): ({ id: number; masterId?: number } | null)[] =>
+                (deck?.api_ship ?? []).map((id: number) => {
+                    if (!(id > 0)) return null;
+                    const ship = this.ships.get(id);
+                    return {
+                        id,
+                        ...(ship?.api_ship_id > 0 ? { masterId: ship.api_ship_id } : {}),
+                    };
+                });
+            const opts = {
+                escapedMain: escaped.main,
+                escapedEscort: escaped.escort,
+                playerGearIds: {
+                    main: gearRows(this.decks[this.currentSortieFleetId]),
+                    escort: GameState.hasEscortFleet(api) && this.currentSortieFleetId === 0
+                        ? gearRows(this.decks[1]) : [],
+                },
+                playerAaciShips: {
+                    main: aaciShipRows(this.decks[this.currentSortieFleetId]),
+                    escort: GameState.hasEscortFleet(api) && this.currentSortieFleetId === 0
+                        ? aaciShipRows(this.decks[1]) : [],
+                },
+            };
+
+            // 實際餵給 analyzeBattle 的損管狀態。**必須與 apiList 的第一包同一時刻**：
+            // 夜戰接續是把晝戰整場重放一次，用當下重算的 playerDamecons 會讓晝戰已觸發
+            // 損管的艦在重放時無損管可用 → 誤報轟沈（見 lastDayDamecons 宣告處）。
+            let usedDamecons = playerDamecons;
+            const previousBattleInfo = this.battleInfo;
+            let analyzedPackets: any[] = [api];
+            // Record daytime battle data for MVP prediction if needed
+            if (isNightToDay) {
+                analyzedPackets = [api];
+                this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
+                // 夜轉日已是一個完整節點；不要把它留成下一則夜戰的白天基準。
+                this.lastDayBattle = null;
+                this.lastDayDamecons = null;
+            } else if (!isNight) {
+                this.lastDayBattle = api;
+                this.lastDayDamecons = playerDamecons;
+                analyzedPackets = [api];
+                this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
+            } else if (this.lastDayBattle && isNight && !isNightOnly) {
+                usedDamecons = this.lastDayDamecons ?? playerDamecons;
+                analyzedPackets = [this.lastDayBattle, api];
+                this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
+            } else {
+                analyzedPackets = [api];
+                this.battleInfo = analyzeBattle(analyzedPackets, usedDamecons, opts);
+            }
+            if (this.battleInfo && isNight) {
+                // 端點名稱本身已證實夜戰流程開始；即使該包沒有重送
+                // api_midnight_flag／夜戰效果欄位，入口圖示仍須保留，並把白天上下文
+                // 交給合併器補回，不讓 gauge／重播起點造成「陣形 ?」或整列消失。
+                this.battleInfo = {
+                    ...mergeNightBattleContext(this.battleInfo, isNightOnly ? null : previousBattleInfo, analyzedPackets, true),
+                    midnightFlag: true,
+                };
+            }
+            // 把戰鬥模擬後的 HP 寫回 this.ships，讓編成面板即時反映受損
+            if (this.battleInfo?.resultFleets) {
+                this.applyBattleHp(this.battleInfo.resultFleets);
+                // 比對基準同樣要用餵進去的那一份（Set 皆為冪等，夜戰重放時重複標記同一艘
+                // 不會有副作用）。
+                this.markDameconConsumed(usedDamecons, this.battleInfo.resultFleets);
+            }
+            // 艦載機戰損（估算）：只累積、不當場寫回——戰鬥中要看的是這一場交戰時的
+            // 制空值，結算才一併扣（見 pendingPlaneLoss／queuePlaneLoss）。
+            this.queuePlaneLoss(api);
+            // ── 依節點類型套用燃彈消耗率（日wiki「資材」頁實測值，2024/03 版）──
+            // 每戰獨立計算、切捨（0<x<1 時進位為 1）；夜戰彈藥 = 晝彈×1.5 切り上げ。
+            // 活動特殊點（PT 4/8・雷達 4/0・對潛空襲 12/6）無法純靠 path 區分，按普通處理；回港校正。
+            let fuelRate: number, bullRate: number;
+            let nightAmmoBoost = false;
+            const map = this.sortieInfo;
+            const atBoss = map ? isBossNode(map.nodes[map.nodes.length - 1]) : false;
+            if (path.includes('ld_airbattle')) {
+                // 空襲戰（單向）：6-4/6-5 = 4/8；其他（5-2/7-2/活動圖）= 6/4
+                const is64or65 = map?.mapArea === 6 && (map.mapNo === 4 || map.mapNo === 5);
+                fuelRate = is64or65 ? 0.04 : 0.06;
+                bullRate = is64or65 ? 0.08 : 0.04;
+            } else if (path.includes('airbattle')) {       // 航空戰（雙向）
+                fuelRate = 0.20; bullRate = 0.20;
+            } else if (isNightOnly) {                      // 開幕夜戰點
+                fuelRate = 0.10; bullRate = 0.10;
+            } else if (isNightContinuation) {
+                // 夜戰接續：燃料不追加；彈藥補到 ceil(晝彈×1.5)（差額在 applyConsumption 算）
+                fuelRate = 0; bullRate = 0; nightAmmoBoost = true;
+            } else {                                       // 普通水上晝戰
+                fuelRate = 0.20; bullRate = 0.20;
+                // 反潛點（敵主隊全為潛水艦）→ 8/0。
+                // 例外仍 20/20：Boss 節點、4-1 D/4-3 C（wiki 明載的道中潛水例外）
+                const eIds = this.battleInfo?.enemyIds ?? [];
+                const allSubs = eIds.length > 0 && eIds.every(id => {
+                    const st = this.master.get(id)?.stype ?? 0;
+                    return st === 13 || st === 14;
+                });
+                const aswException = atBoss || (map?.mapArea === 4 && (map.mapNo === 1 || map.mapNo === 3));
+                if (allSubs && !aswException) { fuelRate = 0.08; bullRate = 0; }
+            }
+            // 燃彈消耗延後到結算（battleresult）才寫回：出擊途中面板顯示的油彈維持戰前值，
+            // 與遊戲戰鬥畫面一致（油彈餘量會影響戰鬥傷害，過早顯示會誤導）。此處只記錄待套用費率。
+            this.pendingConsumption.push({ fuelRate, bullRate, nightAmmoBoost, hasEscort: GameState.hasEscortFleet(api) });
+            // 只有目前 gauge 的目標 Boss 節點可更新 baseHp。破甲路線回打舊階段 Boss
+            // 時 api_event_id 仍是 5；若只用 atBoss，舊 Boss HP 會污染現行斬殺線。
+            const currentNode = map?.nodes[map.nodes.length - 1];
+            const atGaugeBoss = isGaugeBossNode(currentNode, map?.bossCellNo, (map?.mapArea ?? 0) >= 10);
+            if (atGaugeBoss && map) {
+                const bossHp = this.battleInfo?.resultFleets?.enemyMain?.[0]?.maxHp ?? 0;
+                this.observeMapBossHp(map.mapArea, map.mapNo, bossHp);
+            }
+        } catch (e) {
+            console.error("BattlePrediction Error", e);
+        }
+    }
+
+    private onReqSortieBattleresult(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        if (this.battleInfo) {
+            this.battleInfo.hasResult = true;
+            this.battleInfo.drop = api.api_get_ship ? localizeShip(api.api_get_ship.api_ship_id, api.api_get_ship.api_ship_name) : null;
+            // 是否為「本鎮守府還沒有的船」。**在這裡判定而不是留給面板**：新船要等
+            // api_port/port 才會進 this.ships，回港後再問就永遠答「已持有」。
+            this.battleInfo.dropIsNew = api.api_get_ship
+                ? !this.ownsShip(Number(api.api_get_ship.api_ship_id))
+                : false;
+            if (api.api_win_rank) this.battleInfo.rank = api.api_win_rank;
+        }
+        // 出擊戰鬥任務（見 quest-progress.ts QUEST_ID_OVERRIDES）。多數任務任意海域/節點
+        // 皆可（201/210/216 等），少數限定海域＋boss＋rank 門檻（226/229/241/242/243/
+        // 261/265）——這批的過濾條件存在 questProgress 各自的 area/bossOnly/minRank
+        // 欄位，bumpQuestProgress() 內部判斷，這裡只需照實提供這次結算的上下文。
+        // battleEngage 不論勝敗、每次結算就算一次（例：任務210「10回邀撃」）；
+        // battleWin 只在 rank 達到門檻（預設 S/A/B，個別任務可能收窄到 A 或 S）才算。
+        const map = this.sortieInfo;
+        const battleCtx = {
+            area: map ? map.mapArea * 10 + map.mapNo : undefined,
+            boss: map ? isBossNode(map.nodes[map.nodes.length - 1]) : false,
+            rank: api?.api_win_rank,
+        };
+        this.judgeQuestBattle(map, api?.api_win_rank, ts);
+        this.bumpQuestProgress('battleEngage', 1, battleCtx);
+        this.bumpQuestProgress('battleWin', 1, battleCtx);
+        // 結算畫面（顯示 rank+掉落）才一併套用本節點各戰累積的燃彈消耗，寫回 this.ships。
+        for (const c of this.pendingConsumption) this.applyConsumption(c.fuelRate, c.bullRate, c.nightAmmoBoost, c.hasEscort);
+        this.pendingConsumption = [];
+        // 艦載機戰損同樣延到結算才寫回，理由與燃彈相同（見 pendingPlaneLoss）。
+        // 逐段套用：分攤按各格當下搭載數的比例算，一段一段來才與實際順序一致。
+        for (const lost of this.pendingPlaneLoss) this.spreadPlaneLoss(lost);
+        this.pendingPlaneLoss = [];
+        // 応急修理女神：HP 全快（battle.ts 已寫回）＋燃彈全快。放在消耗之後才不會被
+        // 這一節點的燃彈消耗再扣一次。
+        this.restoreGoddessSupply();
+        // 退避位置：結算畫面先給選項，玩家按 goback_port 才算數（見 parseEscapeIdx）。
+        this.pendingEscape = GameState.parseEscapeIdx(api?.api_escape);
+    }
+
+    private onGobackPort(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 艦隊司令部施設的退避（KC3Kai 同：取各陣列 [0]）。解不出就不標。
+        for (const at of this.pendingEscape ? this.resolveEscape(this.pendingEscape) : []) {
+            this.escapedShipIds.add(at.id);
+            // 同步標記戰鬥檢視上的同一格，讓下面的大破警告重算看得到這艘已離隊。
+            // 隊別與隊內索引直接沿用 shipAtSortiePos 解出來的結果（不在這裡重推一次
+            // 連合／索引規則），且只處理它解得出 id 的位置，兩邊不會各自漂移。
+            const views = at.escort
+                ? this.battleInfo?.resultFleets?.playerEscort
+                : this.battleInfo?.resultFleets?.playerMain;
+            const view = views?.[at.index];
+            if (view) view.escaped = true;
+            // 退避的代價（大破艦與護衛艦皆同，使用者提供之遊戲設定、非封包驗證）：
+            // 燃料歸 0、cond 一律變成 22（不論退避前是多少）。回港時另有 cond-15
+            // ＝合計 7，那一段由 api_port/port 的實數覆蓋，此處不模擬。
+            const s = this.ships.get(at.id);
+            if (s) { s.api_fuel = 0; s.api_cond = 22; }
+        }
+        this.pendingEscape = null;
+        // **退避後按剩下的船重算大破警告**：退避的意義就是「讓剩下的船繼續進擊」，
+        // 退掉唯一那艘大破艦之後還掛著警告，等於叫玩家別做他剛剛才做完的事。
+        // 這裡沒有新的戰鬥封包會觸發重算，故必須在這條路徑自己算一次。
+        if (this.battleInfo?.resultFleets) {
+            Object.assign(this.battleInfo, taihaFlags(this.battleInfo.resultFleets));
+        }
+    }
+
+    private onReqPracticeBattleResult(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 演習結果端點：路徑名稱依社群工具（poi/KC3Kai）慣例推定，本專案尚無真封包樣本
+        // 驗證（見 AGENTS.md 硬約束 8）。rank S/A/B 判定「勝利」同樣是社群慣例、非本專案
+        // 逐一驗證過的封包事實——只用於「演習N回勝利」這類任務的粗略計數，不影響戰鬥
+        // 預測主邏輯，錯了也只會讓進度多算/少算一次，不會誤導大破等安全相關判斷。
+        if (this.battleInfo) {
+            this.battleInfo.hasResult = true;
+            if (api?.api_win_rank) this.battleInfo.rank = api.api_win_rank;
+        }
+        if (['S', 'A', 'B'].includes(api?.api_win_rank)) this.bumpQuestProgress('practiceWin');
+        this.judgeQuestPractice(api?.api_win_rank, ts);
+        this.practiceFleetMasters = null;
+        // 演習不消耗實際燃彈（遊戲機制），故不呼叫 applyConsumption；但演習戰鬥分支
+        // 一樣會把費率 push 進 pendingConsumption（與正式出擊共用同一段計算），這裡若不清空
+        // 就會在陣列裡留下不會被套用的殘留項——目前僅因 api_req_map/start 無條件重置才不
+        // 會誤扣，但那個防護不屬於這段程式碼本身保證，故仍在此明確清空。
+        this.pendingConsumption = [];
+        // 演習同樣不消耗艦載機，累積的損失一併丟棄（理由同上）。
+        this.pendingPlaneLoss = [];
     }
 
     // 幫所有「正在追蹤且種類相符」的任務進度 +1（封頂於 target，避免超額顯示）。
