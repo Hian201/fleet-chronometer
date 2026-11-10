@@ -4,7 +4,7 @@ import {
     type BattleEnemyShipView, type BattleSupportView, type BattleLbasView,
     type BattleHpSnapshot, type BattlePhaseKind, type BattlePhaseView,
     type BattleDamageEvent, type BattleDamageKind, type BattleEventSide,
-} from './state';
+} from './battle-types';
 
 /**
  * 支援艦隊的旗標分類，對照 poi/lib-battle 的 SupportTypeMap：
