@@ -16,7 +16,7 @@ import { CaptureHealthRegistry, MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET } fro
 import { BackgroundIngestionLifecycle } from '@/utils/background-ingestion-lifecycle';
 import { createEventNotificationId } from '@/utils/event-notification';
 import { pruneRawEventsBefore } from '@/utils/event-pruning';
-import { parseKcsapiResponse, SENSITIVE_REQUEST_KEYS } from '@/utils/kcsapi';
+import { KcsapiResultError, parseKcsapiResponse, SENSITIVE_REQUEST_KEYS } from '@/utils/kcsapi';
 import { captureResources } from '@/utils/resource-capture';
 import { captureQuestObserved } from '@/utils/quest-observed';
 import { captureQuestSeen } from '@/utils/quest-seen';
@@ -278,8 +278,14 @@ export default defineBackground(() => {
     if (typeof msg.apiText === 'string') {
       try {
         api = parseKcsapiResponse(msg.apiText);
-      } catch {
-        console.warn('[Fleet Chronometer] 無法解析 kcsapi response，略過此筆事件', msg.path);
+      } catch (error) {
+        console.warn(
+          error instanceof KcsapiResultError
+            ? '[Fleet Chronometer] 伺服器回報請求未成功，略過此筆事件'
+            : '[Fleet Chronometer] 無法解析 kcsapi response，略過此筆事件',
+          msg.path,
+          error instanceof KcsapiResultError ? error.result : '',
+        );
         return;
       }
     }

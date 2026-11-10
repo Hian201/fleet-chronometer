@@ -1,11 +1,27 @@
 const KCSAPI_PREFIX = '/kcsapi/';
 
+/** 伺服器回報請求未成功（外層 `api_result` 不是 1）的回應。 */
+export class KcsapiResultError extends Error {
+    constructor(readonly result: unknown) {
+        super(`api_result=${String(result)}`);
+        this.name = 'KcsapiResultError';
+    }
+}
+
 /**
  * 將 kcsapi 原始 response text 還原成下游合約所需的 api_data。
  * response 的 `svdata=` 前綴與 api_data 外層只在此傳輸邊界處理；失敗由呼叫端決定如何記錄。
+ *
+ * 外層 `api_result` 不是 1 時丟出 `KcsapiResultError`：這種回應沒有 api_data，而依請求內容推算
+ * 的狀態更新會把被伺服器拒絕的動作當成已發生；連線不穩時遊戲重試成功，同一動作還會套用兩次。
+ * 只能在這裡判斷，api_data 內部有同名欄位（基地空襲的 `api_airsearch.api_result`）。
+ * 欄位位置與「不是 1 就整筆不處理」依 ElectronicObserver
+ * `ElectronicObserver/Observer/APIObserver.cs`（LoadResponse）與 KC3Kai
+ * `src/library/objects/Request.js`（validateData）；各錯誤碼的意義未驗證，不加以區分。
  */
 export function parseKcsapiResponse(text: string): unknown {
     const data = JSON.parse(text.replace(/^svdata=/, ''));
+    if (Number(data?.api_result) !== 1) throw new KcsapiResultError(data?.api_result);
     return data.api_data ?? data;
 }
 

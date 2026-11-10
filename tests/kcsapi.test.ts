@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
     getKcsapiPath,
+    KcsapiResultError,
     parseKcsapiResponse,
     readFetchRequestBody,
     readRequestBody,
@@ -28,6 +29,19 @@ describe('kcsapi response 還原', () => {
     it('沒有 api_data 時保留完整 response 物件', () => {
         expect(parseKcsapiResponse('{"api_result":1,"marker":"fallback"}'))
             .toEqual({ api_result: 1, marker: 'fallback' });
+    });
+
+    it('外層 api_result 不是 1 時拒絕整筆回應', () => {
+        expect(() => parseKcsapiResponse('svdata={"api_result":201,"api_result_msg":"error"}'))
+            .toThrow(KcsapiResultError);
+        expect(() => parseKcsapiResponse('svdata={"api_result":0}')).toThrow(KcsapiResultError);
+        expect(() => parseKcsapiResponse('svdata={"marker":"no-result"}')).toThrow(KcsapiResultError);
+        expect(() => parseKcsapiResponse('svdata=null')).toThrow(KcsapiResultError);
+    });
+
+    it('api_data 內部的同名欄位不影響判斷', () => {
+        const text = 'svdata={"api_result":1,"api_data":{"api_airsearch":{"api_result":0}}}';
+        expect(parseKcsapiResponse(text)).toEqual({ api_airsearch: { api_result: 0 } });
     });
 });
 

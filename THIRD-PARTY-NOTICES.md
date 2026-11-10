@@ -488,6 +488,20 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 回應結果碼（`api_result`）的判定
+
+- **用途**：`utils/kcsapi.ts` 的 `parseKcsapiResponse` 在外層 `api_result` 不是 1 時拒絕整筆回應。
+- **性質**：欄位位置與「不是 1 即不處理」屬遊戲 API 的事實性語意；本專案自行以 TypeScript 撰寫，
+  未複製任何原始碼。
+- **參照來源**：
+  - ElectronicObserver `ElectronicObserver/Observer/APIObserver.cs`（`LoadResponse`）——
+    https://github.com/andanteyk/ElectronicObserver （MIT License）
+  - KC3Kai `src/library/objects/Request.js`（`validateData`）—— https://github.com/KC3Kai/KC3Kai
+    （MIT License）
+- **限制**：本專案沒有錯誤回應的真實封包；各錯誤碼的意義不加以區分。
+
+---
+
 ## MIT License 全文
 
 上述第 1、2、5、5b、6、7b、8、9、10、11 項均採用 MIT License，

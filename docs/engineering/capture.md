@@ -49,6 +49,10 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
   path、req、`apiText`）。retry 只一次且重用同一 envelope；第二次仍失敗時該筆可能遺失。
 - background 才解析大型 `apiText`，以 `source:'main'` 交 `ingestEvent()`。最終 row 的不變量：
   path 已正規化、api 已解析、req 無 token／verno。
+- 外層 `api_result` 不是 1 的回應在 background 解析時整筆略過、不入庫（`parseKcsapiResponse`
+  丟出 `KcsapiResultError`）。這種回應沒有 `api_data`，而部分狀態更新依請求內容推算，照常套用
+  會把被伺服器拒絕的動作當成已發生；連線不穩時遊戲重試成功，還會重複套用。判斷只看外層，
+  `api_data` 內部有同名欄位。各錯誤碼的意義未驗證，不加以區分。
 
 ## 持久化與投影契約
 
