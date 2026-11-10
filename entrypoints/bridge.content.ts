@@ -71,7 +71,7 @@ export default defineContentScript({
             catch { /* 已斷線；重連後會再送 */ }
         };
 
-        const mainChannel = offerBridgeChannel(
+        offerBridgeChannel(
             endpoint,
             (d) => {
                 const req = Object.fromEntries(new URLSearchParams(d.req));
@@ -94,17 +94,14 @@ export default defineContentScript({
             (health) => { latestHealth = health; reportHealth(); },
         );
 
-        // ── 靜音狀態下行通道 ──────────────────────────
-        // background 持有狀態，MAIN world 的 hook 執行。用長連線而非 tabs.sendMessage：
-        // 後者需要對遊戲分頁的 host permission，而 content_scripts 的 matches 不等於
-        // host permission（權限精簡原則）。由 content script 主動連上來就完全不需要權限。
+        // ── 遊戲分頁登記（靜音用）──────────────────────────
+        // 靜音由 background 以 tabs.update 對「含有遊戲框的分頁」執行；這條長連線讓它知道是
+        // 哪些分頁，不傳任何資料。background 不能反過來用 tabs.sendMessage 找分頁：那需要對
+        // 遊戲分頁的 host permission，而 content_scripts 的 matches 不等於 host permission
+        // （權限精簡原則）。由 content script 主動連上來就完全不需要權限。
         const connectMutePort = () => {
             try {
                 const port = browser.runtime.connect({ name: PORT_MUTE });
-                port.onMessage.addListener((msg: any) => {
-                    if (typeof msg?.muted !== 'boolean') return;
-                    mainChannel.sendMute(msg.muted);
-                });
                 // SW 隨時會死（設計原則3）：被系統閒置回收時這個 port 會斷線（分頁本身沒關），
                 // 不是分頁關閉。不重連的話靜音鈕對這個分頁永久失效、需要使用者自行重整才會
                 // 恢復——故斷線後短延遲重連一次。連線本身失敗（見下方 catch）才代表 extension
@@ -114,7 +111,7 @@ export default defineContentScript({
                 });
             } catch (e) {
                 // 連線失敗只代表靜音鈕對這個分頁無效，封包擷取完全不受影響。
-                console.warn('[Fleet Chronometer] 靜音狀態通道連線失敗', e);
+                console.warn('[Fleet Chronometer] 遊戲分頁登記連線失敗', e);
             }
         };
         connectMutePort();

@@ -24,9 +24,10 @@ export interface FrameCandidate {
  */
 interface FrameRule { host?: string; path?: string }
 
-// 已知會承載遊戲的主機／路徑。舊入口（www.dmm.com/netgame/social/…）走
-// `osapi.dmm.com/gadgets/ifr`，新入口（play.games.dmm.com）的中間層尚未實測，
-// 故一律以「kancolle-server 或 DMM gadget」為第一優先，其餘退回尺寸啟發式。
+// 已知會承載遊戲的主機／路徑。新入口（play.games.dmm.com）頁面上的直接子框是
+// `osapi.dmm.com/gadgets/ifr`，遊戲框在它裡面（實機輸出見 docs/engineering/game-page.md
+// 「框的層次」）；舊入口同樣走 gadget 框。故以「kancolle-server 或 DMM gadget」為第一
+// 優先，其餘退回尺寸啟發式。
 const GAME_FRAME_HINTS: FrameRule[] = [
     { host: 'kancolle-server.com' },
     { host: 'osapi.dmm.com' },

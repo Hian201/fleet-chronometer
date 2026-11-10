@@ -76,8 +76,8 @@ export default defineConfig({
         // scripting：劇場模式的 content script 走動態註冊（見下方 hook）。這個權限**不會**
         // 對使用者顯示任何警告，也不授予任何網站存取權——真正的存取權在
         // optional_host_permissions，使用者按下「劇場模式」時才跳一次原生授權視窗。
-        // 遊戲 BGM 與操作語音不在同一條可攔截音訊路徑；使用者確認後，靜音改以整個遊戲
-        // 分頁為範圍，才能可靠涵蓋 BGM。tabs 只用於 `tabs.update({ muted })`，不讀取分頁內容。
+        // tabs：遊戲靜音以整個遊戲分頁為範圍（`tabs.update({ muted })`），涵蓋 BGM、語音與
+        // 音效而不必改動遊戲頁的音訊物件；不讀取分頁內容。
         // activeTab：「拍照」用 `tabs.captureVisibleTab()`，其授權條件只接受 `<all_urls>` 或
         // `activeTab`；optional_host_permissions（dmm.com，用於注入劇場模式 content script）
         // 不滿足此 API。`<all_urls>` 違反權限精簡（設計原則5），因此維持 activeTab：不顯示

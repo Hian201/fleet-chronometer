@@ -3,7 +3,6 @@ import { getKcsapiPath, parseKcsapiResponse } from '../utils/kcsapi';
 import { CaptureHealthMonitor } from '../utils/capture-health';
 import { IdleCaptureQueue, type IdleDeadlineLike, type QueueTiming } from '../utils/idle-capture-queue';
 import { wallNow, type MainCaptureTiming } from '../utils/capture-timing';
-import { installAudioMute } from '../utils/audio-mute';
 import { connectMainChannel, isChannelHandshake, type HandshakeEndpoint, type PortLike } from '../utils/main-channel';
 
 export default defineContentScript({
@@ -11,6 +10,9 @@ export default defineContentScript({
     world: 'MAIN',
     runAt: 'document_start',
     allFrames: true,
+    // MAIN world 腳本的頂層變數就是遊戲頁的 window 屬性；WXT 預設會把整支腳本指定給
+    // 與 entrypoint 同名的全域變數，故明確關閉。
+    globalName: false,
     main() {
         // 遊戲程式與本 world 共用全域物件與 console：正式建置不留除錯全域變數、不印封包。
         // 直接寫建置旗標（不經函式）：正式建置在編譯期折成 false，除錯程式碼整段不進產物。
@@ -18,14 +20,8 @@ export default defineContentScript({
         const dev = import.meta.env.COMMAND === 'serve';
         if (dev) console.log('[Fleet Chronometer] interceptor 已注入:', location.href);
 
-        // 靜音 hook：**必須在遊戲建立音訊圖之前安裝**，故掛在這個 document_start 的 MAIN
-        // world 注入點。實際開關狀態由 background 持有，經 bridge（ISOLATED）的私有通道
-        // 傳進來；background 另以分頁靜音保底涵蓋無法攔截的 BGM。
-        const audio = installAudioMute(window as any);
-        // [debug，僅開發建置] 靜音沒反應時，在遊戲分頁的 console（frame 選遊戲框）執行：
-        //   __kcAudio.contextCount()   ← 0 代表遊戲根本沒用 WebAudio（那就是走 media 元素）
-        //   __kcAudio.isMuted()        ← 目前狀態
-        if (dev) (window as any).__kcAudio = audio;
+        // 本檔不包裝、不改寫遊戲頁的任何原生物件（網路、音訊、DOM 原型）：遊戲靜音由
+        // background 以分頁靜音處理，不需要在這裡動音訊圖。
 
         // MAIN → bridge 的私有通道（utils/main-channel.ts）。握手只在這裡經過 window，
         // 並檢查來源為同一 window、同源。
@@ -43,11 +39,6 @@ export default defineContentScript({
         };
         const channel = connectMainChannel(
             endpoint,
-            (message) => {
-                audio.setMuted(message.muted);
-                if (dev) console.log('[Fleet Chronometer] 靜音', message.muted ? 'ON' : 'OFF',
-                    '（已接管的 AudioContext：' + audio.contextCount() + '）');
-            },
             (dropped) => console.warn('[Fleet Chronometer] 擷取通道尚未建立，已丟棄最舊的封包', dropped),
         );
 

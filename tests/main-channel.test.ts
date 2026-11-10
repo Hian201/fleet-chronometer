@@ -49,7 +49,7 @@ describe('main-channel', () => {
         const bridge = offerBridgeChannel(win.endpoint(), m => received.push(m.path), createChannel);
         await settle();   // 首次 offer 派送時 MAIN 還沒掛監聽
 
-        const main = connectMainChannel(win.endpoint(), () => { });
+        const main = connectMainChannel(win.endpoint());
         main.send(capture('a'));
         main.send(capture('b'));
         await settle();
@@ -67,7 +67,7 @@ describe('main-channel', () => {
     it('MAIN 先注入：直接接受 bridge 的首次 offer，只有一條通道送資料', async () => {
         const win = new FakeWindow();
         const received: string[] = [];
-        const main = connectMainChannel(win.endpoint(), () => { });
+        const main = connectMainChannel(win.endpoint());
         const bridge = offerBridgeChannel(win.endpoint(), m => received.push(m.path), createChannel);
         main.send(capture('a'));
         await settle();
@@ -78,23 +78,6 @@ describe('main-channel', () => {
         expect(received).toEqual(['a', 'b']);
         // 封包本身從未出現在 window 上
         expect(JSON.stringify(win.posted)).not.toContain('svdata');
-    });
-
-    it('靜音狀態在通道建立前只保留最後一次，建立後送達 MAIN', async () => {
-        const win = new FakeWindow();
-        const muted: boolean[] = [];
-        const bridge = offerBridgeChannel(win.endpoint(), () => { }, createChannel);
-        bridge.sendMute(true);
-        bridge.sendMute(false);
-        bridge.sendMute(true);
-        await settle();
-        connectMainChannel(win.endpoint(), m => muted.push(m.muted));
-        await settle();
-        expect(muted).toEqual([true]);
-
-        bridge.sendMute(false);
-        await settle();
-        expect(muted).toEqual([true, false]);
     });
 
     it('bridge 忽略格式不符的 capture，並把缺少的 req 視為空字串', async () => {
@@ -124,7 +107,7 @@ describe('main-channel', () => {
     it('通道遲遲未建立時緩衝有上限，超出時丟最舊的並回報', () => {
         const win = new FakeWindow();
         const overflow: number[] = [];
-        const main = connectMainChannel(win.endpoint(), () => { }, n => overflow.push(n));
+        const main = connectMainChannel(win.endpoint(), n => overflow.push(n));
         for (let i = 0; i < MAIN_PENDING_LIMIT + 2; i++) main.send(capture(String(i)));
         expect(overflow).toEqual([1, 2]);
     });
@@ -132,7 +115,7 @@ describe('main-channel', () => {
     it('擷取健康度只送最新一筆，不佔封包緩衝，建立後排在積壓封包之後', async () => {
         const win = new FakeWindow();
         const order: string[] = [];
-        const main = connectMainChannel(win.endpoint(), () => { });
+        const main = connectMainChannel(win.endpoint());
         main.sendHealth({ status: 'missed', reason: 'no-axios' });
         main.send(capture('a'));
         main.sendHealth({ status: 'ok' });

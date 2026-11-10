@@ -41,10 +41,13 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 - 送出經 `utils/idle-capture-queue.ts` 依序排程：輸入後至少讓出一幀；512K 字元以下排到下一個
   task，更大或大小未知者等 idle。延遲量測（`utils/capture-timing.ts`）只在開發用 UI 收集、不寫 DB。
 - MAIN 與 bridge 之間走 `utils/main-channel.ts` 的 MessageChannel：只有 document_start 的握手經過
-  window（驗證同一 window、同源），封包與靜音狀態都走私有 port、不在頁面上廣播；通道建立前的
-  封包在 MAIN 端依序緩衝，不改走 window 備援。MessagePort 從 ISOLATED 經 `window.postMessage`
+  window（驗證同一 window、同源），封包走私有 port（只有 MAIN → bridge 一個方向）、不在頁面上
+  廣播；通道建立前的封包在 MAIN 端依序緩衝，不改走 window 備援。MessagePort 從 ISOLATED 經 `window.postMessage`
   轉移到 MAIN world 已在 Edge／macOS 實機確認。
-- 正式建置的 MAIN world 不設除錯全域變數、不印封包（建置旗標在編譯期折掉）。
+- 正式建置的 MAIN world 不設除錯全域變數、不印封包（建置旗標在編譯期折掉）。腳本本身也不
+  指定給全域變數（`globalName: false`；MAIN world 的頂層變數就是遊戲頁的 window 屬性），
+  並且不包裝音訊、DOM 原型等任何原生物件。開發者已實機確認遊戲框的 `window.interceptor` 為
+  `undefined`、面板照常收到資料（2026-11-10）。
 - bridge 移除 `api_token`／`api_verno`，建立一次固定 envelope（UUID `captureId`、timestamp、
   path、req、`apiText`）。retry 只一次且重用同一 envelope；第二次仍失敗時該筆可能遺失。
 - background 才解析大型 `apiText`，以 `source:'main'` 交 `ingestEvent()`。最終 row 的不變量：

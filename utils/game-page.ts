@@ -83,8 +83,8 @@ export const GAME_FRAME_HOST = 'kancolle-server.com';
 /**
  * postMessage 的 `e.origin` 是不是遊戲框所在的伺服器。
  *
- * 為什麼不改用 `e.source === frame.contentWindow`：遊戲框中間可能還隔著 DMM 自己的
- * gadget 框，那時 bridge 的轉發是從**孫框**上來的，比對直接子框會把功能修壞
+ * 為什麼不改用 `e.source === frame.contentWindow`：遊戲框與 DMM 頁面之間隔著 DMM 自己的
+ * gadget 框（新入口已實機確認），bridge 的轉發是從**孫框**上來的，比對直接子框會把功能修壞
  * （Esc 離開整個失效）。origin 比對能擋掉「DMM 頁面上任何第三方框（廣告／追蹤）
  * 冒充轉發訊息去關掉視窗適應」，又不預設框架層數。
  */
@@ -171,7 +171,7 @@ export type CaptureTabReply = { dataUrl: string } | { error: string };
 export const MSG_UI_LANG = 'kc:ui-lang';
 /** 擴充頁面 → background：把目前語言鏡像進 db.meta，供 dmm.com 上的工具列讀取。 */
 export const MSG_UI_LANG_SET = 'kc:ui-lang-set';
-/** 遊戲框（kancolle-server.com）的 bridge 連上來拿靜音狀態的長連線名稱。 */
+/** 遊戲框（kancolle-server.com）的 bridge 連上來登記所在分頁的長連線名稱；background 據此對分頁靜音。 */
 export const PORT_MUTE = 'kc:mute';
 
 // ── 編成寫真（面板拍照托盤）──────────────────────────

@@ -125,8 +125,9 @@ export default defineBackground(() => {
   // 各自在此加一個 listener、構造同格式 row 並標對應 source，同樣呼叫 ingestEvent()——
   // 下游（裁剪、通知、db.events→GameState→面板）一行都不用改（見 utils/db.ts ApiEventRow 合約）。
   // ── 遊戲頁偏好（靜音／語言鏡像）─────────────────────
-  // 靜音狀態的持有者是 SW（遊戲分頁重載後仍要生效）。BGM 不一定走遊戲框內可攔截的
-  // 音訊路徑，故除既有 hook 外，以 tabs.update 靜音整個遊戲分頁，確保 BGM 一併停止。
+  // 靜音狀態的持有者是 SW（遊戲分頁重載後仍要生效）。靜音以 tabs.update 對整個遊戲分頁
+  // 執行：瀏覽器層級涵蓋 BGM、語音與音效，不必改動遊戲頁的音訊物件。bridge 經 PORT_MUTE
+  // 連上來登記自己所在的分頁。
   type MutePort = Parameters<Parameters<typeof browser.runtime.onConnect.addListener>[0]>[0];
   const mutePorts = new Set<MutePort>();
   const mutePortTabs = new Map<MutePort, number>();
@@ -146,9 +147,8 @@ export default defineBackground(() => {
       mutePorts.delete(port);
       mutePortTabs.delete(port);
     });
-    // 連上就先推目前狀態：遊戲分頁重新載入後不必等使用者再按一次。
+    // 連上就套用目前狀態：新開或重新載入的遊戲分頁不必等使用者再按一次。
     void readGamePagePrefs().then(prefs => {
-      try { port.postMessage({ muted: prefs.muted }); } catch { /* 已斷線 */ }
       if (prefs.muted) void muteGameTabs(true);
     });
   });
@@ -171,12 +171,6 @@ export default defineBackground(() => {
     const tabs = await browser.tabs.query({});
     return tabs.filter(tab => tab.id !== undefined && ids.has(tab.id))
       .map(tab => ({ tabId: tab.id!, title: tab.title || tab.url || String(tab.id) }));
-  };
-
-  const broadcastMute = (muted: boolean) => {
-    for (const port of mutePorts) {
-      try { port.postMessage({ muted }); } catch { mutePorts.delete(port); }
-    }
   };
 
   // 所有回覆一律走 sendResponse + return true（見 utils/runtime-reply.ts 檔頭）：
@@ -208,7 +202,6 @@ export default defineBackground(() => {
     }
     if (msg?.type === MSG_MUTE_SET) {
       const muted = !!msg.muted;
-      broadcastMute(muted);
       return replyWhenSettled(
         writeGamePagePrefs({ muted })
           // 劇場底部工具列的發送者就是目前遊戲分頁；就算 bridge port 尚未連上，也必須能靜音。

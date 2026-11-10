@@ -2,8 +2,8 @@
  * 遊戲框 MAIN world（interceptor）與 ISOLATED world（bridge）之間的私有通道。
  *
  * `window.postMessage` 會把每筆封包廣播給頁面上所有 message 監聽者，遊戲程式也收得到。
- * 這裡改用 MessageChannel：只有建立通道時的握手經過 window，之後的封包與靜音狀態都走
- * 兩端私有的 MessagePort。兩支 content script 都在 document_start 注入、早於遊戲程式，
+ * 這裡改用 MessageChannel：只有建立通道時的握手經過 window，之後的封包都走兩端私有的
+ * MessagePort，而且只有 MAIN → bridge 一個方向。兩支 content script 都在 document_start 注入、早於遊戲程式，
  * 正常情況下握手在遊戲掛上任何監聽之前就完成。
  *
  * 兩個 world 的注入先後不保證，故握手兩邊都會發起：bridge 啟動即送出一個 offer（附 port），
@@ -27,9 +27,6 @@ export type MainToBridgeMessage =
     | { kind: 'ready' }
     | { kind: 'capture'; path: string; req: string; apiText: string; timing?: MainCaptureTiming }
     | { kind: 'health'; health: CaptureHealth };
-
-/** bridge → MAIN（私有 port 上）。 */
-export type BridgeToMainMessage = { kind: 'mute'; muted: boolean };
 
 export interface PortLike {
     postMessage(message: unknown): void;
@@ -69,7 +66,6 @@ export interface MainChannel {
 
 export function connectMainChannel(
     endpoint: HandshakeEndpoint,
-    onMessage: (message: BridgeToMainMessage) => void,
     onOverflow?: (dropped: number) => void,
 ): MainChannel {
     let port: PortLike | null = null;
@@ -81,10 +77,6 @@ export function connectMainChannel(
         if (port || message.kind !== 'offer' || !ports[0]) return;
         port = ports[0];
         stop();
-        port.onmessage = (event) => {
-            const data = event.data as Partial<BridgeToMainMessage> | null;
-            if (data?.kind === 'mute' && typeof data.muted === 'boolean') onMessage({ kind: 'mute', muted: data.muted });
-        };
         port.postMessage({ kind: 'ready' } satisfies MainToBridgeMessage);
         for (const message of pending.splice(0)) port.postMessage(message);
         if (latestHealth) port.postMessage({ kind: 'health', health: latestHealth } satisfies MainToBridgeMessage);
@@ -113,8 +105,6 @@ export function connectMainChannel(
 export const BRIDGE_OFFER_LIMIT = 5;
 
 export interface BridgeChannel {
-    /** 記下最新靜音狀態；通道建立後才送出，建立前只保留最後一次。 */
-    sendMute(muted: boolean): void;
     isReady(): boolean;
 }
 
@@ -125,7 +115,6 @@ export function offerBridgeChannel(
     onHealth?: (health: CaptureHealth) => void,
 ): BridgeChannel {
     let ready: PortLike | null = null;
-    let latestMute: boolean | null = null;
     let offers = 0;
     const offered: PortLike[] = [];
     let stop: (() => void) | null = null;
@@ -136,7 +125,6 @@ export function offerBridgeChannel(
         stop = null;
         for (const other of offered) if (other !== port) other.close();
         offered.length = 0;
-        if (latestMute !== null) port.postMessage({ kind: 'mute', muted: latestMute } satisfies BridgeToMainMessage);
     };
 
     const offer = () => {
@@ -176,10 +164,6 @@ export function offerBridgeChannel(
     offer();
 
     return {
-        sendMute(muted) {
-            latestMute = muted;
-            ready?.postMessage({ kind: 'mute', muted } satisfies BridgeToMainMessage);
-        },
         isReady: () => ready !== null,
     };
 }

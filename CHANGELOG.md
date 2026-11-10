@@ -20,7 +20,9 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - Fit to Window and the pop-out window no longer cut off part of the game when the original page was scrolled. The page scroll position is restored when you leave.
 
 **Less footprint in the game page**
-- Captured responses and the mute state are now passed inside the extension through a private message channel instead of being broadcast on the game page.
+- Captured responses are now passed inside the extension through a private message channel instead of being broadcast on the game page.
+- **Mute Game** now only mutes the game tab and no longer modifies audio objects inside the game page. What you hear is unchanged.
+- The capture script no longer leaves a global variable in the game page.
 - Store builds no longer leave debug variables in the game page or print packets to its console.
 - The service worker console no longer prints notification and timer schedules.
 

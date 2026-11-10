@@ -65,7 +65,7 @@ export default defineContentScript({
     runAt: 'document_idle',
     allFrames: false,
     main() {
-        // 只在最上層頁面跑：遊戲框內部另有 kancolle-server.com 的靜態注入負責擷取與靜音。
+        // 只在最上層頁面跑：遊戲框內部另有 kancolle-server.com 的靜態注入負責擷取。
         if (window.top !== window) return;
         // 重複注入防護：popup 的「視窗適應」會在必要時用 scripting.executeScript 立即注入
         // （才不必等使用者重新整理），若該頁已由動態註冊注入過，第二份會長出第二條工具列。
@@ -235,7 +235,8 @@ export default defineContentScript({
 
         // ── 遊戲畫布量測（裁切依據）──────────────────
         // 跨源看不見框內任何東西，只能問框內的 bridge。它是**直接子框**時才採用回覆
-        // （靠 e.source 比對確認），中間隔著 DMM 自己的 gadget 框時一律退回不裁切。
+        // （靠 e.source 比對確認）。新入口的直接子框是 DMM 的 gadget 框，請求到不了 bridge，
+        // 得不到回覆時裁切由 area() 的 fallbackGameArea 決定。
         const requestMeasure = () => {
             if (!active || !frame?.contentWindow) return;
             try {
@@ -485,7 +486,7 @@ export default defineContentScript({
             if (e.key === 'Escape') leave();
         });
 
-        // ── 靜音（狀態由 background 持有，遊戲框內的 hook 實際執行）──
+        // ── 靜音（狀態由 background 持有，並由它對遊戲分頁執行）──
         const setMuted = async (next: boolean) => {
             muted = next;
             ui.render();

@@ -91,6 +91,14 @@ describe('kcsapi 擷取不得包裝原生網路 API', () => {
         expect(interceptor).toContain("const dev = import.meta.env.COMMAND === 'serve';");
     });
 
+    it('MAIN world 腳本不留全域名稱，也不碰遊戲頁的音訊與媒體物件', () => {
+        // WXT 預設把 MAIN world 腳本指定給同名全域變數（window.interceptor）
+        expect(interceptorSrc).toContain('globalName: false');
+        const code = withoutComments(interceptorSrc.replace("'*://*.kancolle-server.com/*'", "''"));
+        expect(code).not.toMatch(/AudioContext|HTMLMediaElement|MutationObserver/);
+        expect(code).not.toMatch(/Object\.defineProperty|new Proxy\(/);
+    });
+
     it('entrypoints 與 utils 的執行碼不得取代 fetch／XHR', () => {
         const files = [
             ...listTsFiles(join(projectRoot, 'entrypoints')),

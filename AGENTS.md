@@ -81,7 +81,7 @@ npm test            # Vitest
 | 狀態與投影 | `utils/state.ts`、`utils/battle.ts`、`utils/event-projector.ts`、`utils/projection-cursor.ts`、`utils/event-pruning.ts` | `docs/engineering/battle.md`、`maps.md`、samples |
 | 面板 | `entrypoints/panel/`、`panel/index.html` | design-guidelines §7、面板相關 tests、離線 preview |
 | 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | `docs/engineering/` 對應主題檔、design-guidelines §4.7／§4.8 |
-| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/audio-mute.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | `docs/engineering/game-page.md`、`fleet-photo.md` |
+| 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | `docs/engineering/game-page.md`、`fleet-photo.md` |
 | 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | `docs/engineering/capture.md`、`backup.md`；schema 或格式變更先確認相容性 |
 | 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | `docs/engineering/roster.md`「艦名／裝備名譯名表」、各產生器與 `tools/*/README.md`；產生物勿手改 |
 
@@ -103,7 +103,7 @@ npm test            # Vitest
 - 新活動的 edge 對照表、活動特殊燃彈費率、TP 量表與新裝備值。
 - 斬殺偵測的即時觸發時序（待實際 mapinfo 觀測）。
 - 部分艦載機損耗後的熟練度下降量、第二艦隊旗艦不沉時的殘 HP、遠征回航道具欄位。
-- 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗、劇場跨源框與音訊路徑：待開發者以 live 遊戲手動驗證。
+- 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗：待開發者以 live 遊戲手動驗證。
 
 ## 遠端同步現況
 

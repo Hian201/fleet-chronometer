@@ -21,7 +21,7 @@
 | [resources.md](resources.md) | 資源序列擷取、量表里程碑、趨勢圖、活動資源消耗切分 | `utils/resource-capture.ts`、`resource-log.ts`、`line-chart.ts`、`event-calendar.ts` |
 | [expeditions.md](expeditions.md) | 遠征大發加成公式、遠征資料完整性與 EO 條件轉寫、期間彙總 | `utils/expedition-bonus.ts`、`expedition-data.ts`、`expedition-stats.ts` |
 | [fleet-status.md](fleet-status.md) | 基地航空隊疲勞推論、泊地修理與野埼給糧、士氣回到 49 的倒數、疲勞回復通知 | `utils/lbas-cond.ts`、`repair.ts`、`cond.ts`、`tests/repair.test.ts`、`tests/lbas-cond.test.ts` |
-| [game-page.md](game-page.md) | 視窗適應（劇場）、遊戲靜音、獨立視窗、拍照、關閉分頁前警示 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`audio-mute.ts`、`screenshot.ts`、`entrypoints/bridge.content.ts` |
+| [game-page.md](game-page.md) | 視窗適應（劇場）、遊戲靜音、獨立視窗、拍照、關閉分頁前警示 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`screenshot.ts`、`entrypoints/bridge.content.ts` |
 | [fleet-photo.md](fleet-photo.md) | 面板編成寫真：讀遊戲畫布、裁切範圍、輸出版面、header 縮放 | `entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts`、`tests/fleet-photo.test.ts` |
 | [route-forecast.md](route-forecast.md) | 常規導航：分岐規則、節點座標、地理底圖對位、到王編成參考、overview 即時更新 | `utils/route-predict.ts`、`route-rules-*.ts`、`map-spots.ts`、`map-geo-data.ts`、`route-suggest.ts`、`entrypoints/overview/live-state.ts` |
 | [llm.md](llm.md) | LLM 分析的三條零權限路徑與報告摘要原則 | `entrypoints/overview/sections/llm.ts`、`prompt-api.d.ts` |

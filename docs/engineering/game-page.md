@@ -1,6 +1,6 @@
 # 劇場、靜音、獨立視窗、拍照與關頁警示
 
-## 視窗適應（劇場模式）與遊戲靜音（`entrypoints/theater.content.ts`＋`utils/theater.ts`＋`utils/audio-mute.ts`）
+## 視窗適應（劇場模式）與遊戲靜音（`entrypoints/theater.content.ts`＋`utils/theater.ts`）
 
 **需求**：把包在 DMM 網頁裡的遊戲畫面「彈出來」單獨顯示、滑鼠隨意縮放、隨時還原（DMM 的
 點數儲值仍在原頁），**全程不重新整理**，外加靜音開關。
@@ -28,18 +28,32 @@ browsing context 並重新載入；另開或替換遊戲頁可能產生第二個
   containing block，fixed 就不再對齊視窗。改為「祖先鏈以外的東西藏起來、祖先鏈撐滿視窗」，
   對未知結構最不挑。
 
-**顯示的是「遊戲畫布」不是「整個 iframe」**：
-DMM 的遊戲框裡除了遊戲，還包著頁尾按鈕（作戦要綱／艦娘／用語…）與大片白底，拿整個框去
-fit 會讓遊戲縮得比視窗小、下方留一大條白。**畫布位置只有框內的 content script 量得到**
-（跨源），故由 bridge 回報 `canvas` 的 bounding rect，父頁據此 `clip-path: inset(...)` 裁掉
-其餘部分並把畫布置中（`framePlacement()`）。
+**框的層次（新入口，實機確認）**：`play.games.dmm.com` 頁面的直接子框是 DMM 的 gadget 框
+`osapi.dmm.com/gadgets/ifr`，頁面上沒有任何 `kancolle-server.com` 的直接子框；遊戲框
+（bridge 與 interceptor 所在）位於 gadget 框之內。證據是開發者 2026-11-10 在遊戲分頁最上層
+console 執行 `[...document.querySelectorAll('iframe')].map(f => f.src)` 的輸出。gadget 框
+以下的確切層數沒有列舉。
 
-- **只信任「直接子框」的回覆**（`e.source === frame.contentWindow`）：中間若隔著 DMM 自己的
-  gadget 框（舊入口的 `osapi.dmm.com`），量測值的座標基準就不是我們縮放的那個框，採用會
-  歪掉。量不到就**退回整個框、不裁切**，不猜一個矩形。
-- 若日後實機證實新版遊戲頁確實多包一層跨源框，補救方向是把該框的網域也納入 optional
-  origins、以 `allFrames` 注入一份只做「加上自身 iframe 偏移後往上轉發」的中繼；在有實機
-  證據之前不預先實作。
+```text
+DMM 頁面（play.games.dmm.com，劇場腳本）
+  └─ gadget 框（osapi.dmm.com/gadgets/ifr，擴充不注入；含頁尾按鈕與白底）
+       └─ 遊戲框（kancolle-server.com，bridge／interceptor）
+```
+
+**顯示的是「遊戲畫面」不是「整個 iframe」**：
+劇場腳本縮放的是 gadget 框，框裡除了遊戲，還包著頁尾按鈕（作戦要綱／艦娘／用語…）與大片
+白底，拿整個框去 fit 會讓遊戲縮得比視窗小、下方留一大條白，故以 `clip-path: inset(...)` 裁掉
+其餘部分並把遊戲畫面置中（`framePlacement()`）。裁切矩形的來源依序為：
+
+- **bridge 回報的 `canvas` bounding rect**：只信任「直接子框」的回覆
+  （`e.source === frame.contentWindow`），因為別層框回報的座標基準不是被縮放的那個框，採用會
+  歪掉。新入口的量測請求只送得到 gadget 框，那裡沒有 bridge，所以**這條路徑在新入口得不到
+  回覆**；它只在遊戲框本身就是直接子框的版面生效。
+- **`fallbackGameArea()`**：框內左上、寬度撐滿的 5:3 區域（使用者提供的實機畫面佐證），只有
+  框確實比遊戲畫面高出一截才裁切，否則不裁。新入口實際走的是這條。
+- 要在新入口取得精確畫布位置，得把 gadget 框的網域納入 optional origins，並以 `allFrames`
+  注入一份只做「加上自身 iframe 偏移後往上轉發」的中繼。這會擴大權限範圍，在後備區域足夠
+  準確的前提下不實作。
 - `transform-origin` 固定 `0 0`、遊戲框強制 `display: block`：座標運算才是單純的
   `螢幕 = translate + zoom × 框內座標`，`50% 0` 之類的原點會讓「裁切後置中」變成兩層互相
   牽動的補償量（`tests/theater.test.ts` 有鎖這兩條）。
@@ -73,8 +87,7 @@ fit 依畫布而非整框計算（1000×700 視窗下 zoom=0.833＝1000/1200，�
 裁掉、工具列在畫布下方不重疊、resize 自動 refit、手動縮放後 resize 不再改動、
 連按放大／模擬 React 重繪（換掉頁首＋插入新廣告）／離開，全程 **iframe 內的
 `window.__loadId` 完全不變 ＝ 沒有重新載入**；離開後標記歸零、`transform: none`、
-頁首與廣告回復原位。靜音另以真實 `AudioContext` 驗過：`destination` 被換成 GainNode、
-`maxChannelCount` 轉發正確、靜音時 gain=0、既有與新播放的 `<audio>` 都被靜音。
+頁首與廣告回復原位。
 
 **滑鼠與鍵盤事件會被遊戲框吃掉**：一旦放大到蓋滿視窗，滾輪、拖曳與
 Esc 全部落進框內文件，父頁**再也收不到**。解法分兩邊：
@@ -85,23 +98,22 @@ Esc 全部落進框內文件，父頁**再也收不到**。解法分兩邊：
 - 工具列在**溢出視窗時才出現**四顆平移鈕。這不是裝飾：那種情況下工具列（Shadow DOM，
   事件必達）是唯一還能平移的手段。空白邊的拖曳平移保留，但只在有空白邊時有用。
 
-**靜音以整個遊戲分頁為準**：`installAudioMute()` 在遊戲框的 MAIN world（document_start，
-早於遊戲建立音訊圖）把每個 `AudioContext` 的 `destination` 換成 master GainNode，gain 再接
-真正的輸出；同時處理 `<audio>`／`<video>`。BGM 不保證走可攔截路徑，故背景以
-`tabs.update({muted:true})` 可靠靜音含有遊戲框的分頁。這新增 `tabs` 權限，且連 DMM 頁面聲音也
-一併靜音；目的僅是 BGM 與操作語音都停止，不讀取分頁內容。
-`destination` 的 `maxChannelCount` 轉回真正的輸出節點（少數音訊庫會讀它）；接管失敗一律
-`console.warn` 後維持原樣，**絕不讓例外冒進遊戲程式碼**。
-⚠️ **未驗證**：艦これ Flight-IIA 究竟用 WebAudio 還是 media 元素播音，本專案沒有樣本可考
-（同驗證原則），故兩條路徑都接、實機再確認。
+**靜音以整個遊戲分頁為準**：background 以 `tabs.update({ muted })` 靜音含有遊戲框的分頁。
+這是瀏覽器層級的靜音，涵蓋 BGM、語音與音效，不必知道遊戲用 WebAudio 還是 media 元素播音，
+也不在遊戲頁包裝 `AudioContext` 或改寫 `HTMLMediaElement` 原型——MAIN world 不改動遊戲頁的
+任何原生物件（`tests/interceptor-capture.test.ts` 把關）。代價是需要 `tabs` 權限，且 DMM 頁面
+的聲音也一併靜音；不讀取分頁內容。
+bridge 以 `PORT_MUTE` 長連線登記自己所在的分頁（連線不傳資料）：background 靠它知道要靜音
+哪些分頁，連上時偏好若為靜音就立刻套用，故新開或重新載入的遊戲分頁不必再按一次。使用者
+用瀏覽器的分頁選單自行解除靜音時，聲音會恢復而靜音鈕仍顯示靜音；再按一次靜音鈕即回到一致。
+只靠分頁靜音的效果已由開發者實機確認（Edge／macOS，2026-11-10）。
 
 **「靜音沒反應」的第一嫌疑是遊戲分頁沒有 F5**：content script 改動後必須重新注入，
 而劇場模式是用 `executeScript` 立刻注入才會馬上生效，
-interceptor／bridge **不會**——未重新注入的既有分頁沒有靜音 hook，故
+interceptor／bridge **不會**——未重新注入的既有分頁沒有登記連線，popup 的靜音找不到對象，故
 background 在靜音回覆裡附上 `connected`（目前連上的遊戲分頁數），popup 與劇場工具列在
-`connected === 0` 時直接顯示「請在遊戲分頁按 F5」。開發建置（`npm run dev`）的 MAIN world 另會掛
-`window.__kcAudio`（`contextCount()`／`isMuted()`）：在遊戲框的 console 查得到就代表 hook 已注入，
-`contextCount()` 為 0 則代表遊戲根本沒用 WebAudio。正式建置不掛。
+`connected === 0` 時直接顯示「請在遊戲分頁按 F5」。劇場工具列送出的切換另以發送者分頁為
+對象，連線尚未建立時仍能靜音。
 
 **狀態存放**：靜音開關與語言鏡像存 `db.meta['game-page']`（`GamePageMetaRow`）——SW 沒有
 localStorage，而 `chrome.storage` 要新增權限。語言的真相仍在擴充頁面的 localStorage
@@ -214,10 +226,8 @@ crbug.com/1119438）：跨源子框與分頁本身的關閉協商是分開處理
 
 ## 視窗適應的實機驗證限制
 
-已用模仿 SPA 結構的合成頁在真實 Chrome 驗過，但沒有登入真正的 DMM 遊戲頁：
+版面邏輯以模仿 SPA 結構的合成頁在真實 Chrome 驗過；框的層次另有開發者提供的實機輸出
+（見上方「框的層次」）。agent 沒有登入真正的 DMM 遊戲頁，下列項目仍無實機證據：
 
-- 遊戲框與畫布之間是否另隔跨源框：若有，畫布量測會被 `e.source` 檢查擋下而退回不裁切（下方
-  留白底）。可在遊戲分頁 console 跑 `[...document.querySelectorAll('iframe')].map(f => f.src)` 看層數。
-- 艦これ的音訊實作是 WebAudio 還是 media 元素（兩條路徑都接了，開發建置可用
-  `__kcAudio.contextCount()` 判斷）。
+- gadget 框以下的確切層數，以及遊戲框內 `canvas` 的實際位置。
 - 是否有祖先層級的 stacking context 造成版面偏移。
