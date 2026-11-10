@@ -7,7 +7,7 @@ import {
     GameState, isBossNode,
     type ShipView, type GearView, type FleetView, type BattleEnemyShipView,
 } from '@/utils/state';
-import { condTier, fleetCondRecoveryEta } from '@/utils/cond';
+import { condTier, fleetCondRecoveryEta, fleetSupplyCapAt } from '@/utils/cond';
 import {
     planAnchorageRepair, planMoraleSupply, nextSettlementIn,
     type AnchorageRepairPlan, type MoralePlan,
@@ -194,10 +194,11 @@ const mmss = (ms: number) => {
 };
 // 泊地修理／給糧倒數的文字。0＝週期已滿，下次進母港即結算。
 const countdownText = (ms: number) => (ms <= 0 ? t('repair.ready') : mmss(ms));
-// 士氣回到 49 的倒數文字。時刻已過＝下次進母港就會回復（面板上的 cond 要等母港封包才更新）。
-const condCountdownText = (eta: number) => {
+// 士氣回到 49（給糧為 54）的倒數文字。時刻已過＝下次進母港就會達到
+// （面板上的 cond 要等母港封包才更新）。54 不用泊地分組的「可結算」，避免與週期倒數混淆。
+const condCountdownText = (eta: number, supply = false) => {
     const ms = eta - Date.now();
-    return ms <= 0 ? t('cond.recoverReady') : mmss(ms);
+    return ms <= 0 ? t(supply ? 'cond.supplyReady' : 'cond.recoverReady') : mmss(ms);
 };
 // ── 狀態橫幅 ──────────────────────────────
 // 面板「看起來壞掉」的三種狀態（還在載入／讀取暫時失敗積壓中／已停止接收）都必須在
@@ -548,15 +549,24 @@ function repairPlansOf(f: FleetView) {
     const ops = f.mission ? `<span class="fs-op mission">${t('fleet.onMission')}</span>` : condRecoveryOp(f);
     return { rep, mor, ops };
 }
-// 士氣未滿 49 時的回復倒數。出門中不顯示：回港時的士氣扣減未知，倒數沒有意義。
+// 士氣里程碑：「士氣 [49] 時間 › [54] 時間」。49＝全隊回到 49；野埼給糧中另加 [54]＝給糧對象中
+// 士氣最低者到 54（與背景通知同一定義）。目標值用線框小徽章、時間用一般文字，兩者靠字級與
+// 外框區分；54 屬キラ區間，沿用士氣數字的 --sparkle。只在隊上有艦未滿 49 時出現，平時的
+// 給糧週期倒數在一般分頁的「泊地」分組，摘要不寫「給糧」以免與週期倒數混淆。
+// 出門中不顯示：回港時的士氣扣減未知，倒數沒有意義。
 // 時刻是絕對值（與目前時間無關），故每秒 tick 只需比對 data-eta 改文字。
 function condRecoveryOp(f: FleetView) {
     const eta = fleetCondRecoveryEta(f);
     if (!eta || eta.at === null) return '';
     const title = t('cond.recoverTitle', { n: eta.below }) + (eta.supplyHelps ? t('cond.recoverSupplyNote') : '');
-    return `<span class="fs-op cond-recover" title="${esc(title)}">
+    const capAt = fleetSupplyCapAt(f);
+    const supply = capAt == null ? '' : `<span class="cond-ms-sep" aria-hidden="true">›</span>
+        <span class="cond-ms" title="${esc(t('cond.supplyTitle'))}"><span class="cond-goal sparkle">54</span>
+        <span class="fs-op-time ccd" data-eta="${capAt}" data-supply="1">${condCountdownText(capAt, true)}</span></span>`;
+    return `<span class="fs-op cond-recover">
         <span class="fs-op-label">${t('cond.recoverBadge')}</span>
-        <span class="fs-op-time ccd" data-eta="${eta.at}">${condCountdownText(eta.at)}</span>
+        <span class="cond-ms" title="${esc(title)}"><span class="cond-goal">49</span>
+        <span class="fs-op-time ccd" data-eta="${eta.at}">${condCountdownText(eta.at)}</span></span>${supply}
       </span>`;
 }
 // 泊地修理／給糧的逐艦標記與左緣範圍軌。idx 為該艦在艦隊中的 0-based 位置。
@@ -1904,7 +1914,7 @@ function tickRepairCountdowns() {
     for (const el of document.querySelectorAll<HTMLElement>('.ccd[data-eta]')) {
         const eta = Number(el.dataset.eta);
         if (!Number.isFinite(eta)) continue;
-        const text = condCountdownText(eta);
+        const text = condCountdownText(eta, el.dataset.supply === '1');
         if (el.textContent !== text) el.textContent = text;
     }
 }

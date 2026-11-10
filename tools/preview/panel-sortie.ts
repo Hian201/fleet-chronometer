@@ -231,7 +231,12 @@ const summaryMetrics = ({
   <span class="fs-metric fs-tp fs-sec"><span class="fs-label">${t('fleet.transportTP')}</span><b class="fs-value">${tp}</b></span>
 </div>`;
 
-const condRecoverOp = (time: string, n: number) => `<span class="fs-op cond-recover" title="${t('cond.recoverTitle', { n })}"><span class="fs-op-label">${t('cond.recoverBadge')}</span><span class="fs-op-time ccd">${time}</span></span>`;
+// 與 entrypoints/panel/main.ts condRecoveryOp 同一結構：「士氣 [49] 時間 › [54] 時間」。
+// supply 省略時只有 49 一段（無野埼給糧）。
+const condRecoverOp = (time: string, n: number, supply?: string) => `<span class="fs-op cond-recover"><span class="fs-op-label">${t('cond.recoverBadge')}</span>` +
+    `<span class="cond-ms" title="${t('cond.recoverTitle', { n })}"><span class="cond-goal">49</span><span class="fs-op-time ccd">${time}</span></span>` +
+    (supply === undefined ? '' : `<span class="cond-ms-sep" aria-hidden="true">›</span><span class="cond-ms" title="${t('cond.supplyTitle')}"><span class="cond-goal sparkle">54</span><span class="fs-op-time ccd">${supply}</span></span>`) +
+    '</span>';
 
 const SEVEN_FLEET_HTML = `<section class="fleet fleet-seven fleet-no-ops">
   <div class="fsummary">
@@ -3610,12 +3615,16 @@ const summaryLanguagePage = (lang: 'zh-TW' | 'en' | 'ja') => {
         t('speed.slow'), t('speed.fast'), t('speed.fastPlus'), t('speed.fastest'),
     ].map((speed, index) => summaryMetrics({ speed, air: `${69 + index}`, los: `${24 + index}.0` })).join('');
     const fleet = sevenFleetHtml(SEVEN_SHIPS, fatigueOp(t('cond.recoverReady')));
+    // 士氣里程碑最壞案例：49 已過＋54 小時級倒數、兩段都是「已達」文字、兩段都是小時級倒數。
+    const supplyFleet = sevenFleetHtml(SEVEN_SHIPS, condRecoverOp(t('cond.recoverReady'), 3, '1:25:10'));
+    const supplyReadyFleet = sevenFleetHtml(SEVEN_SHIPS, condRecoverOp(t('cond.recoverReady'), 3, t('cond.supplyReady')));
+    const supplyLongFleet = sevenFleetHtml(SEVEN_SHIPS, condRecoverOp('1:10:34', 3, '1:25:10'));
     return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>Summary ${lang}</title><style>
 ${css}
 html,body{height:auto;overflow:auto}body{display:block;margin:0;padding:16px;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,sans-serif}.pv-lang{width:370px;border:1px solid var(--line);box-sizing:border-box;margin-bottom:16px}.pv-lang h1{font-size:14px;color:var(--sparkle);margin:0 10px 10px;padding-top:8px}.pv-lang .fsummary{margin-bottom:8px}.pv-lang .fs-metrics{margin-bottom:4px}
 </style></head><body>
 <main class="pv-lang" data-frame="370"><h1>${lang.toUpperCase()} 370 inner</h1>
-<div id="fleets">${hardCase}${speedSamples}${fleet}</div></main>
+<div id="fleets">${hardCase}${speedSamples}${fleet}${supplyFleet}${supplyReadyFleet}${supplyLongFleet}</div></main>
 </body></html>`.replace(/src="\/icons\//g, 'src="../public/icons/');
 };
 writeFileSync(resolve(root, '.preview/panel-summary-zh.html'), summaryLanguagePage('zh-TW'));

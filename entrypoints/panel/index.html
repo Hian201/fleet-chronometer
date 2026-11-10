@@ -2033,6 +2033,32 @@
             color: var(--text);
         }
 
+        /* 士氣里程碑「士氣 [49] 時間 › [54] 時間」：目標值是線框小徽章（較小字級、--dim），
+           時間是一般文字；54 屬キラ區間，沿用士氣數字的 --sparkle。不加粗、不新增色相（§1.5）。 */
+        .cond-ms {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .cond-goal {
+            margin-left: 4px;
+            padding: 0 2px;
+            border: 1px solid var(--line);
+            border-radius: 2px;
+            color: var(--dim);
+            font-size: 9px;
+            line-height: 9px;
+        }
+
+        .cond-goal.sparkle {
+            color: var(--sparkle);
+        }
+
+        .cond-ms-sep {
+            margin: 0 5px;
+            color: var(--dim);
+        }
+
         .fs-metrics {
             display: grid;
             --fs-layout-rev: panel-370;
@@ -5828,6 +5854,7 @@
         .upkeep-row>:last-child{padding-left:12px;border-left:1px solid var(--line);align-self:stretch;display:flex;align-items:center}
         .upkeep-row .slot{color:var(--brass);font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
         .upkeep-head{min-height:16px;padding-top:0;padding-bottom:0;border-bottom-color:transparent;color:var(--dim);font-size:10px}
+        .upkeep-head>span{display:flex;align-items:center;min-width:0;white-space:nowrap}.upkeep-head .next{margin-left:auto}
         .upkeep-icon{width:11px;height:11px;margin-right:4px;vertical-align:-1px}
         .upkeep-cell{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;font-variant-numeric:tabular-nums}
         .upkeep-cell .n{color:var(--dim);font-size:11px}.upkeep-cell .mode{font-style:normal;color:var(--brass);font-size:10.5px}

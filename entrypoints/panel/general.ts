@@ -407,7 +407,10 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     }
     function upkeepHtml(rows: ReturnType<typeof upkeepRows>) {
         const none = '<span class="upkeep-cell none" aria-hidden="true">—</span>';
-        return `<div class="upkeep-row upkeep-head"><span></span><span title="${esc(t('repair.repairTitle'))}"><img class="upkeep-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">${esc(t('repair.colRepair'))}</span><span title="${esc(t('repair.moraleTitle'))}"><img class="upkeep-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">${esc(t('repair.colMorale'))}</span></div>` +
+        // 欄頭右側的「下次」對齊下方倒數：這裡的時間是下次結算的週期倒數，不是士氣到達時刻
+        // （那個在編成摘要的「士氣 49 › 54」）。
+        const next = `<span class="next">${esc(t('repair.nextLabel'))}</span>`;
+        return `<div class="upkeep-row upkeep-head"><span></span><span title="${esc(t('repair.repairTitle'))}"><img class="upkeep-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">${esc(t('repair.colRepair'))}${next}</span><span title="${esc(t('repair.moraleTitle'))}"><img class="upkeep-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">${esc(t('repair.colMorale'))}${next}</span></div>` +
             rows.map(({ fleet, no, rep, mor }) => {
                 const repCell = rep.active
                     ? `<span class="upkeep-cell${rep.accelerated ? ' accel' : ''}"><span class="n">${esc(t('repair.shipCount', { n: rep.coverage }))}</span>${rep.accelerated ? `<em class="mode">${esc(t('repair.accelLabel'))}</em>` : ''}${upkeepTime(fleet.repairAnchor, REPAIR_INTERVAL_MS)}</span>`

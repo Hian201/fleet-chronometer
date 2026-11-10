@@ -32,7 +32,13 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - Repair ships (Akashi / Asahi Kai) and Nozaki can be in any fleet, including several fleets at once. The fleet buttons now mark every fleet where anchorage repair or provisioning is active: an icon when only one is active (crane for repair, a new ice-cream icon for provisioning), stacked "AR / AO" when both are. Hover shows the ship count.
 - A new **Upkeep** group appears in the Harbor view, next to Expeditions / Repairs / Construction, only while at least one fleet is repairing or provisioning. Each fleet gets one row with ship counts and estimated countdowns to the next repair and provisioning tick.
 - Clicking the button of such a fleet opens the Upkeep group, except during a sortie or while Fleet Photo is open.
-- The status line above the ships keeps only the fatigue countdown and "On Expedition".
+- The status line above the ships keeps only the morale countdown and "On Expedition".
+
+**Morale recovery with Nozaki provisioning**
+- The morale countdown above the ships now reads like "Morale 49 10:49 › 54 25:49". A small framed 49 or 54 marks the target and the time follows it. The 54 part appears while Nozaki is provisioning and shows when the lowest-morale ship she restores reaches 54, the provisioning cap. Both parts only appear while a ship in the fleet is below 49.
+- Upkeep group headers label the countdowns "next", because they count down to the next repair or provisioning tick, not to a morale value.
+- A fleet with active provisioning gets one notification when the ships Nozaki restores reach 54, instead of the notification at 49. Notifications err late rather than early, by up to one 15-minute tick.
+- Using a fast repair bucket reschedules morale notifications, so a ship that just left the dock is counted as one Nozaki restores and the 54 notification no longer fires before it gets there.
 
 **Damaged ships in Repairs**
 - The Repairs group in the Harbor view has a **Docks / Damaged** toggle. Docks lists every dock slot with its countdown, plus empty and locked slots. Damaged lists every ship below full HP that is not already docked, with fleet number, HP bar, HP, damage state and the repair time the game reports.
