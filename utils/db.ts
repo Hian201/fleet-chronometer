@@ -419,7 +419,7 @@ export interface QuestSeenRow {
     lastEventId: number;
 }
 
-// 已提前通知過的遠征（防重複通知）。狀態必須持久化，才能跨 service worker 重啟維持
+// 已通知過的遠征（防重複通知；鬧鐘提前響或立即通知時寫入，回港 port 封包據此略過）。狀態必須持久化，才能跨 service worker 重啟維持
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
 export interface NotifiedRow {
     deckId: number;

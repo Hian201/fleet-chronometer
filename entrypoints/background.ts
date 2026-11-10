@@ -83,13 +83,21 @@ async function notifyNow(message: string, notificationId?: string) {
   else await browser.notifications.create(options);
 }
 
-// 若剩餘 ≤ 1 分鐘就立即通知，否則建立提前 1 分鐘的 alarm
-async function scheduleOrNotify(name: string, completeAt: number, notificationId?: string) {
-  const target = completeAt - EARLY_MS;
-  if (target <= Date.now()) {
+const MISSION_ALARM_RE = /^第(\d+)艦隊 遠征帰投$/;
+
+// 遠征通知：同一艦隊的同一個完成時刻只通知一次（鬧鐘提前響、回港 port 封包補發、手動召回
+// 都會走到這裡，是重複通知的來源）。已通知記錄存 db.notified（deckId 為主鍵），SW 被殺也不遺失；
+// 比對 completeAt 才不會誤殺同艦隊之後的新遠征。
+async function scheduleMissionNotice(deckId: number, completeAt: number, notificationId?: string) {
+  const done = await db.notified.get(deckId);
+  if (done?.completeAt === completeAt) return;
+  const name = `第${deckId}艦隊 遠征帰投`;
+  if (completeAt - EARLY_MS <= Date.now()) {
+    // 先記錄再通知：寧可漏發也不重發
+    await db.notified.put({ deckId, completeAt, ts: Date.now() });
     await notifyNow(name, notificationId);
   } else {
-    await browser.alarms.create(name, { when: target });
+    await browser.alarms.create(name, { when: completeAt - EARLY_MS });
   }
 }
 
@@ -311,7 +319,13 @@ export default defineBackground(() => {
   // alarm 觸發時統一使用 notifyNow
   browser.alarms.onAlarm.addListener(a => {
     if (DEV_BUILD) console.log('[alarm fired]', a.name);
-    void notifyNow(a.name);
+    void (async () => {
+      // 遠征鬧鐘建立時 when = completeAt - EARLY_MS，據此還原完成時刻並記錄已通知，
+      // 之後回港的 port 封包才不會對同一趟遠征再通知一次。
+      const deckId = Number(MISSION_ALARM_RE.exec(a.name)?.[1]);
+      if (deckId) await db.notified.put({ deckId, completeAt: a.scheduledTime + EARLY_MS, ts: Date.now() });
+      await notifyNow(a.name);
+    })();
   });
 
   if (DEV_BUILD) void browser.alarms.getAll().then(console.log);
@@ -462,23 +476,17 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   }
   // 遠征發出：提前 1 分鐘通知
   if (path === 'api_req_mission/start' && api?.api_complatetime) {
-    await scheduleOrNotify(
-      `第${req?.api_deck_id}艦隊 遠征帰投`,
+    await scheduleMissionNotice(
+      Number(req?.api_deck_id),
       api.api_complatetime,
       createEventNotificationId(id, 'mission-start'),
     );
   }
-  // 手動終止遠征（強制回港）：若新回港時間不足 1 分鐘則立即通知，並記錄 deck ID + completeAt
-  // 防重複（記錄存 db.notified，SW 被殺重啟也不遺失，見 utils/db.ts NotifiedRow）
+  // 手動終止遠征（強制回港）：新回港時間不足 1 分鐘則立即通知；去重見 scheduleMissionNotice
   if (path === 'api_req_mission/return_instruction' && api?.api_mission?.[2]) {
-    const deckId = Number(req?.api_deck_id);
-    const completeAt = api.api_mission[2];
-    if (completeAt - EARLY_MS <= Date.now()) {
-      await db.notified.put({ deckId, completeAt, ts: Date.now() });
-    }
-    await scheduleOrNotify(
-      `第${deckId}艦隊 遠征帰投`,
-      completeAt,
+    await scheduleMissionNotice(
+      Number(req?.api_deck_id),
+      api.api_mission[2],
       createEventNotificationId(id, 'mission-return-instruction'),
     );
   }
@@ -561,16 +569,10 @@ async function scheduleAlarms(api: any, eventId: number) {
   await browser.alarms.clearAll();
   for (const [i, d] of (api.api_deck_port ?? []).entries()) {
     if (d.api_mission?.[0] > 0 && d.api_mission[2] > 0) {
-      // 若此艦隊剛由 return_instruction 立即通知過同一個 completeAt，跳過避免重複
-      const skip = await db.notified.get(i + 1);
-      if (skip && skip.completeAt === d.api_mission[2]) {
-        await db.notified.delete(i + 1);
-        continue;
-      }
-      // key 用艦隊編號（穩定）而非 api_name（玩家可改，同名會互相覆蓋 alarm）——
-      // 與 mission/start、return_instruction 兩處通知的既有慣例一致。
-      await scheduleOrNotify(
-        `第${i + 1}艦隊 遠征帰投`,
+      // key 用艦隊編號（穩定）而非 api_name（玩家可改，同名會互相覆蓋 alarm）。
+      // 回港後 mission[0] 變 2、完成時刻已過：若鬧鐘已通知過，scheduleMissionNotice 會略過。
+      await scheduleMissionNotice(
+        i + 1,
         d.api_mission[2],
         createEventNotificationId(eventId, `port-mission-${i + 1}`),
       );
