@@ -1,4 +1,4 @@
-// 艦娘士氣（cond）的分級與回復到 49 的推算。
+// 艦娘士氣（cond）的分級與回復到 49（野埼給糧中為 54）的推算。
 //
 // **純函式、零 chrome.* 依賴**（同 repair.ts），可用 Node／Vitest 驗證。
 // 遊戲不推送士氣回復；伺服器只在「進入母港畫面」時，依伺服器時鐘每 3 分鐘一格補算
@@ -130,6 +130,42 @@ export function fleetCondRecoveryEta(fleet: FleetView): CondRecoveryEta | undefi
         at = Math.max(at ?? eta, eta);
     }
     return { at, naturalAt: naturalMax, below, supplyHelps: at !== null && naturalMax !== null && at < naturalMax };
+}
+
+/**
+ * 野埼給糧發動中的艦隊，給糧對象全員到 54（給糧上限）的推算時刻。給糧每次的回復量全隊相同，
+ * 所以就是給糧對象中士氣最低那艘到 54 的時刻。野埼自身、入渠中、已達 54 的艦不列入。
+ *
+ * 只在隊上有 cond 未滿 49 的艦時才有值（與疲勞倒數同條件；平時的給糧計時在泊地分組）：
+ * 全員 ≥49 或無給糧對象時回 null。給糧不發動、出門中或錨點／觀測時間不可考時回 undefined
+ * （呼叫端改用一般的 49 推算）。進港次數假設與 fleetCondRecoveryEta 相同。
+ */
+export function fleetSupplyCapAt(fleet: FleetView): number | null | undefined {
+    const asOf = fleet.condAsOf;
+    if (asOf === undefined || fleet.mission) return undefined;
+    const supply = supplyContext(fleet);
+    if (!supply) return undefined;
+    if (!fleet.ships.some(s => portCond(s) < COND_NATURAL_CAP)) return null;
+    let at: number | null = null;
+    for (const [index, ship] of fleet.ships.entries()) {
+        if (!supply.recovers(index)) continue;
+        const eta = supplyCapReachAt(ship, asOf, supply);
+        at = Math.max(at ?? eta, eta);
+    }
+    return at;
+}
+
+/**
+ * 單艦靠給糧到 54 的最早時刻。自然回復只到 49，超過 49 的份量只會在給糧週期門檻出現，
+ * 所以候選時刻只需看各週期門檻。野埼自身 cond 會自然回復到 49，迴圈必定結束。
+ */
+function supplyCapReachAt(ship: ShipView, asOf: number, supply: SupplyContext): number {
+    const { anchor, perTick, source } = supply;
+    for (let ticks = 1; ; ticks++) {
+        const at = anchor + ticks * MORALE_INTERVAL_MS + TIMER_SAFETY_MS;
+        if (at <= asOf || projectShipCond(source, asOf, at) < MORALE_SOURCE_MIN_COND) continue;
+        if (projectShipCond(ship, asOf, at) + perTick * ticks >= MORALE_CAP) return at;
+    }
 }
 
 interface SupplyContext {

@@ -3,6 +3,7 @@ import {
     COND_STEP_MS,
     condTier,
     fleetCondRecoveryEta,
+    fleetSupplyCapAt,
     naturalRecoveryAt,
     projectNaturalCond,
     projectShipCond,
@@ -252,5 +253,41 @@ describe('GameState cond 觀測時刻', () => {
         expect(state.fleets()[0]?.condAsOf).toBe(AS_OF);
         state.applyEvent('api_port/port', port, undefined, AS_OF + 5 * MIN);
         expect(state.fleets()[0]?.condAsOf).toBe(AS_OF + 5 * MIN);
+    });
+});
+
+describe('fleetSupplyCapAt', () => {
+    // 給糧週期門檻＝錨點 + k×15 分 + 1 分安全緩衝；錨點取進港時刻（同 background 通知）。
+    const tick = (k: number) => AS_OF + k * MORALE_INTERVAL_MS + TIMER_SAFETY_MS;
+
+    it('以給糧對象中士氣最低者到 54 為準', () => {
+        // 野埼改 +3：48 → 第 1 門檻 自然 49+3=52 → 第 2 門檻 49+6=55（上限 54）；52 在第 1 門檻即達。
+        expect(fleetSupplyCapAt(fleet([
+            ship({ mst: NOSAKI_KAI, cond: 49 }), ship({ cond: 52 }), ship({ cond: 48 }),
+        ]))).toBe(tick(2));
+    });
+
+    it('野埼自身、入渠中與已達 54 的艦不列入', () => {
+        expect(fleetSupplyCapAt(fleet([
+            ship({ mst: NOSAKI, cond: 35 }),
+            ship({ cond: 52 }),
+            ship({ cond: 54 }),
+            ship({ cond: 10, inDock: true, dockCompleteAt: AS_OF + 60 * MIN }),
+        ]))).toBe(tick(1));   // 只看 52+2=54；野埼 35 與入渠艦另由疲勞倒數處理
+    });
+
+    it('隊上沒有未滿 49 的艦，或沒有給糧對象時回 null', () => {
+        expect(fleetSupplyCapAt(fleet([ship({ mst: NOSAKI_KAI, cond: 49 }), ship({ cond: 50 })]))).toBeNull();
+        // 只有野埼自身未滿 49：沒有給糧對象，呼叫端改用一般的 49 推算。
+        expect(fleetSupplyCapAt(fleet([ship({ mst: NOSAKI_KAI, cond: 40 }), ship({ cond: 54 })]))).toBeNull();
+    });
+
+    it('給糧不發動、出門中或錨點不可考時回 undefined', () => {
+        expect(fleetSupplyCapAt(fleet([ship({ cond: 30 }), ship({ cond: 40 })]))).toBeUndefined();
+        expect(fleetSupplyCapAt(fleet([ship({ cond: 40 }), ship(), ship({ mst: NOSAKI_KAI })]))).toBeUndefined();
+        const ships = [ship({ mst: NOSAKI_KAI }), ship({ cond: 40 })];
+        expect(fleetSupplyCapAt(fleet(ships, { mission: true }))).toBeUndefined();
+        expect(fleetSupplyCapAt(fleet(ships, { moraleAnchor: undefined }))).toBeUndefined();
+        expect(fleetSupplyCapAt(fleet(ships, { condAsOf: undefined }))).toBeUndefined();
     });
 });

@@ -15,6 +15,8 @@ import { FleetPhotoCapture } from '@/utils/fleet-photo-capture';
 import { CaptureHealthRegistry, MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET } from '@/utils/capture-health';
 import { BackgroundIngestionLifecycle } from '@/utils/background-ingestion-lifecycle';
 import { createEventNotificationId } from '@/utils/event-notification';
+import { COND_ALARM_RE, planCondAlarms, type CondAlarm } from '@/utils/cond-alarms';
+import { GameState } from '@/utils/state';
 import { pruneRawEventsBefore } from '@/utils/event-pruning';
 import { KcsapiResultError, parseKcsapiResponse, SENSITIVE_REQUEST_KEYS } from '@/utils/kcsapi';
 import { captureResources } from '@/utils/resource-capture';
@@ -508,6 +510,9 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   if (path === 'api_req_nyukyo/speedchange' && req?.api_ndock_id) {
     await browser.alarms.clear(`入渠ドック${req.api_ndock_id} 修理完了`);
   }
+  if ((path === 'api_req_nyukyo/start' && req?.api_highspeed === '1') || path === 'api_req_nyukyo/speedchange') {
+    await rescheduleCondAlarms();
+  }
 }
 
 // ── M6 事件裁剪 ────────────────────────────────────────
@@ -596,19 +601,45 @@ async function scheduleAlarms(api: any, eventId: number) {
     if (!recreatedDockNames.has(a.name)) await browser.alarms.create(a.name, { when: a.scheduledTime });
   }
 
-  // 疲労（士気）回復通知：自然回復每 3 分鐘 +3、上限 49（回復點）。
-  // 回復 tick 的相位未知（伺服器全域計時），取上界 ceil(缺口/3)×3 分鐘——
-  // 通知響起時保證全隊已回復到 49，不會提早誤報。每次回母港以最新 cond 重排。
-  const condById = new Map<number, number>(
-    (api.api_ship ?? []).map((s: any) => [s.api_id, Number(s.api_cond ?? 49)]),
-  );
-  for (const d of api.api_deck_port ?? []) {
-    const conds = (d.api_ship ?? [])
-      .filter((id: number) => id > 0)
-      .map((id: number) => condById.get(id) ?? 49);
-    const minCond = Math.min(49, ...conds);
-    if (minCond >= 49) continue;
-    const mins = Math.ceil((49 - minCond) / 3) * 3;
-    await browser.alarms.create(`${d.api_name} 疲労回復（cond ${minCond}→49）`, { when: Date.now() + mins * 60_000 });
+  // 士氣（49／野埼給糧 54）通知，規則見 utils/cond-alarms.ts。母港快照已在 postProcessEvent 寫入。
+  for (const alarm of await condAlarmPlan()) await browser.alarms.create(alarm.name, { when: alarm.when });
+}
+
+/**
+ * 以 start2／母港快照＋母港之後的 raw events 重建 GameState，排出各隊士氣通知。
+ * 母港之後的事件涵蓋同一次進港期間的編成變更與高速修復（cond 立即補到 40、離開入渠）。
+ * 捷徑：快照損壞時不排士氣通知（遠征／入渠不受影響）；下次進母港會重排。
+ */
+async function condAlarmPlan(): Promise<CondAlarm[]> {
+  const [master, port] = await Promise.all([
+    db.snapshot.get('api_start2/getData'),
+    db.snapshot.get('api_port/port'),
+  ]);
+  if (!port) return [];
+  const state = new GameState();
+  try {
+    if (master) state.applyEvent(master.path, master.api, master.req, master.ts);
+    state.applyEvent(port.path, port.api, port.req, port.ts);
+  } catch {
+    return [];
   }
+  const after = typeof port.eventId === 'number' ? await db.events.where('id').above(port.eventId).toArray() : [];
+  for (const event of after) {
+    try {
+      state.applyEvent(event.path, event.api, event.req, event.ts);
+    } catch {
+      // 單筆壞封包不阻斷其餘重建。
+    }
+  }
+  const names = ((port.api as any)?.api_deck_port ?? []).map((d: any) => String(d?.api_name ?? ''));
+  return planCondAlarms(state.fleets(), names, port.ts, Date.now());
+}
+
+// 高速修復讓 cond 立即補到 40，且原本入渠中的艦會變成給糧對象（54 可能延後），
+// 故只重排士氣通知；遠征與入渠通知不動。
+async function rescheduleCondAlarms(): Promise<void> {
+  for (const alarm of await browser.alarms.getAll()) {
+    if (COND_ALARM_RE.test(alarm.name)) await browser.alarms.clear(alarm.name);
+  }
+  for (const alarm of await condAlarmPlan()) await browser.alarms.create(alarm.name, { when: alarm.when });
 }
