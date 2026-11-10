@@ -307,6 +307,27 @@ describe('EventProjector persist 模式', () => {
         ])).toEqual(firstCounts);
     });
 
+    it('兩個 projector 同時投影同一事件流時，四張表的內容與單一 projector 相同', async () => {
+        const dump = async (database: KcDb) => ({
+            sorties: await database.sorties.toArray(),
+            factory: await database.factory.toArray(),
+            replays: await database.replays.toArray(),
+            expeditions: await database.expeditions.toArray(),
+        });
+        const single = createDb();
+        await projectAll(new EventProjector({ state: new GameState(), tables: single }));
+
+        // 面板彈窗與另一個面板頁同時開著時，兩邊各有自己的 GameState 與 projector。
+        const shared = createDb();
+        const first = new EventProjector({ state: new GameState(), tables: shared });
+        const second = new EventProjector({ state: new GameState(), tables: shared });
+        for (const event of fullEventStream()) {
+            await Promise.all([first.project(event), second.project(event)]);
+        }
+
+        expect(await dump(shared)).toEqual(await dump(single));
+    });
+
     it('battle-result 只從已驗證的 api_get_ship.api_ship_id 保存有效 dropMst', async () => {
         const tables = mockTables();
         const state = new GameState();
