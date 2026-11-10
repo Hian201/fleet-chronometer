@@ -8,6 +8,7 @@ import {
   MSG_POPOUT_CLOSE, MSG_POPOUT_OPEN, MSG_POPOUT_STATE,
   type PopoutCloseMessage, type PopoutCloseReply, type PopoutOpenMessage, type PopoutOpenReply,
   type PopoutOrigin, type PopoutStateReply,
+  PANEL_INNER_WIDTH, PANEL_WINDOW_HEIGHT,
 } from '@/utils/game-page';
 import { restoreTabIndex, windowSizeForGame } from '@/utils/theater';
 import { FleetPhotoCapture } from '@/utils/fleet-photo-capture';
@@ -429,7 +430,7 @@ async function openPanelWindow() {
     // 這個高度已按面板 CSS 的實際列高保留少量餘裕。
     // ⚠️ 此高度假設裝備列單行。若 .chips wrap 成兩行，單艘變高，第 7 艘會被裁掉——
     // 見 panel/index.html .chips／.chip 寬度預算註解，勿靠加高視窗掩蓋換行。
-    type: 'popup', width: 370, height: 850,
+    type: 'popup', width: PANEL_INNER_WIDTH, height: PANEL_WINDOW_HEIGHT,
   });
 }
 

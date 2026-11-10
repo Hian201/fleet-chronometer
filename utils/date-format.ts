@@ -7,6 +7,9 @@
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** 一天的毫秒數（固定 24 小時）。 */
+export const DAY_MS = 86_400_000;
+
 /** `2026/09/28` */
 export function formatDate(ts: number): string {
     const d = new Date(ts);

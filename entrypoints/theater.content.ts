@@ -54,6 +54,8 @@ interface Stored { active?: boolean }
 // 下次開遊戲會被當成「上次在視窗適應」自動進入。
 const POPOUT_KEY = 'kc-popout';
 interface PopoutState { origin: PopoutOrigin | null; wasActive: boolean }
+// 等遊戲框出現的逾時（ms）；遊戲框是 SPA 動態插入，載入當下可能尚未存在。
+const FRAME_WAIT_MS = 15000;
 
 export default defineContentScript({
     matches: ['*://play.games.dmm.com/*', '*://www.dmm.com/netgame/*'],
@@ -581,7 +583,7 @@ export default defineContentScript({
                     .catch(() => null) as PopoutStateReply | null | undefined;
                 if (where?.inPopup) {
                     popout = savedPopout;
-                    await waitForFrame(locate, 15000);
+                    await waitForFrame(locate, FRAME_WAIT_MS);
                     enter();
                     return;
                 }
@@ -589,7 +591,7 @@ export default defineContentScript({
             }
             if (stored.active) {
                 // 遊戲框是 SPA 動態插入的，載入當下可能還不存在：等它出現再進劇場。
-                await waitForFrame(locate, 15000);
+                await waitForFrame(locate, FRAME_WAIT_MS);
                 enter();
             }
         })();

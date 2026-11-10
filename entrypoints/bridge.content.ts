@@ -12,6 +12,12 @@ import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
 import { SENSITIVE_REQUEST_KEYS } from '../utils/kcsapi';
 import type { CaptureHealth } from '../utils/capture-health';
 
+// 「夠大才算遊戲畫布」的門檻（px）：小於此尺寸的 canvas 不視為遊戲畫面。
+const MIN_GAME_CANVAS_WIDTH = 200;
+const MIN_GAME_CANVAS_HEIGHT = 150;
+// port 斷線後重新連線的延遲（ms）。
+const PORT_RECONNECT_MS = 250;
+
 export default defineContentScript({
     matches: ['*://*.kancolle-server.com/*'],
     runAt: 'document_start',
@@ -104,7 +110,7 @@ export default defineContentScript({
                 // 恢復——故斷線後短延遲重連一次。連線本身失敗（見下方 catch）才代表 extension
                 // context 已失效，不再重試。
                 port.onDisconnect.addListener(() => {
-                    setTimeout(connectMutePort, 250);
+                    setTimeout(connectMutePort, PORT_RECONNECT_MS);
                 });
             } catch (e) {
                 // 連線失敗只代表靜音鈕對這個分頁無效，封包擷取完全不受影響。
@@ -121,7 +127,7 @@ export default defineContentScript({
         const captureRegion = (region: GameFrameRequest['region']): Promise<Omit<GameFrameReply, 'kind' | 'reqId'>> =>
             new Promise((resolve) => {
                 const canvas = [...document.querySelectorAll('canvas')]
-                    .filter(c => c.width >= 200 && c.height >= 150)
+                    .filter(c => c.width >= MIN_GAME_CANVAS_WIDTH && c.height >= MIN_GAME_CANVAS_HEIGHT)
                     .sort((a, b) => b.width * b.height - a.width * a.height)[0];
                 if (!canvas) { resolve({ error: 'no-canvas' }); return; }
                 requestAnimationFrame(() => {
@@ -162,7 +168,7 @@ export default defineContentScript({
                 // SW 閒置回收會斷線；同靜音通道，短延遲重連
                 port.onDisconnect.addListener(() => {
                     if (gameFramePort === port) gameFramePort = null;
-                    setTimeout(connectGameFramePort, 250);
+                    setTimeout(connectGameFramePort, PORT_RECONNECT_MS);
                 });
                 reportHealth();
             } catch (e) {
@@ -192,7 +198,7 @@ export default defineContentScript({
         const measureGame = () => {
             const rects = [...document.querySelectorAll('canvas')]
                 .map(c => c.getBoundingClientRect())
-                .filter(r => r.width >= 200 && r.height >= 150);
+                .filter(r => r.width >= MIN_GAME_CANVAS_WIDTH && r.height >= MIN_GAME_CANVAS_HEIGHT);
             if (!rects.length) return null;
             const biggest = rects.sort((a, b) => b.width * b.height - a.width * a.height)[0];
             return {

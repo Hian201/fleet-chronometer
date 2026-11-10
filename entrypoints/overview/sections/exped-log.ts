@@ -15,6 +15,7 @@ import type { OverviewSection, SectionContext } from './types';
 import { db } from '@/utils/db';
 import { expedDisplayName, t } from '@/utils/ui-i18n';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
+import { DAY_MS } from '@/utils/date-format';
 import {
     EXPED_MAT_COUNT, filterByPeriod, groupByMission, sortStats, statsCsv, summarize,
     type ExpeditionStat, type ExpeditionTotals, type StatSortKey,
@@ -318,7 +319,7 @@ export const expedLogSection: OverviewSection = {
             const days = RANGES.find(r => r.key === prefs.range)?.days ?? 0;
             if (!days || !all.length) return { from: null, to: null };
             const anchor = all[0].ts;   // 最後一筆紀錄
-            return { from: anchor - days * 86_400_000, to: null };
+            return { from: anchor - days * DAY_MS, to: null };
         }
 
         const custom = () => dateStart(fromInput.value) != null || dateEnd(toInput.value) != null;

@@ -9,6 +9,7 @@ import {
 import { questCatalogIdentity } from './quest-identity';
 import { questCycleWindow } from './quest-cycle';
 import { QUEST_REVIEWED_RELATIONS } from './quest-graph-reviewed';
+import { DAY_MS } from './date-format';
 
 import type { QuestCategory } from './quest-category';
 
@@ -726,7 +727,7 @@ function inferAbsentOnceQuests(
 
 // 季節大演習（wikiwiki「季節大演習」表）每季重新發出，遊戲仍回報 api_type 4（單發），開放期間每年不同。
 // 2016–2026 歷年同一任務單季最長 146 天、兩季之間最短隔 211 天，180 天內觀測到的完成必屬同一季。
-const SEASONAL_SAME_SEASON_MS = 180 * 24 * 60 * 60 * 1000;
+const SEASONAL_SAME_SEASON_MS = 180 * DAY_MS;
 
 function observedIsCurrentPeriod(definition: QuestDefinition, observed: QuestObservedCompletion, nowTs: number): boolean {
     if (definition.period === 'once') return true;

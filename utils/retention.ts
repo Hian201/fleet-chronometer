@@ -14,6 +14,7 @@
 //   6. recent    ── 以上皆非，但在裁剪窗內（最近 N 天，且保底最近 N 場）
 //   其餘 → prune（可裁剪）
 import type { ReplayRow, ShipObtainedRow, SortieLogRow } from './db';
+import { DAY_MS } from './date-format';
 
 export type KeepReason = 'pinned' | 'newShip' | 'cleared' | 'eventBoss' | 'uncleared' | 'recent';
 
@@ -108,7 +109,7 @@ export function planRetention(
 ): RetentionDecision[] {
     const agg = aggregateSorties(sorties);
     const newShipKeys = cfg.protectNewShip ? firstOwnedDropKeys(sorties, shipObtained) : new Set<number>();
-    const windowStart = now - cfg.keepRecentDays * 86400_000;
+    const windowStart = now - cfg.keepRecentDays * DAY_MS;
 
     // 先算保護原因；未受保護者收集起來，之後套「最近 N 天／保底 N 場」。
     const decisions: RetentionDecision[] = [];

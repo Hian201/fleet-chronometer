@@ -29,6 +29,11 @@ export const GAME_TAB_MATCHES = [
     '*://www.dmm.com/netgame/social/-/gadgets/=/app_id=854854*',
 ];
 
+/** 面板彈窗的內容區寬度（px）；彈窗外框寬度由 fitPanelInnerWidth 依實際內容區補足。 */
+export const PANEL_INNER_WIDTH = 370;
+/** 面板彈窗的視窗高度（px），須容納標題列、資訊區、戰鬥列與七艘單行編成。 */
+export const PANEL_WINDOW_HEIGHT = 850;
+
 /**
  * 比對一個 URL 是否符合某個 [match pattern](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns)。
  *

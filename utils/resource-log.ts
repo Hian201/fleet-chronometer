@@ -9,6 +9,7 @@
 import type { ResourceMarkRow, ResourceRow } from './db';
 import { csvCell } from './csv';
 import { MATERIAL_COUNT } from './resource-capture';
+import { DAY_MS } from './date-format';
 
 /** 八項資材的圖示檔名（public/icons/resource/*.svg），索引＝api_material 順序。 */
 export const MAT_FILES = ['fuel', 'ammo', 'steel', 'bauxite', 'torch', 'drum', 'devmat', 'screw'] as const;
@@ -58,7 +59,7 @@ export type Granularity = 'raw' | 'hour' | 'day';
 
 const BUCKET_MS: Record<Exclude<Granularity, 'raw'>, number> = {
     hour: 3_600_000,
-    day: 86_400_000,
+    day: DAY_MS,
 };
 
 /**
@@ -186,8 +187,6 @@ export function buildEventPeriods(marks: ResourceMarkRow[], samples: Sample[]): 
 }
 
 // ── 一次活動的攻略／攻略後切分 ─────────────────────────────────────────────
-
-const DAY_MS = 86_400_000;
 
 /** 逐項相加；任一邊不可考整筆不可考（缺席不得被 0 頂替）。 */
 function sumDelta(a: number[] | null, b: number[] | null): number[] | null {

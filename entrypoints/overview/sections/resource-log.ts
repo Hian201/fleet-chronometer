@@ -14,6 +14,7 @@
 import type { OverviewSection } from './types';
 import { db, type ResourceMarkRow, type ResourceRow } from '@/utils/db';
 import { getLang, t } from '@/utils/ui-i18n';
+import { DAY_MS } from '@/utils/date-format';
 import {
     SEASON_GROUP, eventOperationsOf, eventTermLabel, eventTermOf, operationIndexOfMap, operationMapRange,
     type EventSeason, type SeasonGroup,
@@ -640,7 +641,7 @@ export const resourceLogSection: OverviewSection = {
             if (custom) return custom;
             const to = all[all.length - 1].ts;
             const days = RANGES.find(r => r.key === prefs.range)?.days ?? 0;
-            return { from: days ? to - days * 86_400_000 : all[0].ts, to };
+            return { from: days ? to - days * DAY_MS : all[0].ts, to };
         }
 
         const detailRows = () => buildDetailRows(view, prefs.marks ? allMilestones : []);

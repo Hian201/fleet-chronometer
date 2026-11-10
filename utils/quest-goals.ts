@@ -17,6 +17,7 @@ import { QUEST_GOAL_LOCAL } from './quest-goal-local';
 import { questPrepDef } from './quest-prep';
 import { questCatalogIdentity, questTitleKey } from './quest-identity';
 import type { QuestGoal } from './quest-progress';
+import { DAY_MS } from './date-format';
 
 /** 工廠、補給入渠與近代化改修的計數事件。 */
 export const FACTORY_GOAL_EVENTS = new Set([
@@ -381,7 +382,7 @@ export function goalCount(def: QuestGoalDef, counts: readonly number[]): number 
 
 /** 遊戲每日 05:00 JST（20:00 UTC）換日；回傳遊戲日序號。 */
 export function questDay(ts: number): number {
-    return Math.floor((ts - 20 * 3600_000) / 86_400_000);
+    return Math.floor((ts - 20 * 3600_000) / DAY_MS);
 }
 
 /** 海域清單的顯示：同一海域連號縮成「2-1〜2-5」。 */

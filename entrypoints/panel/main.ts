@@ -22,6 +22,7 @@ import {
     MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET, parseCaptureHealthSummary, type CaptureHealthSummary,
 } from '@/utils/capture-health';
 import { formatDateTime, formatTime } from '@/utils/date-format';
+import { PANEL_INNER_WIDTH } from '@/utils/game-page';
 import {
     formatTimingReport, parseCaptureTiming, toTimingRecord, wallNow,
     type CaptureTiming, type CaptureTimingRecord,
@@ -54,7 +55,6 @@ const projector = new EventProjector({
     state, mode: 'persist', tables: db,
     skipSortieMap: map => excludedSortieMaps.has(map),
 });
-const PANEL_INNER_WIDTH = 370;
 async function fitPanelInnerWidth() {
     const inner = document.documentElement.clientWidth;
     const delta = PANEL_INNER_WIDTH - inner;
@@ -1793,14 +1793,16 @@ function renderFactoryLive() {
 // 歷史紀錄清單（開發/建造/改修）已移至「鎮守府情報總括」分頁（讀 db.factory）；
 // 面板只留這份「當下」看板（renderFactoryLive：最新開發/改修結果＋建造中渠倒數）。
 function renderFactory() { renderFactoryLive(); }
-// 啟動重播期間（ready=false）不逐筆碰 DOM：先在記憶體累積最後 200 筆供重播結束後
+// 「動態」分頁 log 的行數上限；重播期間的緩衝也用同一上限，兩者都是「這個 log 最多保留幾行」。
+const LOG_LINE_LIMIT = 200;
+// 啟動重播期間（ready=false）不逐筆碰 DOM：先在記憶體累積最後 LOG_LINE_LIMIT 筆供重播結束後
 // 一次性補上「動態」分頁的 log，避免數千筆歷史事件each觸發一次 log DOM 操作。
 const replayLogBuffer: { ts: number; path: string }[] = [];
 function appendLogRow(ts: number, path: string) {
     const row = document.createElement('div');
     row.textContent = `${formatTime(ts)}  ${path}`;
     log.prepend(row);
-    while (log.children.length > 200) log.lastChild?.remove();
+    while (log.children.length > LOG_LINE_LIMIT) log.lastChild?.remove();
 }
 // 出擊中的戰鬥相關 path（與 utils/state.ts 戰鬥分支同一組判準，含單艦隊的航空戰／
 // 空襲節點 `api_req_sortie/(ld_)airbattle`——只寫 `startsWith('api_req_sortie/battle')`
@@ -1884,7 +1886,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         }
     } else {
         replayLogBuffer.push({ ts, path });
-        if (replayLogBuffer.length > 200) replayLogBuffer.shift();
+        if (replayLogBuffer.length > LOG_LINE_LIMIT) replayLogBuffer.shift();
     }
 }
 // 泊地修理／給糧倒數（一般分頁母港「泊地」分組）：只改 .rcd 的文字，不重繪分組。

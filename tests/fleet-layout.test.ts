@@ -12,6 +12,7 @@ const expedPreview = readFileSync(new URL('../tools/preview/panel-exped.ts', imp
 const expedEditorialPreview = readFileSync(new URL('../tools/preview/panel-exped-editorial.ts', import.meta.url), 'utf8');
 const i18n = readFileSync(new URL('../utils/ui-i18n.ts', import.meta.url), 'utf8');
 const background = readFileSync(new URL('../entrypoints/background.ts', import.meta.url), 'utf8');
+const gamePage = readFileSync(new URL('../utils/game-page.ts', import.meta.url), 'utf8');
 const css = panelHtml.slice(panelHtml.indexOf('<style>') + 7, panelHtml.indexOf('</style>'));
 const combinedFn = panelMain.slice(
     panelMain.indexOf('function renderCombinedFleets'),
@@ -42,8 +43,11 @@ describe('編成版面', () => {
     it('正式面板內容區固定 370px 寬、850px 高，資訊區仍固定 270px', () => {
         expect(css).toMatch(/#tabpanel\s*\{[^}]*height:\s*270px/);
         expect(css).not.toMatch(/#tabpanel\s*\{[^}]*max-height:\s*270px/);
-        expect(background).toMatch(/type:\s*'popup',\s*width:\s*370,\s*height:\s*850/);
-        expect(panelMain).toContain('PANEL_INNER_WIDTH = 370');
+        // 尺寸只定義在 utils/game-page.ts；開窗與補寬都必須引用同一組常數。
+        expect(gamePage).toContain('PANEL_INNER_WIDTH = 370');
+        expect(gamePage).toContain('PANEL_WINDOW_HEIGHT = 850');
+        expect(background).toMatch(/type:\s*'popup',\s*width:\s*PANEL_INNER_WIDTH,\s*height:\s*PANEL_WINDOW_HEIGHT/);
+        expect(panelMain).toMatch(/import \{[^}]*PANEL_INNER_WIDTH[^}]*\} from '@\/utils\/game-page'/);
         expect(panelMain).toContain('function fitPanelInnerWidth');
         expect(panelMain).not.toMatch(/fetch\(['"]http:\/\/127\.0\.0\.1:7295\/ingest/);
     });
