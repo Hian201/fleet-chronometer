@@ -1,6 +1,6 @@
 # fleet-chronometer 開發指引
 
-本檔是 Claude Code、Codex 等 coding agent 共用的唯一專案指引；不另維護 CLAUDE.md，避免兩份規則分歧。
+本檔是 Claude Code、Codex 等 coding agent 共用的專案指引；不另維護 CLAUDE.md，避免兩份規則分歧。[`.agents/rules/ponytail.md`](.agents/rules/ponytail.md) 是從屬於本檔的輔助規則，只管改動該寫多少程式碼；兩者不一致時以本檔為準。
 
 艦これ（KanColle）用 MV3 被動監控擴充：觀察 `kcsapi` 封包，在面板與「鎮守府情報總括」顯示艦隊、遠征、入渠、基地航空隊、關卡、戰鬥與歷史資料。技術棧為 WXT、TypeScript、Dexie（IndexedDB），純前端、無後端。
 
@@ -18,6 +18,7 @@
 
 - 回應使用者一律用繁體中文（台灣用語）；程式碼註解用繁體中文。
 - 只做當前任務需要的改動；保留既有架構、命名與工具鏈，不做無關的整理或重構，也不因個人偏好改寫既有實作。
+- 寫或改程式碼前先讀 [`.agents/rules/ponytail.md`](.agents/rules/ponytail.md)，依它的階梯選最小而完整的做法：先問需不需要存在、專案裡有沒有現成的，最後才寫新程式碼。
 - 註解、專案文件與變更說明（commit、PR）只寫目前行為，以及從程式碼看不出的理由、約束或風險。不保留除錯歷程、未合入方案或舊實作；規則寫成「現行規則＋理由」，不敘述演變經過。
 
 ## 硬約束

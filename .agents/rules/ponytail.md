@@ -1,120 +1,91 @@
 ---
 name: ponytail
 description: >
-  Forces the laziest solution that actually works, simplest, shortest, most
-  minimal. Channels a senior dev who has seen everything: question whether the
-  task needs to exist at all (YAGNI), reach for the standard library before
-  custom code, native platform features before dependencies, one line before
-  fifty. Supports intensity levels: lite, full (default), ultra. Use on ANY
-  coding task: writing, adding, refactoring, fixing, reviewing, or designing
-  code, and choosing libraries or dependencies. Also use whenever the user
-  says "ponytail", "be lazy", "lazy mode", "simplest solution", "minimal
-  solution", "yagni", "do less", or "shortest path", or complains about
-  over-engineering, bloat, boilerplate, or unnecessary dependencies. Do NOT
-  use for non-coding requests (general knowledge, prose, translation,
-  summaries, recipes).
-argument-hint: "[lite|full|ultra]"
+  寫或改程式碼時的取捨階梯：用最少的新程式碼把整件事做完。本專案的輔助規則，
+  從屬於 AGENTS.md；兩者不一致時以 AGENTS.md 為準。
 license: MIT
 ---
 
-# Ponytail
+# Ponytail：最小而完整的改動
 
-You are a lazy senior developer. Lazy means efficient, not careless. You have
-seen every over-engineered codebase and been paged at 3am for one. The best
-code is the code never written.
+本檔是 `AGENTS.md` 的輔助規則，只管「這次改動要寫多少程式碼」。硬約束、Live 遊戲安全、驗證方式、
+回報格式、語言與註解規範一律依 `AGENTS.md`；本檔任何一句與它不一致時，以 `AGENTS.md` 為準。
 
-## Persistence
+原則：最好的程式碼是不必寫的程式碼。偷懶的對象是解法，不是理解問題，也不是把事情做完。
 
-ACTIVE EVERY RESPONSE. No drift back to over-building. Still active if
-unsure. Off only: "stop ponytail" / "normal mode". Default: **full**.
-Switch: `/ponytail lite|full|ultra`.
+## 動手之前
 
-## The ladder
+先讀任務與它會碰到的程式碼，列出這次改動必須到達的每個地方。本專案容易漏掉的：
 
-Stop at the first rung that holds:
+- 呼叫端、型別匯出，以及 `tests/` 裡直接比對原始碼或文件字串的測試。
+- zh-TW、en、ja 三語文案（`utils/ui-i18n.ts`）與 `tools/preview/` 的離線預覽。
+- `docs/engineering/` 對應主題檔、`THIRD-PARTY-NOTICES.md`、`docs/structure.html` 的版本錨點。
+- 資料格式變更時的相容處理或遷移（備份、IndexedDB、匯入）。
 
-1. **Does this need to exist at all?** Speculative need = skip it, say so in one line. (YAGNI)
-2. **Already in this codebase?** A helper, util, type, or pattern that already lives here → reuse it. Look before you write; re-implementing what's a few files over is the most common slop.
-3. **Stdlib does it?** Use it.
-4. **Native platform feature covers it?** `<input type="date">` over a picker lib, CSS over JS, DB constraint over app code.
-5. **Already-installed dependency solves it?** Use it. Never add a new one for what a few lines can do.
-6. **Can it be one line?** One line.
-7. **Only then:** the minimum code that works.
+再確認改動會不會破壞使用者的東西：會遺失或外洩的資料、會停止運作的呼叫端。以上是範圍；
+沒人要求的額外功能不是。
 
-The ladder is a reflex, not a research project — but it runs *after* you
-understand the problem, not instead of it. Read the task and the code it
-touches first, trace the real flow end to end, then climb. Two rungs work →
-take the higher one and move on. The first lazy solution that works is the
-right one — once you actually know what the change has to touch.
+## 階梯
 
-**Bug fix = root cause, not symptom.** A report names a symptom. Before you
-edit, grep every caller of the function you're about to touch. The lazy fix IS
-the root-cause fix: one guard in the shared function is a smaller diff than a
-guard in every caller — and patching only the path the ticket names leaves
-every sibling caller still broken. Fix it once, where all callers route through.
+由上往下，取第一個能完整解決問題的：
 
-## Rules
+1. **需要存在嗎？** 沒人要求的功能、選項與彈性不做，用一行說明略過了什麼。需求模糊時先做能完成
+   核心工作的最小版本。
+2. **專案裡已經有了嗎？** 有就照周圍程式碼的用法重用。常見的：`utils/date-format.ts`、
+   `utils/html-escape.ts`、`utils/csv.ts`、`utils/stype-label.ts`、`entrypoints/overview/lib.ts`
+   的偏好讀寫與格式化函式。
+3. **標準函式庫或平台原生功能做得到嗎？** 用它，除非專案已有自己的做法。專案的共用元件優先於
+   原生元件；專案沒有時才用原生的，例如折疊用 `<details>`。
+4. **已安裝的相依套件做得到嗎？** 用它。不為幾行程式碼新增相依套件，也不為省事新增 manifest 權限。
+5. **能寫成一眼看懂的一行嗎？** 就寫一行。需要解讀的一行不算短。
+6. **以上都不行**：寫能運作的最少程式碼。
 
-- No unrequested abstractions: no interface with one implementation, no factory for one product, no config for a value that never changes.
-- No boilerplate, no scaffolding "for later", later can scaffold for itself.
-- Deletion over addition. Boring over clever, clever is what someone decodes at 3am.
-- Fewest files possible. Shortest working diff wins — but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
-- Complex request? Ship the lazy version and question it in the same response, "Did X; Y covers it. Need full X? Say so." Never stall on an answer you can default.
-- Two stdlib options, same size? Take the one that's correct on edge cases. Lazy means writing less code, not picking the flimsier algorithm.
-- Mark deliberate simplifications that cut a real corner with a known ceiling (global lock, O(n²) scan, naive heuristic) with a `ponytail:` comment naming the ceiling and upgrade path (`# ponytail: global lock, per-account locks if throughput matters`).
+## 規則
 
-## Output
+- 對解法偷懶，對改動本身不偷懶：任務需要的每個部分都要做完，包含被這次改動弄壞的呼叫端與測試。
+- 不加沒人要求的抽象層、包裝、型別轉換、選項、設定、樣板或「以後會用到」的程式碼。保留既有的
+  分層、介面與命名。
+- 能刪就不要加，但只刪這次任務範圍內的東西。使用者資料、歷史紀錄、備份相容處理與遷移不在可刪之列。
+- 知道改動必須碰到哪些地方之後，最短且能運作的 diff 最好。
+- 修 bug 先 grep 被改函式的所有呼叫端，在共用處把根因修一次，不在每個呼叫端各補一個判斷。
+- 搬移或合併的程式碼保留原有的錯誤處理與驗證。同名但行為不同的函式不合併。
+- 兩個做法大小相同時，選邊界情況正確的那個。
+- 新的非瑣碎邏輯（分支、迴圈、解析器、資料格式或安全相關路徑）要留一個 Vitest 測試；瑣碎改動不必。
+- 有已知上限的捷徑，留一行繁體中文註解：`// 捷徑：<上限>；<何時該升級>`。
 
-Code first. Then at most three short lines: what was skipped, when to add it.
-No essays, no feature tours, no design notes. If the explanation is longer
-than the code, delete the explanation, every paragraph defending a
-simplification is complexity smuggled back in as prose. Explanation the user
-explicitly asked for (a report, a walkthrough, per-phase notes) is not debt,
-give it in full, the rule is only against unrequested prose.
+## 不可省略
 
-Pattern: `[code] → skipped: [X], add when [Y].`
+`AGENTS.md` 的全部硬約束與「不可破壞的目前契約」、信任邊界的輸入驗證、防止資料遺失的錯誤處理、
+安全措施、無障礙基本要求、三語排版核對，以及使用者明確要求的任何東西。使用者堅持要完整版本時
+直接做，不再爭論。
 
-## Intensity
+## 回報
 
-| Level | What change |
-|-------|------------|
-| **lite** | Build what's asked, but name the lazier alternative in one line. User picks. |
-| **full** | The ladder enforced. Stdlib and native first. Shortest diff, shortest explanation. Default. |
-| **ultra** | YAGNI extremist. Deletion before addition. Ship the one-liner and challenge the rest of the requirement in the same breath. |
+依 `AGENTS.md`「完成前回報」的格式，另外用一兩行寫出：略過了什麼、什麼沒檢查，以及使用者必須
+知道的風險。
 
-Example: "Add a cache for these API responses."
-- lite: "Done, cache added. FYI: `functools.lru_cache` covers this in one line if you'd rather not own a cache class."
-- full: "`@lru_cache(maxsize=1000)` on the fetch function. Skipped custom cache class, add when lru_cache measurably falls short."
-- ultra: "No cache until a profiler says so. When it does: `@lru_cache`. A hand-rolled TTL cache class is a bug farm with a hit rate."
+<!--
+改寫自 ponytail（https://github.com/dietrichgebert/ponytail），依本專案規則調整並譯為台灣華語。
 
-## When NOT to be lazy
+MIT License
 
-Never simplify away: input validation at trust boundaries, error handling
-that prevents data loss, security measures, accessibility basics, anything
-explicitly requested. User insists on the full version → build it, no
-re-arguing.
+Copyright (c) 2026 DietrichGebert
 
-Never lazy about understanding the problem. The ladder shortens the
-solution, never the reading. Trace the whole thing first — every file the
-change touches, the actual flow — before picking a rung. Laziness that skips
-comprehension to ship a small diff is the dangerous kind: it dresses up as
-efficiency and ships a confident wrong fix. Read fully, then be lazy.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Hardware is never the ideal on paper: a real clock drifts, a real sensor
-reads off, a PCA9685 runs a few percent fast. Leave the calibration knob, not
-just less code, the physical world needs tuning a minimal model can't see.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Lazy code without its check is unfinished. Non-trivial logic (a branch, a
-loop, a parser, a money/security path) leaves ONE runnable check behind, the
-smallest thing that fails if the logic breaks: an `assert`-based
-`demo()`/`__main__` self-check or one small `test_*.py`. No frameworks, no
-fixtures, no per-function suites unless asked. Trivial one-liners need no
-test, YAGNI applies to tests too.
-
-## Boundaries
-
-Ponytail governs what you build, not how you talk (pair with Caveman for
-terse prose). "stop ponytail" / "normal mode": revert. Level persists until
-changed or session end.
-
-The shortest path to done is the right path.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
