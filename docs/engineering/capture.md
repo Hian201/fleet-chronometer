@@ -152,6 +152,6 @@ kcsapi 請求，與 axios 觀察器收到的 path 逐筆配對；過了 5 秒寬
 background（只存記憶體；SW 回收後 bridge 重連時重送最新一筆，background 啟動 2 秒後再
 廣播一次校正），面板以 `#notice.err` 顯示，優先序低於載入中、積壓與 fatal。
 
-**手動擷取（僅開發建置）**：遊戲分頁 DevTools Console 對 `[KC-Monitor] 戰鬥/結算封包` 物件右鍵
+**手動擷取（僅開發建置）**：遊戲分頁 DevTools Console 對 `[Fleet Chronometer] 戰鬥/結算封包` 物件右鍵
 Copy object，或切 frame 後 `copy(__kcLastBattle)`。正式建置不印封包，一律用 Network 篩選。
 拿到樣本先存 `samples/`，再寫 Vitest 驗證。

@@ -26,7 +26,7 @@ function bind(id: string, fn: () => Promise<unknown>) {
         try {
             await fn();
         } catch (e) {
-            console.warn(`[KC-Monitor] popup 動作失敗：${id}`, e);
+            console.warn(`[Fleet Chronometer] popup 動作失敗：${id}`, e);
             status(t('popup.actionFailed'));
             return;
         }
@@ -236,19 +236,19 @@ document.getElementById('screenshot')!.addEventListener('click', async () => {
     const capture = await browser.runtime.sendMessage({ type: MSG_CAPTURE_TAB, windowId: tab.windowId })
         .catch((e): CaptureTabReply => ({ error: String(e) })) as CaptureTabReply | undefined;
     if (!capture) {
-        console.warn('[KC-Monitor] 拍照失敗：background 沒有回覆');
+        console.warn('[Fleet Chronometer] 拍照失敗：background 沒有回覆');
         status(t('screenshot.noReply'));
         return;
     }
     if (!('dataUrl' in capture)) {
-        console.warn('[KC-Monitor] 拍照失敗', capture.error);
+        console.warn('[Fleet Chronometer] 拍照失敗', capture.error);
         status(t('screenshot.failed'));
         return;
     }
     try {
         await downloadCroppedScreenshot(capture.dataUrl, reply.rect, reply.dpr);
     } catch (e) {
-        console.warn('[KC-Monitor] 拍照裁切失敗', e);
+        console.warn('[Fleet Chronometer] 拍照裁切失敗', e);
         status(t('screenshot.failed'));
         return;
     }

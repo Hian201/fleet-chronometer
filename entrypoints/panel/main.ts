@@ -1566,7 +1566,7 @@ function downloadJson(filename: string, data: unknown) {
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
-        console.warn('[KC-Monitor] 自動存檔失敗', filename, e);
+        console.warn('[Fleet Chronometer] 自動存檔失敗', filename, e);
     }
 }
 /** 檔名不可用字元（含路徑分隔符）一律換成底線，中日文與其餘符號原樣保留。 */
@@ -1579,7 +1579,7 @@ async function captureWanted(eventId: number, tag: string, ts: number, path: str
         ]);
         if (total >= WANTED_TOTAL_LIMIT || sameTag >= WANTED_TAG_LIMIT) {
             wantedSkipped = true;
-            console.warn('[KC-Monitor] 待驗證封包已達上限，未擷取', tag, path);
+            console.warn('[Fleet Chronometer] 待驗證封包已達上限，未擷取', tag, path);
         } else {
             await db.wanted.add({ eventId, tag, ts, path });
             // 落地即自動存檔，不必再靠清單裡的「複製 JSON」手動取用——這是唯一取得完整
@@ -1592,7 +1592,7 @@ async function captureWanted(eventId: number, tag: string, ts: number, path: str
         }
     } catch (e) {
         // 擷取樣本失敗不能連累事件消費（那會讓 pump 停掉）：只記錄，不往外拋。
-        console.warn('[KC-Monitor] 待驗證封包擷取失敗', e);
+        console.warn('[Fleet Chronometer] 待驗證封包擷取失敗', e);
     }
     await renderWanted().catch(() => { });
 }
@@ -1631,14 +1631,14 @@ wantedEl.addEventListener('click', async e => {
     if (del) {
         // 刪除待驗證紀錄＝解除它對那筆 raw event 的保護，之後的裁剪就能把封包收走（本意如此）。
         await db.wanted.delete(Number(del.dataset.del)).catch(err =>
-            console.warn('[KC-Monitor] 待驗證封包刪除失敗', err));
+            console.warn('[Fleet Chronometer] 待驗證封包刪除失敗', err));
         wantedSkipped = false;
         await renderWanted().catch(() => { });
         return;
     }
     if (target.closest('button[data-clear]')) {
         if (!confirm(t('wanted.clearConfirm'))) return;
-        await db.wanted.clear().catch(err => console.warn('[KC-Monitor] 待驗證封包清除失敗', err));
+        await db.wanted.clear().catch(err => console.warn('[Fleet Chronometer] 待驗證封包清除失敗', err));
         wantedSkipped = false;
         await renderWanted().catch(() => { });
         return;
@@ -1655,7 +1655,7 @@ wantedEl.addEventListener('click', async e => {
     try {
         await navigator.clipboard.writeText(JSON.stringify({ req: row.req ?? {}, api: row.api }, null, 2));
     } catch (err) {
-        console.warn('[KC-Monitor] 待驗證封包複製失敗', err);
+        console.warn('[Fleet Chronometer] 待驗證封包複製失敗', err);
         flashButton(btn, t('wanted.copyFailed'), false);
         return;
     }
@@ -1735,7 +1735,7 @@ timingEl.addEventListener('click', async e => {
     try {
         await navigator.clipboard.writeText(report);
     } catch (err) {
-        console.warn('[KC-Monitor] 量測結果複製失敗', err);
+        console.warn('[Fleet Chronometer] 量測結果複製失敗', err);
         flashButton(btn, t('wanted.copyFailed'), false);
         return;
     }
@@ -1882,7 +1882,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         const t3 = performance.now();
         finishTiming(id, path);
         if (t3 - t0 > 15) {
-            console.log(`[KC-Monitor][perf] ${path} state ${(t1 - t0).toFixed(1)}ms, renderAll ${(t3 - t2).toFixed(1)}ms`);
+            console.log(`[Fleet Chronometer][perf] ${path} state ${(t1 - t0).toFixed(1)}ms, renderAll ${(t3 - t2).toFixed(1)}ms`);
         }
     } else {
         replayLogBuffer.push({ ts, path });
@@ -1959,7 +1959,7 @@ function scheduleReadRetry() {
 function stopAfterProjectionFailure(error: unknown) {
     projectionFailed = true;
     // 不在同一份已部分變更的 GameState 上繼續；raw event 仍在 db.events，重開 panel 可重建。
-    console.error('[KC-Monitor] derived event projection failed; panel pump stopped', error);
+    console.error('[Fleet Chronometer] derived event projection failed; panel pump stopped', error);
     setNotice('fatal', t('panel.stopped', { reason: describeError(error) }), t('panel.stoppedHint'));
 }
 async function pump() {
@@ -1981,7 +1981,7 @@ async function pump() {
             } catch (error) {
                 // 暫時性讀取失敗：事件留在佇列裡等下一輪，**不可** latch 成永久停止——
                 // 那會讓面板從此不再更新，而原因只是一次讀取抖動。
-                console.warn('[KC-Monitor] 讀取事件失敗，稍後重試', id, error);
+                console.warn('[Fleet Chronometer] 讀取事件失敗，稍後重試', id, error);
                 setNotice('backlog', t('panel.queueBacklog', { n: pending.length }));
                 scheduleReadRetry();
                 return;
@@ -2104,7 +2104,7 @@ async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number, ga
     const recoveredBaseHp = exactBaseHp ?? legacyBaseHp;
     if (recoveredBaseHp != null) state.observeMapBossHp(mapArea, mapNo, recoveredBaseHp, gaugeNum);
     const after = state.mapBossHp.get(mapId);
-    console.log(`[KC-Monitor] bossHp ${map}: 重播=${scanned} Boss紀錄=${bossRows.length} `
+    console.log(`[Fleet Chronometer] bossHp ${map}: 重播=${scanned} Boss紀錄=${bossRows.length} `
         + `記憶體=${before ?? '無'}→${after ?? '無'}`);
     return after !== before;
 }
@@ -2133,7 +2133,7 @@ async function restoreGaugeBossHp(): Promise<boolean> {
                 if (await restoreMapBossHp(mapArea, mapNo, gauge.selectedRank, gaugeNum)) changed = true;
             } catch (e) {
                 bossHpScanned.delete(key);   // 失敗不算掃過，下次 mapinfo 再試
-                console.warn('[KC-Monitor] Boss HP 恢復失敗', key, e);
+                console.warn('[Fleet Chronometer] Boss HP 恢復失敗', key, e);
             }
         }
     }
@@ -2176,7 +2176,7 @@ async function restoreGaugeBossHp(): Promise<boolean> {
         // 啟動重播失敗：pump 同樣不能在這份半成品 state 上繼續（理由見
         // stopAfterProjectionFailure），但訊息要講「啟動失敗」而不是「已停止接收」。
         projectionFailed = true;
-        console.error('[KC-Monitor] panel startup failed', error);
+        console.error('[Fleet Chronometer] panel startup failed', error);
         setNotice('fatal', t('panel.loadFailed', { reason: describeError(error) }), t('panel.stoppedHint'));
     }
 })();

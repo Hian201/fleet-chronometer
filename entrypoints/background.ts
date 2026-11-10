@@ -96,7 +96,7 @@ async function scheduleOrNotify(name: string, completeAt: number, notificationId
 // ingestEvent() 失敗時的回覆內容：sender 只需要知道「這筆結束了」，錯誤本身留在 SW console。
 // 回覆只表示處理已結束；錯誤留在 SW console，避免將 rejected promise 交給訊息通道。
 function reportIngestFailure(error: unknown): undefined {
-  console.error('[KC-Monitor] ingestEvent 失敗', error);
+  console.error('[Fleet Chronometer] ingestEvent 失敗', error);
   return undefined;
 }
 
@@ -271,7 +271,7 @@ export default defineBackground(() => {
       try {
         api = parseKcsapiResponse(msg.apiText);
       } catch {
-        console.warn('[KC-Monitor] 無法解析 kcsapi response，略過此筆事件', msg.path);
+        console.warn('[Fleet Chronometer] 無法解析 kcsapi response，略過此筆事件', msg.path);
         return;
       }
     }
@@ -376,7 +376,7 @@ async function popInGameTab(
         return { restored: 'origin' };
       }
     } catch (e) {
-      console.warn('[KC-Monitor] 無法移回原視窗，改開新的一般視窗', e);
+      console.warn('[Fleet Chronometer] 無法移回原視窗，改開新的一般視窗', e);
     }
   }
   await browser.windows.create({ tabId: tab.id, type: 'normal', focused: true });
@@ -392,7 +392,7 @@ async function readGamePagePrefs(): Promise<{ muted: boolean; lang?: string }> {
     const row = await db.meta.get('game-page') as GamePageMetaRow | undefined;
     return { muted: !!row?.muted, lang: row?.lang };
   } catch (e) {
-    console.warn('[KC-Monitor] 讀取遊戲頁偏好失敗', e);
+    console.warn('[Fleet Chronometer] 讀取遊戲頁偏好失敗', e);
     return { muted: false };
   }
 }
@@ -407,7 +407,7 @@ async function writeGamePagePrefs(patch: { muted?: boolean; lang?: string }): Pr
       updatedAt: Date.now(),
     } satisfies GamePageMetaRow);
   } catch (e) {
-    console.warn('[KC-Monitor] 寫入遊戲頁偏好失敗', e);
+    console.warn('[Fleet Chronometer] 寫入遊戲頁偏好失敗', e);
   }
 }
 
@@ -514,9 +514,9 @@ async function pruneEvents(currentStart2Id: number) {
     const cutoff = prev.id;   // 刪除 cutoff 之前的事件（保留上一世代＋本世代）
     const result = await pruneRawEventsBefore(db, cutoff);
     if (result.removed > 0)
-      console.log(`[KC-Monitor] 事件裁剪：刪除 ${result.removed} 筆（保留基石/待驗證＋近兩個登入世代）`);
+      console.log(`[Fleet Chronometer] 事件裁剪：刪除 ${result.removed} 筆（保留基石/待驗證＋近兩個登入世代）`);
   } catch (e) {
-    console.error('[KC-Monitor] pruneEvents 失敗', e);
+    console.error('[Fleet Chronometer] pruneEvents 失敗', e);
     throw e;
   }
 }
@@ -534,9 +534,9 @@ async function pruneIfOversized() {
     const cutoff = cutoffRow.id;
     const result = await pruneRawEventsBefore(db, cutoff);
     if (result.removed > 0)
-      console.log(`[KC-Monitor] 超長 session 保險裁剪：events 達 ${total} 筆，刪除 ${result.removed} 筆`);
+      console.log(`[Fleet Chronometer] 超長 session 保險裁剪：events 達 ${total} 筆，刪除 ${result.removed} 筆`);
   } catch (e) {
-    console.error('[KC-Monitor] pruneIfOversized 失敗', e);
+    console.error('[Fleet Chronometer] pruneIfOversized 失敗', e);
     throw e;
   }
 }

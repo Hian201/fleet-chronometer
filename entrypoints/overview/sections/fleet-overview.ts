@@ -452,7 +452,7 @@ export const fleetOverviewSection: OverviewSection = {
                 error.hidden = false;
                 error.textContent = t('ov.fleetCodesInvalid');
                 copy.disabled = true;
-                console.warn('[KC-Monitor] 艦隊代碼整理失敗', cause);
+                console.warn('[Fleet Chronometer] 艦隊代碼整理失敗', cause);
             }
         }
 
@@ -470,7 +470,7 @@ export const fleetOverviewSection: OverviewSection = {
                 error.hidden = false;
                 error.textContent = t('ov.fleetCodesInvalid');
                 copy.disabled = true;
-                console.warn('[KC-Monitor] 所持裝備代碼整理失敗', cause);
+                console.warn('[Fleet Chronometer] 所持裝備代碼整理失敗', cause);
             }
         }
 

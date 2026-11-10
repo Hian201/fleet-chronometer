@@ -176,7 +176,7 @@ describe('出擊途中的艦載機戰損（估算）', () => {
         fightNode(state, airBattle(99));
         expect(state.fleets()[0].ships[0].gears[0]!.count).toBe(0);
         expect(warning).toHaveBeenCalledWith(
-            '[KC-Monitor] 艦載機損失超過可辨識的參戰搭載數', { total: 99, pool: 3 },
+            '[Fleet Chronometer] 艦載機損失超過可辨識的參戰搭載數', { total: 99, pool: 3 },
         );
         warning.mockRestore();
     });
@@ -188,7 +188,7 @@ describe('出擊途中的艦載機戰損（估算）', () => {
         fightNode(state, airBattle(4));
         expect(state.fleets()[0].ships[0].gears[0]!.count).toBe(18);
         expect(warning).toHaveBeenCalledWith(
-            '[KC-Monitor] 找不到可分攤艦載機損失的參戰搭載格', { total: 4, pool: 0 },
+            '[Fleet Chronometer] 找不到可分攤艦載機損失的參戰搭載格', { total: 4, pool: 0 },
         );
         warning.mockRestore();
     });

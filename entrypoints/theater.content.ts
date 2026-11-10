@@ -382,7 +382,7 @@ export default defineContentScript({
                     outer: { width: window.outerWidth, height: window.outerHeight },
                 }).catch((e): PopoutOpenReply => ({ error: String(e) })) as PopoutOpenReply | undefined;
                 if (!reply || !('origin' in reply)) {
-                    console.warn('[KC-Monitor] 獨立視窗開啟失敗', reply);
+                    console.warn('[Fleet Chronometer] 獨立視窗開啟失敗', reply);
                     ui.flash(t('theater.popoutFailed'));
                     return;
                 }
@@ -404,7 +404,7 @@ export default defineContentScript({
                 const reply = await browser.runtime.sendMessage({ type: MSG_POPOUT_CLOSE, origin: popout.origin })
                     .catch((e): PopoutCloseReply => ({ error: String(e) })) as PopoutCloseReply | undefined;
                 if (!reply || !('restored' in reply)) {
-                    console.warn('[KC-Monitor] 回到原視窗失敗', reply);
+                    console.warn('[Fleet Chronometer] 回到原視窗失敗', reply);
                     ui.flash(t('theater.popInFailed'));
                     return;
                 }
@@ -510,12 +510,12 @@ export default defineContentScript({
             const capture = await browser.runtime.sendMessage({ type: MSG_CAPTURE_TAB })
                 .catch((e): CaptureTabReply => ({ error: String(e) })) as CaptureTabReply | undefined;
             if (!capture) {
-                console.warn('[KC-Monitor] 拍照失敗：background 沒有回覆');
+                console.warn('[Fleet Chronometer] 拍照失敗：background 沒有回覆');
                 ui.flash(t('screenshot.noReply'));
                 return;
             }
             if (!('dataUrl' in capture)) {
-                console.warn('[KC-Monitor] 拍照失敗', capture.error);
+                console.warn('[Fleet Chronometer] 拍照失敗', capture.error);
                 ui.flash(t('screenshot.failed'));
                 return;
             }
@@ -523,7 +523,7 @@ export default defineContentScript({
                 await downloadCroppedScreenshot(capture.dataUrl, rect, dpr);
                 ui.flash(t('screenshot.done'));
             } catch (e) {
-                console.warn('[KC-Monitor] 拍照裁切失敗', e);
+                console.warn('[Fleet Chronometer] 拍照裁切失敗', e);
                 ui.flash(t('screenshot.failed'));
             }
         };

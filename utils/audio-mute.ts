@@ -75,7 +75,7 @@ export function installAudioMute(host: AudioMuteHost, initialMuted = false): Aud
         try {
             gain.gain.value = muted ? 0 : 1;
         } catch (error) {
-            console.warn('[KC-Monitor] 無法套用靜音增益', error);
+            console.warn('[Fleet Chronometer] 無法套用靜音增益', error);
         }
     };
 
@@ -100,7 +100,7 @@ export function installAudioMute(host: AudioMuteHost, initialMuted = false): Aud
             applyGain(gain);
         } catch (error) {
             // 接管失敗就維持原樣：遊戲照常有聲音，只是靜音鈕對 WebAudio 無效。
-            console.warn('[KC-Monitor] 無法接管 AudioContext，靜音將只涵蓋 media 元素', error);
+            console.warn('[Fleet Chronometer] 無法接管 AudioContext，靜音將只涵蓋 media 元素', error);
         }
     };
 
@@ -127,7 +127,7 @@ export function installAudioMute(host: AudioMuteHost, initialMuted = false): Aud
                 }
                 host[key] = Wrapped;
             } catch (error) {
-                console.warn('[KC-Monitor] 無法包裝 AudioContext 建構子', error);
+                console.warn('[Fleet Chronometer] 無法包裝 AudioContext 建構子', error);
             }
         }
     }
@@ -151,7 +151,7 @@ export function installAudioMute(host: AudioMuteHost, initialMuted = false): Aud
                 forcedMedia.delete(node);
             }
         } catch (error) {
-            console.warn('[KC-Monitor] 無法設定 media 元素靜音', error);
+            console.warn('[Fleet Chronometer] 無法設定 media 元素靜音', error);
         }
     };
     const muteMediaElements = () => {
@@ -194,7 +194,7 @@ export function installAudioMute(host: AudioMuteHost, initialMuted = false): Aud
                     },
                 });
             } catch (error) {
-                console.warn('[KC-Monitor] 無法保護 media 靜音狀態', error);
+                console.warn('[Fleet Chronometer] 無法保護 media 靜音狀態', error);
             }
         }
     }
@@ -217,7 +217,7 @@ export function installAudioMute(host: AudioMuteHost, initialMuted = false): Aud
                 subtree: true,
             });
         } catch (error) {
-            console.warn('[KC-Monitor] 無法監看新建 media 元素', error);
+            console.warn('[Fleet Chronometer] 無法監看新建 media 元素', error);
         }
     }
 

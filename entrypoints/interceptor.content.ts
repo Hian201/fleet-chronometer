@@ -16,7 +16,7 @@ export default defineContentScript({
         // 直接寫建置旗標（不經函式）：正式建置在編譯期折成 false，除錯程式碼整段不進產物。
         // 這裡的 localStorage 屬於遊戲網域，不能用 utils/debug-ui.ts 的 kc-debug-ui 開關。
         const dev = import.meta.env.COMMAND === 'serve';
-        if (dev) console.log('[KC-Monitor] interceptor 已注入:', location.href);
+        if (dev) console.log('[Fleet Chronometer] interceptor 已注入:', location.href);
 
         // 靜音 hook：**必須在遊戲建立音訊圖之前安裝**，故掛在這個 document_start 的 MAIN
         // world 注入點。實際開關狀態由 background 持有，經 bridge（ISOLATED）的私有通道
@@ -45,10 +45,10 @@ export default defineContentScript({
             endpoint,
             (message) => {
                 audio.setMuted(message.muted);
-                if (dev) console.log('[KC-Monitor] 靜音', message.muted ? 'ON' : 'OFF',
+                if (dev) console.log('[Fleet Chronometer] 靜音', message.muted ? 'ON' : 'OFF',
                     '（已接管的 AudioContext：' + audio.contextCount() + '）');
             },
-            (dropped) => console.warn('[KC-Monitor] 擷取通道尚未建立，已丟棄最舊的封包', dropped),
+            (dropped) => console.warn('[Fleet Chronometer] 擷取通道尚未建立，已丟棄最舊的封包', dropped),
         );
 
         // 擷取健康度（utils/capture-health.ts）：以 resource timing 看遊戲實際完成的 kcsapi
@@ -59,7 +59,7 @@ export default defineContentScript({
             schedule: (callback, delayMs) => { setTimeout(callback, delayMs); },
             onChange: (next) => {
                 channel.sendHealth(next);
-                if (dev) console.log('[KC-Monitor] 擷取健康度', next);
+                if (dev) console.log('[Fleet Chronometer] 擷取健康度', next);
             },
         });
         try {
@@ -86,10 +86,10 @@ export default defineContentScript({
                     const api = parseKcsapiResponse(text);
                     if (path.endsWith('result')) {
                         (window as any).__kcLastResult = api;
-                        console.log('[KC-Monitor] 結算封包 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
+                        console.log('[Fleet Chronometer] 結算封包 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
                     } else {
                         (window as any).__kcLastBattle = api;
-                        console.log('[KC-Monitor] 戰鬥封包 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
+                        console.log('[Fleet Chronometer] 戰鬥封包 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
                     }
                 }
                 // 傳原始文字而非解析後的巢狀物件：structured clone 只需處理字串，不會在遊戲
@@ -143,7 +143,7 @@ export default defineContentScript({
             {
                 // 所有 path 一律套用輸入後的安靜期，無須猜測特定端點的資料形狀。
                 nextEligibleDelayMs: () => Math.max(0, INPUT_QUIET_MS - (performance.now() - lastUserInputAt)),
-                onError: (path, error) => console.warn('[KC-Monitor] 延後讀取封包失敗，略過此筆', path, error),
+                onError: (path, error) => console.warn('[Fleet Chronometer] 延後讀取封包失敗，略過此筆', path, error),
                 now: wallNow,
                 immediateMaxChars: IMMEDIATE_MAX_CHARS,
             },
@@ -163,9 +163,9 @@ export default defineContentScript({
                         health.noteCapture(path);
                         captureQueue.enqueue(path, reqBody, readText, sizeHint);
                     },
-                    (path, error) => console.warn('[KC-Monitor] axios 擷取失敗，略過此筆', path, error),
+                    (path, error) => console.warn('[Fleet Chronometer] axios 擷取失敗，略過此筆', path, error),
                 );
-                if (dev) console.log('[KC-Monitor] 已掛上 axios 觀察');
+                if (dev) console.log('[Fleet Chronometer] 已掛上 axios 觀察');
             },
             (callback, delayMs) => { setTimeout(callback, delayMs); },
         );

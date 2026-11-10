@@ -87,7 +87,7 @@ export default defineContentScript({
                     send: (runtimeMessage) => browser.runtime.sendMessage(runtimeMessage),
                     retryDelay: () => new Promise(resolve => setTimeout(resolve, 300)),
                 }).catch((e) => {
-                    console.warn('[KC-Monitor] 送出封包重試後仍失敗，此筆遺失', e);
+                    console.warn('[Fleet Chronometer] 送出封包重試後仍失敗，此筆遺失', e);
                 });
             },
             () => new MessageChannel() as unknown as ChannelLike,
@@ -114,7 +114,7 @@ export default defineContentScript({
                 });
             } catch (e) {
                 // 連線失敗只代表靜音鈕對這個分頁無效，封包擷取完全不受影響。
-                console.warn('[KC-Monitor] 靜音狀態通道連線失敗', e);
+                console.warn('[Fleet Chronometer] 靜音狀態通道連線失敗', e);
             }
         };
         connectMutePort();
@@ -172,7 +172,7 @@ export default defineContentScript({
                 });
                 reportHealth();
             } catch (e) {
-                console.warn('[KC-Monitor] 編成寫真通道連線失敗', e);
+                console.warn('[Fleet Chronometer] 編成寫真通道連線失敗', e);
             }
         };
         connectGameFramePort();
