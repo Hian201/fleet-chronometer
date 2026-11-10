@@ -15,7 +15,7 @@ import { CaptureHealthRegistry, MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET } fro
 import { BackgroundIngestionLifecycle } from '@/utils/background-ingestion-lifecycle';
 import { createEventNotificationId } from '@/utils/event-notification';
 import { pruneRawEventsBefore } from '@/utils/event-pruning';
-import { parseKcsapiResponse } from '@/utils/kcsapi';
+import { parseKcsapiResponse, SENSITIVE_REQUEST_KEYS } from '@/utils/kcsapi';
 import { captureResources } from '@/utils/resource-capture';
 import { captureQuestObserved } from '@/utils/quest-observed';
 import { captureQuestSeen } from '@/utils/quest-seen';
@@ -286,8 +286,7 @@ export default defineBackground(() => {
     // 不管 req 從哪個 provider、以什麼路徑送進來都會被擋下，不信任上游已經處理乾淨。
     const req = msg.req && typeof msg.req === 'object' ? { ...msg.req } : msg.req;
     if (req) {
-      delete (req as Record<string, unknown>).api_token;
-      delete (req as Record<string, unknown>).api_verno;
+      for (const key of SENSITIVE_REQUEST_KEYS) delete (req as Record<string, unknown>)[key];
     }
     // ingestion 完成後才回覆；訊息通道必須保持開啟，
     // 這裡刻意讓通道開到寫入結束：SW 若在寫入途中被回收，通道會以錯誤關閉，bridge 的

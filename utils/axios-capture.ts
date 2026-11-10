@@ -1,5 +1,6 @@
 import {
     getKcsapiPath,
+    SENSITIVE_REQUEST_KEYS,
     serializeAxiosRequestBody,
     serializeAxiosResponseText,
 } from './kcsapi';
@@ -51,8 +52,7 @@ export function attachAxiosResponseCapture(
             if (!path) return response;
             // 頁面訊息不是私密通道；憑證須在進入觀察佇列前移除，且不可修改遊戲的 config.data。
             const req = new URLSearchParams(serializeAxiosRequestBody(response.config?.data));
-            req.delete('api_token');
-            req.delete('api_verno');
+            for (const key of SENSITIVE_REQUEST_KEYS) req.delete(key);
             const reqBody = req.toString();
             const payload = response.data;
             // 字串回應的長度不需序列化就知道；物件回應大小未知，交給佇列走保守路徑。

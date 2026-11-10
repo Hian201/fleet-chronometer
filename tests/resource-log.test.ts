@@ -222,6 +222,10 @@ describe('toCsv', () => {
     it('含逗號的欄名要跳脫', () => {
         expect(toCsv([], [0], { time: 'a,b', mats: ['c'] }, false).split('\n')[0]).toBe('"a,b",c');
     });
+
+    it('含 CR 的欄名也要加引號，與其他匯出共用同一套跳脫', () => {
+        expect(toCsv([], [0], { time: 'a\rb', mats: ['c'] }, false)).toBe('"a\rb",c');
+    });
 });
 
 describe('折線幾何', () => {

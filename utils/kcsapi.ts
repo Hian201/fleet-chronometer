@@ -93,3 +93,7 @@ export async function readFetchRequestBody(input: RequestInfo | URL, init?: Requ
     }
     return '';
 }
+
+// 請求表單中不得離開遊戲頁的欄位。MAIN world 觀察器、bridge 與 background 各自移除一次
+// （三道防線互不信任上游），共用這份清單以免其中一道漏改。
+export const SENSITIVE_REQUEST_KEYS = ['api_token', 'api_verno'] as const;

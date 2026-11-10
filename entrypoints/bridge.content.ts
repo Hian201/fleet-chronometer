@@ -9,6 +9,7 @@ import {
 import { isChannelHandshake, offerBridgeChannel, type ChannelLike, type HandshakeEndpoint, type PortLike } from '../utils/main-channel';
 import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
 import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
+import { SENSITIVE_REQUEST_KEYS } from '../utils/kcsapi';
 import type { CaptureHealth } from '../utils/capture-health';
 
 export default defineContentScript({
@@ -68,8 +69,7 @@ export default defineContentScript({
             endpoint,
             (d) => {
                 const req = Object.fromEntries(new URLSearchParams(d.req));
-                delete req.api_token;
-                delete req.api_verno;
+                for (const key of SENSITIVE_REQUEST_KEYS) delete req[key];
                 // 量測欄位不可信：不合格就整組捨棄，不影響封包本身。
                 const timing = parseCaptureTiming(d.timing);
                 if (timing) timing.bridge = wallNow();

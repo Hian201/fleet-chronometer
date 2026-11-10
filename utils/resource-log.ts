@@ -7,6 +7,7 @@
 //   2. **缺樣本就講缺樣本**。標記（開打／量表歸零）與資源取樣是兩條獨立的觀測，
 //      標記時刻不保證正好有一筆餘額；找不到就回 null，不內插、不拿最近的假裝是當下。
 import type { ResourceMarkRow, ResourceRow } from './db';
+import { csvCell } from './csv';
 import { MATERIAL_COUNT } from './resource-capture';
 
 /** 八項資材的圖示檔名（public/icons/resource/*.svg），索引＝api_material 順序。 */
@@ -346,8 +347,4 @@ export function toCsv(
         ]);
     }
     return cells.map(line => line.map(csvCell).join(',')).join('\n');
-}
-
-function csvCell(value: string): string {
-    return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
