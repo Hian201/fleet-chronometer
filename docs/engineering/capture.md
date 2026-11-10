@@ -52,7 +52,7 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 
 ## 持久化與投影契約
 
-**IndexedDB v14**（`utils/db.ts`）：
+**IndexedDB**（目前版本見 `utils/db.ts`）：
 
 | store | 索引 | 寫入者 |
 |---|---|---|
@@ -79,6 +79,10 @@ notification ID，snapshot 與 derived rows 冪等寫入。
 保存 `dropMst`、replay difficulty 與 replay／sortie 關聯；新船判定結合 `dropMst` 與 `shipObtained`，
 不由名稱反推。資源序列與任務觀測不需要 GameState 上下文，而且價值在連續性（面板沒開的日子也要
 記），所以由 background 在 post-processing 落地，主鍵用來源 raw event id 以保持冪等。
+
+**Cursor 與裁剪**：cursor 前的事件只重建 state context，cursor 後的事件才寫 derived rows；每筆投影
+成功才推進 cursor。raw event 只會在已投影且通過保護規則時裁剪；投影 metadata 無效時停止裁剪。
+snapshot 只作 GameState baseline，不送入 projector。
 
 **匯入不是 raw ingestion**：單場 JSON 與 CSV 匯入借用 events key generator（add→delete）後只寫
 derived tables，不寫 raw event。細節見 [records.md](records.md)。

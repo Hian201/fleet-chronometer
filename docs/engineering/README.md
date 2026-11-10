@@ -10,7 +10,7 @@
 
 | 檔案 | 內容 | 常用程式碼／測試 |
 |---|---|---|
-| [capture.md](capture.md) | 資料流、provider 合約、DB v14 各表與寫入者、ingestion／projection 契約、品牌 i18n、kcsapi path 與 autoSwitch、待驗證封包擷取、擷取失效偵測 | `entrypoints/interceptor.content.ts`、`bridge.content.ts`、`background.ts`、`utils/ingestion-persistence.ts`、`event-projector.ts`、`tests/interceptor-capture.test.ts`、`tests/manifest.test.ts` |
+| [capture.md](capture.md) | 資料流、provider 合約、DB 各表與寫入者、ingestion／projection 契約、品牌 i18n、kcsapi path 與 autoSwitch、待驗證封包擷取、擷取失效偵測 | `entrypoints/interceptor.content.ts`、`bridge.content.ts`、`background.ts`、`utils/ingestion-persistence.ts`、`event-projector.ts`、`tests/interceptor-capture.test.ts`、`tests/manifest.test.ts` |
 | [battle.md](battle.md) | 戰鬥封包格式、特殊攻擊、友軍與支援、大破／損管／退避、`predictRank`、燃彈費率、艦載機戰損與熟練度 | `utils/battle.ts`、`utils/state.ts`、`tests/taiha-escape.test.ts`、`tests/plane-loss.test.ts`、`tests/lbas-status.test.ts` |
 | [maps.md](maps.md) | 關卡量表與剩餘次數、節點類型、節點字母（edge 對照）、斬殺偵測 | `utils/map-node-kind.ts`、`map-node-letters.ts`、`map-edge-letters.ts`（產生物）、`boss-hp.ts`、`tests/zansatsu-phase.test.ts` |
 | [records.md](records.md) | 出擊重播（KC3Kai 相容）、出擊紀錄展開、單場 JSON 匯入、不記錄的海域、打撈／建造 CSV、工廠紀錄 | `utils/replay.ts`、`sortie-detail.ts`、`sortie-import.ts`、`sortie-exclude.ts`、`drop-log-import.ts`、`build-log-import.ts`、`deckbuilder.ts` |
