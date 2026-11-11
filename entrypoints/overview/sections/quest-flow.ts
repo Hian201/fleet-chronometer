@@ -37,6 +37,10 @@ import {
     questGraphZoomStep, questRowFacets,
     type QuestFacetGroup, type QuestFacetSelection, type QuestRowFacets,
 } from '@/utils/quest-flow-facets';
+import {
+    INCOME_FOCUS_KINDS, INCOME_MATERIALS, incomeFocusNos, materialIncome,
+    type IncomeFocusKind, type IncomeGroupKey, type IncomeMaterial,
+} from '@/utils/quest-material-income';
 
 const PREFS_KEY = QUEST_FLOW_PREFS_KEY;
 type FocusMode = 'focus' | 'all';
@@ -858,9 +862,10 @@ function boardPanel(title: string, hint: string, inner: string, extra?: { titleA
     </section>`;
 }
 
-function listInner(model: QuestFlowModel, rows: QuestFlowRow[], selectedNo: number | undefined, pinned: Set<number>, prefs: QuestFlowPrefs, empty: string): string {
-    if (!rows.length) return `<div class="ov-empty">${esc(empty)}</div>`;
-    return `<div class="qf-list" role="list">${rows.map(row => rowHtml(model, row, row.definition.apiNo === selectedNo, pinned.has(row.definition.apiNo), prefs.manualComplete.includes(row.definition.apiNo))).join('')}</div>`;
+function listInner(model: QuestFlowModel, rows: QuestFlowRow[], selectedNo: number | undefined, pinned: Set<number>, prefs: QuestFlowPrefs, empty: string, focus: IncomeFocus | null): string {
+    const strip = incomeStripHtml(model, prefs.filters, focus);
+    if (!rows.length) return `${strip}<div class="ov-empty">${esc(empty)}</div>`;
+    return `${strip}<div class="qf-list" role="list">${rows.map(row => rowHtml(model, row, row.definition.apiNo === selectedNo, pinned.has(row.definition.apiNo), prefs.manualComplete.includes(row.definition.apiNo))).join('')}</div>`;
 }
 
 function focusRow(row: QuestFlowRow): boolean {
@@ -1018,6 +1023,70 @@ function facetPanelHtml(values: Record<QuestFacetGroup, string[]>, prefs: QuestF
     </div>`;
 }
 
+function incomeGroupLabel(key: IncomeGroupKey): string {
+    return key === 'once' ? t('ov.qfIncomeOnce') : periodLabel(key);
+}
+
+/** 獎勵篩選裡剛好選了一種可統計的離散資材時，回傳那一種；選了零種或多種都不統計。 */
+function incomeMaterialOf(filters: QuestFacetSelection): IncomeMaterial | null {
+    const picked = INCOME_MATERIALS.filter(name => filters.reward?.includes(name));
+    return picked.length === 1 ? picked[0] : null;
+}
+
+/** 摘要裡目前點選的那一組那一類；只存在於這次進入分區期間，不寫入偏好。 */
+export interface IncomeFocus { material: IncomeMaterial; key: IncomeGroupKey; kind: IncomeFocusKind }
+
+export function parseIncomeFocus(value: string | undefined, material: IncomeMaterial | null): IncomeFocus | null {
+    const [key, kind] = (value ?? '').split(':');
+    if (!material || !['daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'once'].includes(key)) return null;
+    return (INCOME_FOCUS_KINDS as readonly string[]).includes(kind)
+        ? { material, key: key as IncomeGroupKey, kind: kind as IncomeFocusKind } : null;
+}
+
+/** 摘要點選後目錄只留下的任務編號；選的那組已不存在（例如資材改了）時回傳 null。 */
+function incomeFocusSet(model: QuestFlowModel, filters: QuestFacetSelection, focus: IncomeFocus | null): Set<number> | null {
+    const material = incomeMaterialOf(filters);
+    if (!material || !focus || focus.material !== material) return null;
+    const group = materialIncome(model.rows, material).find(item => item.key === focus.key);
+    return group ? incomeFocusNos(group, focus.kind) : null;
+}
+
+/**
+ * 目錄上方的本週期收入摘要：只在獎勵篩選選了一種資材時出現，依週期分組寫確定、擇一、狀態不明三種合計。
+ * 每個週期名稱與每個合計都是按鈕：點了目錄只剩該類任務（與摘要同一份分類，所以數字必定對得上），再點取消。
+ * 合計不受其他篩選條件影響：目錄是「報酬含它的任務」（含已完成的），摘要是其中本週期還拿得到的部分。
+ */
+export function incomeStripHtml(model: QuestFlowModel, filters: QuestFacetSelection, focus: IncomeFocus | null = null): string {
+    const material = incomeMaterialOf(filters);
+    if (!material) return '';
+    const label = questRewardItemLabel(material, getLang());
+    const groups = materialIncome(model.rows, material);
+    const title = [t('ov.qfIncomeUnit'), t('ov.qfIncomeNote'), t('ov.qfIncomeFocusHint')].join('\n');
+    const button = (key: IncomeGroupKey, kind: IncomeFocusKind, inner: string, tip = '') => {
+        const on = focus?.key === key && focus.kind === kind;
+        return `<button type="button" class="qf-income-sum${on ? ' on' : ''}" data-qf-income-focus="${key}:${kind}" aria-pressed="${on}"${tip ? ` title="${esc(tip)}"` : ''}>${inner}</button>`;
+    };
+    // 「N 項」是任務數、「+M」是資材數量；任務數合起來要對得回目錄的篩選結果
+    const sum = (key: IncomeGroupKey, kind: IncomeFocusKind, name: string, tasks: number, qty: number, tip = '') => tasks > 0
+        ? button(key, kind, `${esc(name)} <b>${esc(t('ov.qfIncomeTaskCount', { n: tasks }))}</b> +${qty}`, tip) : '';
+    const count = (key: IncomeGroupKey, kind: IncomeFocusKind, name: string, tasks: number, tip: string) => tasks > 0
+        ? button(key, kind, `${esc(name)} <b>${esc(t('ov.qfIncomeTaskCount', { n: tasks }))}</b>`, tip) : '';
+    const unknownChoice = `${t('ov.qfIncomeUnknown')}・${t('ov.qfIncomeChoice')}`;
+    const body = groups.length
+        ? groups.map(group => {
+            const key = group.key;
+            return `<span class="qf-income-group" data-qf-income-group="${key}">${button(key, 'all', `<b>${esc(incomeGroupLabel(key))}</b>`)}
+            ${sum(key, 'fixed', t('ov.qfIncomeFixed'), group.fixedTasks, group.fixed)}
+            ${sum(key, 'choice', t('ov.qfIncomeChoice'), group.choiceTasks, group.choice, t('ov.qfIncomeChoiceTitle'))}
+            ${sum(key, 'unknown', t('ov.qfIncomeUnknown'), group.unlistedFixedTasks, group.unlistedFixed, t('ov.qfIncomeUnknownTitle'))}
+            ${sum(key, 'unknownChoice', unknownChoice, group.unlistedChoiceTasks, group.unlistedChoice, t('ov.qfIncomeUnknownTitle'))}
+            ${count(key, 'done', t('ov.qfIncomeDone'), group.doneNos.length, t('ov.qfIncomeDoneTitle'))}
+            ${count(key, 'locked', t('ov.qfIncomeLocked'), group.lockedNos.length, t('ov.qfIncomeLockedTitle'))}</span>`;
+        }).join('')
+        : `<span class="qf-income-empty">${esc(t('ov.qfIncomeEmpty', { material: label }))}</span>`;
+    return `<div class="qf-income-strip" role="group" aria-label="${esc(t('ov.qfIncomeStrip', { material: label }))}" title="${esc(title)}"><strong>${esc(t('ov.qfIncomeStrip', { material: label }))}</strong>${body}</div>`;
+}
+
 function pickerHtml(model: QuestFlowModel, selectedNo: number | undefined): string {
     return `<label class="qf-target-picker"><span>${esc(t('ov.qfTarget'))}</span><select data-qf-target-select><option value="">${esc(t('ov.qfTargetPlaceholder'))}</option>${model.rows.map(item => `<option value="${item.definition.apiNo}"${item.definition.apiNo === selectedNo ? ' selected' : ''}>${esc(`${item.definition.apiNo} · ${taskName(item)}`)}</option>`).join('')}</select></label>`;
 }
@@ -1085,6 +1154,7 @@ export const questFlowSection: OverviewSection = {
         let japaneseOriginalOpenNo: number | null = null;
         let doneOpen = false;
         let drawn: { model: QuestFlowModel; selected: QuestFlowRow | null } | null = null;
+        let incomeFocus: IncomeFocus | null = null;
 
         const detailView = (row: QuestFlowRow): QuestFlowDetailView => ({
             tab: prefs.tab,
@@ -1144,8 +1214,12 @@ export const questFlowSection: OverviewSection = {
             cycles.innerHTML = questCycleSummaryHtml(model, Date.now());
             const pinned = new Set(prefs.pinned);
             const facetsByNo = new Map(model.rows.map(row => [row.definition.apiNo, questRowFacets(row)]));
+            // 摘要點選的那一類；資材改了或該組消失時自動取消
+            const focusNos = incomeFocusSet(model, prefs.filters, incomeFocus);
+            if (!focusNos) incomeFocus = null;
             const rows = model.rows
-                .filter(row => matches(row, facetsByNo.get(row.definition.apiNo)!, prefs, pinned))
+                .filter(row => (!focusNos || focusNos.has(row.definition.apiNo))
+                    && matches(row, facetsByNo.get(row.definition.apiNo)!, prefs, pinned))
                 .sort((a, b) => listRank(a) - listRank(b)
                     || a.definition.apiNo - b.definition.apiNo);
             const selectedNo = prefs.targetNo && model.byNo.has(prefs.targetNo)
@@ -1169,7 +1243,7 @@ export const questFlowSection: OverviewSection = {
             const paneScroll = new Map([...body.querySelectorAll<HTMLElement>('[data-qf-pane]')]
                 .map(pane => [pane.dataset.qfPane, pane.scrollTop] as const));
             body.innerHTML = `<div class="qf-board">
-                ${boardPanel(t('ov.qfTaskDirectory'), catalogHint, listInner(model, rows, selectedNo, pinned, prefs, catalogEmpty), { titleAttr: listHint, className: 'qf-catalog' })}
+                ${boardPanel(t('ov.qfTaskDirectory'), catalogHint, listInner(model, rows, selectedNo, pinned, prefs, catalogEmpty, incomeFocus), { titleAttr: listHint, className: 'qf-catalog' })}
                 ${questFlowDetailHtml(model, selected, selected ? detailView(selected) : { ...defaultView }, pickerHtml(model, selectedNo))}
             </div>`;
             const catalogBody = body.querySelector<HTMLElement>('.qf-catalog .qf-panel-body');
@@ -1355,6 +1429,14 @@ export const questFlowSection: OverviewSection = {
             }
         }, true);
 
+        // 摘要的週期名稱與合計：點了目錄只剩該類任務，再點同一個取消
+        body.addEventListener('click', event => {
+            const button = (event.target as HTMLElement).closest<HTMLElement>('[data-qf-income-focus]');
+            if (!button) return;
+            const next = parseIncomeFocus(button.dataset.qfIncomeFocus, incomeMaterialOf(prefs.filters));
+            incomeFocus = next && incomeFocus?.key === next.key && incomeFocus.kind === next.kind ? null : next;
+            draw();
+        });
         query.addEventListener('input', () => { prefs.query = query.value; savePrefs(prefs); draw(); });
         // 頂端的年任換期提醒：改用「年任換期月」篩選出那一組，其他已選條件保留（已選列可個別移除）
         cycles.addEventListener('click', event => {

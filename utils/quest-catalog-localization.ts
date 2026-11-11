@@ -29,7 +29,7 @@ type RawQuestReward = {
     otherJa: string;
 };
 type RewardItemName = { 'zh-TW': string; en: string };
-type QuestRewardGroup = {
+export type QuestRewardGroup = {
     kind: 'fixed' | 'choice';
     index?: number;
     items: Array<{ name: string; quantity?: number; enhancement?: string }>;
@@ -190,6 +190,12 @@ export function localizedQuestRewardHtml(apiNo: number, locale: QuestRewardLocal
         ? `${resources}${groups}`
         : `<div class="quest-reward-pending">${esc(reward.pendingLabel)}</div>`;
     return `<div class="quest-rewards"><strong class="quest-reward-title">${esc(reward.title)}</strong>${contents}</div>`;
+}
+
+/** 任務報酬解析後的分組（確定／擇一），供統計道具數量；沒有報酬資料時為空。 */
+export function questRewardGroups(apiNo: number): QuestRewardGroup[] {
+    const source = REWARDS[String(apiNo)];
+    return source ? parseQuestRewardGroups(source.otherJa) : [];
 }
 
 /** 確定與選擇報酬中的道具日文原名（已去掉數量、強化值與引號），供依報酬篩選；沒有報酬資料時為空。 */

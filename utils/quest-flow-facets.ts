@@ -27,7 +27,7 @@ export const QUEST_REWARD_FACETS = [
     '戦果', '勲章', '改装設計図', '戦闘詳報', '試製甲板カタパルト',
     '新型砲熕兵装資材', '新型航空兵装資材', '新型兵装資材', '新型噴進装備開発資材',
     '海外艦最新技術', 'ネ式エンジン', '熟練搭乗員', '夜間熟練搭乗員', '設営隊',
-    '補強増設', '改修資材', '装備運用枠',
+    '補強増設', '改修資材', '開発資材', '高速修復材', '高速建造材', '装備運用枠',
 ] as const;
 const PREFIX_REWARDS = new Set<string>(['戦果', '装備運用枠']);
 
@@ -51,7 +51,7 @@ function liveTitle(row: QuestFlowRow): string | undefined {
 }
 
 /** 營運重用編號的新任務：目錄的報酬與條件屬於舊任務，不提供報酬與海域標籤。 */
-function reused(row: QuestFlowRow): boolean {
+export function reused(row: QuestFlowRow): boolean {
     return row.definition.catalogMismatch === true
         || questCatalogIdentity(row.definition.apiNo, liveTitle(row)) === 'mismatch';
 }

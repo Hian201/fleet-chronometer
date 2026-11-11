@@ -6570,6 +6570,47 @@
 
         .qf-more-body .qf-facet-group legend { min-width: 4.5em; }
 
+        /* 本週期收入摘要：獎勵篩選選了一種資材時出現在目錄最上方，隨目錄捲動、不另佔固定高度。
+           確定、擇一、狀態不明的合計分開寫，各週期一組，放不下就換行 */
+        .qf-income-strip {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 2px 18px;
+            margin: 0 0 8px;
+            padding: 6px 8px;
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--brass);
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--brass) 8%, var(--panel));
+            font-size: 11px;
+        }
+
+        .qf-income-strip > strong { flex: 1 1 100%; font-size: 12px; }
+        .qf-income-group { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+        .qf-income-empty { color: var(--dim); }
+
+        /* 週期名稱與各合計都是按鈕：點了目錄只剩該類任務，按下狀態用邊框與底色標出 */
+        .qf-income-sum {
+            padding: 1px 6px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            background: transparent;
+            color: var(--dim);
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .qf-income-sum b { color: var(--text); font-variant-numeric: tabular-nums; }
+        .qf-income-sum:hover { border-color: var(--line); }
+        .qf-income-sum:focus-visible { outline: 2px solid var(--sparkle); outline-offset: 1px; }
+
+        .qf-income-sum.on {
+            border-color: var(--sparkle);
+            background: color-mix(in srgb, var(--brass) 18%, var(--bg));
+            color: var(--sparkle);
+        }
+
         .qf-more-foot {
             position: sticky;
             bottom: 0;

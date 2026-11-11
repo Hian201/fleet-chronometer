@@ -24,7 +24,7 @@ const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml
 const NOW = Date.UTC(2026, 9, 6, 3, 0);
 
 /** 受注 Bw1／Bd1、Cd1 達成待領取、可接受若干，另有本機觀測完成的日常與單發。 */
-function fixture(): GameState {
+function fixture(extraListed: readonly number[] = []): GameState {
     const state = new GameState();
     const quest = (no: number, apiState: number) => ({
         api_no: no, api_state: apiState,
@@ -34,6 +34,7 @@ function fixture(): GameState {
         api_list: [
             quest(214, 2), quest(201, 2), quest(303, 3),
             quest(216, 1), quest(313, 1), quest(893, 1), quest(261, 1), quest(613, 1),
+            ...extraListed.map(no => quest(no, 1)),
         ],
     }, { api_tab_id: '0' }, NOW - 60_000);
     for (const no of [202, 402, 604, 605]) {
@@ -51,6 +52,10 @@ interface Scene {
     prefs: Record<string, unknown>;
     /** 展開「更多條件」浮層。 */
     open?: boolean;
+    /** 清單多放幾個任務（例：有擇一報酬、單發報酬的資材任務）。 */
+    extraListed?: readonly number[];
+    /** 渲染後點一下摘要裡的這個按鈕（例：weekly:fixed）。 */
+    incomeFocus?: string;
     /** 打開關係圖放大檢視（預覽以框內絕對定位模擬 modal）。 */
     expand?: boolean;
 }
@@ -68,6 +73,11 @@ const SCENES: Scene[] = [
     { title: '桌機 1920×1080 螢幕：選了三個條件、關係圖分頁', viewport: [1920, 969], navPinned: true, prefs: FILTERED },
     { title: '矮視窗 1280×600：選了三個條件（面板保底高度，整頁可捲）', viewport: [1280, 600], navPinned: true, prefs: FILTERED },
     { title: '窄視窗 760×640（側欄浮層）：展開「更多條件」浮層', viewport: [760, 640], navPinned: false, prefs: GRAPH, open: true },
+    // 獎勵篩選選了一種資材：目錄上方出現本週期收入摘要，不佔固定高度；清單上多放擇一報酬（1167）與單發（146）任務
+    { title: '筆電 1366×768 螢幕：獎勵篩選「改修資材」（本週期收入摘要）', viewport: [1366, 657], navPinned: true, prefs: { ...GRAPH, filters: { reward: ['改修資材'] } }, extraListed: [1167, 146] },
+    { title: '筆電 1366×768 螢幕：獎勵篩選「開発資材」（本週期收入摘要）', viewport: [1366, 657], navPinned: true, prefs: { ...GRAPH, filters: { reward: ['開発資材'] } }, extraListed: [1167, 146] },
+    { title: '筆電 1366×768 螢幕：點了摘要的「每週・確定」（目錄只剩那一類）', viewport: [1366, 657], navPinned: true, prefs: { ...GRAPH, filters: { reward: ['改修資材'] } }, extraListed: [1167, 146], incomeFocus: 'weekly:fixed' },
+    { title: '窄視窗 760×640（側欄浮層）：獎勵篩選「高速建造材」（本週期收入摘要）', viewport: [760, 640], navPinned: false, prefs: { ...GRAPH, filters: { reward: ['高速建造材'] } }, extraListed: [1167, 146] },
     { title: '窄視窗 760×640（側欄浮層）：選了三個條件、關係圖分頁', viewport: [760, 640], navPinned: false, prefs: FILTERED },
     // 期間限定任務標頭的實裝期間（2026 南瓜：10/14 更新後開始、結束未公告）
     { title: '筆電 1366×768 螢幕：期間限定任務（實裝期間）', viewport: [1366, 657], navPinned: true, prefs: { targetNo: 1039, tab: 'path' } },
@@ -92,9 +102,10 @@ async function renderScene(lang: Lang, scene: Scene): Promise<string> {
     Object.assign(globalThis, { document, window, localStorage, location: { hash: '#/quest-flow' }, history: { replaceState() {} } });
     const host = document.getElementById('host') as unknown as HTMLElement;
     await questFlowSection.render(host, {
-        state: fixture(), rerender() {}, async reloadState() {},
+        state: fixture(scene.extraListed), rerender() {}, async reloadState() {},
     });
     if (scene.open) host.querySelector('.qf-more')?.setAttribute('open', '');
+    if (scene.incomeFocus) (host.querySelector(`[data-qf-income-focus="${scene.incomeFocus}"]`) as unknown as HTMLElement).click();
     if (scene.expand) {
         const dialog = host.querySelector('.qf-graph-dialog') as unknown as { showModal(): void; setAttribute(k: string, v: string): void };
         dialog.showModal = () => dialog.setAttribute('open', '');
