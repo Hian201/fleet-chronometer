@@ -749,8 +749,11 @@ export function buildQuestFlow(
     const observed = state.questObservedCompletions_();
     const definitions = new Map(QUEST_CATALOG.map(definition => [definition.apiNo, definition]));
     const reusedNos = new Set<number>();
-    for (const quest of [...state.questCatalogMismatches_(), ...current.values(), ...available.values()]) {
-        const reused = questCatalogIdentity(quest.no, quest.name) === 'mismatch';
+    // questCatalogMismatches_() 已依清單觀測時間判定（含已結束期間限定任務的同標題重用），不再重比。
+    const mismatches = state.questCatalogMismatches_();
+    const mismatchNos = new Set(mismatches.map(quest => quest.no));
+    for (const quest of [...mismatches, ...current.values(), ...available.values()]) {
+        const reused = mismatchNos.has(quest.no) || questCatalogIdentity(quest.no, quest.name) === 'mismatch';
         if (reused) reusedNos.add(quest.no);
         const definition = reused
             ? { ...dynamicDefinition(quest.no), name: quest.name, detail: quest.detail, catalogMismatch: true }

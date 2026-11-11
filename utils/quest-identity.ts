@@ -5,7 +5,7 @@
 // 因此以遊戲即時送來的任務標題（api_title）和目錄記錄的日文標題核對：不一致就當成新任務，
 // 不套用任何以編號對應的舊資料。已結束的任務仍保留在目錄裡，以便辨認營運重用編號。
 import { QUEST_CATALOG_RAW, QUEST_CATALOG_TEXT_OVERRIDES } from './quest-catalog-data';
-import { QUEST_CATALOG_SUPPLEMENT_RAW } from './quest-graph-data';
+import { LIMITED_QUEST_WINDOWS_RAW, QUEST_CATALOG_SUPPLEMENT_RAW } from './quest-graph-data';
 
 /**
  * 比對用的標題鍵：NFKC、去空白，並去掉括號與驚嘆號／問號這類同一任務常見的寫法差異
@@ -39,14 +39,30 @@ for (const [no, title] of Object.entries(IDENTITY_TITLE_CORRECTIONS)) {
     CATALOG_TITLES.set(Number(no), questTitleKey(title));
 }
 
+// 已結束的期間限定任務：結束日（日本時間）隔天 0 時起，同編號再出現在任務清單就是營運重用的新任務。
+// 每年重辦的任務可能沿用一字不差的標題（例：1119「Halloweenの南瓜、食べりゅ?」2025、2026 年相同），只比標題擋不住。
+const DAY_MS = 86_400_000;
+const LIMITED_ENDED_AT = new Map<number, number>(
+    (LIMITED_QUEST_WINDOWS_RAW as readonly (readonly [number, string, string | null])[])
+        .filter(([, , end]) => end !== null)
+        .map(([no, , end]) => [no, Date.parse(`${end}T00:00:00+09:00`) + DAY_MS]),
+);
+
 /**
  * match：標題與目錄相同；mismatch：同編號但標題不同（營運重用編號的新任務）；
  * unknown：沒有即時標題或目錄沒有這個編號，無從比對。
+ * observedTs 是任務清單的觀測時間：已結束的期間限定任務在結束後被觀測到，不論標題一律是 mismatch。
  */
 export type QuestIdentity = 'match' | 'mismatch' | 'unknown';
 
-export function questCatalogIdentity(apiNo: number, liveTitle: string | undefined): QuestIdentity {
+export function questCatalogIdentity(
+    apiNo: number,
+    liveTitle: string | undefined,
+    observedTs: number = Date.now(),
+): QuestIdentity {
     const catalog = CATALOG_TITLES.get(apiNo);
     if (!catalog || !liveTitle) return 'unknown';
+    const endedAt = LIMITED_ENDED_AT.get(apiNo);
+    if (endedAt !== undefined && observedTs >= endedAt) return 'mismatch';
     return questTitleKey(liveTitle) === catalog ? 'match' : 'mismatch';
 }

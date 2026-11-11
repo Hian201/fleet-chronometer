@@ -2589,6 +2589,16 @@
       "detail": "以早霜、秋霜、清霜其中1艘為旗艦，另從早霜、秋霜、清霜、朝霜中編入2艘其他艦艇組成演習艦隊；於當日內取得S勝利至少4次。"
     }
   },
+  "381": {
+    "en": {
+      "name": "Weekly [Time-limited] Akizuki-class Exercise Mission 2026",
+      "detail": "Secure 3 A-Rank+ victories in Exercises within the same day with a fleet including at least 3 of the Akizuki class, Akigumo, Akishimo and Akitsushima."
+    },
+    "zh-TW": {
+      "name": "【期間限定任務】秋月型演習任務2026",
+      "detail": "從秋月型、秋雲、秋霜、秋津洲中編入至少3艘組成演習艦隊；於當日內在演習中取得A勝利至少3次。"
+    }
+  },
   "382": {
     "en": {
       "name": "Monthly [Time-limited] 31st Squadron, Emergency Exercises!",
@@ -6647,6 +6657,16 @@
     "zh-TW": {
       "name": "【限定擴張作戰】對潛裝備的整理整頓！2026",
       "detail": "廢棄「九四式爆雷投射機」12 個、「九五式爆雷」8 個、「九三式水中聽音機」6 個，並準備「南瓜」2 個、「三式爆雷投射機」5 個與開發資材 30 個。任務完成後，準備的裝備與資材會被消耗。"
+    }
+  },
+  "1172": {
+    "en": {
+      "name": "[Torpedo Enhancement Arsenal] Strengthening Night Assault Equipment [I]",
+      "detail": "Have 60 Development Materials, 2 New Model Armament Materials and 2 Arsenal Resources. Equip your first fleet flagship with 61cm Quintuple (Oxygen) Torpedo Mounts (any improvement level) in slots 1 and 2 and a ★10 61cm Quadruple (Oxygen) Torpedo Mount in slot 3. Scrap 10 61cm Quadruple (Oxygen) Torpedo Mounts."
+    },
+    "zh-TW": {
+      "name": "【雷裝強化工廠任務】夜戰突擊裝備的強化【I】",
+      "detail": "第一艦隊旗艦第1、2格裝備「61cm五連裝(酸素)魚雷」（改修值不限），第3格裝備「61cm四連裝(酸素)魚雷」★10；廢棄「61cm四連裝(酸素)魚雷」10 個，並準備開發資材 60 個、新型兵裝資材 2 個、工廠資源 2 個。"
     }
   }
 }

@@ -1837,7 +1837,7 @@ export class GameState {
                 // 空欄是 -1（不是物件），不可當任務讀。
                 if (!q || typeof q !== 'object' || !(q.api_no > 0)) continue;
                 seen.add(q.api_no);
-                const identity = questCatalogIdentity(q.api_no, q.api_title);
+                const identity = questCatalogIdentity(q.api_no, q.api_title, ts);
                 if (identity === 'mismatch') this.questCatalogMismatches.set(q.api_no, {
                     name: q.api_title, detail: q.api_detail ?? '', category: questCategoryFromApi(q.api_category),
                 });
@@ -1863,7 +1863,7 @@ export class GameState {
                         // 條件表有收錄但事件尚未支援時，不用文字推算次數：那類任務多帶編成或評價條件，
                         // 文字推算會多算。只接受人工核對的目標或單純計數。營運重用編號的新任務
                         // （標題與目錄不同）不套用以編號對應的人工目標，只剩文字推算。
-                        const reused = questCatalogIdentity(q.api_no, q.api_title) === 'mismatch';
+                        const reused = questCatalogIdentity(q.api_no, q.api_title, ts) === 'mismatch';
                         const goal = def
                             ? QUEST_ID_OVERRIDES[q.api_no] ?? simpleGoalFromDef(def)
                             : reused

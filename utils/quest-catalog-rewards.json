@@ -2589,6 +2589,16 @@
     },
     "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・熟練見張員 x2\n・改修資材 x3\n\n選択報酬2\n・給糧艦「伊良湖」x1\n・開発資材 x6\n・新型兵装資材 x1"
   },
+  "381": {
+    "sourceWikiId": "",
+    "resources": {
+      "fuel": 100,
+      "ammo": 200,
+      "steel": 100,
+      "bauxite": 200
+    },
+    "otherJa": "選択報酬1\n・開発資材 x4\n・25mm単装機銃 x2\n・工廠資源 x1\n\n選択報酬2\n・高速修復材 x4\n・改修資材 x2\n・装備運用枠+2装備分"
+  },
   "382": {
     "sourceWikiId": "2606C1",
     "resources": {
@@ -6648,5 +6658,15 @@
       "bauxite": 180
     },
     "otherJa": "選択報酬1\n・開発資材 x45\n・南瓜 x4\n・三式水中探信儀 x10\n\n選択報酬2\n・装備運用枠\n +15装備分\n・Type124 ASDIC★+3 x1\n・海外艦最新技術 x3"
+  },
+  "1172": {
+    "sourceWikiId": "",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 0
+    },
+    "otherJa": "確定報酬\n・61cm五連装(酸素)魚雷★+10 x2\n\n選択報酬\n・装備運用枠+6装備分\n・61cm四連装(酸素)魚雷後期型★+4 x1\n・高速建造材 x28"
   }
 }

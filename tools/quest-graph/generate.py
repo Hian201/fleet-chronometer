@@ -182,6 +182,11 @@ SUPPLEMENT: dict[int, tuple[str, str]] = {}
 PRIMARY_CODE: dict[int, str] = {}
 
 
+def title_key(title: str) -> str:
+    """與 utils/quest-identity.ts questTitleKey() 相同的比對鍵。"""
+    return re.sub(r'[\s「」『』【】()（）［］\[\]〈〉《》!！?？]', '', unicodedata.normalize('NFKC', title))
+
+
 def load_catalog() -> tuple[dict[str, list[tuple[int, str]]], dict[int, str]]:
     src = CATALOG.read_text(encoding='utf-8')
     raw = json.loads(re.search(r'QUEST_CATALOG_RAW = (\[.*?\]) as const', src, re.S).group(1))
@@ -194,6 +199,9 @@ def load_catalog() -> tuple[dict[str, list[tuple[int, str]]], dict[int, str]]:
         api_no, wiki_ids = entry[0], list(entry[1])
         name = overrides.get(api_no, entry[2])
         code, kc3_name = kc3.get(api_no, ('', ''))
+        # 目錄標題與 KC3 標題不同＝營運重用編號、KC3 仍是舊年度的任務：不採用它的代號
+        if name and kc3_name and title_key(name) != title_key(kc3_name):
+            code, kc3_name = '', ''
         if (not wiki_ids and code) or (not name and kc3_name):
             SUPPLEMENT[api_no] = (code if not wiki_ids else '', kc3_name if not name else '')
             if not wiki_ids and code:
@@ -306,6 +314,11 @@ def wiki_page(offline: bool) -> str:
 # api_no → (開始日, 結束日或 None)：wikiwiki「実装」欄，例「2026 10/14 ~ 20** **/**」（結束未公告）。
 # 只有實施中的期間限定任務會寫；main() 只輸出目錄標為期間限定的任務。
 WINDOWS: dict[int, tuple[str, str | None]] = {}
+# 營運公告的期間：wiki 在任務結束後才改寫或拿掉「実装」欄，結束日先依營運公告補上；wiki 有結束日時以 wiki 為準。
+# 2026 南瓜任務（2610B1～B8、C1、F1、F2）：10/14 更新實裝，11/11 維護開始時結束。
+OFFICIAL_WINDOWS: dict[int, tuple[str, str]] = {
+    no: ('2026-10-14', '2026-11-11') for no in (359, 984, 985, 986, 987, 1002, 1038, 1039, 1040, 1119, 1171)
+}
 IMPL_DATE = re.compile(r'(20\d\d)\s*(\d{1,2})/(\d{1,2})')
 
 # api_no → 年任重置月（1–12）。wikiwiki 年任表的「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」
@@ -757,6 +770,10 @@ def main() -> None:
     kcwiki_body = ','.join(compact([no, edges, flags, unresolved]) for no, (edges, flags, unresolved) in sorted(kcw.items()))
     limited_nos = {entry[0] for entry in json.loads(re.search(
         r'QUEST_CATALOG_RAW = (\[.*?\]) as const', CATALOG.read_text(encoding='utf-8'), re.S).group(1)) if entry[6]}
+    for no, (start, end) in OFFICIAL_WINDOWS.items():
+        wiki_window = WINDOWS.get(no)
+        if not (wiki_window and wiki_window[1]):
+            WINDOWS[no] = (wiki_window[0] if wiki_window else start, end)
     window_body = ','.join(compact([no, start, end]) for no, (start, end) in sorted(WINDOWS.items()) if no in limited_nos)
     yearly_body = ','.join(compact([no, month]) for no, month in sorted(YEARLY_MONTHS.items())
                            if no not in YEARLY_CONFLICTS)

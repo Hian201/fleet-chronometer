@@ -8,13 +8,21 @@ import { QUEST_CATALOG_RAW } from '../utils/quest-catalog-data';
 import japaneseTitles from './fixtures/quest-catalog-japanese-titles.json';
 import { questCatalogTranslation, localizedQuestReward } from '../utils/quest-catalog-localization';
 
+// 2026 南瓜任務實施期間（10/14～11/11）內的觀測時間；結束後同編號一律視為重用。
+const DURING_HALLOWEEN_2026 = Date.parse('2026-11-01T12:00:00+09:00');
+
 describe('questCatalogIdentity', () => {
     it('所有目錄任務與固定版本 KC3Kai 日文標題相符', () => {
-        const titles = new Map(japaneseTitles.titles as [number, string][]);
+        // 固定版本 KC3 尚未收錄的 2026-11-11 新任務：標題依營運公告與遊戲任務清單（381 為重用編號）
+        const titles = new Map([
+            ...japaneseTitles.titles as [number, string][],
+            [381, '【期間限定任務】秋月型演習任務2026'],
+            [1172, '【雷装強化工廠任務】夜戦突撃装備の強化【I】'],
+        ]);
         for (const [no] of QUEST_CATALOG_RAW) {
             const title = titles.get(no);
             expect(title, `任務 ${no} 的來源日文標題`).toBeTruthy();
-            expect(questCatalogIdentity(no, title), `任務 ${no}：${title}`).toBe('match');
+            expect(questCatalogIdentity(no, title, DURING_HALLOWEEN_2026), `任務 ${no}：${title}`).toBe('match');
         }
     });
 
@@ -43,8 +51,19 @@ describe('questCatalogIdentity', () => {
 
     it('同編號但標題不同：營運重用編號的新任務', () => {
         // 目錄是 2026 年版（14年目），假設隔年沿用同一編號
-        expect(questCatalogIdentity(984, '【期間限定任務】14年目実りの秋、南瓜始め！')).toBe('match');
-        expect(questCatalogIdentity(984, '【期間限定任務】15年目実りの秋、南瓜始め！')).toBe('mismatch');
+        expect(questCatalogIdentity(984, '【期間限定任務】14年目実りの秋、南瓜始め！', DURING_HALLOWEEN_2026)).toBe('match');
+        expect(questCatalogIdentity(984, '【期間限定任務】15年目実りの秋、南瓜始め！', DURING_HALLOWEEN_2026)).toBe('mismatch');
+    });
+
+    it('已結束的期間限定任務：結束後再出現時標題相同也是重用編號（1119 的 2025、2026 年標題一字不差）', () => {
+        const title = '【期間限定】Halloweenの南瓜、食べりゅ?';
+        expect(questCatalogIdentity(1119, title, DURING_HALLOWEEN_2026)).toBe('match');
+        // 11/11 維護當天仍可能讀到維護前的清單；隔天 0 時（日本時間）起才判定結束
+        expect(questCatalogIdentity(1119, title, Date.parse('2026-11-11T23:59:59+09:00'))).toBe('match');
+        expect(questCatalogIdentity(1119, title, Date.parse('2026-11-12T00:00:00+09:00'))).toBe('mismatch');
+        expect(questCatalogIdentity(1119, title, Date.parse('2027-10-14T20:00:00+09:00'))).toBe('mismatch');
+        // 沒有結束日的任務仍只比標題
+        expect(questCatalogIdentity(1047, '「涼波改二」ラバウルより抜錨せよ！', Date.parse('2030-01-01T00:00:00+09:00'))).toBe('match');
     });
 
     it('沒有即時標題或目錄沒有這個編號：無從比對', () => {
@@ -109,6 +128,18 @@ describe('任務導覽：重用編號的關係隔離', () => {
         expect(model.byNo.get(1052)!.relation.reviewed).toBeNull();
         expect(model.byNo.get(1052)!.prerequisiteNos).toEqual([]);
         expect(model.byNo.get(1050)!.status).not.toBe('inferred-complete');
+    });
+    it('已結束的期間限定任務隔年以相同標題出現：視為新任務，不沿用今年的週期、代號與關係', () => {
+        const state = new GameState();
+        state.applyEvent('api_get_member/questlist', { api_list: [{
+            api_no: 1119, api_state: 2, api_title: '【期間限定】Halloweenの南瓜、食べりゅ?',
+            api_detail: '新任務', api_category: 6,
+        }] }, { api_tab_id: '0' }, Date.parse('2027-10-14T20:00:00+09:00'));
+        const row = buildQuestFlow(state).byNo.get(1119)!;
+        expect(row.definition.catalogMismatch).toBe(true);
+        expect(row.definition.wikiIds).toEqual([]);
+        expect(row.definition.limitedWindow).toBeUndefined();
+        expect(row.prerequisiteNos).toEqual([]);
     });
     it.each(['claim', 'stop', 'empty'])('新任務離開清單（%s）仍隔離舊關係', reason => {
         const state = new GameState();
