@@ -186,12 +186,13 @@ function toggleNo(values: number[], no: number): number[] {
     return [...next].sort((a, b) => a - b);
 }
 
-function statusKey(status: QuestStatus): string {
-    return STATUS_KEYS[status];
+/** 定期任務的觀測屬於前一期時另用標籤：本期尚未完成，不能沿用「本機觀測完成」。 */
+function statusClass(row: QuestFlowRow): string {
+    return row.status === 'observed-complete' && !row.observedCurrentPeriod ? 'observed-past' : row.status;
 }
 
-function statusLabel(status: QuestStatus): string {
-    return t(statusKey(status));
+function statusLabel(row: QuestFlowRow): string {
+    return t(statusClass(row) === 'observed-past' ? 'ov.qfStatusObservedPast' : STATUS_KEYS[row.status]);
 }
 
 function categoryLabel(category: QuestCategory): string {
@@ -310,7 +311,7 @@ function rowHtml(model: QuestFlowModel, row: QuestFlowRow, selected: boolean, pi
     return `<article class="qf-row${selected ? ' selected' : ''}${row.nearUnlock ? ' near' : ''}">
         <button type="button" class="qf-row-main" data-qf-target="${row.definition.apiNo}">
             <span class="qf-row-top">
-                <span class="qf-status qf-status-${row.status}">${esc(statusLabel(row.status))}</span>
+                <span class="qf-status qf-status-${statusClass(row)}">${esc(statusLabel(row))}</span>
                 ${row.nearUnlock ? `<span class="qf-near-badge">${esc(t('ov.qfNearUnlockBadge'))}</span>` : ''}
             </span>
             <strong class="qf-row-name">${categoryMark(row)}${esc(taskName(row))}</strong>
@@ -363,7 +364,7 @@ function preGuideHtml(model: QuestFlowModel, row: QuestFlowRow, listed: Readonly
 }
 
 function statusTagHtml(row: QuestFlowRow): string {
-    return `<span class="qf-status qf-status-${row.status}">${esc(statusLabel(row.status))}</span>`;
+    return `<span class="qf-status qf-status-${statusClass(row)}">${esc(statusLabel(row))}</span>`;
 }
 
 /** 任務的短代號：優先 Wiki ID，沒有時用 api_no。 */
@@ -381,7 +382,7 @@ type ChipState = 'done' | 'covered' | 'now' | 'todo';
 
 function chipHtml(model: QuestFlowModel, no: number, state: ChipState): string {
     const row = model.byNo.get(no);
-    const title = `${shortLabel(row, no)} ${nameOf(model, no)}${row ? ` · ${statusLabel(row.status)}` : ''}`
+    const title = `${shortLabel(row, no)} ${nameOf(model, no)}${row ? ` · ${statusLabel(row)}` : ''}`
         + (state === 'covered' ? ` · ${t('ov.qfPathCovered')}` : '');
     return `<button type="button" class="qf-chip is-${state}" data-qf-target="${no}" data-qf-ref="${no}" title="${esc(title)}">${esc(shortLabel(row, no))}</button>`;
 }
@@ -500,7 +501,7 @@ function graphPaneHtml(model: QuestFlowModel, row: QuestFlowRow, showDone: boole
     const nodes = layout.nodes.map(node => {
         const item = model.byNo.get(node.no);
         const state = node.no === target ? 'target' : planChipState(plan)(node.no);
-        const label = `${shortLabel(item, node.no)} ${nameOf(model, node.no)}${item ? ` · ${statusLabel(item.status)}` : ''}`
+        const label = `${shortLabel(item, node.no)} ${nameOf(model, node.no)}${item ? ` · ${statusLabel(item)}` : ''}`
             + (state === 'covered' ? ` · ${t('ov.qfPathCovered')}` : '');
         return `<button type="button" class="qf-node is-${state}" data-qf-target="${node.no}" data-qf-node="${node.no}"
             style="left:${node.x}px;top:${node.y}px;width:${layout.nodeWidth}px;height:${layout.nodeHeight}px"
