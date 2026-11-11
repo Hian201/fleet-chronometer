@@ -10,6 +10,7 @@
 - 介面、圖示、面板尺寸：[`docs/design-guidelines.md`](docs/design-guidelines.md)。
 - 譯名與台灣華語：[`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
 - GitHub／GitLab 等程式碼託管平台的操作界線：[`docs/code-hosting-safety.md`](docs/code-hosting-safety.md)。動 git 遠端、release、`gh`／`glab` 前必讀。
+- 尚未實作的功能計畫、排序理由與跨項目原則：[`docs/completion-plan.md`](docs/completion-plan.md)。規劃新功能或實作計畫內項目前先讀對應小節；做完並經開發者驗證的項目要從該檔移到 `docs/engineering/`。
 - `docs/archive/`：封存的原始設計，只在調查原始設計意圖時查閱，平常不讀、不據以實作。
 
 文件與程式碼或測試不一致時，以目前程式碼與測試為準。
