@@ -20,7 +20,7 @@ export interface OrderGearCat {
 }
 
 /**
- * 遊戲側欄大項（使用者定案清單）。魚雷／對潛等未列入者暫不收——要補再開一顆。
+ * 遊戲側欄大項（使用者定案清單）。
  * catId 來自 samples/start2-master.json 的 api_mst_slotitem_equiptype。
  */
 export const ORDER_GEAR_CATS: readonly OrderGearCat[] = [
@@ -83,6 +83,22 @@ export const ORDER_GEAR_CATS: readonly OrderGearCat[] = [
         subs: [
             { id: 'small', labelKey: 'order.gear.radarSmall', catIds: [12] },
             { id: 'large', labelKey: 'order.gear.radarLarge', catIds: [13, 93] },
+        ],
+    },
+    {
+        id: 'torpedo', labelKey: 'order.gear.torpedo',
+        catIds: [5, 32],
+        subs: [
+            { id: 'surface', labelKey: 'order.gear.torpedoSurface', catIds: [5] },
+            { id: 'sub', labelKey: 'order.gear.torpedoSub', catIds: [32] },
+        ],
+    },
+    {
+        id: 'asw', labelKey: 'order.gear.asw',
+        catIds: [14, 15, 40],
+        subs: [
+            { id: 'sonar', labelKey: 'order.gear.sonar', catIds: [14, 40] },
+            { id: 'dc', labelKey: 'order.gear.depthCharge', catIds: [15] },
         ],
     },
     {
