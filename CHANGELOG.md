@@ -61,7 +61,9 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 **Seasonal quests**
 - The Quest Navigator now shows the Halloween 2026 quests as running from the 10/14 update to the 11/11 maintenance.
 - When a time-limited quest that has ended comes back under the same quest number, it is treated as a new quest even if its title is unchanged, so last year's rewards, translations and unlock links are not shown for it.
-- Added the 11/11 quests "Akizuki-class Exercise Mission 2026" (with progress tracking) and "Strengthening Night Assault Equipment [I]", including rewards and translations.
+- Added the 11/11 quests "Akizuki-class Exercise Mission 2026" and "Saury Festival Preparation Exercises!" (both with progress tracking) and "Strengthening Night Assault Equipment [I]", including rewards and translations.
+- Line breaks in the game's quest descriptions now display as line breaks in the Quest Navigator instead of a literal "<br>".
+- The Quest Navigator keeps showing the game's own title and description for quests you have seen, even after they leave the quest list or after restoring a backup. Backups now carry this text; older backups still restore.
 
 **Layout fixes**
 - In English, the combined-fleet button now shows CTF / STF / TCF, with the full name in the tooltip. The full name wrapped to two lines and pushed the seventh ship past the panel's layout target.

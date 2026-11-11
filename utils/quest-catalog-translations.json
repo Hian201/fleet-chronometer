@@ -2639,6 +2639,16 @@
       "detail": "使用「Algérie」、「Vautour」、「Mogador」、「Béarn」、「日枝丸」、「平安丸」、「大泊」、「陸奧」、「South Dakota」、「Victorious」任選 3 艘以上編入艦隊，另可編入至多 3 艘不限艦種的艦艇；在同一天內於演習取得 4 次 S 勝利。"
     }
   },
+  "386": {
+    "en": {
+      "name": "Weekly [Time-limited] Saury Festival Preparation Exercises!",
+      "detail": "Secure 3 S-Rank victories in Exercises within the same day with a fleet of at least 4 ships from Akebono, Amagiri, Murasame, Ooshio, Kumanomaru, Yamashiomaru, Kaibokan No.4, Ranger and Heywood L.E., one of them as flagship."
+    },
+    "zh-TW": {
+      "name": "【期間限定任務】秋刀魚祭準備演習！",
+      "detail": "從「曙」、「天霧」、「村雨」、「大潮」、「熊野丸」、「山汐丸」、「第四號海防艦」、「Ranger」、「Heywood L.E.」中編入至少 4 艘（其中 1 艘任旗艦）；於當日內在演習中取得 S 勝利至少 3 次。"
+    }
+  },
   "401": {
     "en": {
       "name": "The First Expedition!",
@@ -6662,11 +6672,11 @@
   "1172": {
     "en": {
       "name": "[Torpedo Enhancement Arsenal] Strengthening Night Assault Equipment [I]",
-      "detail": "Have 60 Development Materials, 2 New Model Armament Materials and 2 Arsenal Resources. Equip your first fleet flagship with 61cm Quintuple (Oxygen) Torpedo Mounts (any improvement level) in slots 1 and 2 and a ★10 61cm Quadruple (Oxygen) Torpedo Mount in slot 3. Scrap 10 61cm Quadruple (Oxygen) Torpedo Mounts."
+      "detail": "Have 60 Development Materials, 2 New Model Armament Materials and 2 Arsenal Resources. Equip your flagship with 61cm Quintuple (Oxygen) Torpedo Mounts (any improvement level) in slots 1 and 2 and a ★max 61cm Quadruple (Oxygen) Torpedo Mount in slot 3. Scrap 10 61cm Quadruple Torpedo Mounts."
     },
     "zh-TW": {
       "name": "【雷裝強化工廠任務】夜戰突擊裝備的強化【I】",
-      "detail": "第一艦隊旗艦第1、2格裝備「61cm五連裝(酸素)魚雷」（改修值不限），第3格裝備「61cm四連裝(酸素)魚雷」★10；廢棄「61cm四連裝(酸素)魚雷」10 個，並準備開發資材 60 個、新型兵裝資材 2 個、工廠資源 2 個。"
+      "detail": "旗艦第1、2格裝備「61cm五連裝(酸素)魚雷」（改修值不限），第3格裝備「61cm四連裝(酸素)魚雷」★max；廢棄「61cm四連裝魚雷」10 個，並準備開發資材 60 個、新型兵裝資材 2 個、工廠資源 2 個。"
     }
   }
 }

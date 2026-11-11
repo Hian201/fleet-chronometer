@@ -673,12 +673,18 @@ function validateQuestSeen(value: unknown, index: number): QuestSeenRow {
     const firstTs = timestamp(row.firstTs, `${where}.firstTs`);
     const lastTs = timestamp(row.lastTs, `${where}.lastTs`);
     if (lastTs < firstTs) invalid(`${where}.lastTs 不得早於 firstTs。`);
+    // title／detail 是後來新增的選填欄位，舊備份沒有。
+    for (const key of ['title', 'detail'] as const) {
+        if (row[key] !== undefined && typeof row[key] !== 'string') invalid(`${where}.${key} 必須是字串。`);
+    }
     return {
         questNo: integer(row.questNo, `${where}.questNo`, 1),
         firstTs,
         lastTs,
         firstEventId: integer(row.firstEventId, `${where}.firstEventId`, 1),
         lastEventId: integer(row.lastEventId, `${where}.lastEventId`, 1),
+        ...(typeof row.title === 'string' && row.title ? { title: row.title } : {}),
+        ...(typeof row.detail === 'string' && row.detail ? { detail: row.detail } : {}),
     };
 }
 

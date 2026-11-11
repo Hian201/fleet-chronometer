@@ -30,7 +30,8 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
   還原在 IndexedDB 提交後才覆寫本機名單，缺席則不碰；只接受正規寫法的通常海域編號
   （`1-1`～`9-9`）且不得重複。只有這項設定、資料表全空時仍視為空備份，不寫檔。
 - `questObserved` 以來源 event id 冪等保存；`questSeen` 以 questNo 為主鍵、min／max 合併首末觀測，
-  兩個 event id 都進 `highestReferencedEventId()`。`eventPlans` 與 `goals` 是純使用者輸入、不參照
+  兩個 event id 都進 `highestReferencedEventId()`。`questSeen` 另有選填的 `title`／`detail`（最近一次觀測的
+  遊戲原文），舊備份沒有這兩欄，照常還原；不是索引欄位，不需升 DB 或備份版本。`eventPlans` 與 `goals` 是純使用者輸入、不參照
   event id，不進 `highestReferencedEventId()`。
 - `goals`（目標規劃，見 [goals.md](goals.md)）的主鍵必須與內容一致（`remodel:${shipId}`），種類目前只
   接受 `remodel`；它算在「還原目標資料」之內，目的地已有目標時整批拒絕。

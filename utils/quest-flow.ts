@@ -854,10 +854,14 @@ export function buildQuestFlow(
         else if (knownAll && blockers.length > 0) status = 'locked';
         else status = 'unknown';
 
+        // 任務離開清單後改用最近一次看到的封包原文；它屬於營運重用前的舊任務時不用。
+        const seen = state.questSeenText_(definition.apiNo);
+        const seenText = seen && (definition.catalogMismatch
+            || questCatalogIdentity(definition.apiNo, seen.title, seen.ts) !== 'mismatch') ? seen : undefined;
         rows.push({
             definition,
-            name: quest?.name || availableQuest?.name || definition.name,
-            detail: quest?.detail || availableQuest?.detail || definition.detail,
+            name: quest?.name || availableQuest?.name || seenText?.title || definition.name,
+            detail: quest?.detail || availableQuest?.detail || seenText?.detail || definition.detail,
             status,
             current: quest,
             available: availableQuest,

@@ -17,6 +17,7 @@ describe('questCatalogIdentity', () => {
         const titles = new Map([
             ...japaneseTitles.titles as [number, string][],
             [381, '【期間限定任務】秋月型演習任務2026'],
+            [386, '【期間限定任務】秋刀魚祭り準備演習！'],
             [1172, '【雷装強化工廠任務】夜戦突撃装備の強化【I】'],
         ]);
         for (const [no] of QUEST_CATALOG_RAW) {

@@ -871,6 +871,8 @@ export class GameState {
     // 曾經出現在任何 questlist tab 的任務（受注中／達成／可接受）。單發前置因此永久可推為完成；
     // 已裁剪的觀測由 db.questSeen 經 ingestArchivedQuestSeen 補回（見 quest-seen.ts）。
     questSeenNos = new Set<number>();
+    // 最近一次在清單看到的遊戲標題與說明；任務離開清單後任務導覽仍以封包原文顯示。
+    private questSeenText = new Map<number, { title: string; detail: string; ts: number }>();
     // questlist 的 api_label_type 101–112＝年任換期月（見 quest-cycle.ts）。任務離開清單後保留，
     // 下次出現時以新值覆寫；只由保留的 raw events 重建，裁剪後退回目錄的換期月。
     private questYearlyResetMonths = new Map<number, number>();
@@ -1842,7 +1844,12 @@ export class GameState {
                     name: q.api_title, detail: q.api_detail ?? '', category: questCategoryFromApi(q.api_category),
                 });
                 else if (identity === 'match') this.questCatalogMismatches.delete(q.api_no);
-                if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) this.questSeenNos.add(q.api_no);
+                if (q.api_state === 1 || q.api_state === 2 || q.api_state === 3) {
+                    this.questSeenNos.add(q.api_no);
+                    if (typeof q.api_title === 'string' && q.api_title) {
+                        this.recordQuestSeenText(q.api_no, q.api_title, typeof q.api_detail === 'string' ? q.api_detail : '', ts);
+                    }
+                }
                 if (typeof q.api_label_type === 'number') {
                     const resetMonth = yearlyResetMonthFromLabel(q.api_label_type);
                     if (resetMonth !== null) this.questYearlyResetMonths.set(q.api_no, resetMonth);
@@ -3876,8 +3883,21 @@ export class GameState {
     }
 
     /** 已裁剪或只存在備份的任務清單觀測；集合語意，重複送入無副作用。 */
-    ingestArchivedQuestSeen(questNo: number): void {
-        if (Number.isSafeInteger(questNo) && questNo > 0) this.questSeenNos.add(questNo);
+    ingestArchivedQuestSeen(questNo: number, text?: { title?: string; detail?: string; ts?: number }): void {
+        if (!Number.isSafeInteger(questNo) || questNo < 1) return;
+        this.questSeenNos.add(questNo);
+        if (text?.title) this.recordQuestSeenText(questNo, text.title, text.detail ?? '', text.ts ?? 0);
+    }
+
+    private recordQuestSeenText(no: number, title: string, detail: string, ts: number): void {
+        const previous = this.questSeenText.get(no);
+        if (!previous || ts >= previous.ts) this.questSeenText.set(no, { title, detail, ts });
+    }
+
+    /** 最近一次在任務清單看到的遊戲標題、說明與觀測時間。 */
+    questSeenText_(no: number): { title: string; detail: string; ts: number } | undefined {
+        const text = this.questSeenText.get(no);
+        return text && { ...text };
     }
 
     /** 本機曾觀測到出現在任務清單的任務編號。 */

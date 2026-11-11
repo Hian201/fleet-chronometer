@@ -39,6 +39,22 @@ export const QUEST_GOAL_LOCAL: Readonly<Record<number, LocalQuestGoal>> = {
         written: '2026-11-11',
         goal: { resetInterval: 1, practice_win_a: { escortshipId: [[[421, 422, 423, 532, 533, 1041, 132, 625, 445], 3]], required: 3, init: 0 } },
     },
+    // 2026 秋刀魚祭準備演習（11/11 實裝，週任；381 與 218 完成後開放），來源條件表尚未收錄。結束後刪除這筆。
+    // 「旗艦を含む計4隻」寫成旗艦在名單內＋名單計 4 艘（含旗艦）。
+    386: {
+        title: '【期間限定任務】秋刀魚祭り準備演習！',
+        basis: ['任務說明原文（擴充保存的 questSeen，2026-11-11）', '開發者提供的任務條件與獎勵', 'samples/start2-master.json（曙 15、天霧 479、村雨 44、大潮 96、熊野丸 943、山汐丸 900、第四号海防艦 637、Ranger 931、Heywood L.E. 941）', '編成：名單中 1 艘任旗艦，名單計 4 艘以上；本日中 S 勝利 3 次'],
+        written: '2026-11-11',
+        goal: {
+            resetInterval: 1,
+            practice_win_s: {
+                flagshipId: [15, 479, 44, 96, 943, 900, 637, 931, 941],
+                escortshipId: [[[15, 479, 44, 96, 943, 900, 637, 931, 941], 4]],
+                required: 3,
+                init: 0,
+            },
+        },
+    },
     // 修正來源條件：來源寫成「魚雷」系任意 3 件，任務原文指定「61cm三連装(酸素)魚雷」（會多算）。
     1103: {
         title: '潜水艦強化兵装の量産',

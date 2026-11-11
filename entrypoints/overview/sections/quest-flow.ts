@@ -250,7 +250,8 @@ function taskDetail(row: QuestFlowRow): string {
 }
 
 function lineBreaks(value: string): string {
-    return esc(value).replace(/\r?\n/g, '<br>');
+    // 遊戲的任務說明以 <br> 換行。
+    return esc(value).replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\r?\n/g, '<br>');
 }
 
 function japaneseOriginalHtml(row: QuestFlowRow, expanded: boolean): string {

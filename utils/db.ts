@@ -417,6 +417,9 @@ export interface QuestSeenRow {
     lastTs: number;
     firstEventId: number;
     lastEventId: number;
+    /** 最近一次觀測的遊戲任務標題與說明（api_title／api_detail）；舊資料沒有。任務離開清單後顯示用。 */
+    title?: string;
+    detail?: string;
 }
 
 // 已通知過的遠征（防重複通知；鬧鐘提前響或立即通知時寫入，回港 port 封包據此略過）。狀態必須持久化，才能跨 service worker 重啟維持

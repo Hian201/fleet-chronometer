@@ -24,57 +24,91 @@ export interface QuestListEvent {
     api: unknown;
 }
 
-/** questlist 封包裡受注中／達成／可接受（api_state 1–3）的任務編號；空欄 -1 與異常列略過。 */
-export function listedQuestNos(path: string, api: unknown): number[] {
+export interface ListedQuest {
+    no: number;
+    /** 遊戲送來的標題與說明；不是字串時不記。 */
+    title?: string;
+    detail?: string;
+}
+
+/** questlist 封包裡受注中／達成／可接受（api_state 1–3）的任務；空欄 -1 與異常列略過，依編號排序。 */
+export function listedQuests(path: string, api: unknown): ListedQuest[] {
     if (path !== QUESTLIST_PATH || !api || typeof api !== 'object') return [];
     const list = (api as { api_list?: unknown }).api_list;
     if (!Array.isArray(list)) return [];
-    const nos = new Set<number>();
+    const quests = new Map<number, ListedQuest>();
     for (const quest of list) {
         if (!quest || typeof quest !== 'object') continue;
-        const { api_no: no, api_state: state } = quest as { api_no?: unknown; api_state?: unknown };
+        const { api_no: no, api_state: state, api_title: title, api_detail: detail } =
+            quest as { api_no?: unknown; api_state?: unknown; api_title?: unknown; api_detail?: unknown };
         if (typeof no !== 'number' || !Number.isSafeInteger(no) || no < 1) continue;
         if (state !== 1 && state !== 2 && state !== 3) continue;
-        nos.add(no);
+        quests.set(no, {
+            no,
+            ...(typeof title === 'string' && title ? { title } : {}),
+            ...(typeof detail === 'string' && detail ? { detail } : {}),
+        });
     }
-    return [...nos].sort((a, b) => a - b);
+    return [...quests.values()].sort((a, b) => a.no - b.no);
 }
 
-/** 合併一次觀測；以 min／max 取最早與最近，重跑同一筆事件結果不變。 */
+/** questlist 封包裡受注中／達成／可接受（api_state 1–3）的任務編號。 */
+export function listedQuestNos(path: string, api: unknown): number[] {
+    return listedQuests(path, api).map(quest => quest.no);
+}
+
+/**
+ * 合併一次觀測；以 min／max 取最早與最近，重跑同一筆事件結果不變。
+ * 標題與說明保留最近一次觀測的版本（營運重用編號時是最新的任務）；先前沒有文字時以這次補上。
+ */
 export function mergeQuestSeen(
     previous: QuestSeenRow | undefined,
     questNo: number,
     eventId: number,
     ts: number,
+    text: { title?: string; detail?: string } = {},
 ): QuestSeenRow {
-    if (!previous) return { questNo, firstTs: ts, lastTs: ts, firstEventId: eventId, lastEventId: eventId };
+    const own = {
+        ...(text.title ? { title: text.title } : {}),
+        ...(text.detail ? { detail: text.detail } : {}),
+    };
+    if (!previous) return { questNo, firstTs: ts, lastTs: ts, firstEventId: eventId, lastEventId: eventId, ...own };
     const earlier = ts < previous.firstTs || (ts === previous.firstTs && eventId < previous.firstEventId);
     const later = ts > previous.lastTs || (ts === previous.lastTs && eventId > previous.lastEventId);
+    const useOwn = text.title !== undefined && (later || previous.title === undefined);
+    const kept = {
+        ...(previous.title !== undefined ? { title: previous.title } : {}),
+        ...(previous.detail !== undefined ? { detail: previous.detail } : {}),
+    };
     return {
         questNo,
         firstTs: earlier ? ts : previous.firstTs,
         firstEventId: earlier ? eventId : previous.firstEventId,
         lastTs: later ? ts : previous.lastTs,
         lastEventId: later ? eventId : previous.lastEventId,
+        ...(useOwn ? own : kept),
     };
 }
 
 export async function captureQuestSeen(tables: QuestSeenTables, event: QuestListEvent): Promise<void> {
-    for (const questNo of listedQuestNos(event.path, event.api)) {
-        const previous = await tables.questSeen.get(questNo);
-        const next = mergeQuestSeen(previous, questNo, event.id, event.ts);
+    for (const quest of listedQuests(event.path, event.api)) {
+        const previous = await tables.questSeen.get(quest.no);
+        const next = mergeQuestSeen(previous, quest.no, event.id, event.ts, quest);
         if (previous
             && previous.firstTs === next.firstTs && previous.lastTs === next.lastTs
-            && previous.firstEventId === next.firstEventId && previous.lastEventId === next.lastEventId) continue;
+            && previous.firstEventId === next.firstEventId && previous.lastEventId === next.lastEventId
+            && previous.title === next.title && previous.detail === next.detail) continue;
         await tables.questSeen.put(next);
     }
 }
 
 export interface QuestSeenSink {
-    ingestArchivedQuestSeen(questNo: number): void;
+    ingestArchivedQuestSeen(questNo: number, text?: { title?: string; detail?: string; ts?: number }): void;
 }
 
 /** 把已裁剪或只存在備份的觀測補進 GameState；集合語意，重複送入無副作用。 */
 export function applyArchivedQuestSeen(sink: QuestSeenSink, rows: readonly QuestSeenRow[]): void {
-    for (const row of rows) sink.ingestArchivedQuestSeen(row.questNo);
+    for (const row of rows) {
+        sink.ingestArchivedQuestSeen(row.questNo, row.title ? { title: row.title, detail: row.detail, ts: row.lastTs } : undefined);
+    }
 }

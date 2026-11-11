@@ -2639,6 +2639,16 @@
     },
     "otherJa": "選択報酬1\n・開発資材x12\n・改修資材x3\n\n選択報酬2\n・高速建造材x22\n・装備運用枠\n+3装備分\n・戦闘詳報x1"
   },
+  "386": {
+    "sourceWikiId": "",
+    "resources": {
+      "fuel": 0,
+      "ammo": 280,
+      "steel": 280,
+      "bauxite": 280
+    },
+    "otherJa": "選択報酬1\n・開発資材 x4\n・三式水中探信儀\n・探照灯\n\n選択報酬2\n・熟練見張員\n・装備運用枠+1装備分\n・勲章"
+  },
   "401": {
     "sourceWikiId": "D1",
     "resources": {

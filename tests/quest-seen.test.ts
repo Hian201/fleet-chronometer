@@ -8,7 +8,7 @@ import {
 } from '../utils/backup';
 import { GameState } from '../utils/state';
 import { buildQuestFlow, QUEST_CATALOG } from '../utils/quest-flow';
-import { applyArchivedQuestSeen, captureQuestSeen, listedQuestNos, mergeQuestSeen } from '../utils/quest-seen';
+import { applyArchivedQuestSeen, captureQuestSeen, listedQuestNos, listedQuests, mergeQuestSeen } from '../utils/quest-seen';
 
 const TS = 1_700_000_000_000;
 const QUESTLIST = 'api_get_member/questlist';
@@ -61,6 +61,52 @@ describe('解析與合併', () => {
             { questNo: 107, firstTs: TS, firstEventId: 5, lastTs: TS + 100, lastEventId: 9 },
             { questNo: 201, firstTs: TS, firstEventId: 5, lastTs: TS, lastEventId: 5 },
         ]);
+    });
+});
+
+describe('任務原文', () => {
+    const titled = (no: number, title: string, detail: string) =>
+        ({ api_list: [{ api_no: no, api_state: 2, api_title: title, api_detail: detail }] });
+
+    it('解析標題與說明，空字串不記', () => {
+        expect(listedQuests(QUESTLIST, titled(1172, '新任務', '説明'))).toEqual([{ no: 1172, title: '新任務', detail: '説明' }]);
+        expect(listedQuests(QUESTLIST, questlist([107, 2]))).toEqual([{ no: 107 }]);
+    });
+
+    it('保留最近一次觀測的原文；較舊的觀測只在原本沒有原文時補上', () => {
+        const first = mergeQuestSeen(undefined, 381, 10, TS, { title: '舊', detail: '舊説明' });
+        const later = mergeQuestSeen(first, 381, 20, TS + 5, { title: '新', detail: '新説明' });
+        expect(later).toMatchObject({ title: '新', detail: '新説明', lastEventId: 20 });
+        expect(mergeQuestSeen(later, 381, 10, TS, { title: '舊', detail: '舊説明' })).toEqual(later);
+        const untitled = mergeQuestSeen(undefined, 381, 20, TS + 5);
+        expect(mergeQuestSeen(untitled, 381, 10, TS, { title: '舊', detail: '舊説明' })).toMatchObject({ title: '舊', lastEventId: 20 });
+    });
+
+    it('capture 寫入原文；原文改變也會更新', async () => {
+        const database = track(new KcDb(`quest-seen-text-${serial++}`));
+        await database.open();
+        await captureQuestSeen(database, { id: 5, ts: TS, path: QUESTLIST, api: titled(1172, '新任務', '説明') });
+        expect(await database.questSeen.get(1172)).toMatchObject({ title: '新任務', detail: '説明' });
+    });
+
+    it('任務離開清單後，任務導覽以保存的原文顯示（含只來自備份的觀測）', () => {
+        const title = '【雷装強化工廠任務】夜戦突撃装備の強化【I】';
+        const live = new GameState();
+        live.applyEvent(QUESTLIST, titled(1172, title, '封包の説明'), { api_tab_id: '9' }, TS);
+        live.applyEvent(QUESTLIST, { api_list: null }, { api_tab_id: '9' }, TS + 1);
+        expect(buildQuestFlow(live).byNo.get(1172)!.detail).toBe('封包の説明');
+
+        const restored = new GameState();
+        applyArchivedQuestSeen(restored, [{ questNo: 1172, firstTs: TS, lastTs: TS, firstEventId: 1, lastEventId: 1, title, detail: '備份の説明' }]);
+        expect(buildQuestFlow(restored).byNo.get(1172)!.detail).toBe('備份の説明');
+    });
+
+    it('保存的原文屬於營運重用前的舊任務時不用', () => {
+        const state = new GameState();
+        applyArchivedQuestSeen(state, [{ questNo: 1047, firstTs: TS, lastTs: TS, firstEventId: 1, lastEventId: 1, title: '別の任務', detail: '別の説明' }]);
+        const row = buildQuestFlow(state).byNo.get(1047)!;
+        expect(row.detail).not.toBe('別の説明');
+        expect(row.name).not.toBe('別の任務');
     });
 });
 
@@ -170,6 +216,13 @@ describe('備份 v8', () => {
         expect(() => validateBackupEnvelope(v8([SEEN[0], SEEN[0]]))).toThrow(BackupValidationError);
         expect(() => validateBackupEnvelope(v8([{ ...SEEN[0], lastTs: TS - 1 }]))).toThrow(BackupValidationError);
         expect(highestReferencedEventId({ questSeen: SEEN })).toBe(120);
+    });
+
+    it('選填的 title／detail 原樣保留，非字串拒絕', () => {
+        const v8 = (questSeen: unknown[]) => ({ schemaVersion: 8, kind: 'full', exportedAt: TS, tables: tables({ questSeen }) });
+        const row = { ...SEEN[0], title: '新任務', detail: '説明' };
+        expect(validateBackupEnvelope(v8([row])).tables.questSeen).toEqual([row]);
+        expect(() => validateBackupEnvelope(v8([{ ...SEEN[0], title: 1 }]))).toThrow(BackupValidationError);
     });
 
     it('匯出後還原到乾淨資料庫，推論隨之回來', async () => {
