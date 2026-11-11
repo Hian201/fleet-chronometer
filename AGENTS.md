@@ -109,7 +109,7 @@ npm test            # Vitest
 
 ## 遠端同步現況
 
-`git push` 目前只推 GitLab，不動 GitHub；出 `v1.1.1.0-rc.2` 之後要提醒開發者重啟 GitHub 同步，條件與步驟見 `docs/code-hosting-safety.md` §7。
+`git push` 目前只推 GitLab；GitHub 依 `docs/code-hosting-safety.md` §7 逐步恢復同步，每一步先取得開發者同意。
 
 ## 單一真相來源
 

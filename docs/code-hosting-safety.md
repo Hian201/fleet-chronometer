@@ -65,17 +65,18 @@
 - `origin` 同時設有 GitHub 與 GitLab 兩個 push URL；**不要直接 `git push origin`**，那會推到 GitHub。
 - GitLab 操作用 `glab`，GitHub 操作用 `gh`；兩者都依本檔分級。
 
-### 恢復以 GitHub 為主（待秋刀魚 rc.2 之後，開發者同意才開始）
+### 恢復以 GitHub 為主（進行中）
 
-GitHub 帳號已於 2026-11-09 解除停權，開發者決定恢復以 GitHub 為主，但先暫停：等 2026-11-11 秋刀魚活動的改動測試完、出 `v1.1.1.0-rc.2` 之後，由 agent 提醒開發者重啟同步。在那之前 `git push` 只推 GitLab，不動 GitHub。
+GitHub 停在 `1a49fd6`，還留著舊的 `v1.1.1.0` tag 與附 zip 的舊 Pre-release。正式版 `v1.1.1.0` 要打在送審的 `e4f8921`，
+同名 tag 不得以 force push 覆蓋，必須先刪除舊的。各步依 §3 的節奏：逐一取得開發者同意，確認上一步結果後才做下一步；
+不需要隔天，但不在同一個指令裡串接。
 
-GitHub 目前停在 `1a49fd6`，還留著舊的 `v1.1.1.0` tag 與附 zip 的舊 Pre-release。每一步分開做、各自取得同意，寫入之間間隔至少一天：
-
-1. 開發者執行 `gh auth login` 重新登入（舊 token 已失效）。
-2. 推送 main 到 GitHub（一次）。
-3. 推送現有的 rc tag（一次一個）。
-4. 處理舊的 Pre-release 與舊 `v1.1.1.0` tag（刪除屬每次都要同意的操作），改由最新 rc 的 Pre-release 取代。
-5. 遠端設定改回：`branch.main.remote=origin`、移除 `remote.pushDefault`（`origin` 同時推 GitHub 與 GitLab），並改寫本節。
+1. 推送 main 到 GitHub。
+2. 推送 `v1.1.1.0-rc.2` tag（rc.1 只是紀錄，GitLab 已保留，不推）。
+3. 刪除舊的 `v1.1.1.0` Pre-release。
+4. 刪除舊的 `v1.1.1.0` tag。
+5. 商店過審後：推送正式 `v1.1.1.0` tag，建立正式 release（附送審的同一份 zip、設為 Latest）。
+6. 遠端設定改回：`branch.main.remote=origin`、移除 `remote.pushDefault`（`origin` 同時推 GitHub 與 GitLab），並改寫本節。
 
 ## 參考來源
 
