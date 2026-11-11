@@ -69,11 +69,12 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 | `snapshot` | `path, ts` | background |
 | `resources`／`resourceMarks` | `eventId, ts`／`key, mapKey, ts` | background（`resource-capture.ts`） |
 | `questObserved`（v13）／`questSeen`（v14） | `eventId, questNo, ts`／`questNo, lastTs` | background |
+| `goals`（v15） | `key` | 情報總括「目標規劃」分區（使用者手輸） |
 | `shipObtained`、`eventPlans`、`notified`、`meta` | 見 db.ts | 各功能 |
 
 版本升級不回填歷史 `captureId`、`postProcessState` 或 projection metadata，所以歷史 events 不是
 可恢復的 post-processing 工作；projection metadata 缺／未知／損壞時從 retained raw events 的 0
-重投影。v11 起的新表（`eventPlans`、`resources`、`resourceMarks`）都不回填；v13／v14 只從升級當下
+重投影。v11 起的新表（`eventPlans`、`resources`、`resourceMarks`、`goals`）都不回填；v13／v14 只從升級當下
 仍保留的 raw events 回填 `questObserved`／`questSeen`。
 
 **Ingestion lifecycle**：新 event 先存 `pending`；同 captureId 只允許相同 path 與 timestamp，否則拒絕

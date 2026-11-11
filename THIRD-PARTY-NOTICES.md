@@ -448,6 +448,24 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 9c. 改造消耗例外表與艦娘經驗表
+
+- **用途**：`utils/remodel-cost-data.ts`（由 `tools/remodel-cost/generate.py` 產生，`utils/remodel-goals.ts`
+  讀取）——情報總括「目標規劃」的推算類改造消耗（開發資材、高速建造材、新型砲熕兵裝資材、改修資材、
+  工廠資源），以及等級對累計經驗的對照（Lv1–99）。
+- **來源**：KC3Kai `src/library/modules/RemodelDb.js`（`calcDevMat`、`calcTorch`、`calcGunMat`、
+  `calcScrew`、`calcArsenalMat`、`isIgnoreDevMat` 內的逐艦數量）與 `src/data/exp_ship.json`，
+  commit `7e034a98af836d4d10fb10472f49da8b2ae45e08`。https://github.com/KC3Kai/KC3Kai
+- **授權**：MIT License
+- **版權**：Copyright (c) 2015-2026 dragonjet
+- **取用方式**：只擷取數值事實（改造前 master id → 數量、等級 → 累計經驗），不複製程式碼；開發資材
+  的判定通則在 `utils/remodel-goals.ts` 依 clean-room 重寫。經驗表以 wikiwiki.jp/kancolle「経験値」頁
+  抽驗（Lv50、88、98、99）。
+- **限制**：這些數量不在遊戲 master 裡，**不是**封包驗證；介面一律標「推算」。表內沒有的新艦不代表
+  確定不需要。等級、彈藥、鋼材與設計圖等七種道具取自遊戲 master（`api_mst_ship`、
+  `api_mst_shipupgrade`），不屬於本條；其欄位語意以 `samples/start2-master.json` 對照
+  wikiwiki.jp/kancolle「改造」頁核對。
+
 ## 先制對潛條件
 
 - **來源**：wikiwiki.jp/kancolle「対潜攻撃」的「対潜先制爆雷攻撃／発動条件」表與補充說明，核對日期 2026-10-01。

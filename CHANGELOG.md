@@ -65,10 +65,18 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 **Equipment reference**
 - XF6F-6 improvement bonuses for US carriers (Lexington, Yorktown, Essex, Independence, Casablanca and Ranger classes): ★1 evasion +1, ★2 anti-air +1, ★3 firepower +1, ★4 and above accuracy +1.
 
+**Remodel goals**
+- New **Goals** section in the HQ overview. Pick a ship and the form you want it to reach; the section lists the levels and experience still needed and what the remodels consume, next to what you currently hold.
+- Stock is handed out in the order you rank your goals, so a later goal only sees what earlier ones leave. Use the arrows to reorder.
+- Amounts the game does not provide in its data (development materials, instant construction materials and a few others) are marked as estimates. Check the in-game remodel screen before committing.
+- Items the extension has not seen yet show as unknown instead of 0.
+- Goals are stored in the database and travel with backups.
+
 **Developer tools**
 - Developer builds have a capture latency report in the panel's Activity tab. It is off in store builds, is kept in memory only, and is never written to the database.
 
 ### Data compatibility
 
-- No IndexedDB schema change (still v14). The backup format is unchanged.
+- IndexedDB schema goes from v14 to v15: one new table for goals. Existing data is untouched.
+- The backup format goes from v8 to v9 to carry goals. Backups made by earlier versions still import. A v9 backup cannot be imported by an earlier version of the extension.
 - No permission changes.

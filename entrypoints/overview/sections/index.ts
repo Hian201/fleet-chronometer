@@ -3,6 +3,7 @@ import type { OverviewSection } from './types';
 import { fleetOverviewSection } from './fleet-overview';
 import { tagBoardSection } from './tag-board';
 import { shipsSection } from './ships';
+import { goalsSection } from './goals';
 import { equipmentSection } from './equipment';
 import { equipRefSection } from './equip-ref';
 import { sortieLogSection } from './sortie-log';
@@ -20,6 +21,7 @@ export const sections: OverviewSection[] = [
     fleetOverviewSection,   // 艦隊四隊＋基地航空隊全覽（＋markdown/PNG 匯出）
     tagBoardSection,        // 活動配船板（自由池 × 標籤欄；hash 仍為 event-ops）
     shipsSection,           // 艦娘全覽（詳細清單：篩選抽屜＋十八個排序欄＋分頁）
+    goalsSection,           // 目標規劃（改造目標的等級、經驗與消耗缺口）
     equipmentSection,       // 裝備全覽（圖示篩選架＋圖磚／詳細清單雙模式）
     equipRefSection,        // 配裝參考（在案艦 × 藍字／主砲適性，全圖鑑＋庫存標記）
     sortieLogSection,       // 出擊紀錄（＋KC3Kai 重播匯出）

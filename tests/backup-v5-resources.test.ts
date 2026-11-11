@@ -45,7 +45,7 @@ const v5Restore = (extra?: Partial<Record<string, unknown[]>>) => ({
 });
 
 describe('版本協商', () => {
-    it('目前版本為 8', () => expect(BACKUP_SCHEMA_VERSION).toBe(8));
+    it('目前版本為 9', () => expect(BACKUP_SCHEMA_VERSION).toBe(9));
 
     it('v5 restore 必須含 resources 與 resourceMarks', () => {
         for (const missing of ['resources', 'resourceMarks']) {

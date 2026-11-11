@@ -43,6 +43,13 @@
             --eq-over: #c17a4a;
             --eq-lack: #c9a36a;
 
+            /* 目標規劃（語意色，不隨主題變化；禁止挪用 --dmg-*／--sally-*／--res-*／--eq-*）。
+               只標「改造目標的消耗缺口」：需求大於可用量、要先補足的數量。
+               色值是算出來的：對深色 #182030 與亮色 #ffffff 各跑 dataviz 的 validate_palette.js
+               皆 PASS，與既有各組語意色的正常色覺 ΔE 皆 ≥16。只當標記色（底色與色條），
+               不當文字色——單一色值無法在深淺兩種底色同時達到文字的 4.5:1。 */
+            --gl-short: #c836bc;
+
             /* 任務種類（語意色，不隨主題變化；對齊遊戲任務清單的分類色，禁止挪用做其他用途）。 */
             --qc-composition: #2a8144;
             --qc-sortie: #c0413e;
@@ -8328,6 +8335,98 @@
 
             .qf-target-picker { max-width: none; }
         }
+
+        /* ── 目標規劃（goals）──
+           單欄、整頁捲動。消耗表沿用 .vl-table，但改成依內容寬（卡片內不拉滿），
+           數字欄靠右、等寬數字，方便縱向比較。 */
+        .gl { max-width: 900px; }
+        .gl-list { display: flex; flex-direction: column; gap: 8px; }
+        .gl-card {
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+        .gl-card-ready { border-color: color-mix(in srgb, var(--sparkle) 55%, var(--line)); }
+        .gl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+        .gl-no {
+            min-width: 20px;
+            color: var(--dim);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+        .gl-name, .gl-target { font-weight: 600; }
+        .gl-lv { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+        .gl-arrow { color: var(--dim); }
+        .gl-target { color: var(--sparkle); }
+        .gl-ready, .gl-reached, .gl-est {
+            padding: 0 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+        .gl-ready, .gl-reached {
+            border: 1px solid color-mix(in srgb, var(--sparkle) 55%, var(--line));
+            background: color-mix(in srgb, var(--sparkle) 14%, transparent);
+            color: var(--sparkle);
+        }
+        /* 推算＝估算值，沿用虛線語彙（同 .fo-badge b.est） */
+        .gl-est {
+            margin-left: 4px;
+            border: 1px dashed var(--dim);
+            color: var(--dim);
+            cursor: help;
+        }
+        .gl-acts { display: inline-flex; gap: 4px; }
+        .gl-acts .ov-btn { min-width: 30px; justify-content: center; }
+        .gl .ov-btn:disabled,
+        .gl .ov-btn:disabled:hover {
+            border-color: var(--line);
+            color: var(--dim);
+            opacity: .5;
+            cursor: default;
+            transform: none;
+        }
+        .gl-path { margin-top: 4px; padding-left: 28px; color: var(--dim); font-size: 12px; }
+        .gl-level {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 12px;
+            margin: 6px 0 8px;
+            padding-left: 28px;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+        .gl-gap { color: var(--sparkle); }
+        .gl-reason { margin: 6px 0 0; padding-left: 28px; color: var(--dim); font-size: 12px; }
+        /* 各卡消耗表同寬，數字欄才會上下對齊；窄於此時讓表格自己橫捲 */
+        .gl-card .gl-table-wrap { margin-left: 28px; min-width: min(calc(100% - 28px), 460px); }
+        .gl-totals .gl-table-wrap { min-width: min(100%, 460px); }
+        .vl-table-wrap.gl-table-wrap { width: fit-content; max-width: 100%; max-height: none; }
+        .gl-cand-wrap.vl-table-wrap { max-height: min(60vh, 640px); }
+        .gl-table .gl-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .gl-table td.gl-num { min-width: 64px; }
+        /* 數字用正文色（深淺主題對比皆 >8:1），缺口色只做底色與左側色條；缺口另以
+           「有數字／勾號／不可考」三種字形區分，不只靠顏色。 */
+        .gl-short {
+            display: inline-block; min-width: 2.2em; padding: 0 6px; border-radius: 4px;
+            color: var(--text); font-weight: 600;
+            background: color-mix(in srgb, var(--gl-short) 26%, transparent);
+            box-shadow: inset 2px 0 0 var(--gl-short);
+        }
+        .gl-enough { color: var(--dim); }
+        .gl-unknown { color: var(--dim); border-bottom: 1px dashed currentColor; }
+        .gl-totals:empty { display: none; }
+        .gl-add { margin-top: 16px; }
+        .gl-add > summary {
+            cursor: pointer;
+            padding: 4px 0;
+            color: var(--sparkle);
+            font-size: 14px;
+        }
+        .gl-add-bar { margin: 8px 0; }
+        .gl-pick { min-width: 0; min-height: 26px; padding: 2px 6px; }
 
         @media (max-width: 620px) {
             .rs-row { grid-template-columns: minmax(0, 1fr); }

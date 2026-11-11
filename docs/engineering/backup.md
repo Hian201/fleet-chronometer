@@ -19,9 +19,9 @@ raw events 存在時，僅採用 `eventId` 嚴格小於第一筆 retained raw ev
 baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，避免較新的 snapshot
 污染較舊事件的 state context。
 
-**現行備份契約（`BACKUP_SCHEMA_VERSION = 8`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
+**現行備份契約（`BACKUP_SCHEMA_VERSION = 9`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
 `expeditions`、`factory`、`wanted`、`shipObtained`、`eventPlans`、`resources`、`resourceMarks`、
-`questObserved`、`questSeen` 與 `replays`。不含 raw `events`、`notified`、projection metadata，也不含
+`questObserved`、`questSeen`、`goals` 與 `replays`。不含 raw `events`、`notified`、projection metadata，也不含
 語言／主題／各分區篩選等顯示偏好。
 
 - 選填欄位 `questFlow`：任務導覽的釘選與人工完成（`api_no` 名單），還原後覆寫本機這兩項；舊檔
@@ -30,8 +30,10 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
   還原在 IndexedDB 提交後才覆寫本機名單，缺席則不碰；只接受正規寫法的通常海域編號
   （`1-1`～`9-9`）且不得重複。只有這項設定、資料表全空時仍視為空備份，不寫檔。
 - `questObserved` 以來源 event id 冪等保存；`questSeen` 以 questNo 為主鍵、min／max 合併首末觀測，
-  兩個 event id 都進 `highestReferencedEventId()`。`eventPlans` 是純使用者輸入、不參照 event id，
-  不進 `highestReferencedEventId()`。
+  兩個 event id 都進 `highestReferencedEventId()`。`eventPlans` 與 `goals` 是純使用者輸入、不參照
+  event id，不進 `highestReferencedEventId()`。
+- `goals`（目標規劃，見 [goals.md](goals.md)）的主鍵必須與內容一致（`remodel:${shipId}`），種類目前只
+  接受 `remodel`；它算在「還原目標資料」之內，目的地已有目標時整批拒絕。
 - 出擊紀錄的 optional 欄位（`SortieLogRow.getExp`／`mvp`／`mvpEscort`／`enemyName`、
   `ReplayRow.fleet3`／`fleet4`／`lbas`）缺席即維持缺席，舊備份不會被拒，也不補預設值。
 - `wanted` 匯入時重配自身自增 id，但保留 eventId reference。
@@ -49,6 +51,7 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 | v6 | 單一 full | 拆檔合併為完整檔 |
 | v7 | full | `questObserved` |
 | v8 | full | `questSeen`、選填 `sortieExclude` |
+| v9 | full | `goals` |
 
 v1 與 v6 以後可單檔匯入；v2–v5 的拆檔可同次選取，或分兩次選取後由介面在記憶體暫存湊成一對，
 再正規化成現行完整版本以一個 transaction 還原。

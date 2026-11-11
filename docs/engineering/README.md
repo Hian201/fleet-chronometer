@@ -24,6 +24,7 @@
 | [game-page.md](game-page.md) | 視窗適應（劇場）、遊戲靜音、獨立視窗、拍照、關閉分頁前警示 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`screenshot.ts`、`entrypoints/bridge.content.ts` |
 | [fleet-photo.md](fleet-photo.md) | 面板編成寫真：讀遊戲畫布、裁切範圍、輸出版面、header 縮放 | `entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts`、`tests/fleet-photo.test.ts` |
 | [route-forecast.md](route-forecast.md) | 常規導航：分岐規則、節點座標、地理底圖對位、到王編成參考、overview 即時更新 | `utils/route-predict.ts`、`route-rules-*.ts`、`map-spots.ts`、`map-geo-data.ts`、`route-suggest.ts`、`entrypoints/overview/live-state.ts` |
+| [goals.md](goals.md) | 目標規劃：改造目標的需求來源、推算類消耗、庫存分配、儲存位置 | `utils/remodel-goals.ts`、`remodel-cost-data.ts`（產生物）、`entrypoints/overview/sections/goals.ts`、`tools/remodel-cost/`、`tests/remodel-goals.test.ts` |
 | [llm.md](llm.md) | LLM 分析的三條零權限路徑與報告摘要原則 | `entrypoints/overview/sections/llm.ts`、`prompt-api.d.ts` |
 
 ## 樣本

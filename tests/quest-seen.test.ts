@@ -93,7 +93,7 @@ describe('v13 → v14 升級', () => {
 
         const v14 = track(new KcDb(name));
         await v14.open();
-        expect(v14.verno).toBe(14);
+        expect(v14.verno).toBeGreaterThanOrEqual(14);
         expect(await v14.questSeen.toArray()).toEqual([
             { questNo: 107, firstTs: TS, firstEventId: first, lastTs: TS + 2, lastEventId: second },
             { questNo: 201, firstTs: TS, firstEventId: first, lastTs: TS, lastEventId: first },

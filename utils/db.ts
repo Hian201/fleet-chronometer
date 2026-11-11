@@ -421,6 +421,21 @@ export interface QuestSeenRow {
 
 // 已通知過的遠征（防重複通知；鬧鐘提前響或立即通知時寫入，回港 port 封包據此略過）。狀態必須持久化，才能跨 service worker 重啟維持
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
+// 玩家設定的目標（情報總括「目標規劃」）。這是玩家的意圖，不是封包衍生資料：由分區直接
+// 寫入（同 eventPlans），不經 EventProjector；備份要帶走，重裝後才不必重設。
+// 主鍵 key 帶種類前綴，日後新增其他種類的目標不必再開表。
+export interface GoalRow {
+    /** `remodel:${shipId}`——一艘艦只有一個改造目標。 */
+    key: string;
+    kind: 'remodel';
+    /** 優先順序，小的在前；庫存依此順序分配（見 utils/remodel-goals.ts）。 */
+    order: number;
+    /** 艦娘實例 id（api_ship[].api_id）。 */
+    shipId: number;
+    /** 目標形態的 master id。 */
+    targetMst: number;
+}
+
 export interface NotifiedRow {
     deckId: number;
     completeAt: number;   // 需比對到完全相同的完成時刻才算「已通知過」，避免誤殺同艦隊之後的新遠征
@@ -442,6 +457,7 @@ export class KcDb extends Dexie {
     resourceMarks!: Table<ResourceMarkRow, string>;
     questObserved!: Table<QuestObservedRow, number>;
     questSeen!: Table<QuestSeenRow, number>;
+    goals!: Table<GoalRow, string>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -618,6 +634,25 @@ export class KcDb extends Dexie {
                 }
             }
             if (merged.size) await trans.table('questSeen').bulkPut([...merged.values()]);
+        });
+        // v15：玩家設定的目標（見 GoalRow）。純新增表，沒有可回填的歷史。
+        this.version(15).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            questSeen: 'questNo, lastTs',
+            goals: 'key',
+            meta: 'key',
         });
     }
 }

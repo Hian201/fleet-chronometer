@@ -754,6 +754,8 @@ export class GameState {
         sortId?: number;
         // 以下四項為「艦娘全覽」的篩選所需，見 api_start2/getData 分支的逐欄說明。
         ctype: number; afterLv: number; afterShipId: number; kyoukaMax: number[];
+        // 改造到 afterShipId 所需的彈藥與鋼材（見 api_start2/getData 分支；目標分區用）。
+        afterAmmo: number; afterSteel: number;
         // 基礎耐久 api_taik[0]。配裝參考的戰艦 A/B 群分界用它，不能用實例 maxhp（結婚會加）。
         taik0: number;
     }>();
@@ -767,6 +769,16 @@ export class GameState {
     // 存全部前身才能繞經 741 的另一個前身 1027 一路回到真正的基礎形態 1022。
     upgradeOriginal = new Map<number, number>();
     remodelPrev = new Map<number, number[]>();
+    // 改造前 master id → 該次改造消耗的道具數（api_mst_shipupgrade）。各欄語意以
+    // samples/start2-master.json 對照 wikiwiki「改造」頁核對：drawing＝改裝設計圖（伊勢改二 2）、
+    // catapult＝試製甲板カタパルト（伊勢改二 1）、report＝戦闘詳報（時雨改三 2）、
+    // aviation_mat＝新型航空兵装資材（赤城改二 2）、arms_mat＝新型兵装資材（榛名改二乙 2）、
+    // tech＝海外艦最新技術（Richelieu Deux 2）、boiler＝新型高温高圧缶（大和改二 2，是裝備）。
+    // KC3Kai src/library/modules/RemodelDb.js 以同名欄位讀取。沒有列的艦＝該次改造不需道具。
+    remodelItems = new Map<number, {
+        blueprint: number; catapult: number; report: number; aviationMat: number;
+        armsMat: number; tech: number; boiler: number;
+    }>();
     // baseShipId() 的結果快取。輸入只有上面兩張 master 表（start2 之後就不再變動），故
     // 快取只需在 start2 重建它們時清空。**沒有快取會很痛**：ownsShip() 每次打撈都要對
     // 全名冊（常 300-500 艘）各跑一次帶 visited 的圖搜尋，而 battleresult 在面板啟動
@@ -1488,6 +1500,12 @@ export class GameState {
                 // 改造後 master id，'0' 表示已是最終形態。「完成改造」篩選只認後者。
                 afterLv: s.api_afterlv ?? 0,
                 afterShipId: Number(s.api_aftershipid ?? 0) || 0,
+                // 改造消耗：api_afterbull＝彈藥、api_afterfuel＝**鋼材**（欄名是 fuel 但不是燃料）。
+                // samples/start2-master.json 核對：長門改→長門改二 afterbull 8800／afterfuel 9200，
+                // 與遊戲改造畫面的彈藥 8800、鋼材 9200 一致；KC3Kai src/library/modules/
+                // RemodelDb.js 同樣把 api_afterfuel 讀成 steel。
+                afterAmmo: s.api_afterbull ?? 0,
+                afterSteel: s.api_afterfuel ?? 0,
                 // 近代化改修上限：master 的 api_houg/raig/tyku/souk 是 [初期値, 最大値]，
                 // 兩者差＝該項可改修的總量，恰好對得上 api_ship.api_kyouka 的累計值。
                 // **已用真封包核對**（叢雲改二 420：houg[14,57] 差 43＝kyouka[0]、
@@ -1527,10 +1545,25 @@ export class GameState {
         }
         // 改造 → 基礎形態的直接對應（主要解法，見 upgradeOriginal 宣告處說明）
         this.upgradeOriginal.clear();
+        this.remodelItems.clear();
         for (const u of api.api_mst_shipupgrade ?? []) {
             const id = u?.api_id, base = u?.api_original_ship_id;
             if (Number.isSafeInteger(id) && Number.isSafeInteger(base) && id > 0 && base > 0
                 && !this.upgradeOriginal.has(id)) this.upgradeOriginal.set(id, base);
+            // 同一個改造後形態可有多個來源（可逆改裝），故以「改造前」為鍵；只收與
+            // api_aftershipid 對得上的列，對不上的不猜。
+            const from = Number(u?.api_current_ship_id);
+            if (from > 0 && this.master.get(from)?.afterShipId === id) {
+                this.remodelItems.set(from, {
+                    blueprint: Number(u.api_drawing_count) || 0,
+                    catapult: Number(u.api_catapult_count) || 0,
+                    report: Number(u.api_report_count) || 0,
+                    aviationMat: Number(u.api_aviation_mat_count) || 0,
+                    armsMat: Number(u.api_arms_mat_count) || 0,
+                    tech: Number(u.api_tech_count) || 0,
+                    boiler: Number(u.api_boiler_count) || 0,
+                });
+            }
         }
         for (const g of api.api_mst_slotitem ?? []) {
             this.masterGears.set(g.api_id, {
