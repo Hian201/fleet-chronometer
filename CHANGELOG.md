@@ -2,7 +2,7 @@
 
 Changes for each Chrome Web Store release. While a version is in store review, its changes collect under **Unreleased** and each update is published as a pre-release tag (`v<version>-rc.N`). When the store approves it, the section is renamed to the version and the final tag `v<version>` is created on the approved commit.
 
-## [Unreleased] — 1.1.1.0
+## [1.1.1.0] - 2026-11-11
 
 ### Highlights
 
@@ -86,4 +86,5 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 
 - IndexedDB schema goes from v14 to v15: one new table for goals. Existing data is untouched.
 - The backup format goes from v8 to v9 to carry goals. Backups made by earlier versions still import. A v9 backup cannot be imported by an earlier version of the extension.
+- Quest list observations in backups gain optional title and description fields. Older backups still import; earlier versions of the extension ignore the new fields.
 - No permission changes.
