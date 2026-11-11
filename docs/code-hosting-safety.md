@@ -61,22 +61,9 @@
 
 ## 7. 目前的遠端設定
 
-- `main` 追蹤 `gitlab/main`，`remote.pushDefault=gitlab`：`git push` 只推 GitLab。
-- `origin` 同時設有 GitHub 與 GitLab 兩個 push URL；**不要直接 `git push origin`**，那會推到 GitHub。
-- GitLab 操作用 `glab`，GitHub 操作用 `gh`；兩者都依本檔分級。
-
-### 恢復以 GitHub 為主（進行中）
-
-GitHub 停在 `1a49fd6`，還留著舊的 `v1.1.1.0` tag 與附 zip 的舊 Pre-release。正式版 `v1.1.1.0` 要打在送審的 `e4f8921`，
-同名 tag 不得以 force push 覆蓋，必須先刪除舊的。各步依 §3 的節奏：逐一取得開發者同意，確認上一步結果後才做下一步；
-不需要隔天，但不在同一個指令裡串接。
-
-1. 推送 main 到 GitHub。
-2. 推送 `v1.1.1.0-rc.2` tag（rc.1 只是紀錄，GitLab 已保留，不推）。
-3. 刪除舊的 `v1.1.1.0` Pre-release。
-4. 刪除舊的 `v1.1.1.0` tag。
-5. 商店過審後：推送正式 `v1.1.1.0` tag，建立正式 release（附送審的同一份 zip、設為 Latest）。
-6. 遠端設定改回：`branch.main.remote=origin`、移除 `remote.pushDefault`（`origin` 同時推 GitHub 與 GitLab），並改寫本節。
+- `main` 追蹤 `origin/main`；`origin` 的 fetch 來源是 GitHub，push URL 同時設 GitHub 與 GitLab，`git push` 一次推兩邊。
+- `gitlab` remote 只用於讀取或單獨對 GitLab 操作。
+- GitLab 操作用 `glab`，GitHub 操作用 `gh`；兩者都依本檔分級。發版時兩邊各建一個 release，附同一份 zip。
 
 ## 參考來源
 

@@ -109,7 +109,7 @@ npm test            # Vitest
 
 ## 遠端同步現況
 
-`git push` 目前只推 GitLab；GitHub 依 `docs/code-hosting-safety.md` §7 逐步恢復同步，每一步先取得開發者同意。
+`git push` 經 `origin` 同時推 GitHub 與 GitLab，遠端設定見 `docs/code-hosting-safety.md` §7。
 
 ## 單一真相來源
 
