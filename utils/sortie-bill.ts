@@ -54,6 +54,12 @@ export interface SortieBill {
     payable: Resources4;
     /** 出擊期間的餘額變動（正＝增加）；無法確定時為 null。 */
     balanceDelta: Resources4 | null;
+    /**
+     * 同一段期間另外四項的餘額變動：高速建造材、高速修復材、開發資材、改修資材。
+     * 活動海域的強力友軍會用掉高速建造材、終點的資材點會給這幾項，都只會出現在這裡。
+     * 不併入 payable 與淨成本（單位不同）；前後兩筆不是完整八項時為 null。
+     */
+    specialDelta: Resources4 | null;
     planesLost: number;
     /** payable 的燃料／彈藥含結婚艦的近似取整。 */
     estimated: boolean;
@@ -132,8 +138,11 @@ export function sortieBill(
         Array.isArray(m) && m.length >= 4 && m.slice(0, 4).every(v => typeof v === 'number' && Number.isFinite(v));
     const balanceDelta = complete(m0) && complete(m1)
         ? [m1[0] - m0[0], m1[1] - m0[1], m1[2] - m0[2], m1[3] - m0[3]] as Resources4 : null;
+    const eight = (m: readonly number[]) => m.length >= 8 && m.slice(4, 8).every(v => typeof v === 'number' && Number.isFinite(v));
+    const specialDelta = balanceDelta && eight(m0!) && eight(m1!)
+        ? [m1![4] - m0![4], m1![5] - m0![5], m1![6] - m0![6], m1![7] - m0![7]] as Resources4 : null;
     return {
-        ships, payable, balanceDelta, planesLost,
+        ships, payable, balanceDelta, specialDelta, planesLost,
         estimated: ships.some(ship => ship.estimated), damagedShipIds, lostShipIds,
     };
 }

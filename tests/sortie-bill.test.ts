@@ -41,7 +41,9 @@ describe('sortieBill', () => {
             { id: 2, masterId: 102, fuel: 8, ammo: 10, bauxite: 0, repairFuel: 0, repairSteel: 0 },
         ]);
         expect(bill.payable).toEqual([16 + 8 + 12, 30, 30, 50]);
-        expect(bill).toMatchObject({ planesLost: 10, estimated: false, damagedShipIds: [1], lostShipIds: [], balanceDelta: null });
+        expect(bill).toMatchObject({
+            planesLost: 10, estimated: false, damagedShipIds: [1], lostShipIds: [], balanceDelta: null, specialDelta: null,
+        });
     });
 
     it('帶傷、未補滿出擊：舊傷與舊缺額不算到這一趟', () => {
@@ -75,6 +77,11 @@ describe('sortieBill', () => {
         expect(sortieBill(fleet, fleet, { before: [1000, 1000, 1000, 1000, 5, 5, 5, 5], after: [900, 950, 1080, 1000, 5, 5, 5, 5] })
             .balanceDelta).toEqual([-100, -50, 80, 0]);
         expect(sortieBill(fleet, fleet, { before: null, after: [1, 2, 3, 4] }).balanceDelta).toBeNull();
+        // 另外四項（高速建造材、高速修復材、開發資材、改修資材）要完整八項才算。
+        expect(sortieBill(fleet, fleet, { before: [9, 9, 9, 9, 500, 100, 50, 20], after: [9, 9, 9, 9, 494, 101, 50, 20] })
+            .specialDelta).toEqual([-6, 1, 0, 0]);
+        expect(sortieBill(fleet, fleet, { before: [1, 2, 3, 4], after: [1, 2, 3, 4, 5, 6, 7, 8] }))
+            .toMatchObject({ balanceDelta: [0, 0, 0, 0], specialDelta: null });
         expect(sortieBill(fleet, fleet, { before: [1, 2, 3], after: [1, 2, 3, 4] }).balanceDelta).toBeNull();
     });
 });
