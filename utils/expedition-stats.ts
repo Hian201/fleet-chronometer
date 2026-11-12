@@ -11,9 +11,8 @@
 // 算得出來（`db.expeditions` 獨立於事件裁剪、永久保留）。
 //
 // ── 兩個誠實性前提 ──────────────────────────────────────────────────────
-//   1. **回航道具（items）的欄位語意未經真封包驗證**（見 docs/engineering/expeditions.md「遠征紀錄的期間彙總」，
-//      `api_get_item1/2` 目前是 best-effort），故一律以 `id × count` 原樣彙總，
-//      不翻譯成「螺絲 N 個」，也不併入四資源小計。
+//   1. **回航道具（items）以 useitem id × count 原樣彙總**，不併入四資源小計。種類判定與依據
+//      見 docs/engineering/expeditions.md「遠征紀錄的期間彙總」；較早的紀錄缺 flag 1–3 的道具。
 //   2. **彙總的母集合是「紀錄中的」遠征**，不是遊戲的完整歷史。`db.expeditions`
 //      由面板的 EventProjector 投影，面板長期沒開、raw event 又已被 M6 裁剪的
 //      那段期間會永久缺席。UI 必須如實說明，不可暗示這是完整帳。
@@ -34,7 +33,7 @@ export interface ExpeditionTotals {
     fail: number;
     /** 四項資材加總（長度恆為 4，缺欄補 0——這裡的 0 是「這次遠征沒給」的事實）。 */
     resources: number[];
-    /** 回航道具依 id 彙總，依 id 升冪。語意未驗證，只加總不解讀。 */
+    /** 回航道具依 useitem id 彙總，依 id 升冪。 */
     items: { id: number; count: number }[];
 }
 

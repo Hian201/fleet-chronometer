@@ -65,7 +65,7 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 |---|---|---|
 | `events` | `++id, ts, path, &captureId, postProcessState` | `ingestEvent()` |
 | `wanted` | `++id, eventId, tag, ts` | 面板（開發用 UI） |
-| `sorties`／`factory`／`replays`／`expeditions` | 見 db.ts | `EventProjector`（面板） |
+| `sorties`／`factory`／`replays`／`expeditions`／`materialUse`（v16） | 見 db.ts | `EventProjector`（面板） |
 | `snapshot` | `path, ts` | background |
 | `resources`／`resourceMarks` | `eventId, ts`／`key, mapKey, ts` | background（`resource-capture.ts`） |
 | `questObserved`（v13）／`questSeen`（v14） | `eventId, questNo, ts`／`questNo, lastTs` | background |
@@ -74,7 +74,7 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 
 版本升級不回填歷史 `captureId`、`postProcessState` 或 projection metadata，所以歷史 events 不是
 可恢復的 post-processing 工作；projection metadata 缺／未知／損壞時從 retained raw events 的 0
-重投影。v11 起的新表（`eventPlans`、`resources`、`resourceMarks`、`goals`）都不回填；v13／v14 只從升級當下
+重投影。v11 起的新表（`eventPlans`、`resources`、`resourceMarks`、`goals`、`materialUse`）都不回填；v13／v14 只從升級當下
 仍保留的 raw events 回填 `questObserved`／`questSeen`。
 
 **Ingestion lifecycle**：新 event 先存 `pending`；同 captureId 只允許相同 path 與 timestamp，否則拒絕
@@ -83,7 +83,7 @@ collision。取得 transactional claim 才轉 `processing` 並執行廣播、sna
 再按 event ID recovery；新 ingestion 與 recovery 共用 promise queue，副作用不會超前。通知用固定
 notification ID，snapshot 與 derived rows 冪等寫入。
 
-**Projection boundary**：`EventProjector` 是 `sorties`／`factory`／`replays`／`expeditions` 的入口，
+**Projection boundary**：`EventProjector` 是 `sorties`／`factory`／`replays`／`expeditions`／`materialUse` 的入口，
 保存 `dropMst`、replay difficulty 與 replay／sortie 關聯；新船判定結合 `dropMst` 與 `shipObtained`，
 不由名稱反推。資源序列與任務觀測不需要 GameState 上下文，而且價值在連續性（面板沒開的日子也要
 記），所以由 background 在 post-processing 落地，主鍵用來源 raw event id 以保持冪等。

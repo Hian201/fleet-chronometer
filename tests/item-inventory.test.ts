@@ -72,6 +72,18 @@ describe('道具持有量', () => {
         for (const term of ['戰鬥詳報', '戦闘詳報', 'action report']) expect(itemMatches(report, term)).toBe(true);
     });
 
+    it('入渠用桶（開始時或途中）當場扣 1 個高速修復材；不用桶或餘額未知時不動', () => {
+        const state = new GameState();
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '1', api_ndock_id: '1', api_highspeed: '1' });
+        expect(state.materials[5]).toBeUndefined();
+
+        state.materials = [1, 2, 3, 4, 5, 60, 7, 8];
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '1', api_ndock_id: '1', api_highspeed: '1' });
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '2', api_ndock_id: '2', api_highspeed: '0' });
+        state.applyEvent('api_req_nyukyo/speedchange', {}, { api_ndock_id: '2' });
+        expect(state.materials).toEqual([1, 2, 3, 4, 5, 58, 7, 8]);
+    });
+
     it('沿用公開工具的已知獲得與消耗回應更新 useitem 計數', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/useitem', [{ api_id: 78, api_count: 3 }]);

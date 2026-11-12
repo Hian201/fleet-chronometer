@@ -107,8 +107,14 @@ ElectronicObserver（MIT）`Data/MissionClearCondition.cs`，轉換規則見下�
 1. **母集合是「已投影紀錄中的」遠征，不是遊戲的完整歷史**。`db.expeditions` 由面板的
    `EventProjector` 投影（資源序列才是 background 落地的例外）。面板未開時投影會延後；
    raw event 只有在投影成功且通過保護規則後才可裁剪，因此不能把未開面板直接等同於永久缺席。
-2. **回航道具（`items`）的欄位語意未經真封包驗證**，故一律以 `id × count` 原樣
-   彙總，不翻成「螺絲 N 個」，也**不併入四資源小計**。
+2. **回航道具（`items`）以 useitem id × 數量原樣彙總**，不併入四資源小計。種類看
+   `api_useitem_flag[i]`：1／2／3＝高速修復材／高速建造材／開發資材，這三種的
+   `api_useitem_id` 不是正數，投影時直接存成 useitem id 1／2／3（正好就是這三種資材的
+   useitem id）；4 以上才看 `api_useitem_id`（家具箱 10–12、改修資材 4 等）。數量一律取
+   `api_get_item{i+1}.api_useitem_count`。依據：KC3Kai `src/library/modules/Kcsapi.js` 與
+   ElectronicObserver `Observer/kcsapi/api_req_mission/result.cs`，本專案沒有這支封包的樣本。
+   缺 `api_useitem_flag` 的封包維持只收 `api_useitem_id > 0`。修正前的紀錄沒有 flag 1–3 的道具，
+   raw events 已裁剪，無從回填。
 
 **設計決定**：
 

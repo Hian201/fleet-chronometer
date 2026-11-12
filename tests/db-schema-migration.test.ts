@@ -226,14 +226,14 @@ describe('KcDb 現行 schema 與 v9 相容遷移', () => {
     // 這裡刻意寫死目前的版號與表清單：schema 一改就會紅，逼人回來確認「這次真的要改
     // 資料庫結構」而不是手滑。升版時把版號與清單一起更新即可
     // （v11 新增 eventPlans、v12 新增 resources／resourceMarks、v13 新增 questObserved、
-    // v14 新增 questSeen、v15 新增 goals）。
+    // v14 新增 questSeen、v15 新增 goals、v16 新增 materialUse）。
     it('全新資料庫可直接建立目前的 schema 與 projection metadata', async () => {
         const database = track(new KcDb(databaseName('fresh-current')));
         await database.open();
 
-        expect(database.verno).toBe(15);
+        expect(database.verno).toBe(16);
         expect(database.tables.map(table => table.name).sort()).toEqual([
-            'eventPlans', 'events', 'expeditions', 'factory', 'goals', 'meta', 'notified',
+            'eventPlans', 'events', 'expeditions', 'factory', 'goals', 'materialUse', 'meta', 'notified',
             'questObserved', 'questSeen', 'replays', 'resourceMarks', 'resources', 'shipObtained',
             'snapshot', 'sorties', 'wanted',
         ]);

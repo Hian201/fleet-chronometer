@@ -5944,6 +5944,45 @@
 
         .rl-tip-row .rl-swatch { background: currentColor; }
 
+        /* ── 離散資材分帳：原生 <details>，重繪只換 .rl-ledger-body ──
+           收入／支出／未歸因三組之間用 1px 分隔線加寬欄距（§4.1.2）；數字欄右對齊、等寬數字。 */
+        .rl-ledger { margin-top: 16px; }
+
+        .rl-ledger > summary {
+            color: var(--brass);
+            font-size: 11px;
+            letter-spacing: var(--track-label);
+            cursor: pointer;
+        }
+
+        .rl-ledger-body { margin-top: 6px; }
+
+        .rl-ledger-meta {
+            font-size: 11px;
+            letter-spacing: var(--track-label);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rl-ledger-q { margin-left: 12px; }
+
+        .rl-ledger-pending { margin-top: 2px; }
+
+        .rl-ledger-table th,
+        .rl-ledger-table td { padding: 5px 8px; }
+
+        .rl-ledger-table td { font-variant-numeric: tabular-nums; text-align: right; }
+
+        .rl-ledger-table th.rl-ledger-k { text-align: left; }
+
+        .rl-ledger-table .rl-lg-sep {
+            padding-left: 14px;
+            border-left: 1px solid var(--line);
+        }
+
+        .rl-ledger-table .rl-ledger-un { font-weight: 600; }
+
+        .rl-ledger-note { margin: 8px 0 0; }
+
         /* ── 活動資源消耗：左清單（篩選＋年份分組）／右明細或比較 ──
            活動身分只在清單呈現一次，數字只在表格；表格內不插標題列。
            容器夠寬時左右並排（§4.7），太窄才上下疊、清單限高自捲。 */

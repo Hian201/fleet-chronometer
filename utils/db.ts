@@ -422,6 +422,17 @@ export interface QuestSeenRow {
     detail?: string;
 }
 
+// 工廠以外的離散資材消耗動作（情報總括「離散資材分帳」用）。由 EventProjector 寫入，主鍵 eventId，put 冪等。
+//   · bucket：入渠用高速修復材，每筆 1 個。nyukyo/start 的 req.api_highspeed='1'、nyukyo/speedchange
+//     （KC3Kai src/library/modules/Kcsapi.js、ElectronicObserver Observer/kcsapi/api_req_nyukyo/start.cs／
+//     speedchange.cs 都是各扣 1）。
+//   · remodel：艦娘改造。只存事實（艦實例 id、改造前 master id）；消耗量在讀取端查改造消耗表，
+//     表日後修正時不必改資料。改造需要 GameState 才知道改造前的形態，所以由投影寫入，入渠跟著同一個寫入者。
+// 新增於 v16，不回填：升級時寫 derived 表會繞過 EventProjector，已裁剪的 raw events 也無從補。
+export type MaterialUseRow =
+    | { eventId: number; ts: number; kind: 'bucket'; via: 'start' | 'speedchange' }
+    | { eventId: number; ts: number; kind: 'remodel'; shipId: number; fromMst: number };
+
 // 已通知過的遠征（防重複通知；鬧鐘提前響或立即通知時寫入，回港 port 封包據此略過）。狀態必須持久化，才能跨 service worker 重啟維持
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
 // 玩家設定的目標（情報總括「目標規劃」）。這是玩家的意圖，不是封包衍生資料：由分區直接
@@ -461,6 +472,7 @@ export class KcDb extends Dexie {
     questObserved!: Table<QuestObservedRow, number>;
     questSeen!: Table<QuestSeenRow, number>;
     goals!: Table<GoalRow, string>;
+    materialUse!: Table<MaterialUseRow, number>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -655,6 +667,26 @@ export class KcDb extends Dexie {
             questObserved: 'eventId, questNo, ts',
             questSeen: 'questNo, lastTs',
             goals: 'key',
+            meta: 'key',
+        });
+        // v16：工廠以外的離散資材消耗（見 MaterialUseRow）。純新增表，不回填。
+        this.version(16).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            questSeen: 'questNo, lastTs',
+            goals: 'key',
+            materialUse: 'eventId, ts, kind',
             meta: 'key',
         });
     }

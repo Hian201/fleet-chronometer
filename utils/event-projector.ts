@@ -1,4 +1,6 @@
-import { db, type ApiEventRow, type ExpeditionRow, type FactoryLogRow, type ReplayRow, type SortieLogRow } from './db';
+import {
+    db, type ApiEventRow, type ExpeditionRow, type FactoryLogRow, type MaterialUseRow, type ReplayRow, type SortieLogRow,
+} from './db';
 import { appendBattle, setDifficulty, startReplay } from './replay';
 import { GameState, isBossNode, type MapGaugeView } from './state';
 
@@ -24,6 +26,7 @@ export interface EventProjectorTables {
     factory: PutTable<FactoryLogRow>;
     replays: ReplayTable;
     expeditions: PutTable<ExpeditionRow>;
+    materialUse: PutTable<MaterialUseRow>;
 }
 
 export type ProjectableEvent = Pick<ApiEventRow, 'ts' | 'path' | 'api'> & {
@@ -105,6 +108,7 @@ export class EventProjector {
             await this.archiveFactory(id, ts, path);
             await this.captureReplay(id, ts, path, api);
             await this.archiveExpedition(id, ts, path, api, req);
+            await this.archiveMaterialUse(id, ts, path, req);
             await this.detectClear(path);
         } finally {
             this.activeMode = previousMode;
@@ -280,9 +284,17 @@ export class EventProjector {
         if (path !== 'api_req_mission/result') return;
         const deckId = Number(req?.api_deck_id ?? 0);
         const items: { id: number; count: number }[] = [];
-        for (const key of ['api_get_item1', 'api_get_item2']) {
+        // 回航道具的種類看 api_useitem_flag[i]：1 高速修復材、2 高速建造材、3 開發資材，這三種的
+        // api_useitem_id 不是正數，數量一律取 api_get_item{i+1}.api_useitem_count；4 以上才看 api_useitem_id
+        // （KC3Kai src/library/modules/Kcsapi.js、ElectronicObserver Observer/kcsapi/api_req_mission/result.cs）。
+        // flag 1–3 正好等於這三種資材的 useitem id，所以照樣存成 useitem id，items.id 的語意不變。
+        const flags: unknown[] = Array.isArray(api?.api_useitem_flag) ? api.api_useitem_flag : [];
+        for (const [index, key] of ['api_get_item1', 'api_get_item2'].entries()) {
             const item = api?.[key];
-            if (item && item.api_useitem_id > 0) {
+            const flag = Number(flags[index]);
+            if (item && (flag === 1 || flag === 2 || flag === 3)) {
+                items.push({ id: flag, count: item.api_useitem_count ?? 1 });
+            } else if (item && item.api_useitem_id > 0) {
                 items.push({ id: item.api_useitem_id, count: item.api_useitem_count ?? 1 });
             }
         }
@@ -305,6 +317,22 @@ export class EventProjector {
             .map(ship => ({ name: ship.name, level: ship.lv }));
         if (fleet?.length) row.fleet = fleet;
         if (this.shouldPersist) await this.tables.expeditions.put(row);
+    }
+
+    private async archiveMaterialUse(id: number, ts: number, path: string, req?: Record<string, string>): Promise<void> {
+        let row: MaterialUseRow | null = null;
+        if (path === 'api_req_nyukyo/start' && req?.api_highspeed === '1') {
+            row = { eventId: id, ts, kind: 'bucket', via: 'start' };
+        } else if (path === 'api_req_nyukyo/speedchange' && Number(req?.api_ndock_id) > 0) {
+            row = { eventId: id, ts, kind: 'bucket', via: 'speedchange' };
+        } else if (path === 'api_req_kaisou/remodeling') {
+            // req.api_id 是艦實例 id（KC3Kai Kcsapi.js、ElectronicObserver Observer/kcsapi/api_req_kaisou/remodeling.cs）。
+            // reducer 不處理 remodeling，所以此刻 state 裡仍是改造前的形態；查不到就不寫，不猜。
+            const shipId = Number(req?.api_id);
+            const fromMst = Number(this.state.ships.get(shipId)?.api_ship_id);
+            if (shipId > 0 && fromMst > 0) row = { eventId: id, ts, kind: 'remodel', shipId, fromMst };
+        }
+        if (row && this.shouldPersist) await this.tables.materialUse.put(row);
     }
 
     private isGaugeBroken(gauge: MapGaugeView): boolean {

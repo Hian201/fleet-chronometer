@@ -2279,6 +2279,7 @@ export class GameState {
         if (req.api_highspeed === '1') {
             // 高速修復（バケツ）：即時全快、不占入渠槽
             if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+            this.useBucket();
             // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
             if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, ts);
         } else {
@@ -2325,6 +2326,7 @@ export class GameState {
         // Observer/kcsapi/api_req_nyukyo/speedchange.cs、Data/DockData.cs 的解析交叉比對）。
         // 找不到該槽或槽內沒有艦時不動作，等母港封包校正。
         const dockId = Number(req.api_ndock_id);
+        if (dockId > 0) this.useBucket();
         const dock = this.ndockData.find((d: any) => Number(d?.api_id) === dockId);
         const shipId = Number(dock?.api_ship_id);
         if (dock && dock.api_state === 1 && shipId > 0) {
@@ -3264,6 +3266,13 @@ export class GameState {
     // 以回應帶的資材陣列更新庫存，回傳每項消耗差分（正值）。元素可能是數字或
     // {api_value} 物件（與 hokyu/charge 分支同容錯）；未帶該索引的項目沿用現值、差分記 0。
     // 資材尚未播種（未回過母港）時差分全 0，呼叫端自行以 req 配方補正。
+    // 入渠用掉 1 個高速修復材。兩支入渠端點的回應都不帶餘額，下次母港封包才會校正；先扣，面板才不會
+    // 停在用桶前的數字（KC3Kai src/library/modules/Kcsapi.js、ElectronicObserver
+    // Observer/kcsapi/api_req_nyukyo/start.cs／speedchange.cs 都是當場扣 1）。餘額未知時不動。
+    private useBucket() {
+        if (typeof this.materials[5] === 'number') this.materials[5] = Math.max(0, this.materials[5] - 1);
+    }
+
     private updateMaterials(list: any): number[] {
         const used = new Array(8).fill(0);
         if (!Array.isArray(list)) return used;

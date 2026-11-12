@@ -128,6 +128,7 @@ function mockTables(): EventProjectorTables & {
     factory: { put: ReturnType<typeof vi.fn> };
     replays: EventProjectorTables['replays'] & { get: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn> };
     expeditions: { put: ReturnType<typeof vi.fn> };
+    materialUse: { put: ReturnType<typeof vi.fn> };
 } {
     const sorties: SortieLogRow[] = [];
     return {
@@ -142,6 +143,7 @@ function mockTables(): EventProjectorTables & {
         factory: { put: vi.fn().mockResolvedValue(undefined) },
         replays: { get: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined) },
         expeditions: { put: vi.fn().mockResolvedValue(undefined) },
+        materialUse: { put: vi.fn().mockResolvedValue(undefined) },
     };
 }
 
@@ -269,6 +271,50 @@ describe('EventProjector persist 模式', () => {
         }
         expect(await database.sorties.count()).toBe(1);
         expect(await database.replays.count()).toBe(1);
+    });
+
+    it('遠征回航道具依 api_useitem_flag 判種類：1–3 存成 useitem id 1–3，4 以上看 api_useitem_id', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });
+        const result = (id: number, flags: number[] | undefined, item1: any, item2?: any) => row(id, 'api_req_mission/result', {
+            api_quest_name: 'fixture expedition', api_clear_result: 1, api_get_material: [0, 0, 0, 0],
+            ...(flags ? { api_useitem_flag: flags } : {}), api_get_item1: item1, ...(item2 ? { api_get_item2: item2 } : {}),
+        }, { api_deck_id: '2' });
+
+        await projector.project(result(1, [1, 3],
+            { api_useitem_id: -1, api_useitem_name: null, api_useitem_count: 2 },
+            { api_useitem_id: -1, api_useitem_name: null, api_useitem_count: 1 }));
+        await projector.project(result(2, [2, 4],
+            { api_useitem_id: -1, api_useitem_count: 1 },
+            { api_useitem_id: 4, api_useitem_count: 3 }));
+        await projector.project(result(3, [4, 0], { api_useitem_id: 10, api_useitem_count: 1 }));
+        // flag 缺席的舊封包維持原本「只收 api_useitem_id > 0」的行為
+        await projector.project(result(4, undefined, { api_useitem_id: -1, api_useitem_count: 1 }));
+
+        const items = (await database.expeditions.orderBy('eventId').toArray()).map(r => r.items);
+        expect(items).toEqual([
+            [{ id: 1, count: 2 }, { id: 3, count: 1 }],
+            [{ id: 2, count: 1 }, { id: 4, count: 3 }],
+            [{ id: 10, count: 1 }],
+            [],
+        ]);
+    });
+
+    it('入渠用桶與艦娘改造寫入 materialUse；查不到改造前形態就不寫', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });
+        await projector.project(row(1, 'api_port/port', portApi()));
+        await projector.project(row(2, 'api_req_nyukyo/start', {}, { api_ship_id: '101', api_ndock_id: '1', api_highspeed: '1' }));
+        await projector.project(row(3, 'api_req_nyukyo/start', {}, { api_ship_id: '101', api_ndock_id: '1', api_highspeed: '0' }));
+        await projector.project(row(4, 'api_req_nyukyo/speedchange', {}, { api_ndock_id: '1' }));
+        await projector.project(row(5, 'api_req_kaisou/remodeling', {}, { api_id: '101' }));
+        await projector.project(row(6, 'api_req_kaisou/remodeling', {}, { api_id: '999' }));
+
+        expect(await database.materialUse.orderBy('eventId').toArray()).toEqual([
+            { eventId: 2, ts: 1_726_000_000_002, kind: 'bucket', via: 'start' },
+            { eventId: 4, ts: 1_726_000_000_004, kind: 'bucket', via: 'speedchange' },
+            { eventId: 5, ts: 1_726_000_000_005, kind: 'remodel', shipId: 101, fromMst: 500 },
+        ]);
     });
 
     it('api_get_material 非陣列（實機觀測過）時不拋錯，resources 退回空陣列', async () => {

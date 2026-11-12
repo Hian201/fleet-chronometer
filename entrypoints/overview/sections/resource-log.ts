@@ -11,6 +11,9 @@
 // 3. **控制項只建一次、只重繪 `.rl-body`**（design-guidelines §4.2 的第二種例外）：
 //    這裡有使用者自己造出來的狀態——圖表的十字準線、詳細清單的捲動位置與分頁。
 //    整塊重繪會把它們全部洗掉。
+// 4. **離散資材分帳是原生 `<details class="rl-ledger">`，只建一次**；重繪只換 `.rl-ledger-body`，
+//    玩家收合的狀態不會被洗掉。它的來源表（工廠、遠征、任務領獎）獨立 try 讀取，
+//    失敗只影響這一塊，不拖垮上方圖表與清單。
 import type { OverviewSection } from './types';
 import { db, type ResourceMarkRow, type ResourceRow } from '@/utils/db';
 import { getLang, t } from '@/utils/ui-i18n';
@@ -24,6 +27,9 @@ import {
     paginate, parsePageSize, saveJsonPrefs,
 } from '../lib';
 import { multiChartGeometry, nearestIndex, type ChartBox, type MultiChartGeometry } from '@/utils/line-chart';
+import {
+    buildMaterialLedger, catalogQuestReward, countRecordsAfter, remodelCostResolver, type LedgerInputs, type MaterialLedger,
+} from '@/utils/material-ledger';
 import {
     MAT_FILES, MAT_KEYS, bucketSamples, buildEventPeriods, buildEventSummary, delta, downsample,
     normalizeSamples, toCsv, type EventPeriod, type EventSummary, type Granularity, type MatIndex,
@@ -551,6 +557,54 @@ export function summaryHtml(
     </div>`;
 }
 
+// ── 離散資材分帳 ─────────────────────────────────────────────────────────
+
+/** 分帳數字：正負號一律顯示（用真正的減號），0 照實顯示為 0（期間內有紀錄、真的是 0，不是缺值）。 */
+const fmtSigned = (n: number) => (n > 0 ? `+${fmtNum(n)}` : n < 0 ? `−${fmtNum(-n)}` : '0');
+
+/** 分帳表。null＝期間內餘額取樣不足，不以 0 頂替。三組（收入／支出／未歸因）之間有欄界（design-guidelines §4.1.2）。 */
+/** pending：最後一筆餘額之後、還在等下一筆餘額才能對帳的紀錄。 */
+export function ledgerHtml(ledger: MaterialLedger | null, pending?: { n: number; ts: number }): string {
+    if (!ledger) return `<div class="ov-empty">${esc(t('ov.rlLedgerNoData'))}</div>`;
+    const { counts } = ledger;
+    const th = (key: string, tip = '', sep = false) =>
+        `<th${sep ? ' class="rl-lg-sep"' : ''}${tip ? ` title="${esc(t(tip))}"` : ''}>${esc(t(key))}</th>`;
+    const td = (value: number, cls: string, sep = false, approx = false) =>
+        `<td class="${sep ? 'rl-lg-sep ' : ''}${cls}">${approx && value !== 0 ? '≈' : ''}${esc(fmtSigned(value))}</td>`;
+    const gain = (n: number, sep = false) => td(n, n > 0 ? 'rl-gain' : 'rl-flat', sep);
+    const drain = (n: number, sep = false) => td(-n, n > 0 ? 'rl-drain' : 'rl-flat', sep);
+    /** 改造欄是依改造消耗表推算的數字，非 0 加「≈」。 */
+    const estimated = (n: number) => td(-n, n > 0 ? 'rl-drain' : 'rl-flat', false, true);
+    const rows = ledger.rows.map(row => {
+        const i = row.mat;
+        return `<tr data-mat="${i}">
+            <th class="rl-ledger-k" scope="row" title="${esc(t(MAT_KEYS[i] + '.full'))}">${matIconHtml(MAT_FILES[i], t(MAT_KEYS[i]))}</th>
+            <td>${esc(fmtNum(row.opening))}</td>
+            ${gain(row.income.quest, true)}${gain(row.income.expedition)}
+            ${drain(row.spending.develop, true)}${drain(row.spending.build)}${drain(row.spending.improve)}${drain(row.spending.speedup)}${drain(row.spending.dock)}${estimated(row.spending.remodel)}
+            ${td(row.unattributed, `rl-ledger-un ${deltaClass(row.unattributed)}`, true)}
+            <td class="rl-lg-sep">${esc(fmtNum(row.closing))}</td>
+        </tr>`;
+    }).join('');
+    return `<div class="rl-ledger-meta dim">
+            <span>${esc(t('ov.rlLedgerRange', {
+        from: fmtTs(ledger.fromTs), to: fmtTs(ledger.toTs),
+        factory: counts.factory, exp: counts.expeditions, quest: counts.questClears,
+    }))}</span>
+            ${counts.questUnknown > 0 ? `<span class="rl-ledger-q">${esc(t('ov.rlLedgerQuestUnknown', { n: counts.questUnknown }))}</span>` : ''}
+            ${counts.remodelUnknown > 0 ? `<span class="rl-ledger-q">${esc(t('ov.rlLedgerRemodelUnknown', { n: counts.remodelUnknown }))}</span>` : ''}
+        </div>
+        ${pending && pending.n > 0 ? `<div class="rl-ledger-meta rl-ledger-pending">${esc(t('ov.rlLedgerPending', { n: pending.n, ts: fmtTs(pending.ts) }))}</div>` : ''}
+        <div class="rl-table-wrap"><table class="rl-table rl-ledger-table">
+            <thead><tr><th class="rl-th-time"></th>${th('ov.rlLedgerOpening')}
+                ${th('ov.rlLedgerQuest', 'ov.rlLedgerQuestTip', true)}${th('ov.rlLedgerExpedition', 'ov.rlLedgerExpeditionTip')}
+                ${th('ov.rlLedgerDevelop', '', true)}${th('ov.rlLedgerBuild')}${th('ov.rlLedgerImprove')}${th('ov.rlLedgerSpeedup', 'ov.rlLedgerSpeedupTip')}${th('ov.rlLedgerDock', 'ov.rlLedgerDockTip')}${th('ov.rlLedgerRemodel', 'ov.rlLedgerRemodelTip')}
+                ${th('ov.rlLedgerUnattributed', 'ov.rlLedgerUnattributedTip', true)}${th('ov.rlLedgerClosing', '', true)}</tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>
+        <p class="ov-note rl-ledger-note">${esc(t('ov.rlLedgerNote'))}</p>`;
+}
+
 /** 工具列（分區與離線預覽共用同一份 markup）。 */
 export function shellHtml(prefs = defaultPrefs()): string {
     return `<div class="rl">
@@ -574,7 +628,9 @@ export function shellHtml(prefs = defaultPrefs()): string {
             <button type="button" class="ov-btn rl-csv">${esc(t('ov.rlExportCsv'))}</button>
             <button type="button" class="ov-btn rl-copy">${esc(t('ov.rlCopyCsv'))}</button>
         </div>
-        <div class="rl-body"><div class="rl-top"></div>${eventsShellHtml(prefs)}<div class="rl-bottom"></div></div>
+        <div class="rl-body"><div class="rl-top"></div>
+            <details class="rl-ledger" open><summary>${esc(t('ov.rlLedgerTitle'))}</summary><div class="rl-ledger-body"></div></details>
+            ${eventsShellHtml(prefs)}<div class="rl-bottom"></div></div>
     </div>`;
 }
 
@@ -608,6 +664,7 @@ export const resourceLogSection: OverviewSection = {
         const body = el.querySelector<HTMLDivElement>('.rl-body')!;
         // 結果區拆成上下兩塊：活動資源消耗夾在中間、只建一次（它有搜尋框與篩選，不能跟著重繪）
         const top = el.querySelector<HTMLDivElement>('.rl-top')!;
+        const ledgerBody = el.querySelector<HTMLDivElement>('.rl-ledger-body')!;
         const bottom = el.querySelector<HTMLDivElement>('.rl-bottom')!;
         const evSec = el.querySelector<HTMLElement>('.rl-ev')!;
         const granSel = el.querySelector<HTMLSelectElement>('.rl-gran')!;
@@ -615,6 +672,7 @@ export const resourceLogSection: OverviewSection = {
         granSel.value = prefs.gran;
         sizeSel.value = String(prefs.size);
         top.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
+        ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         evSec.hidden = !prefs.marks;
 
         let all: Sample[] = [];
@@ -643,9 +701,31 @@ export const resourceLogSection: OverviewSection = {
             return { from: days ? to - days * DAY_MS : all[0].ts, to };
         }
 
+        /** 分帳的來源表（不含餘額樣本）；null＝尚未讀完。 */
+        let ledgerSrc: Omit<LedgerInputs, 'samples'> | null = null;
+        let ledgerError: string | null = null;
+
+        /** 只重繪 `.rl-ledger-body`，`<details>` 本身不動（收合狀態屬於玩家）。 */
+        function drawLedger() {
+            if (ledgerError) {
+                ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: ledgerError }))}</div>`;
+            } else if (!all.length) {
+                ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
+            } else if (!ledgerSrc) {
+                ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
+            } else {
+                const { from, to } = rangeBounds();
+                // 期間一路到最新餘額時，才提醒之後還有幾筆在等下一筆餘額；看過去某段時不相干。
+                const last = all[all.length - 1].ts;
+                const pending = to >= last ? { n: countRecordsAfter(ledgerSrc, last), ts: last } : undefined;
+                ledgerBody.innerHTML = ledgerHtml(buildMaterialLedger({ samples: all, ...ledgerSrc }, from, to), pending);
+            }
+        }
+
         const detailRows = () => buildDetailRows(view, prefs.marks ? allMilestones : []);
 
         function draw(keepScroll = false) {
+            drawLedger();
             if (!all.length) {
                 top.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
                 bottom.innerHTML = '';
@@ -934,6 +1014,61 @@ export const resourceLogSection: OverviewSection = {
             const msg = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
             top.innerHTML = msg;
             evList.innerHTML = msg;
+            // 餘額沒讀到就沒有分帳可做；餘額已讀到（只是後面的出擊紀錄失敗）則分帳照常載入
+            if (!all.length) ledgerError = String((error as Error)?.message ?? error);
         }
+
+        // 分帳的來源表獨立讀取：失敗只影響這一塊，不拖垮上方圖表與下方清單。
+        // 只讀最早樣本之後的列——更早的事件不可能落在任何期間內。
+        async function loadLedgerSources() {
+            try {
+                const since = all[0].ts;
+                const [factory, expeditions, observed, seen, materialUse] = await Promise.all([
+                    db.factory.where('ts').aboveOrEqual(since).toArray(),
+                    db.expeditions.where('ts').aboveOrEqual(since).toArray(),
+                    db.questObserved.where('ts').aboveOrEqual(since).toArray(),
+                    db.questSeen.toArray(),
+                    db.materialUse.where('ts').aboveOrEqual(since).toArray(),
+                ]);
+                const titles = new Map(seen.flatMap(row => (row.title ? [[row.questNo, row.title] as const] : [])));
+                ledgerSrc = {
+                    factory: factory.map(({ ts, kind, used }) => ({ ts, kind, used })),
+                    expeditions: expeditions.map(({ ts, items }) => ({ ts, items })),
+                    questClears: observed.map(({ ts, questNo }) => ({ ts, questNo })),
+                    questReward: catalogQuestReward(titles),
+                    materialUse,
+                    remodelCost: remodelCostResolver(ctx.state),
+                };
+                ledgerError = null;
+            } catch (error) {
+                ledgerError = String((error as Error)?.message ?? error);
+            }
+        }
+        if (all.length && !ledgerError) await loadLedgerSources();
+        drawLedger();
+
+        // 新的餘額或分帳相關紀錄進來時，重讀餘額序列與分帳來源再重畫（活動清單與篩選不重建，§4.2）。
+        // 餘額由 background、紀錄由面板投影寫入，與通知的先後不保證，所以稍等再讀。
+        const REFRESH_PATHS = new Set([
+            'api_port/port', 'api_get_member/material', 'api_req_nyukyo/start', 'api_req_nyukyo/speedchange',
+            'api_req_mission/result', 'api_req_kousyou/createitem', 'api_req_kousyou/remodel_slot',
+            'api_get_member/kdock', 'api_req_kousyou/createship_speedchange', 'api_req_quest/clearitemget',
+            'api_req_kaisou/remodeling',
+        ]);
+        let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+        ctx.onStateChange?.(paths => {
+            if (!paths.some(path => REFRESH_PATHS.has(path))) return;
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(async () => {
+                if (!el.isConnected) return;
+                try {
+                    all = normalizeSamples(await db.resources.orderBy('ts').toArray() as ResourceRow[]);
+                } catch {
+                    return;   // 讀不到就維持畫面上的舊資料，下次通知再試
+                }
+                if (all.length) await loadLedgerSources();
+                if (el.isConnected) draw(true);
+            }, 1500);
+        });
     },
 };

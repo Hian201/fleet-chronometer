@@ -19,8 +19,9 @@ import {
 } from '../../utils/resource-log';
 import {
     buildDetailRows, buildEventEntries, chartGeo, chartHtml, colRackHtml, eventCompareHtml, eventDetailHtml,
-    eventFilterOptions, eventListHtml, shellHtml, summaryHtml, tableHtml, type RenderOpts,
+    eventFilterOptions, eventListHtml, ledgerHtml, shellHtml, summaryHtml, tableHtml, type RenderOpts,
 } from '../../entrypoints/overview/sections/resource-log';
+import { buildMaterialLedger, catalogQuestReward, type LedgerInputs } from '../../utils/material-ledger';
 import { eventTermLabel } from '../../utils/event-calendar';
 import { setLang, t } from '../../utils/ui-i18n';
 import type { Lang } from '../../utils/gamedata-i18n';
@@ -120,6 +121,53 @@ const chartSamples = downsample(view, 500);
 const SERIES: MatIndex[] = [0, 1, 2, 3, 4, 5, 6, 7];
 const geo = chartGeo(chartSamples, SERIES, view[0].ts, view[view.length - 1].ts);
 
+// ── 離散資材分帳：最近 30 天（分區預設期間）的合成工廠／遠征／任務領獎 ─────────────
+// 餘額取自上面的合成序列，事件是手造的小量級：四種資材都有收入與支出，
+// 高速建造材與開發資材支出大於收入（未歸因為正）、改修資材收入大於支出（未歸因為負），
+// 另有一筆查無目錄編號的領獎（報酬無法確認，計入 questUnknown）。
+// 遠征道具 id 1–4 ＝ 高速修復材、高速建造材、開發資材、改修資材。
+const lastTs = all[all.length - 1].ts;
+const at = (daysAgo: number) => lastTs - daysAgo * DAY;
+const used = (torch = 0, bucket = 0, dev = 0, screw = 0) => [0, 0, 0, 0, torch, bucket, dev, screw];
+const ledgerInputs: LedgerInputs = {
+    samples: all,
+    factory: [
+        { ts: at(26), kind: 'develop', used: used(0, 0, 1, 0) },
+        { ts: at(25), kind: 'develop', used: used(0, 0, 3, 0) },
+        { ts: at(21), kind: 'build', used: used(1, 0, 20, 0) },
+        { ts: at(19), kind: 'speedup', used: used(1, 0, 0, 0) },
+        { ts: at(12), kind: 'build', used: used(1, 0, 7, 0) },
+        { ts: at(9), kind: 'improve', used: used(0, 0, 4, 3) },
+        { ts: at(5), kind: 'improve', used: used(0, 0, 2, 2) },
+        { ts: at(3), kind: 'speedup', used: used(2, 0, 0, 0) },
+    ],
+    expeditions: [
+        { ts: at(24), items: [{ id: 2, count: 1 }] },
+        { ts: at(18), items: [{ id: 1, count: 2 }, { id: 3, count: 1 }] },
+        { ts: at(10), items: [{ id: 4, count: 1 }, { id: 1, count: 2 }] },
+        { ts: at(4), items: [{ id: 3, count: 1 }] },
+    ],
+    questClears: [
+        { ts: at(23), questNo: 146 },
+        { ts: at(17), questNo: 114 },
+        { ts: at(15), questNo: 119 },
+        { ts: at(13), questNo: 108 },
+        { ts: at(8), questNo: 146 },
+        { ts: at(6), questNo: 999_999 },
+    ],
+    questReward: catalogQuestReward(new Map()),
+    // 入渠用桶與一次改造（北上改二的改造消耗：開發資材 55、高速建造材 550）；一次查不到消耗的改造
+    materialUse: [
+        { eventId: 9001, ts: at(22), kind: 'bucket', via: 'start' },
+        { eventId: 9002, ts: at(14), kind: 'bucket', via: 'speedchange' },
+        { eventId: 9003, ts: at(11), kind: 'bucket', via: 'start' },
+        { eventId: 9004, ts: at(7), kind: 'remodel', shipId: 101, fromMst: 119 },
+        { eventId: 9005, ts: at(2), kind: 'remodel', shipId: 102, fromMst: 1 },
+    ],
+    remodelCost: fromMst => (fromMst === 119 ? { devmat: 55, torch: 550, screw: 0 } : null),
+};
+const ledger = buildMaterialLedger(ledgerInputs, lastTs - 30 * DAY, lastTs);
+
 // overview 的 <style> 原封取用——預覽要驗的就是那份 CSS 在真實規模下的樣子
 const overviewHtml = readFileSync(resolve(root, 'entrypoints/overview/index.html'), 'utf8');
 const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml.indexOf('</style>'));
@@ -149,6 +197,7 @@ for (const lang of LANGS) {
         .replace(/<select class="rl-ev-fseason">[\s\S]*?<\/select>/, `<select class="rl-ev-fseason">${options.seasons}</select>`)
         .replace(/<span class="dim rl-ev-count"><\/span>/, `<span class="dim rl-ev-count">${t('ov.rlEvCount', { n: entries.length, total: entries.length })}</span>`)
         .replace(/<div class="rl-ev-list">[\s\S]*?<\/div><\/div>/, `<div class="rl-ev-list">${eventListHtml(entries, selected)}</div>`)
+        .replace('<div class="rl-ledger-body"></div>', `<div class="rl-ledger-body">${ledgerHtml(ledger)}</div>`)
         .replace('<div class="rl-ev-detail"></div>', `<div class="rl-ev-detail">${entries[0] ? eventDetailHtml(entries[0]) : ''}</div>`)
         .replace('<div class="rl-ev-cmp"></div>', `<div class="rl-ev-cmp">${eventCompareHtml(entries, selected)}</div>`)
         .replace('<div class="rl-bottom"></div>', `<div class="rl-bottom">${colRackHtml(opts.cols)}`
@@ -165,4 +214,5 @@ for (const lang of LANGS) {
     writeFileSync(out.replace('.html', '-light.html'), page.replace(`<html lang="${lang}">`, `<html lang="${lang}" data-theme="light">`));
     console.log(out);
 }
+console.log(`ledger=${JSON.stringify(ledger?.counts)}`);
 console.log(`samples=${all.length} marks=${marks.length} periods=${periods.length} sorties=${sortieRows.length}`);

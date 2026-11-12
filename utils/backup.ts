@@ -3,7 +3,7 @@
 // 任務導覽釘選經 quest-flow-prefs 讀寫 localStorage；無 storage 的測試環境視為空白名單。
 import type {
     BackupRestoreMetaRow, DatabaseMetaRow, EventPlanRow, ExpeditionRow, FactoryLogRow, GoalRow, KcDb,
-    QuestObservedRow, QuestSeenRow, ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow,
+    MaterialUseRow, QuestObservedRow, QuestSeenRow, ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow,
     ShipObtainedRow, SnapshotRow, SortieLogRow, WantedRow,
 } from './db';
 import { borrowEventId } from './event-id-borrow';
@@ -33,7 +33,10 @@ import { loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps } from './sort
 //
 // v9 在 full envelope 新增 goals（玩家在「目標規劃」設定的目標）。這是玩家自己輸入的資料，
 // 無法從任何封包重建。v8 以前的檔案沒有這張表，照常匯入、表保持空白。
-export const BACKUP_SCHEMA_VERSION = 9 as const;
+//
+// v10 在 full envelope 新增 materialUse（入渠用高速修復材、艦娘改造）。來源 raw events 會被裁剪，
+// 不帶就等於重裝後離散資材分帳失去這兩項支出。v9 以前的檔案沒有這張表，照常匯入、表保持空白。
+export const BACKUP_SCHEMA_VERSION = 10 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -52,6 +55,7 @@ export interface BackupTables {
     questObserved?: QuestObservedRow[];
     questSeen?: QuestSeenRow[];
     goals?: GoalRow[];
+    materialUse?: MaterialUseRow[];
 }
 
 export interface BackupEnvelope {
@@ -107,9 +111,13 @@ const TABLE_NAMES_V8 = [
     ...TABLE_NAMES_V7,
     'questSeen',
 ] as const;
-const TABLE_NAMES = [
+const TABLE_NAMES_V9 = [
     ...TABLE_NAMES_V8,
     'goals',
+] as const;
+const TABLE_NAMES = [
+    ...TABLE_NAMES_V9,
+    'materialUse',
 ] as const;
 
 function invalid(message: string): never {
@@ -688,6 +696,25 @@ function validateQuestSeen(value: unknown, index: number): QuestSeenRow {
     };
 }
 
+function validateMaterialUse(value: unknown, index: number): MaterialUseRow {
+    const where = `tables.materialUse[${index}]`;
+    const row = objectAt(value, where);
+    const eventId = integer(row.eventId, `${where}.eventId`, 1);
+    const ts = timestamp(row.ts, `${where}.ts`);
+    if (row.kind === 'bucket') {
+        if (row.via !== 'start' && row.via !== 'speedchange') invalid(`${where}.via 必須是 start 或 speedchange。`);
+        return { eventId, ts, kind: 'bucket', via: row.via };
+    }
+    if (row.kind === 'remodel') {
+        return {
+            eventId, ts, kind: 'remodel',
+            shipId: integer(row.shipId, `${where}.shipId`, 1),
+            fromMst: integer(row.fromMst, `${where}.fromMst`, 1),
+        };
+    }
+    return invalid(`${where}.kind 必須是 bucket 或 remodel。`);
+}
+
 function determineKind(schemaVersion: number, kind: unknown, tables: UnknownRecord): BackupKind {
     const names = Object.keys(tables);
     const expected = (allowed: readonly string[]) => names.every(name => allowed.includes(name));
@@ -707,7 +734,8 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
     // 造成出擊詳情無從重建；若真的要縮小檔案，應由保留規則或壓縮處理，不能犧牲還原語意。
     if (schemaVersion >= 6) {
         if (kind !== 'full') invalid(`schemaVersion ${schemaVersion} 的 kind 必須是 full。`);
-        const required = schemaVersion >= 9 ? TABLE_NAMES
+        const required = schemaVersion >= 10 ? TABLE_NAMES
+            : schemaVersion === 9 ? TABLE_NAMES_V9
             : schemaVersion === 8 ? TABLE_NAMES_V8
             : schemaVersion === 7 ? TABLE_NAMES_V7 : TABLE_NAMES_V6;
         if (!required.every(name => names.includes(name)) || !expected(required)) {
@@ -773,6 +801,8 @@ function validateTables(value: unknown): BackupTables {
         : unique((tables.questSeen as unknown[]).map(validateQuestSeen), row => row.questNo, 'tables.questSeen');
     const goals = tables.goals === undefined ? undefined
         : unique((tables.goals as unknown[]).map(validateGoal), row => row.key, 'tables.goals');
+    const materialUse = tables.materialUse === undefined ? undefined
+        : unique((tables.materialUse as unknown[]).map(validateMaterialUse), row => row.eventId, 'tables.materialUse');
     return {
         ...(snapshot === undefined ? {} : { snapshot }),
         ...(sorties === undefined ? {} : { sorties }),
@@ -787,6 +817,7 @@ function validateTables(value: unknown): BackupTables {
         ...(questObserved === undefined ? {} : { questObserved }),
         ...(questSeen === undefined ? {} : { questSeen }),
         ...(goals === undefined ? {} : { goals }),
+        ...(materialUse === undefined ? {} : { materialUse }),
     };
 }
 
@@ -846,6 +877,7 @@ export function highestReferencedEventId(tables: BackupTables): number {
         include(row.firstEventId, `tables.questSeen[${index}].firstEventId`);
         include(row.lastEventId, `tables.questSeen[${index}].lastEventId`);
     });
+    tables.materialUse?.forEach((row, index) => include(row.eventId, `tables.materialUse[${index}].eventId`));
     return highest;
 }
 
@@ -886,21 +918,21 @@ export function parseBackupJson(text: string): ValidatedBackupEnvelope {
 export async function buildFullEnvelope(
     database: Pick<KcDb, 'snapshot' | 'sorties' | 'expeditions' | 'factory' | 'replays' | 'wanted'
         | 'shipObtained' | 'eventPlans' | 'resources' | 'resourceMarks' | 'questObserved' | 'questSeen'
-        | 'goals'>,
+        | 'goals' | 'materialUse'>,
 ): Promise<BackupEnvelope> {
     const [snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved, questSeen, goals, replays] = await Promise.all([
+        resources, resourceMarks, questObserved, questSeen, goals, materialUse, replays] = await Promise.all([
         database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
         database.factory.toArray(), database.wanted.toArray(), database.shipObtained.toArray(),
         database.eventPlans.toArray(), database.resources.toArray(), database.resourceMarks.toArray(),
         database.questObserved.toArray(), database.questSeen.toArray(), database.goals.toArray(),
-        database.replays.toArray(),
+        database.materialUse.toArray(), database.replays.toArray(),
     ]);
     return {
         schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'full', exportedAt: Date.now(),
         tables: {
             snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-            resources, resourceMarks, questObserved, questSeen, goals, replays,
+            resources, resourceMarks, questObserved, questSeen, goals, materialUse, replays,
         },
         questFlow: readQuestFlowBackupPrefs(),
         sortieExclude: loadExcludedMaps(),
@@ -944,6 +976,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         questObserved: restore.tables.questObserved ?? [],
         questSeen: restore.tables.questSeen ?? [],
         goals: restore.tables.goals ?? [],
+        materialUse: restore.tables.materialUse ?? [],
         replays: replays.tables.replays ?? [],
     };
     return {
@@ -1003,7 +1036,8 @@ function hasRestoreRows(tables: BackupTables): boolean {
         || tables.resourceMarks?.length
         || tables.questObserved?.length
         || tables.questSeen?.length
-        || tables.goals?.length,
+        || tables.goals?.length
+        || tables.materialUse?.length,
     );
 }
 
@@ -1059,10 +1093,11 @@ function existingTables(
     questObserved: QuestObservedRow[],
     questSeen: QuestSeenRow[],
     goals: GoalRow[],
+    materialUse: MaterialUseRow[],
 ): BackupTables {
     return {
         snapshot, sorties, expeditions, factory, replays, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved, questSeen, goals,
+        resources, resourceMarks, questObserved, questSeen, goals, materialUse,
     };
 }
 
@@ -1079,14 +1114,14 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         database.snapshot, database.sorties, database.expeditions, database.factory,
         database.replays, database.wanted, database.shipObtained, database.eventPlans,
         database.resources, database.resourceMarks, database.questObserved, database.questSeen,
-        database.goals,
+        database.goals, database.materialUse,
     ], async () => {
         const [
             eventCount, notifiedCount, metaRows,
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
             currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen,
-            currentGoals,
+            currentGoals, currentMaterialUse,
         ] = await Promise.all([
             database.events.count(), database.notified.count(), database.meta.toArray(),
             database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
@@ -1094,6 +1129,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             database.shipObtained.toArray(), database.eventPlans.toArray(),
             database.resources.toArray(), database.resourceMarks.toArray(),
             database.questObserved.toArray(), database.questSeen.toArray(), database.goals.toArray(),
+            database.materialUse.toArray(),
         ]);
 
         if (eventCount > 0) destinationInvalid('還原環境已有 raw events。');
@@ -1104,6 +1140,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
             currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen, currentGoals,
+            currentMaterialUse,
         );
         const restoreRowsExist = hasRestoreRows(currentTables);
         const replayRowsExist = hasReplayRows(currentTables);
@@ -1164,6 +1201,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         if (tables.questObserved?.length) await database.questObserved.bulkPut(tables.questObserved);
         if (tables.questSeen?.length) await database.questSeen.bulkPut(tables.questSeen);
         if (tables.goals?.length) await database.goals.bulkPut(tables.goals);
+        if (tables.materialUse?.length) await database.materialUse.bulkPut(tables.materialUse);
         if (tables.wanted?.length) {
             await database.wanted.bulkAdd(tables.wanted.map(({ id: _id, ...row }) => row));
         }
