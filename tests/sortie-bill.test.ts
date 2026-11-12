@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-    affordableRuns, billShipFromApi, netCost, sortieBill, summarizeBills, type BillShip,
+    affordableRuns, billShipFromApi, keepsMaterialsTracked, netCost, sortieBill, summarizeBills, supportBill,
+    supportPlanesLost, type BillShip,
 } from '../utils/sortie-bill';
 
 const ship = (id: number, patch: Partial<BillShip> = {}): BillShip => ({
@@ -120,5 +121,54 @@ describe('彙總', () => {
         expect(affordableRuns([75, 75, -20, 0], [750, 7500, 0, 0])).toBe(10);   // 鋼材淨賺，不設限
         expect(affordableRuns([75, 75, 30, 0], [300000, null, 90, 0])).toBeNull();
         expect(affordableRuns([0, 0, 0, 0], [1, 1, 1, 1])).toBeNull();
+    });
+});
+
+describe('keepsMaterialsTracked', () => {
+    it('唯讀、編成、演習與回應帶餘額的封包維持可信', () => {
+        for (const path of [
+            'api_get_member/ship_deck', 'api_get_member/material', 'api_req_hensei/change', 'api_req_kaisou/slotset',
+            'api_req_kaisou/preset_slot_select', 'api_req_practice/battle', 'api_req_hokyu/charge',
+            'api_req_air_corps/supply', 'api_req_kousyou/createitem', 'api_req_kousyou/remodel_slot',
+            'api_req_nyukyo/speedchange', 'api_req_mission/start', 'api_req_quest/start',
+        ]) expect(keepsMaterialsTracked(path), path).toBe(true);
+    });
+
+    it('會動到資材而 state 不追蹤的封包、以及不認得的封包一律不可信', () => {
+        for (const path of [
+            'api_req_kaisou/remodeling', 'api_req_air_corps/set_plane', 'api_req_kousyou/createship',
+            'api_req_kousyou/destroyship', 'api_req_kousyou/destroyitem2', 'api_req_nyukyo/start',
+            'api_req_mission/result', 'api_req_quest/clearitemget', 'api_req_member/itemuse',
+            'api_req_member/payitemuse', 'api_req_map/start', 'api_req_unknown/anything',
+        ]) expect(keepsMaterialsTracked(path), path).toBe(false);
+    });
+});
+
+describe('支援艦隊', () => {
+    const ship = (stype: number, lv = 50, fuelMax = 45, bullMax = 55) => ({ masterId: 1, lv, stype, fuelMax, bullMax });
+
+    it('燃料 50%、彈藥 80%，小數無條件進位；擊落每架 5 鋁土', () => {
+        // 戰艦 fuelMax 45 → 22.5 → 23；bullMax 55 → 44
+        expect(supportBill(3, [ship(9), ship(2, 50, 15, 20)], 7)).toEqual({
+            deckId: 3, payable: [23 + 8, 44 + 16, 0, 35], planesLost: 7, estimated: false,
+        });
+    });
+
+    it('正規空母、輕空母、水上機母艦合計 3 艘以上時彈藥 40%；裝甲空母不算', () => {
+        const carriers = [ship(11, 50, 70, 70), ship(7, 50, 50, 50), ship(16, 50, 40, 40)];
+        expect(supportBill(4, carriers, 0).payable[1]).toBe(28 + 20 + 16);
+        const armored = [ship(18, 50, 70, 70), ship(11, 50, 70, 70), ship(7, 50, 50, 50)];
+        expect(supportBill(4, armored, 0).payable[1]).toBe(56 + 56 + 40);
+    });
+
+    it('結婚艦套補給折扣並標推算', () => {
+        expect(supportBill(3, [ship(9, 175, 100, 100)], 0)).toMatchObject({ payable: [42, 68, 0, 0], estimated: true });
+    });
+
+    it('從戰鬥封包讀各支援艦隊的擊落數（真實樣本）', () => {
+        const sample = JSON.parse(readFileSync(new URL('../samples/61-5-jibun-rengou-node52.json', import.meta.url), 'utf8'));
+        expect(supportPlanesLost(sample.battles[0].data)).toEqual(new Map([[4, 2]]));
+        expect(supportPlanesLost(sample.battles[2].data)).toEqual(new Map([[4, 13]]));
+        expect(supportPlanesLost(sample.battles[6].data)).toEqual(new Map());
     });
 });

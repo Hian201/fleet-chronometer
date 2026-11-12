@@ -276,7 +276,7 @@ npx tsc --noEmit &amp;&amp; npm test &amp;&amp; npm run build</code></pre>
     <rect x="530" y="292" width="510" height="106" rx="10" fill="#1b2433" stroke="#5f9e6b" stroke-width="1.8"/>
     <text x="548" y="316" fill="#e6ebf4" font-weight="700" font-size="14">IndexedDB「kc-monitor」（Dexie）</text>
     <text x="548" y="338" fill="#b7c0d0">events · snapshot · resources · resourceMarks · questObserved · questSeen · meta</text>
-    <text x="548" y="358" fill="#b7c0d0">sorties · replays · factory · expeditions · materialUse（derived，經 EventProjector）</text>
+    <text x="548" y="358" fill="#b7c0d0">sorties · replays · factory · expeditions · materialUse · sortieBills（derived，經 EventProjector）</text>
     <text x="548" y="378" fill="#b7c0d0">wanted（開發用）· eventPlans · goals（使用者手輸）· shipObtained · notified</text>
     <path d="M785,258 L785,292" stroke="#5f9e6b" stroke-width="2"/>
     <polygon points="781,284 785,294 789,284" fill="#5f9e6b"/>
@@ -437,8 +437,8 @@ ingestion 完成後的廣播。<strong>所有箭頭都是單向觀察或本機�
 <table>
   <thead><tr><th style="width:240px">項目</th><th style="width:90px">版本</th><th>定義位置</th></tr></thead>
   <tbody>
-    <tr><td>IndexedDB schema（Dexie）</td><td data-anchor="db-schema">16</td><td><code>utils/db.ts</code></td></tr>
-    <tr><td>完整備份格式</td><td data-anchor="backup-schema">10</td><td><code>utils/backup.ts</code> 的 <code>BACKUP_SCHEMA_VERSION</code></td></tr>
+    <tr><td>IndexedDB schema（Dexie）</td><td data-anchor="db-schema">17</td><td><code>utils/db.ts</code></td></tr>
+    <tr><td>完整備份格式</td><td data-anchor="backup-schema">11</td><td><code>utils/backup.ts</code> 的 <code>BACKUP_SCHEMA_VERSION</code></td></tr>
     <tr><td>Projection cursor metadata</td><td data-anchor="projection-meta">3</td><td><code>utils/projection-cursor.ts</code> 的 <code>PROJECTION_META_VERSION</code></td></tr>
   </tbody>
 </table>

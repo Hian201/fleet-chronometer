@@ -67,7 +67,7 @@ describe('匯出與還原', () => {
     it('匯出帶 materialUse，還原到乾淨環境後逐筆相同', async () => {
         await database.materialUse.bulkPut(ROWS);
         const envelope = await buildFullEnvelope(database);
-        expect(envelope.schemaVersion).toBe(10);
+        expect(envelope.schemaVersion).toBe(11);
         expect(envelope.tables.materialUse).toEqual(ROWS);
 
         const fresh = new KcDb(`backup-v10-material-use-fresh-${dbIndex++}`);
@@ -113,7 +113,7 @@ describe('v15 → v16 升級', () => {
 
         const current = new KcDb(name);
         await current.open();
-        expect(current.verno).toBe(16);
+        expect(current.verno).toBe(17);
         expect(await current.materialUse.count()).toBe(0);
         expect(await current.goals.count()).toBe(1);
         expect(await current.resources.count()).toBe(1);

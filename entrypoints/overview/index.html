@@ -1508,7 +1508,8 @@
             letter-spacing: var(--track-label);
         }
 
-        .sl-bar select {
+        .sl-bar select,
+        .sl-bsum select {
             min-height: 28px;
             padding: 3px 8px;
             border: 1px solid var(--line);
@@ -1535,13 +1536,15 @@
         }
 
         /* 不記錄的海域：工具列下方的原生 <details>，預設收起；不放進 sticky 工具列以免捲動時佔高。 */
-        .sl-exclude {
+        .sl-exclude,
+        .sl-bsum {
             margin-bottom: 8px;
             font-size: 12px;
             max-width: 900px;
         }
 
-        .sl-exclude>summary {
+        .sl-exclude>summary,
+        .sl-bsum>summary {
             cursor: pointer;
             list-style: none;
             display: inline-flex;
@@ -1551,22 +1554,26 @@
             letter-spacing: var(--track-label);
         }
 
-        .sl-exclude>summary::-webkit-details-marker {
+        .sl-exclude>summary::-webkit-details-marker,
+        .sl-bsum>summary::-webkit-details-marker {
             display: none;
         }
 
-        .sl-exclude>summary::before {
+        .sl-exclude>summary::before,
+        .sl-bsum>summary::before {
             content: '▸';
             display: inline-block;
             width: 12px;
             font-size: 10px;
         }
 
-        .sl-exclude[open]>summary::before {
+        .sl-exclude[open]>summary::before,
+        .sl-bsum[open]>summary::before {
             content: '▾';
         }
 
-        .sl-exclude>summary:hover::before {
+        .sl-exclude>summary:hover::before,
+        .sl-bsum>summary:hover::before {
             color: var(--sparkle);
         }
 
@@ -1645,6 +1652,92 @@
             font: inherit;
         }
 
+
+        /* ── 出擊帳單：卡片展開的帳單區塊與海域彙總共用「標籤｜資材 chip」兩欄格線。
+           標籤欄是文字、值欄以資材圖示起首，欄距 12px 即可分界（design-guidelines §4.1.2）。 */
+        .sl-bill-grid {
+            display: grid;
+            grid-template-columns: max-content minmax(0, 1fr);
+            gap: 4px 12px;
+            align-items: center;
+        }
+
+        /* 收合時的摘要＝淨成本；展開後格線裡已有同一列，摘要隱藏，避免同一事實呈現兩次。 */
+        .sl-bill-digest {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 10px;
+            margin-left: 10px;
+            font-weight: 400;
+            letter-spacing: normal;
+        }
+
+        .sl-bill[open] .sl-bill-digest {
+            display: none;
+        }
+
+        .sl-bill-k {
+            font-size: 11px;
+            color: var(--dim);
+            letter-spacing: var(--track-label);
+        }
+
+        .sl-bill-k[title] {
+            cursor: help;
+        }
+
+        .sl-bill-v {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 10px;
+            min-width: 0;
+        }
+
+        /* 「推算」「只含要付的帳」「含不可考」：虛線框＋中性色，與封包事實分得開。 */
+        .sl-est {
+            padding: 0 calc(6px - var(--track-tag)) 0 6px;
+            border: 1px dashed var(--dim);
+            border-radius: 4px;
+            color: var(--dim);
+            font-size: 10px;
+            font-weight: 400;
+            letter-spacing: var(--track-tag);
+            white-space: nowrap;
+            cursor: help;
+        }
+
+        .sl-bsum-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .sl-bsum-row {
+            padding: 6px 0;
+            border-top: 1px solid var(--line);
+        }
+
+        .sl-bsum-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 8px;
+            margin-bottom: 4px;
+        }
+
+        .sl-bsum-map {
+            color: var(--text);
+        }
+
+        .sl-bsum-afford {
+            font-size: 11px;
+            color: var(--sparkle);
+            letter-spacing: var(--track-label);
+        }
 
         /* 單場 JSON 匯入面板（工具列下方，預設收起）；打撈／建造紀錄的 CSV 匯入面板共用同一套。 */
         .sl-import,

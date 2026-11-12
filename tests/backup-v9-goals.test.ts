@@ -31,7 +31,7 @@ const v9Full = (goals: unknown[] = GOALS) => ({
 });
 
 describe('版本協商', () => {
-    it('目前版本為 10', () => expect(BACKUP_SCHEMA_VERSION).toBe(10));
+    it('目前版本為 11', () => expect(BACKUP_SCHEMA_VERSION).toBe(11));
 
     it('v9 full 必須含 goals', () => {
         expect(() => validateBackupEnvelope({ schemaVersion: 9, kind: 'full', exportedAt: TS, tables: v8Tables() }))
@@ -122,7 +122,7 @@ describe('v14 → v15 升級', () => {
 
         const current = new KcDb(name);
         await current.open();
-        expect(current.verno).toBe(16);
+        expect(current.verno).toBe(17);
         expect(await current.goals.count()).toBe(0);
         expect(await current.questObserved.toArray()).toEqual([{ eventId: 77, questNo: 201, ts: TS }]);
         expect(await current.resources.count()).toBe(1);

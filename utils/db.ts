@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { PlanStage, PlanTag } from './event-plan';
+import type { SortieBill } from './sortie-bill';
 import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 
 // 事件日誌一筆 = provider 合約的載體。所有封包來源（目前 MAIN world interceptor；
@@ -428,10 +429,22 @@ export interface QuestSeenRow {
 //     speedchange.cs 都是各扣 1）。
 //   · remodel：艦娘改造。只存事實（艦實例 id、改造前 master id）；消耗量在讀取端查改造消耗表，
 //     表日後修正時不必改資料。改造需要 GameState 才知道改造前的形態，所以由投影寫入，入渠跟著同一個寫入者。
+//   · airSupply：基地航空隊補充（v17 起）。花費＝補充前的餘額 − 回應的 api_after_fuel／api_after_bauxite
+//     （samples/air-corps-supply.json）；補充前的餘額不可信時（見 sortie-bill.ts keepsMaterialsTracked）存 null。
+//     出擊帳單在讀取時把它歸給同一 areaId、在它之前最近的一趟出擊；離散資材分帳不讀這一種。
+// bucket 的 shipId（v17 起）：用桶修的艦，出擊帳單讀取時據此把桶歸給造成損傷的那一趟；舊列沒有。
 // 新增於 v16，不回填：升級時寫 derived 表會繞過 EventProjector，已裁剪的 raw events 也無從補。
 export type MaterialUseRow =
-    | { eventId: number; ts: number; kind: 'bucket'; via: 'start' | 'speedchange' }
-    | { eventId: number; ts: number; kind: 'remodel'; shipId: number; fromMst: number };
+    | { eventId: number; ts: number; kind: 'bucket'; via: 'start' | 'speedchange'; shipId?: number }
+    | { eventId: number; ts: number; kind: 'remodel'; shipId: number; fromMst: number }
+    | { eventId: number; ts: number; kind: 'airSupply'; areaId: number; fuel: number | null; bauxite: number | null };
+
+// 出擊帳單（情報總括「出擊紀錄」）：一趟出擊開始與回港兩個時刻的差，計算見 utils/sortie-bill.ts。
+// 由 EventProjector 在出擊後第一筆母港封包寫入，主鍵 sortieKey（＝api_req_map/start 的 event id，
+// 同 db.replays），put 冪等。difficulty 只在活動海域寫（出擊當下 mapGauges 的 selectedRank），
+// db.sorties 沒有難度、db.replays 會被裁剪，不存就無法分難度彙總。
+// 新增於 v17，不回填。
+export type SortieBillRow = { sortieKey: number; ts: number; map: string; difficulty?: number } & SortieBill;
 
 // 已通知過的遠征（防重複通知；鬧鐘提前響或立即通知時寫入，回港 port 封包據此略過）。狀態必須持久化，才能跨 service worker 重啟維持
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
@@ -473,6 +486,7 @@ export class KcDb extends Dexie {
     questSeen!: Table<QuestSeenRow, number>;
     goals!: Table<GoalRow, string>;
     materialUse!: Table<MaterialUseRow, number>;
+    sortieBills!: Table<SortieBillRow, number>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -687,6 +701,27 @@ export class KcDb extends Dexie {
             questSeen: 'questNo, lastTs',
             goals: 'key',
             materialUse: 'eventId, ts, kind',
+            meta: 'key',
+        });
+        // v17：出擊帳單（見 SortieBillRow）。純新增表，不回填。
+        this.version(17).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            questSeen: 'questNo, lastTs',
+            goals: 'key',
+            materialUse: 'eventId, ts, kind',
+            sortieBills: 'sortieKey, ts, map',
             meta: 'key',
         });
     }

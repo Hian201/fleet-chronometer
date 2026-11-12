@@ -13,7 +13,7 @@
 | [capture.md](capture.md) | 資料流、provider 合約、DB 各表與寫入者、ingestion／projection 契約、品牌 i18n、kcsapi path 與 autoSwitch、待驗證封包擷取、擷取失效偵測 | `entrypoints/interceptor.content.ts`、`bridge.content.ts`、`background.ts`、`utils/ingestion-persistence.ts`、`event-projector.ts`、`tests/interceptor-capture.test.ts`、`tests/manifest.test.ts` |
 | [battle.md](battle.md) | 戰鬥封包格式、特殊攻擊、友軍與支援、大破／損管／退避、`predictRank`、燃彈費率、艦載機戰損與熟練度 | `utils/battle.ts`、`utils/state.ts`、`tests/taiha-escape.test.ts`、`tests/plane-loss.test.ts`、`tests/lbas-status.test.ts` |
 | [maps.md](maps.md) | 關卡量表與剩餘次數、節點類型、節點字母（edge 對照）、斬殺偵測 | `utils/map-node-kind.ts`、`map-node-letters.ts`、`map-edge-letters.ts`（產生物）、`boss-hp.ts`、`tests/zansatsu-phase.test.ts` |
-| [records.md](records.md) | 出擊重播（KC3Kai 相容）、出擊紀錄展開、單場 JSON 匯入、不記錄的海域、打撈／建造 CSV、工廠紀錄 | `utils/replay.ts`、`sortie-detail.ts`、`sortie-import.ts`、`sortie-exclude.ts`、`drop-log-import.ts`、`build-log-import.ts`、`deckbuilder.ts` |
+| [records.md](records.md) | 出擊重播（KC3Kai 相容）、出擊紀錄展開、出擊帳單估算、單場 JSON 匯入、不記錄的海域、打撈／建造 CSV、工廠紀錄 | `utils/replay.ts`、`sortie-detail.ts`、`sortie-bill.ts`、`sortie-import.ts`、`sortie-exclude.ts`、`drop-log-import.ts`、`build-log-import.ts`、`deckbuilder.ts` |
 | [backup.md](backup.md) | 母港快照、備份格式 v1–v8 與還原規則、FSA 資料夾備份、`viewer.html`、重播保留規則 | `utils/backup.ts`、`utils/retention.ts`、`entrypoints/overview/fsa.ts`、`tests/backup*` |
 | [quests.md](quests.md) | 任務動作計數（退路）、條件表與可信度、伺服器對照、重用編號防護、任務導覽的前置推論與介面 | `utils/quest-progress.ts`、`quest-tracking.ts`、`quest-goals.ts`、`quest-flow.ts`、`quest-identity.ts`、`quest-seen.ts`、`tools/quest-graph/`、`tools/quest-goal/` |
 | [event-ops.md](event-ops.md) | 活動作戰板：出擊標籤機制、三層結構、燈號、實際貼標觀測、master 海域對應 | `utils/event-plan.ts`、`entrypoints/overview/sections/event-ops.ts`、`tests/event-plan.test.ts` |

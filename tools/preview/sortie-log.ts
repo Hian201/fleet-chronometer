@@ -6,21 +6,26 @@
 // ReplayRow／SortieLogRow，套 overview 的同一份 CSS，輸出一個純靜態 HTML 供瀏覽器檢視。
 // **完全離線、不連遊戲、不需要登入**（帳號安全紅線，見 AGENTS.md「Live 遊戲安全」）。
 //
-//   npx vite-node tools/preview/sortie-log.ts
+//   npx vite-node --config vitest.config.ts tools/preview/sortie-log.ts
 //   → .preview/sortie-log.html（可直接用瀏覽器開，或用 headless Chrome 截圖）
+//   → .preview/sortie-log-{en,ja}.html：同一份資料的英文、日文版（三語排版核對，§2.4）
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { GameState } from '../../utils/state';
-import type { ReplayLbas, ReplayRow, ReplayShip, SortieLogRow } from '../../utils/db';
+import type { MaterialUseRow, ReplayLbas, ReplayRow, ReplayShip, SortieBillRow, SortieLogRow } from '../../utils/db';
 import {
-    buildSortieDetail, groupSorties, isEventWorld, numberSorties, parseMapCode,
+    buildSortieDetail, diffLabel, groupSorties, isEventWorld, mapLabel, numberSorties, parseMapCode,
     planEventMapFilter,
 } from '../../utils/sortie-detail';
-import { battleLogHtml, detailHtml, headHtml, shellHtml, type Entry } from '../../entrypoints/overview/sections/sortie-log';
+import {
+    battleLogHtml, billSummaryHtml, detailHtml, headHtml, shellHtml, type Entry,
+} from '../../entrypoints/overview/sections/sortie-log';
+import { attributeMaterialUse, groupBillRuns } from '../../utils/sortie-bill-attribution';
 import { eventDisplayName, eventFilterSelectHtml, eventTermForFilter, mapFilterSelectHtml } from '../../entrypoints/overview/lib';
 import { parseSortieImport } from '../../utils/sortie-import';
 import { setLang, t } from '../../utils/ui-i18n';
+import type { Lang } from '../../utils/gamedata-i18n';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const readJson = (rel: string) => JSON.parse(readFileSync(resolve(root, rel), 'utf8'));
@@ -124,6 +129,45 @@ imported.replay.sortieKey = importedKey;
 imported.rows.forEach((row, i) => { row.sortieKey = importedKey; row.eventId = importedKey + 1 + i; });
 allRows.push(...imported.rows);
 
+// 通常海域 1-5 的三趟（只有摘要、沒有重播）：帳單的版面主要看這三趟與上面的活動海域。
+const normalBase = toReplay(s614, 0);
+for (const [index, key] of [6000, 6100, 6200].entries()) {
+    allRows.push(...toRows({ ...normalBase, sortieKey: key, world: 1, mapnum: 5, ts: normalBase.ts + (index + 1) * 3_600_000 },
+        { boss: 55 }).map(row => ({ ...row, getExp: undefined, ...(index === 1 && row.boss ? { rank: 'B' } : {}) })));
+}
+
+// 出擊帳單假資料：通常海域三趟（一趟餘額變動不可考、一趟含結婚艦推算）、活動海域兩種難度，
+// 匯入的那場（4000）沒有帳單——舊紀錄不顯示帳單、不顯示 0。
+const tsOf = (key: number) => allRows.find(row => row.sortieKey === key)!.ts;
+const billRow = (sortieKey: number, map: string, extra: Partial<SortieBillRow>): SortieBillRow => ({
+    sortieKey, ts: tsOf(sortieKey), map,
+    ships: [], payable: [0, 0, 0, 0], balanceDelta: [0, 0, 0, 0], specialDelta: [0, 0, 0, 0],
+    planesLost: 0, estimated: false, damagedShipIds: [], lostShipIds: [],
+    ...extra,
+});
+const billRows: SortieBillRow[] = [
+    billRow(6000, '1-5', { payable: [96, 120, 40, 0], balanceDelta: [-3, -3, -3, -3], damagedShipIds: [101] }),
+    billRow(6100, '1-5', { payable: [88, 104, 0, 0], balanceDelta: null, specialDelta: null }),
+    billRow(6200, '1-5', { payable: [74, 92, 18, 0], balanceDelta: [-3, -3, 297, -3], estimated: true }),
+    billRow(1000, '61-3', { payable: [1450, 1620, 860, 655], balanceDelta: [-60, -88, -300, 120], specialDelta: [-12, 0, 0, 0], difficulty: 4, damagedShipIds: [201],
+        support: [{ deckId: 3, payable: [210, 312, 0, 0], planesLost: 0, estimated: false }, { deckId: 4, payable: [180, 96, 0, 65], planesLost: 13, estimated: true }] }),
+    billRow(2000, '61-4', { payable: [980, 1130, 420, 210], balanceDelta: [-40, -60, -120, -15], specialDelta: [-6, 0, 3, 0], difficulty: 4 }),
+    billRow(3000, '61-4', { payable: [620, 700, 180, 95], balanceDelta: [-40, -60, 0, -15], difficulty: 2 }),
+    billRow(5000, '61-5', { payable: [1810, 2040, 1320, 840], balanceDelta: [-80, -96, -450, 0], difficulty: 4, estimated: true,
+        support: [{ deckId: 4, payable: [180, 96, 0, 10], planesLost: 2, estimated: false }] }),
+];
+const hour = 3_600_000;
+const materialUse: MaterialUseRow[] = [
+    { eventId: 9001, ts: tsOf(6000) + hour, kind: 'bucket', via: 'start', shipId: 101 },
+    { eventId: 9002, ts: tsOf(1000) + hour, kind: 'bucket', via: 'speedchange', shipId: 201 },
+    { eventId: 9003, ts: tsOf(1000) + hour, kind: 'airSupply', areaId: 61, fuel: 18, bauxite: 45 },
+    { eventId: 9004, ts: tsOf(5000) + hour, kind: 'airSupply', areaId: 61, fuel: 12, bauxite: null },
+];
+const billByKey = new Map(billRows.map(bill => [bill.sortieKey, bill]));
+const billExtras = attributeMaterialUse(billRows, materialUse);
+// 「以目前庫存還能出擊幾趟」需要目前庫存
+state.materials = [42_000, 51_000, 38_000, 26_500, 1_200, 860, 2_400, 95];
+
 const groups = groupSorties(allRows.sort((a, b) => a.eventId - b.eventId));
 const nth = numberSorties(groups);
 const replayByKey = new Map([...replays, imported.replay].map(r => [r.sortieKey, r]));
@@ -133,57 +177,83 @@ const previewNewShipEventIds = new Set(
     allRows.filter(row => row.drop === '雪風' || row.drop === '天霧').map(row => row.eventId),
 );
 
-const cards = groups.slice().reverse().map(g => {
-    const first = g.rows[0];
-    const replay = replayByKey.get(g.sortieKey);
-    const entry: Entry = {
-        key: g.sortieKey, nth: nth.get(g.sortieKey) ?? 0, ts: first.ts, map: first.map,
-        world: Number(first.map.split('-')[0]), mapnum: Number(first.map.split('-')[1]),
-        event: true, rows: g.rows, replay, newShipEventIds: previewNewShipEventIds,
-    };
-    const detail = buildSortieDetail(g.rows, replay);
-    return `<article class="sl-card">
-        <div class="sl-row">${headHtml(entry, state, true)}
-            <button type="button" class="ov-btn pin">☆</button></div>
-        <div class="sl-detail">${detailHtml(detail, replay, state)}</div>
-    </article>`;
-}).join('');
-
-const catalog = groups.map(g => {
-    const parsed = parseMapCode(g.rows[0].map);
-    return { map: g.rows[0].map, world: parsed.world, mapnum: parsed.mapnum, event: isEventWorld(parsed.world) };
-});
-const filterPlan = planEventMapFilter(catalog, {
-    category: 'event',
-    eventFilter: 'all',
-    mapFilter: 'all',
-    pinLatestEvent: true,
-    worldLabel: world => eventDisplayName(world, state.masterMapAreas.get(world)),
-    eventTerm: eventTermForFilter,
-    normalGroupLabel: t('ov.slCatNormal'),
-});
-
-// 工具列與匯入面板用分區自己的 markup（同一份，不另抄），並把匯入面板攤開來看
-// 預覽強制帶匯入面板（版面驗收用）；正式建置的 overview 預設不顯示（見 debug-ui.ts）。
-const shell = shellHtml({ includeImport: true })
-    .replace('<div class="sl-import" hidden>', '<div class="sl-import">')
-    .replace('class="sl-inline sl-event-wrap" hidden', 'class="sl-inline sl-event-wrap"')
-    .replace('<select class="sl-event-sel"></select>',
-        `<select class="sl-event-sel">${eventFilterSelectHtml(filterPlan.eventGroups, filterPlan.eventFilter, t('ov.slEventAll'))}</select>`)
-    .replace('<select class="sl-map-sel"></select>',
-        `<select class="sl-map-sel">${mapFilterSelectHtml(filterPlan.mapGroups, filterPlan.mapFilter, t('ov.slMapAll'))}</select>`)
-    .replace('<div class="sl-body ov-list"></div>', `<div class="sl-body ov-list">${cards}</div>`);
-
 // overview 的 <style> 原封取用——預覽要驗的就是那份 CSS 在真實資料下的樣子
 const overviewHtml = readFileSync(resolve(root, 'entrypoints/overview/index.html'), 'utf8');
 const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml.indexOf('</style>'));
-// 圖示在擴充內由 public/ 複製到 root；離線預覽直接從專案的 public/ 目錄提供。
-const page = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8">
-<title>出擊紀錄版面預覽</title><style>${css}</style></head>
-<body><main id="content" style="padding:16px">${shell}</main></body></html>`
-    .replace(/src="\/icons\//g, 'src="/public/icons/');
+
+/** 用目前語言組出整頁（艦名、文案都依 setLang 的語言）。 */
+function pageFor(lang: Lang): string {
+    setLang(lang);
+    const cards = groups.slice().reverse().map(g => {
+        const first = g.rows[0];
+        const replay = replayByKey.get(g.sortieKey);
+        const entry: Entry = {
+            key: g.sortieKey, nth: nth.get(g.sortieKey) ?? 0, ts: first.ts, map: first.map,
+            world: Number(first.map.split('-')[0]), mapnum: Number(first.map.split('-')[1]),
+            event: isEventWorld(Number(first.map.split('-')[0])), rows: g.rows, replay, newShipEventIds: previewNewShipEventIds,
+        };
+        const detail = buildSortieDetail(g.rows, replay);
+        const bill = billByKey.get(g.sortieKey);
+        return `<article class="sl-card">
+            <div class="sl-row">${headHtml(entry, state, true)}
+                <button type="button" class="ov-btn pin">☆</button></div>
+            <div class="sl-detail">${detailHtml(detail, replay, state,
+            bill ? { row: bill, extras: billExtras.get(g.sortieKey) } : undefined)}</div>
+        </article>`;
+    }).join('');
+
+    // 海域彙總攤開來看（正式版預設收起）
+    const billSummary = billSummaryHtml(
+        groupBillRuns(groups.flatMap(g => {
+            const bill = billByKey.get(g.sortieKey);
+            return bill ? [{ bill, rows: g.rows, extras: billExtras.get(g.sortieKey) }] : [];
+        })),
+        state.materials,
+        group => {
+            const parsed = parseMapCode(group.map);
+            const shown = mapLabel({ event: isEventWorld(parsed.world), mapnum: parsed.mapnum, map: group.map });
+            const diff = diffLabel(group.difficulty ?? 0);
+            return diff ? `${shown} ${diff}` : shown;
+        },
+    );
+
+    const catalog = groups.map(g => {
+        const parsed = parseMapCode(g.rows[0].map);
+        return { map: g.rows[0].map, world: parsed.world, mapnum: parsed.mapnum, event: isEventWorld(parsed.world) };
+    });
+    const filterPlan = planEventMapFilter(catalog, {
+        category: 'event',
+        eventFilter: 'all',
+        mapFilter: 'all',
+        pinLatestEvent: true,
+        worldLabel: world => eventDisplayName(world, state.masterMapAreas.get(world)),
+        eventTerm: eventTermForFilter,
+        normalGroupLabel: t('ov.slCatNormal'),
+    });
+
+    // 工具列與匯入面板用分區自己的 markup（同一份，不另抄），並把匯入面板攤開來看
+    // 預覽強制帶匯入面板（版面驗收用）；正式建置的 overview 預設不顯示（見 debug-ui.ts）。
+    const shell = shellHtml({ includeImport: true })
+        .replace('<div class="sl-import" hidden>', '<div class="sl-import">')
+        .replace('class="sl-inline sl-event-wrap" hidden', 'class="sl-inline sl-event-wrap"')
+        .replace('<select class="sl-event-sel"></select>',
+            `<select class="sl-event-sel">${eventFilterSelectHtml(filterPlan.eventGroups, filterPlan.eventFilter, t('ov.slEventAll'))}</select>`)
+        .replace('<select class="sl-map-sel"></select>',
+            `<select class="sl-map-sel">${mapFilterSelectHtml(filterPlan.mapGroups, filterPlan.mapFilter, t('ov.slMapAll'))}</select>`)
+        .replace('<details class="sl-bsum">', '<details class="sl-bsum" open>')
+        .replace('<div class="sl-bsum-body"></div>', `<div class="sl-bsum-body">${billSummary}</div>`)
+        .replace('<div class="sl-body ov-list"></div>', `<div class="sl-body ov-list">${cards}</div>`);
+
+    // 圖示在擴充內由 public/ 複製到 root；離線預覽直接從專案的 public/ 目錄提供。
+    const page = `<!doctype html><html lang="zh-TW"><head><meta charset="utf-8">
+    <title>出擊紀錄版面預覽</title><style>${css}</style></head>
+    <body><main id="content" style="padding:16px">${shell}</main></body></html>`
+        .replace(/src="\/icons\//g, 'src="/public/icons/');
+    return page;
+}
 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
+const page = pageFor('zh-TW');
 const out = resolve(root, '.preview/sortie-log.html');
 writeFileSync(out, page);
 // 亮色主題也要看——本專案兩套主題都要能讀（design-guidelines §1.1）
@@ -191,6 +261,12 @@ const light = resolve(root, '.preview/sortie-log-light.html');
 writeFileSync(light, page.replace('<html lang="zh-TW">', '<html lang="zh-TW" data-theme="light">'));
 console.log(out);
 console.log(light);
+for (const lang of ['en', 'ja'] as const) {
+    const langOut = resolve(root, `.preview/sortie-log-${lang}.html`);
+    writeFileSync(langOut, pageFor(lang).replace('<html lang="zh-TW">', `<html lang="${lang}">`));
+    console.log(langOut);
+}
+setLang('zh-TW');
 
 // 單獨輸出交戰記錄對話框，讓瀏覽器檢查可以直接看到逐筆攻擊資料，不必依賴靜態預覽的事件綁定。
 const battlePreviewReplay = {

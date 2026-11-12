@@ -129,6 +129,7 @@ function mockTables(): EventProjectorTables & {
     replays: EventProjectorTables['replays'] & { get: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn> };
     expeditions: { put: ReturnType<typeof vi.fn> };
     materialUse: { put: ReturnType<typeof vi.fn> };
+    sortieBills: { put: ReturnType<typeof vi.fn> };
 } {
     const sorties: SortieLogRow[] = [];
     return {
@@ -144,6 +145,7 @@ function mockTables(): EventProjectorTables & {
         replays: { get: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined) },
         expeditions: { put: vi.fn().mockResolvedValue(undefined) },
         materialUse: { put: vi.fn().mockResolvedValue(undefined) },
+        sortieBills: { put: vi.fn().mockResolvedValue(undefined) },
     };
 }
 
@@ -311,7 +313,7 @@ describe('EventProjector persist 模式', () => {
         await projector.project(row(6, 'api_req_kaisou/remodeling', {}, { api_id: '999' }));
 
         expect(await database.materialUse.orderBy('eventId').toArray()).toEqual([
-            { eventId: 2, ts: 1_726_000_000_002, kind: 'bucket', via: 'start' },
+            { eventId: 2, ts: 1_726_000_000_002, kind: 'bucket', via: 'start', shipId: 101 },
             { eventId: 4, ts: 1_726_000_000_004, kind: 'bucket', via: 'speedchange' },
             { eventId: 5, ts: 1_726_000_000_005, kind: 'remodel', shipId: 101, fromMst: 500 },
         ]);
@@ -667,5 +669,164 @@ describe('基地空襲的真封包歸檔', () => {
         const attack = raid.api_destruction_battle.api_air_base_attack;
         expect(Array.isArray(attack)).toBe(false);
         expect(attack.api_stage1.api_disp_seiku).toBe(4);
+    });
+});
+
+describe('出擊帳單與基地航空隊補充', () => {
+    const MATERIALS = [1000, 2000, 3000, 4000, 50, 60, 70, 80];
+
+    function port(ship: Record<string, unknown>, materials = MATERIALS, extra: Record<string, unknown> = {}) {
+        const base = portApi();
+        return {
+            ...base,
+            api_ship: [{ ...base.api_ship[0], api_onslot: [10, 0], api_ndock_item: [0, 0], ...ship }],
+            api_material: materials.map(api_value => ({ api_value })),
+            ...extra,
+        };
+    }
+    const mapStart = (id: number) => row(id, 'api_req_map/start',
+        { api_maparea_id: 1, api_mapinfo_no: 5, api_no: 1, api_color_no: 4 }, { api_deck_id: '1' });
+    const returned = (id: number) => row(id, 'api_port/port', port(
+        { api_fuel: 80, api_bull: 70, api_onslot: [8, 0], api_ndock_item: [30, 60] },
+        [1100, 2000, 2990, 4000, 50, 60, 71, 80],
+    ));
+
+    it('出擊開始到回港寫一列帳單，主鍵是 map/start 的 event id', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        for (const event of [row(1, 'api_port/port', port({})), mapStart(2), returned(3)]) await projector.project(event);
+
+        expect(await database.sortieBills.toArray()).toEqual([{
+            sortieKey: 2, ts: 1_726_000_000_002, map: '1-5',
+            ships: [{ id: 101, masterId: 500, fuel: 20, ammo: 30, bauxite: 10, repairFuel: 30, repairSteel: 60 }],
+            payable: [50, 30, 60, 10],
+            balanceDelta: [100, 0, -10, 0],
+            specialDelta: [0, 0, 1, 0],
+            planesLost: 2, estimated: false, damagedShipIds: [101], lostShipIds: [],
+        }]);
+    });
+
+    it('母港之後出現未追蹤的資材進出（任務領獎）時，餘額變動不可考', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        for (const event of [
+            row(1, 'api_port/port', port({})),
+            row(2, 'api_req_quest/clearitemget', { api_material: [50, 0, 0, 0], api_bounus: [] }, { api_quest_id: '201' }),
+            mapStart(3), returned(4),
+        ]) await projector.project(event);
+
+        const [bill] = await database.sortieBills.toArray();
+        expect(bill).toMatchObject({ sortieKey: 3, payable: [50, 30, 60, 10], balanceDelta: null, specialDelta: null });
+    });
+
+    it('已追蹤的封包（補給）不影響餘額可信度', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        for (const event of [
+            row(1, 'api_port/port', port({})),
+            row(2, 'api_req_hokyu/charge', { api_ship: [], api_material: [1000, 2000, 3000, 4000] }, { api_kind: '3' }),
+            mapStart(3), returned(4),
+        ]) await projector.project(event);
+
+        expect((await database.sortieBills.toArray())[0]?.balanceDelta).toEqual([100, 0, -10, 0]);
+    });
+
+    it('沒有母港就開始的出擊不信任餘額；沒有出擊開始事件的回港不寫帳單', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        await projector.project(row(1, 'api_port/port', port({})));
+        await projector.project(returned(2));
+        expect(await database.sortieBills.count()).toBe(0);
+
+        const fresh = new EventProjector({ state: projector.state, tables: database });
+        for (const event of [mapStart(3), returned(4)]) await fresh.project(event);
+        expect((await database.sortieBills.toArray())[0]).toMatchObject({ sortieKey: 3, balanceDelta: null });
+    });
+
+    it('出擊開始在 cursor 前（state-only）、回港在 cursor 後時仍寫帳單', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        await projector.projectWithMode(row(1, 'api_port/port', port({})), 'state-only');
+        await projector.projectWithMode(mapStart(2), 'state-only');
+        await projector.projectWithMode(returned(3), 'persist');
+
+        expect((await database.sortieBills.toArray())[0]).toMatchObject({ sortieKey: 2, balanceDelta: [100, 0, -10, 0] });
+    });
+
+    it('不記錄的海域不寫帳單', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database, skipSortieMap: map => map === '1-5' });
+        for (const event of [row(1, 'api_port/port', port({})), mapStart(2), returned(3)]) await projector.project(event);
+
+        expect(await database.sortieBills.count()).toBe(0);
+    });
+
+    it('基地航空隊補充以補充前餘額相減；餘額不可信時花費存 null', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        const supply = (id: number) => row(id, 'api_req_air_corps/supply',
+            { api_after_fuel: 970, api_after_bauxite: 3950 }, { api_area_id: '7', api_base_id: '1', api_squadron_id: '1' });
+        await projector.project(row(1, 'api_port/port', port({})));
+        await projector.project(supply(2));
+        await projector.project(row(3, 'api_req_quest/clearitemget', { api_material: [0, 0, 0, 0] }, { api_quest_id: '201' }));
+        await projector.project(supply(4));
+
+        expect(await database.materialUse.orderBy('eventId').toArray()).toEqual([
+            { eventId: 2, ts: 1_726_000_000_002, kind: 'airSupply', areaId: 7, fuel: 30, bauxite: 50 },
+            { eventId: 4, ts: 1_726_000_000_004, kind: 'airSupply', areaId: 7, fuel: null, bauxite: null },
+        ]);
+    });
+
+    it('入渠途中用桶記下槽內的艦，並清掉該艦的修理費', async () => {
+        const database = createDb();
+        const state = new GameState();
+        const projector = new EventProjector({ state, tables: database });
+        await projector.project(row(1, 'api_port/port', port({ api_ndock_item: [30, 60] }, MATERIALS, {
+            api_ndock: [{ api_id: 1, api_state: 1, api_ship_id: 101, api_complete_time: 1_726_000_900_000 }],
+        })));
+        await projector.project(row(2, 'api_req_nyukyo/speedchange', {}, { api_ndock_id: '1' }));
+
+        expect(await database.materialUse.toArray()).toEqual([
+            { eventId: 2, ts: 1_726_000_000_002, kind: 'bucket', via: 'speedchange', shipId: 101 },
+        ]);
+        expect(state.ships.get(101)?.api_ndock_item).toEqual([0, 0]);
+    });
+
+    it('出擊開始時正在跑同海域支援遠征的艦隊另算一份，擊落數取戰鬥封包', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        const base = port({});
+        const support = { ...base.api_ship[0], api_id: 104, api_ship_id: 600, api_lv: 50, api_fuel: 15, api_bull: 20 };
+        const battle = fixture('61-5-jibun-rengou-node52.json').battles[2].data;   // 第 4 艦隊航空支援，擊落 4＋9
+        for (const event of [
+            row(1, 'api_start2/getData', {
+                api_mst_ship: [
+                    { api_id: 500, api_stype: 9, api_fuel_max: 100, api_bull_max: 100 },
+                    { api_id: 600, api_stype: 2, api_fuel_max: 15, api_bull_max: 20 },
+                ],
+                api_mst_mission: [
+                    { api_id: 301, api_disp_no: 'S1', api_maparea_id: 61, api_name: 'support', api_time: 15 },
+                    { api_id: 5, api_disp_no: '05', api_maparea_id: 1, api_name: 'other', api_time: 90 },
+                ],
+            }),
+            row(2, 'api_port/port', {
+                ...base,
+                api_ship: [base.api_ship[0], support, { ...support, api_id: 103 }],
+                api_deck_port: [
+                    { api_id: 1, api_ship: [101, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] },
+                    { api_id: 2, api_ship: [-1, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] },
+                    { api_id: 3, api_ship: [103, -1, -1, -1, -1, -1], api_mission: [1, 5, 0, 0] },
+                    { api_id: 4, api_ship: [104, -1, -1, -1, -1, -1], api_mission: [1, 301, 0, 0] },
+                ],
+            }),
+            row(3, 'api_req_map/start', { api_maparea_id: 61, api_mapinfo_no: 5, api_no: 1, api_color_no: 4 }, { api_deck_id: '1' }),
+            row(4, 'api_req_sortie/battle', battle),
+            returned(5),
+        ]) await projector.project(event);
+
+        // 驅逐 fuelMax 15 → 7.5 → 8；bullMax 20 × 80% → 16；13 架 × 5
+        expect((await database.sortieBills.toArray())[0]?.support).toEqual([
+            { deckId: 4, payable: [8, 16, 0, 65], planesLost: 13, estimated: false },
+        ]);
     });
 });

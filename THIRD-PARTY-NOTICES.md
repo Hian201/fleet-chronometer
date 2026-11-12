@@ -506,6 +506,24 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 出擊帳單估算（補給、修理、支援艦隊）
+
+- **遊戲機制**：wikiwiki.jp/kancolle「補給」（艦載機每架 5 鋁土、結婚艦補給 85 折）與「支援艦隊」
+  （支援遠征只對派出後同海域的第一趟出擊有效、本隊回港時歸還；燃料 50%，彈藥依正規空母／輕空母／
+  水上機母艦是否滿 3 艘取 40% 或 80%，小數進位），核對日期 2026-11-12，讀原始 HTML 核對。
+- **封包欄位與演算法參照**（clean-room，只採用欄位名稱、語意與規則，未複製程式碼）：
+  - KC3Kai `src/library/objects/Ship.js`（`api_ndock_item` 讀法、`calcResupplyCost` 的結婚折扣）、
+    `src/library/modules/Kcsapi.js`（`api_req_hokyu/charge`、`api_req_nyukyo/start`）、
+    `src/library/objects/Fleet.js`（`calcSupportExpeditionCost` 的燃彈比例）、
+    `src/library/managers/SortieManager.js`（`getSupportingFleet` 以 `api_disp_no`＋海域辨認支援艦隊）——
+    https://github.com/KC3Kai/KC3Kai ，MIT License，Copyright (c) 2015-2026 dragonjet
+- **本專案樣本**：`samples/slot_to_port.json`（`api_ndock_item`）、`samples/air-corps-supply.json`
+  （`api_after_fuel`／`api_after_bauxite`）、`samples/61-5-jibun-rengou-node52.json`（支援航空戰的
+  `api_deck_id` 與 `api_f_lostcount`）。
+- **用途**：`utils/sortie-bill.ts`、`utils/event-projector.ts` 自行實作。
+
+---
+
 ## 回應結果碼（`api_result`）的判定
 
 - **用途**：`utils/kcsapi.ts` 的 `parseKcsapiResponse` 在外層 `api_result` 不是 1 時拒絕整筆回應。

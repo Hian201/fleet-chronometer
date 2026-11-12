@@ -4,7 +4,7 @@
 import type {
     BackupRestoreMetaRow, DatabaseMetaRow, EventPlanRow, ExpeditionRow, FactoryLogRow, GoalRow, KcDb,
     MaterialUseRow, QuestObservedRow, QuestSeenRow, ReplayRow, ReplayShip, ReplaySupportShip, ResourceMarkRow, ResourceRow,
-    ShipObtainedRow, SnapshotRow, SortieLogRow, WantedRow,
+    ShipObtainedRow, SnapshotRow, SortieBillRow, SortieLogRow, WantedRow,
 } from './db';
 import { borrowEventId } from './event-id-borrow';
 import { isPlainObject } from './plain-object';
@@ -36,7 +36,11 @@ import { loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps } from './sort
 //
 // v10 在 full envelope 新增 materialUse（入渠用高速修復材、艦娘改造）。來源 raw events 會被裁剪，
 // 不帶就等於重裝後離散資材分帳失去這兩項支出。v9 以前的檔案沒有這張表，照常匯入、表保持空白。
-export const BACKUP_SCHEMA_VERSION = 10 as const;
+//
+// v11 在 full envelope 新增 sortieBills（出擊帳單，含選填的支援艦隊花費），materialUse 多了 airSupply（基地航空隊補充）與
+// bucket.shipId。帳單要靠出擊開始當下的 GameState 才算得出，raw events 裁剪後無從重建。
+// v10 以前的檔案沒有這張表，照常匯入、表保持空白。
+export const BACKUP_SCHEMA_VERSION = 11 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -56,6 +60,7 @@ export interface BackupTables {
     questSeen?: QuestSeenRow[];
     goals?: GoalRow[];
     materialUse?: MaterialUseRow[];
+    sortieBills?: SortieBillRow[];
 }
 
 export interface BackupEnvelope {
@@ -115,9 +120,13 @@ const TABLE_NAMES_V9 = [
     ...TABLE_NAMES_V8,
     'goals',
 ] as const;
-const TABLE_NAMES = [
+const TABLE_NAMES_V10 = [
     ...TABLE_NAMES_V9,
     'materialUse',
+] as const;
+const TABLE_NAMES = [
+    ...TABLE_NAMES_V10,
+    'sortieBills',
 ] as const;
 
 function invalid(message: string): never {
@@ -703,7 +712,18 @@ function validateMaterialUse(value: unknown, index: number): MaterialUseRow {
     const ts = timestamp(row.ts, `${where}.ts`);
     if (row.kind === 'bucket') {
         if (row.via !== 'start' && row.via !== 'speedchange') invalid(`${where}.via 必須是 start 或 speedchange。`);
-        return { eventId, ts, kind: 'bucket', via: row.via };
+        return {
+            eventId, ts, kind: 'bucket', via: row.via,
+            ...(row.shipId === undefined ? {} : { shipId: integer(row.shipId, `${where}.shipId`, 1) }),
+        };
+    }
+    if (row.kind === 'airSupply') {
+        const cost = (value: unknown, field: string) => (value === null ? null : integer(value, `${where}.${field}`));
+        return {
+            eventId, ts, kind: 'airSupply',
+            areaId: integer(row.areaId, `${where}.areaId`, 1),
+            fuel: cost(row.fuel, 'fuel'), bauxite: cost(row.bauxite, 'bauxite'),
+        };
     }
     if (row.kind === 'remodel') {
         return {
@@ -712,7 +732,60 @@ function validateMaterialUse(value: unknown, index: number): MaterialUseRow {
             fromMst: integer(row.fromMst, `${where}.fromMst`, 1),
         };
     }
-    return invalid(`${where}.kind 必須是 bucket 或 remodel。`);
+    return invalid(`${where}.kind 必須是 bucket、remodel 或 airSupply。`);
+}
+
+function resources4(value: unknown, where: string, minimum: number): [number, number, number, number] {
+    const list = numberArray(value, where, minimum);
+    if (list.length !== 4) invalid(`${where} 必須是 4 項數值。`);
+    return list as [number, number, number, number];
+}
+
+function validateSortieBill(value: unknown, index: number): SortieBillRow {
+    const where = `tables.sortieBills[${index}]`;
+    const row = objectAt(value, where);
+    const ids = (field: string) => arrayAt(row[field], `${where}.${field}`)
+        .map((entry, at) => integer(entry, `${where}.${field}[${at}]`, 1));
+    const delta = (field: string) => (row[field] === null ? null : resources4(row[field], `${where}.${field}`, -Infinity));
+    const ships = arrayAt(row.ships, `${where}.ships`).map((entry, at) => {
+        const at_ = `${where}.ships[${at}]`;
+        const ship = objectAt(entry, at_);
+        if (ship.estimated !== undefined && ship.estimated !== true) invalid(`${at_}.estimated 只能是 true。`);
+        return {
+            id: integer(ship.id, `${at_}.id`, 1), masterId: integer(ship.masterId, `${at_}.masterId`, 1),
+            fuel: finiteNumber(ship.fuel, `${at_}.fuel`), ammo: finiteNumber(ship.ammo, `${at_}.ammo`),
+            bauxite: finiteNumber(ship.bauxite, `${at_}.bauxite`),
+            repairFuel: finiteNumber(ship.repairFuel, `${at_}.repairFuel`),
+            repairSteel: finiteNumber(ship.repairSteel, `${at_}.repairSteel`),
+            ...(ship.estimated === true ? { estimated: true as const } : {}),
+        };
+    });
+    return {
+        sortieKey: integer(row.sortieKey, `${where}.sortieKey`, 1),
+        ts: timestamp(row.ts, `${where}.ts`),
+        map: nonEmptyString(row.map, `${where}.map`),
+        ...(row.difficulty === undefined ? {} : { difficulty: integer(row.difficulty, `${where}.difficulty`, 1) }),
+        ships,
+        payable: resources4(row.payable, `${where}.payable`, 0),
+        balanceDelta: delta('balanceDelta'),
+        specialDelta: delta('specialDelta'),
+        planesLost: integer(row.planesLost, `${where}.planesLost`),
+        estimated: booleanValue(row.estimated, `${where}.estimated`),
+        damagedShipIds: ids('damagedShipIds'),
+        lostShipIds: ids('lostShipIds'),
+        ...(row.support === undefined ? {} : {
+            support: arrayAt(row.support, `${where}.support`).map((entry, at) => {
+                const at_ = `${where}.support[${at}]`;
+                const fleet = objectAt(entry, at_);
+                return {
+                    deckId: integer(fleet.deckId, `${at_}.deckId`, 1),
+                    payable: resources4(fleet.payable, `${at_}.payable`, 0),
+                    planesLost: integer(fleet.planesLost, `${at_}.planesLost`),
+                    estimated: booleanValue(fleet.estimated, `${at_}.estimated`),
+                };
+            }),
+        }),
+    };
 }
 
 function determineKind(schemaVersion: number, kind: unknown, tables: UnknownRecord): BackupKind {
@@ -734,7 +807,8 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
     // 造成出擊詳情無從重建；若真的要縮小檔案，應由保留規則或壓縮處理，不能犧牲還原語意。
     if (schemaVersion >= 6) {
         if (kind !== 'full') invalid(`schemaVersion ${schemaVersion} 的 kind 必須是 full。`);
-        const required = schemaVersion >= 10 ? TABLE_NAMES
+        const required = schemaVersion >= 11 ? TABLE_NAMES
+            : schemaVersion === 10 ? TABLE_NAMES_V10
             : schemaVersion === 9 ? TABLE_NAMES_V9
             : schemaVersion === 8 ? TABLE_NAMES_V8
             : schemaVersion === 7 ? TABLE_NAMES_V7 : TABLE_NAMES_V6;
@@ -803,6 +877,8 @@ function validateTables(value: unknown): BackupTables {
         : unique((tables.goals as unknown[]).map(validateGoal), row => row.key, 'tables.goals');
     const materialUse = tables.materialUse === undefined ? undefined
         : unique((tables.materialUse as unknown[]).map(validateMaterialUse), row => row.eventId, 'tables.materialUse');
+    const sortieBills = tables.sortieBills === undefined ? undefined
+        : unique((tables.sortieBills as unknown[]).map(validateSortieBill), row => row.sortieKey, 'tables.sortieBills');
     return {
         ...(snapshot === undefined ? {} : { snapshot }),
         ...(sorties === undefined ? {} : { sorties }),
@@ -818,6 +894,7 @@ function validateTables(value: unknown): BackupTables {
         ...(questSeen === undefined ? {} : { questSeen }),
         ...(goals === undefined ? {} : { goals }),
         ...(materialUse === undefined ? {} : { materialUse }),
+        ...(sortieBills === undefined ? {} : { sortieBills }),
     };
 }
 
@@ -878,6 +955,7 @@ export function highestReferencedEventId(tables: BackupTables): number {
         include(row.lastEventId, `tables.questSeen[${index}].lastEventId`);
     });
     tables.materialUse?.forEach((row, index) => include(row.eventId, `tables.materialUse[${index}].eventId`));
+    tables.sortieBills?.forEach((row, index) => include(row.sortieKey, `tables.sortieBills[${index}].sortieKey`));
     return highest;
 }
 
@@ -918,21 +996,21 @@ export function parseBackupJson(text: string): ValidatedBackupEnvelope {
 export async function buildFullEnvelope(
     database: Pick<KcDb, 'snapshot' | 'sorties' | 'expeditions' | 'factory' | 'replays' | 'wanted'
         | 'shipObtained' | 'eventPlans' | 'resources' | 'resourceMarks' | 'questObserved' | 'questSeen'
-        | 'goals' | 'materialUse'>,
+        | 'goals' | 'materialUse' | 'sortieBills'>,
 ): Promise<BackupEnvelope> {
     const [snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved, questSeen, goals, materialUse, replays] = await Promise.all([
+        resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills, replays] = await Promise.all([
         database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
         database.factory.toArray(), database.wanted.toArray(), database.shipObtained.toArray(),
         database.eventPlans.toArray(), database.resources.toArray(), database.resourceMarks.toArray(),
         database.questObserved.toArray(), database.questSeen.toArray(), database.goals.toArray(),
-        database.materialUse.toArray(), database.replays.toArray(),
+        database.materialUse.toArray(), database.sortieBills.toArray(), database.replays.toArray(),
     ]);
     return {
         schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'full', exportedAt: Date.now(),
         tables: {
             snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-            resources, resourceMarks, questObserved, questSeen, goals, materialUse, replays,
+            resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills, replays,
         },
         questFlow: readQuestFlowBackupPrefs(),
         sortieExclude: loadExcludedMaps(),
@@ -977,6 +1055,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         questSeen: restore.tables.questSeen ?? [],
         goals: restore.tables.goals ?? [],
         materialUse: restore.tables.materialUse ?? [],
+        sortieBills: restore.tables.sortieBills ?? [],
         replays: replays.tables.replays ?? [],
     };
     return {
@@ -1037,7 +1116,8 @@ function hasRestoreRows(tables: BackupTables): boolean {
         || tables.questObserved?.length
         || tables.questSeen?.length
         || tables.goals?.length
-        || tables.materialUse?.length,
+        || tables.materialUse?.length
+        || tables.sortieBills?.length,
     );
 }
 
@@ -1094,10 +1174,11 @@ function existingTables(
     questSeen: QuestSeenRow[],
     goals: GoalRow[],
     materialUse: MaterialUseRow[],
+    sortieBills: SortieBillRow[],
 ): BackupTables {
     return {
         snapshot, sorties, expeditions, factory, replays, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved, questSeen, goals, materialUse,
+        resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills,
     };
 }
 
@@ -1114,14 +1195,14 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         database.snapshot, database.sorties, database.expeditions, database.factory,
         database.replays, database.wanted, database.shipObtained, database.eventPlans,
         database.resources, database.resourceMarks, database.questObserved, database.questSeen,
-        database.goals, database.materialUse,
+        database.goals, database.materialUse, database.sortieBills,
     ], async () => {
         const [
             eventCount, notifiedCount, metaRows,
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
             currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen,
-            currentGoals, currentMaterialUse,
+            currentGoals, currentMaterialUse, currentSortieBills,
         ] = await Promise.all([
             database.events.count(), database.notified.count(), database.meta.toArray(),
             database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
@@ -1129,7 +1210,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             database.shipObtained.toArray(), database.eventPlans.toArray(),
             database.resources.toArray(), database.resourceMarks.toArray(),
             database.questObserved.toArray(), database.questSeen.toArray(), database.goals.toArray(),
-            database.materialUse.toArray(),
+            database.materialUse.toArray(), database.sortieBills.toArray(),
         ]);
 
         if (eventCount > 0) destinationInvalid('還原環境已有 raw events。');
@@ -1140,7 +1221,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
             currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen, currentGoals,
-            currentMaterialUse,
+            currentMaterialUse, currentSortieBills,
         );
         const restoreRowsExist = hasRestoreRows(currentTables);
         const replayRowsExist = hasReplayRows(currentTables);
@@ -1202,6 +1283,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         if (tables.questSeen?.length) await database.questSeen.bulkPut(tables.questSeen);
         if (tables.goals?.length) await database.goals.bulkPut(tables.goals);
         if (tables.materialUse?.length) await database.materialUse.bulkPut(tables.materialUse);
+        if (tables.sortieBills?.length) await database.sortieBills.bulkPut(tables.sortieBills);
         if (tables.wanted?.length) {
             await database.wanted.bulkAdd(tables.wanted.map(({ id: _id, ...row }) => row));
         }

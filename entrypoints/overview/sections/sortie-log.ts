@@ -27,7 +27,12 @@
 // 展開時才跑 `buildSortieDetail()`（內含戰鬥重放），結果快取；摺疊列只用摘要＋快照，
 // 以避免進入分區時解析整個重播層。
 import type { OverviewSection, SectionContext } from './types';
-import { db, type ReplayRow, type SortieLogRow } from '@/utils/db';
+import { db, type ReplayRow, type SortieBillRow, type SortieLogRow } from '@/utils/db';
+import { affordableRuns, netCost } from '@/utils/sortie-bill';
+import {
+    attributeMaterialUse, groupBillRuns, type AirSupplyTotal, type BillExtras, type BillGroup,
+} from '@/utils/sortie-bill-attribution';
+import { MAT_FILES, MAT_KEYS, type MatIndex } from '@/utils/resource-log';
 import {
     KC3_REPLAY_DIRECT_URL_LIMIT, KC3_REPLAY_PLAYER_URL,
     repairLegacyReplayFleet, toKc3Replay, toKc3ReplayUrl,
@@ -67,7 +72,7 @@ import {
 } from '@/utils/sortie-exclude';
 import { PSEUDONYM_NOTES_EN, mapName, operationName } from '@/utils/map-names';
 import {
-    esc, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml,
+    esc, fmtNum, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml, matIconHtml,
     eventDisplayTitle, eventFilterSelectHtml, eventNameOf, eventTermForFilter,
     loadJsonPrefs, mapFilterSelectHtml, paginate, parsePageSize, readEventWorldFilter, saveJsonPrefs,
     dropName, hashParams, clearHashParams,
@@ -1183,7 +1188,119 @@ export function battleLogHtml(detail: SortieDetail, state: SectionContext['state
     </div>`;
 }
 
-export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, state: SectionContext['state']): string {
+// ── 出擊帳單 ────────────────────────────────────────────────────────────
+// 數字的性質見 utils/sortie-bill.ts：要付的帳與餘額變動是封包事實，結婚艦的燃彈標「推算」，
+// 餘額變動算不出來時標「不可考」、淨成本只含要付的帳。高速修復材與基地航空隊補充是讀取時
+// 歸屬（utils/sortie-bill-attribution.ts），另列，不併入淨成本。
+
+const fmtCost = (n: number) => { const r = Math.round(n); return r < 0 ? `−${fmtNum(-r)}` : fmtNum(r); };
+const fmtSigned = (n: number) => { const r = Math.round(n); return r > 0 ? `+${fmtNum(r)}` : r < 0 ? `−${fmtNum(-r)}` : '0'; };
+const signClass = (n: number) => (n > 0 ? 'rl-gain' : n < 0 ? 'rl-drain' : 'rl-flat');
+
+const billMatChip = (i: MatIndex, text: string, cls = '') =>
+    `<span class="rl-chip${cls ? ` ${cls}` : ''}" title="${esc(t(MAT_KEYS[i] + '.full'))}">`
+    + `${matIconHtml(MAT_FILES[i], t(MAT_KEYS[i]))}<b>${esc(text)}</b></span>`;
+const costChips = (values: readonly number[]) => values.map((v, i) => billMatChip(i as MatIndex, fmtCost(v))).join('');
+const billTag = (key: string, tipKey: string, vars?: Record<string, string | number>) =>
+    `<span class="sl-est" title="${esc(t(tipKey, vars))}">${esc(t(key))}</span>`;
+const billLine = (labelKey: string, tipKey: string, value: string) =>
+    `<span class="sl-bill-k"${tipKey ? ` title="${esc(t(tipKey))}"` : ''}>${esc(t(labelKey))}</span>`
+    + `<span class="sl-bill-v">${value}</span>`;
+
+function airChips(air: AirSupplyTotal): string {
+    const cell = (i: MatIndex, value: number | null) => (value === null
+        ? billMatChip(i, t('ov.sbUnknown'), 'rl-flat') : billMatChip(i, fmtCost(value)));
+    return cell(0, air.fuel) + cell(3, air.bauxite)
+        + (air.unknownRows > 0 ? `<span class="sl-dim">${esc(t('ov.sbAirUnknown', { n: air.unknownRows }))}</span>` : '');
+}
+
+/** 支援艦隊一行（另列，不併入淨成本）。 */
+const supportLine = (label: string, payable: readonly number[], estimated: boolean) =>
+    `<span class="sl-bill-k" title="${esc(t('ov.sbSupportTip'))}">${esc(label)}</span>`
+    + `<span class="sl-bill-v">${costChips(payable)}${estimated ? billTag('ov.sbEst', 'ov.sbEstTip') : ''}</span>`;
+
+/** 讀取時歸屬的追加支出：基地航空隊補充與高速修復材各一行，沒有就不畫。 */
+function extrasLines(extras: BillExtras | undefined): string {
+    if (!extras) return '';
+    return (extras.air ? billLine('ov.sbAir', 'ov.sbAirTip', airChips(extras.air)) : '')
+        + (extras.buckets > 0 ? billLine('ov.sbBuckets', 'ov.sbBucketsTip', billMatChip(5, fmtNum(extras.buckets))) : '');
+}
+
+/** 一趟的帳單區塊（展開內容）。沒有帳單列的出擊不呼叫，不以 0 頂替。 */
+export function billHtml(bill: SortieBillRow, extras?: BillExtras): string {
+    const net = netCost(bill);
+    const est = bill.estimated ? billTag('ov.sbEst', 'ov.sbEstTip') : '';
+    const delta = bill.balanceDelta
+        ? bill.balanceDelta.map((v, i) => billMatChip(i as MatIndex, fmtSigned(v), signClass(v))).join('')
+        : `<span class="sl-dim" title="${esc(t('ov.sbDeltaUnknownTip'))}">${esc(t('ov.sbUnknown'))}</span>`;
+    // 另外四項（高速建造材起）只列有變動的
+    const special = (bill.specialDelta ?? [])
+        .map((v, i) => (v !== 0 ? billMatChip((i + 4) as MatIndex, fmtSigned(v), signClass(v)) : ''))
+        .join('');
+    // 預設折疊（同支援艦隊、基地航空隊）；收合時摘要列出淨成本，不必展開就看得到這趟花多少。
+    return `<details class="sl-block sl-sec sl-bill">
+        <summary><h4>${esc(t('ov.sbTitle'))}<span class="sl-bill-digest">${costChips(net.cost)}${est}${
+            net.partial ? billTag('ov.sbNetPartial', 'ov.sbNetPartialTip') : ''}</span></h4></summary>
+        <div class="sl-bill-grid">
+            ${billLine('ov.sbPayable', 'ov.sbPayableTip', costChips(bill.payable) + est)}
+            ${billLine('ov.sbDelta', 'ov.sbDeltaTip', delta)}
+            ${billLine('ov.sbNet', 'ov.sbNetTip', costChips(net.cost) + est
+        + (net.partial ? billTag('ov.sbNetPartial', 'ov.sbNetPartialTip') : ''))}
+            ${special ? billLine('ov.sbSpecial', 'ov.sbSpecialTip', special) : ''}
+            ${(bill.support ?? []).map(fleet => supportLine(t('ov.sbSupport', { n: fleet.deckId }), fleet.payable, fleet.estimated)).join('')}
+            ${extrasLines(extras)}
+        </div>
+    </details>`;
+}
+
+/**
+ * 海域彙總的結果區（不含控制項）。stock＝目前庫存（GameState.materials），取不到時
+ * affordableRuns 回 null，就不顯示可再出擊趟數。
+ */
+export function billSummaryHtml(
+    groups: readonly BillGroup[],
+    stock: readonly (number | null)[],
+    label: (group: BillGroup) => string,
+): string {
+    if (!groups.length) return `<div class="ov-empty">${esc(t('ov.sbSumNone'))}</div>`;
+    return groups.map(group => {
+        const s = group.summary;
+        const counts = [
+            t('ov.sbRuns', { n: s.runs }), t('ov.sbBossReach', { n: s.bossReaches }), t('ov.sbBossS', { n: s.bossS }),
+        ].join('・');
+        const afford = affordableRuns(s.perRun, stock);
+        return `<div class="sl-bsum-row">
+            <div class="sl-bsum-head">
+                <span class="sl-bsum-map" title="${esc(group.map)}">${esc(label(group))}</span>
+                <span class="sl-dim">${esc(counts)}</span>
+                ${s.estimated ? billTag('ov.sbEst', 'ov.sbEstTip') : ''}
+                ${s.partial ? billTag('ov.sbPartial', 'ov.sbPartialTip', { n: group.partialRuns }) : ''}
+                <span class="grow"></span>
+                ${afford === null ? '' : `<span class="sl-bsum-afford" title="${esc(t('ov.sbAffordTip'))}">${esc(t('ov.sbAfford', { n: fmtNum(afford) }))}</span>`}
+            </div>
+            <div class="sl-bill-grid">
+                ${billLine('ov.sbPerRun', 'ov.sbNetTip', costChips(s.perRun))}
+                ${s.perBossReach ? billLine('ov.sbPerBoss', '', costChips(s.perBossReach)) : ''}
+                ${s.perBossS ? billLine('ov.sbPerS', '', costChips(s.perBossS)) : ''}
+                ${group.support ? supportLine(t('ov.sbSupportSum', { n: group.support.runs }), group.support.total, group.support.estimated) : ''}
+                ${extrasLines(group.extras)}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// 海域彙總的期間（相對於現在）；標籤沿用資源紀錄的期間選項。
+const BILL_RANGES = [
+    { days: 0, labelKey: 'ov.rlRangeAll' },
+    { days: 7, labelKey: 'ov.rlRange7' },
+    { days: 30, labelKey: 'ov.rlRange30' },
+    { days: 90, labelKey: 'ov.rlRange90' },
+] as const;
+
+export function detailHtml(
+    detail: SortieDetail, replay: ReplayRow | undefined, state: SectionContext['state'],
+    bill?: { row: SortieBillRow; extras?: BillExtras },
+): string {
     const actions = replay
         ? `<details class="sl-export">
              <summary class="ov-btn">${esc(t('ov.replayExport'))}</summary>
@@ -1274,6 +1391,7 @@ export function detailHtml(detail: SortieDetail, replay: ReplayRow | undefined, 
     const letterNote = hasNodeLetters(detail.map) ? ''
         : `<span class="sl-dim" title="${esc(t('ov.slNoLetterTip'))}">${esc(t('ov.slNoLetter'))}</span>`;
     return `<div class="sl-actions">${actions}<span class="grow"></span>${summary}</div>
+        ${bill ? billHtml(bill.row, bill.extras) : ''}
         ${fleets}
         ${supportBlock}
         ${lbasBlock}
@@ -1329,6 +1447,15 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
                     </span>
                 </div>
             </details>
+            <details class="sl-bsum">
+                <summary>${esc(t('ov.sbSum'))}</summary>
+                <div class="sl-bsum-bar">
+                    <label class="sl-inline"><span>${esc(t('ov.rlRange'))}</span><select class="sl-bsum-range">${BILL_RANGES.map(range =>
+                        `<option value="${range.days}">${esc(t(range.labelKey))}</option>`).join('')}</select></label>
+                </div>
+                <p class="sl-exclude-note">${esc(t('ov.sbSumNote'))}</p>
+                <div class="sl-bsum-body"></div>
+            </details>
             ${importPanel}
             <div class="sl-body ov-list"></div>
             <div class="rs-pager sl-pager" hidden></div>
@@ -1368,6 +1495,9 @@ export const sortieLogSection: OverviewSection = {
 
         // 重播列的查表：事件委派（複製／下載／匯入／釘選）需要，載入完成後才有內容
         let replayCache = new Map<number, ReplayRow>();
+        // 出擊帳單與讀取時歸屬的追加支出（sortieKey → 列），載入完成後才有內容
+        let bills = new Map<number, SortieBillRow>();
+        let billExtras = new Map<number, BillExtras>();
 
         const catBtns = el.querySelectorAll<HTMLButtonElement>('.sl-cat button');
         const eventWrap = el.querySelector<HTMLLabelElement>('.sl-event-wrap')!;
@@ -1378,6 +1508,9 @@ export const sortieLogSection: OverviewSection = {
         const body = el.querySelector<HTMLDivElement>('.sl-body')!;
         const pager = el.querySelector<HTMLDivElement>('.sl-pager')!;
         const expandBtn = el.querySelector<HTMLButtonElement>('.sl-expand')!;
+        const billRangeSel = el.querySelector<HTMLSelectElement>('.sl-bsum-range')!;
+        const billBody = el.querySelector<HTMLDivElement>('.sl-bsum-body')!;
+        billBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         const battleDialog = el.querySelector<HTMLDialogElement>('.sl-battle-dialog')!;
         const battleDialogBody = el.querySelector<HTMLDivElement>('.sl-battle-dialog-body')!;
         const closeBattleDialog = () => { if (battleDialog.open) battleDialog.close(); };
@@ -1507,7 +1640,29 @@ export const sortieLogSection: OverviewSection = {
                 <button type="button" class="ov-btn sl-page" data-page="next" ${page >= paged.pageCount ? 'disabled' : ''}>›</button>` : '';
             pager.hidden = paged.pageCount <= 1;
             for (const e of paged.rows) if (open.has(e.key)) fillDetail(e);
+            drawBills();
         }
+
+        /** 海域彙總：跟著上方的分類／活動／海域篩選，期間另選；只換結果區，期間選單不重建。 */
+        function drawBills() {
+            const days = Number(billRangeSel.value) || 0;
+            const since = days > 0 ? Date.now() - days * 86_400_000 : 0;
+            const byMap = new Map<string, Entry>();
+            const items = visible().flatMap(entry => {
+                const bill = bills.get(entry.key);
+                if (!bill) return [];
+                if (!byMap.has(bill.map)) byMap.set(bill.map, entry);
+                return [{ bill, rows: entry.rows, extras: billExtras.get(entry.key) }];
+            });
+            const qualify = filterPlan?.qualifyEventWorld === true;
+            billBody.innerHTML = billSummaryHtml(groupBillRuns(items, since), ctx.state.materials, group => {
+                const entry = byMap.get(group.map);
+                const shown = entry ? mapDisplayLabel(entry, qualify, ctx.state) : group.map;
+                const diff = diffLabel(group.difficulty ?? 0);
+                return diff ? `${shown} ${diff}` : shown;
+            });
+        }
+        billRangeSel.addEventListener('change', drawBills);
 
         /** 展開時才解析封包（含戰鬥重放），同一次出擊只算一次。 */
         function fillDetail(entry: Entry) {
@@ -1516,7 +1671,9 @@ export const sortieLogSection: OverviewSection = {
             let html = detailCache.get(entry.key);
             if (html === undefined) {
                 const detail = buildSortieDetail(entry.rows, entry.replay);
-                html = detailHtml(detail, entry.replay, ctx.state);
+                const bill = bills.get(entry.key);
+                html = detailHtml(detail, entry.replay, ctx.state,
+                    bill ? { row: bill, extras: billExtras.get(entry.key) } : undefined);
                 detailCache.set(entry.key, html);
                 if (entry.replay?.battles.length) {
                     simulatorCache.set(entry.key, buildSortieSimulator(entry.replay, {
@@ -1790,11 +1947,15 @@ export const sortieLogSection: OverviewSection = {
         // 資料載入：失敗／卡住都只影響清單區，工具列與匯入面板照常可用，並如實說明原因。
         body.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         try {
-            const [rows, replays, shipObtained] = await Promise.all([
+            const [rows, replays, shipObtained, billRows, materialUse] = await Promise.all([
                 db.sorties.orderBy('eventId').toArray(),      // 升冪＝時序，「第幾次」據此計數
                 db.replays.toArray(),
                 db.shipObtained.toArray(),
+                db.sortieBills.toArray(),
+                db.materialUse.toArray(),
             ]);
+            bills = new Map(billRows.map(bill => [bill.sortieKey, bill]));
+            billExtras = attributeMaterialUse(billRows, materialUse);
             const newShipEventIds = newShipDropKeys(rows, shipObtained, mst => ctx.state.baseShipId(mst));
             // 對 legacy replay 的艦隊編號只在對應艦隊完整快照仍在時於讀取層修復；不覆寫
             // IndexedDB，也不對證據不足的匯入資料猜編成。
@@ -1821,7 +1982,7 @@ export const sortieLogSection: OverviewSection = {
             replayCache = replayByKey;
         } catch (error) {
             console.error('[sortie-log] 載入出擊紀錄失敗', error);
-            body.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+            body.innerHTML = billBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
             return;
         }
 

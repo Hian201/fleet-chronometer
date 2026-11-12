@@ -3,9 +3,12 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
-import type { ReplayRow, ReplayShip, SortieLogRow } from '../utils/db';
+import type { ReplayRow, ReplayShip, SortieBillRow, SortieLogRow } from '../utils/db';
 import { buildSortieDetail } from '../utils/sortie-detail';
-import { battleLogHtml, detailHtml, fleetKindKey, headHtml, shellHtml, type Entry } from '../entrypoints/overview/sections/sortie-log';
+import {
+    battleLogHtml, billHtml, billSummaryHtml, detailHtml, fleetKindKey, headHtml, shellHtml, type Entry,
+} from '../entrypoints/overview/sections/sortie-log';
+import { groupBillRuns } from '../utils/sortie-bill-attribution';
 import { setLang, t } from '../utils/ui-i18n';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
@@ -519,5 +522,63 @@ describe('摺疊列的編成顯示（只放旗艦＋編制）', () => {
         const r = replay();
         expect(headHtml(entry({ rows: [raidRow, ...rows()] }), state, false)).toContain('/icons/ui/airraid.svg');
         expect(detailHtml(buildSortieDetail([raidRow, ...rows()], r), r, state)).toContain('/icons/ui/airraid.svg');
+    });
+});
+
+describe('出擊帳單', () => {
+    const bill = (extra: Partial<SortieBillRow> = {}): SortieBillRow => ({
+        sortieKey: 500, ts: 1_700_000_000_000, map: '1-5',
+        ships: [], payable: [100, 120, 30, 15], balanceDelta: [-5, -5, 0, 0], specialDelta: [0, 0, 0, 0],
+        planesLost: 3, estimated: false, damagedShipIds: [], lostShipIds: [],
+        ...extra,
+    });
+    beforeAll(() => setLang('zh-TW'));
+
+    it('沒有帳單列就不畫帳單區塊（不以 0 頂替）', () => {
+        const r = replay();
+        expect(detailHtml(buildSortieDetail(rows(), r), r, state)).not.toContain('sl-bill');
+        expect(detailHtml(buildSortieDetail(rows(), r), r, state, { row: bill() })).toContain(t('ov.sbTitle'));
+    });
+
+    it('支援艦隊另列一行；沒帶支援就不畫', () => {
+        expect(billHtml(bill())).not.toContain(t('ov.sbSupportTip'));
+        const html = billHtml(bill({ support: [{ deckId: 3, payable: [120, 96, 0, 40], planesLost: 8, estimated: false }] }));
+        expect(html).toContain(t('ov.sbSupport', { n: 3 }));
+        expect(html).toContain('120');
+        const groups = groupBillRuns([
+            { bill: bill({ support: [{ deckId: 3, payable: [120, 96, 0, 40], planesLost: 8, estimated: false }] }), rows: [] },
+            { bill: bill({ sortieKey: 2 }), rows: [] },
+        ]);
+        expect(groups[0]?.support).toEqual({ runs: 1, total: [120, 96, 0, 40], estimated: false });
+        expect(billSummaryHtml(groups, [], () => '1-5')).toContain(t('ov.sbSupportSum', { n: 1 }));
+    });
+
+    it('餘額變動不可考時標明，淨成本只含要付的帳；推算另標', () => {
+        const html = billHtml(bill({ balanceDelta: null, specialDelta: null, estimated: true }));
+        expect(html).toContain(t('ov.sbUnknown'));
+        expect(html).toContain(t('ov.sbNetPartial'));
+        expect(html).toContain(t('ov.sbEst'));
+        expect(html).not.toContain(t('ov.sbSpecial'));
+        expect(html).not.toMatch(/wiki|社群|KC3/i);
+    });
+
+    it('其他資材只在有變動時列出；追加支出另列，不可考的補充不顯示成 0', () => {
+        const html = billHtml(bill({ specialDelta: [-6, 0, 2, 0] }), {
+            buckets: 2, air: { rows: 1, fuel: 12, bauxite: null, unknownRows: 1 },
+        });
+        expect(html).toContain(t('ov.sbSpecial'));
+        expect(html).toContain('−6');
+        expect(html).toContain('+2');
+        expect(html).toContain(t('ov.sbAir'));
+        expect(html).toContain(t('ov.sbAirUnknown', { n: 1 }));
+        expect(html).toContain(t('ov.sbBuckets'));
+    });
+
+    it('海域彙總顯示可再出擊趟數；庫存取不到就不顯示', () => {
+        const groups = groupBillRuns([{ bill: bill(), rows: [{ boss: true, kind: 'battle', rank: 'S' }] }]);
+        const label = () => '1-5';
+        expect(billSummaryHtml(groups, [950, 1150, 300, 150], label)).toContain(t('ov.sbAfford', { n: 9 }));
+        expect(billSummaryHtml(groups, [], label)).not.toContain('sl-bsum-afford');
+        expect(billSummaryHtml([], [], label)).toContain(t('ov.sbSumNone'));
     });
 });

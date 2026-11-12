@@ -16,10 +16,11 @@
 //     不受結婚折扣影響。
 //   · 出擊期間的餘額變動：兩筆完整資材餘額之差，封包事實；它是「途中取得的資源 − 基地航空隊
 //     出擊消耗 − 噴射機鋼材」的合計，封包無從再拆。呼叫端只有在兩筆餘額之間沒有其他未追蹤的
-//     資材進出時才可傳入，否則傳 null（判定規則見 docs/completion-plan.md §4.3）。
+//     資材進出時才可傳入，否則傳 null（判定規則見檔尾 keepsMaterialsTracked）。
 //
-// 不含：高速修復材（回港後才決定用不用，依 damagedShipIds 在讀取時歸屬）、支援艦隊、
-// 基地航空隊的補充（各自在自己的封包結算）。
+// 不含：高速修復材（回港後才決定用不用，依 damagedShipIds 在讀取時歸屬）、基地航空隊的補充
+// （回港後才補，db.materialUse 的 airSupply 列在讀取時歸屬）。支援艦隊另算（supportBill），
+// 不併入出擊艦隊的數字。
 
 /** 一艘艦在某個時刻的帳單相關狀態。欄位對應 api_ship[] 的原始欄位。 */
 export interface BillShip {
@@ -67,6 +68,8 @@ export interface SortieBill {
     damagedShipIds: number[];
     /** 出擊前在、回港後不在（轟沈）。其未補給的燃彈不會再付，不計入。 */
     lostShipIds: number[];
+    /** 這一趟帶出的支援艦隊（出擊開始時正在跑同海域的支援遠征）；沒有就不寫。 */
+    support?: SupportBill[];
 }
 
 const MARRIED_LV = 100;
@@ -216,4 +219,102 @@ export function affordableRuns(perRun: Resources4, stock: readonly (number | nul
         runs = runs === null ? can : Math.min(runs, can);
     }
     return runs;
+}
+
+// GameState.materials 只在部分封包更新（母港、補給、開發、改修、基地航空隊補充、高速建造／入渠用桶）。
+// 出擊開始時的餘額能不能拿來算「出擊期間的餘額變動」，取決於上一筆母港封包之後是否出現過
+// 會動到資材、而 state 沒追蹤的封包。這裡用白名單：只列出確定不動四項基本資源（或 state 會用
+// 回應的餘額精確更新）的 path，其餘一律視為可能動過——寧可多判成不可考，也不讓錯的差額進帳單。
+const TRACKED_PATHS = new Set([
+    'api_start2/getData',
+    // 編成／裝備換裝不動資材；改造（remodeling）耗彈藥鋼材，不在此列。
+    'api_req_kaisou/slotset', 'api_req_kaisou/slotset_ex', 'api_req_kaisou/unsetslot_all',
+    'api_req_kaisou/slot_exchange_index', 'api_req_kaisou/slot_deprive', 'api_req_kaisou/lock',
+    'api_req_kaisou/powerup', 'api_req_kaisou/marriage', 'api_req_kaisou/open_exslot',
+    // 回應帶補給後的資材餘額，state 照此更新。
+    'api_req_hokyu/charge',
+    // supply 回應帶補充後的燃料、鋁土（state 照此更新）；set_plane 耗鋁土但 state 不追蹤，不在此列。
+    'api_req_air_corps/supply', 'api_req_air_corps/set_action', 'api_req_air_corps/change_name',
+    // createitem／remodel_slot 回應帶餘額；createship、解體、廢棄不在此列。
+    'api_req_kousyou/createitem', 'api_req_kousyou/remodel_slot', 'api_req_kousyou/remodel_slotlist',
+    'api_req_kousyou/remodel_slotlist_detail', 'api_req_kousyou/getship', 'api_req_kousyou/createship_speedchange',
+    // 入渠途中用桶只動高速修復材（state 已扣）；nyukyo/start 的修理費 state 不追蹤，不在此列。
+    'api_req_nyukyo/speedchange',
+    // 遠征出發、召回不動資材；遠征結果（result）會加資材，不在此列。
+    'api_req_mission/start', 'api_req_mission/return_instruction',
+    // 接任務、取消任務不動資材；領獎（clearitemget）不在此列。
+    'api_req_quest/start', 'api_req_quest/stop',
+    'api_req_map/select_eventmap_rank',
+    'api_req_member/itemuse_cond',
+]);
+const TRACKED_PREFIXES = [
+    'api_get_member/',          // 唯讀
+    'api_req_hensei/',          // 編成
+    'api_req_kaisou/preset_slot_',
+    'api_req_practice/',        // 演習不動資材餘額（燃彈缺額在艦上，回港後才補）
+];
+
+/** 這個封包之後，state 裡的資材餘額是否仍與遊戲一致（假設之前一致）。 */
+export function keepsMaterialsTracked(path: string): boolean {
+    return TRACKED_PATHS.has(path) || TRACKED_PREFIXES.some(prefix => path.startsWith(prefix));
+}
+
+// ── 支援艦隊 ─────────────────────────────────────────────────────────
+// 支援遠征只對派出後同海域的第一趟出擊有效，本隊回港時一起歸還，不會跨趟；不論支援有沒有出動，
+// 燃彈都照扣（wikiwiki「支援艦隊」）。所以花費整筆歸給出擊開始時它正在支援的那一趟。
+//   · 燃料：最大搭載量的 50%；彈藥：正規空母、輕空母、水上機母艦合計 3 艘以上時 40%，否則 80%
+//     （對潛支援比照航空支援；判定仍是 2013 年以前的舊規格，裝甲空母與揚陸艦不算）。消耗量小數
+//     無條件進位，與一般遠征的捨去不同。出處 wikiwiki「支援艦隊」各支援種類與「補給」段；
+//     KC3Kai src/library/objects/Fleet.js calcSupportExpeditionCost 的燃料 50%／彈藥 40%·80% 一致。
+//   · 艦載機：戰鬥封包 api_support_info／api_n_support_info 的 api_support_airatack 帶支援艦隊編號與
+//     stage1、stage2 的 api_f_lostcount（samples/61-5-jibun-rengou-node52.json），每架 5 鋁土。
+//   · 結婚艦的補給折扣同出擊艦隊，標推算。噴射機的鋼材未計。
+
+/** 支援艦隊一艘艦的計算材料，取自 master（api_mst_ship）。 */
+export interface SupportShip {
+    masterId: number;
+    lv: number;
+    stype: number;
+    fuelMax: number;
+    bullMax: number;
+}
+
+export interface SupportBill {
+    /** 1 起算的艦隊編號。 */
+    deckId: number;
+    payable: Resources4;
+    planesLost: number;
+    estimated: boolean;
+}
+
+// 正規空母、輕空母、水上機母艦（api_mst_stype 11／7／16）
+const SUPPORT_LIGHT_AMMO_STYPES = new Set([7, 11, 16]);
+
+export function supportBill(deckId: number, ships: readonly SupportShip[], planesLost: number): SupportBill {
+    const carriers = ships.filter(ship => SUPPORT_LIGHT_AMMO_STYPES.has(ship.stype)).length;
+    const ammoRate = carriers >= 3 ? 0.4 : 0.8;
+    const payable: Resources4 = [0, 0, 0, Math.max(0, planesLost) * BAUXITE_PER_PLANE];
+    let estimated = false;
+    for (const ship of ships) {
+        const married = ship.lv >= MARRIED_LV;
+        const fuel = Math.ceil(ship.fuelMax * 0.5);
+        const ammo = Math.ceil(ship.bullMax * ammoRate);
+        payable[0] += supplyCost(fuel, married);
+        payable[1] += supplyCost(ammo, married);
+        if (married && (fuel > 1 || ammo > 1)) estimated = true;
+    }
+    return { deckId, payable, planesLost: Math.max(0, planesLost), estimated };
+}
+
+/** 一則戰鬥封包裡各支援艦隊被擊落的艦載機數（deckId → 架數）。 */
+export function supportPlanesLost(api: any): Map<number, number> {
+    const out = new Map<number, number>();
+    for (const info of [api?.api_support_info, api?.api_n_support_info]) {
+        const air = info?.api_support_airatack;
+        const deckId = Number(air?.api_deck_id);
+        if (!Number.isSafeInteger(deckId) || deckId <= 0) continue;
+        const lost = nonNegative(air?.api_stage1?.api_f_lostcount) + nonNegative(air?.api_stage2?.api_f_lostcount);
+        out.set(deckId, (out.get(deckId) ?? 0) + lost);
+    }
+    return out;
 }

@@ -75,6 +75,7 @@ function mockTables(): EventProjectorTables & {
         replays: { get: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined) },
         expeditions: { put: vi.fn().mockResolvedValue(undefined) },
         materialUse: { put: vi.fn().mockResolvedValue(undefined) },
+        sortieBills: { put: vi.fn().mockResolvedValue(undefined) },
     };
 }
 

@@ -2278,7 +2278,8 @@ export class GameState {
         const ship = this.ships.get(shipId);
         if (req.api_highspeed === '1') {
             // 高速修復（バケツ）：即時全快、不占入渠槽
-            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+            // 修到滿＝修理費歸零；不清的話，用桶後不經母港直接出擊，出擊帳單會拿殘值當出擊前的修理費。
+            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; ship.api_ndock_item = [0, 0]; }
             this.useBucket();
             // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
             if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, ts);
@@ -2331,7 +2332,7 @@ export class GameState {
         const shipId = Number(dock?.api_ship_id);
         if (dock && dock.api_state === 1 && shipId > 0) {
             const ship = this.ships.get(shipId);
-            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; }
+            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; ship.api_ndock_item = [0, 0]; }
             this.applyBucketCondFloor(shipId, ship, ts);
             dock.api_state = 0;
             dock.api_ship_id = 0;

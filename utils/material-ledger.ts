@@ -87,6 +87,9 @@ const emptyRow = (mat: LedgerMat): MaterialLedgerRow => ({
     unattributed: 0,
 });
 
+// 基地航空隊補充（airSupply）是基本資源的支出、歸給出擊帳單，不屬於離散資材分帳。
+const isLedgerUse = (use: MaterialUseRow): use is Exclude<MaterialUseRow, { kind: 'airSupply' }> => use.kind === 'bucket' || use.kind === 'remodel';
+
 /** 期初樣本不在 `from` 之前時取 `[from, to]` 內第一筆；缺樣本或期末不晚於期初回 null（不可考，不以 0 頂替）。 */
 /**
  * 某時刻之後的紀錄筆數。分帳的期末是最後一筆餘額取樣，之後的動作（例如在入渠畫面用桶、還沒回母港）
@@ -96,7 +99,8 @@ export function countRecordsAfter(
     inputs: Pick<LedgerInputs, 'factory' | 'expeditions' | 'questClears' | 'materialUse'>, ts: number,
 ): number {
     const after = (rows: readonly { ts: number }[]) => rows.filter(row => row.ts > ts).length;
-    return after(inputs.factory) + after(inputs.expeditions) + after(inputs.questClears) + after(inputs.materialUse);
+    return after(inputs.factory) + after(inputs.expeditions) + after(inputs.questClears)
+        + after(inputs.materialUse.filter(isLedgerUse));
 }
 
 export function buildMaterialLedger(inputs: LedgerInputs, from: number, to: number): MaterialLedger | null {
@@ -117,7 +121,7 @@ export function buildMaterialLedger(inputs: LedgerInputs, from: number, to: numb
         for (const mat of FACTORY_CONSUMES[entry.kind]) byMat.get(mat)!.spending[entry.kind] += entry.used[mat] ?? 0;
     }
     for (const use of inputs.materialUse) {
-        if (!inRange(use.ts)) continue;
+        if (!isLedgerUse(use) || !inRange(use.ts)) continue;
         counts.materialUse += 1;
         if (use.kind === 'bucket') {
             byMat.get(5)!.spending.dock += 1;

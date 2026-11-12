@@ -66,6 +66,7 @@ function mockTables(): EventProjectorTables & {
     replays: EventProjectorTables['replays'] & { get: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn> };
     expeditions: { put: ReturnType<typeof vi.fn> };
     materialUse: { put: ReturnType<typeof vi.fn> };
+    sortieBills: { put: ReturnType<typeof vi.fn> };
 } {
     return {
         sorties: {
@@ -76,6 +77,7 @@ function mockTables(): EventProjectorTables & {
         replays: { get: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined) },
         expeditions: { put: vi.fn().mockResolvedValue(undefined) },
         materialUse: { put: vi.fn().mockResolvedValue(undefined) },
+        sortieBills: { put: vi.fn().mockResolvedValue(undefined) },
     };
 }
 

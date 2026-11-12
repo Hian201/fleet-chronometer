@@ -1,7 +1,11 @@
 import {
-    db, type ApiEventRow, type ExpeditionRow, type FactoryLogRow, type MaterialUseRow, type ReplayRow, type SortieLogRow,
+    db, type ApiEventRow, type ExpeditionRow, type FactoryLogRow, type MaterialUseRow, type ReplayRow, type SortieBillRow,
+    type SortieLogRow,
 } from './db';
 import { appendBattle, setDifficulty, startReplay } from './replay';
+import {
+    billShipFromApi, keepsMaterialsTracked, sortieBill, supportBill, supportPlanesLost, type BillShip, type SupportShip,
+} from './sortie-bill';
 import { GameState, isBossNode, type MapGaugeView } from './state';
 
 export type EventProjectorMode = 'persist' | 'state-only';
@@ -27,6 +31,33 @@ export interface EventProjectorTables {
     replays: ReplayTable;
     expeditions: PutTable<ExpeditionRow>;
     materialUse: PutTable<MaterialUseRow>;
+    sortieBills: PutTable<SortieBillRow>;
+}
+
+/** 出擊開始當下擷取、等回港結算的帳單上半。 */
+interface PendingBill {
+    sortieKey: number;
+    ts: number;
+    map: string;
+    difficulty?: number;
+    ships: BillShip[];
+    /** 出擊開始當下的八項餘額；上一筆母港封包之後有未追蹤的資材進出時為 null。 */
+    materials: number[] | null;
+    /** 出擊開始時正在跑同海域支援遠征的艦隊；艦載機損失在途中的戰鬥封包累加。 */
+    support: { deckId: number; ships: SupportShip[]; planesLost: number }[];
+}
+
+// 支援遠征的 api_disp_no：通常海域 33／34（南方海域），活動 S1／S2。辨認方式同 KC3Kai
+// src/library/managers/SortieManager.js getSupportingFleet（disp_no＋遠征的海域＝出擊海域）。
+const SUPPORT_DISP_NOS = new Set(['33', '34', 'S1', 'S2']);
+
+/** 套用 reducer 之前才讀得到的值（reducer 會改掉它們）。 */
+interface BeforeApply {
+    /** speedchange：用桶的入渠槽裡的艦（reducer 會清空槽位）。 */
+    bucketShipId?: number;
+    /** air_corps/supply：補充前的燃料、鋁土。 */
+    supplyFuel?: number;
+    supplyBauxite?: number;
 }
 
 export type ProjectableEvent = Pick<ApiEventRow, 'ts' | 'path' | 'api'> & {
@@ -51,6 +82,11 @@ export class EventProjector {
     readonly tables: EventProjectorTables;
     currentSortieKey = 0;
     currentReplay: ReplayRow | null = null;
+    // 同 currentReplay，state-only 模式也要維護，map/start 在 cursor 前、回港在 cursor 後的出擊才接得上。
+    pendingBill: PendingBill | null = null;
+    // state.materials 是否與遊戲一致：母港封包設 true，之後出現 keepsMaterialsTracked() 不認得的封包就設
+    // false。起始為 false——baseline snapshot 之後到第一筆母港之間發生過什麼無從得知。
+    materialsTracked = false;
     readonly gaugeSeenUncleared = new Set<number>();
     readonly gaugeBroken = new Set<number>();
     // 在 map/start 決定整場是否不記錄；出擊途中改設定不會讓同一場只記一半。
@@ -97,6 +133,7 @@ export class EventProjector {
         try {
             // map/start 的事件 ID 是整次出擊的既有分組鍵，必須在 reducer 與各歸檔步驟前更新。
             if (path === 'api_req_map/start') this.currentSortieKey = id;
+            const before = this.readBeforeApply(path, req);
             // 帶入原始 event.ts：泊地修理計時器錨點靠它，replay 時不能用「現在」。
             this.state.applyEvent(path, api, req, ts);
             if (path === 'api_req_map/start') {
@@ -108,8 +145,11 @@ export class EventProjector {
             await this.archiveFactory(id, ts, path);
             await this.captureReplay(id, ts, path, api);
             await this.archiveExpedition(id, ts, path, api, req);
-            await this.archiveMaterialUse(id, ts, path, req);
+            await this.archiveMaterialUse(id, ts, path, api, req, before);
+            await this.archiveSortieBill(id, ts, path, api);
             await this.detectClear(path);
+            // 放在所有歸檔步驟之後：各步驟看到的是「這筆封包之前」的可信度。
+            this.materialsTracked = path === 'api_port/port' || (this.materialsTracked && keepsMaterialsTracked(path));
         } finally {
             this.activeMode = previousMode;
             this.inFlight = false;
@@ -319,12 +359,53 @@ export class EventProjector {
         if (this.shouldPersist) await this.tables.expeditions.put(row);
     }
 
-    private async archiveMaterialUse(id: number, ts: number, path: string, req?: Record<string, string>): Promise<void> {
+    private readBeforeApply(path: string, req?: Record<string, string>): BeforeApply {
+        if (path === 'api_req_nyukyo/speedchange') {
+            const dockId = Number(req?.api_ndock_id);
+            const dock = this.state.ndockData.find((d: any) => Number(d?.api_id) === dockId);
+            const shipId = Number(dock?.api_ship_id);
+            return Number.isSafeInteger(shipId) && shipId > 0 ? { bucketShipId: shipId } : {};
+        }
+        if (path === 'api_req_air_corps/supply') {
+            return { supplyFuel: this.state.materials[0], supplyBauxite: this.state.materials[3] };
+        }
+        return {};
+    }
+
+    private async archiveMaterialUse(
+        id: number,
+        ts: number,
+        path: string,
+        api: any,
+        req: Record<string, string> | undefined,
+        before: BeforeApply,
+    ): Promise<void> {
         let row: MaterialUseRow | null = null;
         if (path === 'api_req_nyukyo/start' && req?.api_highspeed === '1') {
-            row = { eventId: id, ts, kind: 'bucket', via: 'start' };
+            const shipId = Number(req.api_ship_id);
+            row = {
+                eventId: id, ts, kind: 'bucket', via: 'start',
+                ...(Number.isSafeInteger(shipId) && shipId > 0 ? { shipId } : {}),
+            };
         } else if (path === 'api_req_nyukyo/speedchange' && Number(req?.api_ndock_id) > 0) {
-            row = { eventId: id, ts, kind: 'bucket', via: 'speedchange' };
+            row = {
+                eventId: id, ts, kind: 'bucket', via: 'speedchange',
+                ...(before.bucketShipId === undefined ? {} : { shipId: before.bucketShipId }),
+            };
+        } else if (path === 'api_req_air_corps/supply') {
+            // req.api_area_id 是基地所屬海域（同 GameState.resolveAirBaseKeys 的來源）。缺就不寫，不猜。
+            const areaId = Number(req?.api_area_id);
+            if (Number.isSafeInteger(areaId) && areaId > 0) {
+                // 回應只帶補充後的燃料、鋁土（samples/air-corps-supply.json）；補充前的餘額不可信時花費不可考。
+                const spent = (prior: unknown, after: unknown) => (this.materialsTracked
+                    && typeof prior === 'number' && Number.isFinite(prior)
+                    && typeof after === 'number' && Number.isFinite(after) ? Math.max(0, prior - after) : null);
+                row = {
+                    eventId: id, ts, kind: 'airSupply', areaId,
+                    fuel: spent(before.supplyFuel, api?.api_after_fuel),
+                    bauxite: spent(before.supplyBauxite, api?.api_after_bauxite),
+                };
+            }
         } else if (path === 'api_req_kaisou/remodeling') {
             // req.api_id 是艦實例 id（KC3Kai Kcsapi.js、ElectronicObserver Observer/kcsapi/api_req_kaisou/remodeling.cs）。
             // reducer 不處理 remodeling，所以此刻 state 裡仍是改造前的形態；查不到就不寫，不猜。
@@ -333,6 +414,96 @@ export class EventProjector {
             if (shipId > 0 && fromMst > 0) row = { eventId: id, ts, kind: 'remodel', shipId, fromMst };
         }
         if (row && this.shouldPersist) await this.tables.materialUse.put(row);
+    }
+
+    // 出擊帳單：map/start 套用後擷取出擊前的狀態（此時艦上還是出擊前的燃彈；途中估算要到 battleresult
+    // 才寫回），出擊後第一筆母港封包套用後結算。缺出擊開始事件、或不記錄的海域都不寫。
+    private async archiveSortieBill(id: number, ts: number, path: string, api: any): Promise<void> {
+        if (path === 'api_req_map/start') {
+            this.pendingBill = this.skipCurrentSortie ? null : this.captureBillStart(id, ts);
+            return;
+        }
+        if (!this.pendingBill) return;
+        if (path !== 'api_port/port') {
+            if (this.pendingBill.support.length && !path.startsWith('api_req_practice/')) {
+                for (const [deckId, lost] of supportPlanesLost(api)) {
+                    const fleet = this.pendingBill.support.find(entry => entry.deckId === deckId);
+                    if (fleet) fleet.planesLost += lost;
+                }
+            }
+            return;
+        }
+        const pending = this.pendingBill;
+        this.pendingBill = null;
+        const after = pending.ships.flatMap(ship => {
+            const raw = this.state.ships.get(ship.id);
+            const now = raw ? billShipFromApi(raw) : null;
+            return now ? [now] : [];
+        });
+        const bill = sortieBill(pending.ships, after, { before: pending.materials, after: this.state.materials });
+        const row: SortieBillRow = {
+            sortieKey: pending.sortieKey, ts: pending.ts, map: pending.map,
+            ...(pending.difficulty === undefined ? {} : { difficulty: pending.difficulty }),
+            ...bill,
+            ...(pending.support.length
+                ? { support: pending.support.map(fleet => supportBill(fleet.deckId, fleet.ships, fleet.planesLost)) }
+                : {}),
+        };
+        if (this.shouldPersist) await this.tables.sortieBills.put(row);
+    }
+
+    private captureBillStart(sortieKey: number, ts: number): PendingBill | null {
+        const sortie = this.state.sortieInfo;
+        if (!sortie) return null;
+        // 參與的艦＝出擊艦隊；聯合艦隊且由第一艦隊出擊時加上第二艦隊（同 GameState.onReqMapStart）。
+        const deckIdx = this.state.currentSortieFleetId;
+        const deckIdxs = this.state.combinedFlag > 0 && deckIdx === 0 ? [0, 1] : [deckIdx];
+        const ids = deckIdxs.flatMap(index => (this.state.decks[index]?.api_ship ?? [])
+            .map(Number).filter((shipId: number) => Number.isSafeInteger(shipId) && shipId > 0));
+        const ships: BillShip[] = [];
+        for (const shipId of ids) {
+            const ship = billShipFromApi(this.state.ships.get(shipId));
+            // 任何一艘讀不到就不記這一趟：少一艘的帳單看起來完整，其實少算。
+            if (!ship) return null;
+            ships.push(ship);
+        }
+        if (!ships.length) return null;
+        const mapId = sortie.mapArea * 10 + sortie.mapNo;
+        const rank = this.state.mapGauges.get(mapId)?.selectedRank ?? 0;
+        return {
+            sortieKey, ts, map: `${sortie.mapArea}-${sortie.mapNo}`,
+            ...(Number.isSafeInteger(rank) && rank > 0 ? { difficulty: rank } : {}),
+            ships,
+            materials: this.materialsTracked && this.state.materials.length >= 4 ? [...this.state.materials] : null,
+            support: this.captureSupportFleets(deckIdxs, sortie.mapArea),
+        };
+    }
+
+    // 出擊開始時正在跑「同海域支援遠征」的艦隊。任何一艘讀不到 master 就不記那一隊，不補猜。
+    private captureSupportFleets(sortieDeckIdxs: readonly number[], mapArea: number): PendingBill['support'] {
+        const out: PendingBill['support'] = [];
+        this.state.decks.forEach((deck, index) => {
+            if (sortieDeckIdxs.includes(index)) return;
+            const mission = deck?.api_mission;
+            // api_mission[0]＝1：遠征中；[1]＝遠征 id
+            if (!Array.isArray(mission) || Number(mission[0]) !== 1) return;
+            const meta = this.state.masterMissions.get(Number(mission[1]));
+            if (!meta || !SUPPORT_DISP_NOS.has(String(meta.dispNo)) || meta.maparea !== mapArea) return;
+            const ships: SupportShip[] = [];
+            for (const shipId of (deck.api_ship ?? []).map(Number)) {
+                if (!Number.isSafeInteger(shipId) || shipId <= 0) continue;
+                const ship = this.state.ships.get(shipId);
+                const masterId = Number(ship?.api_ship_id);
+                const master = this.state.master.get(masterId);
+                if (!master || !(master.fuelMax > 0) || !(master.bullMax > 0)) return;
+                ships.push({
+                    masterId, lv: Number(ship.api_lv) || 0, stype: master.stype,
+                    fuelMax: master.fuelMax, bullMax: master.bullMax,
+                });
+            }
+            if (ships.length) out.push({ deckId: index + 1, ships, planesLost: 0 });
+        });
+        return out;
     }
 
     private isGaugeBroken(gauge: MapGaugeView): boolean {
