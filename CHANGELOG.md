@@ -2,6 +2,34 @@
 
 Changes for each Chrome Web Store release. While a version is in store review, its changes collect under **Unreleased** and each update is published as a pre-release tag (`v<version>-rc.N`). When the store approves it, the section is renamed to the version and the final tag `v<version>` is created on the approved commit.
 
+## [Unreleased] — 1.1.1.1
+
+### Highlights
+
+**Sortie cost estimate**
+- Each sortie in the Sortie Log now has a collapsed **Sortie cost estimate** block. Its summary shows the net cost of that run.
+- The bill is what the run left to pay: resupply, plane replenishment (5 bauxite per plane) and repairs, taken from the ships' state at sortie start and on returning to port. Supplying or repairing later, or sending other ships out first, does not change it.
+- En-route change is how much the stockpile moved during the sortie (resource nodes, land base sorties). Net cost is the bill minus that change. If resources changed before the sortie in ways the extension cannot track (quest rewards, scrapping, docking and so on since the last port visit), the en-route change is shown as unknown and the net cost counts only the bill.
+- Support fleets sent to the same area get their own line, calculated from the support expedition consumption rules plus planes shot down. Land base resupply and instant repairs used afterwards are listed separately as well.
+- Married ships make the fuel and ammo figures approximate; these are marked as estimates. Repairs healed for free by anchorage repair, or ships scrapped before repair, still count in the bill.
+- A new **Cost by map** summary averages the net cost per run, per boss reach and per boss S rank, splits event maps by difficulty, can be limited to the last 7, 30 or 90 days, and shows how many more runs your current stock covers.
+- Costs are recorded from this version on; earlier sorties have none.
+
+**Discrete-material ledger**
+- The resource log has a collapsible ledger for improvement materials, development materials, instant repairs and instant construction over the selected period: opening + income − spending + unattributed = closing.
+- Income comes from quest rewards (fixed rewards only) and expeditions; spending from development, construction, improvement, instant construction, docking and remodels. Differences that match no record stay in "unattributed".
+- Instant repairs, instant construction and development materials brought back by expeditions are now recorded. Earlier expedition records cannot be filled in.
+- The panel deducts an instant repair as soon as it is used at a dock.
+
+**Quest Navigator**
+- A recurring quest last seen completed in an earlier cycle is now labelled "observed last cycle" in a neutral colour instead of "observed complete".
+
+### Data compatibility
+
+- IndexedDB schema goes from v15 to v17: one new table for docking and remodel material use, one for sortie costs. Existing data is untouched and nothing is backfilled.
+- The backup format goes from v9 to v11 to carry both tables. Backups made by earlier versions still import. A v11 backup cannot be imported by an earlier version of the extension.
+- No permission changes.
+
 ## [1.1.1.0] - 2026-11-11
 
 ### Highlights
