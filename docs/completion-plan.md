@@ -46,7 +46,6 @@
 | 順序 | 項目 | 小節 | 回答玩家的問題 | 放在哪裡 | 依賴 | 規模 | DB 版本 | 建議模型與 session 數 |
 |---|---|---|---|---|---|---|---|---|
 | 1 | 目標倒推 | 4.6 | 這個目標還缺什麼、哪天湊得齊？ | 總括「目標規劃」 | 第一階段無；第二階段起需要順序 3、6 | 大 | 第一階段已升 v15 | 第一階段已實作；第二階段 2 個：計算用 Fable 5.2 或 Opus 5.5 高，介面分派 |
-| 4 | 出擊帳單 | 4.3 | 這張圖打一趟花多少？庫存還夠幾趟？ | 總括「出擊紀錄」 | 無 | 大 | 需升版 | 核心計算已完成；還有 2 個：投影與資料表用 Opus 5.5 以上、高、先進 plan mode，介面分派 |
 | 5 | 登出前閒置檢查 | 4.4 | 我現在登出會浪費什麼？ | 面板母港檢視 | 無 | 小～中 | 不變 | 2 個；函式 Sonnet 5.5 中，面板 Opus 5.5 中 |
 | 6 | 基本資源分帳與溢出 | 4.5 | 我的淨收入多少？哪些收入正在浪費？ | 總括「資源紀錄」 | 3、4 | 中 | 視 3 而定 | 2 個；Sonnet 5.5 高 |
 | 7 | 改修日程 | 4.7 | 今天能改修什麼、要用哪艘二番艦？ | 實作時先出預覽再定 | 無 | 小 | 不變 | 1～2 個；Sonnet 5.5 高 |
@@ -76,8 +75,8 @@
 
 目標倒推的第一階段（改造目標）只用遊戲 master 與目前庫存，不依賴任何分帳，而且是全計畫設計量
 最大的一項，所以排最前、用最強的模型做；第二階段（到達日）要等分帳完成才有流量可用。
-登出前閒置檢查、出擊前差異檢查、改修日程互不依賴，可以穿插在大項之間做。出擊帳單是
-基本資源分帳與到達日推算的單價來源，也是規模最大的實作項，宜早開工。
+登出前閒置檢查、出擊前差異檢查、改修日程互不依賴，可以穿插在大項之間做。已完成的出擊帳單
+（見第 8 節）是基本資源分帳與到達日推算的單價來源。
 
 每項「建議模型」以 2026-11 可用的 Claude 模型為準（Fable 5.2、Opus 5.5、Sonnet 5.5、
 Haiku 5.5），是擬定者的判斷，不是量測結果。通則：
@@ -98,141 +97,6 @@ Haiku 5.5），是擬定者的判斷，不是量測結果。通則：
   核心設計不分派。
 
 ## 4. 各項內容
-
-### 4.3 出擊帳單（每次嘗試的成本）
-
-**問題**：戰鬥紀錄與資源紀錄是分開的兩半。玩家要的是它們的接點：這張圖每趟花多少、每次到王
-花多少、每個 S 勝花多少、掉一艘指定的船平均花多少、目前庫存還夠幾趟。
-
-**關鍵觀察**：帳單不必用估算。回港那一刻的母港封包已經包含這趟出擊留下的全部「待付帳」：
-
-| 成本項 | 取得方式 | 性質 |
-|---|---|---|
-| 燃料、彈藥 | 回港時各艦現有量與 master 最大量之差 | 封包事實＋結婚艦折扣規則 |
-| 艦載機補充 | 各格現有搭載數與最大搭載數之差 × 鋁土 5 | 封包事實＋wiki 規則 |
-| 修理 | 各艦的 `api_ndock_item`（燃料、鋼材） | 封包事實 |
-| 高速修復材 | 之後對這些艦送出的高速入渠 | 封包事實，需歸屬到出擊 |
-| 基地航空隊補充 | `api_req_air_corps/supply` 回應的餘額差 | 封包事實 |
-| 基地航空隊出擊 | 出擊前後兩筆母港餘額之差扣掉其他各項；單獨估算時依機種與機數的公式 | 推算 |
-| 支援艦隊 | 支援艦隊回港後的同一算法 | 封包事實 |
-| 途中取得的資源 | 出擊前後兩筆母港餘額之差扣掉以上各項 | 推算 |
-
-因為取的是回港實數，「活動特殊燃彈費率未驗證」這個既有缺口不影響帳單，只影響途中估算。
-
-**資料依據**
-- `api_ndock_item`：`samples/slot_to_port.json`、`samples/slot-exchange-index.json` 的艦船物件
-  都帶這個欄位；KC3Kai `src/library/objects/Ship.js` 以
-  `repair = [api_ndock_time].concat(api_ndock_item)` 讀取，並在
-  `src/library/modules/Kcsapi.js` 的 `api_req_nyukyo/start` 以 `repair[1]`、`repair[2]` 扣燃料
-  與鋼材。專案目前只用 `api_ndock_time`。
-- 補給回應：KC3Kai `Kcsapi.js` 的 `api_req_hokyu/charge` 讀 `api_ship[].api_fuel／api_bull／
-  api_onslot` 與 `api_material`；專案 `onReqHokyuCharge` 讀的是同一組欄位。補給前後的
-  `api_material` 之差是精確的補給花費，可用來校正上表前兩列。
-- 艦載機每架鋁土 5：wikiwiki「補給」頁。
-- 基地航空隊補給：`samples/air-corps-supply.json`（`api_after_fuel`、`api_after_bauxite`）。
-- 出擊的分組鍵：`SortieLogRow.sortieKey`（`api_req_map/start` 的事件 id）。
-
-**缺口**
-- `api_req_hokyu/charge` 與 `api_req_nyukyo/start` 沒有本專案樣本，欄位依 KC3Kai `Kcsapi.js`
-  佐證即可實作。補給：`api_ship[].api_fuel／api_bull／api_onslot` 與四項 `api_material`；
-  入渠：請求的 `api_ship_id`、`api_highspeed`、`api_ndock_id`，花費取該艦的
-  `api_ndock_item`，`api_highspeed=1` 另扣一個高速修復材，`api_ndock_time` 不超過 60 秒時不佔
-  槽。結婚艦折扣的進位仍以補給前後的 `api_material` 之差為準，不靠公式。
-- 基地航空隊「出擊」本身的燃彈消耗沒有任何封包帶這筆數字。KC3Kai 在 `api_req_map/start`
-  當下，對該海域行動為「出擊」的基地，依 `src/library/objects/LandBase.js` 的
-  `calcSortieCost`（各中隊 `api_count` × 依機種而定的每機燃料／彈藥係數，噴射機另計鋼材）
-  自行扣除，並註明準確度取決於係數。帳單以母港餘額差為準，公式只用來把差額拆給基地航空隊，
-  標「推算」。
-- 玩家回港後不修就再出擊、或跨多趟才一次入渠時，修理費要歸給造成損傷的那一趟：以回港當下
-  的 `api_ndock_item` 與上一次回港的值相減，而不是等入渠請求。
-- 帳單要存成新的 derived 資料（每個 `sortieKey` 一筆），需要升 DB 版本、備份格式相容處理，並
-  更新 `docs/structure.html` 的版本錨點。
-
-**已完成的部分（核心計算，尚未接上投影與介面）**
-
-`utils/sortie-bill.ts` 與 `tests/sortie-bill.test.ts`：
-
-- `sortieBill(before, after, materials?)`：比較同一批艦在出擊開始與回港兩個時刻的狀態，回傳
-  逐艦花費、要付的帳（補給＋艦載機補充＋修理）、出擊期間的餘額變動、這趟新增修理費的艦、
-  轟沈的艦。各數字的性質寫在該檔檔頭。
-- `billShipFromApi(raw)`：`api_ship[]` 的原始物件轉成計算用的形狀，已用
-  `samples/slot_to_port.json` 核對。
-- `netCost()`、`summarizeBills()`、`affordableRuns()`：一趟的淨成本、同一張圖的彙總（每趟、
-  每次到 Boss、每個 Boss S 勝）、以目前庫存可再出擊的趟數。
-
-這一步定下的設計，後續 session 不要改：
-
-- **帳單是兩個時刻的差，不是途中估算的累加。** 帶傷或未補滿出擊時，舊傷與舊缺額不算到這一趟。
-- **結婚艦的補給花費標推算。** 遊戲對補給當下的總缺額打 85 折再捨去，一趟的差額各自取整只是
-  近似。
-- **出擊期間的餘額變動是合計，不再拆。** 它等於途中取得的資源減掉基地航空隊出擊消耗與噴射機
-  鋼材；封包無從區分，所以不套公式硬拆。
-- **高速修復材不存進帳單。** 帳單只記這趟新增修理費的艦，之後的高速入渠在讀取時依此歸屬，
-  帳單列寫入後不再更動。
-- **支援艦隊與基地航空隊補充在帳單上分開標示，不併入出擊艦隊的數字。** 它們在不同的封包
-  結算，分開才對得回去（做法見第二個 session 的第 6、7 點）。這兩項還沒做之前，介面要明講
-  帳單不含它們。
-- **通常海域與活動海域用同一套算法。** 計算只看艦娘狀態，不看海域；活動特殊燃彈費率因此不
-  影響帳單。活動才有的進出落在餘額變動裡：緊急泊地修理的鋼材在四項基本資源的合計內；強力
-  友軍的高速建造材與終點資材點給的道具在 `specialDelta`（另外四項的餘額變動）。開發者說明
-  強力友軍每隊消耗 6 個高速建造材（道中與 Boss 各一隊時共 12 個）；帳單只呈現餘額差，不另外
-  推算友軍次數。
-- **封包無法再拆的合計維持原樣。** 出擊期間的餘額變動不拆成「基地航空隊出擊」「途中取得」
-  等細項；需要細項時另以估值顯示並標推算，不改動合計。
-
-**第二個 session：投影、資料表與備份**（最強的模型、高 effort，先進 plan mode）
-
-1. **出擊前的狀態在 `api_req_map/start` 套用到 state 之後擷取。** 這時艦娘物件還是出擊前的值：
-   途中的燃彈估算要到 `battleresult` 才寫回（見 `docs/engineering/battle.md`），所以不能等到
-   回港才回頭讀。參與的艦＝出擊艦隊；聯合艦隊且由第一艦隊出擊時加上第二艦隊（同
-   `utils/state.ts` 的 `markFleetAway` 判斷）。擷取位置比照 `EventProjector.captureReplay()`。
-2. **出擊後的第一筆 `api_port/port` 套用後結算**，用 `billShipFromApi()` 讀 `state.ships`。沒有
-   出擊前的狀態（缺出擊開始事件）就不寫；「不記錄的海域」也不寫。出擊前的狀態要跟
-   `currentReplay` 一樣活過重播模式，跨 cursor 的出擊才接得上。
-3. **餘額變動的前一筆只在可信時才傳。** `state.materials` 只追蹤部分封包（母港、補給、工廠的
-   餘額欄位、基地航空隊補充），入渠、改造、解體、廢棄、任務領獎、道具使用都不會更新它。規則：
-   上一筆 `api_port/port` 之後到 `api_req_map/start` 之間，只要出現任何「會動到四項基本資源、
-   而 state 沒有追蹤」的封包，就傳 `null`。清單要對照 `utils/state.ts` 逐一列出並加測試，
-   寧可多判成不可考。後一筆是回港的母港封包，必定完整。
-4. **新資料表 `sortieBills`**，主鍵 `sortieKey`（同 `db.replays`），`put` 冪等；列＝
-   `{ sortieKey, ts, map, difficulty? }` 加上 `SortieBill` 的欄位。活動海域要存出擊當下的難度
-   （`state.mapGauges` 的 `selectedRank`，同 `setDifficulty()` 的來源）：`db.sorties` 沒有難度，
-   `db.replays` 會被保留規則裁剪，不存就無法把甲乙丙丁分開彙總。通常海域不寫這一欄。需要升 DB 版本與備份格式版本（比照
-   `tests/backup-v9-goals.test.ts` 的四類測試：版本協商、欄位驗證、往返、升級不動既有資料），
-   並更新 `docs/structure.html` 的版本錨點、`docs/engineering/capture.md` 的資料表清單。
-5. 帳單不參照來源 event id 以外的東西；`sortieKey` 是 event id，要進
-   `highestReferencedEventId()`。
-6. **支援艦隊**：出擊開始時正在支援遠征的艦隊，用同一支 `sortieBill()` 各算一份，存成帳單列
-   的 `support: { deckId, payable, estimated }[]`，介面另列一行。動手前先查證支援艦隊何時
-   回港、同一次支援遠征會不會跨多趟出擊（wikiwiki「支援艦隊」）；若會跨趟，花費只能歸給
-   回港前的最後一趟或標不可考，不可重複計入。哪一隊在支援看 `api_req_mission/start` 的遠征
-   種類與戰鬥封包的 `api_support_info`，沒有證據就不寫這一欄。
-   **做法（2026-11-12）**：支援遠征只對派出後同海域的第一趟出擊有效、本隊回港時一起歸還、
-   燃彈不論有無出動都扣（wikiwiki「支援艦隊」），所以不等回港封包，直接依消耗規則計算：燃料
-   50%、彈藥依正規空母／輕空母／水上機母艦是否滿 3 艘取 40% 或 80%，小數進位；擊落數取戰鬥
-   封包的 `api_support_airatack`。細節見 `utils/sortie-bill.ts` 的 `supportBill()`。
-7. **基地航空隊補充**：機數在回港的母港封包裡不會更新，所以不能跟艦隊一樣在回港時結算。以
-   `api_req_air_corps/supply` 回應的 `api_after_fuel`、`api_after_bauxite` 與補充前的餘額相減
-   得到實際花費（封包事實，樣本 `samples/air-corps-supply.json`），留成支出紀錄列，讀取時歸給
-   同一海域在它之前最近的一趟出擊，介面另列一行。這與高速修復材是同一種「回港後才付、讀取時
-   歸屬」的支出；入渠用桶已是 `db.materialUse` 的紀錄列（v16），基地補充的紀錄列沿用同一種設計。
-
-第 6、7 點不需要最強的模型：規格已定，可交給 Opus 5.5 連同這個 session 一起做，或另開一個
-session，由主模型看 diff 與測試驗收。
-
-**第三個 session：介面與預覽**（可分派給較便宜的模型，主模型驗收）
-
-1. 出擊紀錄的卡片顯示該趟帳單；推算與不可考照 §2 分開標示。
-2. 海域彙總用 `summarizeBills()`：到達 Boss 與 Boss 的 rank 取自 `db.sorties` 同一個
-   `sortieKey` 的列。活動海域依難度分開彙總，不同難度的成本不可平均在一起；同一難度內
-   削血與斬殺階段的成本也不同，至少要能依期間篩選。再用 `affordableRuns()` 顯示以目前庫存可再出擊的趟數。
-3. 高速修復材的歸屬讀 `db.materialUse` 的入渠用桶紀錄（v16 起累積）。
-4. 打撈紀錄不另做掉落率功能；「平均花多少資源掉一艘」放在同一個海域彙總。
-
-**範圍外**：預測下一趟的成本（那是途中估算的工作）；時間成本的金額化。
-
-**驗證**：正式 build、型別檢查、相關 Vitest；開發者實機打一趟後，比對帳單「要付的帳」與實際
-補給、入渠前後的資材差。
 
 ### 4.4 登出前閒置檢查
 
@@ -267,7 +131,7 @@ design-guidelines §7.1。
 - 自然回復：每 3 分鐘燃彈鋼 +3、鋁土 +1，到司令部等級決定的自然回復上限為止；基地航空隊設為
   休息時鋁土回復速度減半（wikiwiki「資材」頁）。
 - 上限：基本資源 350,000、高速修復材 3,000（同頁，2020-11-13 起）。
-- 支出：4.3 的出擊帳單、`db.factory`；收入：`db.expeditions` 的 `resources`（精確）、任務獎勵
+- 支出：出擊帳單（`db.sortieBills`，見 [`docs/engineering/records.md`](engineering/records.md)）、`db.factory`；收入：`db.expeditions` 的 `resources`（精確）、任務獎勵
   的結構化資源欄位。
 
 **缺口**
@@ -397,12 +261,8 @@ Fable 5.2 中 effort，先給預覽。
 
 | 封包 | 佐證 | 還缺什麼 | 影響的小節 |
 |---|---|---|---|
-| `api_req_hokyu/charge` | KC3Kai `Kcsapi.js` | 無（有真實樣本時補回歸測試） | 4.3 |
-| `api_req_nyukyo/start` | KC3Kai `Kcsapi.js`、`Ship.js` | 無 | 4.3 |
-| 出擊後的 `api_port/port` | 本專案 `samples/slot_to_port.json`（含 `api_ndock_item`） | 無 | 4.3 |
 | `api_req_kaisou/remodeling` | KC3Kai `Kcsapi.js`、`RemodelDb.js` | 無（消耗屬推算） | 4.6 |
 | `api_req_mission/result` 的回航道具 | KC3Kai `Kcsapi.js`、ElectronicObserver `api_req_mission/result.cs` | 無 | 4.9 |
-| 基地航空隊出擊消耗 | KC3Kai `LandBase.js`（公式，非封包） | 無（屬推算） | 4.3 |
 | `api_get_member/practice` | KC3Kai 只轉發原始資料，沒有欄位層級的解析可佐證 | 需要開發者提供一份真實樣本 | 4.4 的演習檢查 |
 
 **待決事項**
@@ -426,3 +286,4 @@ Fable 5.2 中 effort，先給預覽。
 |---|---|---|---|---|---|
 | 2 | 關注資材的本週期收入清單 | 4.1 | 2026-11-11 | `b164d58` | [`docs/engineering/quests.md`](engineering/quests.md)「關注資材的本週期收入摘要」 |
 | 3 | 離散資材分帳 | 4.2 | 2026-11-12 | `f2b6986` | [`docs/engineering/resources.md`](engineering/resources.md)「離散資材分帳」 |
+| 4 | 出擊帳單估算 | 4.3 | 2026-11-12 | `4ccf679` | [`docs/engineering/records.md`](engineering/records.md)「出擊帳單估算」 |
