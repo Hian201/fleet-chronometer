@@ -96,4 +96,15 @@ describe('母港「泊地」分組', () => {
         expect(quiet.render.showUpkeep()).toBe(false);
         expect((quiet.document.getElementById('general-quests') as unknown as HTMLElement).hidden).toBe(false);
     });
+
+    it('showHarborExped 從任務頁或泊地分組切回母港「遠征中」', () => {
+        const live = mount(portState(OPS_DECKS, OPS_MISSIONS));
+        live.render.showUpkeep();
+        (live.document.querySelector('#general-nav [data-page="quests"]') as unknown as HTMLElement).click();
+        live.render.showHarborExped();
+        expect((live.document.getElementById('general-harbor') as unknown as HTMLElement).hidden).toBe(false);
+        expect((live.document.getElementById('operation-exped') as unknown as HTMLElement).hidden).toBe(false);
+        expect((live.document.getElementById('operation-anchor') as unknown as HTMLElement).hidden).toBe(true);
+        expect(live.document.querySelector('#operation-nav [data-operation="exped"]')!.getAttribute('aria-selected')).toBe('true');
+    });
 });

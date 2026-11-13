@@ -1874,10 +1874,10 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         if (path === 'api_get_member/mapinfo' || path === 'api_req_map/start') {
             void restoreGaugeBossHp().then(changed => { if (changed) renderSortie(); });
         }
-        // 從任務畫面回到母港 → 一般分頁的子頁也從「任務」切回「母港」；其他情境回港不動子頁。
+        // 回到母港畫面 → 一般分頁母港「遠征中」分組。從編成等不換情境的畫面回港時，
+        // 使用者若已手動選過分頁（例如點艦隊切到泊地）則不動。
         if (path === 'api_port/port') {
-            const fromQuest = currentContext === 'quest';
-            if (autoSwitch('general', 'port') && fromQuest) renderGeneral.showQuestPage(false);
+            if (autoSwitch('general', 'port') || !manualOverride) renderGeneral.showHarborExped();
         }
         else if (path === 'api_req_map/start') { autoSwitch('sortie', 'sortie'); switchFleetViewToSortie(); }
         else if (isSortieBattlePath(path)) autoSwitch('sortie', 'sortie');
@@ -1889,7 +1889,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         // 分頁的「任務」子頁。只在剛進入任務畫面時切子頁；同畫面內翻頁、接受任務會再送
         // questlist，不把使用者手動選的子頁切回去。
         else if (path === 'api_get_member/questlist') {
-            if (autoSwitch('general', 'quest')) renderGeneral.showQuestPage(true);
+            if (autoSwitch('general', 'quest')) renderGeneral.showQuestPage();
         }
         // 進入入渠畫面（api_get_member/ndock）或入渠操作 → 一般分頁母港「入渠」分組的渠位。
         // 只在剛進入入渠情境時定位；同一畫面內入渠後再送的 ndock 不把使用者選的待修清單切回渠位。

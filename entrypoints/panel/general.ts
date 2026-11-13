@@ -558,13 +558,16 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         dockView = 'slots';
         render();
     }
-    /** 遊戲進入任務畫面時切到「任務」頁；離開任務畫面回到母港時切回「母港」頁。 */
-    function showQuestPage(on: boolean) {
-        if (on) showPage('quests');
-        else {
-            showDockSlots();
-            showPage('harbor');
-        }
+    /** 遊戲進入任務畫面時切到「任務」頁。 */
+    function showQuestPage() {
+        showPage('quests');
+    }
+    /** 遊戲回到母港畫面時：切到母港「遠征中」分組（入渠分組的檢視同時重設為渠位）。 */
+    function showHarborExped() {
+        page = 'harbor';
+        operation = 'exped';
+        dockView = 'slots';
+        render();
     }
     /** 切到母港「泊地」分組；沒有艦隊運作時不動並回傳 false。 */
     function showUpkeep(): boolean {
@@ -575,5 +578,5 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         return true;
     }
     render();
-    return Object.assign(render, { showUpkeep, showDockSlots, showDock, showQuestPage });
+    return Object.assign(render, { showUpkeep, showDockSlots, showDock, showQuestPage, showHarborExped });
 }
