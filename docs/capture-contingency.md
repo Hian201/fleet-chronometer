@@ -80,7 +80,7 @@ axios 1.7 起支援 fetch 送出，但瀏覽器預設仍優先用 XHR，要另�
 |---|---|---|
 | A. DevTools 擷取（`devtools_page` + `getContent`） | 不碰頁面；XHR、fetch 都抓得到；不需新增權限；與 KC3Kai 用同一套 API，可並存 | 遊戲分頁須開著 DevTools；視窗適應可停靠，獨立視窗只能用分離的 DevTools 視窗 |
 | B. 偵錯 API（`chrome.debugger`） | 不碰頁面；不需開 DevTools | Chrome 文件明列 `debugger` 不能設為選用權限，安裝時即出現強烈權限警告；連線期間瀏覽器顯示偵錯中的橫幅；遊戲框是跨網域子框，需另行連線；商店審查較嚴 |
-| C. 頁面內同時包住 XHR 與 fetch | 不需開 DevTools、不需新權限 | 違反硬約束 1；可能使 KC3Kai 的 `getContent` 變空（第 4 節第 7 點）；易被偵測 |
+| C. 頁面內同時包住 XHR 與 fetch（寫法見第 9 節） | 不需開 DevTools、不需新權限；平常可不安裝 | 違反硬約束 1；可能使 KC3Kai 的 `getContent` 變空（第 4 節第 7 點）；易被偵測 |
 | D. Firefox `filterResponseData` | 頁面察覺不到；不需開 DevTools | 只限 Firefox；回應流經擴充，出錯會影響遊戲；需網站權限（第 6 節） |
 | E. 本機代理 | 最徹底 | 瀏覽器擴充做不到 |
 
@@ -91,13 +91,52 @@ axios 1.7 起支援 fetch 送出，但瀏覽器預設仍優先用 XHR，要另�
    - 經 `ingestEvent()` 入庫，符合唯一擷取入口；DevTools 端產生 `captureId` 並在 retry 時沿用。
    - 與 axios 來源並行期間的去重規則（path＋時間窗＋內容雜湊之類），需先定義並寫測試。
    - 一樣在入列前移除 `api_token`／`api_verno`。
-3. **最後手段：C**。只有 axios 失效且不願依賴 DevTools 時考慮；需開發者決定修改硬約束 1，並先完成下列重現測試。
+3. **最後手段：C**。只有 axios 失效且不願依賴 DevTools 時考慮；需開發者決定修改硬約束 1，並先完成下列重現測試。寫法見第 9 節。
 4. **不建議 B**：權限警告與偵錯橫幅的代價，換到的能力與 A 相近。
 
 實作前待辦：
 
 - **`getContent` 重現測試**：在本機頁面（假 axios＋本機伺服器回應）分別以「不包住」「繼承取代 XHR」「改 prototype」「包住 fetch 並 clone」四種方式，搭配一個以 `getContent` 讀取的 DevTools 擴充，確認哪一種會讓內容變空。結論補回本檔第 4 節。
 - 遊戲每次大改版時，重做主程式靜態分析，確認 `self.axios` 是否仍為外部載入、是否改用獨立實例或 fetch。
+
+## 9. 備案 C 的寫法：最包容的頁面內掛鉤
+
+「包容」指涵蓋最多種送請求的方式，並與遊戲本身和其他工具的衝突最少。以下用到的都是 Chrome／Edge 已穩定提供的功能：MV3 `world: 'MAIN'` 內容腳本、`chrome.scripting.registerContentScripts`、`matchOriginAsFallback`、`Proxy`／`Reflect`、`Response.clone()`。
+
+### 9.1 平常不安裝，失效時才啟用
+
+- 平常只用 axios 攔截器，頁面原生物件的改動維持為零。
+- 擷取失效偵測判定 axios 失效時，background 以 `registerContentScripts` 動態註冊 MAIN world、`document_start` 的掛鉤腳本，從下一次重新載入遊戲起生效；axios 恢復後取消註冊。
+- 失效當下那一次載入已經錯過的請求補不回來，介面要說明需重新載入。
+
+### 9.2 XHR：改 prototype 上的方法，不取代建構子
+
+取代整個 `XMLHttpRequest`（poi、甲ブラウザ的寫法）抓不到事先存下原生建構子的程式；改 `XMLHttpRequest.prototype.open`／`send` 則不論用哪個建構子都會經過。其他工具的子類別呼叫 `super.open` 時也會走到這裡，可以疊在一起運作。
+
+1. 以 `Proxy` 包住原生方法，不另寫新函式：`name`、`length` 照原樣轉發；以原本的屬性描述（writable／enumerable／configurable）裝回。`XMLHttpRequest` 本身、`instanceof`、`XMLHttpRequest.DONE` 等常數都不變。
+2. 轉交完全透明：以 `Reflect.apply(原方法, this, 原參數)` 同步呼叫，回傳值原樣交還，原生方法的例外原樣往外傳，不攔、不改。
+3. 本專案的處理全部包在 try/catch 裡，出錯不影響遊戲請求。
+4. 只有 kcsapi 才加監聽：在 `open` 判斷網址，其他請求不做任何事。
+5. 安裝當下存一份原生的 `responseText`／`response` 讀取方法（取自 `XMLHttpRequest.prototype` 的屬性描述）與 `EventTarget.prototype.addEventListener`，之後一律以這份讀取與登記。其他工具覆寫回應讀取方式或掛鉤 `addEventListener` 時，本專案仍讀到瀏覽器收到的原始內容，也不改到它們看到的內容。
+6. 依 `responseType` 讀取：`''` 或 `'text'` 才讀 `responseText`；`'json'` 時讀 `responseText` 會丟出 `InvalidStateError`，改讀 `response`。
+7. 不留全域痕跡：重複安裝的防護放在閉包內的 `WeakSet`，不設 `window` 屬性；資料照舊走私有 MessageChannel，並在入列前移除 `api_token`／`api_verno`。
+
+### 9.3 fetch：回傳原本的 Promise，只在旁邊分一支
+
+1. 以 `Proxy` 包住 `window.fetch`，網址不是 kcsapi 就直接轉交。
+2. 回傳原生 `fetch` 給的同一個 Promise 物件，不另包新的 Promise；遊戲 `await` 的時機與錯誤傳遞不變。
+3. 回傳前先對該 Promise 掛 `.then` 側支。它比遊戲的 `await` 早登記，會先執行，可在遊戲讀取本體前 `response.clone()`；複本要立即讀完，避免拖住串流。
+4. 請求內容取自參數的 `body`；傳入 `Request` 物件時讀 `request.clone()`，不碰原本那份。
+
+### 9.4 子框架
+
+有些程式會建立新的 iframe，從中取出未被改動的原生 XHR／`fetch`。註冊時設 `allFrames: true`、`matchOriginAsFallback: true`，讓遊戲產生的 `about:blank` 子框也先裝好掛鉤，堵住這條繞過路徑。
+
+### 9.5 補不起來的缺口
+
+- **Web Worker**：內容腳本進不去 Worker。遊戲若改在 Worker 裡發 `fetch`，頁面內掛鉤抓不到，只有 DevTools 或偵錯 API 抓得到。v6.3.6.1 主程式沒有使用 Worker。
+- **無法完全隱形**：`Proxy` 包過的方法，`toString()` 是沒有名字的 `function () { [native code] }`，與原生的 `function open() { [native code] }` 不同，遊戲刻意比對就能發現。再去改 `Function.prototype.toString` 等於為了藏一個改動又多改一個原生物件，不採用。
+- **與 DevTools `getContent` 的衝突未驗證**：本寫法與 commit `0c70fb6` 之前的寫法不同，第 4 節第 7 點的空內容問題是否仍會發生，要以第 8 節的重現測試確認後才能採用。
 
 ## 來源
 
