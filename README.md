@@ -44,8 +44,8 @@ whatever else you already trust).
 - **Live panel** — fleet HP/fatigue/supply, expedition & docking countdowns
   (with notifications), base air corps, map gauge progress.
 - **Battle prediction** — projected end-of-battle HP, rank, MVP, and
-  citadel/heavy-damage warnings, computed from the same packets the game
-  sends you.
+  citadel/heavy-damage warnings, computed from the same data the game
+  receives.
 - **Fuel/ammo estimation** — per-node consumption estimate mid-sortie,
   corrected against real numbers on return to port.
 - **Sortie log** — one card per sortie: route, formation, per-node combat

@@ -61,7 +61,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
         description: '被動式的艦これ瀏覽器擴充：艦隊、遠征、入渠、基地航空隊、戰鬥預測與燃彈估算整合在一個面板，所有資料只存在你的瀏覽器。',
         nav: { demo: 'Demo', features: '功能', trust: '不干涉通訊', install: '安裝' },
         hero: {
-            tagline: '只讀封包、不碰遊戲的|艦隊作戰面板',
+            tagline: '只讀取通訊、不碰遊戲的|艦隊作戰面板',
             store: '加到 Chrome',
             demo: '試玩 Demo',
             note: '免費、開源，資料只留在你的瀏覽器。',
@@ -69,7 +69,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
         },
         demo: {
             title: '在瀏覽器裡|試一場出擊',
-            lead: '這是擴充的正式面板，餵的是一段活動海域的實戰封包。按「下一步」逐一送出封包，看面板怎麼即時反應。面板裡的分頁、艦隊切換與展開都可以自由點。',
+            lead: '這是擴充的正式面板，餵的是一段活動海域實際出擊的遊戲資料。按「下一步」逐步送出，看面板怎麼即時反應。面板裡的分頁、艦隊切換與展開都可以自由點。',
             next: '下一步',
             auto: '自動播放',
             pause: '暫停',
@@ -78,18 +78,18 @@ export const COPY: Record<SiteLang, SiteCopy> = {
             loading: '面板載入中…',
             error: 'Demo 載入失敗：',
             done: '這場出擊播放完畢。可以繼續點面板，或重新開始。',
-            hint: 'Demo 的母港、裝備與時間是示意資料；戰鬥封包取自實際出擊。',
+            hint: 'Demo 的母港、裝備與時間是示意資料；戰鬥資料取自實際出擊。',
             frameTitle: '航海鐘面板 Demo',
             steps: {
                 ready: { label: '母港', text: '目前在母港。上方是資材，可以切換遠征、入渠、建造與任務；下方是第一艦隊的血量、疲勞、補給與裝備。' },
                 start: { label: '出擊：{node} 點', text: '艦隊出擊。面板自動切到出擊分頁，顯示目前海域、量表與這一路經過的節點。' },
                 next: { label: '前往 {node} 點', text: '進入下一個節點。路線會依序記下，方便回頭確認走了哪一條路。' },
-                battle: { label: '{node} 點戰鬥', text: '收到戰鬥封包的當下就算出各艦戰後血量、評價與 MVP 預測，不必等戰鬥動畫播完。' },
+                battle: { label: '{node} 點戰鬥', text: '收到戰鬥資料的當下就算出各艦戰後血量、評價與 MVP 預測，不必等戰鬥動畫播完。' },
                 airRaid: { label: '{node} 點空襲', text: '只有航空戰的節點也照樣預測損傷，並估算艦載機損耗。' },
                 boss: { label: '{node} 點 Boss 戰', text: 'Boss 是敵聯合艦隊。基地航空隊、支援與各階段砲雷擊都會拆開顯示。' },
-                night: { label: '{node} 點夜戰', text: '夜戰封包接著日戰計算，更新最終血量與評價預測。' },
-                result: { label: '{node} 點結算', text: '結算封包到了，評價與掉落寫進出擊紀錄。' },
-                port: { label: '回港', text: '回到母港，以母港封包校正血量與燃彈。切到「一般」分頁，可以看遠征與入渠倒數。' },
+                night: { label: '{node} 點夜戰', text: '夜戰資料接著日戰計算，更新最終血量與評價預測。' },
+                result: { label: '{node} 點結算', text: '結算資料到了，評價與掉落寫進出擊紀錄。' },
+                port: { label: '回港', text: '回到母港，以母港資料校正血量與燃彈。切到「一般」分頁，可以看遠征與入渠倒數。' },
             },
         },
         highlights: {
@@ -110,7 +110,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
                 },
                 sortie: {
                     title: '出擊：戰鬥一開始就知道結果',
-                    text: '收到戰鬥封包的當下就算完，不必等戰鬥動畫播完。',
+                    text: '收到戰鬥資料的當下就算完，不必等戰鬥動畫播完。',
                     alt: '面板的出擊畫面：關卡量表、路線、戰鬥評價預測與各艦戰後血量。',
                     notes: [
                         '海域、量表剩餘與這一路走過的節點。',
@@ -170,7 +170,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
         description: 'A passive KanColle browser extension: fleets, expeditions, docking, land-based air, battle prediction and fuel/ammo estimates in one panel, with all data kept in your browser.',
         nav: { demo: 'Demo', features: 'Features', trust: 'No interference', install: 'Install' },
         hero: {
-            tagline: 'A passive KanColle panel that reads packets and never touches the game.',
+            tagline: 'A passive KanColle panel that only reads the game’s traffic and never touches the game.',
             store: nb('Add to Chrome'),
             demo: 'Try the demo',
             note: 'Free and open source. Your data stays in your browser.',
@@ -178,7 +178,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
         },
         demo: {
             title: 'Run a sortie in your browser',
-            lead: 'This is the extension’s real panel, fed with packets from an actual event-map sortie. Press Next to send them one by one and watch the panel react. Tabs, fleet switches and expandable rows are all clickable.',
+            lead: 'This is the extension’s real panel, fed with game data from an actual event-map sortie. Press Next to send it step by step and watch the panel react. Tabs, fleet switches and expandable rows are all clickable.',
             next: 'Next',
             auto: 'Auto play',
             pause: 'Pause',
@@ -187,18 +187,18 @@ export const COPY: Record<SiteLang, SiteCopy> = {
             loading: 'Loading panel…',
             error: 'Demo failed to load: ',
             done: 'That’s the whole sortie. Keep exploring the panel, or restart.',
-            hint: 'The home port, equipment and timers are sample data; the battle packets come from a real sortie.',
+            hint: 'The home port, equipment and timers are sample data; the battle data comes from a real sortie.',
             frameTitle: `${FC} panel demo`,
             steps: {
                 ready: { label: 'Home port', text: 'You are at the home port. Resources sit on top, with tabs for expeditions, docking, construction and quests. Fleet 1’s HP, morale, supply and equipment are below.' },
                 start: { label: 'Sortie: node {node}', text: 'The fleet sorties. The panel switches to the Sortie tab and shows the map, its gauge and the route so far.' },
                 next: { label: 'To node {node}', text: 'Moving on. Each node is added to the route, so you can check which path you took.' },
-                battle: { label: 'Battle at {node}', text: 'As soon as the battle packet arrives, the panel predicts post-battle HP, rank and MVP — no need to wait for the animation.' },
+                battle: { label: 'Battle at {node}', text: 'As soon as the battle data arrives, the panel predicts post-battle HP, rank and MVP — no need to wait for the animation.' },
                 airRaid: { label: 'Air raid at {node}', text: 'Air-only nodes are predicted too, including estimated aircraft losses.' },
                 boss: { label: 'Boss at {node}', text: 'The boss is an enemy combined fleet. Land-based air, support and each shelling and torpedo phase are broken out.' },
-                night: { label: 'Night battle at {node}', text: 'The night packet continues from the day battle and updates the final HP and rank prediction.' },
-                result: { label: 'Result at {node}', text: 'The result packet arrives. Rank and drop are written to the sortie log.' },
-                port: { label: 'Back to port', text: 'Back home, the port packet corrects HP and fuel/ammo. Open the General tab to see expedition and docking timers.' },
+                night: { label: 'Night battle at {node}', text: 'The night battle data continues from the day battle and updates the final HP and rank prediction.' },
+                result: { label: 'Result at {node}', text: 'The result data arrives. Rank and drop are written to the sortie log.' },
+                port: { label: 'Back to port', text: 'Back home, the port data corrects HP and fuel/ammo. Open the General tab to see expedition and docking timers.' },
             },
         },
         highlights: {
@@ -219,7 +219,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
                 },
                 sortie: {
                     title: 'In battle: know the outcome right away',
-                    text: 'Everything is computed the moment the battle packet arrives — no need to wait for the animation.',
+                    text: 'Everything is computed the moment the battle data arrives — no need to wait for the animation.',
                     alt: 'The panel during a sortie: map gauge, route, predicted battle rank and post-battle HP for each ship.',
                     notes: [
                         'Map, remaining gauge and the nodes you passed.',
@@ -279,7 +279,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
         description: '艦これ向けの受動型ブラウザ拡張。艦隊・遠征・入渠・基地航空隊・戦闘予測・燃料弾薬の見積りを1つのパネルにまとめ、データはすべてブラウザ内に保存します。',
         nav: { demo: 'デモ', features: '機能', trust: '通信への非干渉', install: '導入' },
         hero: {
-            tagline: 'パケットを読むだけ、|ゲームには触れない|艦これ用パネル',
+            tagline: 'ゲームの通信を読み取るだけ、|操作も改変もしない|艦これ用パネル',
             store: 'Chromeに追加',
             demo: 'デモを試す',
             note: '無料・オープンソース。データはブラウザの外に出ません。',
@@ -287,7 +287,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
         },
         demo: {
             title: 'ブラウザで|出撃を体験',
-            lead: 'これは拡張機能の正式なパネルで、イベント海域の実際の出撃パケットを流しています。「次へ」で1つずつ送り、パネルの反応を確かめてください。タブや艦隊の切り替え、展開もそのまま操作できます。',
+            lead: 'これは拡張機能の正式なパネルで、イベント海域の実際の出撃データを流しています。「次へ」で1つずつ送り、パネルの反応を確かめてください。タブや艦隊の切り替え、展開もそのまま操作できます。',
             next: '次へ',
             auto: '自動再生',
             pause: '一時停止',
@@ -296,18 +296,18 @@ export const COPY: Record<SiteLang, SiteCopy> = {
             loading: 'パネルを読み込み中…',
             error: 'デモを読み込めませんでした：',
             done: '出撃の再生が終わりました。パネルを引き続き操作するか、最初からやり直せます。',
-            hint: '母港・装備・時刻は例示データです。戦闘パケットは実際の出撃から取っています。',
+            hint: '母港・装備・時刻は例示データです。戦闘データは実際の出撃から取っています。',
             frameTitle: 'クロノメーター パネルのデモ',
             steps: {
                 ready: { label: '母港', text: '母港にいます。上部は資材で、遠征・入渠・建造・任務を切り替えられます。下は第1艦隊のHP・疲労・補給・装備です。' },
                 start: { label: '出撃：{node}マス', text: '艦隊が出撃しました。パネルは出撃タブに切り替わり、海域・ゲージ・ここまでの航路を表示します。' },
                 next: { label: '{node}マスへ', text: '次のマスへ進みます。航路は順に記録され、どのルートを通ったか後から確認できます。' },
-                battle: { label: '{node}マスで戦闘', text: '戦闘パケットを受け取った時点で、戦闘後のHP・評価・MVPを予測します。演出を待つ必要はありません。' },
+                battle: { label: '{node}マスで戦闘', text: '戦闘データを受け取った時点で、戦闘後のHP・評価・MVPを予測します。演出を待つ必要はありません。' },
                 airRaid: { label: '{node}マスで空襲', text: '航空戦のみのマスでも損害を予測し、艦載機の損耗を見積もります。' },
                 boss: { label: '{node}マスでボス戦', text: 'ボスは敵連合艦隊です。基地航空隊・支援・各段階の砲雷撃を分けて表示します。' },
-                night: { label: '{node}マスで夜戦', text: '夜戦パケットを昼戦の続きとして計算し、最終HPと評価の予測を更新します。' },
-                result: { label: '{node}マスの戦闘結果', text: '戦闘結果のパケットが届き、評価とドロップが出撃ログに記録されます。' },
-                port: { label: '帰投', text: '母港に戻り、母港パケットでHPと燃料弾薬を補正します。「一般」タブで遠征と入渠の残り時間を確認できます。' },
+                night: { label: '{node}マスで夜戦', text: '夜戦データを昼戦の続きとして計算し、最終HPと評価の予測を更新します。' },
+                result: { label: '{node}マスの戦闘結果', text: '戦闘結果のデータが届き、評価とドロップが出撃ログに記録されます。' },
+                port: { label: '帰投', text: '母港に戻り、母港のデータでHPと燃料弾薬を補正します。「一般」タブで遠征と入渠の残り時間を確認できます。' },
             },
         },
         highlights: {
@@ -328,7 +328,7 @@ export const COPY: Record<SiteLang, SiteCopy> = {
                 },
                 sortie: {
                     title: '出撃：戦闘の結果をすぐに',
-                    text: '戦闘パケットを受け取った時点で計算します。演出を待つ必要はありません。',
+                    text: '戦闘データを受け取った時点で計算します。演出を待つ必要はありません。',
                     alt: '出撃中のパネル：海域ゲージ、航路、戦闘評価の予測、各艦の戦闘後HP。',
                     notes: [
                         '海域・ゲージ残量・通過したマス。',
