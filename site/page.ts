@@ -71,6 +71,7 @@ export function renderPage(lang: SiteLang, origin: string): string {
 <html lang="${c.htmlLang}">
 <head>
   <meta charset="utf-8">
+  <meta name="google-site-verification" content="CzFlCWImEwHjMTUZDg2WW-1dBU0Kf2ZUyKwcXE7LImg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   ${THEME_BOOT}
