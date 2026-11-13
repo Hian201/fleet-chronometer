@@ -538,6 +538,21 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 演習對手清單的欄位語意
+
+- **用途**：`utils/state.ts` 解析 `api_get_member/practice` 的 `api_state`（0＝本輪未交戰、1–6＝E–S）與
+  `api_create_kind`（0＝演習艦隊【第一群】、1＝【第二群】、2＝舊式【全體】），面板演習畫面
+  `entrypoints/panel/practice.ts` 據以顯示。
+- **性質**：遊戲 API 欄位的事實性語意；本專案自行以 TypeScript 撰寫，未複製任何原始碼或譯文。
+- **參照來源**：
+  - KC3Kai `src/pages/devtools/themes/natsuiro/natsuiro.js`（`PvPList`）—— https://github.com/KC3Kai/KC3Kai
+    （MIT License）
+  - KC3Kai kc3-translations `data/jp/terms.json`（`PvpListCreateType0–2`）——
+    https://github.com/KC3Kai/kc3-translations （MIT License）
+- **本專案樣本**：`samples/practice-list-after-battles.json`（`api_state` 與兩筆結算交叉比對；`api_create_kind` 為 0）。
+
+---
+
 ## MIT License 全文
 
 上述第 1、2、5、5b、6、7b、8、9、10、11 項均採用 MIT License，

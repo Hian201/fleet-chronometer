@@ -652,6 +652,7 @@ npx vite-node --config vitest.config.ts tools/preview/panel-general-ledger.ts  #
 npx vite-node --config vitest.config.ts tools/preview/panel-items.ts  # 道具頁（打包正式 general.ts；?lang=&q=&pins=&open=）
 npx vite-node --config vitest.config.ts tools/preview/fleet-photo-panel.ts  # 編成寫真托盤＋header 縮放（打包正式 fleet-photo.ts；?lang=&mode=&shots=&export=1&nick=）
 npx vite-node --config vitest.config.ts tools/preview/panel-order.ts  # 調度裝備表（打包正式 order.ts；?lang=&theme=&view=holders&open=<mst,...>）
+npx vite-node --config vitest.config.ts tools/preview/panel-practice.ts  # 出擊分頁演習畫面（三語、清單／戰況／夜戰目標）
 ```
 
 → `.preview/panel-sortie{,-light}.html`（編成／連合艦隊由頁面上方選項切換）與
@@ -685,6 +686,11 @@ npx vite-node --config vitest.config.ts tools/preview/panel-order.ts  # 調度�
 | `#fleetnav` | ≈32px | |
 | `#fleets` | 其餘 | 瓶頸是單隊七船 |
 
+登出前閒置標記（`utils/idle-check.ts`）只是一顆 5px 黃銅圓點，絕對定位在標籤名稱右上角、不佔寬度，
+數字與說明放在提示與輔助標籤：「遠征」分組＝閒置艦隊、「入渠」分組＝空渠且有可入渠的待修艦、「任務」
+標籤＝下次 05:00 換期會被清掉的已達成未領獎任務、主分頁「出擊」＝本輪演習剩餘場數。不新增列、不改變
+標籤列寬度；英文四個分組並排時圓點若改成佔寬度的數字會撐破按鈕。預覽：`tools/preview/panel-idle-marks.ts`。
+
 一般分頁在固定的 `#tabpanel` 內切換母港、任務與道具。母港的八項資源採 4×2 圖示加數值，
 完整名稱放在提示與輔助標籤；遠征、入渠、建造各自切換並依封包資料列出狀態。有艦隊在港泊地修理或野埼給糧時，
 才多出第四組「泊地」：每隊一列、修理與給糧各一欄（艦數＋推算倒數，錨點不可考時寫「不可考」，該隊沒有的欄位
@@ -703,6 +709,15 @@ npx vite-node --config vitest.config.ts tools/preview/panel-order.ts  # 調度�
 
 出擊戰鬥列第二列另釘 **165px**；陣型／支援／対空CI／夜戰／rank／友軍列釘在敵艦區下方，
 不隨敵艦數量上移。敵艦少於 6 時列內留白是刻意的。
+
+不在出擊時，出擊分頁就是演習畫面（`entrypoints/panel/practice.ts`），不再顯示「尚未進入戰鬥」或關卡量表列：
+標題列「演習對手｜群別（第一群／第二群／舊式全體，完整名稱放提示）｜剩 n 場｜換新時刻」，下接五位對手各 46px 一列（共 250px，不捲動）。每列左側是狀態記號
+（未交戰＝黃銅虛線圈、交戰中＝實心圈、已交戰＝`.s-rank-grade` 評價字樣），已交戰的列淡化；中間兩行為提督名＋Lv、
+旗艦艦種徽章＋艦名＋留言（省略號截斷，完整內容與階級放提示）；右側甲種勳章數只在大於 0 時出現。換輪後還沒重開
+清單時只寫說明，不猜場數。對手頭像不做：要另向遊戲伺服器取圖，違反被動觀察。演習戰鬥沿用出擊戰況版面，
+標頭換成「演習 對 提督名 Lv」加本輪五場記號，不顯示大破警告、量表與節點；右下原本的掉落格改成「夜戰目標」，
+日戰結束、夜戰前列出下一級與 S 各還差多少（`nightRankTargets`），其餘時間只留「—」維持版面。
+預覽：`tools/preview/panel-practice.ts`。
 
 有餘裕時，先調整名稱、HP 與裝備列之間的留白，再調整艦列外距。**不准**用
 `justify-content: space-between` 把底部空間攤開；不准加高 850 或讓正式 panel 長出捲軸。

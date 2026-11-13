@@ -465,6 +465,24 @@ export interface RetreatAvailability {
  * （見 GameState.shipAtSortiePos 的說明）。
  */
 interface EscapeSlot { id: number; escort: boolean; index: number }
+/** 演習對手清單的一列（api_get_member/practice 的 api_list）。 */
+export interface PracticeOpponentView {
+    name: string;
+    level: number | null;
+    /** 階級原字串（元帥、大将…），未翻譯。 */
+    rank: string;
+    /** 旗艦 master id；缺值為 null。 */
+    flagship: number | null;
+    comment: string;
+    /** 甲種勲章數。 */
+    medals: number;
+    /** 清單上的 api_state：0＝本輪未交戰、1–6＝E–S。 */
+    state: number;
+    /** 清單之後本機觀測到對這位對手開戰。 */
+    fought: boolean;
+    /** 清單之後本機觀測到的結算評價（api_win_rank）；清單重開後以清單為準。 */
+    localRank: string | null;
+}
 export interface MissionView { fleet: string; missionId: number; dispNo: string; name: string; completeAt: number }
 export interface NdockView { ship: string; completeAt: number }
 // 入渠渠位：state -1＝未開放、0＝空渠、1＝入渠中（api_get_member/ndock／port 的 api_ndock）。
@@ -839,7 +857,8 @@ export class GameState {
     kdockCap = 0;   // 已解鎖建造渠數（api_port/port 的 api_count_kdock，非即時狀態）
     materials: number[] = [];
     maxChara = 0; maxSlotitem = 0;
-    quests = new Map<number, { name: string; detail: string; done: boolean; category: QuestCategory }>();
+    // apiType＝questlist 的 api_type（1 每日、2 每週、3 每月、4 單發、5 其他），閒置檢查判斷換期用。
+    quests = new Map<number, { name: string; detail: string; done: boolean; category: QuestCategory; apiType?: number }>();
     // state 1 是遊戲清單當下可接受的任務；與受注中／達成待領取分開保存，讓總括能誠實
     // 區分「目前看得到但尚未接受」和「本機沒有看過」。
     availableQuests = new Map<number, { name: string; detail: string; category: QuestCategory }>();
@@ -861,6 +880,11 @@ export class GameState {
     // 演習艦隊的 master id；演習戰鬥封包的 api_deck_id（缺席時用請求的 api_deck_id）解不出時為 null，
     // 帶編成條件的演習任務此時判為艦隊不可考。演習結算的 api_ship_id 是對手艦隊，不能拿來判定。
     private practiceFleetMasters: number[] | null = null;
+    // 最近一次演習對手清單（api_state 0＝本輪未交戰、1–6＝E–S）。清單之後的開戰若對得上
+    // 對手，就記在該對手的 fought／localRank；對不上的開戰計入 battlesSince。換輪判斷在 idle-check.ts。
+    private practiceList: { opponents: PracticeOpponentView[]; createKind: number | null; ts: number; battlesSince: number } | null = null;
+    // 正在進行的演習戰鬥（api_req_practice/battle 起、回港或重開清單止）；opponent 是清單索引，對不上為 null。
+    private practiceBattle: { opponent: number | null } | null = null;
     // clearitemget 是本機確實觀測到領取獎勵的證據。仍在 raw events 裡的領獎由 applyEvent
     // 記入；已裁剪或只存在備份 derived table 的列經 ingestArchivedQuestClaim 補回。
     questObservedCompletions = new Map<number, { count: number; lastTs: number }>();
@@ -1378,6 +1402,34 @@ export class GameState {
             this.onReqKousyouRemodelSlot(path, api, req, ts);
         } else if (path === 'api_get_member/questlist') {
             this.onGetMemberQuestlist(path, api, req, ts);
+        } else if (path === 'api_get_member/practice') {
+            // api_state 語意：KC3Kai src/pages/devtools/themes/natsuiro/natsuiro.js（PvPList），
+            // 0＝未交戰、1–6＝評價 E–S；samples/practice-list-after-battles.json 交叉比對。
+            // 提督名、等級、階級、旗艦、留言、勳章：samples/practice-list-after-battles.json；
+            // api_create_kind＝這份清單抽自哪一群（0 第一群、1 第二群、2 舊式全體）：KC3Kai
+            // natsuiro.js PvPList 讀它並以 kc3-translations terms.json PvpListCreateType0–2 顯示。
+            // api_enemy_flag、api_selected_kind 語意未證實，不讀。
+            const list = api?.api_list;
+            this.practiceList = Array.isArray(list) && list.length > 0
+                && list.every((e: any) => Number.isInteger(e?.api_state))
+                ? {
+                    opponents: list.map((e: any): PracticeOpponentView => ({
+                        name: typeof e.api_enemy_name === 'string' ? e.api_enemy_name : '',
+                        level: Number.isInteger(e.api_enemy_level) ? e.api_enemy_level : null,
+                        rank: typeof e.api_enemy_rank === 'string' ? e.api_enemy_rank : '',
+                        flagship: Number.isInteger(e.api_enemy_flag_ship) && e.api_enemy_flag_ship > 0 ? e.api_enemy_flag_ship : null,
+                        comment: typeof e.api_enemy_comment === 'string' ? e.api_enemy_comment : '',
+                        medals: Number.isInteger(e.api_medals) ? e.api_medals : 0,
+                        state: e.api_state as number,
+                        fought: false,
+                        localRank: null,
+                    })),
+                    createKind: Number.isInteger(api?.api_create_kind) ? api.api_create_kind : null,
+                    ts,
+                    battlesSince: 0,
+                }
+                : null;
+            this.practiceBattle = null;
         } else if ((path === 'api_req_quest/clearitemget' || path === 'api_req_quest/stop') && req) {
             this.onReqQuestClearitemget(path, api, req, ts);
         } else if (path === 'api_port/port') {
@@ -1862,6 +1914,7 @@ export class GameState {
                         detail: q.api_detail ?? '',
                         done: q.api_state === 3,
                         category: questCategoryFromApi(q.api_category),
+                        ...(Number.isInteger(q.api_type) ? { apiType: q.api_type as number } : {}),
                     });
                     this.availableQuests.delete(q.api_no);
                     // 進度只在「本機第一次看到這個任務編號」時初始化——重複的 questlist
@@ -1957,6 +2010,7 @@ export class GameState {
         this.currentSortieFleetId = 0;
         this.battleInfo = null;
         this.sortieInfo = null;
+        this.practiceBattle = null;
         this.lastDayBattle = null;
         this.lastDayDamecons = null;
         // 回港＝出擊結束，退避狀態隨之解除（退避艦本來就已經先回到母港）。
@@ -2035,6 +2089,7 @@ export class GameState {
         this.markFleetAway(this.currentSortieFleetId);
         if (this.combinedFlag > 0 && this.currentSortieFleetId === 0) this.markFleetAway(1);
         this.battleInfo = null;
+        this.practiceBattle = null;
         this.lastDayBattle = null;
         this.lastDayDamecons = null;
         this.pendingConsumption = [];
@@ -2522,6 +2577,19 @@ export class GameState {
             // 演習的延續，不會重複觸發 api_req_practice/battle。
             if (path === 'api_req_practice/battle') {
                 this.bumpQuestProgress('practiceAttempt');
+                // 打完當輪最後一場通常不會再開清單；開戰即扣一場，下一份清單到達時以清單為準。
+                // 對手以敵旗艦對清單的 api_enemy_flag_ship：演習夜戰樣本 api_ship_ke[0]＝369 對清單對手 1，
+                // 結算樣本 api_ship_id[0] 亦對得上（samples/README.md）。同旗艦有兩位未交戰對手時不猜。
+                const flagship = Array.isArray(api?.api_ship_ke) ? Number(api.api_ship_ke[0]) : NaN;
+                const candidates = (this.practiceList?.opponents ?? [])
+                    .map((o, i) => ({ o, i }))
+                    .filter(({ o }) => o.flagship === flagship && o.state === 0 && !o.fought);
+                const opponent = candidates.length === 1 ? candidates[0].i : null;
+                if (this.practiceList) {
+                    if (opponent === null) this.practiceList.battlesSince++;
+                    else this.practiceList.opponents[opponent].fought = true;
+                }
+                this.practiceBattle = { opponent };
                 const practiceDeck = [Number(api?.api_deck_id), Number(req?.api_deck_id)]
                     .find(id => Number.isInteger(id) && id >= 1 && id <= this.decks.length && this.decks[id - 1]);
                 this.practiceFleetMasters = practiceDeck === undefined ? null
@@ -2733,6 +2801,10 @@ export class GameState {
         if (this.battleInfo) {
             this.battleInfo.hasResult = true;
             if (api?.api_win_rank) this.battleInfo.rank = api.api_win_rank;
+        }
+        const practiceOpponent = this.practiceBattle?.opponent;
+        if (practiceOpponent != null && this.practiceList && typeof api?.api_win_rank === 'string') {
+            this.practiceList.opponents[practiceOpponent].localRank = api.api_win_rank;
         }
         if (['S', 'A', 'B'].includes(api?.api_win_rank)) this.bumpQuestProgress('practiceWin');
         this.judgeQuestPractice(api?.api_win_rank, ts);
@@ -3811,6 +3883,11 @@ export class GameState {
     shipName(masterId: number | undefined): string {
         return localizeShip(masterId, masterId == null ? undefined : this.master.get(masterId)?.name);
     }
+    /** 艦種徽章文字（與編成艦列同一套）；master 未載入時為空字串。 */
+    shipStypeLabel(masterId: number | undefined): string {
+        const stype = masterId == null ? undefined : this.master.get(masterId)?.stype;
+        return stype ? stypeName(stype) : '';
+    }
     gearName(mstId: number | undefined): string {
         return localizeGear(mstId, mstId == null ? undefined : this.masterGears.get(mstId)?.name);
     }
@@ -3918,6 +3995,16 @@ export class GameState {
 
     questSeenNos_(): ReadonlySet<number> {
         return new Set(this.questSeenNos);
+    }
+
+    /** 最近一次演習對手清單；尚未觀測到時為 null。 */
+    practiceList_(): { opponents: readonly PracticeOpponentView[]; createKind: number | null; ts: number; battlesSince: number } | null {
+        return this.practiceList && { ...this.practiceList, opponents: this.practiceList.opponents.map(o => ({ ...o })) };
+    }
+
+    /** 進行中的演習戰鬥；不在演習時為 null。opponent 是 practiceList_() 的索引，對不上對手時為 null。 */
+    practiceBattle_(): { opponent: number | null } | null {
+        return this.practiceBattle && { ...this.practiceBattle };
     }
 
     /** 遊戲在任務清單標示的年任換期月（api_no → 1–12）。 */

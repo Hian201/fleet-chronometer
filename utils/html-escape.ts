@@ -22,3 +22,8 @@ export const matIconHtml = (file: string, alt = '') =>
 /** 任務種類色標；色塊不含文字，種類名稱放在提示與輔助標籤。 */
 export const questCategoryMarkHtml = (category: QuestCategory, label: string) =>
     `<i class="qc-mark qc-${category}" role="img" aria-label="${esc(label)}" title="${esc(label)}"></i>`;
+
+/** 標籤名稱；tip 有值時在名稱右上角加閒置圓點（不佔寬度），數字與說明放在提示與輔助標籤。 */
+export const idleLabelHtml = (label: string, tip: string | null) => tip
+    ? `<span class="idle-host">${esc(label)}<i class="idle-mark" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"></i></span>`
+    : `<span>${esc(label)}</span>`;

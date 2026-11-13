@@ -68,6 +68,37 @@ export function predictRank(player: BattleShipView[], enemy: BattleShipView[]): 
     return 'D';
 }
 
+/** 夜戰要達到某評級還差的量：再擊沉幾艘，或敵方再損多少 HP。 */
+export interface NightRankNeed { rank: 'C' | 'B' | 'A' | 'S'; sink?: number; hp?: number }
+
+/**
+ * 日戰結束時，假設夜戰中我方不再受損，列出比目前評級高的各級還差多少（規則同 predictRank）。
+ * 這是門檻不是預測：夜戰命中與傷害是隨機的，實際評級以結算為準。
+ * 退避艦不計，呼叫端與 predictRank 一樣先濾掉。我方已有轟沈時 S 不可能，不列。
+ */
+export function nightRankTargets(player: BattleShipView[], enemy: BattleShipView[]): NightRankNeed[] {
+    if (enemy.length === 0) return [];
+    const order = ['D', 'C', 'B', 'A', 'S'];
+    const current = order.indexOf(predictRank(player, enemy));
+    const sum = (arr: BattleShipView[], f: (s: BattleShipView) => number) => arr.reduce((a, s) => a + f(s), 0);
+    const pBegin = sum(player, s => s.beginHp);
+    const pLoss = pBegin > 0 ? (pBegin - sum(player, s => Math.max(0, s.hp))) / pBegin : 0;
+    const eBegin = sum(enemy, s => s.beginHp);
+    const eDealt = eBegin - sum(enemy, s => Math.max(0, s.hp));
+    const eSunk = enemy.filter(s => s.sunk).length;
+    const pSunk = player.some(s => s.sunk);
+    // 損害率要「大於」門檻：敵方再損 X 後 (eDealt + X) / eBegin > ratio × pLoss。
+    const hpFor = (ratio: number) => Math.max(1, Math.floor(ratio * pLoss * eBegin - eDealt) + 1);
+    const needs: NightRankNeed[] = [
+        { rank: 'C', hp: hpFor(0.9) },
+        { rank: 'B', hp: hpFor(2.5) },
+        ...(!pSunk && enemy.length > 1 ? [{ rank: 'A' as const, sink: Math.max(0, Math.floor(enemy.length * 0.7) - eSunk) }] : []),
+        ...(!pSunk ? [{ rank: 'S' as const, sink: enemy.length - eSunk }] : []),
+    ];
+    // 需要的傷害超過敵方剩餘 HP 合計就達不到，不列。
+    return needs.filter(n => order.indexOf(n.rank) > current && !(n.hp !== undefined && n.hp > eBegin - eDealt));
+}
+
 // ── 戰鬥解析（現行遊戲 API 格式）─────────────────────────────────
 // 現行格式重點：
 //   血量：api_f_nowhps / api_f_maxhps（我方主隊）、api_e_nowhps / api_e_maxhps（敵主隊），

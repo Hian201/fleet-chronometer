@@ -126,8 +126,9 @@ state recovery 必須傳原始 `event.ts`，否則計時器錨點會被重播當
 | 入渠 | `api_get_member/ndock` | item課金 | `api_get_member/payitem` |
 | 編成 | `api_get_member/preset_deck` | 圖鑑 | `api_get_member/picture_book` |
 | 改裝 | `api_req_kaisou/can_preset_slot_select` | 任務 | `api_get_member/questlist` |
+| 演習 | `api_get_member/practice` | | |
 
-`autoSwitch`：`api_port/port`→一般、`api_req_map/start`／戰鬥→出擊、`api_get_member/mission`／
+`autoSwitch`：`api_port/port`→一般、`api_req_map/start`／戰鬥→出擊、`api_get_member/practice`／`api_req_practice/*`→出擊（演習畫面）、`api_get_member/mission`／
 `api_req_mission/start`→遠征、`api_get_member/questlist`→一般（任務圖示在遊戲全域頭部列，任何畫面
 都會送）、`api_get_member/ndock`／`api_req_nyukyo/start`／`speedchange`→一般分頁母港「入渠」分組的渠位
 （只在剛進入入渠情境時定位，同畫面內不重設使用者選的待修檢視）、`preset_dev_items`／`remodel_slotlist`／工廠操作（createitem／createship／getship／

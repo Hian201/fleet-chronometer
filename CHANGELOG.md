@@ -26,6 +26,9 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 
 **Panel**
 - Opening the in-game quest screen now switches the panel to the Quests page. Returning to port from the quest screen switches it back to the Harbor page.
+- When you are not on a sortie, the Sortie tab now shows this round's practice opponents: which group they were drawn from, how many battles are left, when the list resets, and the result against each opponent. Opening Practice in game switches the panel to it. The map gauge list that used to appear there is gone; gauges still show in the header during a sortie.
+- During a practice battle the header shows the opponent and this round's results. After the day battle, the bottom-right box shows what the next rank and S still need in the night battle, assuming your fleet takes no more damage.
+- A small brass dot on a tab marks unused capacity before you log off: idle fleets on Expeditions, empty docks with ships waiting on Repairs, completed but unclaimed quests that the 05:00 reset will clear on Quests, and practice battles left this round on Sortie. Hover over the dot for the count.
 
 ### Data compatibility
 

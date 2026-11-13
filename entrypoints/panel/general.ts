@@ -1,4 +1,5 @@
-import { esc, matIconHtml, questCategoryMarkHtml } from '@/utils/html-escape';
+import { esc, idleLabelHtml, matIconHtml, questCategoryMarkHtml } from '@/utils/html-escape';
+import { idleMarks } from '@/utils/idle-check';
 import { QUEST_CATEGORY_LABEL_KEYS } from '@/utils/quest-category';
 import { itemCatalog, itemDetails, itemMatches, uncataloguedUseItem, type CatalogItem, type ItemInventory } from '@/utils/item-catalog';
 import { ITEM_PINS_KEY, loadItemPins, saveItemPins, sortPinnedFirst, toggleItemPin } from '@/utils/item-pins';
@@ -425,8 +426,10 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     function render() {
         const l = label();
         nav.setAttribute('aria-label', t('tab.general'));
+        const idle = idleMarks(state, Date.now());
+        const idleTip = (key: 'exped' | 'dock' | 'quests', n: number) => n > 0 ? t('idle.' + key, { n }) : null;
         nav.innerHTML = (['harbor', 'quests', 'items'] as const).map(key =>
-            `<button type="button" data-page="${key}" role="tab" aria-selected="${key === page}"><span>${esc(l[key])}</span>${key === 'quests' ? `<span class="count">${state.quests_().length}</span>` : ''}</button>`).join('');
+            `<button type="button" data-page="${key}" role="tab" aria-selected="${key === page}">${idleLabelHtml(l[key], key === 'quests' ? idleTip('quests', idle.quests) : null)}${key === 'quests' ? `<span class="count">${state.quests_().length}</span>` : ''}</button>`).join('');
         const materialKeys = ['fuel', 'ammo', 'steel', 'bauxite', 'torch', 'drum', 'devmat', 'screw'] as const;
         byId('resline').innerHTML = materialKeys.map((key, index) => {
             const title = t('mat.' + key + '.full');
@@ -443,7 +446,7 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         const groupCounts = { exped: missions.length, dock: activeDock.length, build: activeBuild.length, anchor: upkeep.length };
         operationNav.classList.toggle('has-anchor', upkeep.length > 0);
         operationNav.innerHTML = shownOps.map(key =>
-            `<button type="button" data-operation="${key}" role="tab" aria-selected="${key === operation}"><span>${esc(l[key])}</span><span class="count">${groupCounts[key]}</span></button>`).join('');
+            `<button type="button" data-operation="${key}" role="tab" aria-selected="${key === operation}">${idleLabelHtml(l[key], key === 'exped' || key === 'dock' ? idleTip(key, idle[key]) : null)}<span class="count">${groupCounts[key]}</span></button>`).join('');
         const slots = state.ndockSlots();
         const damaged = state.damagedShips();
         for (const key of OPERATIONS) if (key !== 'dock') byId('heading-' + key).innerHTML = `<strong>${esc(l[key])}</strong>`;

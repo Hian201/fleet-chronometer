@@ -23,8 +23,8 @@ export function formatDateTime(ts: number, seconds = true): string {
     return `${formatDate(ts)} ${time}`;
 }
 
-/** `21:32:05`（只需時刻的地方，例如偵錯清單）。 */
-export function formatTime(ts: number): string {
+/** `21:32:05`（只需時刻的地方，例如偵錯清單）；`seconds: false` 時為 `21:32`。 */
+export function formatTime(ts: number, seconds = true): string {
     const d = new Date(ts);
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}${seconds ? `:${pad(d.getSeconds())}` : ''}`;
 }

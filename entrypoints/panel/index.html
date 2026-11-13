@@ -3672,33 +3672,74 @@
             color: var(--brass);
         }
 
-        /* 未出擊時的關卡量表列（見 main.ts mapGaugeListHtml）。出擊資訊欄的釘死版面只在
-           真的進入出擊後才成立，這一態是空畫面，可自由用一般流排版。 */
-        .s-standby {
-            padding: 10px;
+        /* 演習畫面（entrypoints/panel/practice.ts）：不在出擊時的出擊分頁。五位對手各 46px，
+           連標題共 250px，放在 270px 資訊區內不捲動。已交戰的列淡化，未交戰用黃銅虛線圈，
+           一眼看出還能打誰；評價字樣沿用 .s-rank-grade。 */
+        .pr-list { display: flex; flex-direction: column; }
+        .pr-head {
+            display: flex; align-items: baseline; gap: 8px;
+            height: 20px; padding: 0 2px; box-sizing: border-box;
+            border-bottom: 1px solid var(--line);
         }
+        .pr-head strong { font-size: 12px; font-weight: 600; }
+        /* 清單抽自哪一群：輔助層（§7.3），完整名稱放提示。 */
+        .pr-group { font-size: 10px; color: var(--dim); white-space: nowrap; }
+        .pr-left { margin-left: auto; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .pr-push { margin-left: auto; }
+        .pr-reset { font-size: 10px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .pr-empty { margin: 14px 4px; color: var(--dim); font-size: 12px; line-height: 1.5; }
+        .pr-rows { list-style: none; margin: 0; padding: 0; }
+        .pr-row {
+            display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 8px; align-items: center;
+            height: 46px; padding: 0 2px;
+            border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+        }
+        .pr-row:last-child { border-bottom: 0; }
+        .pr-mark { display: flex; justify-content: center; }
+        .pr-row.done .pr-main, .pr-row.done .pr-medal { opacity: .5; }
+        .pr-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .pr-l1, .pr-l2 { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
+        .pr-l2 { align-items: center; gap: 5px; }
+        .pr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 500; line-height: 1.2; }
+        .pr-lv { flex: none; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+        .pr-flag { flex: none; font-size: 10px; }
+        .pr-comment { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 10px; color: var(--dim); }
+        /* 旗艦艦種：與編成艦種徽章同一套黃銅線框（類別層，§7.3）。 */
+        .pr-stype {
+            flex: none; display: inline-block; width: 28px; text-align: center;
+            font-size: 9px; font-weight: 700; line-height: 13px; letter-spacing: var(--track-tag);
+            color: var(--brass);
+            background: color-mix(in srgb, var(--brass) 14%, transparent);
+            border: 1px solid color-mix(in srgb, var(--brass) 40%, transparent);
+            border-radius: 3px;
+        }
+        .pr-medal { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+        .pr-medal i {
+            width: 13px; font-style: normal; font-size: 9px; line-height: 13px; text-align: center;
+            color: var(--brass); border: 1px solid color-mix(in srgb, var(--brass) 40%, transparent); border-radius: 50%;
+        }
+        .pr-open { display: inline-block; width: 14px; height: 14px; box-sizing: border-box; border: 1.5px dashed var(--brass); border-radius: 50%; }
+        .pr-open.mini { width: 11px; height: 11px; border-width: 1.2px; }
+        .pr-open.now { border-style: solid; background: color-mix(in srgb, var(--brass) 35%, transparent); }
+        .s-rank-grade.pr-mini { width: 12px; height: 14px; font-size: 14px; -webkit-text-stroke: .4px currentColor; }
+        .pr-slots { display: inline-flex; align-items: center; gap: 5px; }
 
-        .s-standby-hint {
-            color: var(--dim);
-        }
+        /* 演習戰況標頭：海域代號位置寫「演習」，接對手名，本輪五場記號靠右。 */
+        .pr-battle-head { flex-wrap: nowrap; gap: 8px; }
+        .pr-vs { display: flex; align-items: baseline; gap: 5px; flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+        .pr-vs-word { font-size: 10px; color: var(--dim); }
+        .pr-battle-head .pr-slots { flex: none; padding-right: 2px; }
 
-        .s-standby-maps {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-top: 10px;
+        /* 夜戰目標：佔出擊掉落格的位置（演習沒有掉落），兩列放下一級與 S。 */
+        .pr-night {
+            grid-column: 2; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 6px;
+            min-width: 0; padding: 0 6px; box-sizing: border-box;
+            border: 1px solid var(--line); border-radius: 4px;
         }
-
-        .s-standby-map {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* 海域代號欄寬對齊，量表左緣才不會隨 E1／E2 長度參差 */
-        .s-standby-map > .s-map-id {
-            min-width: 44px;
-        }
+        .pr-night-label { font-size: 10px; color: var(--dim); }
+        .pr-night-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+        .pr-need { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; font-size: 10.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .pr-need-none { overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
 
         /* 關卡進度：緊湊量表（擊破數式／HP量表式），或已攻略/未攻略/鎖定小標記 */
         .s-gauge {
@@ -5847,6 +5888,8 @@
         .ledger-group-tabs button[aria-selected=true]{border-bottom-color:var(--brass);color:var(--text);font-weight:600}
         .ledger-group-tabs .count{color:var(--dim);font-size:10.5px;font-weight:400;font-variant-numeric:tabular-nums}
         .ledger-group-tabs.has-anchor{grid-template-columns:repeat(4,minmax(0,1fr))}.ledger-group-tabs.has-anchor button{padding-left:4px;padding-right:4px}
+        /* 登出前閒置標記：黃銅圓點貼在標籤名稱右上角，絕對定位不佔寬度（英文四個分組並排時仍放得下）。 */
+        .idle-host{position:relative}.idle-mark{position:absolute;top:-1px;right:-5px;width:5px;height:5px;border-radius:50%;background:var(--brass)}
         /* 泊地：每隊一列、修理與給糧各一欄；加速倒數用 --sparkle，與艦列範圍軌的配色一致。
            欄界（design-guidelines §4.1.2）：修理欄以靠右倒數收尾、給糧欄以艦數開頭，兩欄之間留 12px 並加分隔線，
            避免左欄倒數被讀成右欄的值。 */
@@ -6108,7 +6151,6 @@
         </div>
         <div id="tab-sortie" style="display:none">
             <div id="battle-content">
-                <div style="color:var(--dim); padding:10px;" data-i18n="sortie.notEntered">尚未進入戰鬥。</div>
             </div>
         </div>
     </div>

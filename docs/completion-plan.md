@@ -111,10 +111,10 @@ Haiku 5.5），是擬定者的判斷，不是量測結果。通則：
 
 | 檢查 | 標記位置 | 備註 |
 |---|---|---|
-| 第二到第四艦隊沒有出遠征，也不在出擊或支援中 | 母港「遠征」分組標籤 | 標出閒置隊數 |
+| 第二到第四艦隊沒有出遠征，也不在出擊、支援、泊地修理或給糧中 | 母港「遠征」分組標籤 | 連合艦隊編成中的第二艦隊不算 |
 | 有待修艦，且有空的入渠槽 | 母港「入渠」分組標籤 | 兩個條件同時成立才標 |
 | 任務重置（05:00 JST）前，已接任務中進度已達成但未領獎 | 一般分頁「任務」標籤 | 未領獎的每日任務過了重置就失去獎勵；動手前先確認 `quest-progress.ts` 的判定夠用 |
-| 今日演習尚有次數 | 待預覽時決定 | 見下方「演習」 |
+| 今日演習尚有次數 | 主分頁列「出擊」 | 演習從遊戲的出擊選單進入；見下方「演習」 |
 
 分組標籤現有的計數是「運作中的件數」，閒置標記不得改變這個數字的意思，要另外呈現；樣式不得
 借用大破、未補給等既有語意色（design-guidelines §4.5）。標籤列的寬度在台灣華語、英文、日文
@@ -283,7 +283,7 @@ Fable 5.2 中 effort，先給預覽。
 |---|---|---|---|
 | `api_req_kaisou/remodeling` | KC3Kai `Kcsapi.js`、`RemodelDb.js` | 無（消耗屬推算） | 4.6 |
 | `api_req_mission/result` 的回航道具 | KC3Kai `Kcsapi.js`、ElectronicObserver `api_req_mission/result.cs` | 無 | 4.9 |
-| `api_get_member/practice` | KC3Kai `natsuiro.js`（`PvPList` 讀 `api_state`）；`samples/practice-list-after-battles.json` 與兩筆結算交叉比對 | 無 | 4.4 的演習檢查 |
+| `api_get_member/practice` | KC3Kai `natsuiro.js`（`PvPList` 讀 `api_state`、`api_create_kind`）；`samples/practice-list-after-battles.json` 與兩筆結算交叉比對 | 無 | 4.4 的演習檢查 |
 
 **待決事項**
 - `db.factory` 是否補記改修的二番艦。（4.7）

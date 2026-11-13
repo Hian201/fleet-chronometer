@@ -5,7 +5,7 @@ import { EventProjector, projectEventAndAdvance } from '@/utils/event-projector'
 import { advanceProjectionCursor, readProjectionCursor } from '@/utils/projection-cursor';
 import {
     GameState, isBossNode,
-    type ShipView, type GearView, type FleetView, type BattleEnemyShipView,
+    type ShipView, type GearView, type FleetView, type BattleEnemyShipView, type SortieInfoView,
 } from '@/utils/state';
 import { condTier, fleetCondRecoveryEta, fleetSupplyCapAt } from '@/utils/cond';
 import {
@@ -16,7 +16,9 @@ import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery
 import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
-import { esc, gearIconHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
+import { esc, gearIconHtml, idleLabelHtml, matIconHtml as matIconFile } from '@/utils/html-escape';
+import { idleMarks, nextPracticeReset, practiceRound } from '@/utils/idle-check';
+import { nightRankTargets } from '@/utils/battle';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import {
     MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET, parseCaptureHealthSummary, type CaptureHealthSummary,
@@ -29,6 +31,7 @@ import {
 } from '@/utils/capture-timing';
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { sortieGaugeBarHtml } from './sortie-gauge';
+import { practiceBattleHeadHtml, practiceListHtml, practiceNightHtml, type PracticeRow } from './practice';
 import { bossHpReplaySpecificity, observedBossHp } from '@/utils/boss-hp';
 import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
 import { formationRects } from '@/utils/formation-geometry';
@@ -307,9 +310,11 @@ function renderTabs() {
         : '';
     // 編成寫真開著時資訊區被托盤取代，分頁列不標示選取（點任一分頁即關閉托盤）
     const on = (name: typeof tab) => (tab === name && !photo.isOpen() ? 'on' : '');
+    // 演習從遊戲的出擊選單進入，本輪剩餘場數的閒置圓點掛在出擊分頁（不可考時不標）。
+    const practiceLeft = idleMarks(state, Date.now()).practice;
     tabsEl.innerHTML = `
       <button data-t="general" class="${on('general')}">${t('tab.general')}</button>
-      <button data-t="sortie" class="${on('sortie')}">${t('tab.sortie')}</button>
+      <button data-t="sortie" class="${on('sortie')}">${idleLabelHtml(t('tab.sortie'), practiceLeft ? t('idle.practice', { n: practiceLeft }) : null)}</button>
       <button data-t="exped" class="${on('exped')}">${t('tab.exped')}</button>
       <button data-t="factory" class="${on('factory')}">${t('tab.factory')}</button>
       <button data-t="order" class="${on('order')}">${t('tab.order')}</button>
@@ -1105,58 +1110,26 @@ function sortieNodeClass(node: { eventId?: number; eventKind?: number }, current
     if (current) classes.push('current');
     return classes.join(' ');
 }
-// 未出擊時的關卡量表列。**刻意共用 sortieGaugeBarHtml 與出擊中完全同一組 title／斬殺期
-// 判定**——兩處各寫一份遲早會漂移成「出擊中說斬殺期、母港說還要兩次」。沒有任何未攻略的
-// HP 量表海域（例如平時只打一般圖）時整塊不出現，不佔版面。
-function mapGaugeListHtml(): string {
-    const maps = state.unclearedHpGaugeMaps();
-    if (maps.length === 0) return '';
-    const rows = maps.map(({ mapId, mapArea, mapNo, gauge }) => {
-        const mapCode = `${mapArea}-${mapNo}`;
-        const isEvent = isEventWorld(mapArea);
-        const mapStr = mapLabel({ event: isEvent, mapnum: mapNo, map: mapCode });
-        const diff = isEvent ? diffLabel(gauge.selectedRank ?? 0) : '';
-        const r = state.mapRemainingRuns(mapId);
-        const hint = r != null
-            ? t('sortie.hintEstRuns', { n: r, kind: t('sortie.kindDefeat') })
-            : t('sortie.hintNeedBoss');
-        const zansatsu = state.mapInFinalPhase(mapId);
-        const title = [
-            t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint }),
-            zansatsu ? t('sortie.zansatsuLabel') : '',
-        ].filter(Boolean).join('\n');
-        return `<div class="s-standby-map">
-            <div class="s-map-id" title="${esc(diff ? `${mapCode}・${diff}` : mapCode)}">${esc(mapStr)}${diff ? `<i>${esc(diff)}</i>` : ''}</div>
-            ${sortieGaugeBarHtml({
-                now: gauge.nowHp, max: gauge.maxHp, finalPhase: zansatsu,
-                title, finalLabel: t('sortie.zansatsuLabel'),
-            })}
-        </div>`;
-    }).join('');
-    return `<div class="s-standby-maps">${rows}</div>`;
+// 演習對手清單的面板資料。清單換輪後（03:00／15:00 JST）不可考，回 null。
+function practiceRows(now: number): PracticeRow[] | null {
+    const list = state.practiceList_();
+    if (!list || practiceRound(list.ts) !== practiceRound(now)) return null;
+    const current = state.practiceBattle_()?.opponent ?? null;
+    return list.opponents.map((o, i) => ({
+        name: o.name,
+        level: o.level,
+        rank: o.rank,
+        flagshipName: o.flagship ? state.shipName(o.flagship) : '',
+        stype: o.flagship ? state.shipStypeLabel(o.flagship) : '',
+        comment: o.comment,
+        medals: o.medals,
+        // api_state 1–6＝E–S（samples/practice-list-after-battles.json）；清單之後的結算優先。
+        result: o.localRank ?? (o.state > 0 ? ['E', 'D', 'C', 'B', 'A', 'S'][o.state - 1] ?? '?' : o.fought ? '?' : null),
+        current: i === current,
+    }));
 }
-function renderSortie() {
-    if (tab !== 'sortie') return;
-    const info = state.battleInfo;
-    const sortie = state.sortieInfo;
-    const sortieEl = document.getElementById('battle-content')!;
-    if (!sortie) {
-        // 未出擊時：列出尚未攻略的 HP 量表海域，含斬殺期標示。**這一格刻意不等出擊**——
-        // 「還剩多少、是不是斬殺線內」正是決定要不要出擊、帶什麼編成的依據，出擊一次的
-        // 資源成本很高，把答案鎖在出擊後才顯示等於在使用者最需要它的時候藏起來。
-        // 量表值來自 mapinfo（點開出擊海域選單就送來），斬殺線來自本機出擊紀錄。
-        sortieEl.innerHTML = `<div class="s-standby">
-            <div class="s-standby-hint">${t('sortie.notEntered')}</div>
-            ${mapGaugeListHtml()}
-        </div>`;
-        return;
-    }
-    // 損失機數：>0 時以紅色 -N 顯示（例：-23）
-    const planeLost = (lost: number) => lost > 0 ? `<i>−${lost}</i>` : '';
-    // 敵我方機數格一律保留本場的紅色損失數。結算後仍需能回看這一戰的代價，不能只剩
-    // 殘存數而失去戰損資訊；數值維持「出擊機數 − 損失」的同一語意。
-    const planeCell = (v: { count: number; lost: number }) => `<b>${v.count}</b>${planeLost(v.lost)}`;
-    let html = '<div class="sortie-container">';
+// 出擊標頭：海域代號＋量表＋節點軌跡。
+function sortieHeaderHtml(sortie: SortieInfoView): string {
     // 標題列：海域編號 + 節點軌跡 + 狀態，合併為一行省高度。
     // 關卡進度使用 mapinfo 的兩種量表（見 state.ts MapGaugeView 註解）。
     // 無資料（尚未開過海域選擇畫面）時不顯示，難度亦然。
@@ -1221,20 +1194,47 @@ function renderSortie() {
     } else if (gauge) {
         gaugeHtml = `<div class="s-gauge uncleared" title="${esc(t('sortie.uncleared'))}">－</div>`;
     }
-    html += `
+    return `
         <div class="s-header">
             <div class="s-map-id" title="${esc(diff ? `${mapCode}・${diff}` : mapCode)}">${esc(mapStr)}${diff ? `<i>${esc(diff)}</i>` : ''}</div>
             ${gaugeHtml}
             <div class="s-nodes">${nodeDots}</div>
         </div>
     `;
+}
+function renderSortie() {
+    if (tab !== 'sortie') return;
+    const info = state.battleInfo;
+    const sortie = state.sortieInfo;
+    const sortieEl = document.getElementById('battle-content')!;
+    // 不在出擊時，出擊分頁就是演習畫面：演習戰鬥中顯示戰況，其餘時間顯示本輪對手清單。
+    const practice = sortie ? null : state.practiceBattle_();
+    const now = Date.now();
+    const rows = sortie ? null : practiceRows(now);
+    if (!sortie && !(practice && info)) {
+        sortieEl.innerHTML = practiceListHtml(rows, idleMarks(state, now).practice, formatTime(nextPracticeReset(now), false),
+            rows ? state.practiceList_()?.createKind ?? null : null);
+        return;
+    }
+    // 損失機數：>0 時以紅色 -N 顯示（例：-23）
+    const planeLost = (lost: number) => lost > 0 ? `<i>−${lost}</i>` : '';
+    // 敵我方機數格一律保留本場的紅色損失數。結算後仍需能回看這一戰的代價，不能只剩
+    // 殘存數而失去戰損資訊；數值維持「出擊機數 − 損失」的同一語意。
+    const planeCell = (v: { count: number; lost: number }) => `<b>${v.count}</b>${planeLost(v.lost)}`;
+    let html = '<div class="sortie-container">';
+    html += sortie
+        ? sortieHeaderHtml(sortie)
+        // 演習：標頭換成對手與本輪五場的記號；演習沒有海域、量表與節點。
+        : practiceBattleHeadHtml(rows, practice?.opponent ?? null);
     if (info) {
         // ── 大破警告 ──
         // 警告絕對定位於航空戰欄，不參與一般流，避免推動固定高度的敵艦列與系統列。
         // 旗艦大破後不能前往下一節點；因此不得同時顯示司令部退避的選項。
         // 旗艦大破與一般大破共用同一顆切換按鈕：點擊只隱藏文字、保留紅框，露出底下的機數。
         let taihaWarning: { kind: 'flagship' | 'generic'; head: string; hint: string; title: string } | null = null;
-        if (info.flagshipTaiha) {
+        if (!sortie) {
+            // 演習不會轟沈、也沒有進擊或退避，不顯示大破警告。
+        } else if (info.flagshipTaiha) {
             const dameconMst = info.flagshipDamecon === 1 ? 42 : info.flagshipDamecon === 2 ? 43 : 0;
             const head = dameconMst
                 ? t('sortie.taihaFlagshipDamecon', { item: state.gearName(dameconMst) })
@@ -1537,11 +1537,27 @@ function renderSortie() {
                 <span class="sakura-drop-name">${esc(info.drop)}</span>
               </div>`
             : '';
+        // 演習沒有掉落：右欄改成夜戰目標，只在日戰結束、夜戰開始前顯示（之後評級格已是夜戰後的預測）。
+        let rightSlot: string;
+        if (!sortie) {
+            const fleets = info.resultFleets;
+            const enemy = fleets ? [...fleets.enemyMain, ...fleets.enemyEscort] : [];
+            const beforeNight = !!fleets && !info.hasResult && !nightObserved;
+            const allSunk = enemy.length > 0 && enemy.every(ship => ship.sunk);
+            rightSlot = practiceNightHtml(
+                beforeNight && (info.midnightFlag || allSunk)
+                    ? nightRankTargets([...fleets!.playerMain, ...fleets!.playerEscort].filter(ship => !ship.escaped), enemy)
+                    : null,
+                allSunk,
+            );
+        } else {
+            rightSlot = `<div class="s-drop-slot ${dropChip ? 'filled' : 'empty'}">
+              ${dropChip || '<span class="s-drop-empty">No Drop</span>'}
+            </div>`;
+        }
         html += `<div class="s-action-rail with-system">
             ${systemRailHtml}
-            <div class="s-drop-slot ${dropChip ? 'filled' : 'empty'}">
-              ${dropChip || '<span class="s-drop-empty">No Drop</span>'}
-            </div>
+            ${rightSlot}
           </div>`;
     }
     html += '</div>';
@@ -1865,6 +1881,8 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         }
         else if (path === 'api_req_map/start') { autoSwitch('sortie', 'sortie'); switchFleetViewToSortie(); }
         else if (isSortieBattlePath(path)) autoSwitch('sortie', 'sortie');
+        // 進入演習畫面（api_get_member/practice）或演習戰鬥／結算 → 出擊分頁的演習畫面
+        else if (path === 'api_get_member/practice' || path.startsWith('api_req_practice/')) autoSwitch('sortie', 'practice');
         // 進入遠征介面（api_get_member/mission）或發出遠征（mission/start）→ 遠征分頁
         else if (path === 'api_get_member/mission' || path === 'api_req_mission/start') autoSwitch('exped', 'exped');
         // 任務圖示為遊戲全域頭部列常駐圖示，任何畫面下點選都會送這個封包 → 切到一般
