@@ -1,4 +1,4 @@
-# 基地航空隊疲勞、泊地修理與士氣
+# 基地航空隊疲勞、泊地修理、士氣與閒置檢查
 
 ## 基地航空隊中隊疲勞（`utils/lbas-cond.ts`）
 
@@ -181,6 +181,34 @@ raw events 的 SW 恢復結果一致，且 state recovery 不建立 derived rows
   比例、不看入渠時間，未記載同比例的次序。
 - **時間**：直接顯示 `api_ndock_time`，不推算。出擊中的艦隊血量會隨戰鬥更新，但這個值要到
   `api_port/port` 才刷新，所以出擊艦隊的時間顯示「回港後」而不沿用舊值。
+
+## 登出前閒置檢查（`utils/idle-check.ts`）
+
+指出「哪個標籤裡有空著的產能」，只在既有標籤名稱右上角加圓點，數字與說明放在提示（版面見
+design-guidelines §7.2）。只提醒，不排程、不通知；不做入渠順序建議或跨分組彙整。
+
+| 標記位置 | 判定 |
+|---|---|
+| 母港「遠征」分組 | 第 2–4 艦隊中有艦、`api_mission[0]` 為 0、不在出擊、泊地修理與給糧都沒運作（`planAnchorageRepair`／`planMoraleSupply` 的 `active`，與「泊地」分組同一判斷）的隊數。連合艦隊編成中的第 2 艦隊不能出遠征，不算 |
+| 母港「入渠」分組 | 空渠（`api_state` 0，未開放的 -1 不算）數與可入渠待修艦數取小。待修艦取 `damagedShips()`，扣掉遠征中與出擊中艦隊的艦 |
+| 一般分頁「任務」 | 受注中、已達成（questlist `api_state` 3）、下一次 05:00 JST 換期就會清掉的任務數 |
+| 主分頁「出擊」 | 本輪演習剩餘場數；演習從遊戲的出擊選單進入 |
+
+**任務週期**：用 questlist 的 `api_type`（1 每日、2 每週、3 每月；`samples/Quest.json` 各類皆有），
+週期起訖走 `quest-cycle.ts`。`api_type` 5 只有帶年任換期月（`api_label_type` 101–112）時算年任；
+季任等其他週期封包分不出，不標。換期後還沒重開任務清單時，記著的「達成」屬於上一期，只計
+清單觀測時間落在本期內的任務。
+
+**演習剩餘場數**：最近一次 `api_get_member/practice` 的 `api_list` 中 `api_state === 0` 的個數，
+扣掉清單之後觀測到的 `api_req_practice/battle` 次數（打完最後一場通常不會再開清單）；
+`api_req_practice/midnight_battle` 是同一場的夜戰接續，不扣。下一份清單到達時以清單為準。
+清單於 03:00、15:00 JST 換新（`practiceRound()`），換新後還沒看到新清單時不可考、不標。
+`api_state` 0＝未交戰、1–6＝評價 E–S，依 KC3Kai `natsuiro.js` `PvPList`，並以
+`samples/practice-list-after-battles.json` 與同輪兩筆結算交叉比對。對手清單只存在 `GameState`，
+不進 snapshot 或 derived tables；原始事件裁剪後不可考。
+
+**限制**：圓點在面板重繪（收到遊戲封包）時才重算，05:00 或 03:00／15:00 換期瞬間沒有操作時，
+舊圓點會留到下一次重繪。艦全在入渠中的艦隊仍算遠征閒置；正接受泊地修理的待修艦仍算可入渠。
 
 ## 疲勞回復通知
 

@@ -1,4 +1,4 @@
-// 登出前閒置標記（docs/completion-plan.md §4.4）：三語並排，量測圓點是否撐破 370px 內容寬。
+// 登出前閒置標記（docs/engineering/fleet-status.md「登出前閒置檢查」）：三語並排，量測圓點是否撐破 370px 內容寬。
 // 只畫三排標籤列；樣式與標記 HTML 取自正式面板，數值為假設情境。
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

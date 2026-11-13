@@ -1,5 +1,5 @@
 // 登出前閒置檢查：指出「哪個標籤裡有空著的產能」。純函式，無 chrome.*／DOM。
-// 只回傳數字，細節由玩家點進對應分組看；不排程、不通知（docs/completion-plan.md §4.4）。
+// 只回傳數字，細節由玩家點進對應分組看；不排程、不通知（docs/engineering/fleet-status.md「登出前閒置檢查」）。
 
 import { questCycleWindow } from './quest-cycle';
 import type { QuestPeriod } from './quest-flow';

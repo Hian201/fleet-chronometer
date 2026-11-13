@@ -1,4 +1,4 @@
-// 登出前閒置檢查（docs/completion-plan.md §4.4）的判定。
+// 登出前閒置檢查（docs/engineering/fleet-status.md「登出前閒置檢查」）的判定。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { idleMarks, practiceRound } from '../utils/idle-check';
