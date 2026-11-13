@@ -1386,9 +1386,9 @@ function renderSortie() {
         const nightEntryTitle = nightEntryUnavailable
             ? '本節點沒有夜戰；月亮與主隊／伴隨指示以暗色顯示'
             : nightTargetEstimated
-                ? '依日戰結果推測夜戰目標；實際隊伍以夜戰封包為準'
+                ? '依日戰結果推測夜戰目標；實際隊伍以夜戰資料為準'
                 : !nightObserved
-                    ? '夜戰尚未由戰鬥封包確認'
+                    ? '夜戰尚未由戰鬥資料確認'
                     : !nightTargetKnown
                         ? '夜戰已發生；敵方目標隊伍未由現有傷害事件確認'
                         : '夜戰目標隊伍已由戰鬥事件確認';
@@ -1605,7 +1605,7 @@ async function captureWanted(eventId: number, tag: string, ts: number, path: str
         ]);
         if (total >= WANTED_TOTAL_LIMIT || sameTag >= WANTED_TAG_LIMIT) {
             wantedSkipped = true;
-            console.warn('[Fleet Chronometer] 待驗證封包已達上限，未擷取', tag, path);
+            console.warn('[Fleet Chronometer] 待驗證資料已達上限，未擷取', tag, path);
         } else {
             await db.wanted.add({ eventId, tag, ts, path });
             // 落地即自動存檔，不必再靠清單裡的「複製 JSON」手動取用——這是唯一取得完整
@@ -1618,7 +1618,7 @@ async function captureWanted(eventId: number, tag: string, ts: number, path: str
         }
     } catch (e) {
         // 擷取樣本失敗不能連累事件消費（那會讓 pump 停掉）：只記錄，不往外拋。
-        console.warn('[Fleet Chronometer] 待驗證封包擷取失敗', e);
+        console.warn('[Fleet Chronometer] 待驗證資料擷取失敗', e);
     }
     await renderWanted().catch(() => { });
 }
@@ -1657,14 +1657,14 @@ wantedEl.addEventListener('click', async e => {
     if (del) {
         // 刪除待驗證紀錄＝解除它對那筆 raw event 的保護，之後的裁剪就能把封包收走（本意如此）。
         await db.wanted.delete(Number(del.dataset.del)).catch(err =>
-            console.warn('[Fleet Chronometer] 待驗證封包刪除失敗', err));
+            console.warn('[Fleet Chronometer] 待驗證資料刪除失敗', err));
         wantedSkipped = false;
         await renderWanted().catch(() => { });
         return;
     }
     if (target.closest('button[data-clear]')) {
         if (!confirm(t('wanted.clearConfirm'))) return;
-        await db.wanted.clear().catch(err => console.warn('[Fleet Chronometer] 待驗證封包清除失敗', err));
+        await db.wanted.clear().catch(err => console.warn('[Fleet Chronometer] 待驗證資料清除失敗', err));
         wantedSkipped = false;
         await renderWanted().catch(() => { });
         return;
@@ -1681,7 +1681,7 @@ wantedEl.addEventListener('click', async e => {
     try {
         await navigator.clipboard.writeText(JSON.stringify({ req: row.req ?? {}, api: row.api }, null, 2));
     } catch (err) {
-        console.warn('[Fleet Chronometer] 待驗證封包複製失敗', err);
+        console.warn('[Fleet Chronometer] 待驗證資料複製失敗', err);
         flashButton(btn, t('wanted.copyFailed'), false);
         return;
     }

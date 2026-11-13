@@ -56,7 +56,7 @@ export interface SortieSignature {
     nodes: number[];
     /** 出擊開始時間（有重播就用重播的 ts，否則退回第一筆摘要的 ts）。 */
     ts: number;
-    /** 戰鬥封包內容指紋；沒有封包時為 null。 */
+    /** 戰鬥資料內容指紋；沒有封包時為 null。 */
     hash: string | null;
 }
 
@@ -93,7 +93,7 @@ export function stableSerialize(value: unknown): string {
         if (entry === null) return 'null';
         if (typeof entry === 'string' || typeof entry === 'boolean') return JSON.stringify(entry);
         if (typeof entry === 'number') {
-            if (!Number.isFinite(entry)) throw new SortieImportError('戰鬥封包含有非有限數值。');
+            if (!Number.isFinite(entry)) throw new SortieImportError('戰鬥資料含有非有限數值。');
             return JSON.stringify(entry);
         }
         if (Array.isArray(entry)) return `[${entry.map(walk).join(',')}]`;
@@ -101,13 +101,13 @@ export function stableSerialize(value: unknown): string {
             const object = entry as Record<string, unknown>;
             return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${walk(object[key])}`).join(',')}}`;
         }
-        throw new SortieImportError('戰鬥封包含有非 JSON 值。');
+        throw new SortieImportError('戰鬥資料含有非 JSON 值。');
     };
     return walk(value);
 }
 
 /**
- * 戰鬥封包指紋：使用節點 id 與 data／實際存在的 yasen 原始封包全文。
+ * 戰鬥資料指紋：使用節點 id 與 data／實際存在的 yasen 原始封包全文。
  * wrapper 的 rating/drop/MVP/EXP 不屬於兩種來源共同的原始戰鬥內容，刻意不混入。
  */
 export function packetHash(battles: { node: number; data: unknown; yasen?: unknown }[]): string | null {
@@ -187,7 +187,7 @@ function detectFormat(raw: UnknownRecord): ImportFormat {
 }
 
 /**
- * 這個物件是不是真的裝著一則戰鬥封包。
+ * 這個物件是不是真的裝著一則戰鬥資料。
  * **KC3Kai 的匯出對「沒有夜戰的節點」寫的是 `"yasen": {}`**（空物件仍是 truthy），
  * 直接用 `if (entry.yasen)` 會讓每個節點都被標成夜戰接續，還會把空物件餵進 analyzeBattle。
  * 判準：至少有一個 `api_` 開頭的欄位。
@@ -207,7 +207,7 @@ function hpPair(packet: UnknownRecord, nowKey: string, maxKey: string, where: st
     return { now, max };
 }
 
-/** 已知戰鬥封包最低形狀：雙方主隊 HP 與敵艦 master id。 */
+/** 已知戰鬥資料最低形狀：雙方主隊 HP 與敵艦 master id。 */
 export function hasPacket(value: unknown): boolean {
     try {
         validateBattlePacket(value, 'battle');
@@ -219,7 +219,7 @@ export function hasPacket(value: unknown): boolean {
 
 function validateBattlePacket(value: unknown, where: string): UnknownRecord {
     const packet = objectAt(value, where);
-    if (!Object.keys(packet).some(key => key.startsWith('api_'))) fail(where, '不是戰鬥封包。');
+    if (!Object.keys(packet).some(key => key.startsWith('api_'))) fail(where, '不是戰鬥資料。');
     hpPair(packet, 'api_f_nowhps', 'api_f_maxhps', where, true);
     const enemyHp = hpPair(packet, 'api_e_nowhps', 'api_e_maxhps', where, true)!;
     const enemyIds = integerArrayAt(packet.api_ship_ke, `${where}.api_ship_ke`, 1);
@@ -246,7 +246,7 @@ export function normalizeTime(value: unknown): number | null {
 
 /**
  * 艦欄位正規化。KC3Kai 用 `level`/`morale`，本專案匯出用 `lv`/`nowhps`/`maxhps`。
- * KC3Kai 主力／護衛 HP 由第一個戰鬥封包取得；第 3／4 艦隊來源沒有 HP，保持缺席。
+ * KC3Kai 主力／護衛 HP 由第一個戰鬥資料取得；第 3／4 艦隊來源沒有 HP，保持缺席。
  */
 function normalizeShip(rawValue: unknown, where: string, format: ImportFormat, hp?: { now: number; max: number }): ReplayShip | ReplaySupportShip {
     const raw = objectAt(rawValue, where);
@@ -282,14 +282,14 @@ function normalizeShip(rawValue: unknown, where: string, format: ImportFormat, h
         return { ...common, nowhp, maxhp };
     }
     if (!hp) return common;
-    if (hp.now > hp.max) fail(where, '戰鬥封包提供的 nowhp 不得大於 maxhp。');
+    if (hp.now > hp.max) fail(where, '戰鬥資料提供的 nowhp 不得大於 maxhp。');
     return { ...common, nowhp: hp.now, maxhp: hp.max };
 }
 
 function normalizeFleet(raw: unknown, where: string, format: ImportFormat, hps?: { now: number[]; max: number[] }, minLength = 0, maxLength = 7): Array<ReplayShip | ReplaySupportShip> {
     const list = arrayAt(raw, where);
     if (list.length < minLength || list.length > maxLength) fail(where, `艦數必須介於 ${minLength}～${maxLength}。`);
-    if (hps && (hps.now.length < list.length || hps.max.length < list.length)) fail(where, '艦數超過戰鬥封包的 HP 陣列長度。');
+    if (hps && (hps.now.length < list.length || hps.max.length < list.length)) fail(where, '艦數超過戰鬥資料的 HP 陣列長度。');
     return list.map((ship, i) => normalizeShip(ship, `${where}[${i}]`, format,
         hps ? { now: hps.now[i], max: hps.max[i] } : undefined));
 }
@@ -398,12 +398,12 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
                 yasen = validateBattlePacket(entry.yasen, `${where}.yasen`);
             } else if (entry.yasen !== null && entry.yasen !== undefined
                 && (!isPlainObject(entry.yasen) || Object.keys(entry.yasen).length > 0)) {
-                fail(`${where}.yasen`, '必須是 null、空物件或戰鬥封包。');
+                fail(`${where}.yasen`, '必須是 null、空物件或戰鬥資料。');
             }
         } else if (hasApiObject(entry.yasen)) {
             yasen = validateBattlePacket(entry.yasen, `${where}.yasen`);
         } else if (!isPlainObject(entry.yasen)) {
-            fail(`${where}.yasen`, '必須是空物件或戰鬥封包。');
+            fail(`${where}.yasen`, '必須是空物件或戰鬥資料。');
         }
 
         let rating = '';
@@ -446,7 +446,7 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
         };
     });
 
-    // 出擊當下的血量：第一個戰鬥封包就是「還沒被打之前」的狀態
+    // 出擊當下的血量：第一個戰鬥資料就是「還沒被打之前」的狀態
     const firstApi = battles[0].data;
     const mainHps = hpPair(firstApi, 'api_f_nowhps', 'api_f_maxhps', 'battles[0].data', true)!;
     const escortHps = hpPair(firstApi, 'api_f_nowhps_combined', 'api_f_maxhps_combined', 'battles[0].data', false);

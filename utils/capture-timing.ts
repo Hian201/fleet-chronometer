@@ -91,9 +91,9 @@ export const TIMING_SEGMENTS = [
 export type TimingSegment = typeof TIMING_SEGMENTS[number];
 
 const SEGMENT_NOTE: Record<TimingSegment, string> = {
-    queueAhead: 'MAIN 排在前面封包之後',
+    queueAhead: 'MAIN 排在前面回應之後',
     quiet: 'MAIN 輸入後安靜期（估計）',
-    idle: 'MAIN 等排程（小封包下一個 task、大封包 idle）',
+    idle: 'MAIN 等排程（小回應下一個 task、大回應 idle）',
     read: 'MAIN 序列化回應（佔遊戲主執行緒）',
     emitWork: 'MAIN emit 內處理（佔遊戲主執行緒）',
     toBridge: 'postMessage 複製＋bridge 處理',
@@ -231,7 +231,7 @@ export function formatTimingReport(records: CaptureTimingRecord[], meta: TimingR
         lines.push(`${key}: ${stats(records.map(r => r.seg[key]))}　— ${SEGMENT_NOTE[key]}`);
     }
 
-    lines.push('', '## 依封包大小（ms）');
+    lines.push('', '## 依回應大小（ms）');
     lines.push('size | n | total p50 / p95 / max | mainThread p95 | 最大宗段(p50)');
     let lower = 0;
     for (const bucket of SIZE_BUCKETS) {

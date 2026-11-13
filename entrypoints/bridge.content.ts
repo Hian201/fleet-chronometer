@@ -87,7 +87,7 @@ export default defineContentScript({
                     send: (runtimeMessage) => browser.runtime.sendMessage(runtimeMessage),
                     retryDelay: () => new Promise(resolve => setTimeout(resolve, 300)),
                 }).catch((e) => {
-                    console.warn('[Fleet Chronometer] 送出封包重試後仍失敗，此筆遺失', e);
+                    console.warn('[Fleet Chronometer] 送出回應重試後仍失敗，此筆遺失', e);
                 });
             },
             () => new MessageChannel() as unknown as ChannelLike,

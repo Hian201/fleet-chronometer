@@ -30,6 +30,9 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - During a practice battle the header shows the opponent and this round's results. After the day battle, the bottom-right box shows what the next rank and S still need in the night battle, assuming your fleet takes no more damage.
 - A small brass dot on a tab marks unused capacity before you log off: idle fleets on Expeditions, empty docks with ships waiting on Repairs, completed but unclaimed quests that the 05:00 reset will clear on Quests, and practice battles left this round on Sortie. Hover over the dot for the count.
 
+**Wording**
+- Explanations, tooltips and import errors now refer to what the extension reads as "game data" or "responses".
+
 ### Data compatibility
 
 - IndexedDB schema goes from v15 to v17: one new table for docking and remodel material use, one for sortie costs. Existing data is untouched and nothing is backfilled.

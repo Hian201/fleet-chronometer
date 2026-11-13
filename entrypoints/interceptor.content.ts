@@ -39,7 +39,7 @@ export default defineContentScript({
         };
         const channel = connectMainChannel(
             endpoint,
-            (dropped) => console.warn('[Fleet Chronometer] 擷取通道尚未建立，已丟棄最舊的封包', dropped),
+            (dropped) => console.warn('[Fleet Chronometer] 擷取通道尚未建立，已丟棄最舊的回應', dropped),
         );
 
         // 擷取健康度（utils/capture-health.ts）：以 resource timing 看遊戲實際完成的 kcsapi
@@ -77,10 +77,10 @@ export default defineContentScript({
                     const api = parseKcsapiResponse(text);
                     if (path.endsWith('result')) {
                         (window as any).__kcLastResult = api;
-                        console.log('[Fleet Chronometer] 結算封包 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
+                        console.log('[Fleet Chronometer] 結算回應 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
                     } else {
                         (window as any).__kcLastBattle = api;
-                        console.log('[Fleet Chronometer] 戰鬥封包 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
+                        console.log('[Fleet Chronometer] 戰鬥回應 (' + path + ') ↓ 右鍵此物件可 Copy object：', api);
                     }
                 }
                 // 傳原始文字而非解析後的巢狀物件：structured clone 只需處理字串，不會在遊戲
@@ -134,7 +134,7 @@ export default defineContentScript({
             {
                 // 所有 path 一律套用輸入後的安靜期，無須猜測特定端點的資料形狀。
                 nextEligibleDelayMs: () => Math.max(0, INPUT_QUIET_MS - (performance.now() - lastUserInputAt)),
-                onError: (path, error) => console.warn('[Fleet Chronometer] 延後讀取封包失敗，略過此筆', path, error),
+                onError: (path, error) => console.warn('[Fleet Chronometer] 延後讀取回應失敗，略過此筆', path, error),
                 now: wallNow,
                 immediateMaxChars: IMMEDIATE_MAX_CHARS,
             },
