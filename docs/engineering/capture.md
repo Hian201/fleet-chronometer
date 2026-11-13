@@ -159,7 +159,7 @@ kcsapi 請求，與 axios 觀察器收到的 path 逐筆配對；過了 5 秒寬
 筆數是為了容忍個別端點本來就不經 axios；寬限期吸收兩邊先後不定的時序。沒看到任何 kcsapi
 通訊（例如停在標題畫面）時不回報。狀態經私有通道 → bridge → `PORT_GAME_FRAME` 上報
 background（只存記憶體；SW 回收後 bridge 重連時重送最新一筆，background 啟動 2 秒後再
-廣播一次校正），面板以 `#notice.err` 顯示，優先序低於載入中、積壓與 fatal。
+廣播一次校正），面板以 `#notice.err` 顯示，優先序低於載入中、積壓與 fatal。失效後的擷取備案比較見 [`../capture-contingency.md`](../capture-contingency.md)。
 
 **手動擷取（僅開發建置）**：遊戲分頁 DevTools Console 對 `[Fleet Chronometer] 戰鬥/結算封包` 物件右鍵
 Copy object，或切 frame 後 `copy(__kcLastBattle)`。正式建置不印封包，一律用 Network 篩選。

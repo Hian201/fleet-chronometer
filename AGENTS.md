@@ -10,6 +10,7 @@
 - 介面、圖示、面板尺寸：[`docs/design-guidelines.md`](docs/design-guidelines.md)。
 - 譯名與台灣華語：[`docs/translation-guidelines.md`](docs/translation-guidelines.md)。
 - GitHub／GitLab 等程式碼託管平台的操作界線：[`docs/code-hosting-safety.md`](docs/code-hosting-safety.md)。動 git 遠端、release、`gh`／`glab` 前必讀。
+- 遊戲不再經 `window.axios` 送請求時的擷取備案（各工具做法、XHR 掛鉤衝突、DevTools／偵錯 API／Firefox 比較）：[`docs/capture-contingency.md`](docs/capture-contingency.md)。動擷取方式或硬約束 1 前必讀。
 - 尚未實作的功能計畫、排序理由與跨項目原則：[`docs/completion-plan.md`](docs/completion-plan.md)。規劃新功能或實作計畫內項目前先讀對應小節；做完並經開發者驗證的項目，現行事實寫進 `docs/engineering/`，並在該檔第 8 節「已完成項目」登記完成日期與 commit，再從總覽表與第 4 節刪掉該項。
 - `docs/archive/`：封存的原始設計，只在調查原始設計意圖時查閱，平常不讀、不據以實作。
 
