@@ -1,5 +1,5 @@
-// 隱私權政策頁：建置時把 PRIVACY.md 轉成 /privacy/，商店與介紹頁都連到這裡，
-// 不依賴任何程式碼託管平台。只支援 PRIVACY.md 用到的 Markdown 子集
+// 隱私權政策頁：建置時把 PRIVACY.md 轉成 /privacy/，商店與介紹頁都連到這裡。
+// 更新紀錄頁（site/changelog.ts）共用 markdownToHtml。只支援這兩類檔案用到的 Markdown 子集
 // （標題、段落、清單含縮排續行、表格、分隔線、粗體、行內程式碼、連結），
 // 遇到不支援的語法時建置失敗，避免政策內容被默默吃掉。
 import { readFileSync } from 'node:fs';
@@ -43,7 +43,7 @@ export function markdownToHtml(md: string): string {
             for (; i < lines.length && lines[i].startsWith('|'); i++) {
                 rows.push(lines[i].trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim()));
             }
-            if (rows.length < 2 || !rows[1].every(cell => /^:?-+:?$/.test(cell))) throw new Error('PRIVACY.md 表格缺少分隔列');
+            if (rows.length < 2 || !rows[1].every(cell => /^:?-+:?$/.test(cell))) throw new Error('Markdown 表格缺少分隔列');
             const [head, , ...body] = rows;
             html.push('<div class="doc-table"><table><thead><tr>' + head.map(c => `<th>${inline(c)}</th>`).join('')
                 + '</tr></thead><tbody>' + body.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('')
@@ -58,7 +58,7 @@ export function markdownToHtml(md: string): string {
             }
             html.push('<ul>' + items.map(it => `<li>${inline(joinLines(it))}</li>`).join('') + '</ul>');
         } else if (/^(\d+\.|>|```)/.test(line)) {
-            throw new Error(`PRIVACY.md 用了頁面轉換不支援的語法：${line}`);
+            throw new Error(`Markdown 用了頁面轉換不支援的語法：${line}`);
         } else {
             const para: string[] = [];
             for (; i < lines.length && lines[i].trim() && !/^(#|\||[-*]\s|---)/.test(lines[i]); i++) para.push(lines[i]);

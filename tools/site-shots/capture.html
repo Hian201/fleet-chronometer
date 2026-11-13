@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- 截圖用的承載頁：載入 demo 面板、送出指定步數，完成後把 title 設成 ready 讓 shoot.mjs 開拍。 -->
+<style>html, body { margin: 0; background: #10151d } iframe { display: block; width: 370px; height: 850px; border: 0 }</style>
+<iframe id="f"></iframe>
+<script>
+const q = new URLSearchParams(location.search);
+const want = +(q.get('steps') || 0);
+const f = document.getElementById('f');
+let done = 0;
+window.addEventListener('message', e => {
+  const m = e.data;
+  if (m?.type !== 'demo:ready' && m?.type !== 'demo:stepped') return;
+  if (m.type === 'demo:stepped') done = m.index;
+  if (done < want) f.contentWindow.postMessage({ type: 'demo:step' }, location.origin);
+  else document.title = 'ready';
+});
+f.src = `/demo/panel.html?lang=${q.get('lang') || 'zh-TW'}&theme=${q.get('theme') || 'dark'}`;
+</script>

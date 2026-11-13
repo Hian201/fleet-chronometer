@@ -9,8 +9,9 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGE_PATH, type SiteLang } from './content';
-import { renderPage } from './page';
+import { renderPage, type Release } from './page';
 import { renderPrivacyPage } from './privacy';
+import { changelogPath, renderChangelogPages } from './changelog';
 import type { DemoData } from './demo/scenario';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -82,16 +83,27 @@ for (const lang of ['zh-TW', 'en', 'ja']) {
     }
 }
 cpSync(resolve(root, 'site/style.css'), resolve(out, 'style.css'));
+// 功能截圖：Demo 面板的實拍（site/shots/README.md 說明怎麼重拍）。
+cpSync(resolve(root, 'site/shots'), resolve(out, 'shots'), { recursive: true, filter: src => !src.endsWith('.md') });
+// 首屏版本號取 CHANGELOG 最新一筆已發布版本；Unreleased 不算，避免顯示商店上還沒有的版本。
+const released = /^## \[(\d[\d.]*)\] - (\d{4}-\d{2}-\d{2})$/m.exec(readFileSync(resolve(root, 'CHANGELOG.md'), 'utf8'));
+const release: Release | null = released ? { version: released[1], date: released[2] } : null;
 for (const lang of Object.keys(PAGE_PATH) as SiteLang[]) {
     const dir = resolve(out, '.' + PAGE_PATH[lang]);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(resolve(dir, 'index.html'), renderPage(lang, ORIGIN));
+    writeFileSync(resolve(dir, 'index.html'), renderPage(lang, ORIGIN, release));
 }
 mkdirSync(resolve(out, 'privacy'), { recursive: true });
 writeFileSync(resolve(out, 'privacy/index.html'), renderPrivacyPage(resolve(root, 'PRIVACY.md'), ORIGIN));
+const changelogs = renderChangelogPages(root, ORIGIN);
+for (const lang of Object.keys(PAGE_PATH) as SiteLang[]) {
+    const dir = resolve(out, '.' + changelogPath(lang));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(resolve(dir, 'index.html'), changelogs[lang]);
+}
 writeFileSync(resolve(out, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /demo/\nSitemap: ${ORIGIN}/sitemap.xml\n`);
 writeFileSync(resolve(out, 'sitemap.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    + [...Object.values(PAGE_PATH), '/privacy/'].map(p => `  <url><loc>${ORIGIN}${p}</loc></url>`).join('\n') + '\n</urlset>\n');
+    + [...Object.values(PAGE_PATH), ...(Object.keys(PAGE_PATH) as SiteLang[]).map(changelogPath), '/privacy/'].map(p => `  <url><loc>${ORIGIN}${p}</loc></url>`).join('\n') + '\n</urlset>\n');
 // Cloudflare Pages 的回應標頭：demo 資料與圖示可長快取，頁面每次重新驗證。
 writeFileSync(resolve(out, '_headers'), [
     '/*',
