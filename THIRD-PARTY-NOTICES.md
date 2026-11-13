@@ -213,19 +213,6 @@
 
 ---
 
-## 5b-2. 演習對手清單的交戰狀態 (Practice opponent state)
-
-- **用途**：`utils/state.ts` 的 `api_get_member/practice` 分支與 `utils/idle-check.ts`——
-  閒置檢查的本輪演習剩餘場數。
-- **來源**：KC3Kai `src/pages/devtools/themes/natsuiro/natsuiro.js` 的 `PvPList`
-  —— https://github.com/KC3Kai/KC3Kai （`api_state` 0＝未交戰、1–6＝評價 E–S 的對照；
-  事實性欄位語意，本專案自行撰寫，未複製原始碼）
-- **授權**：MIT License
-- **版權**：Copyright (c) 2015-2026 dragonjet
-- **交叉驗證**：`samples/practice-list-after-battles.json` 與同輪兩筆結算（評價 S、C）對上 6 與 3。
-
----
-
 ## 6. 節點類型語意 (Map node event semantics)
 
 - **用途**：`utils/map-node-kind.ts` 把 `api_event_id`／`api_event_kind` 對應成節點類型
@@ -555,7 +542,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 - **用途**：`utils/state.ts` 解析 `api_get_member/practice` 的 `api_state`（0＝本輪未交戰、1–6＝E–S）與
   `api_create_kind`（0＝演習艦隊【第一群】、1＝【第二群】、2＝舊式【全體】），面板演習畫面
-  `entrypoints/panel/practice.ts` 據以顯示。
+  `entrypoints/panel/practice.ts` 據以顯示，閒置檢查（`utils/idle-check.ts`）據以計算本輪剩餘場數。
 - **性質**：遊戲 API 欄位的事實性語意；本專案自行以 TypeScript 撰寫，未複製任何原始碼或譯文。
 - **參照來源**：
   - KC3Kai `src/pages/devtools/themes/natsuiro/natsuiro.js`（`PvPList`）—— https://github.com/KC3Kai/KC3Kai
