@@ -106,10 +106,12 @@ limitation).
 
 ## Contributing
 
-This is primarily a personal project maintained by one person. Bug reports
-and suggestions via Issues are welcome. I may not have the bandwidth to
-review or merge external pull requests — feel free to fork if you want to
-run your own changes.
+This is a personal project maintained by one person. Bug reports and
+suggestions via Issues are welcome.
+
+I may not have time to handle pull requests: they may go unanswered for a
+long time or never be merged. If you want to change something, feel free to
+fork the project and use your own version.
 
 ## License
 
