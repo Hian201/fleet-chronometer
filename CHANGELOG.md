@@ -24,6 +24,9 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 **Quest Navigator**
 - A recurring quest last seen completed in an earlier cycle is now labelled "observed last cycle" in a neutral colour instead of "observed complete".
 
+**Panel**
+- Opening the in-game quest screen now switches the panel to the Quests page. Returning to port from the quest screen switches it back to the Harbor page.
+
 ### Data compatibility
 
 - IndexedDB schema goes from v15 to v17: one new table for docking and remodel material use, one for sortie costs. Existing data is untouched and nothing is backfilled.

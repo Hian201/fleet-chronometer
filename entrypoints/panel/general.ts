@@ -555,6 +555,14 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         dockView = 'slots';
         render();
     }
+    /** 遊戲進入任務畫面時切到「任務」頁；離開任務畫面回到母港時切回「母港」頁。 */
+    function showQuestPage(on: boolean) {
+        if (on) showPage('quests');
+        else {
+            showDockSlots();
+            showPage('harbor');
+        }
+    }
     /** 切到母港「泊地」分組；沒有艦隊運作時不動並回傳 false。 */
     function showUpkeep(): boolean {
         if (!upkeepRows().length) return false;
@@ -564,5 +572,5 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         return true;
     }
     render();
-    return Object.assign(render, { showUpkeep, showDockSlots, showDock });
+    return Object.assign(render, { showUpkeep, showDockSlots, showDock, showQuestPage });
 }

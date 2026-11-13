@@ -31,6 +31,12 @@ describe('一般分頁', () => {
         expect(css).toMatch(/\.dock-row\{[^}]*grid-template-columns:16px minmax\(0,1fr\) 40px 38px 34px 54px/);
     });
 
+    it('進入任務畫面切到任務子頁，從任務畫面回港切回母港子頁', () => {
+        expect(panelMain).toMatch(/path === 'api_get_member\/questlist'\) \{\s*if \(autoSwitch\('general', 'quest'\)\) renderGeneral\.showQuestPage\(true\);/);
+        expect(panelMain).toMatch(/const fromQuest = currentContext === 'quest';\s*if \(autoSwitch\('general', 'port'\) && fromQuest\) renderGeneral\.showQuestPage\(false\);/);
+        expect(general).toMatch(/function showQuestPage\(on: boolean\) \{\s*if \(on\) showPage\('quests'\);/);
+    });
+
     it('八項資源只顯示圖示和數量，名稱保留給輔助說明', () => {
         expect(general).toContain("const materialKeys = ['fuel', 'ammo', 'steel', 'bauxite', 'torch', 'drum', 'devmat', 'screw']");
         expect(general).toContain('matIconHtml(key, title)');
