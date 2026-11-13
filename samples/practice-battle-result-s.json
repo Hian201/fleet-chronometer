@@ -1,0 +1,56 @@
+{
+  "api_result": 1,
+  "api_result_msg": "\u6210\u529f",
+  "api_data": {
+    "api_ship_id": [
+      911
+    ],
+    "api_win_rank": "S",
+    "api_get_exp": 60,
+    "api_member_lv": 120,
+    "api_member_exp": 29341064,
+    "api_get_base_exp": 1078,
+    "api_mvp": 2,
+    "api_get_ship_exp": [
+      -1,
+      1617,
+      2156,
+      1078,
+      1078,
+      1078,
+      1078
+    ],
+    "api_get_exp_lvup": [
+      [
+        258236,
+        265000
+      ],
+      [
+        87490,
+        90300
+      ],
+      [
+        290952,
+        296200
+      ],
+      [
+        228859,
+        236800
+      ],
+      [
+        162040,
+        168100
+      ],
+      [
+        250746,
+        255300
+      ]
+    ],
+    "api_enemy_info": {
+      "api_user_name": "",
+      "api_level": 120,
+      "api_rank": "\u5143\u5e25",
+      "api_deck_name": "\u7b2c1\u8266\u968a"
+    }
+  }
+}

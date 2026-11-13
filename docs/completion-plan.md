@@ -125,11 +125,13 @@ Haiku 5.5），是擬定者的判斷，不是量測結果。通則：
 **演習**
 - 剩餘次數＝`api_get_member/practice` 回應中 `api_list` 5 個對手裡 `api_state === 0` 的個數。
   `api_state` 語意依 KC3Kai `src/pages/devtools/themes/natsuiro/natsuiro.js`（`PvPList`）：
-  0 為未交戰，1–6 依序為評價 E、D、C、B、A、S。開發者提供的清單回應證實未交戰為 0；已交戰的
-  值目前只有 KC3Kai 一個來源，取得交戰後的清單回應時再交叉比對。
+  0 為未交戰，1–6 依序為評價 E、D、C、B、A、S。`samples/practice-list-after-battles.json`
+  與同輪兩場結算（評價 S、C）交叉比對，6 與 3 分別對上 S 與 C。
+- 打完當輪最後一場後玩家通常不會再開清單，所以清單之後觀測到的每個 `api_req_practice/battle`
+  （同一輪內）各扣一場；`api_req_practice/midnight_battle` 是同一場的夜戰接續，不另扣。下一次
+  清單回應到達時以清單為準。
 - 對手清單於 03:00、15:00 JST 換新。換新後尚未觀測到新清單時，剩餘次數不可考，不得當成 5 場。
 - `GameState` 目前不保存對手清單，要新增這份觀測；它只作提醒用的狀態，不進 derived tables。
-- 清單回應含其他提督的名稱、ID 與留言，存入 `samples/` 前把這些欄位換成空字串或假值。
 - 實作時在 `THIRD-PARTY-NOTICES.md` 的 KC3Kai 條目補登此欄位的參照。
 
 **做法**：純函式回傳各標籤的閒置標記（有無、數字、指向的艦隊或槽位），可用 samples 與 Vitest
@@ -267,7 +269,7 @@ Fable 5.2 中 effort，先給預覽。
 |---|---|
 | 夜戰 CI 率、對空 CI 預估 | 只增加資訊，不改變出擊當下的決策；公式（wikiwiki「夜戦」）已查證，日後要做不缺資料 |
 | 戰果估算 | 只對衝排名的玩家有用；公式（wikiwiki「称号・戦果」）已查證 |
-| 演習經驗預估 | 價值低；對手清單封包沒有樣本 |
+| 演習經驗預估 | 價值低 |
 | 緊急泊地修理 | 找不到可信的規則出處，也沒有樣本 |
 | 把資料送到外部統計站、雲端 LLM | 違反不上傳與權限精簡 |
 | 活動特效偵測 | 要由異常傷害反推，複雜且容易誤報 |
@@ -281,7 +283,7 @@ Fable 5.2 中 effort，先給預覽。
 |---|---|---|---|
 | `api_req_kaisou/remodeling` | KC3Kai `Kcsapi.js`、`RemodelDb.js` | 無（消耗屬推算） | 4.6 |
 | `api_req_mission/result` 的回航道具 | KC3Kai `Kcsapi.js`、ElectronicObserver `api_req_mission/result.cs` | 無 | 4.9 |
-| `api_get_member/practice` | KC3Kai `natsuiro.js`（`PvPList` 讀 `api_state`）；開發者提供的清單回應（全數未交戰） | 去識別後存入 `samples/`；已交戰的清單回應供交叉比對 | 4.4 的演習檢查 |
+| `api_get_member/practice` | KC3Kai `natsuiro.js`（`PvPList` 讀 `api_state`）；`samples/practice-list-after-battles.json` 與兩筆結算交叉比對 | 無 | 4.4 的演習檢查 |
 
 **待決事項**
 - `db.factory` 是否補記改修的二番艦。（4.7）

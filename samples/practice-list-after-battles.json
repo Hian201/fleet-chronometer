@@ -1,0 +1,76 @@
+{
+  "api_result": 1,
+  "api_result_msg": "\u6210\u529f",
+  "api_data": {
+    "api_create_kind": 0,
+    "api_selected_kind": 0,
+    "api_entry_limit": 29034,
+    "api_list": [
+      {
+        "api_enemy_id": 1,
+        "api_enemy_name": "",
+        "api_enemy_name_id": "",
+        "api_enemy_level": 116,
+        "api_enemy_rank": "\u5143\u5e25",
+        "api_enemy_flag": 3,
+        "api_enemy_flag_ship": 369,
+        "api_enemy_comment": "",
+        "api_enemy_comment_id": "",
+        "api_state": 0,
+        "api_medals": 0
+      },
+      {
+        "api_enemy_id": 2,
+        "api_enemy_name": "",
+        "api_enemy_name_id": "",
+        "api_enemy_level": 120,
+        "api_enemy_rank": "\u5927\u5c06",
+        "api_enemy_flag": 3,
+        "api_enemy_flag_ship": 538,
+        "api_enemy_comment": "",
+        "api_enemy_comment_id": "",
+        "api_state": 3,
+        "api_medals": 0
+      },
+      {
+        "api_enemy_id": 3,
+        "api_enemy_name": "",
+        "api_enemy_name_id": "",
+        "api_enemy_level": 120,
+        "api_enemy_rank": "\u5143\u5e25",
+        "api_enemy_flag": 3,
+        "api_enemy_flag_ship": 187,
+        "api_enemy_comment": "",
+        "api_enemy_comment_id": "",
+        "api_state": 0,
+        "api_medals": 18
+      },
+      {
+        "api_enemy_id": 4,
+        "api_enemy_name": "",
+        "api_enemy_name_id": "",
+        "api_enemy_level": 120,
+        "api_enemy_rank": "\u5143\u5e25",
+        "api_enemy_flag": 3,
+        "api_enemy_flag_ship": 723,
+        "api_enemy_comment": "",
+        "api_enemy_comment_id": "",
+        "api_state": 0,
+        "api_medals": 0
+      },
+      {
+        "api_enemy_id": 5,
+        "api_enemy_name": "",
+        "api_enemy_name_id": "",
+        "api_enemy_level": 120,
+        "api_enemy_rank": "\u5143\u5e25",
+        "api_enemy_flag": 3,
+        "api_enemy_flag_ship": 911,
+        "api_enemy_comment": "",
+        "api_enemy_comment_id": "",
+        "api_state": 6,
+        "api_medals": 1
+      }
+    ]
+  }
+}

@@ -858,3 +858,35 @@ describe('応急修理女神：燃彈也全快', () => {
         expect(saved.fuel).toBe(12);
     });
 });
+
+// 演習夜戰接續的端點是 `api_req_practice/midnight_battle`，不以 `api_req_practice/battle`
+// 開頭；漏接時面板的血量與評價預測會停在晝戰結束。
+describe('演習夜戰接續', () => {
+    it('晝戰後的夜戰傷害會疊加到戰況與編成', () => {
+        const state = stateWithFleets([[{ mst: MUTSUKI }, { mst: MUTSUKI }]]);
+        state.applyEvent('api_req_practice/battle', battlePacket({
+            fHp: [40, 40], fMax: [40, 40], hits: [{ target: 1, dmg: 10 }],
+        }), { api_deck_id: '1' });
+        expect(state.battleInfo!.resultFleets!.playerMain[1]!.hp).toBe(30);
+        state.applyEvent('api_req_practice/midnight_battle', {
+            api_f_nowhps: [40, 30], api_f_maxhps: [40, 40],
+            api_e_nowhps: [90], api_e_maxhps: [90], api_ship_ke: [1501],
+            api_hougeki: {
+                api_at_eflag: [1], api_at_list: [0], api_df_list: [[1]], api_damage: [[5]],
+            },
+        });
+        expect(state.battleInfo!.resultFleets!.playerMain[1]!.hp).toBe(25);
+        expect(state.battleInfo!.midnightFlag).toBe(true);
+        expect(state.fleets()[0].ships[1].hp).toBe(25);
+    });
+
+    it('真實夜戰封包：旗艦連擊 74＋0 擊沉殘 49 的 3 號敵艦', () => {
+        const sample = JSON.parse(readFileSync(
+            new URL('../samples/practice-midnight-battle.json', import.meta.url), 'utf8'));
+        const state = stateWithFleets([Array.from({ length: 6 }, () => ({ mst: MUTSUKI }))]);
+        state.applyEvent('api_req_practice/midnight_battle', sample.api_data);
+        const enemy = state.battleInfo!.resultFleets!.enemyMain;
+        expect(enemy.map(ship => ship!.hp)).toEqual([0, 0, 0, 0, 0, 0]);
+        expect(state.battleInfo!.midnightFlag).toBe(true);
+    });
+});

@@ -1471,7 +1471,8 @@ export class GameState {
                 || path.startsWith('api_req_combined_battle/')
                 || path.startsWith('api_req_battle_midnight/')
                 || path.endsWith('/night_to_day')
-                || path.startsWith('api_req_practice/battle'))
+                || path.startsWith('api_req_practice/battle')
+                || path === 'api_req_practice/midnight_battle')   // 演習夜戰接續，名稱不以 battle 開頭
             && !path.endsWith('result')   // 排除 battleresult：startsWith('...battle') 會誤吞它
             && api?.api_f_nowhps          // 只處理帶有戰鬥血量的封包（現行格式），避免 goback_port 等把 battleInfo 洗空
         ) {
