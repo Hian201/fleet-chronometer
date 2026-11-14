@@ -1,7 +1,7 @@
 // 面板「出擊」分頁演習畫面的離線預覽（開發用，不進擴充 bundle）。
 // 套正式面板 CSS 與 entrypoints/panel/practice.ts 的同一組字串函式，量測 270px 資訊區是否捲動、各列是否溢出。
 // 對手資料取自 samples/practice-list-after-battles.json 的形狀（api_state 0／3／0／0／6、
-// 勳章 0／0／18／0／1、旗艦 369／538／187／723／911）；提督名與留言為假資料。
+// 勳章 0／0／18／0／1、旗艦 369／538／187／156／911）；提督名與留言為假資料。
 //
 //   npx vite-node --config vitest.config.ts tools/preview/panel-practice.ts
 //   → .preview/panel-practice{,-light}.html
@@ -24,12 +24,12 @@ if (!css) throw new Error('無法取得正式面板樣式');
 type Lang = 'zh-TW' | 'en' | 'ja';
 const LANGS: Lang[] = ['zh-TW', 'en', 'ja'];
 
-// 旗艦艦名與艦種（start2-master：369 山風改 DD、538 冬月改 DD、187 明石改 AR、723 Ranger改 CV、911 大和改二 BB）。
+// 旗艦艦名與艦種（start2-master：369 山風改 DD、538 冬月改 DD、187 明石改 AR、156 大鳳改 CVB、911 大和改二 BB）。
 const ships: Record<number, { stype: Record<Lang, string>; name: Record<Lang, string> }> = {
     369: { stype: { 'zh-TW': '驅逐', en: 'DD', ja: '駆逐' }, name: { 'zh-TW': '山風改', en: 'Yamakaze Kai', ja: '山風改' } },
     538: { stype: { 'zh-TW': '驅逐', en: 'DD', ja: '駆逐' }, name: { 'zh-TW': '冬月改', en: 'Fuyutsuki Kai', ja: '冬月改' } },
     187: { stype: { 'zh-TW': '工作', en: 'AR', ja: '工作' }, name: { 'zh-TW': '明石改', en: 'Akashi Kai', ja: '明石改' } },
-    723: { stype: { 'zh-TW': '正航', en: 'CV', ja: '正空' }, name: { 'zh-TW': 'Ranger改', en: 'Ranger Kai', ja: 'Ranger改' } },
+    156: { stype: { 'zh-TW': '裝甲空母', en: 'CVB', ja: '装甲空母' }, name: { 'zh-TW': '大鳳改', en: 'Taihou Kai', ja: '大鳳改' } },
     911: { stype: { 'zh-TW': '戰艦', en: 'BB', ja: '戦艦' }, name: { 'zh-TW': '大和改二', en: 'Yamato Kai Ni', ja: '大和改二' } },
 };
 type Opp = { name: string; lv: number; rank: string; flag: number; comment: string; result: string | null; medals: number };
@@ -37,7 +37,7 @@ const opponents: Opp[] = [
     { name: '鎮守府第一艦隊司令長官', lv: 116, rank: '元帥', flag: 369, comment: '每天都在等新艦實裝', result: null, medals: 0 },
     { name: 'Commander_Example', lv: 120, rank: '大将', flag: 538, comment: 'Anyone seen Unryuu around here?', result: 'C', medals: 0 },
     { name: 'NaoV', lv: 120, rank: '元帥', flag: 187, comment: '三隻挖完了，剩下榧', result: null, medals: 18 },
-    { name: '黒乃須', lv: 120, rank: '元帥', flag: 723, comment: '任務打不完', result: null, medals: 0 },
+    { name: '黒乃須', lv: 120, rank: '元帥', flag: 156, comment: '任務打不完', result: null, medals: 0 },
     { name: '蒼威', lv: 120, rank: '元帥', flag: 911, comment: '', result: 'S', medals: 1 },
 ];
 const rowsFor = (lang: Lang, list: Opp[], current: number | null = null): PracticeRow[] => list.map((o, i) => ({

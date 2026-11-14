@@ -3704,9 +3704,10 @@
         .pr-lv { flex: none; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
         .pr-flag { flex: none; font-size: 10px; }
         .pr-comment { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 10px; color: var(--dim); }
-        /* 旗艦艦種：與編成艦種徽章同一套黃銅線框（類別層，§7.3）。 */
+        /* 旗艦艦種：與編成艦種徽章同一套黃銅線框（類別層，§7.3）。兩字艦種維持 28px 對齊；
+           「裝甲空母」「潛水母艦」等三、四字艦種靠 min-width 撐寬，不得溢出蓋到旗艦名。 */
         .pr-stype {
-            flex: none; display: inline-block; width: 28px; text-align: center;
+            flex: none; display: inline-block; min-width: 28px; box-sizing: border-box; padding: 0 3px; text-align: center;
             font-size: 9px; font-weight: 700; line-height: 13px; letter-spacing: var(--track-tag);
             color: var(--brass);
             background: color-mix(in srgb, var(--brass) 14%, transparent);
