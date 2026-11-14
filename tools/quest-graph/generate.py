@@ -221,9 +221,13 @@ def same_name(a: str, b: str) -> bool:
     return a == b or a.startswith(b) or b.startswith(a) or difflib.SequenceMatcher(None, a, b).ratio() >= 0.75
 
 
-def resolve(wiki_id: str, name: str, by_wiki, names) -> int | None:
+def resolve(wiki_id: str, name: str, by_wiki, names, by_name: bool = False) -> int | None:
     """wiki 代號可能因改號或目錄別名錯誤而對到別的任務；有名稱時必須名稱相符，否則不猜。"""
     candidates = by_wiki.get(wiki_id, [])
+    if by_name and not candidates and norm(name):
+        # 期間限定表的代號（「2609B2」）目錄沒有；只在任務名與目錄唯一完全相同時採用
+        same = [no for no, title in names.items() if norm(title) == norm(name)]
+        return same[0] if len(same) == 1 else None
     if norm(name):
         named = [no for no, n in candidates if not n or same_name(n, name)]
         return named[0] if len(named) == 1 else None
@@ -277,7 +281,7 @@ def parse_condition(text: str, by_wiki, names) -> tuple[list[list[list[int]]], i
             # 引用後到下一個記號之前的文字是任務名稱
             stop = matches[i + 1].start() if i + 1 < len(matches) else len(head)
             name = head[m.end():stop]
-            no = resolve(wiki_id, name, by_wiki, names)
+            no = resolve(wiki_id, name, by_wiki, names, by_name=True)
             if no is None:
                 flags |= COND_UNRESOLVED
                 unresolved.append(wiki_id)
@@ -399,7 +403,7 @@ def parse_wiki(page: str, by_wiki, names) -> tuple[dict[int, tuple], dict[int, s
             if row[cond_col] == row[name_col + 1]:
                 continue
             seen_rows += 1
-            no = resolve(wiki_id, row[name_col], by_wiki, names)
+            no = resolve(wiki_id, row[name_col], by_wiki, names, by_name=True)
             if no is None:
                 unmapped_rows.append(wiki_id)
                 # 期間限定表的代號（「2609B1」）目錄沒有；年任換期月只在任務名與目錄唯一完全相同時採用

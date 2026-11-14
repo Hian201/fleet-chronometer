@@ -46,16 +46,17 @@ describe('任務導覽資料目錄', () => {
         expect(kitakamiSortie?.wikiIds).toContain('B217');
         expect(kitakamiSortie?.period).toBe('once');
         expect(arsenal?.wikiIds).toContain('F143');
-        // 舰娘百科另列 Cs8 秋季大演習（313），目前只有它一個來源
+        // 舰娘百科另列 Cs8 秋季大演習（313），wikiwiki（期間限定表 2609B1）只列北上改三任務，313 待查
         expect(questRelation(1052).prerequisites).toEqual([313, 1050]);
-        expect(questRelation(1052).edges.find(edge => edge.no === 313)?.evidence).toBe('single-source');
+        expect(questRelation(1052).edges.find(edge => edge.no === 313)?.evidence).toBe('checking');
         expect(questRelation(1170).prerequisites).toEqual([1050]);
         expect(questRelation(1052).operator).toBe('unknown');
-        // 目錄 wiki 列 Bd8 與 A44，KC3 開放邊只有 Bd8：KC3 少列不算矛盾。
-        // wikiwiki 總表尚未收錄 By18，沒有「及び」句型可依，組合維持不可考。
-        expect(questRelation(1051).operator).toBe('unknown');
+        // wikiwiki 期間限定表以 2609B2 收錄（目錄代號 By18，靠唯一同名對應）：「(Bd8) 及び (A44) 達成後」。
+        // KC3 開放邊只有 Bd8：少列不算矛盾，A44 維持單一來源。
+        expect(questRelation(1051).operator).toBe('all');
         expect(questRelation(1051).confidence).not.toBe('conflict');
         expect(questRelation(1051).prerequisites).toEqual([147, 230]);
+        expect(QUEST_CATALOG_BY_NO.get(1051)?.unresolvedPrerequisites).toEqual([]);
         expect(QUEST_CATALOG_BY_NO.get(313)?.wikiIds).toContain('Cs8');
         expect(QUEST_CATALOG_BY_NO.get(384)?.wikiIds).toContain('2609C1');
         expect(QUEST_CATALOG_BY_NO.get(385)?.period).toBe('weekly');
