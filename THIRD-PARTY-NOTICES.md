@@ -506,6 +506,20 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 近代化改修餘量（耐久／對潛上限與結婚耐久）
+
+- **規則**：耐久改修上限 +2、對潛改修上限 +9（僅限結婚前對潛上限大於 0 的艦）、結婚後基礎耐久依初期耐久
+  增加 4–9 並受 `api_taik[1]` 限制。運的改修總量取 master `api_luck` 的差。依下列兩個專案交叉比對，
+  並以 `samples/slot_to_port.json` 427 艘的 `api_maxhp`／`api_lucky` 驗算：
+  - ElectronicObserver `ElectronicObserver/Data/ShipDataMaster.cs`、`ElectronicObserver/Data/ShipData.cs` —
+    https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
+  - KC3Kai `src/library/objects/Ship.js` — https://github.com/KC3Kai/KC3Kai ，MIT License，
+    Copyright (c) 2015-2026 dragonjet
+- **用途**：`utils/state.ts` 的 `modernHpCap()` 與 `modernCap`、`utils/ship-roster.ts` 的 `modernRemain` 自行實作；
+  只採用規則常數與公式，未複製第三方程式碼。
+
+---
+
 ## 出擊帳單估算（補給、修理、支援艦隊）
 
 - **遊戲機制**：wikiwiki.jp/kancolle「補給」（艦載機每架 5 鋁土、結婚艦補給 85 折）與「支援艦隊」

@@ -223,16 +223,37 @@ export interface OwnedShipView {
     bareStats: ShipStats;
     // 近代化改修累計（api_kyouka）。實測 7 格：[火力,雷装,対空,装甲,運,耐久,対潜]。
     // 前四格對得上 master 的 (max-初期)，故「四項全滿」是精確判定；後三格（運/耐久/対潜）
-    // 只有女神・改修材等特殊手段能加，**沒有可比對的上限**，故只判斷「有沒有加過」。
+    // 只有女神・改修材等特殊手段能加，各格上限見 modernCap。
     kyouka: number[];
     // 前四項的上限（master 推得）。master 未載入時為空陣列 → UI 不可判定「已滿」。
     kyoukaMax: number[];
+    // 改修上限，與 api_kyouka 同序 7 格：[火力,雷装,対空,装甲,運,耐久,対潜]；0＝該項不可改修。
+    // master 未載入時為空陣列＝不可考。前五格由 master 推得（運見 master.luckMod）；
+    // 耐久 +2、對潛 +9 是遊戲規則常數，ElectronicObserver Data/ShipDataMaster.cs
+    // （HPModernizableLimit／ASWModernizableLimit）與 KC3Kai src/library/objects/Ship.js
+    // （getMaxHpModernize／getMaxAswModernize）一致。耐久另受 api_taik[1] 限制，結婚後的
+    // 基礎耐久依兩者共同的增量表；427 艘真樣本的 api_maxhp 全部符合此公式。
+    modernCap: number[];
     // 已達改造終點（master api_aftershipid === '0'）。master 未載入時為 null＝不可考。
     remodelDone: boolean | null;
     // 補強增設孔已開（api_slot_ex !== 0；0＝無孔、-1＝有孔未裝、>0＝已裝）。
     exSlotOpen: boolean;
     // 可放進補強增設的「特殊」裝備類別 id（逐艦例外，見 GameState.exSlotSpecialTypes）。
     exSlotSpecials: number[];
+}
+
+/** 耐久／對潛近代化改修的固定上限（來源見 OwnedShipView.modernCap）。 */
+export const HP_MODERN_LIMIT = 2;
+export const ASW_MODERN_LIMIT = 9;
+
+/**
+ * 耐久可改修量：結婚（Lv100 以上）後基礎耐久依初期耐久加 4–9，再與 +2 一起受 api_taik[1] 限制。
+ * 增量表同 ElectronicObserver Data/ShipDataMaster.cs HPMaxMarried。
+ */
+export function modernHpCap(taik0: number, taikMax: number, married: boolean): number {
+    const inc = taik0 < 30 ? 4 : taik0 < 40 ? 5 : taik0 < 50 ? 6 : taik0 < 70 ? 7 : taik0 < 90 ? 8 : 9;
+    const base = married ? Math.min(taik0 + inc, taikMax) : taik0;
+    return Math.max(Math.min(taikMax - base, HP_MODERN_LIMIT), 0);
 }
 
 /** 八項顯示素質。命名用英文以免與 GameState 的 raw 欄位混淆。 */
@@ -776,6 +797,8 @@ export class GameState {
         afterAmmo: number; afterSteel: number;
         // 基礎耐久 api_taik[0]。配裝參考的戰艦 A/B 群分界用它，不能用實例 maxhp（結婚會加）。
         taik0: number;
+        // 運的改修總量（api_luck 最大值−初期值）與耐久上限 api_taik[1]，供改修餘量用（見 modernCap）。
+        luckMod: number; taikMax: number;
     }>();
     // 改造形態 → 基礎形態的反解來源（皆由 api_start2/getData 建立，見 baseShipId()）：
     //   upgradeOriginal：api_mst_shipupgrade 的 api_id → api_original_ship_id，**主要解法**
@@ -1589,6 +1612,12 @@ export class GameState {
                 // 與遊戲畫面次序一致）。0／缺視為不可考。
                 sortId: Number(s.api_sort_id) > 0 ? Number(s.api_sort_id) : undefined,
                 taik0: Number(s.api_taik?.[0]) || 0,
+                // samples/slot_to_port.json 427 艘（含結婚艦）皆符合
+                // api_lucky[0]＝api_luck[0]＋api_kyouka[4]、api_lucky[1]＝api_luck[1]，
+                // 故運的改修總量＝api_luck[1]−api_luck[0]（同 ElectronicObserver
+                // ElectronicObserver/Data/ShipData.cs LuckRemain）。
+                luckMod: (Number(s.api_luck?.[1]) || 0) - (Number(s.api_luck?.[0]) || 0),
+                taikMax: Number(s.api_taik?.[1]) || 0,
             });
             // api_aftershipid 是**字串**（真封包實證，例 睦月 '254'），'0' 代表無後續改造。
             // 當 number 比對會靜默失效，務必先 Number() 解析。
@@ -4695,6 +4724,13 @@ export class GameState {
                 bareStats,
                 kyouka: Array.isArray(s.api_kyouka) ? s.api_kyouka.map(Number) : [],
                 kyoukaMax: mst?.kyoukaMax ?? [],
+                modernCap: mst == null || mst.kyoukaMax.length < 4 ? [] : [
+                    ...mst.kyoukaMax,
+                    Math.max(mst.luckMod, 0),
+                    modernHpCap(mst.taik0, mst.taikMax, (s.api_lv ?? 0) >= 100),
+                    // api_taisen[1]＝結婚前的對潛上限；0 的艦（多數空母、戰艦）不能改修對潛。
+                    taisenMax > 0 ? ASW_MODERN_LIMIT : 0,
+                ],
                 remodelDone: mst == null ? null : mst.afterShipId === 0,
                 exSlotOpen: Number(s.api_slot_ex) !== 0,
                 exSlotSpecials: [...this.exSlotSpecialTypes(s.api_ship_id, s.api_lv ?? 0)],

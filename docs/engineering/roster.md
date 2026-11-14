@@ -92,8 +92,18 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 （`[1]`）、`kyouka`／`kyoukaMax`、`remodelDone`、`exSlotOpen`、`exSlotSpecials`、`leng`、
 `ctype`、`exp`、補給量。**近代化改修上限＝master 的 (最大−初期)**：叢雲改二 420 逐項核對
 （houg[14,57] 差 43＝kyouka[0]、raig 差 57、tyku 差 47、souk 差 37，四項全中），故「改修
-已滿」是精確判定而非近似。`api_kyouka` 後三格（運／耐久／對潛）**沒有可比對的上限**，
-只能判斷「有沒有加過」＝特殊改修。
+已滿」是精確判定而非近似。
+
+**改修餘量**（素質顯示模式「改修餘量」，`modernCap`／`modernRemain`）：七格與 `api_kyouka` 同序，
+餘量＝上限−已加量，0 顯示 ✓、上限為 0 顯示「—」（不可改修）、master 未載入顯示「?」；排序時
+不可改修與不可考排最後。迴避、索敵、夜戰不可改修，該模式下淡化保留原值。
+- 運：上限＝master `api_luck[1]−api_luck[0]`。`samples/slot_to_port.json` 427 艘（含結婚艦）皆符合
+  `api_lucky[0]＝api_luck[0]＋api_kyouka[4]`、`api_lucky[1]＝api_luck[1]`。
+- 耐久：+2 封頂，再受 `api_taik[1]` 限制；結婚後的基礎耐久依初期耐久加 4–9（`modernHpCap()`）。
+  427 艘的 `api_maxhp` 全部符合此公式。
+- 對潛：`api_taisen[1]`（結婚前上限）大於 0 才可改修，上限 +9。
+- +2／+9 與結婚增量表依 ElectronicObserver `Data/ShipDataMaster.cs` 與 KC3Kai
+  `src/library/objects/Ship.js`，兩者一致。
 
 **補強增設「特殊」類別（`GameState.exSlotSpecialTypes`）**：`api_mst_equip_exslot_ship` 的
 **key 是裝備 master id 而非類別 id**（已實證：413＝「精鋭水雷戦隊 司令部」、45＝「三式爆雷

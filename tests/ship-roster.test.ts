@@ -3,7 +3,7 @@
 // 不手捏 master——AGENTS.md 硬約束 8「未驗證欄位不得猜」。
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { GameState, type OwnedShipView } from '../utils/state';
+import { GameState, modernHpCap, type OwnedShipView } from '../utils/state';
 import {
     GEAR_TYPE, MARRIED_LV, SPARKLE_COND, annotateRoster, emptyRosterFilter,
     filterRoster, isOpeningAsw, isOpeningTorpedo, paginate, sortRoster,
@@ -95,6 +95,35 @@ describe('素質與改修欄位（以真實 start2 建立）', () => {
     it('特殊改修看的是運／耐久／對潛（api_kyouka[4..6]），與四項是否全滿無關', () => {
         const rows = roster(build([{ mst: MURAKUMO_K2, kyouka: [0, 0, 0, 0, 3, 0, 0] }]));
         expect(rows[0]).toMatchObject({ modernFull: false, modernSpecial: true });
+    });
+
+    it('改修餘量：七格上限與 api_kyouka 同序，對潛上限 0 的艦標為不可改修', () => {
+        const mst = master.api_mst_ship.find((m: any) => m.api_id === MURAKUMO_K2);
+        const [asw, noAsw] = build([
+            { mst: MURAKUMO_K2, lv: 99, taisen: 60, kyouka: [43, 50, 10, 37, 5, 1, 9] },
+            { mst: MURAKUMO_K2, lv: 99, taisen: 0, kyouka: [0, 0, 0, 0, 0, 0, 0] },
+        ]);
+        const luckMod = mst.api_luck[1] - mst.api_luck[0];
+        expect(asw.modernCap).toEqual([43, 57, 47, 37, luckMod, 2, 9]);
+        const rows = roster([asw, noAsw]);
+        expect(rows[0].modernRemain).toEqual([0, 7, 37, 0, luckMod - 5, 1, 0]);
+        expect(rows[1].modernRemain[6]).toBe('na');
+        // 依餘量排序時，不可改修排最後（不論升冪降冪）。
+        expect(sortRoster(rows, 'asw', 'asc', true).map(r => r.id)).toEqual([rows[0].id, rows[1].id]);
+        expect(sortRoster(rows, 'aa', 'desc', true)[0].id).toBe(rows[1].id);
+    });
+
+    it('耐久可改修量：+2 封頂，並受 api_taik[1] 與結婚後基礎耐久限制', () => {
+        expect(modernHpCap(31, 49, false)).toBe(2);
+        expect(modernHpCap(52, 53, false)).toBe(1);
+        expect(modernHpCap(52, 53, true)).toBe(0);
+        // 加賀改二 taik[84,98]：結婚 +8 → 92，仍可再 +2。
+        expect(modernHpCap(84, 98, true)).toBe(2);
+    });
+
+    it('master 未載入時改修餘量為空陣列（不可考）', () => {
+        const [ship] = build([{ mst: MURAKUMO_K2 }]);
+        expect(roster([{ ...ship, modernCap: [] }])[0].modernRemain).toEqual([]);
     });
 
     it('改造終點以 api_aftershipid 判定，非以等級', () => {

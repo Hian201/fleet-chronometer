@@ -24,8 +24,8 @@ import { debutDateOf } from '../../../utils/ship-debut-data';
 import { nationOptions, sallyOptions, stypeOptions } from '../../../utils/ship-filter';
 import { buildStypeLabels, stypeDisplayLabel } from '../../../utils/stype-label';
 import {
-    annotateRoster, emptyRosterFilter, filterRoster, paginate, sortRoster, PAGE_SIZES,
-    type PageSize, type RosterFilter, type RosterShip, type RosterSortKey, type SortDir,
+    annotateRoster, emptyRosterFilter, filterRoster, paginate, sortRoster, MODERN_INDEX, PAGE_SIZES,
+    type ModernStat, type PageSize, type RosterFilter, type RosterShip, type RosterSortKey, type SortDir,
 } from '../../../utils/ship-roster';
 import type { Nation } from '../../../utils/ship-nationality';
 import { copyWithFeedback, downloadText, esc, gearIconHtml, loadJsonPrefs, parsePageSize, saveJsonPrefs } from '../lib';
@@ -98,9 +98,18 @@ export type ColumnId =
     | 'firepower' | 'torpedo' | 'aa' | 'armor' | 'asw' | 'evasion' | 'los' | 'luck'
     | 'night' | 'released' | 'joined' | 'fleet' | 'sally' | 'gears';
 
+/**
+ * 素質顯示模式：shown＝遊戲畫面的含裝備值；bare＝裸值（扣掉裝備自身加成，估算）；
+ * remain＝改修餘量（可改修的七項改顯示距上限尚差多少，其餘素質淡化保留原值）。
+ */
+export type StatMode = 'shown' | 'bare' | 'remain';
+const STAT_MODES: StatMode[] = ['shown', 'bare', 'remain'];
+const MODE_LABEL: Record<StatMode, string> = {
+    shown: 'ov.rsModeShown', bare: 'ov.rsBare', remain: 'ov.rsModeRemain',
+};
+
 interface RenderCtx {
-    /** 素質顯示：true＝裸值（扣掉裝備自身加成，估算），false＝遊戲畫面的含裝備值。 */
-    bare: boolean;
+    mode: StatMode;
     /** 依 sallyArea 取顯示名（供出擊標籤欄）。 */
     tagLabel(sallyArea: number): string;
 }
@@ -124,7 +133,23 @@ interface ColumnDef {
 }
 
 const stat = (ship: ShipsRow, ctx: RenderCtx, key: keyof ShipsRow['stats']) =>
-    String((ctx.bare ? ship.bareStats : ship.stats)[key]);
+    String((ctx.mode === 'bare' ? ship.bareStats : ship.stats)[key]);
+
+const isModernStat = (key: string): key is ModernStat => key in MODERN_INDEX;
+
+/** 改修餘量格：數字＝尚差點數；✓＝已滿；—＝不可改修；?＝master 未載入、不可考。 */
+function remainCell(ship: ShipsRow, key: ModernStat): string {
+    const v = ship.modernRemain[MODERN_INDEX[key]];
+    if (v == null) return `<span class="dim" title="${esc(t('ov.shipsDateUnknown'))}">?</span>`;
+    if (v === 'na') return `<span class="rs-rem-na" title="${esc(t('ov.rsRemainNa'))}">—</span>`;
+    if (v === 0) return `<span class="rs-rem-max" title="${esc(t('ov.rsRemainMax'))}">✓</span>`;
+    return `<span class="rs-rem">${v}</span>`;
+}
+
+function remainText(ship: ShipsRow, key: ModernStat): string {
+    const v = ship.modernRemain[MODERN_INDEX[key]];
+    return typeof v === 'number' ? String(v) : '';
+}
 
 function hpClass(ship: ShipsRow): string {
     const ratio = ship.maxhp > 0 ? ship.hp / ship.maxhp : 1;
@@ -139,10 +164,12 @@ function condClass(cond: number): string {
     return '';
 }
 
+// 改修餘量模式下，不可改修的素質（迴避／索敵）淡化保留原值，避免整欄空白又讓人誤以為能改修。
 const numericStat = (id: ColumnId, labelKey: string, key: keyof ShipsRow['stats'], sort: RosterSortKey): ColumnDef => ({
     id, labelKey, sort, numeric: true, on: true,
-    cell: (s, c) => stat(s, c, key),
-    text: (s, c) => stat(s, c, key),
+    cell: (s, c) => (c.mode !== 'remain' ? stat(s, c, key)
+        : isModernStat(key) ? remainCell(s, key) : `<span class="dim">${stat(s, c, key)}</span>`),
+    text: (s, c) => (c.mode === 'remain' && isModernStat(key) ? remainText(s, key) : stat(s, c, key)),
 });
 
 /** 裝備格：一律畫滿該艦的真實槽數，空槽顯示「空裝」佔位；補強增設另成一格（有孔才畫）。 */
@@ -218,8 +245,9 @@ export const COLUMNS: ColumnDef[] = [
     },
     {
         id: 'hp', labelKey: 'ov.rsColHp', sort: 'hp', numeric: true, on: true,
-        cell: s => `<span class="ships-hp ${hpClass(s)}">${s.hp}/${s.maxhp}</span>`,
-        text: s => `${s.hp}/${s.maxhp}`,
+        cell: (s, c) => (c.mode === 'remain' ? remainCell(s, 'hp')
+            : `<span class="ships-hp ${hpClass(s)}">${s.hp}/${s.maxhp}</span>`),
+        text: (s, c) => (c.mode === 'remain' ? remainText(s, 'hp') : `${s.hp}/${s.maxhp}`),
     },
     numericStat('firepower', 'ov.rsColFire', 'firepower', 'firepower'),
     numericStat('torpedo', 'ov.rsColTorp', 'torpedo', 'torpedo'),
@@ -232,8 +260,9 @@ export const COLUMNS: ColumnDef[] = [
     {
         // 夜戰火力＝火力＋雷裝。跟著素質顯示模式走（裸值模式下兩項都是裸值）。
         id: 'night', labelKey: 'ov.rsColNight', sort: 'night', numeric: true, on: true, tipKey: 'ov.rsColNightTip',
-        cell: (s, c) => String(c.bare ? s.bareStats.firepower + s.bareStats.torpedo : s.night),
-        text: (s, c) => String(c.bare ? s.bareStats.firepower + s.bareStats.torpedo : s.night),
+        cell: (s, c) => (c.mode === 'remain' ? `<span class="dim">${s.night}</span>`
+            : String(c.mode === 'bare' ? s.bareStats.firepower + s.bareStats.torpedo : s.night)),
+        text: (s, c) => String(c.mode === 'bare' ? s.bareStats.firepower + s.bareStats.torpedo : s.night),
     },
     {
         id: 'released', labelKey: 'ov.rsColReleased', sort: 'released', on: true, tipKey: 'ov.rsColReleasedTip',
@@ -266,7 +295,7 @@ export interface TableView {
     cols: Set<ColumnId>;
     sort: RosterSortKey;
     dir: SortDir;
-    bare: boolean;
+    mode: StatMode;
 }
 
 /** 依 COLUMNS 宣告順序取顯示欄位；always 欄（艦名）一律保留。 */
@@ -448,13 +477,13 @@ interface Prefs {
     size: PageSize;
     sort: RosterSortKey;
     dir: SortDir;
-    bare: boolean;
+    mode: StatMode;
     open: boolean;
 }
 
 const defaultPrefs = (): Prefs => ({
     cols: COLUMNS.filter(c => c.on).map(c => c.id),
-    size: 20, sort: 'level', dir: 'desc', bare: false, open: false,
+    size: 20, sort: 'level', dir: 'desc', mode: 'shown', open: false,
 });
 
 function loadPrefs(): Prefs {
@@ -468,7 +497,8 @@ function loadPrefs(): Prefs {
             size: parsePageSize(r.size, PAGE_SIZES, d.size),
             sort: COLUMNS.some(c => c.sort === r.sort) ? r.sort as Prefs['sort'] : d.sort,
             dir: r.dir === 'asc' || r.dir === 'desc' ? r.dir : d.dir,
-            bare: r.bare === true,
+            // 舊版偏好只有 bare 布林值，沿用其語意。
+            mode: STAT_MODES.includes(r.mode as StatMode) ? r.mode as StatMode : r.bare === true ? 'bare' : d.mode,
             open: r.open === true,
         };
     });
@@ -498,7 +528,7 @@ export const shipsSection: OverviewSection = {
         const stypeLabel = new Map<number, string>();
         // 標籤名 API 不提供（見 utils/event-plan.ts 檔頭），故只顯示遊戲給的數字 id。
         const tagLabel = (id: number) => `#${id}`;
-        const renderCtx: RenderCtx = { bare: prefs.bare, tagLabel };
+        const renderCtx: RenderCtx = { mode: prefs.mode, tagLabel };
 
         el.innerHTML = `
         <div class="rs">
@@ -513,8 +543,9 @@ export const shipsSection: OverviewSection = {
                 <label class="rs-inline"><span>${esc(t('ov.rsPageSize'))}</span>
                     <select class="rs-size">${PAGE_SIZES.map(s =>
             `<option value="${s}" ${s === prefs.size ? 'selected' : ''}>${s === 0 ? esc(t('ov.rsAll')) : s}</option>`).join('')}</select></label>
-                <label class="rs-inline" title="${esc(t('ov.rsBareTip'))}">
-                    <input type="checkbox" class="rs-bare" ${prefs.bare ? 'checked' : ''}><span>${esc(t('ov.rsBare'))}</span></label>
+                <label class="rs-inline" title="${esc(t('ov.rsModeTip'))}"><span>${esc(t('ov.rsMode'))}</span>
+                    <select class="rs-mode">${STAT_MODES.map(m =>
+            `<option value="${m}" ${m === prefs.mode ? 'selected' : ''}>${esc(t(MODE_LABEL[m]))}</option>`).join('')}</select></label>
                 <span class="grow"></span>
                 <button type="button" class="ov-btn rs-csv">${esc(t('ov.rsExportCsv'))}</button>
                 <button type="button" class="ov-btn rs-copy">${esc(t('ov.rsCopyCsv'))}</button>
@@ -553,6 +584,7 @@ export const shipsSection: OverviewSection = {
 
             <div class="rs-chips"></div>
             <div class="rs-summary"></div>
+            <p class="rs-remain-note ov-note dim" ${prefs.mode === 'remain' ? '' : 'hidden'}>${esc(t('ov.rsRemainNote'))}</p>
             <div class="rs-table-wrap"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <div class="rs-pager"></div>
             <p class="ov-note dim">${esc(t('ov.shipsDateNote'))}</p>
@@ -576,12 +608,13 @@ export const shipsSection: OverviewSection = {
         let visible: ShipsRow[] = [];
 
         function view(): TableView {
-            return { cols: new Set(prefs.cols), sort: prefs.sort, dir: prefs.dir, bare: prefs.bare };
+            return { cols: new Set(prefs.cols), sort: prefs.sort, dir: prefs.dir, mode: prefs.mode };
         }
 
         function draw() {
-            renderCtx.bare = prefs.bare;
-            visible = sortRoster(filterRoster(roster, filter), prefs.sort, prefs.dir);
+            renderCtx.mode = prefs.mode;
+            q<HTMLParagraphElement>('.rs-remain-note').hidden = prefs.mode !== 'remain';
+            visible = sortRoster(filterRoster(roster, filter), prefs.sort, prefs.dir, prefs.mode === 'remain');
             const p = paginate(visible, prefs.size, page);
             page = p.page;
 
@@ -731,8 +764,8 @@ export const shipsSection: OverviewSection = {
             changed();
         });
 
-        q<HTMLInputElement>('.rs-bare').addEventListener('change', e => {
-            prefs.bare = (e.currentTarget as HTMLInputElement).checked;
+        q<HTMLSelectElement>('.rs-mode').addEventListener('change', e => {
+            prefs.mode = (e.currentTarget as HTMLSelectElement).value as StatMode;
             savePrefs(prefs);
             draw();
         });

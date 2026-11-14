@@ -174,6 +174,22 @@ export interface RosterShip extends OwnedShipView {
     nation: Nation | null;
     /** 國籍篩選標籤；Верный 等因遊戲機制可同時屬於多個篩選國籍。 */
     nations: Nation[];
+    /** 改修餘量，與 api_kyouka 同序 7 格；master 未載入時為空陣列。見 ModernRemain。 */
+    modernRemain: ModernRemain[];
+}
+
+/** 距改修上限尚差多少（0＝已滿）；'na'＝該項不可改修（上限為 0）。 */
+export type ModernRemain = number | 'na';
+
+/** 可改修的七項在 api_kyouka／modernCap 的索引。 */
+export const MODERN_INDEX = {
+    firepower: 0, torpedo: 1, aa: 2, armor: 3, luck: 4, hp: 5, asw: 6,
+} as const;
+export type ModernStat = keyof typeof MODERN_INDEX;
+
+function modernRemainOf(ship: OwnedShipView): ModernRemain[] {
+    return ship.modernCap.map((cap, i) =>
+        (cap <= 0 ? 'na' : Math.max(cap - (ship.kyouka[i] ?? 0), 0)));
 }
 
 /** 近代化改修四項是否全滿。master 未載入（kyoukaMax 為空）時一律 false——不猜。 */
@@ -217,6 +233,7 @@ export function annotateRoster(ships: OwnedShipView[], ann: RosterAnnotations): 
         night: s.stats.firepower + s.stats.torpedo,
         nation: nationOf(s.ctype),
         nations: nationsOf(s.masterId, s.ctype),
+        modernRemain: modernRemainOf(s),
     }));
 }
 
@@ -310,12 +327,23 @@ function compareWithMissingLast(a: number | null, b: number | null, dir: SortDir
     return dir === 'asc' ? a - b : b - a;
 }
 
-/** 排序。不修改輸入陣列；同值依遊戲次序，升冪時整串反轉（見 compareGameOrder）。 */
-export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir): RosterShip[] {
+/** 改修餘量排序值；不可改修與不可考都當缺值排最後。 */
+const remainKey = (ship: RosterShip, stat: ModernStat): number | null => {
+    const v = ship.modernRemain[MODERN_INDEX[stat]];
+    return typeof v === 'number' ? v : null;
+};
+
+/**
+ * 排序。不修改輸入陣列；同值依遊戲次序，升冪時整串反轉（見 compareGameOrder）。
+ * `byRemain` 時可改修的七項（含血量欄）改依改修餘量排序。
+ */
+export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir, byRemain = false): RosterShip[] {
     const sign = dir === 'asc' ? 1 : -1;
+    const remainStat = byRemain && key in MODERN_INDEX ? key as ModernStat : null;
     return [...ships].sort((a, b) => {
         let r = 0;
-        if (key === 'name') r = sign * a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        if (remainStat) r = compareWithMissingLast(remainKey(a, remainStat), remainKey(b, remainStat), dir);
+        else if (key === 'name') r = sign * a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
         // 艦種欄比照遊戲的「艦種」排序＝api_sort_id（見 ship-filter.ts filterShips）；不可考排最後。
         else if (key === 'stype') r = compareWithMissingLast(a.sortId, b.sortId, dir);
         // 國籍依 NATIONS 的顯示順序排，不用字母序（見 ship-nationality.ts）。

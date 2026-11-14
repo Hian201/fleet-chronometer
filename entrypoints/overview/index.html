@@ -4896,6 +4896,11 @@
 
         .rs-date { font-variant-numeric: tabular-nums; }
 
+        /* 改修餘量：要看的是「還差多少」，故只有數字維持正文色；已滿與不可改修退成弱化色，
+           不借用其他功能的語意色（§4.5）。 */
+        .rs-rem-max { color: var(--dim); }
+        .rs-rem-na { color: var(--dim); opacity: .6; }
+
         .rs-nation {
             padding: 1px calc(4px - var(--track-tag)) 1px 4px;
             border: 1px solid var(--line);

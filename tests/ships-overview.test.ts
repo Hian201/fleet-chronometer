@@ -49,9 +49,9 @@ function createState() {
 // 表格測試的預設視圖：預設欄位、依等級遞減、素質含裝備。
 const view = (cols?: ColumnId[]): TableView => ({
     cols: new Set(cols ?? COLUMNS.filter(c => c.on).map(c => c.id)),
-    sort: 'level', dir: 'desc', bare: false,
+    sort: 'level', dir: 'desc', mode: 'shown',
 });
-const ctx = { bare: false, tagLabel: (id: number) => `#${id}` };
+const ctx = { mode: 'shown' as const, tagLabel: (id: number) => `#${id}` };
 
 afterEach(async () => {
     for (const database of databases.splice(0)) {
