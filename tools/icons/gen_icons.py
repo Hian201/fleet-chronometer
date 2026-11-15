@@ -886,6 +886,29 @@ def modding_material():
     return svg(f'<g transform="rotate(45 16 16)">{"".join(parts)}</g>')
 RES['screw'] = modding_material()
 
+def furniture_box(front, top, side, ribbon, ribbon_dark):
+    """家具箱：單箱、箱頂橫向綁帶延伸至右側面；配色與造型依使用者提供的參考圖。"""
+    front, top, side, ribbon, ribbon_dark = map(clamp_light, (front, top, side, ribbon, ribbon_dark))
+    return svg(f'''
+  <path fill="{front}" d="M2 15h19v14H4a2 2 0 0 1-2-2Z"/>
+  <path fill="{side}" d="m21 15 5-3v14l-5 3z"/>
+  <path fill="{top}" d="m2 15 5-3h19l-5 3z"/>
+  <path fill="{side}" opacity=".45" d="M5 19h1v8H5zm12 0h1v8h-1z"/>
+  <path fill="{front}" d="M1 15h21v4H1z"/>
+  <path fill="{top}" d="m1 15 5-3h21l-5 3z"/>
+  <path fill="{side}" d="m22 15 5-3v4l-5 3z"/>
+  <path fill="{top}" d="M2 15h19v1H2z"/>
+  <path fill="{ribbon}" d="M4.333 13h21l-1.666 1h-21Z"/>
+  <path fill="{ribbon_dark}" d="m25.333 13-1.666 1v13.4l1.666-1Z"/>
+  <path fill="{ribbon}" d="M13 13c-7 0-8-2-6-4 3-2 6 1 6 4Zm0 0c1-5 6-6 7-3 1 2-3 4-7 3Z"/>
+  <path fill="{ribbon_dark}" d="M9 10c1 0 2 1 3 2-3 0-4-1-3-2Zm6 2c1-2 4-3 3-1l-3 1Z"/>
+  <ellipse fill="{ribbon}" cx="13" cy="12.6" rx="1.6" ry="1.2"/>
+''')
+
+RES['furniture-box-small'] = furniture_box('#c9a467', '#ead09a', '#94734c', '#f4e5bf', '#c4af88')
+RES['furniture-box-medium'] = furniture_box('#748b79', '#a4b5a0', '#526a5d', '#ae83c7', '#78568f')
+RES['furniture-box-large'] = furniture_box('#ce5140', '#f0805a', '#a13c35', '#f1ca65', '#bf903f')
+
 # ══ 寫檔 ═══════════════════════════════════════════════════════
 for k, v in sorted(ICONS.items()):
     open(os.path.join(OUT_EQ, f"{k}.svg"), "w").write(v)

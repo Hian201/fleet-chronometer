@@ -116,6 +116,18 @@ ElectronicObserver（MIT）`Data/MissionClearCondition.cs`，轉換規則見下�
    缺 `api_useitem_flag` 的封包維持只收 `api_useitem_id > 0`。修正前的紀錄沒有 flag 1–3 的道具，
    raw events 已裁剪，無從回填。
 
+**道具名稱顯示**：逐筆明細、期間總計與明細 CSV 共用 `utils/item-catalog.ts` 的三語名稱，
+以 useitem id 對照（資材使用目錄 id 1–4，不是持有量的 material apiId）。家具箱小／中／大
+分別是 10／11／12。明細與期間總計的資材、家具箱、伊良湖顯示圖示與數量，名稱放在 hover 提示與圖片
+替代文字；CSV 保留名稱與數量。沒有圖示的道具顯示名稱，未知編號保留 `#id`。
+數量仍取紀錄的 count，不猜名稱、不改寫歷史資料。
+
+`samples/start2-master.json` 的 65 筆 `api_mst_mission`，`api_win_item1/2[0]` 的非零值
+只有 1／2／3／4／10／11／12／59，全部已有圖示。59 為伊良湖，出現在 D2「西方潜水艦作戦」，
+使用既有的 `public/icons/ui/provision.svg`；`tests/exped-log-overview.test.ts` 從樣本枚舉全部
+獎勵編號，檢查名稱與圖示檔案，避免新增遠征獎勵後漏接。這份覆蓋範圍是樣本中的遠征，
+不代表道具目錄裡的所有道具都會由遠征取得。
+
 **設計決定**：
 
 - **期間捷徑的錨點是最後一筆紀錄、不是現在**（同資源紀錄的 `rangeBounds`）：久沒上線時

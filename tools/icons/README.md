@@ -1,10 +1,10 @@
 # 圖示生成器
 
-`public/icons/**.svg`（94 顆：裝備 61＋資源 8＋UI 8＋數值 17）**全部由此產生**，不要手改 SVG——改生成器再重跑。
+`public/icons/**.svg`（97 顆：裝備 61＋資源 11＋UI 8＋數值 17）**全部由此產生**，不要手改 SVG——改生成器再重跑。
 
 ```bash
 cd tools/icons
-python3 gen_icons.py  out/equipment out/resource     # 全 61 顆＋資源 8 顆（含無徽章飛機的正俯視版）
+python3 gen_icons.py  out/equipment out/resource     # 全 61 顆＋資源 11 顆（含無徽章飛機的正俯視版）
 rm -rf all3d && python3 gen_planes.py                # 飛機族 3D：只產「有徽章」的 21 顆
 cp all3d/*.svg out/equipment/                        # 覆蓋這 21 顆
 python3 gen_ui.py out/ui                             # UI 圖示（入渠／建造／遠征／任務／艦數／裝備數／空襲警報／給糧）
@@ -60,6 +60,10 @@ cp out/stat/*.svg      ../../public/icons/stat/
 `quest`（任務＝通達用紙＋朱印，不是勾選框）、
 `provision`（給糧＝玻璃腳杯冰淇淋＋檸檬片＋薄荷＋淺藍托盤；杯中下球以奶油混玻璃青的實色表現，
 不用半透明——半透明會透出描邊、把玻璃染灰）。
+
+`public/icons/resource/furniture-box-{small,medium,large}.svg` 為家具箱小／中／大，
+由 `gen_icons.py` 依使用者提供的參考圖重繪：單箱、箱頂橫向綁帶延伸至右側面，配色分別為
+木色淺帶／綠灰紫帶／紅箱金帶。
 
 `public/icons/stat/` 為艦娘數值圖示（`gen_stats.py`）：遊戲 12 項＋命中／爆裝／士氣／夜戰／制空。
 語意微彩定版；火力＝大和 46cm 三連裝、對空＝Bofors 綠、索敵折線與夜戰星月＝黃、射程＝30° 徹甲彈＋平行粗箭。

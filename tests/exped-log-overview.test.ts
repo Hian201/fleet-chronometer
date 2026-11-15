@@ -1,13 +1,15 @@
 // 遠征紀錄分區的 HTML 產出驗證（無 DOM，同 ships-overview／sortie-log-overview 的作法：
 // 只測「純字串產出」的部分，事件與 DOM 綁定留給實際使用）。
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { groupByMission, summarize } from '../utils/expedition-stats';
 import { COLUMNS, defaultPrefs, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
 import { setLang, t } from '../utils/ui-i18n';
 import { formatDateTime } from '../utils/date-format';
+import { parseHTML } from 'linkedom';
+import { existsSync, readFileSync } from 'node:fs';
 
-beforeAll(() => setLang('zh-TW'));
+beforeEach(() => setLang('zh-TW'));
 
 const exped = (over: Partial<ExpeditionRow> & { ts: number }): ExpeditionRow => ({
     eventId: over.ts,
@@ -51,11 +53,77 @@ describe('期間彙總列', () => {
         }));
     });
 
-    it('回航道具只顯示 id × 數量，且不併進資源小計', () => {
+    it('回航道具顯示圖示與數量，且不併進資源小計', () => {
         const rows = [exped({ ts: 1000, resources: [0, 0, 0, 0], items: [{ id: 4, count: 3 }] })];
         const html = summaryHtml(summarize(rows), null, null, rows);
-        expect(html).toContain('#4 ×3');
+        expect(html).toContain('title="改修資材"');
+        expect(html).toContain('/icons/resource/screw.svg');
+        expect(html).toContain('<b>×3</b>');
         expect(html).toContain(t('ov.expedItemsLabel'));
+    });
+});
+
+describe('回航道具名稱與數量', () => {
+    const itemsCol = COLUMNS.find(c => c.id === 'items')!;
+    const items = [1, 2, 3, 4, 10, 11, 12, 59].map((id, i) => ({ id, count: i + 1 }));
+    const files = ['resource/drum', 'resource/torch', 'resource/devmat', 'resource/screw',
+        'resource/furniture-box-small', 'resource/furniture-box-medium', 'resource/furniture-box-large', 'ui/provision'];
+
+    it.each([
+        ['zh-TW', ['高速修復材', '高速建造材', '開發資材', '改修資材', '家具箱（小）', '家具箱（中）', '家具箱（大）', '給糧艦「伊良湖」']],
+        ['en', ['Instant Repair Material', 'Instant Construction Material', 'Development Material', 'Improvement Material', 'Furniture Box (Small)', 'Furniture Box (Medium)', 'Furniture Box (Large)', 'Irako']],
+        ['ja', ['高速修復材', '高速建造材', '開発資材', '改修資材', '家具箱（小）', '家具箱（中）', '家具箱（大）', '給糧艦「伊良湖」']],
+    ] as const)('%s 的明細、總計與 CSV 使用同一組名稱與原始數量', (lang, names) => {
+        setLang(lang);
+        const row = exped({ ts: 1000, items });
+        const detail = itemsCol.cell(row);
+        const summary = summaryHtml(summarize([row, row]), null, null, [row, row]);
+        expect(itemsCol.text(row)).toBe(names.map((name, i) => `${name} ×${i + 1}`).join(' / '));
+        const detailNodes = parseHTML(detail).document.querySelectorAll('.el-items > span');
+        const summaryNodes = parseHTML(summary).document.querySelectorAll('.el-sum-chip[title]');
+        names.forEach((name, i) => {
+            const node = detailNodes[i];
+            expect(node.getAttribute('title')).toBe(name);
+            expect(node.textContent).toBe(`×${i + 1}`);
+            expect(node.querySelector('img')?.getAttribute('alt')).toBe(name);
+            expect(node.querySelector('img')?.getAttribute('src')).toBe(`/icons/${files[i]}.svg`);
+            expect(existsSync(new URL(`../public/icons/${files[i]}.svg`, import.meta.url))).toBe(true);
+            const chip = [...summaryNodes].find(el => el.getAttribute('title') === name)!;
+            expect(chip.textContent).toBe(`×${(i + 1) * 2}`);
+            expect(chip.querySelector('img')?.getAttribute('alt')).toBe(name);
+            expect(chip.querySelector('img')?.getAttribute('src')).toBe(`/icons/${files[i]}.svg`);
+        });
+    });
+
+    it('start2 樣本中的所有遠征獎勵均有圖示與名稱', () => {
+        const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
+        const ids = [...new Set<number>(master.api_mst_mission.flatMap((mission: {
+            api_win_item1: number[]; api_win_item2: number[];
+        }) => [mission.api_win_item1[0], mission.api_win_item2[0]]).filter((id: number) => id > 0))];
+        expect(ids.sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 10, 11, 12, 59]);
+        for (const id of ids) {
+            const row = exped({ ts: 1000, items: [{ id, count: 1 }] });
+            const img = parseHTML(itemsCol.cell(row)).document.querySelector('img');
+            expect(img, `遠征獎勵 #${id} 缺圖示`).not.toBeNull();
+            expect(img!.getAttribute('alt')).not.toMatch(/^#/);
+            expect(existsSync(new URL(`../public${img!.getAttribute('src')}`, import.meta.url))).toBe(true);
+        }
+    });
+
+    it('已知道具沒有圖示時保留名稱，不借用其他圖示', () => {
+        const row = exped({ ts: 1000, items: [{ id: 57, count: 1 }] });
+        expect(itemsCol.cell(row)).toContain('勳章 ×1');
+        expect(itemsCol.cell(row)).not.toContain('<img');
+        expect(itemsCol.text(row)).toBe('勳章 ×1');
+    });
+
+    it('未知編號保留原值，沒有道具時不補造數量', () => {
+        const row = exped({ ts: 1000, items: [{ id: 99999, count: 2 }] });
+        expect(itemsCol.cell(row)).toContain('#99999 ×2');
+        expect(itemsCol.text(row)).toBe('#99999 ×2');
+        expect(summaryHtml(summarize([row]), null, null, [row])).toContain('#99999 ×2');
+        expect(itemsCol.text(exped({ ts: 1000 }))).toBe('');
+        expect(itemsCol.cell(exped({ ts: 1000 }))).toContain('–');
     });
 });
 

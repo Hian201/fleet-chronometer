@@ -13,7 +13,8 @@
 import type { ExpeditionRow, ResourceMarkRow } from '@/utils/db';
 import type { OverviewSection, SectionContext } from './types';
 import { db } from '@/utils/db';
-import { expedDisplayName, t } from '@/utils/ui-i18n';
+import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
+import { itemCatalog } from '@/utils/item-catalog';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
 import { DAY_MS } from '@/utils/date-format';
 import {
@@ -61,8 +62,19 @@ const materialCell = (index: number) => (row: ExpeditionRow) => {
         : `<span class="el-none">–</span>`;
 };
 
-const itemsText = (row: ExpeditionRow) =>
-    (row.items ?? []).map(item => `#${item.id}x${item.count}`).join(' ');
+// 紀錄存的是 useitem id；目錄中的資材亦以同一組 id 識別，不能拿 material apiId 對照。
+const itemName = (id: number) => itemCatalog.find(entry => entry.id === id
+    && (entry.countSource.kind === 'useitem' || entry.countSource.kind === 'material'))?.names[getLang()] ?? `#${id}`;
+const itemText = (item: { id: number; count: number }) => `${itemName(item.id)} ×${item.count}`;
+const itemsText = (row: ExpeditionRow) => (row.items ?? []).map(itemText).join(' / ');
+const ITEM_FILES: Record<number, string> = {
+    1: 'resource/drum', 2: 'resource/torch', 3: 'resource/devmat', 4: 'resource/screw',
+    10: 'resource/furniture-box-small', 11: 'resource/furniture-box-medium', 12: 'resource/furniture-box-large',
+    59: 'ui/provision',
+};
+const itemHtml = (item: { id: number; count: number }) => ITEM_FILES[item.id]
+    ? `<img class="m-icon" src="/icons/${ITEM_FILES[item.id]}.svg" alt="${esc(itemName(item.id))}"><b>×${esc(String(item.count))}</b>`
+    : esc(itemText(item));
 
 export const COLUMNS: Column[] = [
     {
@@ -102,7 +114,7 @@ export const COLUMNS: Column[] = [
     {
         id: 'items', labelKey: 'ov.expedColItems', on: true,
         cell: r => r.items?.length
-            ? `<div class="el-items">${r.items.map(item => `<span>#${item.id} ×${item.count}</span>`).join('')}</div>`
+            ? `<div class="el-items">${r.items.map(item => `<span title="${esc(itemName(item.id))}">${itemHtml(item)}</span>`).join('')}</div>`
             : `<span class="el-none">–</span>`,
         text: itemsText,
     },
@@ -203,7 +215,7 @@ export function summaryHtml(totals: ExpeditionTotals, from: number | null, to: n
         ${totals.items.length ? `<div class="el-sum-block">
             <span class="el-sum-label" title="${esc(t('ov.expedItemsTip'))}">${esc(t('ov.expedItemsLabel'))}</span>
             <span class="el-sum-chips">${totals.items.map(item =>
-        `<span class="el-sum-chip"><b>#${item.id} ×${item.count}</b></span>`).join('')}</span>
+        `<span class="el-sum-chip" title="${esc(itemName(item.id))}">${itemHtml(item)}</span>`).join('')}</span>
         </div>` : ''}
         <div class="el-sum-meta dim">${esc(span)}</div>
     </div>`;
