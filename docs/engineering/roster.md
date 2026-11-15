@@ -239,9 +239,11 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 
 **兩份社群表都不是封包驗證**，UI 的 `ov.erNote` 必須明講：
 
-- 藍字：`utils/equip-bonus-table.json`（KC3Kai replay `mst_slotitem_bonus.json`）。匹配鍵是
+- 藍字：`utils/equip-bonus-table.json`（KC3Kai replay `mst_slotitem_bonus.json`，
+  [commit `185eb24a2e233654b7856c2441d028a2f25b329a`](https://github.com/KC3Kai/kancolle-replay/blob/185eb24a2e233654b7856c2441d028a2f25b329a/js/data/mst_slotitem_bonus.json)）。匹配鍵是
   `shipId`／`shipBase`／`shipClass`／`shipType`／`shipCountry` 的**同時成立**（有寫的才檢查）。
-  只列該艦 `equipTypes` 裝得上的裝備，不猜未列的相互條件細節（`requiresEquipList` 只標有條件）。
+  未指定艦娘條件的通用加成列亦適用；只列該艦 `equipTypes` 裝得上的裝備，
+  不猜未列的相互條件細節（`requiresEquipList` 只標有條件）。
 - 適性：wikiwiki「命中と回避」#BBfit 轉寫。戰艦 A/B 群分界用 master `api_taik[0]`（≥93＝B），
   **不能用實例 maxhp**（結婚會加）。Atlanta／大淀從輕巡標準懲罰排除，避免與個別表疊加。
   主砲（cat 1/2/3/38）獨立成段、適性由高到低、旁標射程。
@@ -249,11 +251,9 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 加成表更新：覆蓋 `utils/equip-bonus-table.json` 後跑 `tests/equip-ref.test.ts`。新活動口徑未進
 適性表時不要猜。
 
-手補條目（尚未進上游加成表的新裝備）：589 XF6F-6（2026-09 戰果排名獎勵）——英文 wiki 與 wikiwiki 的
-加成表逐格一致，均為「美國空母」改修值逐級疊加：★1 回避+1、★2 對空+1、★3 火力+1、★4 以上命中+1
-（來源兩邊都標暫定，改修段位規律待調查）。對象以 `shipCountry: US`＋`shipType: [7,11,18]` 表示，
-以 start2 驗證恰為 Lexington／Yorktown／Essex／Independence／Casablanca／Ranger 六級；之後覆蓋
-加成表時若上游已收錄 589，以上游為準並移除此條。
+589 XF6F-6 的改修加成依上游，以 `shipClass: [69,83,84,105,116,118]` 限定適用艦級。
+[wikiwiki 的加成表](https://wikiwiki.jp/kancolle/XF6F-6#bonus)仍標為暫定，改修段位規律待調查；
+社群表收錄不代表已用遊戲實際資料驗證。
 
 ## 艦娘收藏日誌：兩個日期
 

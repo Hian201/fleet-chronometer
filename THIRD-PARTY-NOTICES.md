@@ -286,9 +286,10 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 - **用途**：`utils/equip-bonus-table.json`（由 `utils/equip-ref.ts` 讀取）——情報總括「配裝參考」列出特定艦×裝備的藍字補正。
 - **來源**：KC3Kai kancolle-replay `js/data/mst_slotitem_bonus.json`
   —— https://github.com/KC3Kai/kancolle-replay （對應 wikiwiki.jp/kancolle 裝備ボーナス）
+  - 採用版本：[commit `185eb24a2e233654b7856c2441d028a2f25b329a`](https://github.com/KC3Kai/kancolle-replay/blob/185eb24a2e233654b7856c2441d028a2f25b329a/js/data/mst_slotitem_bonus.json)（2026-11-11）。
 - **授權**：MIT License
 - **版權**：Copyright (c) 2015-2026 dragonjet
-- **限制**：社群機讀表，**不是**遊戲封包驗證。UI 必須標明來源；欄位語意未以真封包核對者不自行命名或推導。
+- **限制**：社群機讀表，**不是**遊戲封包驗證。UI 必須說明尚未以遊戲實際資料驗證，來源與歸屬只記於專案文件；欄位語意未以真封包核對者不自行命名或推導。
 
 ## 9b. 主砲命中適性（fit）表
 

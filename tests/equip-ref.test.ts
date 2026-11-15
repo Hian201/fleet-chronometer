@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 import { nationOf } from '../utils/ship-nationality';
 import {
-    EQUIP_BONUS_TABLE, bbGroupOf, buildFitRules, collectEquipRef, isMainGunCat,
-    nationToBonusCountry, shipEquipRefMarks,
+    EQUIP_BONUS_TABLE, bbGroupOf, bonusLineMatches, buildFitRules, collectEquipRef, isMainGunCat,
+    markEquipRefShips, nationToBonusCountry, shipEquipRefMarks,
     type EquipRefGear, type EquipRefShip,
 } from '../utils/equip-ref';
 
@@ -102,5 +102,50 @@ describe('equip-ref', () => {
         expect(linesOf('Hornet改').map(l => l.level)).toEqual([1, 2, 3, 4]);
         expect(linesOf('Gambier Bay改')).toHaveLength(4);
         expect(linesOf('赤城改二')).toHaveLength(0);
+    });
+
+    it('Ju87C 的通用改修加成適用可裝備艦，艦系加成仍限大鷹型與神鷹', () => {
+        const { gears, shipOf } = setup();
+        const linesOf = (ja: string) => collectEquipRef(shipOf(ja), gears, EQUIP_BONUS_TABLE, [])
+            .find(r => r.id === 305)?.lines ?? [];
+        expect(linesOf('赤城改二')).toEqual([
+            { bonus: { tais: 1 }, level: 2 },
+            { bonus: { kaih: 1 }, level: 4 },
+        ]);
+        expect(linesOf('大鷹改二').filter(l => l.level != null).map(l => l.level)).toEqual([1, 3, 2, 4]);
+        expect(linesOf('神鷹改二').filter(l => l.level != null).map(l => l.level)).toEqual([1, 3, 2, 4]);
+        expect(linesOf('金剛改二丙')).toHaveLength(0);
+    });
+
+    it('XF5U 通用改修加成與艦清單標記一致，仍排除不可裝備艦', () => {
+        const { gears, shipOf } = setup();
+        const ships = ['赤城改二', 'Hornet改', '金剛改二丙'].map(shipOf);
+        const bonus = EQUIP_BONUS_TABLE.filter(e => e.ids?.includes(375));
+        const rows = ships.map(ship => collectEquipRef(ship, gears, bonus, []));
+        expect(rows[0].find(r => r.id === 375)?.lines).toEqual([
+            { bonus: { tyku: 1, kaih: 1 }, level: 2 },
+        ]);
+        expect(rows[1].find(r => r.id === 375)?.lines).toHaveLength(2);
+        expect(rows[2]).toHaveLength(0);
+        expect(markEquipRefShips(ships, gears, bonus, [])).toEqual([
+            { hasBonus: true, hasFit: false, hasOver: false, n: 1 },
+            { hasBonus: true, hasFit: false, hasOver: false, n: 1 },
+            { hasBonus: false, hasFit: false, hasOver: false, n: 0 },
+        ]);
+    });
+
+    it('指定的艦條件必須全部成立，空條件陣列不視為通用加成', () => {
+        const { shipOf } = setup();
+        const hornet = shipOf('Hornet改');
+        const line = {
+            bonus: { houg: 1 },
+            shipId: [hornet.masterId], shipBase: [hornet.baseId],
+            shipClass: [hornet.ctype], shipType: [hornet.stype], shipCountry: [hornet.country],
+        };
+        expect(bonusLineMatches(line, hornet)).toBe(true);
+        for (const field of ['shipId', 'shipBase', 'shipClass', 'shipType', 'shipCountry'] as const) {
+            expect(bonusLineMatches({ ...line, [field]: [] }, hornet)).toBe(false);
+        }
+        expect(bonusLineMatches(line, shipOf('赤城改二'))).toBe(false);
     });
 });

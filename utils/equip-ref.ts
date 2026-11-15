@@ -128,7 +128,8 @@ export function bonusLineMatches(line: BonusLine, ship: EquipRefShip): boolean {
     if (line.shipClass) checks.push(has(line.shipClass, ship.ctype));
     if (line.shipType) checks.push(has(line.shipType, ship.stype));
     if (line.shipCountry) checks.push(has(line.shipCountry, ship.country));
-    return checks.length > 0 && checks.every(Boolean);
+    // 未指定艦條件的列為通用加成；可裝備類別另由 collect／mark 過濾。
+    return checks.every(Boolean);
 }
 
 function gearIdsOf(entry: BonusEntry, gearsByCat: Map<number, number[]>, known: Set<number>): number[] {

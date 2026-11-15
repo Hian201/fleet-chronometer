@@ -368,7 +368,6 @@ const clientJs = `
     if (line.shipClass) checks.push(has(line.shipClass, ship.ctype));
     if (line.shipType) checks.push(has(line.shipType, ship.stype));
     if (line.shipCountry) checks.push(has(line.shipCountry, ship.country));
-    if (!checks.length) return false;
     return checks.every(Boolean);
   }
   function gearIdsOf(entry) {
