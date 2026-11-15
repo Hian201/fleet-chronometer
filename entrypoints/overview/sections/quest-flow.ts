@@ -1113,7 +1113,7 @@ export const questFlowSection: OverviewSection = {
         // 免責說明固定顯示在頂端，不收進可摺疊的簡介。
         el.innerHTML = `<div class="qf">
             <div class="qf-topline">
-                <p class="qf-disclaimer" role="note">${esc(t('ov.qfDisclaimer'))}</p>
+                <p class="qf-disclaimer" role="note">${esc(t('ov.qfDisclaimer'))}<br>${esc(t('ov.qfDisclaimerQueue'))}</p>
                 <p class="qf-cycles" title="${esc(t('ov.qfCycleTitle'))}">${questCycleSummaryHtml(initialModel, Date.now())}</p>
                 <details class="qf-intro">
                     <summary><span class="qf-kicker">${esc(t('ov.qfKicker'))}</span> ${esc(t('ov.qfHelp'))}</summary>
