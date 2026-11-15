@@ -9,6 +9,12 @@ const CHUNK_BUDGET_KB = 1200;
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+    imports: {
+        dirsScanOptions: {
+            // 戰鬥型別由 state.ts 統一重新匯出，自動匯入只保留該入口，避免同名來源衝突。
+            fileFilter: (file) => !file.replace(/\\/g, '/').endsWith('/utils/battle-types.ts'),
+        },
+    },
     // 開發模式：擴充頁（chrome-extension://）會向 Vite 拉 @vite/client；Vite 預設
     // CORS 不放行該 origin。server.cors 反射 Origin 當雙重保險（主解仍靠下方
     // host_permissions 保留 localhost）。
