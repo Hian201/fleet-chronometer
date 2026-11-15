@@ -8,7 +8,7 @@ import {
 } from '../utils/quest-flow-facets';
 import { QUEST_FLOW_PREFS_KEY } from '../utils/quest-flow-prefs';
 import { setLang } from '../utils/ui-i18n';
-import { questFlowSection } from '../entrypoints/overview/sections/quest-flow';
+import { compareQuestReleaseDates, questFlowSection } from '../entrypoints/overview/sections/quest-flow';
 
 afterEach(() => { vi.unstubAllGlobals(); setLang('zh-TW'); });
 
@@ -130,6 +130,30 @@ describe('任務導覽篩選工具列', () => {
             .map(node => Number(node.getAttribute('data-qf-target')));
         return { host, saved, chip, catalog };
     }
+
+    it('實裝排序缺值始終最後，反向排序不會把缺值移到最前', () => {
+        for (const order of ['asc', 'desc'] as const) {
+            const sorted = [null, '2021-01-01', '2013-04-23'].sort((a, b) => compareQuestReleaseDates(a, b, order));
+            expect(sorted.at(-1)).toBeNull();
+            expect(sorted[0]).toBe(order === 'asc' ? '2013-04-23' : '2021-01-01');
+        }
+    });
+
+    it('從最早開始保留其他分類，依實裝日排序並可切換年份', async () => {
+        const { host, saved, catalog } = await mount({ filters: { category: ['sortie'] } }, listed([944, 2], [216, 1], [303, 3]));
+        const shortcut = host.querySelector<HTMLButtonElement>('[data-qf-oldest]')!;
+        shortcut.click();
+        expect(saved().filters.category).toEqual(['sortie']);
+        expect(saved().filters.list).toEqual(['in-progress', 'available']);
+        expect(catalog()).toEqual([216, 944]);
+        const year = host.querySelector<HTMLSelectElement>('[data-qf-release-year]')!;
+        // linkedom 的 select.value 沒有 setter，以瀏覽器選取後的值觸發事件。
+        Object.defineProperty(year, 'value', { configurable: true, value: '2021' });
+        year.dispatchEvent(new window.Event('change'));
+        expect(catalog()).toEqual([944]);
+        expect(host.querySelector('[data-qf-oldest]')).toBe(shortcut);
+        expect(host.querySelector('[data-qf-release-year]')).toBe(year);
+    });
 
     it('「更多條件」浮層每次進入分區都收起，點完成或浮層外即關閉', async () => {
         const { host } = await mount({ moreOpen: true });

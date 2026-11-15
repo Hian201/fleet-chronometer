@@ -11,21 +11,22 @@
 
 ── 抓取頻率 ────────────────────────────────────────────────────────
 只在開發者更新任務資料時手動執行；擴充執行時不連網（正式 build 沒有 host_permissions）。
-wikiwiki 每次 1 個請求；ぜかまし第一次約 850 個請求，之後只抓 sitemap lastmod 有變動的文章，
+wikiwiki 每次最多 3 個請求，請求間隔至少 2 秒；ぜかまし第一次約 850 個請求，之後只抓 sitemap lastmod 有變動的文章，
 請求間隔至少 2 秒。所有頁面都快取在 tools/quest-graph/.cache/（不進 git）。請勿排程或迴圈呼叫。
 
 ── 來源與授權 ──────────────────────────────────────────────────────
 https://wikiwiki.jp/kancolle/任務、https://zekamashi.net/ （見 THIRD-PARTY-NOTICES.md）。
-只輸出任務 api_no 之間的關係與驗證旗標這類事實，不收錄頁面文字。
-wiki 代號 → api_no 的對照沿用 utils/quest-catalog-data.ts 的目錄。
+只輸出任務 api_no 之間的關係、驗證旗標與實裝日期等事實，不收錄頁面文字。
+wiki 代號 → api_no 的對照沿用 utils/quest-catalog-data.ts 的目錄；實裝日期只輸出日期與 api_no。
 另讀 poi-plugin-quest-planner（MIT）固定 commit 的 data/quests.json，作為 poi 前置的新版（1 個請求，快取），
 以及 tsukinohashi 艦これ単発任務マネージャ的 main.js（1 個請求，快取；只作衝突時的額外引用）、
 舰娘百科任務總表（1 個請求，快取；該站 Crawl-delay 100，不逐頁抓）、KC3 kc3-translations 日文任務表
 （固定 commit，補目錄缺的代號與名稱）。
 
 用法：
-    python3 tools/quest-graph/generate.py              # 抓 wikiwiki 總表 1 頁＋ぜかまし有更新的文章（增量）
+    python3 tools/quest-graph/generate.py              # 抓 wikiwiki 總表與歷史任務頁＋ぜかまし有更新的文章（增量）
     python3 tools/quest-graph/generate.py --offline    # 只讀 tools/quest-graph/.cache/，完全不連網（調整解析器時用）
+    python3 tools/quest-graph/generate.py --offline --release-dates-only  # 只重產任務實裝日期
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ import html
 import json
 import re
 import sys
+import time
 import unicodedata
 import urllib.request
 from html.parser import HTMLParser
@@ -45,8 +47,13 @@ import zekamashi
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / 'utils' / 'quest-catalog-data.ts'
 OUT = ROOT / 'utils' / 'quest-graph-data.ts'
+RELEASE_OUT = ROOT / 'utils' / 'quest-release-date-data.ts'
 URL = 'https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99'
-USER_AGENT = 'fleet-chronometer quest-graph generator (manual, one request per run)'
+ARCHIVE_URLS = (
+    'https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/4',
+    'https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%9C%9F%E9%96%93%E9%99%90%E5%AE%9A2',
+)
+USER_AGENT = 'fleet-chronometer quest data generator (manual)'
 
 # 邊旗標
 EDGE_PENDING = 1          # 該前置標了【検証中】／【要確認】／(反証待ち)
@@ -302,17 +309,32 @@ def parse_condition(text: str, by_wiki, names) -> tuple[list[list[list[int]]], i
 
 
 WIKI_CACHE = Path(__file__).with_name('.cache') / 'wikiwiki-quests.html'
+WIKI_ARCHIVE_CACHES = tuple(
+    Path(__file__).with_name('.cache') / name
+    for name in ('wikiwiki-quests-archive-1.html', 'wikiwiki-quests-archive-2.html')
+)
 
-
-def wiki_page(offline: bool) -> str:
+def fetch_wiki_page(url: str, cache: Path, offline: bool) -> str:
     if offline:
-        return WIKI_CACHE.read_text(encoding='utf-8')
-    request = urllib.request.Request(URL, headers={'User-Agent': USER_AGENT})
+        return cache.read_text(encoding='utf-8')
+    request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
     with urllib.request.urlopen(request, timeout=60) as response:
         page = response.read().decode('utf-8')
-    WIKI_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    WIKI_CACHE.write_text(page, encoding='utf-8')
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(page, encoding='utf-8')
     return page
+
+def wiki_page(offline: bool) -> str:
+    return fetch_wiki_page(URL, WIKI_CACHE, offline)
+
+
+def wiki_archive_pages(offline: bool) -> list[str]:
+    pages: list[str] = []
+    for url, cache in zip(ARCHIVE_URLS, WIKI_ARCHIVE_CACHES):
+        if not offline:
+            time.sleep(2)
+        pages.append(fetch_wiki_page(url, cache, offline))
+    return pages
 
 
 # api_no → (開始日, 結束日或 None)：wikiwiki「実装」欄，例「2026 10/14 ~ 20** **/**」（結束未公告）。
@@ -324,6 +346,97 @@ OFFICIAL_WINDOWS: dict[int, tuple[str, str]] = {
     no: ('2026-10-14', '2026-11-11') for no in (359, 984, 985, 986, 987, 1002, 1038, 1039, 1040, 1119, 1171)
 }
 IMPL_DATE = re.compile(r'(20\d\d)\s*(\d{1,2})/(\d{1,2})')
+
+# wiki 已封存或未列入現行任務表的任務，以公開任務表／攻略明載日期補齊。
+# 重複任務取該任務定義最早可核實的實裝日；週年任務日期依 wiki「実装」欄記載，
+# 即使攻略文章日期相差一天也採用欄位日期。其餘沒有明確來源者保持 null。
+VERIFIED_RELEASE_DATE_OVERRIDES: dict[int, str] = {
+    314: '2016-12-22',
+    315: '2017-04-05',
+    326: '2018-08-01',
+    363: '2026-04-24',
+    367: '2026-05-29',
+    448: '2026-04-24',
+    449: '2026-04-24',
+    450: '2026-03-13',
+    451: '2026-04-24',
+    720: '2026-03-13',
+    801: '2026-01-01',
+    802: '2026-01-01',
+    803: '2026-01-01',
+    804: '2026-01-01',
+    953: '2026-05-29',
+    954: '2026-05-29',
+    955: '2026-05-29',
+    971: '2026-04-24',
+    972: '2026-04-24',
+    979: '2026-04-24',
+    1009: '2026-04-24',
+    1011: '2026-04-07',
+    1032: '2026-05-29',
+    1043: '2026-03-13',
+    1046: '2026-05-01',
+    1126: '2026-04-24',
+    1136: '2026-04-24',
+    1165: '2026-04-07',
+    1168: '2026-05-01',
+    1169: '2026-05-01',
+}
+
+
+def parse_release_dates(pages: list[str], by_wiki, names) -> dict[int, str | None]:
+    """讀取 wiki 任務表明載的最早日期；缺列任務只採用有公開來源佐證的補值。"""
+    dates: dict[int, set[str]] = {}
+    for page in pages:
+        parser = TableGrid()
+        parser.feed(page)
+        for rows in parser.tables:
+            header = next((row for row in rows if 'ID' in row and '任務名' in row and '実装' in row), None)
+            if header is None:
+                continue
+            id_col, name_col, impl_col = (header.index(key) for key in ('ID', '任務名', '実装'))
+            for row in rows:
+                if len(row) <= max(id_col, name_col, impl_col):
+                    continue
+                wiki_id = re.sub(r'\s+', '', row[id_col])
+                title = row[name_col].strip()
+                if not title or title == '任務名' or not ID_CELL.match(wiki_id):
+                    continue
+                match = IMPL_DATE.search(html.unescape(row[impl_col]))
+                if not match:
+                    continue
+                try:
+                    day = datetime.date(*(int(part) for part in match.groups()))
+                except ValueError:
+                    continue
+                no = resolve(wiki_id, title, by_wiki, names, by_name=True)
+                if no is not None:
+                    dates.setdefault(no, set()).add(day.isoformat())
+
+    for no, date in VERIFIED_RELEASE_DATE_OVERRIDES.items():
+        dates.setdefault(no, {date})
+
+    source = CATALOG.read_text(encoding='utf-8')
+    raw = json.loads(re.search(r'QUEST_CATALOG_RAW = (\[.*?\]) as const', source, re.S).group(1))
+    catalog_nos = {entry[0] for entry in raw}
+    result = {no: min(dates[no]) if no in dates else None for no in catalog_nos}
+    named_nos = {no for no, name in names.items() if name}
+    unknown = sorted(named_nos - dates.keys())
+    print(f'任務實裝日期：已核實 {len(named_nos) - len(unknown)}/{len(named_nos)} 項，未確認 {len(unknown)} 項', file=sys.stderr)
+    if unknown:
+        print(f'  未確認 api_no：{" ".join(map(str, unknown))}', file=sys.stderr)
+    return result
+
+
+def write_release_dates(dates: dict[int, str | None]) -> None:
+    compact = lambda value: json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+    body = ','.join(compact([no, dates[no]]) for no in sorted(dates))
+    RELEASE_OUT.write_text(
+        '/* 由 tools/quest-graph/generate.py 產生，勿手改。 */\n\n'
+        '/** 任務首次可核實的實裝日：[api_no, YYYY-MM-DD | null]。日期只取可查證資料；null 表示未確認。 */\n'
+        f'export const QUEST_RELEASE_DATE_RAW = [{body}] as const;\n',
+        encoding='utf-8',
+    )
 
 # api_no → 年任重置月（1–12）。wikiwiki 年任表的「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」
 # 兩處都寫；兩者不一致時不輸出，留給遊戲即時的 api_label_type（100＋月份）判定。
@@ -749,7 +862,12 @@ def main() -> None:
     offline = '--offline' in sys.argv[1:]
     kc3_quests(offline)
     by_wiki, names = load_catalog()
-    wiki, wiki_names = parse_wiki(wiki_page(offline), by_wiki, names)
+    wiki_pages = [wiki_page(offline), *wiki_archive_pages(offline)]
+    release_dates = parse_release_dates(wiki_pages, by_wiki, names)
+    write_release_dates(release_dates)
+    if '--release-dates-only' in sys.argv[1:]:
+        return
+    wiki, wiki_names = parse_wiki(wiki_pages[0], by_wiki, names)
     articles = zekamashi.cached() if offline else zekamashi.crawl()
     known = other_prerequisites()
     for no, (clauses, _, _, _) in wiki.items():

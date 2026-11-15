@@ -316,8 +316,19 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - 開放邊 `KC3_UNLOCKS_RAW`：KC3Kai 任務解鎖關係，只保留「前置 → 後續」的數字邊。
     https://github.com/KC3Kai/KC3Kai
   - 名稱、內文、wiki 代號、週期與前置清單：自社群任務目錄整理的事實欄位；來源網址不寫進資料檔。
-  - 開放条件 `WIKI_QUEST_GRAPH_RAW` 與實裝期間 `LIMITED_QUEST_WINDOWS_RAW`（`utils/quest-graph-data.ts`）：由 `tools/quest-graph/generate.py` 解析 wikiwiki 任務總表「開放条件/備考」與「実装」欄產生（實裝期間只取期間限定任務的開始／結束日期），只保留前置 `api_no`、AND／OR 組合與【検証中】等驗證旗標，不收錄頁面文字。只在開發者更新任務資料時手動執行，一次一個請求；擴充執行時不連網。
+  - 開放条件 `WIKI_QUEST_GRAPH_RAW` 與實裝期間 `LIMITED_QUEST_WINDOWS_RAW`（`utils/quest-graph-data.ts`）：由 `tools/quest-graph/generate.py` 解析 wikiwiki 任務總表「開放条件/備考」與「実装」欄產生（實裝期間只取期間限定任務的開始／結束日期），只保留前置 `api_no`、AND／OR 組合與【検証中】等驗證旗標，不收錄頁面文字。只在開發者更新任務資料時手動執行；日期資料另讀兩個歷史頁，請求間隔至少兩秒；擴充執行時不連網。
     https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
+  - 任務首次可核實實裝日 `QUEST_RELEASE_DATE_RAW`（`utils/quest-release-date-data.ts`）：同一產生器解析 wikiwiki 現行任務總表與歷史任務頁「実装」欄，取同一任務最早明載日期；已封存或缺少日期的任務，以 wikiwiki 歷史頁與ぜかまし任務攻略可核實的公告日期補值，只收錄 `[api_no, 日期]`，沒有依據時留 `null`。不收錄頁面文字。
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/4
+    https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%9C%9F%E9%96%93%E9%99%90%E5%AE%9A2
+    https://zekamashi.net/kancolle-kouryaku/2026sinsyun-geishun/
+    https://zekamashi.net/kancolle-kouryaku/harunokikan/
+    https://zekamashi.net/kancolle-kouryaku/daiichiyugeki-zyunbi/
+    https://zekamashi.net/kancolle-kouryaku/2026haru-syoubu1/
+    https://zekamashi.net/kancolle-kouryaku/2026tuyu-utyuuensyuu/
+    https://zekamashi.net/kancolle-kouryaku/2026tuyu-boueisen/
+    https://zekamashi.net/kancolle-kouryaku/2026tuyu-kaizyougoei/
+    https://zekamashi.net/kancolle-kouryaku/kantai13syuunen-kankansikizyunbi/
   - 年任換期月 `YEARLY_QUEST_RESET_MONTH_RAW`（同檔）：同一產生器解析 wikiwiki 任務總表年任表的「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」，兩者一致才收錄月份。遊戲 `api_label_type` 101–112＝100＋換期月的解讀，與季任 3／6／9／12 月換期的劃分，以本專案 `samples/Quest.json` 為準，並對照 ElectronicObserver `ElectronicObserver/Data/QuestData.cs`（LabelType 註解）與 KC3Kai `src/library/objects/Quest.js`、`src/library/managers/QuestManager.js`；`utils/quest-cycle.ts` 為 clean-room 重寫，未複製程式碼。
   - 前提／後續 `ZEKAMASHI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析ぜかまし各任務攻略「前提に…あり。後続に…あり。」敘述，只保留任務 `api_no` 關係與「要確認」「他不明」等註記旗標，不收錄文章內容。頁面快取於 `tools/quest-graph/.cache/`（不進 git），之後只重抓 sitemap lastmod 有變動或新發表的文章，請求間隔至少 2 秒。
     https://zekamashi.net/

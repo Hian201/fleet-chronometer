@@ -26,6 +26,7 @@ import { prepCheckNow, prepCheckText, questConditionText, questTargetLabel } fro
 import { questCatalogIdentity } from '@/utils/quest-identity';
 import { FACTORY_GOAL_EVENTS } from '@/utils/quest-goals';
 import { formatDate, formatDateTime } from '@/utils/date-format';
+import { QUEST_RELEASE_DATE_RAW } from '@/utils/quest-release-date-data';
 import { questCycleWindow } from '@/utils/quest-cycle';
 import { QUEST_CATEGORY_LABEL_KEYS, type QuestCategory } from '@/utils/quest-category';
 import { questCategoryMarkHtml } from '@/utils/html-escape';
@@ -43,6 +44,9 @@ import {
 } from '@/utils/quest-material-income';
 
 const PREFS_KEY = QUEST_FLOW_PREFS_KEY;
+const QUEST_RELEASE_DATES = new Map<number, string | null>(
+    QUEST_RELEASE_DATE_RAW.map(([apiNo, date]) => [apiNo, date] as const),
+);
 type FocusMode = 'focus' | 'all';
 interface QuestFlowPrefs {
     targetNo: number | null;
@@ -53,6 +57,10 @@ interface QuestFlowPrefs {
     /** 多選篩選：同組任一符合、跨組全部符合。 */
     filters: QuestFacetSelection;
     pinnedOnly: boolean;
+    releaseYear: string;
+    releaseSort: 'default' | 'asc' | 'desc';
+    releaseDateFrom: string;
+    releaseDateTo: string;
     /** 右欄標頭「任務內容與獎勵」是否展開；預設收起，把高度留給路線與關係圖。 */
     headOpen: boolean;
     tab: QuestFlowDetailTab;
@@ -108,6 +116,10 @@ const defaultPrefs = (): QuestFlowPrefs => ({
     query: '',
     filters: {},
     pinnedOnly: false,
+    releaseYear: '',
+    releaseSort: 'default',
+    releaseDateFrom: '',
+    releaseDateTo: '',
     headOpen: false,
     tab: 'path',
     graphDone: false,
@@ -134,6 +146,13 @@ function normalizeFilters(raw: unknown): QuestFacetSelection {
         if (kept.length) filters[group] = kept;
     }
     return filters;
+}
+
+function normalizeReleaseDate(value: unknown): string {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? value : '';
 }
 
 /** 舊版的單選統計列與分類／週期下拉，換算成對應的多選條件。 */
@@ -169,6 +188,10 @@ function loadPrefs(): QuestFlowPrefs {
             query: typeof value.query === 'string' ? value.query : '',
             filters: legacy ? legacy.filters : normalizeFilters(value.filters),
             pinnedOnly: legacy ? legacy.pinnedOnly : value.pinnedOnly === true,
+            releaseYear: typeof value.releaseYear === 'string' && /^(\d{4}|unknown)$/.test(value.releaseYear) ? value.releaseYear : '',
+            releaseSort: value.releaseSort === 'asc' || value.releaseSort === 'desc' ? value.releaseSort : 'default',
+            releaseDateFrom: normalizeReleaseDate(value.releaseDateFrom),
+            releaseDateTo: normalizeReleaseDate(value.releaseDateTo),
             headOpen: value.headOpen === true,
             tab: DETAIL_TABS.includes(value.tab as QuestFlowDetailTab) ? value.tab as QuestFlowDetailTab : 'path',
             graphDone: value.graphDone === true,
@@ -285,6 +308,7 @@ function wikiIds(row: QuestFlowRow): string {
 function rowMeta(row: QuestFlowRow): string {
     return `<span class="qf-meta-item">api_no ${row.definition.apiNo}</span>
         <span class="qf-meta-item">${esc(categoryLabel(row.definition.category))}</span>
+        ${releaseDateMetaHtml(row)}
         ${periodMetaHtml(row)}
         <span class="qf-meta-item qf-wiki-ids">${wikiIds(row)}</span>`;
 }
@@ -685,8 +709,55 @@ function headMeta(row: QuestFlowRow, nowTs: number): string {
         .map(id => `<span class="qf-id qf-wiki-id">${esc(id)}</span>`).join('');
     return `<span class="qf-meta-item">api_no ${row.definition.apiNo}</span>
         <span class="qf-meta-item">${esc(categoryLabel(row.definition.category))}</span>
+        ${releaseDateMetaHtml(row)}
         ${yearlyCycleMetaHtml(row, nowTs) || periodMetaHtml(row)}
         ${aliases ? `<span class="qf-meta-item qf-wiki-ids">${aliases}</span>` : ''}`;
+}
+
+/** 任務初回可核實的實裝日期；營運重用編號且目前名稱不符目錄時不沿用舊任務日期。 */
+function releaseDateMetaHtml(row: QuestFlowRow): string {
+    const releaseDate = isReusedQuest(row) ? null : QUEST_RELEASE_DATES.get(row.definition.apiNo);
+    let label = t('ov.qfReleaseDateUnknown');
+    if (releaseDate) {
+        const [year, month, day] = releaseDate.split('-').map(Number);
+        label = t('ov.qfReleaseDate', { date: formatDate(new Date(year, month - 1, day).getTime()) });
+    }
+    return `<span class="qf-meta-item" title="${esc(t('ov.qfReleaseDateTip'))}">${esc(label)}</span>`;
+}
+
+/** 缺值始終排最後；同日沿用原有清單順序。 */
+export function compareQuestReleaseDates(a: string | null | undefined, b: string | null | undefined, order: 'asc' | 'desc'): number {
+    return !a && !b ? 0 : !a ? 1 : !b ? -1 : a.localeCompare(b) * (order === 'asc' ? 1 : -1);
+}
+
+function questReleaseDate(row: QuestFlowRow): string | null {
+    return isReusedQuest(row) ? null : QUEST_RELEASE_DATES.get(row.definition.apiNo) ?? null;
+}
+
+function matchesReleaseDate(row: QuestFlowRow, prefs: QuestFlowPrefs): boolean {
+    const date = questReleaseDate(row);
+    if (prefs.releaseYear === 'unknown') return !date;
+    if (prefs.releaseYear && date?.slice(0, 4) !== prefs.releaseYear) return false;
+    const { releaseDateFrom: from, releaseDateTo: to } = prefs;
+    if (!from && !to) return true;
+    if (from && to && from > to) return false;
+    if (isReusedQuest(row)) return false;
+    return !!date && (!from || date >= from) && (!to || date <= to);
+}
+
+function formatReleaseDateInput(value: string): string {
+    const [year, month, day] = value.split('-').map(Number);
+    return formatDate(new Date(year, month - 1, day).getTime());
+}
+
+function releaseDateSelectionLabel(prefs: QuestFlowPrefs): string {
+    if (prefs.releaseYear) return `${t('ov.qfFacetReleaseDate')}：${prefs.releaseYear === 'unknown' ? t('ov.qfReleaseDateUnknown') : prefs.releaseYear}`;
+    const from = prefs.releaseDateFrom ? formatReleaseDateInput(prefs.releaseDateFrom) : '';
+    const to = prefs.releaseDateTo ? formatReleaseDateInput(prefs.releaseDateTo) : '';
+    const range = from && to ? t('ov.qfReleaseDateRange', { from, to })
+        : from ? t('ov.qfReleaseDateFromOnly', { date: from })
+            : t('ov.qfReleaseDateToOnly', { date: to });
+    return t('ov.qfSelectedReleaseDate', { range });
 }
 
 /**
@@ -884,13 +955,15 @@ function focusRow(row: QuestFlowRow): boolean {
 
 function matches(row: QuestFlowRow, facets: QuestRowFacets, prefs: QuestFlowPrefs, pinned: Set<number>): boolean {
     if (!matchesQueryAndPin(row, prefs, pinned)) return false;
+    if (!matchesReleaseDate(row, prefs)) return false;
     if (!matchesFacets(facets, prefs.filters)) return false;
     // 有搜尋或任何篩選條件時比對整個目錄；都沒有時才套用「聚焦導覽」的預設範圍。
     return filtering(prefs) || prefs.focus === 'all' || focusRow(row);
 }
 
 function filtering(prefs: QuestFlowPrefs): boolean {
-    return !!normalizeQuestSearch(prefs.query) || prefs.pinnedOnly || hasFacetSelection(prefs.filters);
+    return !!normalizeQuestSearch(prefs.query) || prefs.pinnedOnly || hasFacetSelection(prefs.filters)
+        || !!prefs.releaseYear || !!prefs.releaseDateFrom || !!prefs.releaseDateTo;
 }
 
 /** 搜尋字與「只看釘選」；篩選標籤的計數在這個範圍內算。 */
@@ -1012,6 +1085,13 @@ function facetPanelHtml(values: Record<QuestFacetGroup, string[]>, prefs: QuestF
             <details class="qf-more">
                 <summary><span>${esc(t('ov.qfMoreFilters'))}</span><em class="qf-more-count"></em></summary>
                 <div class="qf-more-body">
+                    <fieldset class="qf-facet-group"><legend>${esc(t('ov.qfFacetReleaseDate'))}</legend>
+                        <div class="qf-fchips"><button type="button" class="qf-fchip" data-qf-oldest>${esc(t('ov.qfStartOldest'))}</button>
+                        ${['default', 'asc', 'desc'].map(order => `<button type="button" class="qf-fchip" data-qf-release-sort="${order}" aria-pressed="${prefs.releaseSort === order}">${esc(t(order === 'asc' ? 'ov.qfSortOldest' : order === 'desc' ? 'ov.qfSortNewest' : 'ov.qfSortDefault'))}</button>`).join('')}</div>
+                    </fieldset>
+                    <fieldset class="qf-facet-group"><legend>${esc(t('ov.qfReleaseYear'))}</legend>
+                        <div class="qf-fchips"><select class="qf-fchip qf-release-year" data-qf-release-year aria-label="${esc(t('ov.qfReleaseYear'))}">${['', ...[...new Set([...QUEST_RELEASE_DATES.values()].filter(Boolean).map(date => date!.slice(0, 4)))].sort(), 'unknown'].map(year => `<option value="${year}">${esc(year === '' ? t('ov.qfAllYears') : year === 'unknown' ? t('ov.qfReleaseDateUnknown') : year)}</option>`).join('')}</select></div>
+                    </fieldset>
                     ${MORE_GROUPS.map(group => facetGroupHtml(group, values[group], prefs)).join('')}
                     <div class="qf-more-foot"><button type="button" class="ov-btn qf-more-close">${esc(t('ov.qfMoreDone'))}</button></div>
                 </div>
@@ -1170,10 +1250,11 @@ export const questFlowSection: OverviewSection = {
 
         /** 標籤計數與「已選」摘要：搜尋與只看釘選之內，其他組的條件照常套用、本組不套用。 */
         const updateFacets = (model: QuestFlowModel, facetsByNo: Map<number, QuestRowFacets>, pinned: Set<number>) => {
-            const scope = model.rows.filter(row => matchesQueryAndPin(row, prefs, pinned));
+            const scope = model.rows.filter(row => matchesQueryAndPin(row, prefs, pinned) && matchesReleaseDate(row, prefs));
             const scopeFacets = scope.map(row => facetsByNo.get(row.definition.apiNo)!);
             const counts = questFacetCounts(scopeFacets, prefs.filters);
             const pinnedCount = model.rows.filter(row => pinned.has(row.definition.apiNo)
+                && matchesReleaseDate(row, prefs)
                 && matchesFacets(facetsByNo.get(row.definition.apiNo)!, prefs.filters)).length;
             const done = scope.filter(row => {
                 const facets = facetsByNo.get(row.definition.apiNo)!;
@@ -1195,8 +1276,9 @@ export const questFlowSection: OverviewSection = {
                     })
                     : t('ov.qfChipTitle', { label, n: count });
             });
-            const chosen: [QuestFacetGroup | 'pinned', string, string][] = [
+            const chosen: [QuestFacetGroup | 'pinned' | 'releaseDate', string, string][] = [
                 ...(prefs.pinnedOnly ? [['pinned', 'only', t('ov.qfPinnedOnly')] as [QuestFacetGroup | 'pinned', string, string]] : []),
+                ...(prefs.releaseYear || prefs.releaseDateFrom || prefs.releaseDateTo ? [['releaseDate', 'range', releaseDateSelectionLabel(prefs)] as [ 'releaseDate', string, string]] : []),
                 ...QUEST_FACET_GROUPS.flatMap(group => (prefs.filters[group] ?? [])
                     .map(value => [group, value, group === 'reset' ? resetMonthLabel(value, 'ov.qfResetMonthSelected') : facetLabel(group, value)] as [QuestFacetGroup, string, string])),
             ];
@@ -1206,7 +1288,24 @@ export const questFlowSection: OverviewSection = {
                 `<button type="button" class="qf-selected-tag" data-qf-remove="${group}" data-qf-value="${esc(value)}"
                     title="${esc(t('ov.qfRemoveFilter', { label }))}">${esc(label)}<span aria-hidden="true">×</span></button>`).join('');
             const moreCount = MORE_GROUPS.reduce((sum, group) => sum + (prefs.filters[group]?.length ?? 0), 0);
-            facetPanel.querySelector('.qf-more-count')!.textContent = moreCount ? String(moreCount) : '';
+            const yearCounts = new Map<string, number>();
+            const yearRows = model.rows.filter(row => matchesQueryAndPin(row, prefs, pinned) && matchesFacets(facetsByNo.get(row.definition.apiNo)!, prefs.filters));
+            for (const row of yearRows) {
+                const year = questReleaseDate(row)?.slice(0, 4) ?? 'unknown';
+                yearCounts.set(year, (yearCounts.get(year) ?? 0) + 1);
+            }
+            const yearSelect = facetPanel.querySelector<HTMLSelectElement>('[data-qf-release-year]')!;
+            for (const option of Array.from(yearSelect.options)) {
+                const year = option.value;
+                const count = year ? yearCounts.get(year) ?? 0 : yearRows.length;
+                option.hidden = !!year && count === 0 && prefs.releaseYear !== year;
+                const label = year === '' ? t('ov.qfAllYears') : year === 'unknown' ? t('ov.qfReleaseDateUnknown') : year;
+                option.textContent = `${label} (${count})`;
+                option.selected = prefs.releaseYear === year;
+            }
+            facetPanel.querySelectorAll<HTMLButtonElement>('[data-qf-release-sort]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.qfReleaseSort === prefs.releaseSort)));
+            const activeMoreCount = moreCount + Number(!!prefs.releaseYear || !!prefs.releaseDateFrom || !!prefs.releaseDateTo) + Number(prefs.releaseSort !== 'default');
+            facetPanel.querySelector('.qf-more-count')!.textContent = activeMoreCount ? String(activeMoreCount) : '';
         };
 
         const cycles = el.querySelector<HTMLElement>('.qf-cycles')!;
@@ -1222,7 +1321,8 @@ export const questFlowSection: OverviewSection = {
             const rows = model.rows
                 .filter(row => (!focusNos || focusNos.has(row.definition.apiNo))
                     && matches(row, facetsByNo.get(row.definition.apiNo)!, prefs, pinned))
-                .sort((a, b) => listRank(a) - listRank(b)
+                .sort((a, b) => (prefs.releaseSort === 'default' ? 0 : compareQuestReleaseDates(questReleaseDate(a), questReleaseDate(b), prefs.releaseSort))
+                    || listRank(a) - listRank(b)
                     || a.definition.apiNo - b.definition.apiNo);
             const selectedNo = prefs.targetNo && model.byNo.has(prefs.targetNo)
                 ? prefs.targetNo
@@ -1447,11 +1547,31 @@ export const questFlowSection: OverviewSection = {
             prefs.filters = { ...prefs.filters, reset: [month] };
             savePrefs(prefs); draw();
         });
+        facetPanel.querySelector<HTMLSelectElement>('[data-qf-release-year]')!.addEventListener('change', event => {
+            prefs.releaseYear = (event.target as HTMLSelectElement).value;
+            prefs.releaseDateFrom = ''; prefs.releaseDateTo = '';
+            savePrefs(prefs); draw();
+        });
         facetPanel.addEventListener('click', event => {
             const target = event.target as HTMLElement;
+            const sortButton = target.closest<HTMLElement>('[data-qf-release-sort]');
+            if (sortButton || target.closest('[data-qf-oldest]')) {
+                if (sortButton) {
+                    prefs.releaseSort = sortButton.dataset.qfReleaseSort as QuestFlowPrefs['releaseSort'];
+                } else {
+                    prefs.filters = { ...prefs.filters, list: ['in-progress', 'available'] };
+                    prefs.releaseYear = ''; prefs.releaseDateFrom = ''; prefs.releaseDateTo = '';
+                    prefs.releaseSort = 'asc';
+                }
+                savePrefs(prefs); draw(); return;
+            }
             if (target.closest('.qf-clear')) {
+                prefs.releaseSort = 'default';
                 prefs.filters = {};
                 prefs.pinnedOnly = false;
+                prefs.releaseYear = '';
+                prefs.releaseDateFrom = '';
+                prefs.releaseDateTo = '';
                 savePrefs(prefs); draw();
                 return;
             }
@@ -1462,7 +1582,14 @@ export const questFlowSection: OverviewSection = {
             }
             const chip = target.closest<HTMLElement>('[data-qf-facet], [data-qf-remove]');
             if (!chip) return;
-            const group = (chip.dataset.qfFacet ?? chip.dataset.qfRemove) as QuestFacetGroup | 'pinned';
+            const group = (chip.dataset.qfFacet ?? chip.dataset.qfRemove) as QuestFacetGroup | 'pinned' | 'releaseDate';
+            if (group === 'releaseDate') {
+                prefs.releaseYear = '';
+                prefs.releaseDateFrom = '';
+                prefs.releaseDateTo = '';
+                savePrefs(prefs); draw();
+                return;
+            }
             if (group === 'pinned') {
                 prefs.pinnedOnly = !prefs.pinnedOnly;
             } else {
