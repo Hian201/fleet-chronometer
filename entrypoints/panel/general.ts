@@ -5,7 +5,8 @@ import { itemCatalog, itemDetails, itemMatches, uncataloguedUseItem, type Catalo
 import { ITEM_PINS_KEY, loadItemPins, saveItemPins, sortPinnedFirst, toggleItemPin } from '@/utils/item-pins';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import {
-    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml,
+    loadQuestCatalogLocale, localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml,
+    questCatalogLocaleLoaded,
 } from '@/utils/quest-catalog-localization';
 import { formatQuestTime, type QuestJudgement, type ServerObservation } from '@/utils/quest-tracking';
 import { openOverviewAt, type OverviewTabsApi } from '@/utils/open-overview';
@@ -180,6 +181,7 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     let dockHeadingSignature = '';
     let inventory: ItemInventory = 'standard';
     let questSignature = '';
+    let questLoadLocale: string | null = null;
     let itemSignature = '';
     const openQuests = new Set<number>();
     const questPanes = new Map<number, QuestPane>();
@@ -507,7 +509,13 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         const quests = state.quests_();
         byId('quest-heading').innerHTML = `<strong>${esc(l.quests)}</strong><span>${quests.length}</span>`;
         const questLocale = getLang();
-        const signature = JSON.stringify([questLocale, quests.map(q => [q.no, q.name, q.detail, q.done, q.category, q.progress?.count, q.progress?.target, q.tracking])]);
+        // 譯文到齊前先以日文原文畫出；到齊後簽章改變，照常重繪並保留展開、分頁與捲動。
+        const translated = questCatalogLocaleLoaded(questLocale);
+        if (!translated && questLoadLocale !== questLocale) {
+            questLoadLocale = questLocale;
+            void loadQuestCatalogLocale(questLocale).then(() => { if (getLang() === questLocale) render(); }, () => { });
+        }
+        const signature = JSON.stringify([questLocale, translated, quests.map(q => [q.no, q.name, q.detail, q.done, q.category, q.progress?.count, q.progress?.target, q.tracking])]);
         if (signature !== questSignature) {
             const scrollTop = questsEl.scrollTop;
             questsEl.innerHTML = quests.map(q => {

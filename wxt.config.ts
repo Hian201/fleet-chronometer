@@ -3,8 +3,9 @@ import { GAME_PAGE_MATCHES } from './utils/game-page';
 
 // 單一 chunk 壓縮後的大小預算（kB，1 kB = 1000 bytes，與 Vite 計算方式相同）。
 // Vite 預設 500 kB 是為經網路下載的網站設計；擴充頁 chunk 都從本機載入，大小只影響
-// 解析時間。最大的 chunk 是任務目錄三語翻譯與任務資料表（約 1.1 MB），預算留約一成餘裕，
-// 超過即代表資料又成長一截，該評估把翻譯改成依語言動態載入。
+// 解析時間。目前最大的是 background.js（約 1.17 MB，service worker 單檔、不能用 import()），
+// 其次是 panel 與情報總括共用的任務資料 chunk（約 0.98 MB）；任務目錄譯文已依語言以 import()
+// 分出（英文約 115 kB、台灣華語約 140 kB）。超過即代表資料又成長一截，先找出成長來源再決定拆分。
 const CHUNK_BUDGET_KB = 1200;
 
 // See https://wxt.dev/api/config.html

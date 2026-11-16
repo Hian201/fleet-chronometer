@@ -6,7 +6,7 @@ import { esc, matIconHtml } from '../../utils/html-escape';
 import { expedDisplayName, setLang, t } from '../../utils/ui-i18n';
 import { itemCatalog, itemDetails, type ItemInventory } from '../../utils/item-catalog';
 import {
-    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml,
+    loadQuestCatalogLocale, localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml,
 } from '../../utils/quest-catalog-localization';
 import { QUEST_CATALOG_BY_NO } from '../../utils/quest-flow';
 
@@ -251,6 +251,7 @@ function render(lang: PreviewLang, theme: 'dark' | 'light') {
 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
 for (const lang of ['zh-TW', 'ja', 'en'] as const) {
+    await loadQuestCatalogLocale(lang);
     for (const theme of ['dark', 'light'] as const) {
         const path = resolve(root, '.preview/panel-general-ledger-' + lang + '-' + theme + '.html');
         writeFileSync(path, render(lang, theme));

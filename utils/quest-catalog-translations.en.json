@@ -1,0 +1,2674 @@
+{
+  "101": {
+    "name": "The First Attempt at Fleet Organization!",
+    "detail": "Have 2 ships in your main fleet."
+  },
+  "102": {
+    "name": "Form a Destroyer Division!",
+    "detail": "Have 4 DD in your main fleet."
+  },
+  "103": {
+    "name": "Form a Torpedo Squadron!",
+    "detail": "Have a CL as a flagship and 5 DD in your main fleet."
+  },
+  "104": {
+    "name": "Form a Six-Ship Fleet Formation!",
+    "detail": "Have 6 ships in your fleet."
+  },
+  "105": {
+    "name": "Form a Division with Two Light Cruisers!",
+    "detail": "Have 2 CL in your main fleet."
+  },
+  "106": {
+    "name": "Form a Heavy Cruiser Division!",
+    "detail": "Have 2 CA (not CAV) in your main fleet."
+  },
+  "107": {
+    "name": "Form a Carrier Task Force!",
+    "detail": "Have a CV(B/L) as flagship and 3 DD in your main fleet."
+  },
+  "108": {
+    "name": "Arrange Both of the Tenryuu-class Light Cruiser Sisters!",
+    "detail": "Have Tenryuu and Tatsuta in your main fleet."
+  },
+  "109": {
+    "name": "Arrange the Three Sendai-class Light Cruiser Sisters!",
+    "detail": "Have Sendai, Jintsuu and Naka in your main fleet."
+  },
+  "110": {
+    "name": "Arrange the Four Myoukou-class Heavy Cruiser Sisters!",
+    "detail": "Have Myoukou, Nachi, Ashigara and Haguro in your main fleet."
+  },
+  "111": {
+    "name": "Arrange Both of the Fusou-class Battleship Sisters!",
+    "detail": "Have Fusou and Yamashiro in your main fleet."
+  },
+  "112": {
+    "name": "Arrange Both of the Ise-class Battleship Sisters!",
+    "detail": "Have Ise and Hyuuga in your main fleet."
+  },
+  "113": {
+    "name": "Form a Main Fleet with a Battleship and Heavy Cruisers!",
+    "detail": "Have a BB (not BBV) and 2 CA in your main fleet."
+  },
+  "114": {
+    "name": "Form the Nagumo Task Force!",
+    "detail": "Have ONLY Akagi, Kaga, Hiryuu and Souryuu in your main fleet."
+  },
+  "115": {
+    "name": "Form the Second Fleet!",
+    "detail": "Have a ship in your second fleet."
+  },
+  "116": {
+    "name": "Deploy a Seaplane Tender!",
+    "detail": "Have an AV in your main fleet."
+  },
+  "117": {
+    "name": "Form a Carrier Task Force in the Second Fleet!",
+    "detail": "Have a CV(B/L) and 3 DD in your second fleet."
+  },
+  "118": {
+    "name": "Arrange the Kongou-class Fast Battleship Forces!",
+    "detail": "Have Kongou, Hiei, Haruna and Kirishima in your main fleet."
+  },
+  "119": {
+    "name": "Form the Mikawa Fleet!",
+    "detail": "Have Choukai, Aoba, Kako, Furutaka, Tenryuu and a FAST ship in your main fleet."
+  },
+  "120": {
+    "name": "Form the 6th Destroyer Division!",
+    "detail": "Have ONLY Akatsuki, Hibiki, Inazuma and Ikazuchi in your fleet."
+  },
+  "121": {
+    "name": "Form the 4th Cruiser Division!",
+    "detail": "Have Atago, Takao, Choukai and Maya in your main fleet."
+  },
+  "122": {
+    "name": "Form the Nishimura Fleet!",
+    "detail": "Have Fusou, Yamashiro, Mogami and Shigure in your main fleet."
+  },
+  "123": {
+    "name": "Form the 5th Carrier Division!",
+    "detail": "Have Shoukaku, Zuikaku and 2 DD in your main fleet."
+  },
+  "124": {
+    "name": "Form the New Mikawa Fleet!",
+    "detail": "Have Choukai, Aoba, Kinugasa, Kako, Furutaka and Tenryuu in your main fleet."
+  },
+  "125": {
+    "name": "Form a Submarine Fleet!",
+    "detail": "Have 2 SS(V) in your fleet."
+  },
+  "126": {
+    "name": "Form an Aviation Surface Attack Fleet!",
+    "detail": "Have 2 BBV and 2 CAV in your main fleet."
+  },
+  "127": {
+    "name": "Form a Medium-Sized Submarine Fleet!",
+    "detail": "Have 3 SS(V) in your fleet."
+  },
+  "128": {
+    "name": "Form the 6th Cruiser Division!",
+    "detail": "Have Furutaka, Kako, Aoba and Kinugasa in your main fleet."
+  },
+  "129": {
+    "name": "Form the 5th Fleet!",
+    "detail": "Have Nachi, Ashigara, Tama and Kiso in your fleet."
+  },
+  "130": {
+    "name": "Form the 1st Torpedo Squadron!",
+    "detail": "Have Abukuma, Akebono, Ushio, Kasumi and Shiranui in your fleet."
+  },
+  "131": {
+    "name": "Form the 8th Destroyer Division!",
+    "detail": "Have ONLY Asashio, Michishio, Ooshio and Arashio in your fleet."
+  },
+  "132": {
+    "name": "Form the 18th Destroyer Division!",
+    "detail": "Have ONLY Kasumi, Arare, Kagerou and Shiranui in your fleet."
+  },
+  "133": {
+    "name": "Form the 30th Destroyer Division (First Generation)!",
+    "detail": "Have ONLY Mutsuki, Kisaragi, Yayoi and Mochizuki in your fleet."
+  },
+  "134": {
+    "name": "Preparation for the Ceremony! (Part 3)",
+    "detail": "Collect your feelings and set Fleet 1 with a Lv.90~99 flagship!"
+  },
+  "135": {
+    "name": "A New Voyage!",
+    "detail": "Form a fleet with your newlywed Lv.100+ ship as flagship and 5 additional ships!"
+  },
+  "136": {
+    "name": "Form the 30th Destroyer Division (Second Generation)!",
+    "detail": "Have ONLY Mutsuki, Yayoi, Uzuki and Mochizuki in your fleet."
+  },
+  "137": {
+    "name": "Form the 5th Cruiser Division!",
+    "detail": "Have Myoukou, Nachi and Haguro in your fleet."
+  },
+  "138": {
+    "name": "Form the New 2nd Carrier Division!",
+    "detail": "Have Hiryuu Kai Ni as flagship, Souryuu and 2 DD in your fleet."
+  },
+  "139": {
+    "name": "Form the 6th Submarine Fleet!",
+    "detail": "Have AS as flagship and 4 SS(V) in your fleet."
+  },
+  "140": {
+    "name": "Deploy the New Type of Radar!",
+    "detail": "Have Myoukou Kai Ni as Fleet 1 flagship."
+  },
+  "141": {
+    "name": "Strengthen the Reformed 2nd Carrier Division!",
+    "detail": "Have Souryuu Kai Ni as flagship, Hiryuu Kai Ni, and 2 DD in your fleet."
+  },
+  "142": {
+    "name": "Amass All Ships of the Elite 3rd Battleship Division!",
+    "detail": "Have Kongou Kai Ni, Haruna Kai Ni, Kirishima Kai Ni and Hiei Kai Ni in your main fleet."
+  },
+  "143": {
+    "name": "Deploy a New Model of Standard Aircraft Carrier!",
+    "detail": "Have Unryuu as Fleet 1 flagship."
+  },
+  "144": {
+    "name": "Form the Main Battleship Force, 2nd Division!",
+    "detail": "Have ONLY Nagato, Mutsu, Fusou and Yamashiro in your main fleet."
+  },
+  "145": {
+    "name": "Arrange the Primary Battleships of the Surface Task Force!",
+    "detail": "Have 3 BB (Nagato-class, Fusou-class, Ise-cass or Yamato-class ONLY) and 1 CL in your fleet."
+  },
+  "146": {
+    "name": "Prepare the Improvement Arsenal!",
+    "detail": "Have Akashi as flagship of Fleet 1."
+  },
+  "147": {
+    "name": "Reform the Nishimura Fleet!",
+    "detail": "Have Fusou, Yamashiro, Mogami, Shigure and Michishio in your main fleet."
+  },
+  "148": {
+    "name": "Form a Light Surface Counterattack Force!",
+    "detail": "Have Kasumi as flagship, Ashigara, 1 CL and 3 DD in your main fleet."
+  },
+  "149": {
+    "name": "Form the 11th Destroyer Division!",
+    "detail": "Have ONLY any 4 of Fubuki, Shirayuki, Hatsuyuki, Miyuki and Murakumo in your main fleet."
+  },
+  "150": {
+    "name": "Form the 21st Destroyer Division!",
+    "detail": "Have ONLY Hatsuharu, Nenohi, Wakaba and Hatsushimo in your main fleet."
+  },
+  "151": {
+    "name": "Form the 22nd Destroyer Division!",
+    "detail": "Have ONLY Satsuki, Fumizuki, Nagatsuki and 1 DD in your main fleet."
+  },
+  "152": {
+    "name": "Prepare the New Mikawa Fleet to Break Through!",
+    "detail": "Have Choukai Kai Ni as flagship and any five of Aoba, Kinugasa, Kako, Furutaka, Tenryuu, Yuubari in your main fleet."
+  },
+  "153": {
+    "name": "Reform the 18th Cruiser Division!",
+    "detail": "Have Tenryuu, Tatsuta and at least 2 additional ships in your fleet."
+  },
+  "154": {
+    "name": "Form the Surface Breakthrough Force!",
+    "detail": "Have Hiei, Kirishima, Nagara, Akatsuki, Ikazuchi and Inazuma in your fleet."
+  },
+  "155": {
+    "name": "Form the New 6th Destroyer Division!",
+    "detail": "Have ONLY Akatsuki Kai Ni as flagship, Hibiki/Verniy, Ikazuchi and Inazuma in your fleet."
+  },
+  "156": {
+    "name": "Prepare the 1st Torpedo Squadron to Break Through into the North!",
+    "detail": "Have Abukuma as flagship, Hibiki/Verniy, Hatsushimo, Wakaba, Samidare and Shimakaze in your main fleet."
+  },
+  "157": {
+    "name": "Prepare DesRon 1 to Break Through into the North Again!",
+    "detail": "Have Abukuma Kai Ni as flagship, Hibiki/Verniy, Yuugumo, Naganami, Akigumo and Shimakaze in your main fleet."
+  },
+  "158": {
+    "name": "Unrivaled 1st Battleship Division, Prepare to Set Sail!",
+    "detail": "Have Nagato Kai Ni as Fleet 1 flagship with Mutsu Kai Ni as second ship."
+  },
+  "161": {
+    "name": "Reform the 5th Carrier Division!",
+    "detail": "Have Shoukaku, Zuikaku, Oboro and Akigumo in your main fleet."
+  },
+  "162": {
+    "name": "Prepare to Sortie the New 21st Cruiser Division!",
+    "detail": "Have Nachi Kai Ni, Ashigara Kai Ni, Tama and Kiso in your main fleet."
+  },
+  "163": {
+    "name": "Form the 16th Cruiser Division (First Generation)!",
+    "detail": "Have Ashigara as flagship, Kuma and Nagara in your main fleet."
+  },
+  "164": {
+    "name": "Form the 3rd Carrier Division!",
+    "detail": "Have Zuikaku Kai+ as flagship, Zuihou, Chitose (CVL) and Chiyoda (CVL) in your main fleet."
+  },
+  "165": {
+    "name": "Form the 4th Carrier Division!",
+    "detail": "Have Ise Kai and Hyuuga Kai in your main fleet."
+  },
+  "166": {
+    "name": "Form the Ozawa Fleet!",
+    "detail": "Have Zuikaku Kai (or Kai Ni) as flagship, Zuihou Kai, Chitose (CVL), Chiyoda (CVL), Ise Kai and Hyuuga Kai in your main fleet."
+  },
+  "167": {
+    "name": "Form the New Carrier Division!",
+    "detail": "Have Zuikaku Kai Ni, Shoukaku Kai Ni and 2 DD in your fleet."
+  },
+  "168": {
+    "name": "Form the 16th Cruiser Division (Second Generation)",
+    "detail": "Have Natori as flagship, Isuzu and Kinu in your fleet."
+  },
+  "169": {
+    "name": "Form the Newly Organized Carrier Division!",
+    "detail": "Have 2 CV(L), 2 BBV/CAV and 2 DD in your fleet."
+  },
+  "170": {
+    "name": "Reform the Strengthened Surface Counterattack Force!",
+    "detail": "Have Kasumi as flagship, Ashigara, Ooyodo, Asashimo and Kiyoshimo in your fleet."
+  },
+  "171": {
+    "name": "Form the 31st Cruiser Division (First Generation)!",
+    "detail": "Have Isuzu Kai Ni as flagship, Satsuki Kai Ni and Uzuki Kai in your fleet."
+  },
+  "172": {
+    "name": "Form the 27th Destroyer Division!",
+    "detail": "Have ONLY Shiratsuyu Kai as flagship, Shigure, Harusame and Samidare in your fleet."
+  },
+  "173": {
+    "name": "Form a Forced High-Speed Transport Force!",
+    "detail": "Have Sendai Kai Ni as flagship, Kawakaze Kai Ni, Shigure Kai Ni and 2 DD in your fleet."
+  },
+  "174": {
+    "name": "Reform the Fleet Composition Into a New Torpedo Squadron!",
+    "detail": "Have a CL/CLT/CT as flagship and 4 DD in any fleet."
+  },
+  "175": {
+    "name": "Reform the New 8th Destroyer Division!",
+    "detail": "Have ONLY Asashio Kai Ni (or Kai Ni D) as flagship, Michishio, Ooshio and Arashio in your fleet."
+  },
+  "176": {
+    "name": "Elite! DesDiv 8, 1st platoon!",
+    "detail": "Have Asashio Kai Ni D and Ooshio Kai Ni in your fleet."
+  },
+  "177": {
+    "name": "Form the 19th Destroyer Division!",
+    "detail": "Have Isonami, Uranami, Ayanami and Shikinami in your fleet."
+  },
+  "178": {
+    "name": "Form the 16th Cruiser Division (Third Generation)!",
+    "detail": "Have Kinu, Aoba, Kitakami and Ooi in your fleet."
+  },
+  "179": {
+    "name": "Reform the Elite 16th Cruiser Division!",
+    "detail": "Have Kinu Kai Ni as flagship and any five of Kitakami Kai Ni, Ooi Kai Ni, Kuma Kai, Aoba Kai, Uranami Kai and Shikinami Kai in your fleet."
+  },
+  "180": {
+    "name": "Form the New 1st Battleship Division!",
+    "detail": "Have Nagato Kai Ni as flagship and Mutsu Kai in Fleet 1."
+  },
+  "181": {
+    "name": "Form the New 7th Cruiser Division!",
+    "detail": "Have Kumano Kai Ni (or Kou) as flagship, Suzuya Kai Ni (or Kou) as second ship, Mogami Kai and Mikuma Kai in Fleet 1."
+  },
+  "182": {
+    "name": "Reform the Elite 4th Carrier Division!",
+    "detail": "Have Lv.50+ Ise and Lv. 50+ Hyuuga as flagship and second ship, 1 CL, 2 DD, and 1 additional ship in Fleet 1."
+  },
+  "183": {
+    "name": "Form the New 4th Torpedo Squadron!",
+    "detail": "Have Yura Kai Ni as flagship, Murasame, Yuudachi, Harusame, Samidare, and 1 other DD in Fleet 1."
+  },
+  "184": {
+    "name": "Reform the Elite 22nd Destroyer Division!",
+    "detail": "Have Fumizuki Kai Ni, Satsuki Kai Ni, Minazuki Kai and Nagatsuki Kai in your fleet."
+  },
+  "185": {
+    "name": "Form the Powerful Task Force!",
+    "detail": "Have Saratoga Mk.II or Mod.2 as flagship, 1 CL and 2 DD in Fleet 1."
+  },
+  "186": {
+    "name": "Form the Supreme 8th Destroyer Division!",
+    "detail": "Have ONLY Arashio Kai Ni, Asashio Kai Ni (or D), Michishio Kai Ni, and Ooshio Kai Ni in your fleet."
+  },
+  "187": {
+    "name": "Nishimura Fleet, 2nd Division Escort Force, Assemble!",
+    "detail": "Have Mogami, Asagumo, Michishio, Shigure and Yamagumo in Fleet 3."
+  },
+  "188": {
+    "name": "Elite DesDiv 31, First Platoon, Prepare to Sortie!",
+    "detail": "Have Naganami Kai Ni as flagship and ONLY ONE of Takanami Kai, Asashimo Kai or Okinami Kai in your fleet."
+  },
+  "189": {
+    "name": "Elite DesRon 4, Prepare to Set Sail!",
+    "detail": "Fill an entire six-ship fleet with Murasame Kai Ni as flagship, 3+ of Yura Kai Ni, Yuudachi Kai Ni, Harusame Kai, Samidare Kai or Akizuki Kai and your choice of other ships."
+  },
+  "190": {
+    "name": "Elite 21st Destroyer Division, Prepare to Set Sail!",
+    "detail": "Have Wakaba Kai, Hatsuharu Kai Ni and Hatsushimo Kai Ni, up to 1 other DD, and no other ships in your fleet."
+  },
+  "191": {
+    "name": "Remodeled 17th Destroyer Division, Commence Restructuring!",
+    "detail": "Have ONLY Hamakaze B Kai, Isokaze B Kai, Urakaze Kai and Tanikaze Kai in your fleet."
+  },
+  "192": {
+    "name": "Form the Elite 18th Destroyer Division!",
+    "detail": "Have ONLY Arare Kai Ni, Kasumi Kai Ni (or B), Kagerou Kai and Shiranui Kai in your fleet."
+  },
+  "193": {
+    "name": "Supreme Type-A Destroyers, Assemble!",
+    "detail": "Have Kagerou Kai Ni, Shiranui Kai Ni, Kuroshio Kai Ni and three level 70+ Kagerou/Yuugumo-class DD in your fleet."
+  },
+  "194": {
+    "name": "Form the Elite 18th Cruiser Division!",
+    "detail": "Have ONLY Tenryuu Kai Ni and Tatsuta Kai Ni in your fleet."
+  },
+  "195": {
+    "name": "Form the Elite 17th Destroyer Division!",
+    "detail": "Have ONLY Isokaze B Kai, Hamakaze B Kai, Urakaze D Kai and Tanikaze D Kai in your fleet."
+  },
+  "196": {
+    "name": "Elite 10th Destroyer Division, Prepare To Sortie!",
+    "detail": "Have ONLY Yuugumo Kai Ni and Makigumo Kai Ni in your fleet."
+  },
+  "197": {
+    "name": "The Powerful DesDiv 10, Mainstay of Mainstays–Sortie Preparations Complete!",
+    "detail": "Have ONLY Yuugumo Kai Ni, Makigumo Kai Ni, Kazagumo Kai Ni and Akigumo Kai Ni in your fleet."
+  },
+  "198": {
+    "name": "Powerful! DesDiv 7, Prepare to Weigh Anchor!",
+    "detail": "Have ONLY Oboro Kai, Sazanami Kai, Akebono Kai+ and Ushio Kai+ in your fleet."
+  },
+  "199": {
+    "name": "Monthly [Time-limited] 31st Squadron, Special Operations Formation!",
+    "detail": "Have any 5 of Hanazuki, Kiri, Kaya, Sugi, Kashi, Take, Ushio and Hibiki in your fleet."
+  },
+  "201": {
+    "name": "Daily Victory",
+    "detail": "Defeat an Abyssal fleet by obtaining at least a B-Rank."
+  },
+  "202": {
+    "name": "First Sortie!",
+    "detail": "Sortie your main fleet."
+  },
+  "203": {
+    "name": "Guard the Sea in Front of the Naval Base!",
+    "detail": "Sortie to [W1-1]. B-Rank+ the boss node."
+  },
+  "204": {
+    "name": "Sortie into the Nansei Islands Region!",
+    "detail": "Sortie to [W1-2]. Reach the end of the map."
+  },
+  "205": {
+    "name": "Intercept the Approaching Enemy Vanguard Fleet!",
+    "detail": "Sortie to [W1-2]. B-Rank+ the boss node."
+  },
+  "206": {
+    "name": "Sortie a Torpedo Squadron!",
+    "detail": "Sortie a CL as flagship and 3 DD to any map."
+  },
+  "207": {
+    "name": "Sortie a Heavy Cruiser!",
+    "detail": "Sortie a CA as flagship to any map."
+  },
+  "208": {
+    "name": "Sortie a Battleship!",
+    "detail": "Sortie a BB flagship to any map. A BBV will not count."
+  },
+  "209": {
+    "name": "Sortie a Carrier Task Force!",
+    "detail": "Sortie a CV(L) flagship and 5 DD/CL/AV to any map."
+  },
+  "210": {
+    "name": "Daily Battles",
+    "detail": "Attack 10 Abyssal fleets."
+  },
+  "211": {
+    "name": "Daily Carriers",
+    "detail": "Sink 3 Abyssal CV(L)."
+  },
+  "212": {
+    "name": "Daily Transports 2",
+    "detail": "Sink 5 Abyssal transport ships."
+  },
+  "213": {
+    "name": "Weekly Transports",
+    "detail": "Sink 20 Abyssal transport ships."
+  },
+  "214": {
+    "name": "Weekly Sorties",
+    "detail": "Sortie 36 times, reach 24 boss nodes, B-Rank+ 12 boss nodes, and obtain 6 S-Ranks."
+  },
+  "215": {
+    "name": "Second Fleet, Sortie!",
+    "detail": "Sortie your 2nd Fleet to any map. A sortie, not an expedition."
+  },
+  "216": {
+    "name": "Daily Battle",
+    "detail": "Attack 1 Abyssal fleet."
+  },
+  "217": {
+    "name": "Sink an Enemy Carrier!",
+    "detail": "Sink an Abyssal CV(L)."
+  },
+  "218": {
+    "name": "Daily Transports",
+    "detail": "Sink 3 Abyssal transport ships."
+  },
+  "219": {
+    "name": "Sortie the Mikawa Fleet!",
+    "detail": "Sortie Choukai, Aoba, Kako, Furutaka, Tenryuu and 1 additional FAST ship to any map."
+  },
+  "220": {
+    "name": "Weekly Carriers",
+    "detail": "Sink 20 Abyssal CV(L)."
+  },
+  "221": {
+    "name": "Weekly Transports 2",
+    "detail": "Sink 50 Abyssal transport ships."
+  },
+  "222": {
+    "name": "Sortie the 6th Destroyer Division!",
+    "detail": "Sortie ONLY Akatsuki, Hibiki, Inazuma and Ikazuchi to any map."
+  },
+  "223": {
+    "name": "Sortie the 4th Cruiser Division!",
+    "detail": "Sortie Atago, Takao, Choukai, Maya and 2 additional ships to [W2-2]. B-Rank+ the boss node."
+  },
+  "224": {
+    "name": "Sortie the Nishimura Fleet!",
+    "detail": "Sortie Fusou, Yamashiro, Mogami, Shigure and 2 additional ships to [W2-3]. B-Rank+ the boss node."
+  },
+  "225": {
+    "name": "Sortie the 5th Carrier Division!",
+    "detail": "Sortie Shoukaku, Zuikaku and 4 additional ships to [W3-1]. B-Rank+ the boss node."
+  },
+  "226": {
+    "name": "Daily [W2] Bosses",
+    "detail": "Sortie to any map in [W2]. B-Rank+ any boss node 5 times."
+  },
+  "227": {
+    "name": "Sortie the New Mikawa Fleet!",
+    "detail": "Sortie Choukai, Aoba, Kinugasa, Kako, Furutaka and Tenryuu to [W2-3]. B-Rank+ the boss node."
+  },
+  "228": {
+    "name": "Weekly Submarines",
+    "detail": "Sink 15 Abyssal submarines."
+  },
+  "229": {
+    "name": "Weekly [W4] Bosses",
+    "detail": "Sortie to any map in [W4]. B-Rank+ any boss node 12 times."
+  },
+  "230": {
+    "name": "Daily Submarines",
+    "detail": "Sink 6 Abyssal submarines."
+  },
+  "231": {
+    "name": "Sortie a Submarine Fleet!",
+    "detail": "Sortie 2 SS and 4 additional ships to [W2-3]. B-Rank+ the boss node."
+  },
+  "232": {
+    "name": "Sortie an Aviation Surface Attack Fleet!",
+    "detail": "Sortie 2 BBV, 2 CAV and 2 additional ships to [W4-2]. B-Rank+ the boss node."
+  },
+  "233": {
+    "name": "Sortie the 6th Cruiser Division!",
+    "detail": "Sortie Furutaka, Kako, Kinugasa, Aoba and 2 additional ships to [W2-3]. S-Rank the boss node."
+  },
+  "235": {
+    "name": "Execute Coastal Patrols!",
+    "detail": "Sortie a CL, 3 DD/DE and up to 2 additional ships to [W1-2], [W1-3], [W2-1] and [W2-2]. S-Rank the boss nodes."
+  },
+  "236": {
+    "name": "Sortie the Elite 24th Destroyer Division!",
+    "detail": "Sortie Umikaze Kai Ni as flagship, any two of Yamakaze, Kawakaze or Suzukaze, and up to 3 additional ships to [W2-3], [W2-4], [W5-1] and [W5-3]. S-Rank the boss nodes."
+  },
+  "237": {
+    "name": "Sortie, Haguro and Kamikaze!",
+    "detail": "Sortie Haguro, Kamikaze and either [4 DD] OR [1 CA(V), 2 DD and NO other ship] to [W2-1], [W2-2] and [W2-3]. S-Rank the boss nodes of each."
+  },
+  "239": {
+    "name": "Sortie the 8th Destroyer Division!",
+    "detail": "Sortie Asashio, Michishio, Ooshio, Arashio and 2 additional ships to [W2-3]. B-Rank+ the boss node."
+  },
+  "240": {
+    "name": "Sortie the 18th Destroyer Division!",
+    "detail": "Sortie Kasumi, Arare, Kagerou, Shiranui and 2 additional ships to [W3-1]. B-Rank+ the boss node."
+  },
+  "241": {
+    "name": "Weekly [W3] Bosses",
+    "detail": "Sortie to [W3-3], [W3-4] or [W3-5]. B-Rank+ any boss node 5 times."
+  },
+  "242": {
+    "name": "Weekly [W4-4]",
+    "detail": "Sortie to [W4-4]. B-Rank+ the boss node."
+  },
+  "243": {
+    "name": "Weekly [W5-2]",
+    "detail": "Sortie to [W5-2]. S-Rank the boss node 2 times."
+  },
+  "244": {
+    "name": "Sortie the 30th Destroyer Division (First Generation)!",
+    "detail": "Sortie Mutsuki, Kisaragi, Yayoi, Mochizuki and up to 2 additional ships to [W3-2]. C-Rank+ the boss node."
+  },
+  "245": {
+    "name": "Preparation for the Ceremony! (Finale)",
+    "detail": "Sortie a Lv.90-99 flagship to [W2-3]. S-Rank the boss node."
+  },
+  "246": {
+    "name": "A Couple's First Mission!",
+    "detail": "Sortie a Lv.100+ Fleet 1 flagship to [W4-3]. S-Rank the boss node."
+  },
+  "247": {
+    "name": "The Aviation Battleships Set Sail!",
+    "detail": "Sortie 2 BBV and up to 4 additional ships to [W4-4]. B-Rank+ the boss node."
+  },
+  "248": {
+    "name": "The 30th Destroyer Fleet's Anti-Submarine Patrol",
+    "detail": "Sortie Mutsuki, Yayoi, Uzuki and Mochizuki to [W1-5]. C-Rank+ the boss node."
+  },
+  "249": {
+    "name": "Monthly [W2-5] Myoukou Fleet",
+    "detail": "Sortie Myoukou, Nachi, Haguro and 3 additional ships to [W2-5]. S-Rank the boss node."
+  },
+  "250": {
+    "name": "Sortie the New 2nd Carrier Division",
+    "detail": "Sortie Hiryuu Kai Ni as flagship, Souryuu, 2 DD and up to 2 additional ships to [W5-2]. S-Rank the boss node."
+  },
+  "251": {
+    "name": "The Elite 2nd Carrier Division Sets Sail!",
+    "detail": "Sortie Souryuu Kai Ni as flagship, Hiryuu Kai Ni, 2 DD and up to 2 additional ships to [W4-3]. S-Rank the boss node."
+  },
+  "252": {
+    "name": "Sortie the Battleship Haruna!",
+    "detail": "Sortie Haruna Kai Ni and 5 additional ships to [W5-1]. S-Rank the boss node."
+  },
+  "253": {
+    "name": "Sortie the 601st Naval Air Group!",
+    "detail": "Sortie Unryuu Kai and 5 additional ships to [W5-2]. S-Rank the boss node."
+  },
+  "254": {
+    "name": "Sortie a Light Aircraft Carrier Division!",
+    "detail": "Sortie 1-2 CVL, 1 CL and 3-4 DD to [W2-1]. S-Rank the boss node."
+  },
+  "255": {
+    "name": "Emergency Deployment of a Torpedo Squadron!",
+    "detail": "Sortie a CL as flagship and either (1 CL and 4 DD) or (5 DD) to [W2-2]. S-Rank the boss node."
+  },
+  "256": {
+    "name": "Monthly [W6-1]",
+    "detail": "Sortie to [W6-1]. S-Rank the boss node 3 times."
+  },
+  "257": {
+    "name": "Monthly [W1-4]",
+    "detail": "Sortie a CL as flagship, up to 2 other CL, and at least 1 DD to [W1-4]. No other ship types or ETSCF evacuation allowed. S-Rank the boss node."
+  },
+  "258": {
+    "name": "The 2nd Battleship Division Sets Sail!",
+    "detail": "Sortie Nagato, Mutsu, Fusou, Yamashiro and 2 additional ships to [W4-2]. S-Rank the boss node 2 times."
+  },
+  "259": {
+    "name": "Monthly [W5-1]",
+    "detail": "Sortie any 3 of Yamato-class, Nagato-class, Ise-class and Fusou-class, 1 CL and 2 additional ships to [W5-1]. S-Rank the boss node."
+  },
+  "260": {
+    "name": "Rush the Battleship Force into the Northern Waters!",
+    "detail": "Sortie 2 (F)BB (no BBV), 1 CVL and 3 additional ships to [W3-5]. S-Rank the boss node."
+  },
+  "261": {
+    "name": "Weekly [W1-5]",
+    "detail": "Sortie to [W1-5]. A-Rank+ the boss node 3 times."
+  },
+  "262": {
+    "name": "Advance the Nishimura Fleet into the Southern Waters!",
+    "detail": "Sortie Fusou, Yamashiro, Mogami, Shigure, Michishio and 1 additional ship to [W5-1]. S-Rank the boss node."
+  },
+  "263": {
+    "name": "Sortie the 6th Cruiser Division into the South Western Waters!",
+    "detail": "Sortie Furutaka, Kako, Aoba, Kinugasa and 2 additional ships to [W2-5]. S-Rank the boss node."
+  },
+  "264": {
+    "name": "Monthly [W4-2]",
+    "detail": "Sortie 2 CV(B/L), 2 DD and 2 additional ships to [W4-2]. S-Rank the boss node."
+  },
+  "265": {
+    "name": "Monthly [W1-5]",
+    "detail": "Sortie to [W1-5]. A-Rank+ the boss node 10 times."
+  },
+  "266": {
+    "name": "Monthly [W2-5] Destroyer Fleet",
+    "detail": "Sortie a DD as flagship, 3 additional DD, 1 CA (not CAV) and 1 CL to [W2-5]. S-Rank the boss node."
+  },
+  "267": {
+    "name": "Sortie the 11th Destroyer Division!",
+    "detail": "Sortie any 4 of Fubuki, Shirayuki, Hatsuyuki, Miyuki and Murakumo, and 2 additional ships to [W2-3]. B-Rank+ the boss node."
+  },
+  "268": {
+    "name": "The 11th Destroyer Division's Anti-Submarine Patrol!",
+    "detail": "Sortie any 4 of Fubuki, Shirayuki, Hatsuyuki, Miyuki and Murakumo to [W1-5]. C-Rank+ the boss node."
+  },
+  "269": {
+    "name": "Sortie the 21st Destroyer Division!",
+    "detail": "Sortie Hatsuharu, Nenohi, Wakaba, Hatsushimo and 2 additional ships to [W3-1]. S-Rank the boss node."
+  },
+  "270": {
+    "name": "Sortie the 22nd Destroyer Division!",
+    "detail": "Sortie Satsuki, Fumizuki, Nagatsuki, 1 DD and up to 2 additional ships to [W1-4]. S-Rank the boss node."
+  },
+  "271": {
+    "name": "The Nachi Division Sets Sail!",
+    "detail": "Sortie Nachi as flagship, Hatsushimo, Kasumi, Ushio, Akebono and 1 additional ship to [W2-2]. S-Rank the boss node."
+  },
+  "272": {
+    "name": "Sortie the Remodeled Anti-Air Heavy Cruiser!",
+    "detail": "Sortie Maya Kai or Kai Ni, 1 CL, 2 DD and up to 2 additional ships to [W2-3]. S-Rank the boss node."
+  },
+  "273": {
+    "name": "Sortie the New Mikawa Fleet into the Solomon Islands Region!",
+    "detail": "Sortie Choukai Kai Ni as flagship and any five of Aoba, Kinugasa, Kako, Furutaka, Tenryuu, Yuubari to [W5-1]. S-Rank the boss node."
+  },
+  "274": {
+    "name": "The 6th Destroyer Division's Anti-Submarine Patrol, Nanodesu!",
+    "detail": "Sortie Akatsuki, Hibiki/Verniy, Inazuma and Ikazuchi to [W1-5]. C-Rank+ the boss node."
+  },
+  "275": {
+    "name": "The 18th Division Sets Sail!",
+    "detail": "Sortie Tenryuu, Tatsuta and at least 2 other ships to [W2-3]. S-Rank the boss node."
+  },
+  "276": {
+    "name": "Advance the Surface Breakthrough Force!",
+    "detail": "Sortie Hiei, Kirishima, Nagara, Akatsuki, Ikazuchi and Inazuma to [W5-1]. S-Rank the boss node."
+  },
+  "277": {
+    "name": "DesDiv 6's Thorough Anti-Submarine Patrol, Nanodesu!",
+    "detail": "Sortie Akatsuki Kai Ni, Hibiki/Verniy, Ikazuchi and Inazuma to [W1-5]. A-Rank+ the boss node."
+  },
+  "278": {
+    "name": "Rush the 1st Torpedo Squadron to Operation KE!",
+    "detail": "Sortie Abukuma as flagship, Hibiki/Verniy, Hatsushimo, Wakaba, Samidare and Shimakaze to [W3-2]. B-Rank+ the boss node."
+  },
+  "279": {
+    "name": "Rush the 1st Torpedo Squadron North Again to Operation KE!",
+    "detail": "Sortie Abukuma Kai Ni as flagship, Hibiki/Verniy, Yuugumo, Naganami, Akigumo and Shimakaze to [W3-2]. S-Rank the boss node."
+  },
+  "280": {
+    "name": "Monthly Supply Lines",
+    "detail": "Sortie a CL(T)/CT/CVL, 3 DD/DE and up to 2 other ships to [W1-2], [W1-3], [W1-4] and [W2-1]. S-Rank the boss nodes of each."
+  },
+  "281": {
+    "name": "Unrivaled 1st Battleship Division, Coming Through!",
+    "detail": "Sortie Mutsu Kai Ni and Nagato Kai Ni as the first two ships in Fleet 1 along with any other ships to [W2-2], [W3-5], [W4-5] and [W5-1]. S-Rank the boss nodes of each."
+  },
+  "282": {
+    "name": "Unrivaled 1st Battleship Division, Coming Through! (Extra Operation)",
+    "detail": "Sortie Mutsu Kai Ni and Nagato Kai Ni as the first two ships in Fleet 1 along with any other ships to [W2-5], [W5-5] and [W6-4]. S-Rank the boss nodes of each."
+  },
+  "283": {
+    "name": "Such Power! Sortie, Carrier Division 1!",
+    "detail": "Sortie Akagi Kai Ni or E as flagship, Kaga as 2nd ship and 4 other ships to [W4-5] and [W5-2]. S-Rank each boss node once. Sortie to [W6-5]. S-Rank the boss node twice."
+  },
+  "284": {
+    "name": "Quarterly Nansei Islands",
+    "detail": "Sortie a CL(T)/CT/CVL, 3 DD/DE and up to 2 other ships to [W1-4], [W2-1], [W2-2] and [W2-3]. S-Rank the boss nodes of each."
+  },
+  "285": {
+    "name": "Advance the Carrier Task Force into the Northern Waters!",
+    "detail": "Sortie a CV(B) as flagship to [W3-5]. S-Rank the boss node."
+  },
+  "286": {
+    "name": "Intensify the Anti-Sub Patrol in Front of the Naval Base!",
+    "detail": "Sortie to [W1-5]. A-Rank+ the boss node 4 times."
+  },
+  "287": {
+    "name": "Sortie the 5th Carrier Division off the Coral Islands!",
+    "detail": "Sortie Shoukaku, Zuikaku, Oboro, Akigumo and up to 2 additional ships to [W5-2]. S-Rank the boss node."
+  },
+  "288": {
+    "name": "Sortie the New 21st Cruiser Division into the North!",
+    "detail": "Sortie Nachi Kai Ni, Ashigara Kai Ni, Tama, Kiso and up to 2 additional ships to [W3-1]. S-Rank the boss node."
+  },
+  "289": {
+    "name": "Sortie the 16th Cruiser Division (First Generation)!",
+    "detail": "Sortie Ashigara as flagship, Kuma, Nagara and up to 3 additional ships to [W2-2]. S-Rank the boss the node."
+  },
+  "290": {
+    "name": "Hiei's Sortie",
+    "detail": "Sortie Hiei as flagship and up to 5 other ships to [W5-3] and [W5-4]. S-Rank the boss nodes of each."
+  },
+  "291": {
+    "name": "Strengthening the Fleet Command Directorate (Execution Stage)",
+    "detail": "Sortie Ooyodo as flagship, an AV or Akashi, and up to 4 additional ships to [W2-3], [W3-3] and [W4-1]. S-Rank each boss node twice."
+  },
+  "292": {
+    "name": "Highly Remodeled Fast Battleship Kongou Kai Ni C, Break into the South!",
+    "detail": "Sortie Kongou Kai Ni C as flagship, 1 other Kongou-class, 2 DD and up to 2 additional ships to [W5-1], [W5-3], [W5-4] and [W5-5]. S-Rank each boss node twice."
+  },
+  "293": {
+    "name": "Sortie CarDiv 3 to the Nansei Islands Defense Line!",
+    "detail": "Sortie Zuikaku Kai+ as flagship, Zuihou, Chitose (CVL), Chiyoda (CVL) and up to 2 additional ships to [W1-4]. S-Rank the boss node."
+  },
+  "294": {
+    "name": "Sortie the Ozawa Fleet!",
+    "detail": "Sortie Zuikaku Kai (or Kai Ni) as flagship, Zuihou Kai, Chitose (CVL), Chiyoda (CVL), Ise Kai and Hyuuga Kai to [W2-4]. S-Rank the boss node."
+  },
+  "295": {
+    "name": "Sortie the 16th Cruiser Division (Second Generation)!",
+    "detail": "Sortie Natori as flagship, Isuzu, Kinu and up to 3 additional ships to [W2-3]. S-Rank the boss node."
+  },
+  "296": {
+    "name": "Newly Formed Carrier Division, Advance into the North!",
+    "detail": "Sortie 2 CV, 2 BBV/CAV and 2 DD to [W3-3]. S-Rank the boss node."
+  },
+  "297": {
+    "name": "Carry out the Operation Rei-Go!",
+    "detail": "Sortie Kasumi as flagship, Ashigara, Ooyodo, Asashimo, Kiyoshimo and 1 additional ship to [W2-5]. S-Rank the boss node."
+  },
+  "298": {
+    "name": "7th Destroyer Division, Sail to the Nansei Islands Region!",
+    "detail": "Sortie any two of Akebono, Ushio, Sazanami and Oboro and up to 4 additional ships to [W2-1], [W2-2], [W2-3] and [W2-4]. S-Rank the boss nodes."
+  },
+  "299": {
+    "name": "Reinforce Surveillance and Patrols of the Coastal Sea!",
+    "detail": "Sortie a CL as flagship, 2 DD/DE and up to 3 additional ships to [W1-2], [W1-3], [W1-4], [W2-1] and [W2-2]. S-Rank the boss nodes."
+  },
+  "301": {
+    "name": "The First Exercise!",
+    "detail": "Challenge another fleet in an Exercise."
+  },
+  "302": {
+    "name": "Weekly Exercises",
+    "detail": "Secure 20 victories in Exercises within the same week."
+  },
+  "303": {
+    "name": "Daily Exercises 1",
+    "detail": "Challenge 3 other fleets in Exercises."
+  },
+  "304": {
+    "name": "Daily Exercises 2",
+    "detail": "Secure 5 victories in Exercises within the same day."
+  },
+  "306": {
+    "name": "Preparation for the Ceremony (Part 2)",
+    "detail": "Show your love by securing 2 victories in Exercises."
+  },
+  "307": {
+    "name": "Endeavor to Improve the Fleet's Level of Training!",
+    "detail": "Secure 3 victories in Exercises within the same day."
+  },
+  "308": {
+    "name": "Intensify the Exercises!",
+    "detail": "Secure 4 victories in Exercises within the same day."
+  },
+  "309": {
+    "name": "Training for the Next Operation!",
+    "detail": "Secure 4 victories in Exercises within the same day."
+  },
+  "311": {
+    "name": "Monthly Exercises 1",
+    "detail": "Secure 7 victories in Exercises within the same day."
+  },
+  "312": {
+    "name": "Landing Force Exercises",
+    "detail": "Secure 4 victories in Exercises within the same day."
+  },
+  "313": {
+    "name": "Mass Exercises for Fall",
+    "detail": "Secure 8 victories in Exercises within the same day."
+  },
+  "314": {
+    "name": "Mass Exercises for Winter",
+    "detail": "Secure 8 victories in Exercises within the same day."
+  },
+  "315": {
+    "name": "Mass Exercises for Spring",
+    "detail": "Secure 8 victories in Exercises within the same day."
+  },
+  "316": {
+    "name": "Strive to Improve the Transport Force's Level of Training!",
+    "detail": "Secure 4 victories in Exercises within the same day."
+  },
+  "317": {
+    "name": "A Project to Facilitate the Combat Readiness of the Type-A Destroyers",
+    "detail": "Secure 3 S-Ranks in Exercises using 2+ Kagerou-class or Yuugumo-class DDs. Then, sortie to [W2-2], [W2-3], [W2-4] and [W2-5]. A-Rank+ the bosses."
+  },
+  "318": {
+    "name": "Monthly Exercises 2",
+    "detail": "Secure 3 victories in Exercises using at least 2 CLs in Fleet 1. Afterwards, equip a secretary with 2 Combat Rations."
+  },
+  "319": {
+    "name": "Elite 21st Destroyer Division, Train Intensively!",
+    "detail": "Secure 4 victories in Exercises within the same day using Hatsuharu Kai Ni, Wakaba Kai, Hatsushimo Kai Ni and up to 3 other ships."
+  },
+  "320": {
+    "name": "Destroyer Division, Commence Intensive Training!",
+    "detail": "Secure 4 victories in Exercises within the same day using 4 DD and up to 2 additional ships."
+  },
+  "322": {
+    "name": "Kaiboukan, Commence Exercises!",
+    "detail": "Secure 2 victories in Exercises within the same day using a DE flagship, 2 DD and up to 3 additional ships."
+  },
+  "323": {
+    "name": "Supreme Type-A Destroyers, Commence Intensive Training!",
+    "detail": "Secure 4 victories in Exercises within the same day using 4 Lv70+ Kagerou/Yuugumo-class DD and up to 2 additional ships."
+  },
+  "324": {
+    "name": "Battle Carrier Lead Ship, Commence Exercises!",
+    "detail": "Secure 3 victories in Exercises within the same day using Ise Kai Ni as flagship, 2 DD and up to 3 additional ships."
+  },
+  "325": {
+    "name": "Remodelled Yuugumo-class, Commence Exercises!",
+    "detail": "Secure 4 victories in Exercises within the same day using Yuugumo Kai Ni, Naganami Kai Ni and up to 4 additional ships."
+  },
+  "326": {
+    "name": "Mass Exercises for Summer",
+    "detail": "Secure 8 victories in Exercises within the same day."
+  },
+  "327": {
+    "name": "Asashio-class, Assemble! Commence Intensive Training!",
+    "detail": "Secure 4 victories in Exercises within the same day using at least four of Asashio-class and up to 2 additional ships."
+  },
+  "328": {
+    "name": "Elite 17th Destroyer Division, Commence Intensive Training!",
+    "detail": "Secure 4 victories in Exercises within the same day using Isokaze B Kai, Hamakaze B Kai, Urakaze D Kai and Tanikaze D Kai and up to 2 additional ships."
+  },
+  "330": {
+    "name": "Quarterly Carrier Exercises",
+    "detail": "Secure 4 victories in Exercises within the same day using a CV(L/B) flagship, 1 other CV(L/B), 2 DD and up to 2 additional ships."
+  },
+  "331": {
+    "name": "Carrier-Based Aircraft Exercises",
+    "detail": "Secure 3 A-Rank+ victories in Exercises within the same day using a CV(B) flagship, 1 other CV(B), 2 DD and up to 2 additional ships."
+  },
+  "332": {
+    "name": "Sixth Anniversary Commemorative Exercises",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using a CL, 3 DD/DE and up to 2 additional ships."
+  },
+  "333": {
+    "name": "Aerial Squadron Exercises (Step One)",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using 3 CV(L/B), 2 DD and up to 1 additional ship."
+  },
+  "334": {
+    "name": "Aerial Squadron Exercises (Step Two)",
+    "detail": "Secure 6 S-Rank victories in Exercises within the same day using 3 CV(L/B), 2 DD and up to 1 additional ship."
+  },
+  "335": {
+    "name": "The New Shield",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using Haguro and Maya."
+  },
+  "336": {
+    "name": "Transport Fleet Exercises",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using 2 LHA/AO/DE and up to 4 additional ships."
+  },
+  "337": {
+    "name": "Quarterly DesDiv 18 Exercises",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using Arare, Kagerou, Kasumi, Shiranui and up to 2 additional ships."
+  },
+  "338": {
+    "name": "Mutsuki-class, Assemble! Commence Exercises!",
+    "detail": "Secure 4 victories in Exercises within the same day using 4 Mutsuki-class and up to 2 additional ships."
+  },
+  "339": {
+    "name": "Quarterly DesDiv 19 Exercises",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using Ayanami, Isonami, Uranami, Shikinami and up to 2 additional ships."
+  },
+  "342": {
+    "name": "Quarterly Small Ship Exercises",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using 4 DD/DE or 1 CL 3 DD/DE and up to 2 additional ships."
+  },
+  "343": {
+    "name": "Aircraft Carrier Exercises",
+    "detail": "Secure 4 victories in Exercises within the same day using a CV(B) as flagship, 1 other CV(B), 2 DD and up to 2 additional ships."
+  },
+  "344": {
+    "name": "10th Area Fleet Exercises!",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using any 2 of Haguro, Ashigara or Kamikaze and up to 4 additional ships."
+  },
+  "345": {
+    "name": "Annual Tea Time Exercises - October",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using at least 4 of Warspite, Kongou, Ark Royal, Nelson or the J-class DDs."
+  },
+  "346": {
+    "name": "Annual DesDiv 10 Exercises - October",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Yuugumo Kai Ni, Makigumo Kai Ni, Kazagumo Kai Ni and Akigumo Kai Ni."
+  },
+  "347": {
+    "name": "The Miracle Destroyer",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Yukikaze as flagship, 3 DD and up to 2 additional ships."
+  },
+  "348": {
+    "name": "Annual CL Exercises - February",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using a CL/CT (not CLT) as flagship, 2 additional CL(T)/CT, 2 DD and up to 1 additional ship."
+  },
+  "350": {
+    "name": "Annual DesDiv 7 Exercises - March",
+    "detail": "Secure 3 A-Rank+ victories in Exercises within the same day using Akebono, Oboro, Sazanami, Ushio and up to 2 additional ships."
+  },
+  "351": {
+    "name": "Remodeled Aviation Cruiser Mogami, Advancing!",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using Mogami Kai Ni+ as flagship, 3 DD and up to 2 additional ships."
+  },
+  "352": {
+    "name": "The Remodeled Yahagi's Elite Torpedo Squadron Flagship Exercises!",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Yahagi Kai Ni+ as flagship, 4 DD and up to 1 additional ship."
+  },
+  "353": {
+    "name": "Annual Cruiser Squadron Exercises - June",
+    "detail": "Secure 5 B-Rank+ victories in Exercises within the same day using a CA(V) as flagship, 3 additional CA(V) and 2 DD."
+  },
+  "354": {
+    "name": "Annual Gambier Bay Task Force Exercises - July",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Gambier Bay MK. II as flagship, two Fletcher-class or John C. Butler-class DDs and up to three additional ships."
+  },
+  "355": {
+    "name": "Annual DesDiv 15 Exercises - October",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Oyashio Kai Ni and Kuroshio Kai Ni as the first two ships and up to 4 additional ships."
+  },
+  "356": {
+    "name": "Annual DesDiv 19 Exercises - May",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using Isonami Kai Ni, Uranami Kai Ni, Ayanami Kai Ni, Shikinami Kai Ni and up to 2 additional ships."
+  },
+  "357": {
+    "name": "Annual 1st Squadron Exercises - June",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using Yamato, Musashi, 1 CL, 2 DD and up to 1 additional ship."
+  },
+  "358": {
+    "name": "[Taffy Ⅲ] This is a drill!",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Samuel B. Roberts, Johnston, Gambier Bay and up to 3 additional ships."
+  },
+  "359": {
+    "name": "Weekly [Halloween] Halloween Fleet Autumn Harvest Latest Exercises!",
+    "detail": "Secure 5 A-Rank+ victories in Exercises within the same day using any 4 of Suzuya, Abukuma, Oboro, Akebono, Murasame, Yuudachi, Nowaki, Asashio, Hayanami, Hamanami, I-201, Jervis, Minneapolis and Johnston, and up to 2 additional ships."
+  },
+  "360": {
+    "name": "Frontline Aircraft Carrier Houshou Kai Ni, Begin Exercises!",
+    "detail": "Secure 5 S-Rank victories in Exercises within the same day using Houshou Kai Ni (Sen) as flagship, 3 DD and up to 2 additional ships."
+  },
+  "362": {
+    "name": "Annual DesDiv 11 Exercises - April",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day using Fubuki, Shirayuki, Hatsuyuki, Miyuki and up to 2 additional ships."
+  },
+  "364": {
+    "name": "Elite 3rd Fleet, Start Exercises!",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Haruna Kai Ni B/C, Kongou Kai Ni C, 2 DD and up to 2 additional ships."
+  },
+  "365": {
+    "name": "[Shigure of Sasebo] Improve Your Level of Training!",
+    "detail": "Secure 5 S-Rank victories in Exercises within the same day using Shigure, any one of Shiratsuyu, Ariake and Yuugure and up to 4 additional ships."
+  },
+  "366": {
+    "name": "The Most Elite! Improved Shigure Exercises, Commence!",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Shigure Kai San as flagship, 3 DD and up to 2 additional ships."
+  },
+  "368": {
+    "name": "Annual DesDiv 16 Exercises - July",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using any 2 of Amatsukaze, Yukikaze, Tokitsukaze and Hatsukaze and up to 4 additional ships."
+  },
+  "371": {
+    "name": "Annual Spring Exercises - April",
+    "detail": "Secure 4 A-Rank+ victiories in Exercises within the same day using Harusame as flagship, any 3 of Murasame, Yuudachi, Samidare, Shiratsuyu and Shigure, and up to 2 additional ships."
+  },
+  "372": {
+    "name": "Annual Surface Ship Exercises - June",
+    "detail": "Secure 4 A-Rank+ victiories in Exercises within the same day using Akizuki-class as flagship, 2 DD, 2 BBV and up to 1 additional ship."
+  },
+  "373": {
+    "name": "Annual French Fleet Exercises - July",
+    "detail": "Secure 4 A-Rank+ victiories in Exercises within the same day using 3 French ships, one as flagship, and up to 3 additional ships."
+  },
+  "374": {
+    "name": "Weekly [Time-limited] DesDiv 32 Special Exercises!",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day using any 3 of Tamanami, Suzunami, Fujinami, Hayanami and Hamanami, and up to 3 additional ships."
+  },
+  "375": {
+    "name": "Annual BatDiv 3 Exercises - September",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using Hiei, Kirishima, 1 CL, 2 DD, and up to 1 additional ship."
+  },
+  "376": {
+    "name": "BatDiv 3 Elite Second Platoon, Special Exercise!",
+    "detail": "Secure 5 S-Rank victories in Exercises within the same day using Hiei Kai Ni+, Kirishima Kai Ni+, 1 CL, 2 DD, and up to 1 additional ship."
+  },
+  "377": {
+    "name": "Annual DesDiv 2 Exercises - October",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using any one of Hayashimo, Akishimo and Kiyoshimo as flagship, any 2 of Hayashimo, Akishimo, Kiyoshimo and Asashimo, and up to 3 additional ships."
+  },
+  "381": {
+    "name": "Weekly [Time-limited] Akizuki-class Exercise Mission 2026",
+    "detail": "Secure 3 A-Rank+ victories in Exercises within the same day with a fleet including at least 3 of the Akizuki class, Akigumo, Akishimo and Akitsushima."
+  },
+  "382": {
+    "name": "Monthly [Time-limited] 31st Squadron, Emergency Exercises!",
+    "detail": "Secure 3 A-Rank+ victories in Exercises within the same day using any 5 of Hanazuki, Kiri, Kaya, Sugi, Kashi, Take, Ushio and Hibiki, and up to 1 additional ship."
+  },
+  "383": {
+    "name": "Weekly [Time-limited] French Fleet, Special Exercises!",
+    "detail": "Secure 3 A-Rank+ victories in Exercises within the same day using 3 French ships and up to 3 additional ships."
+  },
+  "384": {
+    "name": "Weekly [Time-limited] Autumn Festival Exercises with the Admiral!",
+    "detail": "Secure 4 victories in Exercises within the same day using any 4 of Akigumo, Akizuki, Ayanami, Shikinami, Shiratsuyu, Urakaze, Hamakaze, Naganami, Fujinami, Asashimo, Shirakumo, Oboro, Sazanami, Jingei, Chougei, Ooyodo and Jintsuu, and up to 2 additional ships."
+  },
+  "385": {
+    "name": "Weekly [Time-limited] Autumn Festival Extra Exercises!",
+    "detail": "Secure 4 S-Rank victories in Exercises within the same day using any 3 of Algérie, Vautour, Mogador, Béarn, Hie Maru, Heian Maru, Ootomari, Mutsu, South Dakota and Victorious, and up to 3 additional ships."
+  },
+  "386": {
+    "name": "Weekly [Time-limited] Saury Festival Preparation Exercises!",
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day with a fleet of at least 4 ships from Akebono, Amagiri, Murasame, Ooshio, Kumanomaru, Yamashiomaru, Kaibokan No.4, Ranger and Heywood L.E., one of them as flagship."
+  },
+  "401": {
+    "name": "The First Expedition!",
+    "detail": "Attempt an expedition."
+  },
+  "402": {
+    "name": "Daily Expeditions 1",
+    "detail": "Complete 3 successful expeditions within the same day."
+  },
+  "403": {
+    "name": "Daily Expeditions 2",
+    "detail": "Complete 10 successful expeditions within the same day."
+  },
+  "404": {
+    "name": "Weekly Expeditions",
+    "detail": "Complete 30 successful expeditions within the same week."
+  },
+  "405": {
+    "name": "The First Submarine Dispatch Operation!",
+    "detail": "Complete Expedition 30."
+  },
+  "406": {
+    "name": "The Second Submarine Dispatch Operation!",
+    "detail": "Complete Expedition 30 one more time."
+  },
+  "408": {
+    "name": "Operation to Acquire Foreign Technology!",
+    "detail": "Complete Expedition 30 two more times."
+  },
+  "409": {
+    "name": "Operation to Contact a Foreign Ship!",
+    "detail": "Complete Expedition 31."
+  },
+  "410": {
+    "name": "Weekly Tokyo Express",
+    "detail": "Complete Expedition 37 or 38."
+  },
+  "411": {
+    "name": "Weekly Tokyo Express 2",
+    "detail": "Complete Expedition 37 or 38 six more times within the same week."
+  },
+  "412": {
+    "name": "Enhance the Effectiveness of Aviation Firepower!",
+    "detail": "Complete Expedition 23."
+  },
+  "413": {
+    "name": "Enhance the Effectiveness of Aviation Firepower! (Cont.)",
+    "detail": "Complete Expedition 23 three more times."
+  },
+  "414": {
+    "name": "Carry Out the Deep Sea Submarine Operation!",
+    "detail": "Complete Expedition 39."
+  },
+  "415": {
+    "name": "Extend the Benefits of the Deep Sea Submarine Operation!",
+    "detail": "Complete Expedition 39 two more times."
+  },
+  "416": {
+    "name": "Carry Out Anti-Air Accuracy Exercises!",
+    "detail": "Complete Expedition 6 three times."
+  },
+  "417": {
+    "name": "Carry Out the Decoy Task Force Support Operation!",
+    "detail": "Complete Expedition 15."
+  },
+  "418": {
+    "name": "Carry Out Naval Review Rehearsals!",
+    "detail": "Complete Expedition 7 twice."
+  },
+  "419": {
+    "name": "Execute the Naval Review!",
+    "detail": "Complete Expedition 8."
+  },
+  "420": {
+    "name": "Enhance the Effectiveness of the Task Force!",
+    "detail": "Complete Expeditions 35 and 26."
+  },
+  "422": {
+    "name": "Submarine Dispatch Operation to Acquire Aircraft Technology",
+    "detail": "Complete Expeditions 30 and 31."
+  },
+  "423": {
+    "name": "Submarine Dispatch Operation to Acquire Jet Engine Technology",
+    "detail": "Have 5000 Steel and 1500 Bauxite. Complete Expeditions 30 and 31."
+  },
+  "424": {
+    "name": "Monthly Expedition 5",
+    "detail": "Complete Expedition 5 four times."
+  },
+  "425": {
+    "name": "Naval Escort Fleet, Commence With the Expeditions!",
+    "detail": "Complete Expeditions 4, 5 and 9."
+  },
+  "426": {
+    "name": "Quarterly Expeditions",
+    "detail": "Complete Expeditions 3, 4, 5 and 10."
+  },
+  "427": {
+    "name": "Strengthen the Expeditionary Resupply Logistics!",
+    "detail": "Have 800 Steel. Complete Expedition A1."
+  },
+  "428": {
+    "name": "Quarterly Expeditions 2",
+    "detail": "Complete Expeditions 4, A2 and A3. Clear each of them twice."
+  },
+  "429": {
+    "name": "Operation Sho-Ichi-Go: Begin Preparations!",
+    "detail": "Complete Expeditions 3, A1 and B1."
+  },
+  "430": {
+    "name": "Kaiboukan, Advance!",
+    "detail": "Complete Expeditions 5, 9, A1 and A2."
+  },
+  "431": {
+    "name": "Strengthening the Fleet Command Directorate (Preparation Stage)",
+    "detail": "Complete Expeditions 17, A1, A2 and B1."
+  },
+  "432": {
+    "name": "Reinforce the Recon Patrols and Defenses!",
+    "detail": "Complete Expeditions 10, A2 and B1."
+  },
+  "433": {
+    "name": "Carry Out Southern Front Expeditions!",
+    "detail": "Complete Expeditions 35, 36, 37, 38 and 40."
+  },
+  "434": {
+    "name": "Annual Expeditions - February",
+    "detail": "Complete Expeditions 3, 5, A1, A2 and 9."
+  },
+  "436": {
+    "name": "Annual Expeditions - March",
+    "detail": "Complete Expeditions 1, 2, 3, 4 and 10."
+  },
+  "437": {
+    "name": "Annual Expeditions - May",
+    "detail": "Complete Expeditions 4, A5, A6 and B1."
+  },
+  "438": {
+    "name": "Annual Expeditions - August",
+    "detail": "Complete Expeditions A1, 4, 9 and B5."
+  },
+  "439": {
+    "name": "Annual Expeditions 1 - September",
+    "detail": "Complete Expeditions 5, A1, 11 and B1."
+  },
+  "440": {
+    "name": "Annual Expeditions 2 - September",
+    "detail": "Complete Expeditions 41, 5, 40, E2 and 46."
+  },
+  "442": {
+    "name": "Annual Expeditions 2 - February",
+    "detail": "Complete Expeditions D1, 29, 30 and D3."
+  },
+  "443": {
+    "name": "Acquisition of Aviation Technology via Western Liaison Operations",
+    "detail": "Complete Expedition 30 twice."
+  },
+  "444": {
+    "name": "Annual Expeditions 2 - March",
+    "detail": "Complete Expeditions 5, 12, 9, B1 and 11."
+  },
+  "445": {
+    "name": "Land Base Development and Expansion",
+    "detail": "Complete Expeditions 5, A1, 9, 18, 36, 40 and 45."
+  },
+  "446": {
+    "name": "[Event Preparation] Stage One (Anti-Submarine Maintenance)",
+    "detail": "Complete Expeditions 3, 4, 5, A1 and A2."
+  },
+  "447": {
+    "name": "Strengthening the escort for maritime transport",
+    "detail": "Complete Expeditions 4, 5, 9, A1 and B1."
+  },
+  "501": {
+    "name": "Resupply for the First Time!",
+    "detail": "Resupply a ship."
+  },
+  "502": {
+    "name": "Docking for the First Time!",
+    "detail": "Repair a ship."
+  },
+  "503": {
+    "name": "Daily Repairs",
+    "detail": "Repair 5 ships."
+  },
+  "504": {
+    "name": "Daily Resupplies",
+    "detail": "Resupply your ships 15 times."
+  },
+  "601": {
+    "name": "The First Construction!",
+    "detail": "Construct a ship."
+  },
+  "602": {
+    "name": "The First Development!",
+    "detail": "Construct a piece of equipment."
+  },
+  "603": {
+    "name": "The First Dismantlement!",
+    "detail": "Scrap a ship."
+  },
+  "604": {
+    "name": "The First Disposal!",
+    "detail": "Scrap a piece of equipment."
+  },
+  "605": {
+    "name": "Daily Development 1",
+    "detail": "Attempt to construct a piece of equipment. Failures count toward this."
+  },
+  "606": {
+    "name": "Daily Construction 1",
+    "detail": "Construct a ship."
+  },
+  "607": {
+    "name": "Daily Development 2",
+    "detail": "Attempt to construct 3 pieces of equipment. Failures count toward this."
+  },
+  "608": {
+    "name": "Daily Construction 2",
+    "detail": "Construct 3 ships."
+  },
+  "609": {
+    "name": "Daily Dismantlement",
+    "detail": "Scrap 2 ships."
+  },
+  "610": {
+    "name": "Preparation for Large Ship Construction! (Part 2)",
+    "detail": "Scrap 4 pieces of equipment. Scrap them one at a time."
+  },
+  "611": {
+    "name": "Preparation for the Ceremony! (Part 1)",
+    "detail": "Scrap 2 pieces of equipment to show your love!"
+  },
+  "612": {
+    "name": "Prepare the Transport Drums!",
+    "detail": "Scrap 3 pieces of equipment. Scrap them one at a time."
+  },
+  "613": {
+    "name": "Weekly Dismantlement",
+    "detail": "Scrap 24 pieces of equipment. Scrap them one at a time."
+  },
+  "614": {
+    "name": "Model Conversion: Tomonaga",
+    "detail": "Set a CV(B/L) as secretary. Equip her with a Type 97 Torpedo Bomber (Tomonaga Squadron). Scrap two Tenzan."
+  },
+  "615": {
+    "name": "Model Conversion: Egusa",
+    "detail": "Set a CV(B/L) as secretary. Equip her with a Type 99 Dive Bomber (Egusa Squadron). Scrap two Suisei."
+  },
+  "616": {
+    "name": "Model Conversion: 601 Air Group",
+    "detail": "Set a CV(B/L) as secretary. Equip her with a Zero Fighter Type 52 Type C (601 Air Group). Scrap two Prototype Reppuu Late Models."
+  },
+  "617": {
+    "name": "Preparation for Irako",
+    "detail": "Scrap 10 pieces of equipment. Scrap them one at a time."
+  },
+  "618": {
+    "name": "The First Equipment Modernization!",
+    "detail": "Upgrade a piece of equipment using Akashi's Improvement Arsenal."
+  },
+  "619": {
+    "name": "Daily Upgrade",
+    "detail": "Attempt to upgrade a piece of equipment using Akashi's Improvement Arsenal. Failures count toward this."
+  },
+  "620": {
+    "name": "Formation of the CarDiv 1's Elite Ryuusei Squadron",
+    "detail": "Have 2800 Ammo, 9000 Baux. and 2 Sk. Crew Members. Set Akagi Kai Ni as secretary with a >> Ryuusei Kai (CarDiv 1) in her 1st slot. Scrap 4 Ryuusei Kai, a Saiun and 2 T97 Torp. Bombers."
+  },
+  "621": {
+    "name": "Operations Research on Shipborne Land-Based Equipment",
+    "detail": "Have 1700 Ammo, 30 Dev. Mat. and 10 Flamethrowers. Set a CL(T)/CT as sec. with a 7.7mm Machine Gun in slot 1. Scrap 2 25mm Single Autocannons, 2 Drum Can. and a 12cm 30t Rocket."
+  },
+  "622": {
+    "name": "Model Conversion: Murata",
+    "detail": "Set Shoukaku as secretary. Equip her with a Type 97 Torpedo Bomber (Murata Squadron). Scrap two Tenzan."
+  },
+  "623": {
+    "name": "Form the Elite Type 97 Torpedo Bomber Force: Murata",
+    "detail": "Set Shoukaku or Akagi as secretary. Scrap three Type 97 Torpedo Bombers."
+  },
+  "624": {
+    "name": "Preparation for the Prototype Rigging",
+    "detail": "Scrap 7 pieces of equipment."
+  },
+  "625": {
+    "name": "Additional Prototype Flight Rigging",
+    "detail": "Scrap 9 pieces of equipment."
+  },
+  "626": {
+    "name": "Monthly Type 0 Fighter Model 21 (Skilled)",
+    "detail": "Have a Skilled Crew Member. Set Houshou as secretary. Equip her with a >> Type 0 Fighter Model 21. Scrap two Type 0 Fighter Models 21 and a Type 96 Fighter."
+  },
+  "627": {
+    "name": "Model Conversion: Type 0 Fighter Model 52 (Skilled)",
+    "detail": "Set a CV as secretary. Equip her with a Type 0 Fighter Model 21 (Skilled). Scrap two Type 0 Fighter Models 52."
+  },
+  "628": {
+    "name": "Monthly Type 0 Fighter Model 52 (Skilled)",
+    "detail": "Set a CV as secretary. Equip her with a >> Type 0 Fighter Model 21 (Skilled). Scrap two Type 0 Fighter Models 52."
+  },
+  "629": {
+    "name": "Reform the Fighter Squadron: Iwai",
+    "detail": "Set Zuikaku as secretary. Equip her with a >> Type 0 Fighter Model 52 (Skilled). Scrap a Zero Fighter Model 52C (601 Air Group)."
+  },
+  "630": {
+    "name": "Reform the Fighter Squadron: Iwamoto",
+    "detail": "Set Zuikaku as secretary. Equip her with a >> Type 0 Fighter Model 21 (Skilled). Scrap two Type 0 Fighter Models 21."
+  },
+  "631": {
+    "name": "Model Conversion and Unit Restructuring: Iwai",
+    "detail": "☣CAUTION☣ Set Zuikaku as secretary. Equip her with a >> Zero Fighter Model 52C (w/ Iwai Flight). Scrap two Type 0 Fighter Model 62s (Fighter-bomber)."
+  },
+  "632": {
+    "name": "Model Conversion: Iwamoto",
+    "detail": "Set Zuikaku as secretary. Equip her with a >> Zero Fighter Model 21 (w/ Iwamoto Flight). Scrap two Type 0 Fighter Model 52."
+  },
+  "633": {
+    "name": "Model Conversion and Unit Restructuring: Iwamoto",
+    "detail": "Set Zuikaku as secretary. Equip her with a >> Zero Fighter Model 52A (w/ Iwamoto Flight). Scrap two Saiun."
+  },
+  "634": {
+    "name": "Preparations for New Furniture",
+    "detail": "Scrap 9 pieces of equipment."
+  },
+  "635": {
+    "name": "Preparations for New Equipment",
+    "detail": "Scrap 5 pieces of equipment."
+  },
+  "636": {
+    "name": "New Equipment Procurement for the Landing Operation",
+    "detail": "Scrap two 7.7mm Machine Guns and two 12.7mm Single Machine Gun Mounts."
+  },
+  "637": {
+    "name": "Quarterly Skilled Crew Member Training",
+    "detail": "Have 2 Medals. Set Houshou as secretary. Equip her with a >> ★max Type 96 Fighter."
+  },
+  "638": {
+    "name": "Weekly AA Gun Dismantlement",
+    "detail": "Scrap 6 AA Machine Guns."
+  },
+  "639": {
+    "name": "Development of a New Torpedo Armament",
+    "detail": "Have 2 Medals. Set Shimakaze as secretary. Equip her with a ★max 61cm Quintuple Oxygen Torpedo Mount and a ★max 61cm Triple Oxygen Torpedo Mount."
+  },
+  "641": {
+    "name": "Advance Preparation for the Airbase Construction",
+    "detail": "Have two Type 96 Fighters and two 7.7mm Machine Guns in your inventory. Scrap two Drum Canisters."
+  },
+  "642": {
+    "name": "Expansion of the Attack Aircraft Squadron",
+    "detail": "Have two Type 99 Dive Bombers and two 7.7mm Machine Guns in your inventory."
+  },
+  "643": {
+    "name": "Quarterly Type 1 Land-based Attack Aircraft",
+    "detail": "Have one Type 96 Land-based Attack Aircraft and two Type 97 Torpedo Bombers in your inventory. Scrap two Type 0 Fighter Models 21."
+  },
+  "644": {
+    "name": "Procurement for an Improved Type 1 Land-based Attack Aircraft",
+    "detail": "Have one Type 1 Land-based Attack Aircraft and two Tenzan in your inventory."
+  },
+  "645": {
+    "name": "Monthly Underway Replenishment",
+    "detail": "Have 750 Fuel, 750 Ammo, two Drum Canisters and one Type 91 AP Shell in your inventory. Scrap one Type 3 Shell."
+  },
+  "646": {
+    "name": "Procurement for Custom-Made Furniture",
+    "detail": "Have 5000 Furniture Coins, two 25mm Twin AC Mounts and two 25mm Triple AC Mounts in your inventory. Scrap one 25mm Single AC Mount."
+  },
+  "647": {
+    "name": "Deploy an Air Base Squadron to the Central Waters!",
+    "detail": "Have 1200 Fuel, 3000 Bauxite, and one Construction Battalion in your inventory. Scrap two Drum Canisters."
+  },
+  "648": {
+    "name": "Procurement for Custom-Made Furniture",
+    "detail": "Have 5000 Furniture Coins, two 14cm Single Gun Mounts and two 15.2cm Single Gun Mounts in your inventory. Scrap two 12.7cm Twin High-Angle Gun Mounts."
+  },
+  "649": {
+    "name": "Development of a New Axis Reconnaissance Aircraft",
+    "detail": "Have one Type 1 Land-based Attack Aircraft and two Saiun. Scrap two Type 0 Reconnaissance Seaplanes."
+  },
+  "650": {
+    "name": "Development of a Jet Fighter-Bomber",
+    "detail": "Have two New Model Aircraft Blueprints and one Ne-Type Engine. Scrap three Shiden Kai Ni."
+  },
+  "651": {
+    "name": "Increased Production of the Ne-Type Engine",
+    "detail": "Have 8000 Steel, two Ryuusei and two Prototype Reppuu Late Models. Scrap three Type 0 Fighter Models 52."
+  },
+  "652": {
+    "name": "Procurement for Custom-Made Furniture",
+    "detail": "Have 5000 Furniture Coins, two 7.7mm Machine Guns and two Type 96 Fighters in your inventory. Scrap two 12.7cm Twin Gun Mounts."
+  },
+  "653": {
+    "name": "Quarterly Arsenal",
+    "detail": "Have 6000 Furniture Coins, three 35.6cm Twin Gun Mounts and three Type 96 Fighters. Scrap six 14cm Single Gun Mounts."
+  },
+  "654": {
+    "name": "Annual Swordfish - October",
+    "detail": "Have a Skilled Crew Member, 1500 Ammo and 1500 Bauxite. Set Ark Royal as secretary with a ★max Swordfish in slot 1. Scrap a Swordfish and 2 Fulmars."
+  },
+  "655": {
+    "name": "Annual Arsenal - November",
+    "detail": "Have 1500 Steel, Fuel and Bauxite. Scrap 5 Small Cal. Main Guns, 5 Medium Cal. Main Guns, 5 Large Cal. Main Guns, 5 Recon Seaplanes and 5 Torpedo Bombers."
+  },
+  "656": {
+    "name": "Form the Seiran 631 Air Group!",
+    "detail": "Set I-401, I-13 or I-14 as secretary. Equip a Prototype Seiran in her first slot and a Zuiun (631 Air Group) in her second slot."
+  },
+  "657": {
+    "name": "Annual Arsenal - September",
+    "detail": "Have 4000 Steel. Scrap 6 Small Caliber Main Guns, 5 Medium Caliber Main Guns and 4 Torpedoes."
+  },
+  "658": {
+    "name": "Submarine Armament Enhancement",
+    "detail": "Have 120 Development Materials, three 61cm Quad (Oxygen) Torpedo Mounts and three Type 93 SONARs in your inventory. Scrap four 61cm Triple Torpedo Mounts."
+  },
+  "659": {
+    "name": "The Newly Formed Elite Naval Fighter Squadron",
+    "detail": "Have a Skilled Crew Member. Equip a secretary with a >> ★max Type 2 Seaplane Fighter Kai in her first slot. Scrap two Type 0 Fighter Models 21 and 2 Zuiun."
+  },
+  "660": {
+    "name": "The Increasing Trend of Elite Naval Fighter Squadrons",
+    "detail": "Have a Skilled Crew Member. Equip a secretary with a >> ★max Type 2 Seaplane Fighter Kai in her first slot. Scrap two Type 0 Fighter Models 21 and 2 Zuiun."
+  },
+  "661": {
+    "name": "Begin Military Production of a New Model Artillery Armament!",
+    "detail": "Have 6000 Steel. Scrap 10 Secondary Guns."
+  },
+  "662": {
+    "name": "Developmental Study on a New Model of Rigging",
+    "detail": "Have 12000 Steel. Scrap 10 Medium Caliber Main Guns."
+  },
+  "663": {
+    "name": "Quarterly Medal or Materials",
+    "detail": "Have 18000 Steel. Scrap 10 Large Caliber Main Guns."
+  },
+  "664": {
+    "name": "Utilization of Radar Technology for Fire Direction",
+    "detail": "Have 8000 Ammo and Steel. Scrap 10 Radars."
+  },
+  "665": {
+    "name": "A Joint Effort With the Consumer Industry",
+    "detail": "Have 12000 Fuel. Scrap 16 Small Caliber Main Guns."
+  },
+  "666": {
+    "name": "Form the Elite Zuiun Squadron!",
+    "detail": "Have a Skilled Crew Member, 2 Type 99 Dive Bombers and 2 Zuiun. Set Hyuuga Kai as secretary. Equip a ★max Zuiun (634 Air Group) in her 4th slot. Scrap 2 Drum Canisters."
+  },
+  "667": {
+    "name": "Continue the Joint Effort With the Consumer Industry!",
+    "detail": "Have 15000 Steel. Scrap 10 anti-air guns. High-angle guns do not count."
+  },
+  "668": {
+    "name": "An Experimental New Kind of Combat Ration",
+    "detail": "Have 2 Combat Rations, 800 Fuel and 150 Bauxite."
+  },
+  "669": {
+    "name": "Development of a Night Warfare-class Ship-Based Fighter Aircraft",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a >> ★max F6F-3."
+  },
+  "670": {
+    "name": "Performance Enhancement of a Night Warfare-class Fighter Aircraft",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a >> ★max F6F-5."
+  },
+  "671": {
+    "name": "Development of a Night Operations-class Ship-Based Bomber Aircraft",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a TBF."
+  },
+  "672": {
+    "name": "The Establishment of the Striking Force's Fleet Command Facility",
+    "detail": "Have 10 Development Materials, 2000 Steel and 2 Action Reports. Equip a secretary with a Fleet Command Facility in her first slot. Scrap 3 Radars."
+  },
+  "673": {
+    "name": "Daily Gun Dismantlement",
+    "detail": "Scrap 4 Small Caliber Main Guns."
+  },
+  "674": {
+    "name": "Daily AA Gun Dismantlement",
+    "detail": "Have 300 Steel. Scrap 3 AA Machine Guns."
+  },
+  "675": {
+    "name": "Quarterly Interceptor",
+    "detail": "Have 800 Bauxite. Scrap 6 Fighter Aircraft and 4 AA Machine Guns."
+  },
+  "676": {
+    "name": "Weekly Gun Dismantlement",
+    "detail": "Have 2400 Steel. Scrap 3 Medium Caliber Main Guns, 3 Secondary Guns and a Drum Canister."
+  },
+  "677": {
+    "name": "Weekly Dismantlement 2",
+    "detail": "Have 3600 Steel. Scrap 4 Large Cal. Main Guns, 2 Recon Seaplanes and 3 Torpedoes."
+  },
+  "678": {
+    "name": "Quarterly Shiden Kai Ni and Materials",
+    "detail": "Have 4000 Bauxite. Equip a secretary with Type 0 Fighter Models 52 in her first two slots. Scrap 3 Type 96 Fighters and 5 Type 0 Fighter Models 21."
+  },
+  "679": {
+    "name": "An Expansion of Anti-Air Armaments",
+    "detail": "Have 900 Bauxite. Scrap 6 Medium Cal. Main Guns and 3 Secondary Guns."
+  },
+  "680": {
+    "name": "Quarterly AA Guns",
+    "detail": "Have 1500 Bauxite. Scrap 4 AA Machine Guns and 4 Radars."
+  },
+  "681": {
+    "name": "Annual Arsenal - January",
+    "detail": "Have 1600 Bauxite and 20 Development Materials. Scrap 4 Dive Bombers and 4 Torpedo Bombers."
+  },
+  "682": {
+    "name": "The Kaiboukan Consolidation Plan",
+    "detail": "Have 500 Fuel. Scrap 4 Medium Caliber Main Guns and 4 Large Caliber Main Guns."
+  },
+  "683": {
+    "name": "Research on a New Type of Main Battery for Aviation Battleships",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a ★max Prototype 41cm Triple Gun Mount."
+  },
+  "684": {
+    "name": "The Formation of an Elite Aviation Battleship Suisei Squadron",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a Suisei Model 22 (634 Air Group)."
+  },
+  "685": {
+    "name": "Wartime Modification of Destroyer Main Guns",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a ★max 12.7cm Twin Gun Mount Model A Kai Ni."
+  },
+  "686": {
+    "name": "Quarterly High-angle Gun Mount",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a ★max 12.7cm Twin Gun Mount Model A Kai Ni."
+  },
+  "687": {
+    "name": "Wartime Modification of Destroyer Main Guns II",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is a ★max 12.7cm Twin Gun Mount Model B Kai Ni."
+  },
+  "688": {
+    "name": "Quarterly Auxiliary Aircraft",
+    "detail": "Have 1800 Bauxite and a Skilled Crew Member. Scrap 3 Fighters, 3 Dive Bombers, 3 Torpedo Bombers and 3 Reconnaissance Seaplanes."
+  },
+  "689": {
+    "name": "Fighter Squadron Enhancement",
+    "detail": "Have 3000 Bauxite, a Skilled Crew Member and a New Model Aviation Armament Materials. Scrap 4 Fighters, 4 Reconnaissance Seaplanes and two Carrier-based Reconnaissance Aircraft."
+  },
+  "690": {
+    "name": "Land-Based Aerial Force Enhancement",
+    "detail": "Have 4800 Bauxite, a Skilled Crew Member and two New Model Aviation Armament Materials. Scrap 4 Fighters, 4 Dive Bombers and 4 Torpedo Bombers."
+  },
+  "691": {
+    "name": "A Renovation of the Admiral's Room",
+    "detail": "Have 1600 Bauxite. Scrap 4 Medium Caliber Main Guns, 4 Secondary Guns and 4 AA Machine Guns."
+  },
+  "692": {
+    "name": "Consolidation of the Naval Vessel Equipment Arsenal",
+    "detail": "Have 3000 Steel. Scrap 5 Small Caliber Main Guns, 5 Large Caliber Main Guns and 5 Recon Seaplanes."
+  },
+  "693": {
+    "name": "Rotorcraft Development",
+    "detail": "Have 3000 Bauxite and 20 Development Materials. Scrap 4 Recon Seaplanes, 3 Fighter Aircraft and 2 Torpedo Bombers."
+  },
+  "694": {
+    "name": "Research on a New Model of Aviation Rigging",
+    "detail": "Have 8500 Steel, 4000 Bauxite and 60 Development Materials. Scrap 4 Zuiun, 4 Suisei and 2 Ryuusei."
+  },
+  "695": {
+    "name": "New Operations Research on the Suisei Dive Bomber",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is Ise Kai Ni or Hyuuga Kai Ni equipped with a Suisei Model 12A."
+  },
+  "696": {
+    "name": "Formation of the Supreme Zuiun Squadron",
+    "detail": "Due to the lengthy requirements, please refer to the panel mouseover description. The main requirement is Ise Kai Ni or Hyuuga Kai Ni equipped with a ★max Zuiun Kai Ni (634 Air Group)."
+  },
+  "698": {
+    "name": "The Introduction of a New Anti-Submarine Patrol Air Force",
+    "detail": "Have 1840 Ammo, 6200 Bauxite, 2 New Model Aviation Armament Materials, and a Skilled Crew Member. Set Kaga Kai Ni Go as secretary with a TBM-3D in slot 1. Scrap 2 TBFs, 1 Ryuusei and 1 Ryuusei Kai."
+  },
+  "701": {
+    "name": "The First Modernization!",
+    "detail": "Complete a successful modernization."
+  },
+  "702": {
+    "name": "Daily Modernization",
+    "detail": "Complete 2 successful modernizations within the same day."
+  },
+  "703": {
+    "name": "Weekly Modernization",
+    "detail": "Complete 15 successful modernizations within the same week."
+  },
+  "704": {
+    "name": "Preparation for Large Ship Construction! (Part 1)",
+    "detail": "Complete 4 successful modernizations."
+  },
+  "705": {
+    "name": "Flight Rigging Modernization",
+    "detail": "Have 5500 Steel and 2500 Bauxite. Modernize a CV(B) using 5 CV(L) twice."
+  },
+  "714": {
+    "name": "Annual DD Mod. - November",
+    "detail": "Have 600 Steel and 300 Bauxite. Modernize a DD using at least 3 DD twice."
+  },
+  "715": {
+    "name": "Annual DD Mod. 2 - November",
+    "detail": "Have 900 Steel and 500 Bauxite. Modernize a DD using at least 3 CL twice."
+  },
+  "716": {
+    "name": "Annual CL Mod. - February",
+    "detail": "Have 800 Steel and 400 Bauxite. Modernize a CL(T) using at least 3 CL(T) twice."
+  },
+  "717": {
+    "name": "Annual CL Mod. 2 - February",
+    "detail": "Have 900 Steel and 900 Ammo. Modernize a CL(T) using at least 3 CA(V) twice."
+  },
+  "718": {
+    "name": "Execute Mogami-class Modernizations!",
+    "detail": "Have 1100 Steel and 1100 Ammo. Modernize a Mogami-class ship using at least 3 CL(T) twice."
+  },
+  "719": {
+    "name": "Part 2: Execute Mogami-class Modernizations!",
+    "detail": "Have 1200 Steel and 1200 Ammo. Modernize a Mogami-class ship using at least 4 CA(V) twice."
+  },
+  "720": {
+    "name": "[Time-limited] Yuugumo-class Modernization Mission!",
+    "detail": "Have 24 Development Materials. Modernize a Yuugumo-class DD using 3 CA(V) three times."
+  },
+  "805": {
+    "name": "Send Flagship Kasumi to Patrol the Northern Waters!",
+    "detail": "Sortie Kasumi Kai Ni as flagship, 3 DD and up to 2 additional ships to [W3-1]. B-Rank+ the boss node."
+  },
+  "806": {
+    "name": "Flagship Kasumi, Sortie! Annihilate the Enemy Fleet!",
+    "detail": "Sortie Kasumi Kai Ni as flagship, 2 DD and up to 3 additional ships to [W2-5]. S-Rank the boss node."
+  },
+  "807": {
+    "name": "Sortie the 31st Cruiser Division!",
+    "detail": "Sortie Isuzu Kai Ni as flagship, Satsuki Kai Ni, Uzuki Kai and up to 3 additional ships to [W1-6-N]."
+  },
+  "808": {
+    "name": "Sortie the 27th Destroyer Division!",
+    "detail": "Sortie Shiratsuyu Kai as flagship, Shigure, Harusame, Samidare and up to 2 additional ships to [W2-3]. S-Rank the boss node."
+  },
+  "809": {
+    "name": "Enhance the Strength of Landing Force Operations!",
+    "detail": "Sortie to [W6-3]. B-Rank+ the boss node."
+  },
+  "810": {
+    "name": "Defend the Refinery Area!",
+    "detail": "Sortie a CL and 5 DD to [W1-3]. S-Rank the boss node 3 times."
+  },
+  "811": {
+    "name": "Reinforce the Nansei Islands Defense Line!",
+    "detail": "Sortie to [W1-4]. S-Rank the boss node 5 times."
+  },
+  "812": {
+    "name": "Secure Control of the Orel Sea!",
+    "detail": "Sortie Ooshio as flagship to [W2-3]. S-Rank the boss node 6 times."
+  },
+  "813": {
+    "name": "Sortie the Flagship Ooshio!",
+    "detail": "Sortie Ooshio Kai Ni as flagship to [W3-5]. S-Rank the boss node."
+  },
+  "814": {
+    "name": "High-Speed Transport Enforcement Unit, Sortie!",
+    "detail": "Sortie Sendai Kai Ni, Kawakaze Kai Ni, Shigure Kai Ni, 2 DD and up to 1 additional ship to [W4-1]. A-Rank+ the boss node."
+  },
+  "815": {
+    "name": "Send the 1st Carrier Division into the West!",
+    "detail": "Sortie Akagi as flagship, Kaga and up to 4 additional ships to [W4-5]. S-Rank the boss node."
+  },
+  "816": {
+    "name": "The Fleet's Third Anniversary!",
+    "detail": "Sortie to [W2-2] and [W2-3]. S-Rank the boss nodes of both maps."
+  },
+  "817": {
+    "name": "New Fleet, Hurry to the Nansei Islands Defense Line!",
+    "detail": "Sortie a CL/CLT/CT flagship, 4 DD, and up to 1 additional ship to [W1-4]. A-Rank+ the boss node."
+  },
+  "818": {
+    "name": "Solidify and Maintain the Safety of the Base's Local Routes!",
+    "detail": "Sortie a CL flagship, 4 DD and up to 1 additional ship to [W1-6-N]."
+  },
+  "819": {
+    "name": "The 31st Cruiser Division's Anti-Submarine Suppression!",
+    "detail": "Sortie Isuzu Kai Ni as flagship, Satsuki Kai Ni, Uzuki Kai and 3 additional ships to [W1-6-N] twice."
+  },
+  "820": {
+    "name": "Sortie the New 8th Destroyer Division!",
+    "detail": "Sortie Asashio Kai Ni+ as flagship, Michishio, Ooshio, Arashio and 2 additional ships to [W1-6-N]."
+  },
+  "821": {
+    "name": "The Elite 8th Destroyer Division's Anti-Submarine Patrol!",
+    "detail": "Sortie a fleet that includes Asashio Kai Ni D and Ooshio Kai Ni to [W1-5]. S-Rank the boss node 2 times."
+  },
+  "822": {
+    "name": "Quarterly [W2-4]",
+    "detail": "Sortie to [W2-4]. S-Rank the boss node 2 times."
+  },
+  "823": {
+    "name": "Torpedo Squadron, Persist on the Southwest Defense Line!",
+    "detail": "Sortie a CL/CLT/CT as flagship, 4 DD and 1 additional ship to [W1-4]. A-Rank the boss node 2 times."
+  },
+  "824": {
+    "name": "Carry Out a Patrol of the Coastal Refinery Area!",
+    "detail": "Sortie a CVL as flagship, 3 DD and 2 additional ships to [W1-3]. S-Rank the boss node."
+  },
+  "825": {
+    "name": "Torpedo Squadron, Patrol the Nansei Island Waters!",
+    "detail": "Sortie a CL/CLT/CT as flagship, 4 DD and 1 additional ship to [W2-2] and [W2-3]. S-Rank the boss nodes of both maps."
+  },
+  "826": {
+    "name": "Sortie the 19th Destroyer Division!",
+    "detail": "Sortie Isonami, Uranami, Ayanami and Shikinami to [W1-5]. A-Rank+ the boss node."
+  },
+  "827": {
+    "name": "Rush DesDiv 19 to Engage the Enemy's Main Forces!",
+    "detail": "Sortie Isonami, Uranami, Ayanami and Shikinami and up to 2 additional ships to [W2-5]. A-Rank+ the boss node."
+  },
+  "828": {
+    "name": "Carry Out Preparations for the Airfield Construction!",
+    "detail": "Sortie to [W6-3]. S-Rank the boss node."
+  },
+  "829": {
+    "name": "Rush into the Night! Strike at the Enemy Landing Force!",
+    "detail": "Sortie to [W5-3]. A-Rank+ the boss node."
+  },
+  "830": {
+    "name": "Acquire the Light that Illuminates the Night Sea!",
+    "detail": "Sortie to [W2-1]. S-Rank the boss node."
+  },
+  "833": {
+    "name": "Combat Operations Research on Shipborne Land-Based Equipment",
+    "detail": "Sortie a LHA/AV and up to 5 additional ships to [W4-5] and [W6-4]. A-Rank+ each boss node twice."
+  },
+  "834": {
+    "name": "Reinforce the Nansei Islands Defense Line!",
+    "detail": "Sortie an AV or CAV as flagship to [W1-4]. S-Rank the boss node."
+  },
+  "835": {
+    "name": "Sortie the 16th Cruiser Division (Third Generation)!",
+    "detail": "Sortie Kinu, Aoba, Kitakami, Ooi and up to 2 additional ships to [W2-4]. A-Rank+ the boss node."
+  },
+  "836": {
+    "name": "Break Through With the Elite 16th Cruiser Division!",
+    "detail": "Sortie Kinu Kai Ni as flagship and any five of Kitakami Kai Ni, Ooi Kai Ni, Kuma Kai, Aoba Kai, Uranami Kai and Shikinami Kai to [W2-5]. S-Rank the boss node."
+  },
+  "837": {
+    "name": "Succeed in the Transport Operation and Return!",
+    "detail": "Sortie Kinu Kai Ni as flagship, Uranami Kai, 3 DD and one additional non-DD to [W2-2]. S-Rank the boss node."
+  },
+  "838": {
+    "name": "Heavy Cruiser Division, Set Sail!",
+    "detail": "Sortie a CA(V) as flagship, 3 other CA(V) and up to 2 additional ships to [W2-3]. S-Rank the boss node."
+  },
+  "839": {
+    "name": "Sortie a Battleship Division!",
+    "detail": "Sortie a (F)BB(V) as flagship, 1 other (F)BB(V) and up to 4 additional ships to [W3-3]. S-Rank the boss node. You will have to select a reward."
+  },
+  "842": {
+    "name": "Main Battleship Division, Set Sail!",
+    "detail": "Sortie 2 BB(V) (not FBB) and up to 4 additional ships to [W2-4]. S-Rank the boss node. You will have to select a reward."
+  },
+  "844": {
+    "name": "Break Through With the Elite 8th Destroyer Division!",
+    "detail": "Sortie Arashio Kai Ni as Fleet 1 flagship, one of Asashio, Ooshio, or Michishio, and 4 additional ships to [W5-5]. A-Rank+ the boss node 2 times."
+  },
+  "845": {
+    "name": "Quarterly [W4]",
+    "detail": "Sortie to [W4-1], [W4-2], [W4-3], [W4-4] and [W4-5]. S-Rank the boss nodes of each."
+  },
+  "846": {
+    "name": "Submarine Fleet, Execute Patrols in the Central Waters!",
+    "detail": "Sortie an SS(V) as flagship, 3 other SS(V), and two additional ships to [W6-1]. B-Rank+ the boss node."
+  },
+  "847": {
+    "name": "Kuma, Lead Ship of the Kuma-class Light Cruisers, Sortie! Kuma!",
+    "detail": "Sortie Kuma Kai Ni+ as flagship to [W1-6-N], [W2-2], [W3-2] and [W7-3-P]. S-Rank all relevant boss nodes."
+  },
+  "848": {
+    "name": "Armored Heavy Cruiser, Rush into the Iron Bottom Sound!",
+    "detail": "Sortie Zara Due as Fleet 1 flagship to [W5-3]. A-Rank+ the boss node."
+  },
+  "849": {
+    "name": "Crush the Enemy Fleet in the Nansei Islands Region!",
+    "detail": "Sortie a CL as flagship and 5 additional ships to [W1-4], [W2-2] and [W2-3]. S-Rank the boss nodes of each."
+  },
+  "850": {
+    "name": "Expand the Offshore Aviation Forces!",
+    "detail": "Sortie a CV/CVB/CVL/AV as flagship and 5 additional ships to [W3-5], [W4-4] and [W6-2]. S-Rank the boss nodes of each."
+  },
+  "851": {
+    "name": "Remodeled Aviation Cruiser, Sortie!",
+    "detail": "Sortie Suzuya Kai Ni (not CVL) as flagship to [W5-1] and [W5-3]. A-Rank+ the boss nodes of each. You will be prompted to select a reward."
+  },
+  "852": {
+    "name": "Remodeled Light Attack Carrier, Deploy to the Front Lines!",
+    "detail": "Sortie Suzuya-Kou Kai Ni (not CAV) as flagship to [W6-2] and [W6-5]. S-Rank the boss nodes of each."
+  },
+  "853": {
+    "name": "Vigilantly Patrol the Naval Base Waters!",
+    "detail": "Sortie a CL/CA(V) as flagship and at least 2 DD in any suitable fleet composition to [W1-2], [W1-3], [W1-4] and [W1-5]. A-Rank+ the boss nodes of each."
+  },
+  "854": {
+    "name": "Quarterly Operation Z, Part 1",
+    "detail": "Sortie Fleet 1 to [W2-4], [W6-1] and [W6-3] and A-Rank+ the boss nodes of each. Sortie to [W6-4] and S-Rank the boss node."
+  },
+  "855": {
+    "name": "Strive to Reinforce the Coast Guard's Logistics!",
+    "detail": "Sortie at least 3 DD/DE to [W1-3], [W1-4], [W1-5] and [W1-6-N]. S-Rank all relevant boss nodes."
+  },
+  "856": {
+    "name": "1st Battleship Division, Set Sail!",
+    "detail": "Sortie Nagato Kai Ni as Fleet 1 flagship, Mutsu Kai as second ship, and 4 additional ships to [W4-5] and [W5-5]. S-Rank the boss nodes of each."
+  },
+  "857": {
+    "name": "Enhanced Naval Escort Fleet, Set Sail!",
+    "detail": "Sortie Fleet 1 with a CL, 2 DD/DE, 1 CAV/CVL and 2 other ships to [W2-2], [W2-3], [W2-4] and [W2-5]. A-Rank+ the boss nodes of each."
+  },
+  "858": {
+    "name": "New 7th Cruiser Division, Sortie!",
+    "detail": "Sortie Kumano Kai Ni (or Kou) as Fleet 1 flagship, Suzuya Kai Ni (or Kou) as 2nd ship, Mogami Kai, Mikuma Kai and 2 other ships to [W4-5] and [W6-2]. S-Rank the bosses."
+  },
+  "859": {
+    "name": "Elite 4th Carrier Division, Set Sail!",
+    "detail": "Sortie Lv.50+ Hyuuga and Lv.50+ Ise as flagship and second ship, 1 CL, 2 DD and 1 additional ship to [W2-5] and [W3-5]. A-Rank+ the boss nodes of each."
+  },
+  "860": {
+    "name": "Flagship Yura, Set Sail!",
+    "detail": "Sortie Yura Kai Ni as Fleet 1 flagship, at least 2 of Akizuki, Yuudachi, Murasame, Harusame or Samidare, and 3 others to [W2-3] and [W5-1]. S-Rank the boss nodes."
+  },
+  "861": {
+    "name": "Quarterly [W1-6]",
+    "detail": "Sortie 2 BBV/AO and up to 4 additional ships to [W1-6-N] twice."
+  },
+  "862": {
+    "name": "Quarterly [W6-3]",
+    "detail": "Sortie 1 AV, 2 CL and up to 3 additional ships to [W6-3]. A-Rank+ the boss node twice."
+  },
+  "863": {
+    "name": "Sortie the Elite 22nd Destroyer Division!",
+    "detail": "Sortie Fumizuki Kai Ni, Satsuki Kai Ni, Minazuki Kai, Nagatsuki Kai and up to 2 additional ships to [W3-2]. S-Rank the boss node."
+  },
+  "864": {
+    "name": "Powerful Large-Scale Aircraft Carrier, Setting Sail!",
+    "detail": "Sortie Saratoga Mk.II or Mod.2 as Fleet 1 flagship, 1 CL, 2 DD and up to 2 additional ships to [W5-5] and [W6-2]. S-Rank the boss nodes."
+  },
+  "865": {
+    "name": "Night Operations Carrier, Sortie to the Frontlines!",
+    "detail": "Sortie Saratoga Mk.II (NOT Mod.2) as Fleet 1 flagship to [W6-5]. S-Rank the boss node."
+  },
+  "869": {
+    "name": "Secure the Safety of the Supply Lines!",
+    "detail": "Sortie a CL as flagship, 2 DD/DE and up to 3 other ships to [W1-3], [W1-4] and [W1-5]. A-Rank+ the boss nodes of each."
+  },
+  "870": {
+    "name": "8th Destroyer Division, to the Southwest!",
+    "detail": "Sortie Arashio, Asashio, Ooshio, Michishio and up to 2 other ships to [W1-2] and [W2-2]. S-Rank the boss nodes of each."
+  },
+  "871": {
+    "name": "Supreme 8th Destroyer Division, Sortie With All Your Might!",
+    "detail": "Sortie Arashio Kai Ni, Asashio Kai Ni (or D), Ooshio Kai Ni, Michishio Kai Ni and up to 2 other ships to [W3-2] and [W5-4]. S-Rank the boss nodes of each."
+  },
+  "872": {
+    "name": "Quarterly Operation Z, Part 2",
+    "detail": "Sortie Fleet 1 to [W7-2-M], [W5-5], [W6-2] and [W6-5]. S-Rank the boss nodes of each."
+  },
+  "873": {
+    "name": "Quarterly [W3]",
+    "detail": "Sortie a CL and up to 5 additional ships to [W3-1], [W3-2] and [W3-3]. A-Rank+ the boss nodes of each."
+  },
+  "874": {
+    "name": "Execute a Combat Patrol of the Northern Waters!",
+    "detail": "Sortie a CL, an AV, a CVL and up to 3 additional ships to [W3-5]. S-Rank the boss node twice."
+  },
+  "875": {
+    "name": "Quarterly [W5-4]",
+    "detail": "Sortie Naganami Kai Ni+, one of Takanami Kai+, Asashimo Kai+ or Okinami Kai+, and up to 4 additional ships to [W5-4]. S-Rank the boss node twice."
+  },
+  "876": {
+    "name": "Matsu Transport Operation, Commence!",
+    "detail": "Sortie Tatsuta Kai or Kai Ni as flagship and 3+ DE/DD to [W1-4] and [W1-6]. A-Rank+ the [W1-4] boss node twice. Reach [W1-6-N] twice."
+  },
+  "877": {
+    "name": "Elite DesRon 4, Deploy to the Southern Waters!",
+    "detail": "Sortie Murasame Kai Ni as flagship and 3+ of Yura Kai Ni, Yuudachi Kai Ni, Harusame Kai, Samidare Kai or Akizuki Kai to [W5-1], [W5-3] and [W5-4]. A-Rank+ the bosses."
+  },
+  "878": {
+    "name": "Continue to Execute the Matsu Transport Operation!",
+    "detail": "Sortie a CL(T)/CT/DD as flagship and 3 or more additional DE/DD to [W1-4] and [W1-6]. A-Rank+ the [W1-4] boss node three times. Reach [W1-6-N] three times."
+  },
+  "879": {
+    "name": "New CarDiv 4, Sortie at Full Strength!",
+    "detail": "Sortie Ise Kai, Hyuuga Kai, Ooyodo Kai, at least 1 DD and up to 2 other ships to [W1-6-N], [W2-5], [W3-5] and [W4-5]. A-Rank+ all relevant boss nodes."
+  },
+  "880": {
+    "name": "Elite Destroyer Division, Wreak Havoc!",
+    "detail": "Sortie 4 DD and up to 2 additional ships to [W1-6-N], [W2-3], [W3-2] and [W4-2]. A-Rank+ all relevant boss nodes."
+  },
+  "881": {
+    "name": "DesDiv 18, to Kis Island in the Northern Waters!",
+    "detail": "Sortie Arare Kai Ni, Kasumi Kai Ni (or B), Kagerou Kai, Shiranui Kai and up to 2 additional ships to [W3-2]. S-Rank the boss node twice."
+  },
+  "884": {
+    "name": "Supreme Type-A Destroyers, Rush Them! Break Through Their Ranks!",
+    "detail": "Sortie Kagerou Kai Ni OR Shiranui Kai Ni OR Kuroshio Kai Ni as flagship and 2 Lv75+ Kagerou/Yuugumo-class to [W3-2], [W4-2] and [W5-3]. S-Rank each boss node twice."
+  },
+  "885": {
+    "name": "Battle Carrier, Sortie!",
+    "detail": "Sortie Ise Kai Ni as flagship and up to 5 additional ships to [W3-5], [W4-5] and [W6-4]. S-Rank the boss nodes."
+  },
+  "886": {
+    "name": "Ise Kai Ni, Intercept the Enemy Task Force!",
+    "detail": "Sortie Ise Kai Ni as flagship, 2 DD and up to 3 additional ships to [W6-5]. S-Rank the boss node 3 times."
+  },
+  "887": {
+    "name": "Expand the Elite 18th Cruiser Division!",
+    "detail": "Sortie Tenryuu Kai Ni, Tatsuta Kai Ni, 2 DD and up to 2 additional ships to [W1-2], [W1-4], [W1-5] and [W1-6-N]. S-Rank all relevant boss nodes."
+  },
+  "888": {
+    "name": "Quarterly Mikawa Fleet",
+    "detail": "Sortie any four of Choukai, Aoba, Kinugasa, Kako, Furutaka, Tenryuu, Yuubari and up to 2 additional ships to [W5-1], [W5-3] and [W5-4]. S-Rank the boss nodes."
+  },
+  "889": {
+    "name": "First Platoon of the Elite 27th Destroyer Division, Sortie!",
+    "detail": "Sortie Shiratsuyu Kai Ni and Shigure Kai Ni and up to 4 additional ships to [W2-3], [W4-1], [W5-5] and [W6-5]. S-Rank the boss nodes."
+  },
+  "890": {
+    "name": "Elite CruDiv 4 2nd Platoon, Set Sail!",
+    "detail": "Sortie Choukai Kai Ni and Maya Kai Ni and up to 4 additional ships to [W1-4], [W2-3], [W3-3] and [W4-5]. S-Rank the boss nodes."
+  },
+  "891": {
+    "name": "Elite 17th Destroyer Division, to the North, to the South!",
+    "detail": "Sortie Isokaze B Kai, Hamakaze B Kai, Urakaze D Kai, Tanikaze D Kai and up to 2 additional ships to [W1-5], [W3-2], [W7-1] and [W5-1]. A-Rank+ the boss nodes."
+  },
+  "892": {
+    "name": "Mainstay of Mainstays, Set Sail!",
+    "detail": "Sortie Yuugumo Kai Ni, Makigumo Kai Ni and up to 4 additional ships to [W5-3], [W5-4] and [W5-5]. S-Rank the boss nodes."
+  },
+  "893": {
+    "name": "Quarterly Anchorage Region",
+    "detail": "Sortie to [W1-5], [W7-1], [W7-2]. S-Rank the boss node of [W1-5] and [W7-1] 3 times. S-Rank both boss nodes of [W7-2] 3 times."
+  },
+  "894": {
+    "name": "Quarterly [W1/2]",
+    "detail": "Sortie a CV(L/B) and up to 5 additional ships to [W1-3], [W1-4], [W2-1], [W2-2] and [W2-3]. S-Rank the boss nodes."
+  },
+  "895": {
+    "name": "Winter Northern Waters Operation",
+    "detail": "Sortie a CL as flagship and up to 5 additional ships to [W3-1], [W3-3], [W3-4] and [W3-5]. S-Rank each boss node twice."
+  },
+  "896": {
+    "name": "Aviation Battleship Division, on Combat Patrol!",
+    "detail": "Sortie 2 BBV and up to 4 additional ships to [W1-4], [W1-5], [W2-3] and [W7-2-M]. S-Rank the boss nodes of each."
+  },
+  "897": {
+    "name": "Supreme 4th Carrier Division, Sortie!",
+    "detail": "Sortie Hyuuga Kai Ni, Ise Kai Ni and up to 4 additional ships to [W4-5], [W5-5] and [W6-5]. S-Rank each boss node once. Reach [W1-6-N] twice."
+  },
+  "898": {
+    "name": "From the Northern Sea, With Love",
+    "detail": "Sortie to [W3-1], [W3-2], [W3-3], [W3-4] and [W3-5]. A-Rank+ the boss nodes of each."
+  },
+  "901": {
+    "name": "\"Shall we put my Kai Ni to the test?\"",
+    "detail": "Sortie Yuubari Kai Ni/Toku/D as flagship and up to 5 additional ships to [W2-5], [W3-3], [W5-3] and [W6-3]. S-Rank the boss nodes of each."
+  },
+  "902": {
+    "name": "\"New DesRon 6, we're heading out! Let me know what you think later!\"",
+    "detail": "Sortie Yuubari Kai Ni/Toku/D as flagship, 3 of DesRon 6 and up to 2 other ships to [W1-5], [W1-6-N], [W2-2], [W3-2] and [W7-1]. S-Rank all relevant boss nodes."
+  },
+  "903": {
+    "name": "Quarterly Yuubari Fleet",
+    "detail": "Sortie Yuubari Kai Ni/Toku/D as flagship, either Yura Kai Ni OR two of DesRon 6, and up to 4 additional ships to [W5-1], [W5-4], [W6-4] and [W6-5]. S-Rank the boss nodes of each."
+  },
+  "904": {
+    "name": "Annual DesDiv 19 Fleet - February",
+    "detail": "Sortie Ayanami Kai Ni, Shikinami Kai Ni and up to 4 additional ships to [W2-5], [W3-4], [W4-5] and [W5-3]. S-Rank the boss nodes of each."
+  },
+  "905": {
+    "name": "Annual Kaiboukan Fleet - February",
+    "detail": "Sortie 3 DEs and up to TWO additional ships to [W1-1], [W1-2], [W1-3], [W1-5] and [W1-6-N]. A-Rank+ all relevant boss nodes."
+  },
+  "911": {
+    "name": "Reorganized DesDiv 31, Weigh Anchor!",
+    "detail": "Sortie Naganami, Kishinami, Asashimo, Okinami Kai Ni and up to two additional ships to [W1-3], [W1-4], [W1-5], [W2-2] and [W2-3]. S-Rank each boss node."
+  },
+  "912": {
+    "name": "Annual Akashi Fleet - March",
+    "detail": "Sortie Akashi as flagship, 3 DDs and up to two additional ships to [W1-3], [W2-1], [W2-2], [W2-3] and [W1-6-N]. A-Rank+ all relevant boss nodes."
+  },
+  "913": {
+    "name": "5th Carrier Division, Roaming Far and Wide!",
+    "detail": "Sortie Shoukaku, Zuikaku, Oboro, Akigumo and up to two additional ships to [W3-5], [W5-2], [W7-2-M] and [W6-5]. S-Rank the boss nodes."
+  },
+  "914": {
+    "name": "Annual Heavy Cruiser Fleet - March",
+    "detail": "Sortie 3 CA (NOT CAV), 1 DD and up to 2 additional ships to [W4-1], [W4-2], [W4-3] and [W4-4]. A-Rank+ the boss nodes of each."
+  },
+  "915": {
+    "name": "Time-Limited Mission: Fly! Seaplanes of the World!",
+    "detail": "Sortie an AV as flagship, 2 DD/DE and up to 3 additional ships to [W1-4], [W2-3] and [W2-4]. S-Rank each boss node."
+  },
+  "916": {
+    "name": "Hiei Kai Ni C Arrives! 3rd Battleship Squadron, to the South!",
+    "detail": "Sortie Hiei Kai Ni C, one other Kongou-class FBB, 1 CL, 1 DD and up to two additional ships to [W5-1], [W5-2], [W5-3], [W5-4] and [W5-5]. S-Rank each boss node."
+  },
+  "917": {
+    "name": "Remodeled Aviation Light Cruiser Gotland Andra, Sortie!",
+    "detail": "Sortie Gotland Andra as flagship, 1 DD and up to four additional ships to [W2-4], [W4-2], [W4-4] and [W4-5]. S-Rank each boss node."
+  },
+  "918": {
+    "name": "Gotland Squadron, Advance!",
+    "detail": "Sortie Gotland Andra as flagship, 1 DD and up to four additional ships to [W2-5], [W6-3], [W6-4] and [W6-5]. S-Rank each boss node."
+  },
+  "919": {
+    "name": "Nansei Island Waters Coalition Patrol",
+    "detail": "Sortie 2 American ships and up to 4 additional ships to [W2-2], [W2-3] and [W2-4]. S-Rank each boss node."
+  },
+  "920": {
+    "name": "Coalition Fleet Flagship, Remodeled Fletcher, Weigh Anchor!",
+    "detail": "Sortie Fletcher Kai Mod 2 as flagship, 2 additional ships from the US, UK, Australia or Netherlands, and up to 3 additional ships to [W1-4], [W2-5] and [W3-5]. S-Rank each boss node."
+  },
+  "921": {
+    "name": "Remodeled Escort Destroyer Fletcher Mk.II, Commence Operation!",
+    "detail": "Sortie Fletcher Mk.II as flagship, 2 additional ships from the US, UK, Australia or Netherlands, and up to 3 additional ships to [W1-5], [W7-1], [W6-2] and [W6-5]. S-Rank each boss node twice."
+  },
+  "922": {
+    "name": "Coalition Fleet Extra Operation",
+    "detail": "Sortie Fletcher Mk.II, 3 additional ships from the US, UK, Australia or Netherlands, and up to two additional ships to [W4-5], [W5-5] and [W6-4]. S-Rank each boss node twice."
+  },
+  "923": {
+    "name": "Coalition Carrier Task Force, Sortie!",
+    "detail": "Sortie an American or British CV(L/B) and up to 5 additional ships to [W3-4], [W4-3], [W5-2] and [W7-2-M]. S-Rank each boss node."
+  },
+  "924": {
+    "name": "Aircraft Carrier Special Mission: The Incomparable Air Flotilla!",
+    "detail": "Sortie 2 CV(B) and up to 4 additional ships to [W2-4], [W2-5] and [W4-3]. S-Rank each boss node."
+  },
+  "925": {
+    "name": "Revised Kaga-class Aircraft Carrier, Kaga Kai Ni, Setting Sail!",
+    "detail": "Sortie Kaga Kai Ni+ as flagship, 1 CV(B) and up to 4 additional ships to [W3-4], [W4-4], [W4-5] and [W5-2]. S-Rank each boss node."
+  },
+  "926": {
+    "name": "Supreme CarDiv 1, Sortie! It Will End in One Strike!",
+    "detail": "Sortie Kaga Kai Ni+, Akagi Kai Ni+ and up to 4 additional ships to [W7-2-M], [W5-5], [W6-2] and [W6-5]. S-Rank each boss node."
+  },
+  "927": {
+    "name": "Sortie, Heavy Cruiser Haguro! The Battle of the Malacca Strait",
+    "detail": "Sortie Haguro as flagship and up to 4 additional ships to [W7-3-E]. A-Rank+ boss node 4 times."
+  },
+  "928": {
+    "name": "Annual 10th Area Fleet - September",
+    "detail": "Sortie any 2 of Haguro, Ashigara, Myoukou, Takao or Kamikaze, and up to 4 additional ships to [W7-3-P], [W7-2-M] and [W4-2]. S-Rank each boss node twice."
+  },
+  "929": {
+    "name": "To Protect the Peaceful Sea, the Whale Stirs!",
+    "detail": "Sortie Taigei or Jingei-class as flagship, 2 SS(V) and up to 3 additional ships to [W1-2], [W1-3], [W2-1] and [W2-3]. S-Rank the boss nodes of each."
+  },
+  "930": {
+    "name": "Mainstay of Mainstays, Run Wild!",
+    "detail": "Sortie Yuugumo Kai Ni, Makigumo Kai Ni, Kazagumo Kai Ni, Akigumo Kai Ni and up to 2 additional ships to [W1-4], [W2-2], [W3-2], [W4-1] and [W7-3-P]. S-Rank the boss nodes of each."
+  },
+  "931": {
+    "name": "Elite DesDiv 27, Carefully Perform Evasive Maneuvers!",
+    "detail": "Sortie Shiratsuyu Kai Ni, Shigure Kai Ni and up to 4 additional ships to [W1-5], [W2-5], [W7-1], [W5-5] and [W6-3]. S-Rank the boss nodes of each."
+  },
+  "933": {
+    "name": "Solidification of Fleet Command: Fleet Flagship, Sortie!",
+    "detail": "Sortie Ooyodo or Tan Yang as Fleet 1 flagship, 3 DD/DE and up to 2 additional ships to [W1-3], [W1-4], [W2-1] and [W2-2]. S-Rank each boss node twice."
+  },
+  "934": {
+    "name": "Yukikaze, The Miracle Destroyer, Sorties Once Again!",
+    "detail": "Sortie Tan Yang or Yukikaze Kai Ni as flagship and up to 5 additional ships to [W2-3], [W2-4], [W2-5], [W3-3] and [W7-3-P]. S-Rank the boss nodes of each."
+  },
+  "935": {
+    "name": "The Strongest! Yukikaze of Kure and Shigure of Sasebo",
+    "detail": "Sortie Yukikaze Kai Ni, Shigure Kai Ni and up to 4 additional ships to [W4-5], [W5-3], [W5-5], [W6-4] and [W6-5]. S-Rank the boss nodes of each."
+  },
+  "936": {
+    "name": "Remodeled Cutting-Edge CL, Noshiro, Sortie!",
+    "detail": "Sortie Noshiro Kai Ni as flagship, 3 DD and up to 2 additional ships to [W2-4], [W3-2], [W5-3], [W7-1] and [W7-2-M]. S-Rank all relevant boss nodes."
+  },
+  "937": {
+    "name": "Elite Seventh Destroyer Division, Sortie!",
+    "detail": "Sortie Akebono Kai Ni, Ushio Kai Ni and up to 4 additional ships to [W2-3], [W3-2], [W4-4] and [W5-4]. S-Rank all relevant boss nodes."
+  },
+  "938": {
+    "name": "Remodeled Aviation Cruiser, Mogami, Setting Sail!",
+    "detail": "Sortie Mogami Kai Ni+ as flagship to [W2-2], [W2-4], [W4-5] and [W5-1]. S-Rank all relevant boss nodes."
+  },
+  "939": {
+    "name": "Nishimura Fleet, Elite Vanguard Sweeper Squadron, Advancing!",
+    "detail": "Sortie Mogami Kai Ni+ as flagship, any 2 of Shigure, Michishio, Asagumo or Yamagumo, and up to 3 additional ships to [W2-3], [W6-4], [W7-2-M] and [W7-3-P]. S-Rank all relevant boss nodes."
+  },
+  "940": {
+    "name": "DesRon 2 Flagship–Yahagi, Assuming Command!",
+    "detail": "Sortie Yahagi Kai Ni+ as flagship, 2 DD and up to 3 additional ships to [W1-4], [W2-5], [W5-3] and [W5-5]. S-Rank all relevant boss nodes."
+  },
+  "943": {
+    "name": "New Wings. Remodeled Aircraft Carrier Ryuuhou, Sortie!",
+    "detail": "Sortie Ryuuhou Kai Ni (E) as Fleet 1 flagship, Shigure Kai Ni and up to 4 additional ships to [W2-2], [W2-3], [W2-4], [W2-5] and [W7-2-M]. S-Rank all relevant boss nodes."
+  },
+  "944": {
+    "name": "Annual Naval Base Sea Patrol - June",
+    "detail": "Sortie a CA/DD as flagship, 3 DD/DE and up to 2 additional ships to [W1-2], [W1-3] and [W1-4]. A-Rank+ each boss node twice."
+  },
+  "945": {
+    "name": "Annual Nansei Islands Supply Route - June",
+    "detail": "Sortie a CL/CT/DD as flagship, 3 DD/DE and up to 2 additional ships to [W1-5], [W2-1] and [W1-6-N] twice. A-Rank+ all relevant boss nodes twice."
+  },
+  "946": {
+    "name": "Annual Carrier Task Force Sortie - June",
+    "detail": "Sortie a CV(L/B) as flagship, 2 CA(V) and up to 3 additional ships to [W2-2], [W2-3] and [W2-4]. S-Rank the boss nodes of each."
+  },
+  "947": {
+    "name": "Annual Operation AL - June",
+    "detail": "Sortie 2 CVL and up to 4 additional ships to [W3-1], [W3-3], [W3-4] and [W3-5]. S-Rank the boss nodes of each."
+  },
+  "948": {
+    "name": "Annual Naval Task Force Decisive Battle - June",
+    "detail": "Sortie a CV(L/B) as Fleet 1 flagship and up to 5 additional ships to [W5-2], [W5-5], [W6-4] and [W6-5]. A-Rank+ [W6-4] twice. S-Rank all other relevant boss nodes twice."
+  },
+  "949": {
+    "name": "Remodeled Carrier Gambier Mk.II, Weigh Anchor!",
+    "detail": "Sortie Gambier Bay Mk. II as Fleet 1 flagship, at least 1 Fletcher-class DD and up to 4 additional ships to [W2-4] and [W3-5] and S-Rank the boss nodes twice. Sortie to [W6-4] and A-Rank+ the boss node twice."
+  },
+  "952": {
+    "name": "[Event Preparation] Stage Two (Anti-Installation / Anti-Air Maintenance)",
+    "detail": "Sortie 3 DD and up to three additional ships to [W1-3], [W1-4], [W2-1] and [W2-2]. S-Rank the boss nodes."
+  },
+  "957": {
+    "name": "Yamakaze Kai Ni, Weigh Anchor!",
+    "detail": "Sortie Yamakaze Kai Ni (D) as flagship, 3 DD/DE and up to 2 additional ships to [W1-2], [W1-3], [W1-4] and [W1-5]. S-Rank all relevant boss nodes."
+  },
+  "958": {
+    "name": "Remodeled Shiratsuyu-class Destroyer Yamakaze Kai Ni, Fight Hard!",
+    "detail": "Sortie two of Yamakaze Kai Ni (D), Kawakaze Kai Ni and Umikaze Kai Ni and up to 4 additional ships to [W2-2], [W7-2-M], [W5-1] and [W6-4]. S-Rank all relevant boss nodes."
+  },
+  "961": {
+    "name": "Elite DesDiv 15 1st Platoon, Fight Hard!",
+    "detail": "Sortie Oyashio Kai Ni, Kuroshio Kai Ni and up to 4 additional ships to [W2-4], [W5-4] and [W7-2M]. S-Rank each boss node twice."
+  },
+  "966": {
+    "name": "Establish the South Western Waters Land-Based Air Squadron!",
+    "detail": "With any fleet, S-Rank the boss at [W2-1], [W2-2], [W2-3] and [W7-3-P2] once each. Reach the port node [W7-4-O] once and have one Construction Battalion ready to establish the land-based air squadron."
+  },
+  "967": {
+    "name": "Maritime Escort! Protect the Hi Convoy!",
+    "detail": "With any fleet, destroy the gauge at [W7-4]. If the gauge has already been destroyed, accepting the quest completes it automatically."
+  },
+  "968": {
+    "name": "Aircraft Carrier Unyou, weigh anchor!",
+    "detail": "Sortie Unyou or Yawata Maru as flagship and up to 5 additional ships to [W7-4], [W7-2M], [W2-5], [W6-4]. A-Rank+ each boss node."
+  },
+  "969": {
+    "name": "Remodeled Special Type Destroyer Amagiri Kai Ni, Sortie!",
+    "detail": "Sortie Amagiri Kai Ni (D), any two of Aoba, Ooi or Sagiri and up to 3 additional ships to [W2-2], [W7-3-P], [W5-1], [W5-4] and [W6-4]. S-Rank each boss node."
+  },
+  "970": {
+    "name": "16th Cruiser Division, Remodeled Uranami Kai Ni, Sortie!",
+    "detail": "Sortie Uranami Kai Ni, Aoba, Kinu and up to 3 additional ships to [W1-4], [W2-3], [W2-5], [W7-2-M] and [W7-4]. S-Rank each boss node."
+  },
+  "973": {
+    "name": "Annual UK-US Joint Surface Fleet - May",
+    "detail": "Sortie 3 British/American ships and up to 3 additional ships to [W3-1], [W3-3], [W4-3] and [W7-3-P]. No ship of the fleet is allowed to be CV(L/B). A-Rank+ the boss node of each."
+  },
+  "974": {
+    "name": "Isonami Kai Ni, Weigh Anchor!",
+    "detail": "Sortie Isonami Kai Ni and up to 5 additional ships to [W1-2], [W1-3] and [W5-1]. S-Rank each boss node."
+  },
+  "975": {
+    "name": "Annual DesDiv 19 Sortie - May",
+    "detail": "Sortie Isonami Kai Ni, Uranami Kai Ni, Ayanami Kai Ni, Shikinami Kai Ni, and up to 2 additional ships to [W1-5], [W2-3], [W3-2] and [W5-3]. S-Rank the boss node of each."
+  },
+  "976": {
+    "name": "Remodeled Yamato-class Battleship Yamato Kai Ni, Sortie!",
+    "detail": "Sortie Yamato Kai Ni (Juu) as flagship, 1 CL, 2 DD and up to 2 additional ships to [W1-4], [W2-5], [W5-1] and [W4-4]. S-Rank each boss node."
+  },
+  "977": {
+    "name": "Kill on sight! Most Elite Yamato-class 1st Squadron, Weigh Anchor!",
+    "detail": "Sortie Yamato Kai Ni (Juu), Musashi Kai Ni, 2 DD and up to 2 additional ships to [W4-5], [W5-3], [W7-2-M] and [W6-5]. S-Rank each boss node."
+  },
+  "978": {
+    "name": "Extra Operation Heavy Remodel Yamato Kai Ni Juu, Sortie!",
+    "detail": "Sortie Yamato Kai Ni Juu as flagship and up to 5 additional ships to [W7-3-P], [W7-4], [W5-5] and [W6-4]. S-Rank each boss node."
+  },
+  "980": {
+    "name": "Powerful DesDiv 15, Weigh Anchor!",
+    "detail": "Sortie any two of Hayashio Kai Ni, Oyashio Kai Ni or Kuroshio Kai Ni and up to 4 additional ships to [W2-4], [W5-4], [W5-5] and [W6-4]. S-Rank each boss node."
+  },
+  "981": {
+    "name": "The Struggling Battle of the US Destroyer Force",
+    "detail": "Sortie at least two Fletcher-class or John C. Butler-class DDs and up to 4 additional ships to [W2-3], [W6-4], [W7-3-P] and [W7-4]. S-Rank each boss node twice."
+  },
+  "982": {
+    "name": "Samuel B. Roberts Mk.II, Weigh Anchor!",
+    "detail": "Sortie Samuel B. Roberts Mk.II as flagship and up to 5 additional ships to [W1-5], [W1-6-N], [W2-2] and [W3-5]. Earn an S Rank in each listed area."
+  },
+  "983": {
+    "name": "Unyielding Taffy Ⅲ, Weigh Anchor!",
+    "detail": "Sortie Gambier Bay, Johnston, Samuel B. Roberts and up to 3 additional ships to [W2-3], [W2-5], [W4-5] and [W5-5]. S-Rank each boss node."
+  },
+  "984": {
+    "name": "[Halloween] 14th Year Autumn Harvest, Pumpkin Festival Begins!",
+    "detail": "Sortie any 3 of Suzuya, Murasame, Yuudachi, Akebono, Oboro, Asashio, Nowaki, Jingei and Chougei, one as flagship, and up to 3 additional ships to [W1-3], [W1-4] and [W2-1]. S-Rank each boss node twice."
+  },
+  "985": {
+    "name": "Weekly [Halloween] Special Escort Squadron, Weigh Anchor!",
+    "detail": "Sortie any 3 of Tsushima, Ukuru, Inagi, Ootomari, Jingei, Chougei, Asahi, Murasame, Makinami, Hayanami, Hamanami and Kashi, and up to 3 additional ships to [W1-2], [W1-5], [W2-2] and [W2-3]. S-Rank each boss node."
+  },
+  "986": {
+    "name": "[Halloween] USS Trick or Treat!",
+    "detail": "Sortie any 3 of Minneapolis, Tuscaloosa, Gambier Bay, Brooklyn, Johnston, Richard P. Leary and Indiana, and up to 3 additional ships to [W2-1], [W2-5] and [W3-1]. S-Rank each boss node twice."
+  },
+  "987": {
+    "name": "Monthly [Halloween] Western Pumpkin Festival! Buono!",
+    "detail": "Sortie any 3 of Roma, Luigi Torelli, Maestrale, Grecale, Libeccio, Scirocco, Jervis, I-47, I-201, Suzuya, Murasame, Oboro and Akebono, one as flagship, and up to 3 additional ships to [W4-2], [W4-3] and [W4-4]. S-Rank each boss node."
+  },
+  "989": {
+    "name": "Carrier Task Force Flagship Houshou Kai Ni, to the Front!",
+    "detail": "Sortie Houshou Kai Ni (Sen) as flagship and up to 5 additional ships to [W2-5], [W3-5], [W4-5], [W5-2], [W6-4] and [W7-4]. S-Rank each boss node."
+  },
+  "993": {
+    "name": "Remodeled Destroyer Amatsukaze Kai Ni, Set Sail!",
+    "detail": "Sortie Amatsukaze Kai Ni as flagship and up to 5 additional ships to [W2-5], [W7-4], [W5-3], [W5-4] and [W6-4]. S-Rank each boss node."
+  },
+  "995": {
+    "name": "Remodelled Special Type I Destroyer Miyuki Kai Ni, Sortie!",
+    "detail": "Sortie Miyuki Kai Ni, 1 Fubuki-class DD and up to 4 additional ships to [W3-2], [W5-3], [W6-4] and [W7-3-P]. S-Rank each boss node."
+  },
+  "996": {
+    "name": "Improved Kongou-class Fast Battleship Haruna Kai Ni B/C, Sortie!",
+    "detail": "Sortie Haruna Kai Ni B/C, Kongou Kai Ni C, 2 DD and up to 2 additional ships to [W2-2], [W2-4], [W4-3], [W5-3], [W5-4] and [W7-5-T]. S-Rank each boss node."
+  },
+  "997": {
+    "name": "[Marine Escort Operation] Secure The Maritime Supply Line!",
+    "detail": "Sortie either 3 DE and up to 3 additional ships OR 4 DD and up to 2 additional ships OR 2 AV and up to 4 additional ships to [W1-3], [W1-5], [W1-6] and [W2-2]. S-Rank all relevant boss nodes twice. Reach [W1-6-N] twice."
+  },
+  "998": {
+    "name": "Improved Shiratsuyu-class Destroyer Shigure Kai San, Sortie!",
+    "detail": "Sortie Shigure Kai San, any one of Shiratsuyu, Ariake and Yuugure and up to 4 additional ships to [W2-5], [W4-5], [W5-5], [W6-4] and [W7-4]. S-Rank each boss node."
+  },
+  "1001": {
+    "name": "Mainstay of Mainstays \"Kiyoshimo Kai Ni\", Sortie!",
+    "detail": "Sortie Kiyoshimo Kai Ni (D), any 2 of Kasumi, Asashimo, Ooyodo and Ashigara, and up to 3 additional ships to [W2-2], [W2-3], [W2-4] and [W7-4]. S-Rank each boss node."
+  },
+  "1002": {
+    "name": "[Halloween] Pumpkin Festival 2026, Northern Operation!",
+    "detail": "Sortie any 3 of Minneapolis, Tuscaloosa, Gambier Bay, Johnston, Suzuya, Abukuma, Akebono, Oboro, Kiyoshimo and Kashi, one as flagship, and up to 3 additional ships to [W3-2], [W3-4] and [W3-5]. S-Rank each boss node."
+  },
+  "1003": {
+    "name": "[Submarine Mission] Submarines, Combat Patrol!",
+    "detail": "Sortie Salmon or Scamp as flagship, and up to 5 additional ships to [W1-2], [W1-3], [W2-3] and [W3-1]. S-Rank each boss node."
+  },
+  "1004": {
+    "name": "Remodelled Aviation Cruiser Mikuma, Advancing!",
+    "detail": "Sortie Mikuma Kai Ni (Toku) as flagship, and up to 5 additional ships to [W2-3], [W2-4], [W4-5] and [W6-4]. S-Rank each boss node."
+  },
+  "1005": {
+    "name": "Annual DesDiv 7 Sortie - January",
+    "detail": "Sortie Oboro Kai, Sazanami Kai, Akebono Kai+, Ushio Kai+, and up to 2 additional ships to [W1-2], [W1-3], [W1-5] and [W3-2]. A-Rank+ each boss node."
+  },
+  "1006": {
+    "name": "DesDiv 2, Weigh Anchor!",
+    "detail": "Sortie any 3 of Murasame, Yuudachi, Harusame and Samidare, and up to 3 additional ships to [W1-2], [W1-3], [W1-4] and [W1-5]. A-Rank+ each boss node."
+  },
+  "1007": {
+    "name": "Remodelled Shiratsuyu-class \"Harusame Kai Ni\", Sortie!",
+    "detail": "Sortie Harusame Kai Ni as flagship, 1 CL, 1 DD, and up to 3 additional ships to [W2-2], [W2-3] and [W5-1]. S-Rank each boss node twice."
+  },
+  "1008": {
+    "name": "Yuudachi-neesan! This Time I'll Go with You!",
+    "detail": "Sortie Yuudachi Kai Ni and Harusame Kai Ni, and up to 4 additional ships to [W4-5], [W5-3], [W5-4] and [W5-5]. S-Rank each boss node."
+  },
+  "1010": {
+    "name": "Air Defense Destroyer Akizuki Kai Ni, Reporting In!",
+    "detail": "Sortie Akizuki Kai Ni as flagship and up to 5 additional ships to [W1-4], [W2-4], [W5-4], [W7-1] and [W7-2-M]. S-Rank each boss node."
+  },
+  "1012": {
+    "name": "Annual Ukuru-class Sortie - May",
+    "detail": "Sortie a Ukuru-class DE as flagship, 1 to 3 additional DE, and no other ship types to [W1-1], [W1-2] and [W1-5]. S-Rank [W1-1] boss node three times, and A-Rank+ [W1-2] and [W1-5] twice."
+  },
+  "1013": {
+    "name": "Shield of Hachinohe \"Inagi Kai Ni\", Weigh Anchor!",
+    "detail": "Sortie Inagi Kai Ni as flagship, and up to 5 additional ships to [W1-3], [W1-4], [W2-2], [W2-3] and [W7-4]. S-Rank each boss node."
+  },
+  "1014": {
+    "name": "Guard the Nearby Waters And Nansei Islands with Patrol Unit!",
+    "detail": "Sortie 3 DE and up to 3 additional ships, OR 4 DD/DE and up to 2 additional ships to [W1-1], [W1-2], [W1-5] and [W2-1]. A-Rank+ each boss node."
+  },
+  "1015": {
+    "name": "Air Defense Surface Ships, Sortie!",
+    "detail": "Sortie any 3 of Akizuki-class, Maya Kai/Kai Ni, Tenryuu Kai Ni, Tatsuta Kai Ni and Isuzu Kai Ni, and up to 3 additional ships to [W1-3], [W1-4], [W2-2], [W2-3] and [W5-1]. S-Rank each boss node."
+  },
+  "1016": {
+    "name": "Air Defense Destroyer \"Hatsuzuki Kai Ni\", Let's Go!",
+    "detail": "Sortie Hatsuzuki Kai Ni as flagship, and up to 5 additional ships to [W2-4], [W3-5], [W7-4], [W5-4] and [W5-5]. S-Rank each boss node."
+  },
+  "1017": {
+    "name": "DesDiv 2 (Late Formation), Sortie!",
+    "detail": "Sortie any 3 of Hayashimo, Akishimo, Asashimo and Kiyoshimo, one as flagship, and up to 3 additional ships to [W1-2], [W1-5] and [W2-3]. S-Rank each boss node twice."
+  },
+  "1018": {
+    "name": "Annual BatDiv 3 Sortie - September",
+    "detail": "Sortie Hiei, Kirishima, 2 DD, and up to 2 additional ships to [W5-1], [W5-3], [W5-4] and [W5-5]. A-Rank+ each boss node."
+  },
+  "1021": {
+    "name": "Hayashimo Kai Ni: Does not just watch... Anymore!",
+    "detail": "Sortie Hayashimo Kai Ni as flagship, any one of Akishimo and Kiyoshimo, and up to 4 additional ships to [W2-5], [W7-2-M], [W7-4] and [W5-4]. S-Rank each boss node."
+  },
+  "1022": {
+    "name": "Monthly [Time-limited] DesDiv 32 Patrol Combat",
+    "detail": "Sortie any 3 of Tamanami, Suzunami, Fujinami, Hayanami and Hamanami, and up to 3 additional ships to [W2-3], [W4-1], [W5-1] and [W7-1]. A-Rank+ each boss node."
+  },
+  "1023": {
+    "name": "DesDiv 32 Fujinami Kai Ni, Escort Choukai!",
+    "detail": "Sortie Fujinami Kai Ni as flagship, Choukai, any one of DesDiv 32 (Tamanami, Suzunami, Hayanami, Hamanami), and up to 3 additional ships to [W2-4], [W2-5], [W7-2-M] and [W5-5]. S-Rank each boss node."
+  },
+  "1025": {
+    "name": "Elite DesDiv 11 Shirayuki Kai Ni, Weigh Anchor!",
+    "detail": "Sortie Shirayuki Kai Ni as flagship, a Fubuki-class DD and up to 4 additional ships to [W2-3], [W2-5], [W4-3] and [W5-3]. S-Rank each boss node."
+  },
+  "1029": {
+    "name": "DesDiv 32 Hamanami Kai Ni, Weigh Anchor! Break Through the Enemy Line!",
+    "detail": "Sortie Hamanami Kai Ni as flagship, any 2 of Tamanami, Suzunami, Fujinami, Hayanami and Asashimo, and up to 3 additional ships to [W1-6], [W2-2], [W2-3] and [W2-4]. S-Rank each boss node. Reach [W1-6-N] once."
+  },
+  "1031": {
+    "name": "[Early Summer] Northern Waters Combat Patrol Operation 2026",
+    "detail": "Sortie any 3 of Thonburi, Tuscaloosa, Gambier Bay, Haruna, Souya, Yuubari, Hayanami, Hamanami, Usugumo, Oboro and Ooi, one as flagship, and up to 3 additional ships to [W3-1], [W3-2] and [W3-5]. S-Rank each boss node twice."
+  },
+  "1032": {
+    "name": "[Early Summer Limited Mission] Surface Task Force Operational Deployment 2026",
+    "detail": "Sortie 2 battleships, 1 light cruiser, 2 destroyers, all level 88 or higher, plus up to 1 additional ship to [W1-4], [W2-5], [W3-5] and [W4-5]. S-Rank each boss node twice."
+  },
+  "1033": {
+    "name": "Active Operation of Second-class Transport Ships",
+    "detail": "Sortie No.101 Transport Ship as flagship, a CL(T)/CT, 2 DD and up to 2 additional ships to [W1-1], [W1-2], [W1-3] and [W1-4]. S-Rank each boss node."
+  },
+  "1036": {
+    "name": "Transport Convoy Escort Force, Sortie!",
+    "detail": "Sortie 2 LHA/AO, 2 DE and up to 2 additional ships to [W1-2], [W1-3], [W1-4] and [W1-5]. A-Rank+ each boss node twice."
+  },
+  "1038": {
+    "name": "[Halloween] Halloween Refills Have Begun!",
+    "detail": "Sortie any 4 of Suzuya, Akebono, Oboro, Kashi, Asahi, Jingei, Chougei, Mizuho, Johnston and Richard P. Leary, one as flagship, and up to 2 additional ships to [W1-1] and [W1-3]. S-Rank each boss node four times."
+  },
+  "1039": {
+    "name": "Weekly [Halloween] Halloween Maritime Escort Squadron, Sortie!",
+    "detail": "Sortie any 4 of Tsushima, Kashi, Asashio, Makinami, Hamanami, Abukuma, Ukuru, Inagi, Noumi, Kaiboukan No.4, Kaiboukan No.22 and Kaiboukan No.30, and up to 2 additional ships to [W1-2], [W1-4] and [W1-5]. S-Rank each boss node."
+  },
+  "1040": {
+    "name": "Monthly [Halloween] Halloween Wolf Squad, Night Raid!",
+    "detail": "Sortie any 3 of Oboro, Yuudachi, Nowaki, Hayanami, Kumano Maru, Jingei Kai, Tuscaloosa and Indiana, one as flagship, and up to 3 additional ships to [W2-1] and [W2-2]. S-Rank each boss node twice."
+  },
+  "1041": {
+    "name": "DesDiv 32 Hayanami Kai Ni, Ready to Go!",
+    "detail": "Sortie Hayanami Kai Ni as flagship, any 2 of Tamanami, Suzunami, Fujinami and Hamanami, and up to 3 additional ships to [W2-2], [W2-4], [W2-5], [W7-1] and [W7-2-M]. S-Rank each boss node."
+  },
+  "1042": {
+    "name": "Latest Remodeled Aircraft Carrier Hiryuu Kai San, a Whirlwind of Fury!",
+    "detail": "Sortie Hiryuu Kai San as flagship, any 2 of Kazagumo, Tamanami, Suzunami, Fujinami, Hayanami and Hamanami, and up to 3 additional ships to [W2-5], [W3-5], [W4-5], [W5-5] and [W6-4]. S-Rank each boss node."
+  },
+  "1044": {
+    "name": "DesDiv 32 Tamanami Kai Ni, Sortie!",
+    "detail": "Sortie Tamanami Kai Ni as flagship, Fujinami and up to 4 additional ships to [W2-3], [W2-5], [W4-5], [W5-5] and [W6-3]. S-Rank each boss node."
+  },
+  "1045": {
+    "name": "Annual Fubuki Sortie - April",
+    "detail": "Sortie Fubuki Kai San+ as flagship, a Fubuki-class DD as second ship and up to 4 additional ships to [W7-5-T], [W5-1], [W5-3], [W5-4] and [W5-5]. S-Rank each boss node."
+  },
+  "1047": {
+    "name": "Suzunami Kai Ni, Weigh Anchor from Rabaul!",
+    "detail": "Sortie Suzunami Kai Ni+ as flagship, any 2 of Choukai, Suzuya, Mogami, Noshiro, Tamanami, Fujinami and Hayanami, and up to 3 additional ships to [W5-4], [W5-5] and [W5-6-Z]. S-Rank each boss node twice."
+  },
+  "1048": {
+    "name": "Monthly [Time-limited] Strategic Logistics Supplies, Emergency Transport!",
+    "detail": "Have 2200 Ammo and 1800 Bauxite. Sortie an LHA/AO/AV/BBV as flagship, 4 DD/DE and up to 1 additional ship to [W1-3] and [W1-4]. A-Rank+ each boss node."
+  },
+  "1049": {
+    "name": "Monthly [Time-limited] Strategic Logistics Supplies, Extra Transport!",
+    "detail": "Have 2400 Ammo and 2400 Bauxite. Sortie an LHA/AO as flagship, 3 DD/DE and up to 2 additional ships to [W2-3] and [W7-5-Q]. A-Rank+ each boss node."
+  },
+  "1050": {
+    "name": "Annual 9th Squadron Sortie - September",
+    "detail": "Sortie with Kitakami Kai Ni or Kai San and Ooi Kai Ni, with either one as flagship, 2 DD, and up to 2 additional ships. S-Rank each boss node once at [W1-4], [W2-1], [W2-2] and [W2-3]."
+  },
+  "1051": {
+    "name": "Annual 1YB3H Flagship Sortie - August",
+    "detail": "Sortie with Yamashiro Kai Ni Ho as flagship, one of Fusou or Shigure, at least 2 of Mogami, Michishio, Asagumo and Yamagumo, and up to 2 additional ships. Achieve A-Rank or higher at the boss nodes of [W1-5], [W2-3], [W2-5] and [W4-3], and reach the port node at [W1-6-N] once."
+  },
+  "1052": {
+    "name": "Remodeled Multi-Role Aircraft Carrier Kitakami Kai San, Sortie!",
+    "detail": "Sortie with Kitakami Kai San as flagship, at least 2 of Hanazuki, Ushio, Hibiki, Take, Kiri, Kaya, Sugi and Kashi, and up to 3 additional ships. S-Rank each boss node twice at [W1-3], [W2-4] and [W4-5]."
+  },
+  "1053": {
+    "name": "Reorganized DesDiv 20 Amagiri and Sagiri, Deploy to the Southern Waters!",
+    "detail": "Sortie Amagiri Kai Ni+, Sagiri Kai Ni and up to 4 additional ships to [W5-1], [W5-3], [W5-4] and [W5-6-Z]. S-Rank each boss node."
+  },
+  "1101": {
+    "name": "Another Naval Arsenal Maintenance",
+    "detail": "Have 4 14cm Single Gun Mounts, 4 20.3cm Twin Gun Mounts and 4000 Furniture Coins. Scrap 8 12.7cm Twin Gun Mounts."
+  },
+  "1102": {
+    "name": "Preparations for Equipment Improvement in the Arsenal",
+    "detail": "Have 2400 Fuel, 5 20.3cm Twin Gun Mounts and 5 35.6cm Twin Gun Mounts. Scrap 7 12cm Single Gun Mounts."
+  },
+  "1103": {
+    "name": "Annual Sub Torpedo - June",
+    "detail": "Have 60 Development Materials, 2 Type 93 Sonars and 2 Type 13 Air Radars Kai. Scrap 3 61cm Triple (Oxygen) Torpedo Mounts."
+  },
+  "1104": {
+    "name": "Annual Submarine Radar - June",
+    "detail": "Have 100 Development Materials, 2 Type 93 Sonars and 2 Type 22 Surface Radars. Scrap 3 Type 13 Air Radars Kai."
+  },
+  "1105": {
+    "name": "Annual Construction Battalion - July",
+    "detail": "Have 2800 Ammo, 4 Type 97 Torpedo Bombers and 4 Tenzan. Scrap 3 Land-Based Attack Aircraft such as Type 96 and Type 1 Land-Based Attack Aircraft."
+  },
+  "1106": {
+    "name": "Frontline utilization of elite three-seated seaplane recon aircraft",
+    "detail": "Have 1300 Fuel, 1700 Baux, an Action Report, an Aviation Arm. Material and 3 Sk. Crew Members. Set Yura Kai Ni as secretary with a ★max Type 0 Reconnaissance Seaplane Model 11B in her 1st slot. Scrap 3 Type 0 Reconnaissance Seaplane and 3 Zuiun."
+  },
+  "1107": {
+    "name": "Annual Land Base Strengthening - September",
+    "detail": "Have 24000 Steel and 10 Development Materials. Scrap 2 Fighters and 2 Torpedo Bombers."
+  },
+  "1108": {
+    "name": "Increased production of the newly adjusted and improved Active Sonar",
+    "detail": "Have 1300 Baux, 30 Dev. Material. and two New Model Arm. Material. Set either Yamakaze Kai Ni (D) or Shigure Kai Ni as secretary with a ★max Type 3 Active Sonar in the first slot. Scrap 2 Type 93 Passive Sonars and 2 Type 3 Active Sonars."
+  },
+  "1109": {
+    "name": "Equipment deployment to support landing operations",
+    "detail": "Have 8 Flamethrowers, 10 Dev. Materials and 800 Steel. Set Shinshuu Maru as secretary with a ★max Daihatsu Landing Craft (Type 89 Medium Tank & Landing Force) in her 1st slot. Scrap 2 7.7mm Machine Gun and 2 Daihatsu Landing Craft."
+  },
+  "1111": {
+    "name": "Formation of the Elite Type 1 Land-based Attack Aircraft Squadrons",
+    "detail": "Have a ★max Type 1 Land-based Attack Aircraft Model 22A, two Type 1 Land-based Attack Aircraft and three Skilled Crew Members."
+  },
+  "1112": {
+    "name": "Naval District General Cleaning Festival!",
+    "detail": "Have a Drum Canister, 10 Dev. Materials and 1800 Steel. Scrap 4 Small Cal. Main Guns, 4 Medium Cal. Main Guns and 4 Large Cal. Main Guns."
+  },
+  "1113": {
+    "name": "Deployment of a New Assault Aircraft with Guided Missile",
+    "detail": "Have a Ki-102 B, a Type 2 Two-seat Fighter Toryuu Model C, two Skilled Crew Members and four New Model Aviation Armament Materials."
+  },
+  "1114": {
+    "name": "New Equipment Development Plan I",
+    "detail": "Have three 35.6cm Twin Gun Mounts, 8 Flamethrowers and 800 Bauxite. Scrap 3 Small Cal. Main Guns, 3 Medium Cal. Main Guns and 3 Secondary Guns."
+  },
+  "1115": {
+    "name": "New Equipment Development Plan II",
+    "detail": "Have two 46cm Triple Gun Mount, four Underway Resupplies and 2700 Ammo. Scrap 3 Large Cal. Main Guns, 3 Secondary Guns, 3 Seaplane Recons."
+  },
+  "1116": {
+    "name": "New Equipment Development Plan III",
+    "detail": "Have two Type 98 Reconnaissance Seaplane (Night Recon), 10 Flamethrowers and 2800 Steel. Scrap 3 Seaplane Recons, 3 Seaplane Bombers and 3 Anti-Air Guns."
+  },
+  "1117": {
+    "name": "Deployment of a new Night Recon",
+    "detail": "Have a ★max Type 0 Reconnaissance Seaplane Model 11B, 13 Screws, 13 Development Materials and 3 Skilled Crew Members. Set Sendai Kai Ni or Yura Kai Ni as secretary with a ★max Type 98 Reconnaissance Seaplane (Night Recon) in her first slot."
+  },
+  "1118": {
+    "name": "Hedgehog Deployment",
+    "detail": "Have 15 Development Materials, 2 New Model Armament Materials, 2 New Model Rocket Development Materials and 960 Ammo. Set Samuel B. Roberts Mk.II as secretary with a 5inch Single Gun Mount Mk.30 in her first slot."
+  },
+  "1119": {
+    "name": "Monthly [Halloween] Halloween Pumpkin, Wanna Eat Some?",
+    "detail": "Have 10 Type 99 Dive Bombers, 10 Type 97 Torpedo Bombers and 1031 Furniture Coins. Scrap 9 Small Caliber Main Guns, 9 Medium Caliber Main Guns and 9 Recon Seaplanes."
+  },
+  "1120": {
+    "name": "Annual Land Base Fighter - December",
+    "detail": "Have three Type 0 Fighter Model 21, three Type 0 Fighter Model 52 and 1800 Bauxite. Scrap 4 Fighters, 4 Dive Bombers and 4 Torpedo Bombers."
+  },
+  "1123": {
+    "name": "Annual Reconnaissance Seaplane - January",
+    "detail": "Have two New Model Aviation Armament Materials, two Skilled Crew Members, 35 Development Materials and 950 Bauxite. Set Tone Kai Ni or Yura Kai Ni as secretary with a ★max Type 0 Reconnaissance Seaplane in her first slot. Scrap two Type 97 Torpedo Bomber (931 Air Group)."
+  },
+  "1127": {
+    "name": "Improving Shipborne Smoke Screen Generator",
+    "detail": "Have 12 Development Materials, 2 New Model Armament Materials, 2 Smoke Generator (Smoke Screen), 480 Fuel and 350 Bauxite. Set Miyuki Kai Ni as secretary with a Smoke Generator (Smoke Screen) in her first slot."
+  },
+  "1128": {
+    "name": "Development of Improved 35.6cm Gun Mount for Surface Combat",
+    "detail": "Have 48 Development Materials, 2 New Model Artillery Armament Materials, 5 35.6cm Twin Gun Mount, 960 Ammo and 800 Bauxite. Set Haruna Kai Ni B/C as secretary with a ★3+ 35.6cm Twin Gun Mount Kai 3 (Dazzle Camouflage) in her first slot."
+  },
+  "1129": {
+    "name": "Accuracy Improvement of Submarine Torpedo Attacks",
+    "detail": "Have 36 Development Materials, 2 New Model Armament Materials, 4 61cm Triple (Oxygen) Torpedo Mount, 3 Skilled Lookouts and 800 Ammo. Set a SS(V) as secretary with a ★max Late Model Bow Torpedo Mount (6 Tubes) in her first slot."
+  },
+  "1130": {
+    "name": "Arsenal Preparation For Large-Scale Remodel",
+    "detail": "Have 3 Drum Canisters, 5500 Steel and 2700 Bauxite. Scrap 3 Anti-Air Guns, 3 Boilers/Turbines and 3 Armor Bulges."
+  },
+  "1131": {
+    "name": "Maintenance of Artillery Armament",
+    "detail": "Have a Repair Team, 2500 Ammo and 3000 Steel. Scrap 18 Small Cal. Main Guns, 12 Medium Cal. Main Guns and 6 Depth Charges."
+  },
+  "1132": {
+    "name": "Deployment of the Improved Model D Gun!",
+    "detail": "Have 22 Development Materials, a New Model Artillery Armament Material, 10 12.7cm Twin Gun Mounts, 350 Ammo and 8 Screws. Set Kiyoshimo Kai Ni (D) as secretary with a ★8+ 12.7cm Twin Gun Mount Model D Kai 2 in her first slot."
+  },
+  "1133": {
+    "name": "Definitive Release of an Improved Combat Radar!",
+    "detail": "Have 40 Development Materials, a ★4+ Type 13 Air Radar Kai (Late Model) and 6 Screws. Set Kiyoshimo Kai Ni (D) or Asashimo Kai Ni as secretary with a Type 22 Surface Radar Kai 4 (Calibrated Late Model) in her first slot."
+  },
+  "1134": {
+    "name": "Improvement of the Type 22 Surface Radar!",
+    "detail": "Have 22 Development Materials, 2 New Model Armament Materials, 4 Type 22 Surface Radars and 6 Screws. Set Shigure Kai Ni/San or Michishio Kai Ni as secretary with a ★max Type 22 Surface Radar Kai 4 in her first slot."
+  },
+  "1137": {
+    "name": "Armament Development for the Ukuru-class Kaiboukan",
+    "detail": "Have a Type 3 Depth Charge Projector and 32 Development Materials. Set Ukuru-class DE as secretary with another Type 3 Depth Charge Projector in her first slot. Scrap 4 Type 93 Passive Sonars, 4 Type 94 Depth Charge Projectors and 4 Type 95 Depth Charges."
+  },
+  "1138": {
+    "name": "Annual AAFD Development - June",
+    "detail": "Have 1300 Bauxite, 480 Steel, 4 Flamethrowers and 16 Development Materials. Set Akizuki-class as secretary. Scrap 4 Type 91 Anti-Aircraft Fire Directors"
+  },
+  "1139": {
+    "name": "[Strengthening Fleet Communications] Communication Personnel Training",
+    "detail": "Have 20 Development Materials. Set Ooyodo as secretary with a Type 13 Air Radar in her first slot. Scrap two Type 21 Air Radars, two Type 13 Air Radars and 3 Combat Rations."
+  },
+  "1140": {
+    "name": "[New Overseas Equipment] Development of the Quadruple Main Gun",
+    "detail": "Have 20 Development Materials and 1 Latest Overseas Warship Technology. Set Richelieu Deux as secretary with two 38cm Quadruple Gun Mount Kai in her first 2 slots. Scrap four 41cm Twin Gun Mounts."
+  },
+  "1141": {
+    "name": "Development of the Latest 3-seater Reconnaissance Seaplane",
+    "detail": "Have 2 New Model Aviation Armament Materials, 60 Development Materials and 1 Night Skilled Crew Member. Set Yamato Kai Ni (Juu), Yura Kai Ni or Yahagi Kai Ni (B) as secretary with a ★max Type 0 Reconnaissance Seaplane Model 11B in her 1st slot. Scrap 15 Type 0 Reconnaissance Seaplanes."
+  },
+  "1142": {
+    "name": "Deployment of the Elite \"Tenzan\" Torpedo Bomber Squadron",
+    "detail": "Have 1 Tenzan Model 12A Kai (w/ Type 6 Airborne Radar Kai), 2 New Model Aviation Armament Materials, 48 Development Materials and 1 Night Skilled Crew Member. Set Shoukaku Kai Ni (A) as secretary with a Tenzan Model 12 (Murata Squadron) in her 1st slot. Scrap 4 Tenzan."
+  },
+  "1143": {
+    "name": "Kirishima Kai Ni C Arsenal Remodel Quest",
+    "detail": "Have a 35.6cm Twin Gun Mount Kai, 2 New Model Artillery Armament Materials, 2 New Model Armament Materials and 7800 Steel. Set Kirishima Kai Ni C as secretary with a ★8+ 35.6cm Twin Gun Mount Kai 2 in her 1st slot. Scrap 8 35.6cm Twin Gun Mounts."
+  },
+  "1145": {
+    "name": "I-Go Submarine Equipment Expansion",
+    "detail": "Have 4 Type 93 Passive Sonars, a New Model Aviation Armament Material, 60 Development Materials and a New Model Armament Material. Set a SS(V) as secretary with a ★4+ Type 0 Reconnaissance Seaplane in her first slot. Scrap 8 Type 0 Reconnaissance Seaplanes and 15 Torpedoes."
+  },
+  "1148": {
+    "name": "Increased Deployment of Type 94 Anti-Aircraft Fire Director",
+    "detail": "Have 16 Development Materials and 4 Screws. Set Shirayuki Kai Ni or Fubuki Kai Ni as secretary with 2 Type 91 Anti-Aircraft Fire Directors in her first and second slot. Scrap 3 Type 91 Anti-Aircraft Fire Directors and 3 Type 13 Air Radars."
+  },
+  "1150": {
+    "name": "[Early Summer] Naval Arsenal Reorganization and Restructuring 2026",
+    "detail": "Have 10 12.7cm Twin High-angle Gun Mounts. Scrap 20 Medium Caliber Main Guns, 20 Large Caliber Main Guns, 10 Secondary Guns and 10 >> Type 0 Reconnaissance Seaplanes."
+  },
+  "1151": {
+    "name": "Increase in Army and Foreign Fighter Aircraft",
+    "detail": "Have 36 Development Materials, 8 Type 0 Fighter Model 21 and 4 Type 0 Fighter Model 32. Scrap 14 Reconnaissance Seaplanes, 12 Medium Caliber Main Guns and 10 Dive Bombers."
+  },
+  "1152": {
+    "name": "Strengthening Kaiboukan Anti-Submarine Weapons",
+    "detail": "Have 32 Development Materials. Set a DE as secretary with a ★3+ Type 3 Depth Charge Projector in her first slot and 2 Type 3 Depth Charge Projectors in her second and third slot. Scrap 4 Type 94 Depth Charge Projectors."
+  },
+  "1153": {
+    "name": "Further Expansion of Anti-Submarine Weapons",
+    "detail": "Have 64 Development Materials. Set a Hiburi/Ukuru-class DE as secretary with a ★4+ Type 3 Depth Charge Projector in her first slot and 2 Type 3 Depth Charge Projectors in her second and third slot. Scrap 4 Type 94 Depth Charge Projectors."
+  },
+  "1154": {
+    "name": "Development of Anti-Submarine Rocket Launcher",
+    "detail": "Have 3 New Model Rocket Development Materials. Set a Lv.96+ DD as secretary with a ★max Type 3 Depth Charge Projector (Concentrated Deployment) in her first slot and a ★6+ 12cm Single Gun Mount in her second slot. Scrap 6 Type 3 Active Sonars."
+  },
+  "1155": {
+    "name": "Akizuki-class Air Defense Destroyer Armament Expansion",
+    "detail": "Have 2 New Model Artillery Armament Materials. Set a Lv.70+ Akizuki-class DD as secretary with 2 10cm Twin High-angle Gun Mounts in her first and second slot, and a Type 94 Anti-Aircraft Fire Director in her third slot. Scrap 8 12.7cm Twin High-angle Gun Mounts."
+  },
+  "1158": {
+    "name": "DesDiv 32 Hayanami, Preparing for Remodel!",
+    "detail": "Have a New Model Armament Materials and 8 Type 3 Depth Charge Projectors. Set Hayanami as secretary with any 3 of Tamanami, Suzunami, Fujinami and Hamanami. Scrap 5 Type 93 Passive Sonars, 5 Type 3 Active Sonars and 5 Type 95 Depth Charges."
+  },
+  "1159": {
+    "name": "Reorganization of Mass-Produced Aircraft",
+    "detail": "Have a Skilled Crew Member, 40 Development Materials, 4000 Bauxite and 88000 Furniture Coins. Set Houshou Kai Ni+ as secretary. Scrap 3 Type 96 Fighters, 3 Type 0 Fighter Model 21, 3 Type 0 Fighter Model 32 and 3 Type 3 Fighter Hien."
+  },
+  "1160": {
+    "name": "Modification of the Prototype Shinden to the Carrier-based Fighter Model Kai Ni",
+    "detail": "Have 2 New Model Aviation Armament Materials and a ★max Prototype Shinden (Land-based Fighter). Set Hiryuu Kai Ni+ as secretary with any 3 of Tamanami Kai Ni, Suzunami Kai Ni+, Fujinami Kai Ni, Hayanami Kai Ni, Hamanami Kai Ni and Kazagumo Kai Ni. Scrap 5 Type 0 Fighter Model 52 and 5 Shiden Kai 2."
+  },
+  "1161": {
+    "name": "Arsenal Preparation for New Equipment I",
+    "detail": "Have 8800 Ammo. Set Hiryuu Kai Ni+ as secretary. Scrap 9 Fighters, 9 Dive Bombers, 9 Torpedo Bombers, 8 Depth Charges, 8 AA Machine Guns, 9 Medium Caliber Main Guns and 7 Large Caliber Main Guns."
+  },
+  "1162": {
+    "name": "Arsenal Preparation for New Equipment II",
+    "detail": "Have 2 New Model Armament Materials, 8800 Bauxite and 8800 Steel. Scrap 6 Type 0 Fighter Model 52, 4 Shiden Model 11, 8 12.7cm Twin High-angle Gun Mounts and 2 46cm Triple Gun Mounts."
+  },
+  "1163": {
+    "name": "Shinden with Jet Propulsion",
+    "detail": "Have 3 New Model Aviation Armament Materials, 4 New Model Armament Materials, 160 Development Materials, a Skilled Crew Member and a Ne-Type Engine. Set Hiryuu Kai San as secretary with a ★max Shinden Kai 2 (Carrier-based Fighter Model Kai 2) in her first slot."
+  },
+  "1164": {
+    "name": "Newly Remodeled Torpedo Squadron Ship, Remodel Preparations!",
+    "detail": "Have a New Model Armament Materials and 4 15.2cm Twin Gun Mounts. Set Tamanami as secretary with Fujinami and Kitakami in your fleet. Scrap 8 Type 3 Depth Charge Projectors, 4 Type 3 Active Sonars and 8 12.7cm Twin High-angle Gun Mounts."
+  },
+  "1166": {
+    "name": "Daily Upgrade 2",
+    "detail": "Attempt to upgrade a piece of equipment using Akashi's Improvement Arsenal. Failures count toward this."
+  },
+  "1167": {
+    "name": "Weekly Upgrade",
+    "detail": "Attempt to upgrade a piece of equipment using Akashi's Improvement Arsenal three times within the same day. Failures count toward this."
+  },
+  "1170": {
+    "name": "Development of Anti-Air Armament Using Existing Equipment",
+    "detail": "Set Kitakami Kai Ni or Kai San as secretary. Scrap 12 12.7cm Twin High-angle Gun Mounts, 8 8cm High-angle Guns and 4 25mm Triple Autocannon Mounts. Have 36 Development Materials, 750 Ammo and 8 Improvement Materials ready."
+  },
+  "1171": {
+    "name": "[Halloween] Organizing Anti-Submarine Equipment! 2026",
+    "detail": "Have 2 Pumpkins, 5 Type 3 Depth Charge Projectors and 30 Development Materials. Scrap 12 Type 94 Depth Charge Projectors, 8 Type 95 Depth Charges and 6 Type 93 Passive Sonars."
+  },
+  "1172": {
+    "name": "[Torpedo Enhancement Arsenal] Strengthening Night Assault Equipment [I]",
+    "detail": "Have 60 Development Materials, 2 New Model Armament Materials and 2 Arsenal Resources. Equip your flagship with 61cm Quintuple (Oxygen) Torpedo Mounts (any improvement level) in slots 1 and 2 and a ★max 61cm Quadruple (Oxygen) Torpedo Mount in slot 3. Scrap 10 61cm Quadruple Torpedo Mounts."
+  }
+}

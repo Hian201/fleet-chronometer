@@ -8,6 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setLang, t } from '../../utils/ui-i18n';
+import { loadQuestCatalogLocale } from '../../utils/quest-catalog-localization';
 import { esc } from '../../utils/html-escape';
 import { buildQuestFlow } from '../../utils/quest-flow';
 import { questFlowDetailHtml } from '../../entrypoints/overview/sections/quest-flow';
@@ -47,6 +48,7 @@ body { display: block; height: auto; padding: 16px; overflow: auto; }
 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
 for (const lang of ['zh-TW', 'en', 'ja'] as const) {
+    await loadQuestCatalogLocale(lang);
     const out = resolve(root, `.preview/quest-tracking-overview-${lang}.html`);
     writeFileSync(out, page(lang));
     console.log(out);

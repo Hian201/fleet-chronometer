@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GameState } from '../../utils/state';
 import { setLang, t } from '../../utils/ui-i18n';
+import { loadQuestCatalogLocale } from '../../utils/quest-catalog-localization';
 import { esc } from '../../utils/html-escape';
 import { buildQuestFlow, type QuestFlowModel } from '../../utils/quest-flow';
 import {
@@ -119,6 +120,7 @@ if (h) document.querySelectorAll('.pv-frame').forEach(el => { el.style.height = 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
 for (const [lang, file] of [['zh-TW', 'quest-flow-guide-zh.html'], ['en', 'quest-flow-guide-en.html'], ['ja', 'quest-flow-guide-ja.html']] as const) {
     const out = resolve(root, '.preview', file);
+    await loadQuestCatalogLocale(lang);
     writeFileSync(out, page(lang));
     console.log(out);
 }

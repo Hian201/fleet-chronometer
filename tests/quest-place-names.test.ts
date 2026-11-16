@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { QUEST_CATALOG_RAW } from '../utils/quest-catalog-data';
-import translations from '../utils/quest-catalog-translations.json';
+import translationsEn from '../utils/quest-catalog-translations.en.json';
+import translationsZh from '../utils/quest-catalog-translations.zh-TW.json';
 import { PLACE_NAMES } from '../utils/map-names';
 
 // 任務日文原文出現地名索引（utils/map-names.ts PLACE_NAMES）裡的地名時，譯文必須使用索引的
 // 寫法，或改以關卡編號（2-3、[W2-3]、World 2、2 圖）指稱。新任務沿用同一份索引，不另起譯名。
 
 type Locale = 'zh-TW' | 'en';
+const TRANSLATIONS: Record<Locale, Record<string, { name: string; detail: string }>> = {
+    'zh-TW': translationsZh, en: translationsEn,
+};
 
 // 譯文刻意省略地名的條目（不是寫法衝突）。key：`${任務編號} ${欄位} ${語系}`。
 const OMITTED = new Map<string, string>([
@@ -30,7 +34,7 @@ function mismatches(): string[] {
     for (const row of QUEST_CATALOG_RAW as unknown as unknown[][]) {
         const [no, , jpName, jpDetail] = row as [number, unknown, string, string];
         for (const locale of ['zh-TW', 'en'] as Locale[]) {
-            const text = (translations as Record<string, Partial<Record<Locale, { name: string; detail: string }>>>)[String(no)]?.[locale];
+            const text = TRANSLATIONS[locale][String(no)];
             if (!text) continue;
             for (const [field, jp, translated] of [['name', jpName, text.name], ['detail', jpDetail, text.detail]] as const) {
                 if (OMITTED.has(`${no} ${field} ${locale}`) || MAP_REFERENCE.test(translated)) continue;

@@ -1,4 +1,3 @@
-import questCatalogTranslations from './quest-catalog-translations.json';
 import questCatalogRewardNames from './quest-catalog-reward-names.json';
 import questCatalogRewards from './quest-catalog-rewards.json';
 import { esc } from './html-escape';
@@ -19,8 +18,40 @@ const WORLD_RANGES: Record<string, string> = {
     '5': '5-1～5-6', '6': '6-1～6-5', '7': '7-1～7-5',
 };
 
-type RawQuestTranslation = Partial<Record<QuestCatalogLocale, Partial<QuestCatalogTranslation>>>;
-const BASE_TRANSLATIONS = questCatalogTranslations as Record<string, RawQuestTranslation>;
+// 任務名稱與說明譯文依語言分檔、用到才載入（loadQuestCatalogLocale）；未載入的語言查無譯文，
+// 查詢端回退日文原文。表以語言分開存放，較晚完成的其他語言載入不會影響目前語言的查詢。
+type QuestTranslationTable = Record<string, Partial<QuestCatalogTranslation>>;
+const TRANSLATIONS: Partial<Record<QuestCatalogLocale, QuestTranslationTable>> = {};
+const translationImports = new Map<QuestCatalogLocale, Promise<QuestTranslationTable>>();
+
+function importTranslations(locale: QuestCatalogLocale): Promise<QuestTranslationTable> {
+    let pending = translationImports.get(locale);
+    if (!pending) {
+        // 每個語言寫成獨立的字面值 import()，打包器才會各產一個 chunk。
+        pending = (locale === 'en'
+            ? import('./quest-catalog-translations.en.json')
+            : import('./quest-catalog-translations.zh-TW.json')
+        ).then(module => module.default as QuestTranslationTable);
+        translationImports.set(locale, pending);
+    }
+    return pending;
+}
+
+/**
+ * 載入該語言的任務譯文；日文不需載入。重複呼叫共用同一次載入。
+ * 台灣華語說明要以英文譯文補「海域對照」（localizedQuestDetail），所以兩表到齊才一起生效。
+ */
+export async function loadQuestCatalogLocale(locale: QuestDisplayLocale): Promise<void> {
+    if (locale === 'ja') return;
+    const locales: QuestCatalogLocale[] = locale === 'zh-TW' ? ['zh-TW', 'en'] : ['en'];
+    const tables = await Promise.all(locales.map(importTranslations));
+    locales.forEach((key, index) => { TRANSLATIONS[key] = tables[index]; });
+}
+
+/** 該語言的譯文是否已可查詢（日文恆為 true）。 */
+export function questCatalogLocaleLoaded(locale: QuestDisplayLocale): boolean {
+    return locale === 'ja' || TRANSLATIONS[locale] !== undefined;
+}
 
 type QuestRewardLocale = QuestDisplayLocale;
 type RawQuestReward = {
@@ -225,7 +256,7 @@ export function questCatalogTranslation(
     apiNo: number,
     locale: QuestCatalogLocale,
 ): QuestCatalogTranslation | undefined {
-    const base = BASE_TRANSLATIONS[String(apiNo)]?.[locale];
+    const base = TRANSLATIONS[locale]?.[String(apiNo)];
     if (!base?.name || !base.detail) return undefined;
     return { name: base.name, detail: base.detail };
 }

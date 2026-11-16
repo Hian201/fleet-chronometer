@@ -300,7 +300,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 ## 10. 任務導覽目錄
 
 - **用途**：`utils/quest-catalog-data.ts`（由 `utils/quest-flow.ts` 讀取）——任務 `api_no`、週期、前置與開放邊，供情報總括任務導覽使用；`utils/quest-catalog-rewards.json`——任務資源、固定報酬與選擇報酬，供任務導覽和 panel 共用。
-- **翻譯資料**：`utils/quest-catalog-translations.json` 的英譯及早期繁中對照參考 KC3Kai kc3-translations 的 `data/en/quests.json` 與 `data/tcn/quests.json`（commit `74b37f83b52df52bb4d76f62e4463603fcc7ec3a`；2026 年南瓜任務與 B218 參考 commit `6fed2aac44a1ca95f2892bb1af93a6bc0e60b667`）。`zh-TW` 文案由本專案以台灣華語重新校訂；上游資料只作對照，不作為台灣用語或任務條件的定稿依據。上游缺少的任務由本專案補譯。
+- **翻譯資料**：`utils/quest-catalog-translations.en.json`、`utils/quest-catalog-translations.zh-TW.json` 的英譯及早期繁中對照參考 KC3Kai kc3-translations 的 `data/en/quests.json` 與 `data/tcn/quests.json`（commit `74b37f83b52df52bb4d76f62e4463603fcc7ec3a`；2026 年南瓜任務與 B218 參考 commit `6fed2aac44a1ca95f2892bb1af93a6bc0e60b667`）。`zh-TW` 文案由本專案以台灣華語重新校訂；上游資料只作對照，不作為台灣用語或任務條件的定稿依據。上游缺少的任務由本專案補譯。
   - 專案：https://github.com/KC3Kai/kc3-translations
   - 授權與版權：MIT License，Copyright (c) 2015-2021 KC3改。
 - **來源**：

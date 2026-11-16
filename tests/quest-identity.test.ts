@@ -1,12 +1,14 @@
 // 任務編號的身分核對（utils/quest-identity.ts）。期間限定任務每年內容不同但會重用編號，
 // 標題與目錄不同時不可套用以編號對應的舊譯文、舊獎勵與舊進度條件。
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { questCatalogIdentity, questTitleKey } from '../utils/quest-identity';
 import { buildQuestFlow } from '../utils/quest-flow';
 import { GameState } from '../utils/state';
 import { QUEST_CATALOG_RAW } from '../utils/quest-catalog-data';
 import japaneseTitles from './fixtures/quest-catalog-japanese-titles.json';
-import { questCatalogTranslation, localizedQuestReward } from '../utils/quest-catalog-localization';
+import { loadQuestCatalogLocale, questCatalogTranslation, localizedQuestReward } from '../utils/quest-catalog-localization';
+
+beforeAll(() => loadQuestCatalogLocale('zh-TW'));
 
 // 2026 南瓜任務實施期間（10/14～11/11）內的觀測時間；結束後同編號一律視為重用。
 const DURING_HALLOWEEN_2026 = Date.parse('2026-11-01T12:00:00+09:00');

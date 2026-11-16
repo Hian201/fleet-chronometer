@@ -402,3 +402,15 @@ api_no 換成不同前置，舊觀測不當起點。缺席推論（tab 0／4）�
 離線核對：`tools/preview/quest-flow-section.ts` 的獎勵篩選情境（三語、1366×768 與 760×640）。
 
 任務導覽的實裝篩選以年份下拉選單呈現，計數套用搜尋、釘選及其他分類條件；零筆年份隱藏，已選年份保留。實裝排序優先於原有清單狀態排序，缺值及重用編號排最後，同日仍依狀態與編號排序。「從最早開始」選取進行中與可接受、清除年份並依實裝日升冪，其他分類條件保留。舊版已儲存的日期區間仍套用並顯示於已選條件，可個別移除；選年份後取代舊區間。
+
+## 任務目錄譯文的載入（`utils/quest-catalog-localization.ts`）
+
+- 任務名稱與說明的譯文依語言分檔：`quest-catalog-translations.en.json`、`quest-catalog-translations.zh-TW.json`，
+  由 `loadQuestCatalogLocale()` 以 `import()` 載入，打包後各自成一個 chunk；日文不載入。理由是這份資料
+  曾讓 panel 與情報總括的共用 chunk 超出 `wxt.config.ts` 的 `CHUNK_BUDGET_KB`。
+- 台灣華語會連英文一起載入：`localizedQuestDetail()` 的華語說明以英文譯文補「海域對照」，兩表到齊才生效。
+- 未載入的語言查無譯文，查詢函式回退日文原文。panel 任務分頁與任務導覽先以原文畫出並觸發載入，
+  到齊後沿用各自的重繪路徑（保留展開、分頁與捲動）；載入失敗維持原文、不重試。
+- 新增會顯示任務譯名的畫面時要自己觸發載入並在到齊後重繪；測試與離線預覽在取用譯文前先
+  `await loadQuestCatalogLocale(...)`。
+- 獎勵資料（`quest-catalog-rewards.json`、`quest-catalog-reward-names.json`）維持靜態匯入。

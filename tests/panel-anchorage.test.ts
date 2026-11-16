@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mountGeneral } from '../entrypoints/panel/general';
 import { GameState } from '../utils/state';
 import { setLang } from '../utils/ui-i18n';
+import { loadQuestCatalogLocale } from '../utils/quest-catalog-localization';
 
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
@@ -39,7 +40,10 @@ const OPS_DECKS: Row[][] = [
 const OPS_MISSIONS = [idle, idle, [1, 2, Date.now() + 3_600_000, 0], idle];
 const QUIET_DECKS: Row[][] = [[{ id: 1, mst: 1 }], [{ id: 4, mst: 1 }], [{ id: 6, mst: 1 }], [{ id: 8, mst: 1 }]];
 
-beforeAll(() => setLang('zh-TW'));
+beforeAll(async () => {
+    setLang('zh-TW');
+    await loadQuestCatalogLocale('zh-TW');
+});
 afterEach(() => vi.unstubAllGlobals());
 
 function mount(state: GameState) {

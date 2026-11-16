@@ -13,7 +13,8 @@ import {
 import { layoutQuestGraph } from '@/utils/quest-graph-layout';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import {
-    localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml, questRewardItemLabel,
+    loadQuestCatalogLocale, localizedQuestDetail, localizedQuestName, localizedQuestRewardHtml, pendingQuestRewardHtml,
+    questCatalogLocaleLoaded, questRewardItemLabel,
 } from '@/utils/quest-catalog-localization';
 import {
     QUEST_FLOW_PREFS_KEY, normalizeQuestApiNos,
@@ -1693,6 +1694,14 @@ export const questFlowSection: OverviewSection = {
                 if (Number.isSafeInteger(no) && no > 0) { prefs.targetNo = no; savePrefs(prefs); draw(); }
             }
         });
+        // 譯文到齊前先以日文原文畫出；到齊後只重跑 draw，搜尋、篩選、展開與捲動照常保留。
+        // 尚未畫過（深連結還在重讀狀態）時不搶先畫，之後的 draw 自然會用到譯文。
+        const questLocale = getLang();
+        if (!questCatalogLocaleLoaded(questLocale)) {
+            void loadQuestCatalogLocale(questLocale).then(() => {
+                if (el.isConnected && drawn && getLang() === questLocale) draw();
+            }, () => { });
+        }
         if (!deepLink) {
             draw();
             return;

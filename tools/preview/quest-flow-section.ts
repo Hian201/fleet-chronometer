@@ -11,6 +11,7 @@ import { parseHTML } from 'linkedom';
 import { build } from 'esbuild';
 import { GameState } from '../../utils/state';
 import { setLang } from '../../utils/ui-i18n';
+import { loadQuestCatalogLocale } from '../../utils/quest-catalog-localization';
 import { QUEST_CATALOG_BY_NO } from '../../utils/quest-flow';
 import { QUEST_FLOW_PREFS_KEY } from '../../utils/quest-flow-prefs';
 import { questFlowSection } from '../../entrypoints/overview/sections/quest-flow';
@@ -92,6 +93,7 @@ const SCENES: Scene[] = [
 
 async function renderScene(lang: Lang, scene: Scene): Promise<string> {
     setLang(lang);
+    await loadQuestCatalogLocale(lang);
     const { document, window } = parseHTML('<!doctype html><html><body><div id="host"></div></body></html>');
     const store = new Map<string, string>([[QUEST_FLOW_PREFS_KEY, JSON.stringify(scene.prefs)]]);
     const localStorage = {
