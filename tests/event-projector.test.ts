@@ -777,6 +777,30 @@ describe('出擊帳單與基地航空隊補充', () => {
         ]);
     });
 
+    it('基地航空隊補充前餘額不可信時，依被補中隊的缺機數×規則費率補洞；缺機數為 0 或解不出基地仍存 null', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), tables: database });
+        const squadron = (id: number, count: number) => ({ api_squadron_id: id, api_state: 1, api_count: count, api_max_count: 18 });
+        const supply = (id: number, squadronId: string, base = '1') => row(id, 'api_req_air_corps/supply',
+            { api_after_fuel: 970, api_after_bauxite: 3950, api_plane_info: [squadron(Number(squadronId), 18)] },
+            { api_area_id: '7', api_base_id: base, api_squadron_id: squadronId });
+        await projector.project(row(1, 'api_port/port', port({})));
+        await projector.project(row(2, 'api_get_member/base_air_corps', [
+            { api_area_id: 7, api_rid: 1, api_plane_info: [squadron(1, 12), squadron(2, 18)] },
+        ]));
+        // 任務領獎讓餘額不可信
+        await projector.project(row(3, 'api_req_quest/clearitemget', { api_material: [0, 0, 0, 0] }, { api_quest_id: '201' }));
+        await projector.project(supply(4, '1'));         // 缺 6 架：燃料 18、鋁土 30
+        await projector.project(supply(5, '2'));         // 記錄為滿編（缺 0）：不當作沒有損失
+        await projector.project(supply(6, '1', '9'));    // 解不出基地
+
+        expect(await database.materialUse.orderBy('eventId').toArray()).toEqual([
+            { eventId: 4, ts: 1_726_000_000_004, kind: 'airSupply', areaId: 7, fuel: 18, bauxite: 30 },
+            { eventId: 5, ts: 1_726_000_000_005, kind: 'airSupply', areaId: 7, fuel: null, bauxite: null },
+            { eventId: 6, ts: 1_726_000_000_006, kind: 'airSupply', areaId: 7, fuel: null, bauxite: null },
+        ]);
+    });
+
     it('入渠途中用桶記下槽內的艦，並清掉該艦的修理費', async () => {
         const database = createDb();
         const state = new GameState();

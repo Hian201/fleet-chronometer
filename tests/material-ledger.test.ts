@@ -56,6 +56,18 @@ describe('離散資材分帳', () => {
         expect(screw.unattributed).toBe(5);
     });
 
+    it('收入落在已達蓄積上限（3,000）的資材上時記入 fullIncome，其餘為 0', () => {
+        const ledger = buildMaterialLedger(base({
+            // 高速修復材一路在 3,000；開發資材 100 → 100
+            samples: [sample(100, 0, 3_000, 100, 0), sample(500, 0, 3_000, 100, 0), sample(900, 0, 3_000, 100, 0)],
+            expeditions: [{ ts: 300, items: [{ id: 1, count: 2 }, { id: 3, count: 1 }] }],
+            questClears: [{ ts: 700, questNo: 1 }],
+            questReward: (_no, _ts, mat) => (mat === 5 ? 4 : 0),
+        }), 100, 900)!;
+        expect(rowOf(ledger, 5).fullIncome).toBe(6);
+        expect(rowOf(ledger, 6).fullIncome).toBe(0);
+    });
+
     it('期初時刻的事件不算、期末時刻的事件算（三種來源同一條規則）', () => {
         const ledger = buildMaterialLedger(base({
             samples: [sample(100, 0, 0, 10, 10), sample(200, 0, 0, 10, 10)],

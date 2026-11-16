@@ -4595,6 +4595,7 @@
         .rs-search,
         .rs-bar select,
         .rf-bar select,
+        .rl-bar select,
         .rs-range input {
             min-height: 30px;
             padding: 4px 8px;
@@ -4609,6 +4610,7 @@
         .rs-search:active,
         .rs-bar select:active,
         .rf-bar select:active,
+        .rl-bar select:active,
         .rs-range input:active {
             border-color: var(--sparkle);
             transform: scale(.97);
@@ -6054,7 +6056,44 @@
             cursor: pointer;
         }
 
-        .rl-ledger-body { margin-top: 6px; }
+        .rl-ledger-body,
+        .rl-basic-body { margin-top: 6px; }
+
+        /* 溢出提醒：兩份分帳共同算出，一資源一列；沿用面板的中性卡片，不用警示色（持有量超過上限是合法狀態） */
+        .rl-overflow {
+            margin-top: 16px;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+
+        .rl-overflow[hidden] { display: none; }
+
+        .rl-ov-title {
+            color: var(--brass);
+            font-size: 11px;
+            letter-spacing: var(--track-label);
+        }
+
+        .rl-ov-list {
+            margin: 4px 0 0;
+            padding: 0;
+            list-style: none;
+            font-size: 12px;
+        }
+
+        .rl-ov-list li {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px 14px;
+            align-items: baseline;
+            padding: 2px 0;
+        }
+
+        .rl-ov-mat { display: inline-flex; align-items: center; }
+
+        .rl-ov-part { font-variant-numeric: tabular-nums; }
 
         .rl-ledger-meta {
             font-size: 11px;
@@ -8630,6 +8669,7 @@
             .rs-search,
             .rs-bar select,
             .rf-bar select,
+            .rl-bar select,
             .rs-range input,
             .rs-seg button,
             .rs-mini,
@@ -8657,6 +8697,7 @@
             .rs-search:active,
             .rs-bar select:active,
             .rf-bar select:active,
+            .rl-bar select:active,
             .rs-range input:active,
             .rs-seg button:active,
             .rs-mini:active,
@@ -8775,6 +8816,7 @@
             .rs-search,
             .rs-bar select,
             .rf-bar select,
+            .rl-bar select,
             .rs-range input,
             .rs-seg button,
             .rs-mini,

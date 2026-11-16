@@ -11,9 +11,10 @@
 // 3. **控制項只建一次、只重繪 `.rl-body`**（design-guidelines §4.2 的第二種例外）：
 //    這裡有使用者自己造出來的狀態——圖表的十字準線、詳細清單的捲動位置與分頁。
 //    整塊重繪會把它們全部洗掉。
-// 4. **離散資材分帳是原生 `<details class="rl-ledger">`，只建一次**；重繪只換 `.rl-ledger-body`，
-//    玩家收合的狀態不會被洗掉。它的來源表（工廠、遠征、任務領獎）獨立 try 讀取，
-//    失敗只影響這一塊，不拖垮上方圖表與清單。
+// 4. **基本資源分帳與離散資材分帳各是原生 `<details class="rl-ledger">`，只建一次**；重繪只換
+//    `.rl-basic-body`／`.rl-ledger-body`，玩家收合的狀態不會被洗掉。它們的來源表（工廠、遠征、任務領獎、
+//    出擊帳單）獨立 try 讀取，失敗只影響這一塊，不拖垮上方圖表與清單。溢出提醒（`.rl-overflow`）由兩份
+//    分帳共同算出，只在這裡呈現一次。
 import type { OverviewSection } from './types';
 import { db, type ResourceMarkRow, type ResourceRow } from '@/utils/db';
 import { getLang, t } from '@/utils/ui-i18n';
@@ -28,8 +29,13 @@ import {
 } from '../lib';
 import { multiChartGeometry, nearestIndex, type ChartBox, type MultiChartGeometry } from '@/utils/line-chart';
 import {
-    buildMaterialLedger, catalogQuestReward, countRecordsAfter, remodelCostResolver, type LedgerInputs, type MaterialLedger,
+    buildBasicLedger, remodelBasicCostResolver, type BasicLedger, type BasicLedgerInputs,
+} from '@/utils/basic-ledger';
+import {
+    buildMaterialLedger, catalogQuestBasicReward, catalogQuestReward, countRecordsAfter, remodelCostResolver,
+    type LedgerInputs, type MaterialLedger,
 } from '@/utils/material-ledger';
+import { hardCapOf } from '@/utils/resource-cap';
 import {
     MAT_FILES, MAT_KEYS, bucketSamples, buildEventPeriods, buildEventSummary, delta, downsample,
     normalizeSamples, toCsv, type EventPeriod, type EventSummary, type Granularity, type MatIndex,
@@ -605,6 +611,83 @@ export function ledgerHtml(ledger: MaterialLedger | null, pending?: { n: number;
         <p class="ov-note rl-ledger-note">${esc(t('ov.rlLedgerNote'))}</p>`;
 }
 
+// ── 基本資源分帳 ─────────────────────────────────────────────────────────
+
+/**
+ * 基本資源分帳表。欄位與離散資材分帳同一套慣例：正負號一律顯示、數字欄右對齊、組間分隔線。
+ * 自然回復、出擊與基地補充三欄含推算，非 0 加「≈」；司令部等級未知時自然回復欄寫「不可考」。
+ */
+export function basicLedgerHtml(ledger: BasicLedger | null): string {
+    if (!ledger) return `<div class="ov-empty">${esc(t('ov.rlLedgerNoData'))}</div>`;
+    const { counts } = ledger;
+    const th = (key: string, tip = '', sep = false) =>
+        `<th${sep ? ' class="rl-lg-sep"' : ''}${tip ? ` title="${esc(t(tip))}"` : ''}>${esc(t(key))}</th>`;
+    const td = (value: number, cls: string, sep = false, approx = false) =>
+        `<td class="${sep ? 'rl-lg-sep ' : ''}${cls}">${approx && value !== 0 ? '≈' : ''}${esc(fmtSigned(value))}</td>`;
+    const gain = (n: number, sep = false, approx = false) => td(n, n > 0 ? 'rl-gain' : 'rl-flat', sep, approx);
+    const drain = (n: number, sep = false, approx = false) => td(-n, n > 0 ? 'rl-drain' : 'rl-flat', sep, approx);
+    const rows = ledger.rows.map(row => `<tr data-mat="${row.mat}">
+            <th class="rl-ledger-k" scope="row" title="${esc(t(MAT_KEYS[row.mat] + '.full'))}">${matIconHtml(MAT_FILES[row.mat], t(MAT_KEYS[row.mat]))}</th>
+            <td>${esc(fmtNum(row.opening))}</td>
+            ${row.regen === null
+        ? `<td class="rl-lg-sep rl-flat" title="${esc(t('ov.rlBasicRegenNATip'))}">${esc(t('ov.rlBasicRegenNA'))}</td>`
+        : gain(row.regen, true, true)}${gain(row.income.quest)}${gain(row.income.expedition)}
+            ${drain(row.spending.sortie, true, true)}${drain(row.spending.factory)}${drain(row.spending.remodel)}${drain(row.spending.airSupply, false, true)}
+            ${td(row.route, deltaClass(row.route), true)}
+            ${td(row.unattributed, `rl-ledger-un ${deltaClass(row.unattributed)}`, true)}
+            <td class="rl-lg-sep">${esc(fmtNum(row.closing))}</td>
+        </tr>`).join('');
+    const notes = [
+        counts.questUnknown > 0 ? t('ov.rlLedgerQuestUnknown', { n: counts.questUnknown }) : '',
+        counts.remodelUnknown > 0 ? t('ov.rlLedgerRemodelUnknown', { n: counts.remodelUnknown }) : '',
+        counts.routeUnknown > 0 ? t('ov.rlBasicRouteUnknown', { n: counts.routeUnknown }) : '',
+        counts.airSupplyUnknown > 0 ? t('ov.rlBasicAirUnknown', { n: counts.airSupplyUnknown }) : '',
+    ].filter(Boolean);
+    return `<div class="rl-ledger-meta dim">
+            <span>${esc(t('ov.rlBasicRange', {
+        from: fmtTs(ledger.fromTs), to: fmtTs(ledger.toTs),
+        sorties: counts.sorties, factory: counts.factory, exp: counts.expeditions, quest: counts.questClears,
+    }))}</span>
+            ${notes.map(note => `<span class="rl-ledger-q">${esc(note)}</span>`).join('')}
+        </div>
+        <div class="rl-table-wrap"><table class="rl-table rl-ledger-table">
+            <thead><tr><th class="rl-th-time"></th>${th('ov.rlLedgerOpening')}
+                ${th('ov.rlBasicRegen', 'ov.rlBasicRegenTip', true)}${th('ov.rlLedgerQuest', 'ov.rlLedgerQuestTip')}${th('ov.rlLedgerExpedition', 'ov.rlLedgerExpeditionTip')}
+                ${th('ov.rlBasicSortie', 'ov.rlBasicSortieTip', true)}${th('ov.rlBasicFactory', 'ov.rlBasicFactoryTip')}${th('ov.rlLedgerRemodel', 'ov.rlBasicRemodelTip')}${th('ov.rlBasicLbas', 'ov.rlBasicLbasTip')}
+                ${th('ov.rlBasicRoute', 'ov.rlBasicRouteTip', true)}
+                ${th('ov.rlLedgerUnattributed', 'ov.rlBasicUnattributedTip', true)}${th('ov.rlLedgerClosing', '', true)}</tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>
+        <p class="ov-note rl-ledger-note">${esc(t('ov.rlBasicNote'))}</p>`;
+}
+
+/**
+ * 溢出提醒：兩份分帳共同算出、只在這裡呈現一次。兩種——持有量超過自然回復上限（基本資源，不再自然回復）、
+ * 持有量已達蓄積上限（收入可能溢出）。持有量超過上限是合法狀態，文案只陳述事實，不當成錯誤。
+ * 離散資材沒有自然回復，只有蓄積上限那一種。
+ * 沒有任何提醒時回空字串（呼叫端隱藏容器）。
+ */
+export function overflowHtml(basic: BasicLedger | null, special: MaterialLedger | null): string {
+    // 自然回復上限對四種基本資源相同：句子只寫一次，各資源只列期間少回復的量
+    const stalled = (basic?.rows ?? []).filter(row => row.naturalCap !== null && row.closing >= row.naturalCap);
+    const lines = stalled.length ? [`<li>
+        <span class="rl-ov-part">${esc(t('ov.rlOvNatural', { cap: fmtNum(stalled[0].naturalCap!) }))}</span>
+        ${stalled.some(row => row.stalledRegen) ? `<span class="rl-ov-part dim">${esc(t('ov.rlOvLost'))}</span>` : ''}
+        ${stalled.map(row => matChip(row.mat, row.stalledRegen ? `≈${fmtNum(row.stalledRegen)}` : '')).join('')}</li>`] : [];
+    for (const row of [...basic?.rows ?? [], ...special?.rows ?? []]) {
+        const parts: string[] = [];
+        const cap = hardCapOf(row.mat);
+        if (row.closing >= cap) parts.push(t('ov.rlOvHard', { cap: fmtNum(cap) }));
+        if (row.fullIncome > 0) parts.push(t('ov.rlOvIncome', { n: `+${fmtNum(row.fullIncome)}` }));
+        if (parts.length) {
+            lines.push(`<li><span class="rl-ov-mat" title="${esc(t(MAT_KEYS[row.mat] + '.full'))}">${matIconHtml(MAT_FILES[row.mat], t(MAT_KEYS[row.mat]))}</span>
+            ${parts.map(part => `<span class="rl-ov-part">${esc(part)}</span>`).join('')}</li>`);
+        }
+    }
+    if (!lines.length) return '';
+    return `<div class="rl-ov-title">${esc(t('ov.rlOvTitle'))}</div><ul class="rl-ov-list">${lines.join('')}</ul>`;
+}
+
 /** 工具列（分區與離線預覽共用同一份 markup）。 */
 export function shellHtml(prefs = defaultPrefs()): string {
     return `<div class="rl">
@@ -629,6 +712,8 @@ export function shellHtml(prefs = defaultPrefs()): string {
             <button type="button" class="ov-btn rl-copy">${esc(t('ov.rlCopyCsv'))}</button>
         </div>
         <div class="rl-body"><div class="rl-top"></div>
+            <div class="rl-overflow" hidden></div>
+            <details class="rl-ledger rl-basic" open><summary>${esc(t('ov.rlBasicTitle'))}</summary><div class="rl-basic-body"></div></details>
             <details class="rl-ledger" open><summary>${esc(t('ov.rlLedgerTitle'))}</summary><div class="rl-ledger-body"></div></details>
             ${eventsShellHtml(prefs)}<div class="rl-bottom"></div></div>
     </div>`;
@@ -665,6 +750,8 @@ export const resourceLogSection: OverviewSection = {
         // 結果區拆成上下兩塊：活動資源消耗夾在中間、只建一次（它有搜尋框與篩選，不能跟著重繪）
         const top = el.querySelector<HTMLDivElement>('.rl-top')!;
         const ledgerBody = el.querySelector<HTMLDivElement>('.rl-ledger-body')!;
+        const basicBody = el.querySelector<HTMLDivElement>('.rl-basic-body')!;
+        const overflow = el.querySelector<HTMLDivElement>('.rl-overflow')!;
         const bottom = el.querySelector<HTMLDivElement>('.rl-bottom')!;
         const evSec = el.querySelector<HTMLElement>('.rl-ev')!;
         const granSel = el.querySelector<HTMLSelectElement>('.rl-gran')!;
@@ -673,6 +760,7 @@ export const resourceLogSection: OverviewSection = {
         sizeSel.value = String(prefs.size);
         top.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
+        basicBody.innerHTML = ledgerBody.innerHTML;
         evSec.hidden = !prefs.marks;
 
         let all: Sample[] = [];
@@ -702,24 +790,38 @@ export const resourceLogSection: OverviewSection = {
         }
 
         /** 分帳的來源表（不含餘額樣本）；null＝尚未讀完。 */
-        let ledgerSrc: Omit<LedgerInputs, 'samples'> | null = null;
+        type LedgerSource = Omit<LedgerInputs, 'samples' | 'expeditions'> & {
+            expeditions: BasicLedgerInputs['expeditions'] & LedgerInputs['expeditions'];
+            sortieBills: BasicLedgerInputs['sortieBills'];
+            basicReward: BasicLedgerInputs['questReward'];
+            basicRemodelCost: BasicLedgerInputs['remodelCost'];
+        };
+        let ledgerSrc: LedgerSource | null = null;
         let ledgerError: string | null = null;
 
-        /** 只重繪 `.rl-ledger-body`，`<details>` 本身不動（收合狀態屬於玩家）。 */
+        /** 只重繪兩個分帳本體與溢出提醒，`<details>` 本身不動（收合狀態屬於玩家）。 */
         function drawLedger() {
-            if (ledgerError) {
-                ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: ledgerError }))}</div>`;
-            } else if (!all.length) {
-                ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.rlNone'))}</div>`;
-            } else if (!ledgerSrc) {
-                ledgerBody.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
-            } else {
-                const { from, to } = rangeBounds();
-                // 期間一路到最新餘額時，才提醒之後還有幾筆在等下一筆餘額；看過去某段時不相干。
-                const last = all[all.length - 1].ts;
-                const pending = to >= last ? { n: countRecordsAfter(ledgerSrc, last), ts: last } : undefined;
-                ledgerBody.innerHTML = ledgerHtml(buildMaterialLedger({ samples: all, ...ledgerSrc }, from, to), pending);
+            const note = ledgerError ? t('ov.loadFailed', { msg: ledgerError })
+                : !all.length ? t('ov.rlNone') : !ledgerSrc ? t('ov.loading') : '';
+            if (note || !ledgerSrc) {
+                basicBody.innerHTML = ledgerBody.innerHTML = `<div class="ov-empty">${esc(note)}</div>`;
+                overflow.hidden = true;
+                return;
             }
+            const { from, to } = rangeBounds();
+            // 期間一路到最新餘額時，才提醒之後還有幾筆在等下一筆餘額；看過去某段時不相干。
+            const last = all[all.length - 1].ts;
+            const pending = to >= last ? { n: countRecordsAfter(ledgerSrc, last), ts: last } : undefined;
+            const special = buildMaterialLedger({ samples: all, ...ledgerSrc }, from, to);
+            // 司令部等級預設為 1：還沒收到過帶等級的封包時視為未知，不拿 1 級的上限去推算
+            const hqLv = ctx.state.hqLv > 1 ? ctx.state.hqLv : null;
+            const basic = buildBasicLedger({
+                samples: all, hqLv, ...ledgerSrc, questReward: ledgerSrc.basicReward, remodelCost: ledgerSrc.basicRemodelCost,
+            }, from, to);
+            basicBody.innerHTML = basicLedgerHtml(basic);
+            ledgerBody.innerHTML = ledgerHtml(special, pending);
+            overflow.innerHTML = overflowHtml(basic, special);
+            overflow.hidden = !overflow.innerHTML;
         }
 
         const detailRows = () => buildDetailRows(view, prefs.marks ? allMilestones : []);
@@ -1023,21 +1125,25 @@ export const resourceLogSection: OverviewSection = {
         async function loadLedgerSources() {
             try {
                 const since = all[0].ts;
-                const [factory, expeditions, observed, seen, materialUse] = await Promise.all([
+                const [factory, expeditions, observed, seen, materialUse, sortieBills] = await Promise.all([
                     db.factory.where('ts').aboveOrEqual(since).toArray(),
                     db.expeditions.where('ts').aboveOrEqual(since).toArray(),
                     db.questObserved.where('ts').aboveOrEqual(since).toArray(),
                     db.questSeen.toArray(),
                     db.materialUse.where('ts').aboveOrEqual(since).toArray(),
+                    db.sortieBills.where('ts').aboveOrEqual(since).toArray(),
                 ]);
                 const titles = new Map(seen.flatMap(row => (row.title ? [[row.questNo, row.title] as const] : [])));
                 ledgerSrc = {
                     factory: factory.map(({ ts, kind, used }) => ({ ts, kind, used })),
-                    expeditions: expeditions.map(({ ts, items }) => ({ ts, items })),
+                    expeditions: expeditions.map(({ ts, items, resources }) => ({ ts, items, resources })),
                     questClears: observed.map(({ ts, questNo }) => ({ ts, questNo })),
                     questReward: catalogQuestReward(titles),
                     materialUse,
                     remodelCost: remodelCostResolver(ctx.state),
+                    sortieBills: sortieBills.map(({ ts, payable, balanceDelta, support }) => ({ ts, payable, balanceDelta, support })),
+                    basicReward: catalogQuestBasicReward(titles),
+                    basicRemodelCost: remodelBasicCostResolver(ctx.state),
                 };
                 ledgerError = null;
             } catch (error) {
@@ -1053,7 +1159,7 @@ export const resourceLogSection: OverviewSection = {
             'api_port/port', 'api_get_member/material', 'api_req_nyukyo/start', 'api_req_nyukyo/speedchange',
             'api_req_mission/result', 'api_req_kousyou/createitem', 'api_req_kousyou/remodel_slot',
             'api_get_member/kdock', 'api_req_kousyou/createship_speedchange', 'api_req_quest/clearitemget',
-            'api_req_kaisou/remodeling',
+            'api_req_kaisou/remodeling', 'api_req_air_corps/supply',
         ]);
         let refreshTimer: ReturnType<typeof setTimeout> | undefined;
         ctx.onStateChange?.(paths => {

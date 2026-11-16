@@ -430,7 +430,9 @@ export interface QuestSeenRow {
 //   · remodel：艦娘改造。只存事實（艦實例 id、改造前 master id）；消耗量在讀取端查改造消耗表，
 //     表日後修正時不必改資料。改造需要 GameState 才知道改造前的形態，所以由投影寫入，入渠跟著同一個寫入者。
 //   · airSupply：基地航空隊補充（v17 起）。花費＝補充前的餘額 − 回應的 api_after_fuel／api_after_bauxite
-//     （samples/air-corps-supply.json）；補充前的餘額不可信時（見 sortie-bill.ts keepsMaterialsTracked）存 null。
+//     （samples/air-corps-supply.json）；補充前的餘額不可信時（見 sortie-bill.ts keepsMaterialsTracked）改用
+//     「被補中隊補充前記錄的缺機數 × 規則費率」（sortie-bill.ts airSupplyCost，推算），缺機數也查不到才存 null。
+//     列上不標示是哪一種，讀取端一律視為可能含推算。
 //     出擊帳單在讀取時把它歸給同一 areaId、在它之前最近的一趟出擊；離散資材分帳不讀這一種。
 // bucket 的 shipId（v17 起）：用桶修的艦，出擊帳單讀取時據此把桶歸給造成損傷的那一趟；舊列沒有。
 // 新增於 v16，不回填：升級時寫 derived 表會繞過 EventProjector，已裁剪的 raw events 也無從補。

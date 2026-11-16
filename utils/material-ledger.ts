@@ -8,7 +8,9 @@ import { itemCatalog } from './item-catalog';
 import { QUEST_CATALOG_BY_NO } from './quest-flow';
 import { questCatalogIdentity } from './quest-identity';
 import { materialQuantity, type IncomeMaterial } from './quest-material-income';
+import { questBasicResources } from './quest-catalog-localization';
 import { remodelStep, type RemodelMasterData } from './remodel-goals';
+import { SPECIAL_HARD_CAP, incomeAtCap } from './resource-cap';
 import { sampleAt, type Sample } from './resource-log';
 
 /** 資材索引沿用 api_material 順序（4 高速建造材、5 高速修復材、6 開發資材、7 改修資材）；陣列為顯示順序。 */
@@ -51,6 +53,8 @@ export interface MaterialLedgerRow {
     spending: Record<LedgerSpendSource, number>;
     /** closing − opening − Σincome + Σspending，可正可負。 */
     unattributed: number;
+    /** 期間內落在已達蓄積上限的資材上的收入（任務、遠征），可能溢出；見 utils/resource-cap.ts。 */
+    fullIncome: number;
 }
 
 export interface MaterialLedger {
@@ -84,7 +88,7 @@ const emptyRow = (mat: LedgerMat): MaterialLedgerRow => ({
     mat, opening: 0, closing: 0,
     income: { quest: 0, expedition: 0 },
     spending: { develop: 0, build: 0, improve: 0, speedup: 0, dock: 0, remodel: 0 },
-    unattributed: 0,
+    unattributed: 0, fullIncome: 0,
 });
 
 // 基地航空隊補充（airSupply）是基本資源的支出、歸給出擊帳單，不屬於離散資材分帳。
@@ -114,6 +118,7 @@ export function buildMaterialLedger(inputs: LedgerInputs, from: number, to: numb
     const rows = LEDGER_MATS.map(emptyRow);
     const byMat = new Map(rows.map(row => [row.mat, row]));
     const counts = { factory: 0, expeditions: 0, questClears: 0, questUnknown: 0, materialUse: 0, remodelUnknown: 0 };
+    const incomeEvents = new Map<LedgerMat, { ts: number; amount: number }[]>(LEDGER_MATS.map(mat => [mat, []]));
 
     for (const entry of inputs.factory) {
         if (!inRange(entry.ts)) continue;
@@ -141,7 +146,9 @@ export function buildMaterialLedger(inputs: LedgerInputs, from: number, to: numb
         counts.expeditions += 1;
         for (const item of exp.items) {
             const mat = USEITEM_TO_MAT.get(item.id);
-            if (mat !== undefined) byMat.get(mat)!.income.expedition += item.count;
+            if (mat === undefined) continue;
+            byMat.get(mat)!.income.expedition += item.count;
+            incomeEvents.get(mat)!.push({ ts: exp.ts, amount: item.count });
         }
     }
     for (const clear of inputs.questClears) {
@@ -151,12 +158,17 @@ export function buildMaterialLedger(inputs: LedgerInputs, from: number, to: numb
         for (const row of rows) {
             const qty = inputs.questReward(clear.questNo, clear.ts, row.mat);
             if (qty === null) unknown = true;
-            else row.income.quest += qty;
+            else {
+                row.income.quest += qty;
+                incomeEvents.get(row.mat)!.push({ ts: clear.ts, amount: qty });
+            }
         }
         if (unknown) counts.questUnknown += 1;
     }
 
+    const span = samples.filter(sample => sample.ts >= start.ts && sample.ts <= end.ts);
     for (const row of rows) {
+        row.fullIncome = incomeAtCap(span, incomeEvents.get(row.mat)!, row.mat, SPECIAL_HARD_CAP);
         row.opening = start.m[row.mat] ?? 0;
         row.closing = end.m[row.mat] ?? 0;
         const income = row.income.quest + row.income.expedition;
@@ -171,18 +183,24 @@ const MAT_TO_INCOME_NAME: Record<LedgerMat, IncomeMaterial> = {
 };
 
 /**
- * 以任務目錄的報酬文字回傳確定報酬（擇一報酬不計）。titles＝questNo→遊戲任務標題（呼叫端從 db.questSeen.title 組）。
- * 標題與目錄不符＝營運重用編號，目錄報酬屬於舊任務 → null；沒有標題可核對且是期間限定任務（每年內容不同）→ null；
- * 目錄沒有這個任務編號也無從確認 → null。
+ * 標題與目錄不符＝營運重用編號，目錄報酬屬於舊任務；沒有標題可核對且是期間限定任務（每年內容不同）、
+ * 目錄沒有這個任務編號也無從確認：這三種都不能拿目錄報酬當收入。titles＝questNo→遊戲任務標題（呼叫端從 db.questSeen.title 組）。
  */
+function trustsCatalog(titles: ReadonlyMap<number, string>, questNo: number, ts: number): boolean {
+    const definition = QUEST_CATALOG_BY_NO.get(questNo);
+    if (!definition) return false;
+    const identity = questCatalogIdentity(questNo, titles.get(questNo), ts);
+    return !(identity === 'mismatch' || (identity === 'unknown' && definition.limited));
+}
+
+/** 以任務目錄的報酬文字回傳離散資材的確定報酬（擇一報酬不計）；不可信的領獎回 null。 */
 export function catalogQuestReward(titles: ReadonlyMap<number, string>): LedgerInputs['questReward'] {
-    return (questNo, ts, mat) => {
-        const definition = QUEST_CATALOG_BY_NO.get(questNo);
-        if (!definition) return null;
-        const identity = questCatalogIdentity(questNo, titles.get(questNo), ts);
-        if (identity === 'mismatch' || (identity === 'unknown' && definition.limited)) return null;
-        return materialQuantity(questNo, MAT_TO_INCOME_NAME[mat]).fixed;
-    };
+    return (questNo, ts, mat) => (trustsCatalog(titles, questNo, ts) ? materialQuantity(questNo, MAT_TO_INCOME_NAME[mat]).fixed : null);
+}
+
+/** 同上，回傳基本資源（索引 0–3）的確定報酬；目錄的資源欄位本身就是確定報酬。 */
+export function catalogQuestBasicReward(titles: ReadonlyMap<number, string>): (questNo: number, ts: number, mat: 0 | 1 | 2 | 3) => number | null {
+    return (questNo, ts, mat) => (trustsCatalog(titles, questNo, ts) ? questBasicResources(questNo)?.[mat] ?? null : null);
 }
 
 /** 改造消耗表只提供推算值；`remodelStep()` 查不到（master 未載入、已是最終形態）回 null。 */

@@ -75,6 +75,12 @@ export interface SortieBill {
 const MARRIED_LV = 100;
 const BAUXITE_PER_PLANE = 5;
 
+/**
+ * 基地航空隊補充的花費（wikiwiki「基地航空隊」：燃料＝喪失機數×3、鋁土＝喪失機數×5，與機種無關）。
+ * 規則出處是文字規則，不是封包欄位；呼叫端只有在補充前的餘額不可信時才拿它補洞，數字屬推算。
+ */
+export const airSupplyCost = (lostPlanes: number) => ({ fuel: lostPlanes * 3, bauxite: lostPlanes * BAUXITE_PER_PLANE });
+
 const nonNegative = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0);
 
 /** api_ship[] 的一筆原始物件 → BillShip；缺必要欄位回 null，不補猜。 */

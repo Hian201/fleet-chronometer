@@ -19,9 +19,10 @@ import {
 } from '../../utils/resource-log';
 import {
     buildDetailRows, buildEventEntries, chartGeo, chartHtml, colRackHtml, eventCompareHtml, eventDetailHtml,
-    eventFilterOptions, eventListHtml, ledgerHtml, shellHtml, summaryHtml, tableHtml, type RenderOpts,
+    basicLedgerHtml, eventFilterOptions, eventListHtml, ledgerHtml, overflowHtml, shellHtml, summaryHtml, tableHtml, type RenderOpts,
 } from '../../entrypoints/overview/sections/resource-log';
-import { buildMaterialLedger, catalogQuestReward, type LedgerInputs } from '../../utils/material-ledger';
+import { buildMaterialLedger, catalogQuestBasicReward, catalogQuestReward, type LedgerInputs } from '../../utils/material-ledger';
+import { buildBasicLedger, type BasicLedgerInputs } from '../../utils/basic-ledger';
 import { eventTermLabel } from '../../utils/event-calendar';
 import { setLang, t } from '../../utils/ui-i18n';
 import type { Lang } from '../../utils/gamedata-i18n';
@@ -168,6 +169,61 @@ const ledgerInputs: LedgerInputs = {
 };
 const ledger = buildMaterialLedger(ledgerInputs, lastTs - 30 * DAY, lastTs);
 
+// ── 基本資源分帳：同一段 30 天。餘額取自合成序列，事件是手造的量級 ─────────────────
+// 上方趨勢圖的合成序列橫跨一年多、基本資源累積到數百萬，不適合當分帳的餘額：這裡另造 30 天、每 4 小時一筆的
+// 基本資源餘額（落在 18～35 萬之間），離散資材沿用上面的合成值。鋼材在最近 6 天爬到蓄積上限（350,000），
+// 才看得到「落在已滿資源上的收入」；燃料、彈藥、鋁土維持遠高於自然回復上限的庫存，所以自然回復停擺。
+const recent = all.filter(sample => sample.ts >= at(30));
+const capped = recent.map((sample, i) => ({
+    ts: sample.ts,
+    m: [
+        236_000 + i * 120 - (i % 6) * 900, 198_000 + i * 90 - (i % 5) * 700,
+        Math.min(350_000, 312_000 + i * 330), 188_000 + i * 40 - (i % 7) * 300, ...sample.m.slice(4),
+    ],
+}));
+const basicBills = Array.from({ length: 24 }, (_, k) => ({
+    ts: at(29 - k * 1.2),
+    payable: [1_900 + (k % 5) * 240, 2_300 + (k % 4) * 180, 880 + (k % 3) * 140, 450 + (k % 6) * 55] as [number, number, number, number],
+    // 途中進出：基地航空隊出擊的消耗與資源點的收入；有一趟不可考
+    balanceDelta: k === 9 ? null : [-(k % 4) * 40, -(k % 3) * 25, k % 7 === 0 ? 60 : 0, -(k % 5) * 18] as [number, number, number, number],
+    support: k % 6 === 0 ? [{ deckId: 2, payable: [380, 320, 0, 30] as [number, number, number, number], planesLost: 6, estimated: false }] : undefined,
+}));
+const basicInputs: BasicLedgerInputs = {
+    samples: capped,
+    hqLv: 120,
+    factory: [
+        { ts: at(26), kind: 'develop', used: [10, 10, 10, 10, 0, 0, 1, 0] },
+        { ts: at(21), kind: 'build', used: [300, 300, 600, 400, 1, 0, 20, 0] },
+        { ts: at(12), kind: 'build', used: [30, 30, 30, 30, 1, 0, 7, 0] },
+        { ts: at(9), kind: 'improve', used: [0, 20, 40, 0, 0, 0, 4, 3] },
+    ],
+    expeditions: [
+        { ts: at(24), resources: [600, 0, 800, 100] },
+        { ts: at(18), resources: [0, 800, 0, 350] },
+        { ts: at(10), resources: [450, 380, 0, 0] },
+        { ts: at(4), resources: [0, 0, 1_200, 200] },
+        { ts: at(3), resources: [0, 0, 2_400, 0] },
+    ],
+    questClears: ledgerInputs.questClears,
+    questReward: catalogQuestBasicReward(new Map()),
+    materialUse: [
+        { eventId: 9101, ts: at(14), kind: 'airSupply', areaId: 6, fuel: 320, bauxite: 410 },
+        { eventId: 9102, ts: at(13), kind: 'airSupply', areaId: 6, fuel: null, bauxite: 180 },
+        { eventId: 9004, ts: at(7), kind: 'remodel', shipId: 101, fromMst: 119 },
+        { eventId: 9005, ts: at(2), kind: 'remodel', shipId: 102, fromMst: 1 },
+    ],
+    remodelCost: fromMst => (fromMst === 119 ? { ammo: 2_300, steel: 3_100 } : null),
+    sortieBills: basicBills,
+};
+const basic = buildBasicLedger(basicInputs, lastTs - 30 * DAY, lastTs);
+// 庫存較少的玩家：四種基本資源縮到自然回復上限以下，自然回復才有數字可看（版面驗證用）
+const lowStock = buildBasicLedger({
+    ...basicInputs,
+    samples: capped.map(sample => ({ ts: sample.ts, m: sample.m.map((v, i) => (i < 4 ? Math.round(v / 14) : v)) })),
+}, lastTs - 30 * DAY, lastTs);
+// 司令部等級未知：自然回復欄寫不可考
+const unknownHq = buildBasicLedger({ ...basicInputs, hqLv: null }, lastTs - 30 * DAY, lastTs);
+
 // overview 的 <style> 原封取用——預覽要驗的就是那份 CSS 在真實規模下的樣子
 const overviewHtml = readFileSync(resolve(root, 'entrypoints/overview/index.html'), 'utf8');
 const css = overviewHtml.slice(overviewHtml.indexOf('<style>') + 7, overviewHtml.indexOf('</style>'));
@@ -198,6 +254,8 @@ for (const lang of LANGS) {
         .replace(/<span class="dim rl-ev-count"><\/span>/, `<span class="dim rl-ev-count">${t('ov.rlEvCount', { n: entries.length, total: entries.length })}</span>`)
         .replace(/<div class="rl-ev-list">[\s\S]*?<\/div><\/div>/, `<div class="rl-ev-list">${eventListHtml(entries, selected)}</div>`)
         .replace('<div class="rl-ledger-body"></div>', `<div class="rl-ledger-body">${ledgerHtml(ledger)}</div>`)
+        .replace('<div class="rl-basic-body"></div>', `<div class="rl-basic-body">${basicLedgerHtml(basic)}</div>`)
+        .replace('<div class="rl-overflow" hidden></div>', `<div class="rl-overflow">${overflowHtml(basic, ledger)}</div>`)
         .replace('<div class="rl-ev-detail"></div>', `<div class="rl-ev-detail">${entries[0] ? eventDetailHtml(entries[0]) : ''}</div>`)
         .replace('<div class="rl-ev-cmp"></div>', `<div class="rl-ev-cmp">${eventCompareHtml(entries, selected)}</div>`)
         .replace('<div class="rl-bottom"></div>', `<div class="rl-bottom">${colRackHtml(opts.cols)}`
@@ -205,8 +263,10 @@ for (const lang of LANGS) {
 
     const page = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
 <title>資源紀錄版面預覽</title><style>${css}</style></head>
-<body><main id="content">${shell}</main></body></html>`
-        .replace(/src="\/icons\//g, `src="${resolve(root, 'public/icons')}/`);
+<body><main id="content">${shell}
+<div class="rl"><p class="ov-note">預覽用：庫存較少的玩家（基本資源在自然回復上限以下）</p>${basicLedgerHtml(lowStock)}
+<p class="ov-note">預覽用：司令部等級未知</p>${basicLedgerHtml(unknownHq)}</div></main></body></html>`
+        .replace(/src="\/icons\//g, 'src="../public/icons/');   // 相對路徑：file:// 與從專案根目錄起的 http.server 都能載到
     const suffix = lang === 'zh-TW' ? '' : `-${lang}`;
     const out = resolve(root, `.preview/resource-log${suffix}.html`);
     writeFileSync(out, page);
@@ -215,4 +275,5 @@ for (const lang of LANGS) {
     console.log(out);
 }
 console.log(`ledger=${JSON.stringify(ledger?.counts)}`);
+console.log(`basic=${JSON.stringify(basic?.counts)}`);
 console.log(`samples=${all.length} marks=${marks.length} periods=${periods.length} sorties=${sortieRows.length}`);

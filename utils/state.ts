@@ -5113,6 +5113,23 @@ export class GameState {
         return out;
     }
 
+    /**
+     * 補給請求對應的基地裡，各中隊目前記錄的缺機數（max − count，只含缺機的中隊）。須在 reducer 套用前讀取。
+     * 解不出唯一基地時回 null。機數只有 base_air_corps／mapinfo／set_plane／supply 會更新，戰鬥封包不帶，
+     * 所以出擊後尚未重讀基地就補給時，記錄的缺機數可能少於實際（呼叫端不得把 0 當成「沒有損失」）。
+     */
+    airSupplyShortfall(req: Record<string, string>): Map<number, number> | null {
+        const keys = this.resolveAirBaseKeys(req);
+        const info = keys.length === 1 ? this.airBases.get(keys[0]!.key)?.api_plane_info : undefined;
+        if (!Array.isArray(info)) return null;
+        const shortfall = new Map<number, number>();
+        for (const sq of info) {
+            const missing = Number(sq?.api_max_count) - Number(sq?.api_count);
+            if (Number.isFinite(missing) && missing > 0) shortfall.set(Number(sq.api_squadron_id), missing);
+        }
+        return shortfall;
+    }
+
     /** 記下「這個基地的 cond 是這一刻觀測到的」，並把回復速度重設為當下的札 */
     private markAirBaseCondObserved(key: string, ts: number) {
         if (!Number.isFinite(ts)) return;

@@ -192,6 +192,12 @@ export function localizedQuestRewardHtml(apiNo: number, locale: QuestRewardLocal
     return `<div class="quest-rewards"><strong class="quest-reward-title">${esc(reward.title)}</strong>${contents}</div>`;
 }
 
+/** 任務報酬中的基本資源（燃料、彈藥、鋼材、鋁土，順序同 api_material）；目錄沒有這個任務時為 undefined。 */
+export function questBasicResources(apiNo: number): [number, number, number, number] | undefined {
+    const resources = REWARDS[String(apiNo)]?.resources;
+    return resources && [resources.fuel, resources.ammo, resources.steel, resources.bauxite];
+}
+
 /** 任務報酬解析後的分組（確定／擇一），供統計道具數量；沒有報酬資料時為空。 */
 export function questRewardGroups(apiNo: number): QuestRewardGroup[] {
     const source = REWARDS[String(apiNo)];

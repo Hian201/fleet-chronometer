@@ -4,7 +4,7 @@ import {
 } from './db';
 import { appendBattle, setDifficulty, startReplay } from './replay';
 import {
-    billShipFromApi, keepsMaterialsTracked, sortieBill, supportBill, supportPlanesLost, type BillShip, type SupportShip,
+    airSupplyCost, billShipFromApi, keepsMaterialsTracked, sortieBill, supportBill, supportPlanesLost, type BillShip, type SupportShip,
 } from './sortie-bill';
 import { GameState, isBossNode, type MapGaugeView } from './state';
 
@@ -58,6 +58,20 @@ interface BeforeApply {
     /** air_corps/supply：補充前的燃料、鋁土。 */
     supplyFuel?: number;
     supplyBauxite?: number;
+    /** air_corps/supply：補充前各中隊記錄的缺機數；解不出基地時 null。 */
+    supplyShortfall?: Map<number, number> | null;
+}
+
+/** 回應裡被補的中隊的喪失機數合計；任一中隊查不到缺機（含 0）、或解不出基地就回 null，不猜。 */
+function supplyLostPlanes(shortfall: Map<number, number> | null | undefined, planeInfo: unknown): number | null {
+    if (!shortfall || !Array.isArray(planeInfo) || !planeInfo.length) return null;
+    let lost = 0;
+    for (const squadron of planeInfo) {
+        const missing = shortfall.get(Number(squadron?.api_squadron_id));
+        if (!missing) return null;
+        lost += missing;
+    }
+    return lost;
 }
 
 export type ProjectableEvent = Pick<ApiEventRow, 'ts' | 'path' | 'api'> & {
@@ -367,7 +381,10 @@ export class EventProjector {
             return Number.isSafeInteger(shipId) && shipId > 0 ? { bucketShipId: shipId } : {};
         }
         if (path === 'api_req_air_corps/supply') {
-            return { supplyFuel: this.state.materials[0], supplyBauxite: this.state.materials[3] };
+            return {
+                supplyFuel: this.state.materials[0], supplyBauxite: this.state.materials[3],
+                supplyShortfall: req ? this.state.airSupplyShortfall(req) : null,
+            };
         }
         return {};
     }
@@ -396,14 +413,18 @@ export class EventProjector {
             // req.api_area_id 是基地所屬海域（同 GameState.resolveAirBaseKeys 的來源）。缺就不寫，不猜。
             const areaId = Number(req?.api_area_id);
             if (Number.isSafeInteger(areaId) && areaId > 0) {
-                // 回應只帶補充後的燃料、鋁土（samples/air-corps-supply.json）；補充前的餘額不可信時花費不可考。
+                // 回應只帶補充後的燃料、鋁土（samples/air-corps-supply.json）；補充前的餘額可信時花費取餘額差（封包事實）。
+                // 不可信時退回規則：花費＝喪失機數×規則費率，喪失機數取回應裡被補的中隊在補充前記錄的缺機數。
+                // 缺機數為 0 可能只是出擊後尚未重讀基地（見 airSupplyShortfall），不當作「沒有損失」，仍存 null。
                 const spent = (prior: unknown, after: unknown) => (this.materialsTracked
                     && typeof prior === 'number' && Number.isFinite(prior)
                     && typeof after === 'number' && Number.isFinite(after) ? Math.max(0, prior - after) : null);
+                const lost = supplyLostPlanes(before.supplyShortfall, api?.api_plane_info);
+                const rule = lost === null ? null : airSupplyCost(lost);
                 row = {
                     eventId: id, ts, kind: 'airSupply', areaId,
-                    fuel: spent(before.supplyFuel, api?.api_after_fuel),
-                    bauxite: spent(before.supplyBauxite, api?.api_after_bauxite),
+                    fuel: spent(before.supplyFuel, api?.api_after_fuel) ?? rule?.fuel ?? null,
+                    bauxite: spent(before.supplyBauxite, api?.api_after_bauxite) ?? rule?.bauxite ?? null,
                 };
             }
         } else if (path === 'api_req_kaisou/remodeling') {
