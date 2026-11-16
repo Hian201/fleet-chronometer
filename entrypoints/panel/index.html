@@ -5506,6 +5506,106 @@
             border-color: #82ccdd;
         }
 
+        /* 工廠分頁：子分頁列固定，內容各自在 270px 內捲動（#tabpanel 不捲、不撐高）。 */
+        #tabpanel.has-factory {
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #tabpanel.has-factory > #tab-factory {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            gap: 6px;
+        }
+        /* 子分頁列右端放大鏡（同道具欄）：底線畫在 bar 上，放大鏡只在「今日改修」出現，收起的搜尋列不佔高度。 */
+        .fac-bar { flex: none; display: flex; border-bottom: 1px solid var(--line); }
+        .ledger-nav.fac-nav { flex: 1; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 0; }
+        .fac-search-toggle { flex: none; width: 28px; }
+        .fac-search-toggle[hidden], .fac-search-row[hidden] { display: none; }
+        .fac-search-row { margin-bottom: 4px; }
+        .fac-page {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--line) var(--panel);
+        }
+        .fac-page[hidden] { display: none; }
+        .fac-page.fac-today {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .fac-page.fac-today[hidden] { display: none; }
+        .fac-today-head { flex: none; gap: 8px; margin-bottom: 4px; font-size: 12px; font-weight: 600; }
+        .fac-today-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--line) var(--panel);
+        }
+        .fac-today-list .empty { padding: 8px 0; }
+        /* 一列一件：左側圖示＋名稱＋持有數，右側改修秘書艦；欄距 ≥12px（§4.1.2）。
+           名稱與艦名放不下時折到下一行、列高隨內容變，清單在自己的區域內捲動（不用省略號截字）。 */
+        .fac-t-row {
+            display: flex;
+            align-items: center;
+            column-gap: 12px;
+            min-height: 22px;
+            padding: 2px 4px;
+            border-bottom: 1px solid var(--line);
+            font-size: 12px;
+            line-height: 1.3;
+        }
+        .fac-t-gear { display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; }
+        .fac-t-gear .g-icon { width: 16px; height: 16px; flex: none; }
+        .fac-t-name { min-width: 0; overflow-wrap: anywhere; }
+        .fac-t-held { flex: none; color: var(--dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+        .fac-t-side {
+            display: flex;
+            align-items: center;
+            flex: 0 1 auto; max-width: 48%;
+            min-width: 0;
+            justify-content: flex-end;
+            padding-left: 12px;
+            border-left: 1px solid var(--line);
+            align-self: stretch;
+            font-size: 11px;
+        }
+        .fac-t-ships { display: flex; flex-wrap: wrap; justify-content: flex-end; min-width: 0; text-align: right; }
+        .fac-h { white-space: nowrap; }
+        .fac-h.off { color: var(--dim); }
+        .fac-h:not(:last-child)::after { content: "・"; color: var(--dim); }
+        .fac-more { flex: none; margin-left: 4px; color: var(--dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+        /* 狀態層：線框小徽章（§7.3），不填色。 */
+        .fac-solo {
+            flex: none;
+            padding: 0 5px;
+            border: 1px solid var(--brass);
+            border-radius: 4px;
+            color: var(--brass);
+            font-size: 10px;
+            line-height: 14px;
+            white-space: nowrap;
+        }
+        .fac-today-foot { flex: none; padding-top: 4px; font-size: 11px; color: var(--dim); }
+        .fac-today-foot:empty { display: none; }
+        .fac-unconfirmed summary, .fac-need summary { cursor: pointer; }
+        .fac-need summary { padding: 4px 4px 3px; color: var(--dim); font-size: 11px; }
+        .fac-need summary:focus-visible { outline: 2px solid var(--sparkle); outline-offset: -2px; }
+        .fac-unconfirmed summary:focus-visible { outline: 2px solid var(--sparkle); outline-offset: 1px; }
+        .fac-unconfirmed-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px 12px;
+            max-height: 56px;
+            overflow-y: auto;
+            padding-top: 2px;
+        }
+
         /* 最新開發/改修結果看板：卡片式，與出擊分頁的資訊區塊同視覺層級 */
         .fac-card {
             border: 1px solid var(--line);
@@ -6134,12 +6234,28 @@
             <div id="exped-check"></div>
         </div>
         <div id="tab-factory" style="display:none">
-            <div class="fac-controls">
-                <span class="grow"></span>
-                <a class="akashi-link" href="https://akashi-list.me/" target="_blank" rel="noopener"
-                    data-i18n="factory.akashiLink">明石の改修工廠 早見表 ↗</a>
+            <div class="fac-bar">
+                <nav class="ledger-nav fac-nav" id="factory-nav" role="tablist"></nav>
+                <button type="button" class="ledger-item-search-toggle fac-search-toggle" id="factory-search-toggle" hidden aria-expanded="false" aria-controls="factory-search-row"><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.2"/><path d="M9.2 9.2 12.5 12.5"/></svg></button>
             </div>
-            <div id="factory-live"></div>
+            <div class="fac-page" id="factory-page-live">
+                <div class="fac-controls">
+                    <span class="grow"></span>
+                    <a class="akashi-link" href="https://akashi-list.me/" target="_blank" rel="noopener"
+                        data-i18n="factory.akashiLink">明石の改修工廠 早見表 ↗</a>
+                </div>
+                <div id="factory-live"></div>
+            </div>
+            <div class="fac-page fac-today" id="factory-page-today" hidden>
+                <div class="ledger-item-tools fac-search-row" id="factory-search-row" hidden><input id="factory-search" type="search" autocomplete="off"></div>
+                <div class="fac-controls fac-today-head">
+                    <span class="grow fac-today-title"></span>
+                    <a class="akashi-link" href="https://akashi-list.me/" target="_blank" rel="noopener"
+                        data-i18n="factory.akashiLink">明石の改修工廠 早見表 ↗</a>
+                </div>
+                <div class="fac-today-list"></div>
+                <div class="fac-today-foot"></div>
+            </div>
         </div>
         <div id="tab-order" style="display:none"></div>
         <div id="tab-activity" style="display:none">

@@ -35,6 +35,8 @@ export interface OverviewSection {
     id: string;
     /** 側欄顯示名的 i18n key（utils/ui-i18n.ts 的 ov.* 字串） */
     titleKey: string;
+    /** 合併進本分區的舊分區：舊 hash id → 本分區的 hash 參數（見 routes.ts），讓舊書籤仍能進來。 */
+    redirects?: Readonly<Record<string, string>>;
     /**
      * 把分區內容渲染進 container（每次進入或語言/主題切換時整個重畫，
      * container 已清空）。資料自行從 utils/db.ts 讀取。

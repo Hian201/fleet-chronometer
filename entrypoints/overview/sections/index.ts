@@ -10,8 +10,7 @@ import { sortieLogSection } from './sortie-log';
 import { routeForecastSection } from './route-forecast';
 import { dropLogSection } from './drop-log';
 import { expedLogSection } from './exped-log';
-import { buildLogSection } from './build-log';
-import { devLogSection } from './dev-log';
+import { factorySection } from './factory';
 import { resourceLogSection } from './resource-log';
 import { questFlowSection } from './quest-flow';
 import { llmSection } from './llm';
@@ -28,8 +27,7 @@ export const sections: OverviewSection[] = [
     routeForecastSection,   // 常規導航（分岐法則 × 目前編成，真實地理底圖）
     dropLogSection,         // 打撈紀錄（通常／活動篩選＋可選欄位詳細清單）
     expedLogSection,        // 遠征紀錄
-    buildLogSection,        // 建造紀錄
-    devLogSection,          // 開發紀錄分區
+    factorySection,         // 工廠（子分頁：建造紀錄／開發紀錄／改修日程；舊 #/build-log 等網址轉進來）
     resourceLogSection,     // 資源紀錄（趨勢圖＋詳細清單＋活動區段消耗）
     questFlowSection,       // 任務導覽（目錄＋關聯路線＋本機狀態）
     llmSection,             // LLM 分析

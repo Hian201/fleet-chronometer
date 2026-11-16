@@ -86,7 +86,7 @@ npm test            # Vitest
 | 情報總括 | `entrypoints/overview/`、`utils/*-log.ts`、`utils/equip-ref.ts`、`utils/stype-label.ts` | `docs/engineering/` 對應主題檔、design-guidelines §4.7／§4.8 |
 | 劇場與拍照 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`utils/screenshot.ts`、`entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts` | `docs/engineering/game-page.md`、`fleet-photo.md` |
 | 資料庫與備份 | `utils/db.ts`、`entrypoints/overview/sections/backup.ts`、`entrypoints/overview/fsa.ts` | `docs/engineering/capture.md`、`backup.md`；schema 或格式變更先確認相容性 |
-| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`public/icons/` | `docs/engineering/roster.md`「艦名／裝備名譯名表」、各產生器與 `tools/*/README.md`；產生物勿手改 |
+| 產生物與圖示 | `utils/gamedata-names.ts`、`utils/map-edge-letters.ts`、`utils/map-spots.ts`、`utils/map-geo-data.ts`、`utils/route-suggestions.ts`、`utils/quest-graph-data.ts`、`utils/quest-goal-data.ts`、`utils/akashi-schedule-data.ts`、`public/icons/` | `docs/engineering/roster.md`「艦名／裝備名譯名表」、各產生器與 `tools/*/README.md`；產生物勿手改 |
 
 ## 不可破壞的目前契約
 

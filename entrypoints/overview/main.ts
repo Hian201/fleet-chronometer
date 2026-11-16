@@ -9,6 +9,7 @@ import { initLang, persistLang, getTheme, applyTheme, persistTheme, onPrefsChang
 import { esc } from '@/utils/html-escape';
 import { createLiveState } from './live-state';
 import { sections } from './sections';
+import { normalizeHash, resolveRoute } from './routes';
 import type { SectionContext } from './sections/types';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -112,8 +113,7 @@ const live = createLiveState(() => renderSection(), notifyState);
 
 // ── hash 路由（#/<sectionId>，可直接以網址深連結到特定分區）──────────
 function currentSectionId(): string {
-    const id = location.hash.replace(/^#\/?/, '').split('?')[0];
-    return sections.some(s => s.id === id) ? id : sections[0].id;
+    return resolveRoute(location.hash, sections).id;
 }
 
 function renderNav() {
@@ -181,6 +181,8 @@ $('theme-toggle').addEventListener('click', () => {
     persistTheme(getTheme() === 'dark' ? 'light' : 'dark');
     renderHeaderControls();
 });
-window.addEventListener('hashchange', () => { renderNav(); renderSection(); });
+// 合併前的舊網址（#/build-log 等）先改寫成新分區的標準 hash，再畫導覽與分區。
+window.addEventListener('hashchange', () => { normalizeHash(sections); renderNav(); renderSection(); });
 
+normalizeHash(sections);
 renderAll();

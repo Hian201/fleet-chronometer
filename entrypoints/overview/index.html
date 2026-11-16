@@ -8647,6 +8647,64 @@
         .gl-add-bar { margin: 8px 0; }
         .gl-pick { min-width: 0; min-height: 26px; padding: 2px 6px; }
 
+        /* ── 工廠（factory）：建造／開發／改修三個子分頁；選取用黃銅底線，同面板分頁列的語彙 ── */
+        .fa-nav { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+        .fa-tab {
+            appearance: none;
+            margin-bottom: -1px;
+            padding: 6px 16px;
+            border: 0;
+            border-bottom: 2px solid transparent;
+            background: transparent;
+            color: var(--dim);
+            font: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            transition: color 100ms ease-out, border-color 100ms ease-out;
+        }
+        .fa-tab:hover, .fa-tab:active { color: var(--sparkle); }
+        .fa-tab[aria-selected="true"] { border-bottom-color: var(--brass); color: var(--text); font-weight: 600; }
+        .fa-tab:focus-visible { outline: 2px solid var(--sparkle); outline-offset: -2px; }
+        .fa-page[hidden] { display: none; }
+
+        /* ── 改修日程（improve-plan）──
+           一週總表沿用 .vl-table：裝備欄與曜日欄之間、各曜日欄之間都畫 1px 分隔線（§4.1.2，
+           格子是單一符號，貼在一起會讀成同一欄）。今天那欄用底色標示（不借語意色）；
+           ● 明石單獨、○ 需改修秘書艦（持有者亮、未持有者淡）、– 不可改修。 */
+        /* 兩欄並排與否由內容決定：flex-wrap 加 max-content 基準，兩欄的自然寬度加總放不下就自己折成單欄
+           （不寫死視窗或欄寬斷點）。工具列與圖例用 width:0＋min-width:100% 不計入自然寬度；
+           表格容器一律可橫向捲動，單欄也放不下時才由捲軸補。 */
+        .ip-cols { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: 24px; }
+        .ip-main { flex: 1 1 max-content; min-width: 0; }
+        .ip-side { flex: 0 1 max-content; min-width: 0; }
+        .ip-main > .ov-subhead:first-child, .ip-side > .ov-subhead:first-child { margin-top: 12px; }
+        .ip-bar, .ip-legend { width: 0; min-width: 100%; }
+        .ip-date { font-size: 12px; }
+        .ip-count { align-self: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .ip-table .ip-c-gear { min-width: 200px; padding-right: 16px; }
+        .ip-table .ip-c-day { width: 40px; min-width: 40px; padding-left: 4px; padding-right: 4px; text-align: center; border-left: 1px solid var(--line); font-size: 14px; }
+        .ip-table th.ip-c-day { font-size: 11px; }
+        .ip-table .ip-today { background: color-mix(in srgb, var(--brass) 12%, var(--panel)); }
+        .ip-table th.ip-today { color: var(--text); border-bottom: 2px solid var(--brass); }
+        .ip-gear { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+        .ip-gear .g-icon { flex: none; }
+        .ip-gear-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .ip-held { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+        .ip-off .ip-gear-name { color: var(--dim); }
+        .ip-solo { color: var(--text); }
+        .ip-need { color: var(--dim); cursor: help; }
+        .ip-need.own { color: var(--text); }
+        .ip-none { color: var(--dim); opacity: .6; }
+        .ip-legend { margin: 8px 0 0; font-size: 12px; }
+        .ip-helper-head { margin: 0 0 6px; font-size: 12px; }
+        .ip-helper-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+        .ip-table-wrap, .ip-stats-wrap { overflow-x: auto; }
+        .ip-stats-wrap { max-height: none; }
+        .ip-stats :is(th, td) { padding-left: 6px; padding-right: 6px; }
+        .ip-stats .ip-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .ip-stats td:last-child, .ip-stats th:last-child { padding-left: 16px; }
+        .ip-stats .ip-gear-name { max-width: 170px; }
+
         @media (max-width: 620px) {
             .rs-row { grid-template-columns: minmax(0, 1fr); }
             .rl-tip-chips { grid-template-columns: minmax(0, 1fr); }

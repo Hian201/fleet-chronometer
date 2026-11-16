@@ -306,6 +306,25 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
 `tests/build-log-import.test.ts`（自家格式往返、航海日誌相容解析、去重與 event ID 借號皆以
 node 純函式＋`fake-indexeddb` 驗證，同 `sortie-import.test.ts` 的手法）。
 
+## 改修日程（`utils/akashi-schedule.ts`＋`akashi-schedule-data.ts`＋`tools/akashi-schedule/`）
+
+回答「今天能改修什麼、要用哪艘改修秘書艦」。改修工廠只有明石／明石改當第一艦隊旗艦時開得起來，
+可改修的裝備由**第一艦隊第 2 位的艦（介面稱「改修秘書艦」，日文 2番艦）**與星期共同決定，
+清單在 JST 00:00 換表（與任務的 05:00 不同，`jstWeekday()` 因此自己算 UTC+9）。
+
+- **資料來源**：產生器 `tools/akashi-schedule/generate.py` 以 wikiwiki 改修表為主、KC3Kai
+  `src/data/akashi.json` 交叉比對，產出 `utils/akashi-schedule-data.ts`（376 件裝備，二番艦已展開
+  改造形態）。兩個來源與授權見 `THIRD-PARTY-NOTICES.md` 第 12 節。產生物勿手改。
+- **展開規則**：來源表列出的艦名含其之後的所有改造形態（含改裝換型），但同一件裝備另外單獨列出
+  某個形態時以較具體者為準（例：某日「能代」◯ 而「能代改二」×，該日只到能代改）。來源的例外註記
+  （「○○は不可」「○○以降は不可」等）由產生器逐條解析，遇到沒見過的寫法會中止而不是略過。
+- **明石單獨**：`AKASHI_SOLO`（二番艦 id 0）代表該日不需要改修秘書艦。KC3Kai 以「明石／明石改」
+  出現在清單內表示同一件事，產生器逐日核對一致後換成這個標記。
+- **未確認**：`AKASHI_UNCONFIRMED` 是來源有收錄、但星期旗標尚未確認的裝備（目前 4 件）。持有時面板
+  標「資料待確認」，不猜。整張表查不到的裝備多半根本不能改修，不標成資料漏收。
+- **紀錄彙總的限制**：成功率只由改修段階（★）與秘書艦是明石或明石改決定，改修秘書艦不影響成敗，
+  故彙總不按改修秘書艦分組；`db.factory` 也沒有記錄它（記了對成功率沒有解釋力）。
+
 ## 工廠紀錄（`db.factory`）
 
 - 開發（`createitem`）與裝備改修（`remodel_slot`，含成功／確実化／失敗）的回應與請求欄位皆已用
@@ -315,3 +334,9 @@ node 純函式＋`fake-indexeddb` 驗證，同 `sortie-import.test.ts` 的手法
 - `createship_speedchange`（高速建造材完工）的消耗依使用者提供之遊戲設定：普通 1 個、大型 10 個；
   大型判定是投入量達 `LARGE_BUILD_MIN`（1500／1500／2000／1000，`utils/state.ts`），屬固定常數而非
   封包驗證。
+- 三種紀錄與改修日程合併成情報總括的「工廠」分區（`sections/factory.ts`，子分頁建造｜開發｜改修，
+  預設改修、選擇存 localStorage），對齊遊戲工廠畫面與面板工廠分頁的結構。合併前的舊網址
+  `#/build-log`、`#/dev-log`、`#/improve-plan` 由 `entrypoints/overview/routes.ts` 轉成
+  `#/factory?sub=…`（`replaceState`，舊網址自帶的其他參數保留），書籤不會壞。
+- 改修列的 `secretary` 是第一艦隊旗艦（明石／明石改），不是改修秘書艦；繁中介面因此把建造與開發
+  的該欄標為「旗艦」，避免與改修秘書艦混淆。

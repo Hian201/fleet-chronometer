@@ -107,3 +107,17 @@ export function localizeGear(mstId: number | undefined, ja: string | undefined):
     if (mstId == null) return ja ?? '?';
     return GEAR_NAMES[mstId]?.[displayLang] ?? ja ?? '?';
 }
+
+// ── 裝備搜尋（繁中／日文／英文三語都能搜）────────────────────
+// 正規化與 item-catalog.ts 的 itemMatches() 同一套：NFKC（全形轉半形、相容字統一）＋小寫＋去頭尾空白。
+const searchKey = (text: string) => text.normalize('NFKC').toLocaleLowerCase().trim();
+/** 一件裝備可被搜尋的名稱：繁中、英文（譯表有才有）與封包原始日文名；與目前顯示語言無關。 */
+export function gearSearchNames(mstId: number | undefined, ja: string | undefined): string[] {
+    const table = mstId == null ? undefined : GEAR_NAMES[mstId];
+    return [...new Set([table?.['zh-TW'], table?.en, ja].filter((name): name is string => !!name))];
+}
+/** 關鍵字是否符合這件裝備的任一語言名稱；空關鍵字視為全部符合。 */
+export function gearMatchesQuery(mstId: number | undefined, ja: string | undefined, input: string): boolean {
+    const term = searchKey(input);
+    return !term || gearSearchNames(mstId, ja).some(name => searchKey(name).includes(term));
+}

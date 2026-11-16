@@ -37,6 +37,7 @@ import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
 import { formationRects } from '@/utils/formation-geometry';
 import { mountOrder, renderOrder } from './order';
 import { mountGeneral } from './general';
+import { mountFactoryTabs } from './factory-today';
 import { openingAswBadge } from './opening-asw';
 import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 import { mountFleetPhoto } from './fleet-photo';
@@ -335,6 +336,7 @@ function setTab(next: typeof tab, manual: boolean) {
     // 調度分頁要 flex 填滿 #tabpanel（表內部捲動）；其他分頁用預設 block。
     orderEl.style.display = tab === 'order' ? 'flex' : 'none';
     tabpanelEl.classList.toggle('has-general', tab === 'general');
+    tabpanelEl.classList.toggle('has-factory', tab === 'factory');
     tabpanelEl.classList.toggle('has-order', tab === 'order');
     tabpanelEl.classList.toggle('has-exped', tab === 'exped');
     activityEl.style.display = tab === 'activity' && isDebugUiEnabled() ? '' : 'none';
@@ -369,6 +371,8 @@ document.getElementById('battle-content')!.addEventListener('click', e => {
     renderSortie();
 });
 const renderGeneral = mountGeneral(state, fmt, countdownText);
+// 工廠分頁的子分頁：看板（renderFactoryLive）與今日改修共用 #tab-factory。
+const renderFactoryTabs = mountFactoryTabs(document.getElementById('tab-factory')!, state);
 // 目前是否為聯合檢視（恰好第一＋第二艦隊）——view 無序，故用集合語意判斷。
 function isCombinedView() {
     return view.length === 2 && view.includes(0) && view.includes(1);
@@ -1818,7 +1822,7 @@ function renderFactoryLive() {
 }
 // 歷史紀錄清單（開發/建造/改修）已移至「鎮守府情報總括」分頁（讀 db.factory）；
 // 面板只留這份「當下」看板（renderFactoryLive：最新開發/改修結果＋建造中渠倒數）。
-function renderFactory() { renderFactoryLive(); }
+function renderFactory() { renderFactoryLive(); renderFactoryTabs(); }
 // 「動態」分頁 log 的行數上限；重播期間的緩衝也用同一上限，兩者都是「這個 log 最多保留幾行」。
 const LOG_LINE_LIMIT = 200;
 // 啟動重播期間（ready=false）不逐筆碰 DOM：先在記憶體累積最後 LOG_LINE_LIMIT 筆供重播結束後
@@ -1973,7 +1977,7 @@ function tickGeneralCountdowns() {
 }
 setInterval(() => {
     tickGeneralCountdowns();
-    if (tab === 'factory') renderFactoryLive();   // 建造渠倒數
+    if (tab === 'factory') renderFactory();       // 建造渠倒數；今日改修在日本時間 0 點換表
     tickRepairCountdowns();                       // 泊地修理/給糧倒數＋疲勞倒數
     tickLbasCond();                               // 基地航空隊疲勞回復（無封包可觸發）
 }, 1000);

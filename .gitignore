@@ -22,3 +22,5 @@ tools/quest-prep/.cache/
 tools/map-geo/.cache/
 # 到王編成參考產生器的攻略頁抓取快取
 tools/route-suggest/.cache/
+# 改修日程產生器的抓取快取（wikiwiki 改修表 HTML、KC3Kai akashi.json）
+tools/akashi-schedule/.cache/

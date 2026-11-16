@@ -579,9 +579,27 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 12. 改修日程資料 (Akashi workshop schedule)
+
+- **用途**：`utils/akashi-schedule-data.ts`（由 `tools/akashi-schedule/generate.py` 產生）的「裝備 × 曜日 × 第一艦隊
+  二番艦」可改修對照，由 `utils/akashi-schedule.ts` 查詢。
+- **來源 1**：KC3Kai `src/data/akashi.json` — https://github.com/KC3Kai/KC3Kai ，固定 commit
+  `a8a828a907169c833dfe828f38bb2c262aa499a1`（上游自 2025-06-04 起未更新）。MIT License，
+  Copyright (c) 2015-2026 dragonjet。用於交叉比對與補 wiki 缺的條目；該檔以「明石」「明石改」出現在清單內表示
+  當天明石單獨即可，已與來源 2 逐日核對一致後換成單獨標記。
+- **來源 2（主要）**：wikiwiki.jp/kancolle「改修表」（日文「艦隊これくしょん -艦これ- 攻略 Wiki*」）——
+  https://wikiwiki.jp/kancolle/%E6%94%B9%E4%BF%AE%E8%A1%A8 ，取得日 2026-11-16，頁面
+  Last-modified 2026-11-16 12:10:08。只取數值事實（哪件裝備在哪個曜日、搭配哪艘二番艦可改修，以及頁面
+  「表の読み方」載明的改造形態展開規則），不複製表格文字、版面或說明；艦名、裝備名依
+  `samples/start2-master.json` 換成 master id。
+- **性質**：clean-room，只取遊戲機制事實；未複製任何程式碼。
+- **授權**：KC3Kai 部分為 MIT License（全文見文末）；wiki 部分為事實性資料，未轉載其文字著作。
+
+---
+
 ## MIT License 全文
 
-上述第 1、2、5、5b、6、7b、8、9、10、11 項均採用 MIT License，
+上述第 1、2、5、5b、6、7b、8、9、10、11、12（KC3Kai 部分）項均採用 MIT License，
 其條款內容相同，全文如下：
 
 ```
