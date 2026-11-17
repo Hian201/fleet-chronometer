@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
 import { COLUMNS, summaryHtml, tableHtml } from '../../entrypoints/overview/sections/exped-log';
 import { summarize } from '../../utils/expedition-stats';
 import { setLang } from '../../utils/ui-i18n';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const source = readFileSync(resolve(root, 'entrypoints/overview/index.html'), 'utf8');

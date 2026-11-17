@@ -96,6 +96,7 @@ npm test            # Vitest
 - **戰鬥**：血量與敵方陣列為 0-indexed，沒有舊格式的 leading `-1`；`battleresult` 必須排除 battle 分支。聯合艦隊、航空／基地、友軍與支援欄位只依 samples 與 tests 維護。
 - **重播**：原始戰鬥封包存在 `db.replays`；裁剪只影響詳細重播，`db.sorties` 摘要保留。缺出擊開始事件或必要艦隊快照時，只保存可建立的摘要，不補猜編成。
 - **待驗證擷取**：`db.wanted` 會永久保護對應 raw event，所以不得擴充 `wantedTag()` 的鉤子，達上限必須明說、不可靜默略過；正式 build 預設關閉 debug UI。現有鉤子與上限見 `docs/engineering/capture.md`。
+- **顯示命名注入**：`utils/state.ts` 不得匯入 `ui-i18n.ts`／`gamedata-i18n.ts`，顯示名稱一律經 `utils/state-format.ts` 注入；註冊只放 `utils/state-display.ts`（擴充頁面經 `ui-prefs.ts` 匯入），放回 `ui-i18n.ts` 會讓打包器剪不掉整份字串表，background 與 content script 各多約 500 kB。細節見 `docs/engineering/roster.md`。
 - **活動資料**：節點字母只走 `utils/map-node-letters.ts` 查表，新海域沒有對照時顯示原始 edge id。活動標籤的未驗證語意、`api_sally_flag` 與其他待驗證欄位保留原始值，不自行命名或推導。
 - **版面與圖示**：面板內容寬、編成高度目標與硬上限見 design-guidelines §7.1，預覽基準見 §7.5。情報總括左右並排分區在內容區放得下兩欄時不得改單欄（§4.7）；同名艦種篩選／標籤走 `utils/stype-label.ts`（§4.8）；panel 系統圖示維持 §5.1 的剪影語言。改面板或 overview 版面前先讀 design-guidelines 對應節，CSS 數值以該文件為準。
 

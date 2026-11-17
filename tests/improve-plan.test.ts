@@ -13,6 +13,10 @@ import {
 } from '../entrypoints/overview/sections/improve-plan';
 import { TODAY_HELPER_LIMIT, factoryTodayView } from '../entrypoints/panel/factory-today';
 
+// 本測試斷言的是顯示名稱：匯入 state-display 安裝真正的實作（見 utils/state-format.ts），
+// 否則 t() 會回傳 key、艦名與艦種名會回退成封包原名或數字。
+import '../utils/state-display';
+
 const readJson = (rel: string) => JSON.parse(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'));
 const scheduled = new Set(AKASHI_SCHEDULE.map(([mst]) => mst));
 

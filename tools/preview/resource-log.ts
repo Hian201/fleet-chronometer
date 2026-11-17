@@ -26,6 +26,8 @@ import { buildBasicLedger, type BasicLedgerInputs } from '../../utils/basic-ledg
 import { eventTermLabel } from '../../utils/event-calendar';
 import { setLang, t } from '../../utils/ui-i18n';
 import type { Lang } from '../../utils/gamedata-i18n';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 

@@ -18,8 +18,24 @@
   `theater.js` 24 kB、`bridge.js` 9 kB、`interceptor.js` 8 kB、`popup-*` 5 kB。
 - 量大小前要重跑 `npm run build`：`tests/manifest.test.ts` 會自己跑一次 build，`npm test` 之後
   `.output` 裡的產物與正式 build 不完全相同（實測差約 2.5 kB）。
-- 下一個會撞到 1200 kB 預算的是 `background.js`。它是 service worker 單檔、不能用 `import()`，
-  要縮只能減少它匯入的內容（見步驟 4 的介面字串表）。
+- 狀態核心的顯示命名改成注入後，`background.js` 從 1169 kB 降到 670 kB（餘裕 530 kB）；
+  現行規則見 `AGENTS.md`「不可破壞的目前契約」與 `docs/engineering/roster.md`。
+- 還沒處理的是 `overview`（1072／1200，餘裕 128 kB），做法見步驟 6。
+
+### 1.1 實測成長（各時點都重新正式 build，單位 kB）
+
+| 日期 | `background.js` | `overview` | 共用 chunk | `ui-prefs` | `theater.js` |
+|---|---|---|---|---|---|
+| 08-23 | 112 | 287 | （尚未分出） | 340 | 212 |
+| 09-30 | 114 | 811 | 795 | 402 | 270 |
+| 10-24 | 116 | 996 | 1126 | 444 | 312 |
+| 11-11（v1.1.1.0） | 1128 | 1016 | 1200 | 468 | 338 |
+| 11-17（本檔） | 1169 | 1072 | 401＋575 | 504 | 24 |
+
+`background.js` 在 10-24→11-11 從 116 kB 跳到 1128 kB：任務進度追蹤讓 background 匯入
+`GameState`，連帶把 `ui-i18n`（約 389 kB）與 `gamedata-names`（約 186 kB）帶進 service worker。
+之後六天又 +40 kB，來源是這兩張表與任務資料的日常成長（`ui-i18n` 原始碼 17 天內 +65 kB）。
+service worker 會頻繁休眠重啟，解析成本反覆付，所以它比擴充頁的 chunk 更值得縮。
 - 以下步驟都是可選的改善，沒有急迫性。第 2 節是分出譯文**之前**的量測，保留作為組成比例的參考。
 
 ## 2. 量測結果
@@ -67,14 +83,21 @@
 
 ## 3. 步驟
 
-每個步驟獨立成一個 session、獨立驗證與 commit。步驟 1（任務目錄譯文依語言動態載入）、步驟 2（共用 chunk 依職責分組）與步驟 3（劇場腳本不帶整份字串表）已完成。
+每個步驟獨立成一個 session、獨立驗證與 commit。步驟 1（任務目錄譯文依語言動態載入）、2（共用 chunk 依職責分組）、3（劇場腳本不帶整份字串表）與 5（狀態核心不帶字串表）已完成。
+
+### 步驟 6：`overview` chunk（還有 128 kB 餘裕，先觀察）
+
+最大的輸入是 `map-geo-data.ts`（325 kB，常規導航底圖）與 `equip-bonus-table.json`（159 kB）。
+兩者都只有特定分區用得到，照步驟 1 的模式以 `import()` 依分區載入即可，做法已有先例；
+等它接近預算再做，屆時 Sonnet 5.5、中 effort 足夠。
 
 ### 步驟 4：介面字串表依語言拆（目前不建議）
 
 `utils/ui-i18n.ts` 三語共約 390 kB，存在於 `ui-prefs` chunk、`background.js` 與劇場腳本。
 依語言拆可讓擴充頁少載約三分之二，但 `t()` 是全專案同步呼叫，改成先載入再繪製要動到每個頁面
 的啟動流程；`background.js` 又不能用 `import()`，仍得帶全表。`ui-prefs` chunk 目前 504 kB，
-離預算很遠，收益不足以抵銷風險。等它接近預算再評估；屆時建議 Opus 5.5、高 effort，先進
+離預算很遠，收益不足以抵銷風險；它也**幫不到真正快撞線的 `background.js`**——service worker
+不能用 `import()`，拆完仍帶三語全表（`background.js` 已另以步驟 5 的注入制縮掉 499 kB）。等它接近預算再評估；屆時建議 Opus 5.5、高 effort，先進
 plan mode 列出所有啟動路徑。
 
 ## 4. 不做的事

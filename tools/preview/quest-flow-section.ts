@@ -15,6 +15,8 @@ import { loadQuestCatalogLocale } from '../../utils/quest-catalog-localization';
 import { QUEST_CATALOG_BY_NO } from '../../utils/quest-flow';
 import { QUEST_FLOW_PREFS_KEY } from '../../utils/quest-flow-prefs';
 import { questFlowSection } from '../../entrypoints/overview/sections/quest-flow';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 type Lang = Parameters<typeof setLang>[0];
 

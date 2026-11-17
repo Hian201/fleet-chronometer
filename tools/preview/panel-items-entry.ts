@@ -3,6 +3,8 @@ import { mountGeneral } from '../../entrypoints/panel/general';
 import { itemCatalog } from '../../utils/item-catalog';
 import { GameState } from '../../utils/state';
 import { setLang } from '../../utils/ui-i18n';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const params = new URLSearchParams(location.search);
 const lang = (['zh-TW', 'ja', 'en'].includes(params.get('lang') ?? '') ? params.get('lang') : 'zh-TW') as Parameters<typeof setLang>[0];

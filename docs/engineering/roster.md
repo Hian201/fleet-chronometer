@@ -6,6 +6,16 @@
 → 各語言譯名，型別 `NameTable`）查表命中即回譯名，缺譯（id 不在表裡，或該語言欄未填）一律
 回退封包原始日文名——因此「未填 = 顯示日文」，任何時候都能上線、不會出現空白。
 
+**`state.ts` 怎麼取用**：`utils/state.ts` 不直接匯入 `gamedata-i18n.ts` 與 `ui-i18n.ts`，而是經
+`utils/state-format.ts` 的注入點呼叫 `t()`、`localizeShip()` 等；真正的實作由
+`utils/state-display.ts` 在載入時註冊，擴充頁面經 `utils/ui-prefs.ts` 匯入到它，離線預覽腳本與
+斷言顯示名稱的測試各自匯入。沒安裝時 localize 系列回退封包原名、`t()` 回傳 key（看得見的錯，
+不是靜默錯譯）。理由：`entrypoints/background.ts` 匯入 `GameState` 只為了排士氣通知，自己不呼叫
+`t()`；照舊直接匯入會把介面字串表與譯名表（實測約 499 kB）帶進 service worker，而 service
+worker 會頻繁休眠重啟、反覆付解析成本。**註冊不得搬回 `ui-i18n.ts`**：模組載入副作用會讓打包器
+無法剪掉該模組，連 `bridge`／`interceptor` 也會各帶一份（實測各多約 500 kB）。
+`tests/state-format.test.ts` 以靜態追蹤遞移匯入把關。
+
 **資料來源與產生流程**：`samples/i18n/*.csv` 是人工整理的來源（三份，玩家艦娘／深海棲艦／
 裝備），`master_id` 對到真實封包（`samples/start2-master.json`）。英文名取自 kancollewiki
 （Ship list／Enemy_Sortable／Equipment List 頁面，使用者另存 HTML 後用 `master_id` 精確比對，

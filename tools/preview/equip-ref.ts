@@ -15,6 +15,8 @@ import { buildStypeLabels, stypeDisplayLabel } from '../../utils/stype-label';
 import {
     EQUIP_BONUS_TABLE, bbGroupOf, buildFitRules, markEquipRefShips, nationToBonusCountry,
 } from '../../utils/equip-ref';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const readJson = (rel: string) => JSON.parse(readFileSync(resolve(root, rel), 'utf8'));

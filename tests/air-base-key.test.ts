@@ -8,6 +8,10 @@ import { airBaseAreaLabel, fleetMarkdown } from '../entrypoints/overview/lib';
 import { buildDeckBuilder } from '../utils/deckbuilder';
 import { setLang } from '../utils/ui-i18n';
 
+// 本測試斷言的是顯示名稱：匯入 state-display 安裝真正的實作（見 utils/state-format.ts），
+// 否則 t() 會回傳 key、艦名與艦種名會回退成封包原名或數字。
+import '../utils/state-display';
+
 // 兩個海域各有一個 rid=1 的基地——正是撞號的最小情境（中部海域與活動海域都有
 // 「第一基地航空隊」）。master 不載入：mapAreaName 走既有的回退（6→中部海域、
 // >10→活動海域），本測試要驗的是鍵與範圍，不是譯名表。

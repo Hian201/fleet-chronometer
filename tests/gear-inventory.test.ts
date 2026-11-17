@@ -9,6 +9,10 @@ import {
     emptyGearFilter, filterGears, groupGears, iconOptions, sortGears, stackInstances, totalCount,
 } from '../utils/gear-inventory';
 
+// 本測試斷言的是顯示名稱：匯入 state-display 安裝真正的實作（見 utils/state-format.ts），
+// 否則 t() 會回傳 key、艦種名會回退成數字。
+import '../utils/state-display';
+
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 
 const gearMst = (name: string) => {

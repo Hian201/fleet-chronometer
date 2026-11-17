@@ -17,6 +17,8 @@ import { airBaseKey, GameState } from '../../utils/state';
 import { fleetHtml, baseHtml } from '../../entrypoints/overview/sections/fleet-overview';
 import { airBaseAreaLabel, esc } from '../../entrypoints/overview/lib';
 import { setLang, t } from '../../utils/ui-i18n';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const readJson = (rel: string) => JSON.parse(readFileSync(resolve(root, rel), 'utf8'));

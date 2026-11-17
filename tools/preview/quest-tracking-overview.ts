@@ -13,6 +13,8 @@ import { esc } from '../../utils/html-escape';
 import { buildQuestFlow } from '../../utils/quest-flow';
 import { questFlowDetailHtml } from '../../entrypoints/overview/sections/quest-flow';
 import { questTrackingFixture } from './quest-tracking-fixture';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 type Lang = Parameters<typeof setLang>[0];
 

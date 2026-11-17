@@ -13,6 +13,10 @@ import {
 } from '../utils/ship-roster';
 import { setLang, t } from '../utils/ui-i18n';
 
+// 本測試斷言的是顯示名稱：匯入 state-display 安裝真正的實作（見 utils/state-format.ts），
+// 否則 t() 會回傳 key、艦名與艦種名會回退成封包原名或數字。
+import '../utils/state-display';
+
 const databases: KcDb[] = [];
 let serial = 0;
 

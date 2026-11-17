@@ -1,9 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LANGS, pickLang } from '../utils/lang';
 import { THEATER_STRINGS, tTheater } from '../utils/theater-i18n';
 import { tFor } from '../utils/ui-i18n';
+import { importClosure } from './helpers/import-closure';
 
 const ROOT = resolve(__dirname, '..');
 const ENTRY = resolve(ROOT, 'entrypoints/theater.content.ts');
@@ -36,38 +37,9 @@ describe('劇場工具列文案', () => {
     });
 });
 
-// 遞移匯入（排除 import type）靜態追蹤，不依賴 build 產物。
-function runtimeImports(file: string): string[] {
-    const src = readFileSync(file, 'utf8');
-    const out: string[] = [];
-    const re = /^\s*(?:import|export)\s+(type\s+)?(?:[^;'"]*?\bfrom\s+)?['"]([^'"]+)['"]/gm;
-    for (const m of src.matchAll(re)) {
-        if (m[1]) continue;
-        const spec = m[2];
-        const base = spec.startsWith('@/') ? resolve(ROOT, spec.slice(2))
-            : spec.startsWith('.') ? resolve(dirname(file), spec) : null;
-        if (!base) continue;
-        const hit = [`${base}.ts`, resolve(base, 'index.ts'), base].find(p => p.endsWith('.ts') && existsSync(p));
-        if (hit) out.push(hit);
-    }
-    return out;
-}
-
-function closure(entry: string): Set<string> {
-    const seen = new Set<string>();
-    const todo = [entry];
-    while (todo.length) {
-        const f = todo.pop()!;
-        if (seen.has(f)) continue;
-        seen.add(f);
-        todo.push(...runtimeImports(f));
-    }
-    return seen;
-}
-
 describe('劇場 content script 不帶大表', () => {
     it('遞移匯入不含整份介面字串表與譯名表', () => {
-        const rel = [...closure(ENTRY)].map(f => f.slice(ROOT.length + 1));
+        const rel = importClosure('entrypoints/theater.content.ts');
         const banned = ['utils/ui-i18n.ts', 'utils/ui-prefs.ts', 'utils/gamedata-i18n.ts', 'utils/gamedata-names.ts'];
         expect(rel.filter(f => banned.includes(f))).toEqual([]);
         expect(rel).toContain('utils/theater-i18n.ts');

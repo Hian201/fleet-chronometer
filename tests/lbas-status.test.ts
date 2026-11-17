@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GameState } from '../utils/state';
 
+// 本測試斷言的是顯示名稱：匯入 state-display 安裝真正的實作（見 utils/state-format.ts），
+// 否則 t() 會回傳 key、艦種名會回退成數字。
+import '../utils/state-display';
+
 describe('基地航空隊疲勞與整備等級', () => {
     // 2026-08-04 以四份真封包定案（同一隊 62_2 隨連續出撃走完 0→1→2→3）：
     // 0=全滿／1=輕度疲勞（**遊戲同樣不顯示標記**）／2=橙／3=赤。

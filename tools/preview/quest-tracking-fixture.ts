@@ -1,6 +1,8 @@
 // 任務進度判定的離線預覽共用情境：以 GameState 重播示意封包，涵蓋四種可信度與需重核。
 // 艦娘 master id 與海域名稱取自 samples/start2-master.json；時間與戰果皆為示意。
 import { GameState } from '../../utils/state';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const SHIPS: [number, string][] = [[1034, '涼波改二'], [69, '鳥海'], [674, '玉波'], [982, '早波改二'], [485, '藤波'], [1, '睦月'], [83, '赤城'], [84, '加賀'], [90, '蒼龍'], [91, '飛龍'], [89, '鳳翔']];
 const MAPS: [number, number, string][] = [[5, 4, 'サーモン海域'], [5, 5, 'サーモン海域北方'], [5, 6, 'ラバウル方面海域'], [5, 2, '珊瑚諸島沖']];

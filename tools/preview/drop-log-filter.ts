@@ -14,6 +14,8 @@ import {
 } from '../../utils/sortie-detail';
 import { GameState } from '../../utils/state';
 import { setLang, t } from '../../utils/ui-i18n';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 setLang('zh-TW');

@@ -12,6 +12,8 @@ import { factorySection } from '../../entrypoints/overview/sections/factory';
 import type { SectionContext } from '../../entrypoints/overview/sections/types';
 import start2 from '../../samples/start2-master.json';
 import port from '../../samples/slot_to_port.json';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 
 const lang = (window as unknown as { __lang?: Parameters<typeof setLang>[0] }).__lang ?? 'zh-TW';
 setLang(lang);

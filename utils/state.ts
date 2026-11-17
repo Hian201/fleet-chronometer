@@ -1,8 +1,16 @@
 import RAW_EXPED from './expedition-data';
 import { analyzeBattle, taihaFlags } from './battle';
 import type { BattleShipView, BattleFleetView, BattleInfoView } from './battle-types';
-import { localizeShip, localizeGear, localizeEquipmentType } from './gamedata-i18n';
-import { expedItemDisplayName, expedItemFullName, getLang, t } from './ui-i18n';
+import { stateFormatters } from './state-format';
+// 顯示命名一律經 state-format.ts 注入（理由見該檔檔頭）。這幾個 shim 讓本檔原有的呼叫點
+// 不必改寫，也讓 background 匯入本檔時不會連帶載入介面字串表與譯名表。
+const t = (key: string, vars?: Record<string, string | number>) => stateFormatters.t(key, vars);
+const localizeShip = (masterId: number | undefined, ja: string | undefined) => stateFormatters.localizeShip(masterId, ja);
+const localizeGear = (mstId: number | undefined, ja: string | undefined) => stateFormatters.localizeGear(mstId, ja);
+const localizeEquipmentType = (typeId: number | undefined, ja: string | undefined) => stateFormatters.localizeEquipmentType(typeId, ja);
+const expedItemDisplayName = (itemType: number, rawName: string) => stateFormatters.expedItemDisplayName(itemType, rawName);
+const expedItemFullName = (itemType: number, rawName: string) => stateFormatters.expedItemFullName(itemType, rawName);
+const getLang = () => stateFormatters.getLang();
 import { AREA_NAMES, areaName } from './map-names';
 import { parseQuestGoal, resolveQuestGoal, meetsRank, QUEST_ID_OVERRIDES, type QuestActionKind, type QuestGoal } from './quest-progress';
 import { questCatalogIdentity } from './quest-identity';

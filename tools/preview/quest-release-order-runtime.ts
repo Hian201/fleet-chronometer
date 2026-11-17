@@ -3,6 +3,8 @@ import { GameState } from '../../utils/state';
 import { QUEST_CATALOG_BY_NO } from '../../utils/quest-flow';
 import { setLang } from '../../utils/ui-i18n';
 import { questFlowSection } from '../../entrypoints/overview/sections/quest-flow';
+// 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
+import '../../utils/state-display';
 setLang((window as any).previewLang);
 const state = new GameState();
 state.applyEvent('api_get_member/questlist', { api_list: [201,214,216,261,613,637,893,944,1042,101,303].map((no,i)=>({ api_no:no, api_state:i<2?2:no===303?3:1, api_title:QUEST_CATALOG_BY_NO.get(no)!.name, api_detail:QUEST_CATALOG_BY_NO.get(no)!.detail })) }, {api_tab_id:'0'});

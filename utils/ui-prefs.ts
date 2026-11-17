@@ -8,6 +8,9 @@
 //   - 刻意不用 chrome.storage：維持權限精簡（不新增 storage 權限）。SW 不需讀取偏好。
 import { setLang, getLang } from './ui-i18n';
 import { LANGS, detectBrowserLang } from './lang';
+// 擴充頁面（panel／情報總括／popup）都經本檔初始化語言，就在這裡一併安裝 state.ts 的顯示命名；
+// background 與 content script 不匯入本檔，字串表與譯名表因此不會進它們的產物。
+import './state-display';
 import { MSG_UI_LANG_SET } from './game-page';
 import type { Lang } from './gamedata-i18n';
 
