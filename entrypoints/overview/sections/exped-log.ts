@@ -16,15 +16,20 @@ import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { itemCatalog } from '@/utils/item-catalog';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
-import { DAY_MS } from '@/utils/date-format';
+import { DAY_MS, formatDate } from '@/utils/date-format';
+import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_KEYS, planExpeditions, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow } from '@/utils/expedition-plan';
+import { stockpileFromRows, type StockpileGoal } from '@/utils/stockpile';
+import { goalsFromRows, remodelStockOf, type RemodelGoal } from '@/utils/remodel-goals';
+import { FLOW_BLOCK_DAYS, FLOW_MAX_BLOCKS, type ObservedFlow } from '@/utils/goal-arrival';
 import {
     EXPED_MAT_COUNT, filterByPeriod, groupByMission, sortStats, statsCsv, summarize,
     type ExpeditionStat, type ExpeditionTotals, type StatSortKey,
 } from '@/utils/expedition-stats';
 import {
-    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtNum, fmtTs, loadJsonPrefs,
-    matIconHtml, paginate, parseColumnIds, parsePageSize, saveJsonPrefs,
+    clearHashParams, copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtNum, fmtTs, hashParams,
+    loadJsonPrefs, matIconHtml, paginate, parseColumnIds, parsePageSize, saveJsonPrefs,
 } from '../lib';
+import { loadGoalFlow, stockpileLinesOf } from './goals';
 import { rowsToCsv } from '@/utils/csv';
 
 const PREFS_KEY = 'kc-exped-log-view';
@@ -256,6 +261,153 @@ export function tableHtml(rows: ExpeditionRow[], cols: Column[]) {
         `<tr>${cols.map(c => `<td class="el-c-${c.id}">${c.cell(row)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
+// ── 遠征組合建議 ──────────────────────────────────────────────────────────
+// 排序邏輯在 utils/expedition-plan.ts（純函式）；這裡只有偏好、資料載入與 HTML。
+
+const PLAN_PREFS_KEY = 'kc-exped-plan';
+const PLAN_DEFAULT_HOURS = 3;
+/** 沒設備蓄期限時的推算時點：與流量的觀測窗同長（FLOW_MAX_BLOCKS 週）。 */
+const PLAN_DEFAULT_HORIZON_DAYS = FLOW_MAX_BLOCKS * FLOW_BLOCK_DAYS;
+
+/** hours：在線時多久回來收一次遠征；sleep：每天一次較長離開的小時數（0＝不另排睡前組合）。 */
+export interface PlanPrefs { open: boolean; hours: number; sleep: number; chosen: PlanKey[] }
+
+/** 睡前離開的上限（小時）：再長就幾乎沒有在線時間，在線組合失去意義。 */
+const PLAN_MAX_SLEEP = 20;
+
+export const defaultPlanPrefs = (): PlanPrefs => ({ open: false, hours: PLAN_DEFAULT_HOURS, sleep: 0, chosen: [...DEFAULT_CHOSEN] });
+
+function loadPlanPrefs(): PlanPrefs {
+    const d = defaultPlanPrefs();
+    return loadJsonPrefs(PLAN_PREFS_KEY, d, raw => {
+        const r = raw as Partial<Record<keyof PlanPrefs, unknown>> | null;
+        return {
+            open: typeof r?.open === 'boolean' ? r.open : d.open,
+            hours: typeof r?.hours === 'number' && r.hours > 0 && r.hours <= 168 ? r.hours : d.hours,
+            sleep: typeof r?.sleep === 'number' && r.sleep >= 0 && r.sleep <= PLAN_MAX_SLEEP ? r.sleep : d.sleep,
+            chosen: Array.isArray(r?.chosen) ? PLAN_KEYS.filter(key => (r!.chosen as unknown[]).includes(key)) : d.chosen,
+        };
+    });
+}
+
+export interface PlanView {
+    plan: ExpeditionPlan;
+    /** 勾選的資材，依顯示順序。 */
+    chosen: PlanKey[];
+    hasMaster: boolean;
+    /** 沒有資源流量資料：只能用遠征本身推算，不含自然回復、出擊等其他增減。 */
+    noFlow: boolean;
+    /** 備蓄期限（YYYY-MM-DD）；沒設期限為 null，推算時點改為 plan.horizonDays 天後。 */
+    deadline: string | null;
+}
+
+const keyName = (key: PlanKey) => t(`mat.${key}.full`);
+const hourMinute = (minutes: number) => `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+// 平均值不是整數：數百以上取整，離散資材（個位數）留一位小數。
+const incomeText = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: Math.abs(value) >= 100 ? 0 : 1 });
+
+const unknownHtml = () => `<span class="el-unknown">${esc(t('ov.expedUnknown'))}</span>`;
+const percentText = (value: number, cap: number) => `${Math.round(Math.max(0, Math.min(1, value / cap)) * 100)}%`;
+
+/** 推算存量：夾在 0～上限之間顯示比例，數量放在提示。 */
+function atHtml(value: number | null, cap: number): string {
+    if (value === null) return unknownHtml();
+    const amount = Math.round(Math.max(0, Math.min(cap, value)));
+    return `<span title="${esc(fmtNum(amount))}">${esc(percentText(value, cap))}</span>`;
+}
+
+/** 遠征列表：每趟淨收益（燃彈已扣補給）或每日淨收入；推算值與沒跑過的遠征加標記。 */
+function missionTableHtml(rows: PlanRow[], keys: PlanKey[], perDay: boolean): string {
+    const flagged = keys.some(key => key === 'drum' || key === 'torch' || key === 'devmat');
+    return `<div class="el-table-wrap"><table class="el-table el-plan-table"><thead><tr>
+        <th>${esc(t('ov.expedColMission'))}</th><th>${esc(t('ov.epColTime'))}</th>
+        <th title="${esc(t('ov.epIncomeTip'))}">${esc(t(perDay ? 'ov.epColPerDay' : 'ov.epColIncome'))}</th><th>${esc(t('ov.epColRuns'))}</th></tr></thead><tbody>${rows.map(row => {
+        const name = expedDisplayName(row.missionId, row.name);
+        const chips = keys.map(key => {
+            const value = (perDay ? row.perDay : row.income)[key];
+            const est = row.estimated.includes(key) || ((key === 'fuel' || key === 'ammo') && row.supplyEstimated);
+            return `<span class="el-sum-chip${est ? ' el-plan-est' : ''}" title="${esc(est ? `${keyName(key)}（${t('ov.epEst')}）` : keyName(key))}">${matIconHtml(key, keyName(key))}${value === null
+                ? `<span class="el-unknown" title="${esc(t('ov.epUnknownTip'))}">${esc(t('ov.expedUnknown'))}</span>`
+                : `<b>${esc(incomeText(value))}</b>`}</span>`;
+        }).join('');
+        const runs = row.runs ? t('ov.epRuns', { n: row.runs }) : t('ov.epUnrun');
+        const tip = row.runs && flagged ? ` class="el-plan-n" title="${esc(t('ov.epItemRunsTip', { n: row.itemRuns }))}"` : row.runs ? '' : ` class="el-none" title="${esc(t('ov.epUnrunTip'))}"`;
+        return `<tr><td><div class="el-type"><b title="${esc(name)}">${esc(name)}</b><span>${esc(row.dispNo)}</span></div></td>
+            <td class="el-plan-time">${esc(hourMinute(row.time))}</td>
+            <td><div class="el-sum-chips">${chips}</div></td>
+            <td class="el-plan-time"><span${tip}>${esc(runs)}</span></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+/** 各勾選資材：現有、照目前步調與照建議組合在推算時點的存量比例、照建議的每日淨增減；瓶頸那一列加粗。 */
+function outlookTableHtml(plan: ExpeditionPlan, when: string): string {
+    return `<div class="el-table-wrap"><table class="el-table el-plan-outlook"><thead><tr>
+        <th>${esc(t('ov.glColItem'))}</th><th>${esc(t('ov.epColHave'))}</th>
+        <th title="${esc(t('ov.epNowAtTip', { when }))}">${esc(t('ov.epColNowAt'))}</th>
+        <th title="${esc(t('ov.epPlanAtTip', { when }))}">${esc(t('ov.epColPlanAt'))}</th>
+        <th>${esc(t('ov.epColPlanRate'))}</th></tr></thead><tbody>${plan.outlook.map(line => {
+        const isNeck = line.key === plan.bottleneck;
+        const name = `${matIconHtml(line.key, keyName(line.key))} ${esc(keyName(line.key))}${isNeck
+            ? ` <span class="el-plan-neck" title="${esc(t('ov.epNeckTip'))}">${esc(t('ov.epNeck'))}</span>` : ''}`;
+        const rate = Math.round(line.planRate);
+        return `<tr${isNeck ? ' class="el-plan-neck-row"' : ''}><td>${name}</td>
+            <td class="el-plan-time">${atHtml(line.have, line.cap)}</td>
+            <td class="el-plan-time">${atHtml(line.nowAt, line.cap)}</td><td class="el-plan-time">${atHtml(line.planAt, line.cap)}</td>
+            <td class="el-plan-time">${line.have === null ? unknownHtml() : esc(`${rate > 0 ? '+' : ''}${incomeText(line.planRate)}`)}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+/** 建議區外殼（控制項與說明）；body 是結果區的初始內容，離線預覽與正式分區共用。 */
+export function planShellHtml(prefs: PlanPrefs, body: string): string {
+    return `<details class="el-plan"${prefs.open ? ' open' : ''}>
+        <summary class="el-h">${esc(t('ov.epTitle'))}<span class="gl-est" title="${esc(t('ov.epBasis'))}">${esc(t('ov.epEst'))}</span></summary>
+        <div class="ov-toolbar el-plan-bar">
+            <label class="rs-inline"><span title="${esc(t('ov.epAwayTip'))}">${esc(t('ov.epAway'))}</span>
+                <input type="number" class="rs-search el-plan-hours" min="0.5" max="168" step="0.5" value="${prefs.hours}" aria-label="${esc(t('ov.epAway'))}">
+                <span>${esc(t('ov.epHoursUnit'))}</span></label>
+            <label class="rs-inline"><span title="${esc(t('ov.epSleepTip'))}">${esc(t('ov.epSleep'))}</span>
+                <input type="number" class="rs-search el-plan-hours el-plan-sleep" min="0" max="${PLAN_MAX_SLEEP}" step="0.5" value="${prefs.sleep}" aria-label="${esc(t('ov.epSleep'))}">
+                <span>${esc(t('ov.epHoursUnit'))}</span></label>
+            <div class="el-plan-pick"><span class="el-label">${esc(t('ov.epPick'))}</span>${PLAN_KEYS.map(key =>
+        `<label class="eo-chip"><input type="checkbox" class="el-plan-key" value="${key}" ${prefs.chosen.includes(key) ? 'checked' : ''}>${esc(keyName(key))}</label>`).join('')}</div>
+        </div>
+        <p class="ov-note dim">${esc(t('ov.epBasis'))}</p>
+        <div class="el-plan-body">${body}</div>
+    </details>`;
+}
+
+/** 建議區的結果（組合、各資材到上限天數、月常）；控制項不在這裡，重繪不會打斷輸入。 */
+export function planResultHtml(view: PlanView): string {
+    const { plan } = view;
+    let main: string;
+    if (!view.hasMaster) main = `<div class="ov-empty">${esc(t('ov.epNoMaster'))}</div>`;
+    else if (!view.chosen.length) main = `<div class="ov-empty">${esc(t('ov.epNoKeys'))}</div>`;
+    else if (!plan.candidateCount) main = `<div class="ov-empty">${esc(t('ov.epNoRecords'))}</div>`;
+    else {
+        const when = view.deadline ? t('ov.epWhenDeadline', { date: view.deadline }) : t('ov.epWhenDays', { n: Math.round(plan.horizonDays) });
+        const notes = [
+            view.noFlow ? t('ov.epNoFlow') : '',
+            t('ov.epProfile', { gs: Math.round(plan.profile.great * 100), bonus: plan.profile.bonus.toFixed(2), n: MIN_RUNS }),
+        ].filter(Boolean).map(note => `<p class="ov-note dim el-plan-note">${esc(note)}</p>`).join('');
+        const night = plan.sleep.length
+            ? `<h4 class="el-h">${esc(t('ov.epOnline'))}</h4>${missionTableHtml(plan.top, view.chosen, false)}
+                <h4 class="el-h" title="${esc(t('ov.epNightTip'))}">${esc(t('ov.epNight', { h: plan.sleepMinutes / 60 }))}</h4>${missionTableHtml(plan.sleep, view.chosen, false)}`
+            : missionTableHtml(plan.top, view.chosen, false);
+        main = `${notes}${night}
+            <h4 class="el-h">${esc(t('ov.epOutlook', { when }))}</h4>${outlookTableHtml(plan, when)}
+            <details class="el-plan-all"><summary class="el-h">${esc(t('ov.epAll', { n: plan.candidates.length }))}</summary>
+            ${plan.focus ? `<p class="ov-note dim">${esc(t('ov.epAllNote', { item: keyName(plan.focus) }))}</p>` : ''}${missionTableHtml(plan.candidates, view.chosen, true)}</details>`;
+    }
+    const monthly = plan.monthly.length ? `<h4 class="el-h">${esc(t('ov.epMonthly'))}</h4>
+        <p class="ov-note dim">${esc(t('ov.epMonthlyNote'))}</p>
+        <div class="el-table-wrap"><table class="el-table el-plan-table"><thead><tr><th>${esc(t('ov.expedColMission'))}</th><th>${esc(t('ov.epLastSuccess'))}</th></tr></thead><tbody>${plan.monthly.map(row => {
+        const name = expedDisplayName(row.missionId, row.name);
+        return `<tr><td><div class="el-type"><b title="${esc(name)}">${esc(name)}</b><span>${esc(row.dispNo)}</span></div></td>
+            <td class="el-plan-time">${row.lastSuccessTs === null ? `<span class="el-none">${esc(t('ov.epNever'))}</span>` : esc(formatDate(row.lastSuccessTs))}</td></tr>`;
+    }).join('')}</tbody></table></div>` : '';
+    return `${main}${monthly}`;
+}
+
 /** 活動期間捷徑的選項文字（`db.resourceMarks` 推出來的區段，見 utils/resource-log.ts）。 */
 function periodLabel(period: EventPeriod, ctx: SectionContext): string {
     const name = ctx.state.mapAreaName(period.area) || `#${period.area}`;
@@ -268,8 +420,13 @@ export const expedLogSection: OverviewSection = {
     async render(el, ctx) {
         // 先畫殼，再讀 IndexedDB；讀取被其他頁面的 schema 升級阻塞時也不能留下空白分區。
         const prefs = loadPrefs();
+        const planPrefs = loadPlanPrefs();
+        // 備蓄卡片的連結（#/exped-log?plan=1）：展開建議區並捲到它；參數只用一次。
+        const wantPlan = hashParams().get('plan') === '1';
+        if (wantPlan) { planPrefs.open = true; clearHashParams(); }
         let page = 1;
         el.innerHTML = `<div class="el">
+            ${planShellHtml(planPrefs, `<div class="ov-empty">${esc(t('ov.loading'))}</div>`)}
             <p class="ov-note">${esc(t('ov.expedStatsNote'))}</p>
             <div class="ov-toolbar el-bar">
                 <span class="el-label">${esc(t('ov.rlRange'))}</span>
@@ -312,6 +469,69 @@ export const expedLogSection: OverviewSection = {
 
         let all: ExpeditionRow[] = [];        // 時間降冪（新的在上）
         let periods: EventPeriod[] = [];
+
+        // ── 遠征組合建議（控制項只建一次，只重繪 .el-plan-body）──────────────
+        const planBox = el.querySelector<HTMLDetailsElement>('.el-plan')!;
+        const planBody = el.querySelector<HTMLElement>('.el-plan-body')!;
+        const planPick = el.querySelector<HTMLElement>('.el-plan-pick')!;
+        const hoursInput = el.querySelector<HTMLInputElement>('.el-plan-hours:not(.el-plan-sleep)')!;
+        const sleepInput = el.querySelector<HTMLInputElement>('.el-plan-sleep')!;
+        let planData: { goals: RemodelGoal[]; stockpile: StockpileGoal | null; flow: ObservedFlow | null } | null = null;
+
+        function drawPlan() {
+            if (!planData) return;
+            try {
+                const { goals, stockpile, flow } = planData;
+                // 改造目標的需求視為已花掉（同備蓄）；有沒有設備蓄都一樣扣。
+                const lines = stockpileLinesOf(ctx.state, goals, stockpile ?? { until: null }, { flow, now: Date.now() });
+                const free = Object.fromEntries(lines.map(line => [line.key, line.have === null ? null : line.have - line.reserved]));
+                const caps = Object.fromEntries(lines.map(line => [line.key, line.cap])) as Record<PlanKey, number>;
+                const missions = [...ctx.state.masterMissions].map(([id, m]) =>
+                    ({ id, dispNo: m.dispNo, name: m.name, time: m.time, resetType: m.resetType, winItems: m.winItems, use: m.use }));
+                // 遠征紀錄的編成存的是當時語言的顯示名稱：原名與目前語言的譯名都收。
+                const shipMax = new Map<string, [number, number]>();
+                for (const [id, m] of ctx.state.master) {
+                    shipMax.set(m.name, [m.fuelMax, m.bullMax]);
+                    shipMax.set(ctx.state.shipName(id), [m.fuelMax, m.bullMax]);
+                }
+                const needs = resourceNeeds(planPrefs.chosen, free, caps, flow, all, missions, shipMax);
+                const deadline = stockpile?.until ?? null;
+                const now = Date.now();
+                const end = deadline ? dateEnd(deadline) : null;
+                const horizonDays = end !== null ? Math.max(0, (end - now) / DAY_MS) : PLAN_DEFAULT_HORIZON_DAYS;
+                const plan = planExpeditions({ missions, records: all, intervalMinutes: planPrefs.hours * 60, sleepMinutes: planPrefs.sleep * 60, needs, horizonDays, shipMax });
+                planBody.innerHTML = planResultHtml({
+                    plan, chosen: needs.map(need => need.key), hasMaster: missions.length > 0,
+                    noFlow: needs.every(need => need.base === null), deadline,
+                });
+            } catch (error) {
+                planBody.innerHTML = `<div class="ov-empty">${esc(String(error))}</div>`;
+            }
+        }
+        planBox.addEventListener('toggle', () => {
+            planPrefs.open = planBox.open;
+            saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
+        });
+        hoursInput.addEventListener('input', () => {
+            const hours = Number(hoursInput.value);
+            if (!(hours > 0 && hours <= 168)) return;   // 輸入到一半（空白、0）不重算也不存
+            planPrefs.hours = hours;
+            saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
+            drawPlan();
+        });
+        sleepInput.addEventListener('input', () => {
+            const sleep = Number(sleepInput.value);
+            if (sleepInput.value === '' || !(sleep >= 0 && sleep <= PLAN_MAX_SLEEP)) return;   // 輸入到一半不重算也不存
+            planPrefs.sleep = sleep;
+            saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
+            drawPlan();
+        });
+        planPick.addEventListener('change', () => {
+            planPrefs.chosen = PLAN_KEYS.filter(key =>
+                el.querySelector<HTMLInputElement>(`.el-plan-key[value="${key}"]`)?.checked);
+            saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
+            drawPlan();
+        });
 
         /**
          * 目前的期間。自訂日期只要填了任一端就蓋過捷徑窗（另一端維持不設限），
@@ -481,5 +701,14 @@ export const expedLogSection: OverviewSection = {
             count.textContent = '';
             body.innerHTML = `<div class="ov-empty">${esc(String(error))}</div>`;
         }
+        // 建議區的資料獨立載入，失敗只影響它自己；流量讀不到只讓推算少一個依據（備蓄的到上限天數不可考）。
+        try {
+            const [goalRows, flow] = await Promise.all([db.goals.toArray(), loadGoalFlow(ctx.state).catch(() => null)]);
+            planData = { goals: goalsFromRows(goalRows), stockpile: stockpileFromRows(goalRows), flow };
+            drawPlan();
+        } catch (error) {
+            planBody.innerHTML = `<div class="ov-empty">${esc(String(error))}</div>`;
+        }
+        if (wantPlan) planBox.scrollIntoView({ block: 'start' });
     },
 };

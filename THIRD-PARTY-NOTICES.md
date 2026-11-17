@@ -504,6 +504,20 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 月常遠征（`api_reset_type`）
+
+- **封包欄位**：`api_start2/getData` 的 `api_mst_mission[].api_reset_type`，值為 1 的遠征每月只能通關一次。
+  `samples/start2-master.json` 中值為 1 的有 16 條（42、43、44、46、A4–A6、B2–B6、D2、D3、E1、E2）；
+  語意依下列兩個專案的解析交叉比對：
+  - KC3Kai `src/pages/devtools/themes/natsuiro/natsuiro.js` — https://github.com/KC3Kai/KC3Kai ，MIT License，
+    Copyright (c) 2015-2026 dragonjet（遠征規劃以 `api_reset_type == 1` 標示月常並接每月重置時間）
+  - ElectronicObserver `ElectronicObserver/Data/MissionData.cs` — https://github.com/andanteyk/ElectronicObserver ，
+    MIT License，Copyright (c) 2014 Andante（`ResetType => api_reset_type`，註解為進捗リセットタイミング）
+- **用途**：`utils/state.ts` 把值存進 `masterMissions`，`utils/expedition-plan.ts` 據此把月常遠征排除在排序外；
+  只採用欄位名稱與語意，未複製第三方程式碼。
+
+---
+
 ## 解體與近代化改修的裝備去留
 
 - **封包欄位**：解體走 `api_req_kousyou/destroyship`、廢棄裝備走 `api_req_kousyou/destroyitem2`；解體與

@@ -4016,7 +4016,7 @@
 
         /* 各遠征次數與收穫＝次要的查詢工具（主體是逐筆明細），收進 <details> 放在明細下方。
            summary 沿用 .el-h 的字級／字色，只補 caret 與游標。 */
-        .el-stats>summary {
+        :is(.el-stats, .el-plan, .el-plan-all)>summary {
             display: flex;
             align-items: center;
             gap: 6px;
@@ -4024,20 +4024,39 @@
             list-style: none;
         }
 
-        .el-stats>summary::-webkit-details-marker { display: none; }
+        :is(.el-stats, .el-plan, .el-plan-all)>summary::-webkit-details-marker { display: none; }
 
-        .el-stats>summary::before {
+        :is(.el-stats, .el-plan, .el-plan-all)>summary::before {
             content: '▸';
             display: inline-block;
             width: 12px;
             font-size: 10px;
         }
 
-        .el-stats[open]>summary::before { content: '▾'; }
-        .el-stats>summary:hover { color: var(--text); }
-        .el-stats>summary:hover::before { color: var(--sparkle); }
+        :is(.el-stats, .el-plan, .el-plan-all)[open]>summary::before { content: '▾'; }
+        :is(.el-stats, .el-plan, .el-plan-all)>summary:hover { color: var(--text); }
+        :is(.el-stats, .el-plan, .el-plan-all)>summary:hover::before { color: var(--sparkle); }
 
         .el-stats .el-table-wrap { max-height: min(50vh, 460px); }
+
+        /* 遠征組合建議：沿用彙總表的表格與晶片，只補容器間距與數字欄對齊。 */
+        .el-plan { max-width: 900px; margin-bottom: 12px; }
+        .el-plan-bar { gap: 8px 16px; align-items: center; }
+        .el-plan-hours { width: 72px; min-width: 0; }
+        .el-plan-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+        .el-plan-note { margin-bottom: 4px; }
+        .el-plan-table { table-layout: fixed; width: 100%; min-width: 520px; }
+        .el-plan-table th:nth-child(2) { width: 104px; }
+        .el-plan-table th:nth-child(4) { width: 76px; }
+        .el-plan-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .el-plan-n { border-bottom: 1px dashed currentColor; cursor: help; }
+        .el-plan-outlook { width: auto; min-width: 360px; margin-top: 8px; }
+        .el-plan-outlook td:not(:first-child), .el-plan-outlook th:not(:first-child) { text-align: right; }
+        .el-plan-neck-row td { font-weight: 700; }
+        .el-plan-est b { font-style: italic; font-weight: 400; }
+        .el-plan-all { margin-top: 8px; }
+        .el-plan-neck { font-size: 11px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font-weight: 400; }
+        .el-plan .el-table-wrap { max-height: none; }
         .el-sum-table .el-num { text-align: right; font-variant-numeric: tabular-nums; }
         .el-sum-table th.on { color: var(--text); }
 

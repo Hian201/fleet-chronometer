@@ -875,7 +875,10 @@ export class GameState {
     exSlotItemShips = new Map<number, { shipIds: Set<number>; stypes: Set<number>; ctypes: Set<number>; reqLevel: number }>();
     exSlotLimit = new Map<number, Set<number>>();
     masterMapAreas = new Map<number, string>();
-    masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number }>();
+    // resetType：api_reset_type（0＝可重複、1＝每月只能通關一次的月常遠征）。依據見 start2 解析處。
+    // winItems：[api_win_item1, api_win_item2]，各為 [useitem id, 數量]（0 為無）；1＝成功或大成功時隨機、2＝大成功限定。
+    // use：[api_use_fuel, api_use_bull]，遠征出發時各艦燃彈的消費率。
+    masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number; resetType: number; winItems: [number, number][]; use: [number, number] }>();
     ships = new Map<number, any>();
     // locked：api_locked（1＝鎖定）；局部資料不帶時沿用既有值，新取得的裝備為未鎖定。
     slotItems = new Map<number, { mst: number; level: number; alv: number; locked?: boolean }>();
@@ -1775,11 +1778,20 @@ export class GameState {
                 this.shipEquipOverride.set(Number(mstId), new Set(Object.keys(et).map(Number)));
             }
         }
+        // api_reset_type === 1 為每月只能通關一次的月常遠征（遠征組合建議不把它們放進每小時收益排序）。
+        // 依 KC3Kai src/pages/devtools/themes/natsuiro/natsuiro.js（遠征規劃以 api_reset_type == 1 標 "(M)"
+        // 並接每月重置時間）與 ElectronicObserver ElectronicObserver/Data/MissionData.cs（ResetType => api_reset_type，
+        // 註解「進捗リセットタイミング」）交叉比對；samples/start2-master.json 中值為 1 的有 16 條
+        // （42、43、44、46、A4–A6、B2–B6、D2、D3、E1、E2）。
         for (const m of api.api_mst_mission ?? [])
             this.masterMissions.set(m.api_id, {
                 dispNo: m.api_disp_no, name: m.api_name,
                 maparea: m.api_maparea_id ?? 0, time: m.api_time ?? 0,
                 deckNum: m.api_deck_num ?? 0,
+                resetType: m.api_reset_type ?? 0,
+                winItems: [m.api_win_item1, m.api_win_item2].map(item =>
+                    (Array.isArray(item) ? [Number(item[0]) || 0, Number(item[1]) || 0] : [0, 0]) as [number, number]),
+                use: [Number(m.api_use_fuel) || 0, Number(m.api_use_bull) || 0],
             });
     }
 

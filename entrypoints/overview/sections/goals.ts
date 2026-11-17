@@ -217,22 +217,28 @@ function atDeadlineHtml(line: StockpileLine): string {
     return esc(low === high ? fmtNum(low) : `${fmtNum(low)}–${fmtNum(high)}`);
 }
 
+/** 備蓄各資材的推算：改造目標的需求視為已花掉，再依觀測流量推到上限。遠征組合建議（exped-log）共用。 */
+export function stockpileLinesOf(state: GameState, goals: readonly RemodelGoal[], stockpile: StockpileGoal, eta: GoalEta): StockpileLine[] {
+    const { totals } = goalPlans(state, goals, eta);
+    const reserved = Object.fromEntries(totals.map(line => [line.key, line.need]));
+    return stockpileOutlook(remodelStockOf(state), reserved, eta.flow, daysToDeadline(stockpile, eta.now));
+}
+
 /**
  * 備蓄卡片的內容（說明與表格）。卡片外殼（期限輸入、移除鈕）只在出現時建一次，重繪只換這裡，
  * 期限輸入框才不會被打斷（design-guidelines §4.2）。
  */
 export function stockpileBodyHtml(state: GameState, goals: readonly RemodelGoal[], stockpile: StockpileGoal, eta: GoalEta): string {
-    const { totals } = goalPlans(state, goals, eta);
-    const reserved = Object.fromEntries(totals.map(line => [line.key, line.need]));
     const deadline = daysToDeadline(stockpile, eta.now);
-    const lines = stockpileOutlook(remodelStockOf(state), reserved, eta.flow, deadline);
+    const lines = stockpileLinesOf(state, goals, stockpile, eta);
     const ahead = deadline !== null && deadline > 0;
     const withReserved = lines.some(line => line.reserved > 0);
     const notes: string[] = [];
     if (!eta.flow) notes.push(esc(t('ov.gsNoFlow')));
     if (deadline !== null && !ahead) notes.push(esc(t('ov.gsPast')));
     const filling = lines.filter(line => line.fillsBeforeDeadline);
-    if (filling.length) notes.push(`<b>${esc(t('ov.gsFills', { items: filling.map(line => goalCostName(state, line.key)).join(t('ov.gsSep')) }))}</b>`);
+    // 連到遠征紀錄的組合建議（換哪條遠征由那裡回答，目標規劃不列遠征）。
+    if (filling.length) notes.push(`<b>${esc(t('ov.gsFills', { items: filling.map(line => goalCostName(state, line.key)).join(t('ov.gsSep')) }))}</b> <a class="rs-goal" href="#/exped-log?plan=1">${esc(t('ov.gsFillsLink'))}</a>`);
     const heads = ['ov.glColItem', 'ov.glColStock', ...(withReserved ? ['ov.gsColReserved'] : []), 'ov.gsColToCap', ...(ahead ? ['ov.gsColAtDeadline'] : [])];
     const rows = lines.map(line => `<tr><td>${esc(goalCostName(state, line.key))}</td><td class="gl-num">${numOrUnknown(line.have)}</td>${withReserved
         ? `<td class="gl-num">${line.reserved > 0 ? esc(fmtNum(line.reserved)) : ''}</td>` : ''}<td class="gl-num gl-eta-cell">${toCapCellHtml(line)}</td>${ahead

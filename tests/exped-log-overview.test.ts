@@ -3,7 +3,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { groupByMission, summarize } from '../utils/expedition-stats';
-import { COLUMNS, defaultPrefs, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
+import { MIN_RUNS, planExpeditions, type ResourceNeed } from '../utils/expedition-plan';
+import { COLUMNS, defaultPrefs, planResultHtml, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
 import { setLang, t } from '../utils/ui-i18n';
 import { formatDateTime } from '../utils/date-format';
 import { parseHTML } from 'linkedom';
@@ -186,5 +187,61 @@ describe('逐筆明細的編成欄', () => {
         const fleetCol = COLUMNS.find(c => c.id === 'fleet')!;
         expect(fleetCol.text(exped({ ts: 1000, fleet: [{ name: '睦月', level: 30 }] })))
             .toBe('睦月 Lv30');
+    });
+});
+
+describe('遠征組合建議', () => {
+    const missions = [
+        { id: 905, dispNo: '905', name: '海上護衛任務', time: 90, resetType: 0, winItems: [[0, 0], [1, 1]] as [number, number][], use: [0, 0] as [number, number] },
+        { id: 942, dispNo: '42', name: '月常遠征', time: 60, resetType: 1, winItems: [[0, 0], [0, 0]] as [number, number][], use: [0, 0] as [number, number] },
+    ];
+    const need = (key: ResourceNeed['key'], have: number | null, base: number | null = null, cap = 3000): ResourceNeed =>
+        ({ key, have, cap, base, current: base });
+    const view = (records: ExpeditionRow[], needs: ResourceNeed[] = [need('fuel', 1000, null, 350000)], over: Partial<Parameters<typeof planResultHtml>[0]> = {}) => ({
+        plan: planExpeditions({ missions, records, intervalMinutes: 180, needs, horizonDays: 10 }),
+        chosen: needs.map(n => n.key), hasMaster: true, noFlow: needs.every(n => n.base === null), deadline: null, ...over,
+    });
+    const tenRuns = Array.from({ length: MIN_RUNS }, (_, i) => exped({ ts: 1000 + i, missionId: 905, result: 1, resources: [300, 0, 0, 0] }));
+
+    it('組合、期限時存量比例、全部候選與月常；推算值與沒有成功紀錄的月常寫明', () => {
+        const html = planResultHtml(view([...tenRuns, exped({ ts: 2000, missionId: 942, result: 0 })],
+            [need('fuel', 175000, 100, 350000), need('drum', 300, 1)]));
+        expect(html).toContain('1:30');
+        expect(html).toContain('>300<');
+        expect(html).toContain('el-plan-est');            // 高速修復材修正後的紀錄不足 MIN_RUNS → 推算
+        expect(html).toContain(t('ov.epNever'));
+        expect(html).toContain(t('ov.epAll', { n: 1 }));
+        expect(html).toContain(t('ov.epWhenDays', { n: 10 }));
+        // 燃料：每 3 小時收一次 → 8 趟 × 300 + 100 = 2,500／日，十天後 200,000（57%）；高速修復材 300 + 10 = 310（10%），是瓶頸
+        expect(html).toContain('>57%<');
+        expect(html).toMatch(/el-plan-neck-row"><td>[^]*?高速修復材/);
+        expect(html).not.toContain(t('ov.epNoFlow'));
+    });
+
+    it('沒跑過的遠征標明；沒有流量時說明只用遠征推算；沒有候選時依原因說明', () => {
+        const unrunView = view([]);
+        unrunView.plan = planExpeditions({
+            missions: [{ ...missions[0], id: 5, dispNo: '05' }], records: [], intervalMinutes: 180,
+            needs: [need('fuel', 1000, null, 350000)], horizonDays: 10,
+        });
+        const unrun = planResultHtml(unrunView);
+        expect(unrun).toContain(t('ov.epUnrun'));          // 海上護衛任務有固定報酬，沒跑過也列出
+        expect(unrun).toContain(t('ov.epNoFlow'));
+        expect(planResultHtml({ ...unrunView, deadline: '2026-12-31' })).toContain(t('ov.epOutlook', { when: t('ov.epWhenDeadline', { date: '2026-12-31' }) }));
+        expect(planResultHtml(view([], undefined, { hasMaster: false }))).toContain(t('ov.epNoMaster'));
+        expect(planResultHtml(view([], []))).toContain(t('ov.epNoKeys'));
+        const none = view([]);
+        none.plan = planExpeditions({ missions: [missions[1]], records: [], intervalMinutes: 180, needs: [need('fuel', 0)], horizonDays: 10 });
+        expect(planResultHtml(none)).toContain(t('ov.epNoRecords'));
+    });
+
+    it('有作息離開時分列在線與睡前兩表；沒有時只有一表', () => {
+        const withSleep = view(tenRuns);
+        withSleep.plan = planExpeditions({ missions, records: tenRuns, intervalMinutes: 60, sleepMinutes: 450, needs: [need('fuel', 1000, null, 350000)], horizonDays: 10 });
+        const html = planResultHtml(withSleep);
+        expect(html).toContain(t('ov.epOnline'));
+        expect(html).toContain(t('ov.epNight', { h: 7.5 }));
+        expect(html.split('el-plan-table').length).toBe(1 + 3);     // 在線、睡前、全部候選
+        expect(planResultHtml(view(tenRuns))).not.toContain(t('ov.epOnline'));
     });
 });
