@@ -4885,6 +4885,10 @@
             vertical-align: bottom;
         }
 
+        .rs-goal { color: var(--sparkle); text-decoration: none; white-space: nowrap; }
+        .rs-goal-set { color: var(--dim); font-size: 11px; }
+        .rs-goal:hover, .rs-goal:focus-visible { text-decoration: underline; }
+
         .rs-lock,
         .rs-ring { margin-left: 3px; font-size: 10px; }
 
@@ -8566,6 +8570,10 @@
             border-radius: 8px;
             background: var(--panel);
         }
+        .gl-flash { outline: 2px solid var(--sparkle); outline-offset: 2px; }
+        /* 表格列的 outline 會被捲動容器裁掉，列改用底色標亮 */
+        tr.gl-flash { outline: none; }
+        tr.gl-flash > td { background: color-mix(in srgb, var(--sparkle) 20%, transparent); }
         .gl-card-ready { border-color: color-mix(in srgb, var(--sparkle) 55%, var(--line)); }
         .gl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
         .gl-no {

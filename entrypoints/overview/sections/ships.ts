@@ -21,6 +21,7 @@ import type { OverviewSection } from './types';
 import { db } from '../../../utils/db';
 import { t } from '../../../utils/ui-i18n';
 import { debutDateOf } from '../../../utils/ship-debut-data';
+import { goalsFromRows, remodelTargets } from '../../../utils/remodel-goals';
 import { nationOptions, sallyOptions, stypeOptions } from '../../../utils/ship-filter';
 import { buildStypeLabels, stypeDisplayLabel } from '../../../utils/stype-label';
 import {
@@ -94,7 +95,7 @@ export function toDateInputValue(ts: number): string {
 // ── 欄位定義 ────────────────────────────────────────────────────────────
 
 export type ColumnId =
-    'id' | 'book' | 'stype' | 'nation' | 'name' | 'lv' | 'cond' | 'hp'
+    'id' | 'book' | 'stype' | 'nation' | 'name' | 'lv' | 'goal' | 'cond' | 'hp'
     | 'firepower' | 'torpedo' | 'aa' | 'armor' | 'asw' | 'evasion' | 'los' | 'luck'
     | 'night' | 'released' | 'joined' | 'fleet' | 'sally' | 'gears';
 
@@ -112,6 +113,10 @@ interface RenderCtx {
     mode: StatMode;
     /** 依 sallyArea 取顯示名（供出擊標籤欄）。 */
     tagLabel(sallyArea: number): string;
+    /** 已設改造目標的艦（艦娘實例 id）；目標讀不到時為空集合。 */
+    goalShips: ReadonlySet<number>;
+    /** 這個艦型還有後續改造嗎（決定「加入目標」連結要不要出現）。 */
+    remodelable(masterId: number): boolean;
 }
 
 interface ColumnDef {
@@ -239,6 +244,20 @@ export const COLUMNS: ColumnDef[] = [
         text: s => s.name,
     },
     { id: 'lv', labelKey: 'ov.rsColLv', sort: 'level', numeric: true, on: true, cell: s => String(s.lv), text: s => String(s.lv) },
+    {
+        // 連到目標規劃分區（goals.ts 讀 ?ship= 定位）。已設目標的艦只標「已設」；不能再改造的艦留空。
+        id: 'goal', labelKey: 'ov.rsColGoal', on: true,
+        cell: (s, c) => {
+            const href = `#/goals?ship=${s.id}`;
+            if (c.goalShips.has(s.id)) {
+                return `<a class="rs-goal rs-goal-set" href="${href}" title="${esc(t('ov.rsGoalSetTip'))}">${esc(t('ov.rsGoalSet'))}</a>`;
+            }
+            return c.remodelable(s.masterId)
+                ? `<a class="rs-goal" href="${href}" title="${esc(t('ov.rsGoalAddTip'))}" aria-label="${esc(t('ov.rsGoalAddTip'))}">＋</a>`
+                : '';
+        },
+        text: (s, c) => (c.goalShips.has(s.id) ? t('ov.rsGoalSet') : ''),
+    },
     {
         id: 'cond', labelKey: 'ov.rsColCond', sort: 'cond', numeric: true, on: true,
         cell: s => `<span class="rs-cond ${condClass(s.cond)}">${s.cond}</span>`, text: s => String(s.cond),
@@ -481,6 +500,25 @@ interface Prefs {
     open: boolean;
 }
 
+/**
+ * 偏好開始記錄「已知欄位」之前就存在的欄位。之後新增的欄位不得加進這裡：舊偏好沒有 known，
+ * 用這份名單判斷哪些欄位是使用者存偏好之後才出現的。
+ */
+const COLUMNS_BEFORE_KNOWN: readonly ColumnId[] = [
+    'id', 'book', 'stype', 'nation', 'name', 'lv', 'cond', 'hp', 'firepower', 'torpedo', 'aa', 'armor', 'asw',
+    'evasion', 'los', 'luck', 'night', 'released', 'joined', 'fleet', 'sally', 'gears',
+];
+
+/**
+ * 存過的欄位開關＋存偏好之後才新增的欄位。偏好只記「開了哪些」，新增的欄位若不另外處理，
+ * 對既有使用者會一律隱藏；這裡讓新欄位照它的預設值顯示，使用者自己關掉的欄位維持關閉。
+ */
+export function mergeSavedColumns(saved: readonly unknown[], known: readonly unknown[] | null): ColumnId[] {
+    const seen = new Set<unknown>(known ?? COLUMNS_BEFORE_KNOWN);
+    const ids = new Set<unknown>(saved);
+    return COLUMNS.filter(c => ids.has(c.id) || (c.on && !seen.has(c.id))).map(c => c.id);
+}
+
 const defaultPrefs = (): Prefs => ({
     cols: COLUMNS.filter(c => c.on).map(c => c.id),
     size: 20, sort: 'level', dir: 'desc', mode: 'shown', open: false,
@@ -491,9 +529,8 @@ function loadPrefs(): Prefs {
     return loadJsonPrefs(PREFS_KEY, d, raw => {
         if (!raw || typeof raw !== 'object') return d;
         const r = raw as Record<string, unknown>;
-        const ids = new Set(COLUMNS.map(c => c.id));
         return {
-            cols: Array.isArray(r.cols) ? r.cols.filter((c: ColumnId) => ids.has(c)) : d.cols,
+            cols: Array.isArray(r.cols) ? mergeSavedColumns(r.cols, Array.isArray(r.known) ? r.known : null) : d.cols,
             size: parsePageSize(r.size, PAGE_SIZES, d.size),
             sort: COLUMNS.some(c => c.sort === r.sort) ? r.sort as Prefs['sort'] : d.sort,
             dir: r.dir === 'asc' || r.dir === 'desc' ? r.dir : d.dir,
@@ -504,7 +541,8 @@ function loadPrefs(): Prefs {
     });
 }
 
-const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, p); };
+// known：存檔當下的全部欄位，下次載入時據此分辨「使用者關掉的」與「之後才新增的」欄位。
+const savePrefs = (p: Prefs) => { saveJsonPrefs(PREFS_KEY, { ...p, known: COLUMNS.map(c => c.id) }); };
 
 // ── section ─────────────────────────────────────────────────────────────
 
@@ -528,7 +566,10 @@ export const shipsSection: OverviewSection = {
         const stypeLabel = new Map<number, string>();
         // 標籤名 API 不提供（見 utils/event-plan.ts 檔頭），故只顯示遊戲給的數字 id。
         const tagLabel = (id: number) => `#${id}`;
-        const renderCtx: RenderCtx = { mode: prefs.mode, tagLabel };
+        const renderCtx: RenderCtx = {
+            mode: prefs.mode, tagLabel, goalShips: new Set(),
+            remodelable: masterId => remodelTargets(ctx.state, masterId).length > 0,
+        };
 
         el.innerHTML = `
         <div class="rs">
@@ -858,6 +899,9 @@ export const shipsSection: OverviewSection = {
                 tableEl.innerHTML = `<div class="ov-empty">${esc(t('ov.shipsNone'))}</div>`;
                 return;
             }
+            // 目標讀不到只影響「目標」欄的標示（全部顯示為可加入），不擋名冊。
+            const goalRows = await db.goals.toArray().catch(() => []);
+            renderCtx.goalShips = new Set(goalsFromRows(goalRows).map(goal => goal.shipId));
             roster = buildRoster(rows);
             buildStypeLabels(roster, stypeLabel);
             // 艦種／國籍／標籤選項依名冊填充（殼上先留空容器，避免 await 前整區空白）。

@@ -22,7 +22,7 @@ import { normalizeSamples } from '@/utils/resource-log';
 import { DAY_MS, formatDate } from '@/utils/date-format';
 import { db, type GoalRow, type ResourceRow } from '@/utils/db';
 import { STOCKPILE_GOAL_KEY, stockpileFromRows, stockpileOutlook, stockpileToRow, type StockpileGoal, type StockpileLine } from '@/utils/stockpile';
-import { dateStart, esc, fmtNum, fuzzyMatch } from '../lib';
+import { clearHashParams, dateStart, esc, fmtNum, fuzzyMatch, hashParams } from '../lib';
 
 /** 消耗項的顯示名：資材走既有文案，道具走道具目錄，缶走裝備譯名；查不到不自編名稱。 */
 export function goalCostName(state: GameState, key: RemodelCostKey): string {
@@ -160,7 +160,7 @@ function cardHtml(state: GameState, plan: GoalPlan, arrival: GoalArrival | null,
         : '';
     const head = `<div class="gl-head"><span class="gl-no">${index + 1}</span>${who}<span class="gl-target">${esc(state.shipName(plan.goal.targetMst))}</span>${ready ? `<span class="gl-ready">${esc(t('ov.glReady'))}</span>` : ''}<span class="grow"></span>${moveButtons(plan.goal.shipId, index, count)}</div>`;
     if (plan.status !== 'active' || !plan.level) {
-        return `<article class="gl-card gl-idle">${head}<p class="gl-reason">${esc(t(REASON_KEY[plan.status as keyof typeof REASON_KEY]))}</p></article>`;
+        return `<article class="gl-card gl-idle" data-ship="${plan.goal.shipId}">${head}<p class="gl-reason">${esc(t(REASON_KEY[plan.status as keyof typeof REASON_KEY]))}</p></article>`;
     }
     const path = plan.steps.length > 1
         ? `<div class="gl-path">${[plan.steps[0].from, ...plan.steps.map(step => step.to)].map(id => esc(state.shipName(id))).join(' → ')}</div>` : '';
@@ -175,7 +175,7 @@ function cardHtml(state: GameState, plan: GoalPlan, arrival: GoalArrival | null,
     const table = plan.lines.length
         ? costTableHtml(state, ['ov.glColItem', 'ov.glColNeed', 'ov.glColAvail', 'ov.glColShort', ...(etaLines ? ['ov.glColEta'] : [])],
             plan.lines.map(line => lineRow(state, line, etaLines !== null, etaLines?.get(line.key)))) : '';
-    return `<article class="gl-card${ready ? ' gl-card-ready' : ''}">${head}${path}${levelRow}${etaSummaryHtml(arrival, eta)}${table}</article>`;
+    return `<article class="gl-card${ready ? ' gl-card-ready' : ''}" data-ship="${plan.goal.shipId}">${head}${path}${levelRow}${etaSummaryHtml(arrival, eta)}${table}</article>`;
 }
 
 /** 改造目標清單（卡片）；改造與備蓄都沒有時是一句提示。 */
@@ -393,6 +393,27 @@ export const goalsSection: OverviewSection = {
             el.querySelector('.gl-cands')!.innerHTML = goalCandidatesHtml(ctx.state, goals, search());
         });
         ctx.onStateChange?.(() => { if (el.isConnected) draw(); });
+        // 艦娘全覽的 #/goals?ship=<艦娘 id>：已有目標就捲到該卡片，否則展開新增區、定位候選列並聚焦目標下拉。
+        // 兩者都找不到（不能改造或已不在名冊）時不做事；參數只用一次，用完從網址移除。
+        const focusShipFromHash = () => {
+            const param = hashParams().get('ship');
+            if (param === null) return;
+            clearHashParams();
+            const shipId = Number(param);
+            if (!Number.isSafeInteger(shipId) || shipId <= 0) return;
+            const flash = (target: HTMLElement) => {
+                target.scrollIntoView({ block: 'center' });
+                target.classList.add('gl-flash');
+                setTimeout(() => target.classList.remove('gl-flash'), 2000);
+            };
+            const card = el.querySelector<HTMLElement>(`.gl-card[data-ship="${shipId}"]`);
+            if (card) { flash(card); return; }
+            const row = el.querySelector<HTMLElement>(`.gl-cands tr[data-ship="${shipId}"]`);
+            if (!row) return;
+            el.querySelector<HTMLDetailsElement>('details.gl-add')!.open = true;
+            flash(row);
+            row.querySelector<HTMLSelectElement>('.gl-pick')?.focus({ preventScroll: true });
+        };
         try {
             // 流量讀不到只影響湊齊日（顯示不可考），不擋住目標本身。
             [rows, flow] = await Promise.all([
@@ -407,5 +428,6 @@ export const goalsSection: OverviewSection = {
         stockpile = stockpileFromRows(rows);
         loaded = true;
         draw();
+        focusShipFromHash();
     },
 };

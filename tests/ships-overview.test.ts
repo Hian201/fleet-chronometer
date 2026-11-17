@@ -4,7 +4,7 @@ import { KcDb, type ShipObtainedRow } from '../utils/db';
 import { SHIP_NAMES } from '../utils/gamedata-names';
 import { GameState } from '../utils/state';
 import {
-    COLUMNS, buildRoster, loadOwnedShipRows, rosterCsv, rosterTableHtml, visibleColumns,
+    COLUMNS, buildRoster, loadOwnedShipRows, mergeSavedColumns, rosterCsv, rosterTableHtml, visibleColumns,
     type ColumnId, type TableView,
 } from '../entrypoints/overview/sections/ships';
 import {
@@ -55,7 +55,10 @@ const view = (cols?: ColumnId[]): TableView => ({
     cols: new Set(cols ?? COLUMNS.filter(c => c.on).map(c => c.id)),
     sort: 'level', dir: 'desc', mode: 'shown',
 });
-const ctx = { mode: 'shown' as const, tagLabel: (id: number) => `#${id}` };
+const ctx = {
+    mode: 'shown' as const, tagLabel: (id: number) => `#${id}`,
+    goalShips: new Set<number>(), remodelable: () => false,
+};
 
 afterEach(async () => {
     for (const database of databases.splice(0)) {
@@ -167,6 +170,15 @@ describe('艦娘全覽的入手觀測關聯與畫面資料', () => {
         expect(csv[0]).toBe(`${t('ov.rsColName')},${t('ov.rsColGears')}`);
         // 兩件裝備以 ' / ' 相連、不含逗號，故不需引號；空槽輸出「空裝」文字而非留白。
         expect(csv[1]).toBe(`Alpha <Ship>,Gun <Mk.1>★4 / ${t('ov.rsEmptySlot')}`);
+    });
+
+    it('欄位偏好：存偏好之後新增的預設開啟欄位要顯示，使用者關掉的欄位維持關閉', () => {
+        // 舊偏好（沒有 known）：目標欄是之後才新增的，預設開啟；國籍欄是使用者沒開的舊欄位
+        expect(mergeSavedColumns(['lv', 'gears'], null)).toEqual(['lv', 'goal', 'gears']);
+        // 新偏好：目標欄已在 known 裡，沒勾就是使用者關掉的
+        expect(mergeSavedColumns(['lv'], COLUMNS.map(c => c.id))).toEqual(['lv']);
+        // 不認得的欄位丟棄
+        expect(mergeSavedColumns(['lv', 'bogus'], COLUMNS.map(c => c.id))).toEqual(['lv']);
     });
 
     it('艦名欄 always：prefs 未勾選時仍出現在表格／CSV', () => {

@@ -9,6 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { GameState } from '../../utils/state';
+import { remodelTargets } from '../../utils/remodel-goals';
 import { buildRoster, rosterTableHtml, COLUMNS, type StatMode, type TableView } from '../../entrypoints/overview/sections/ships';
 import { sortRoster } from '../../utils/ship-roster';
 import { esc } from '../../entrypoints/overview/lib';
@@ -36,7 +37,7 @@ for (const lang of langs) {
     const cols = new Set(COLUMNS.filter(c => c.on && c.id !== 'released' && c.id !== 'joined').map(c => c.id));
     const table = (mode: StatMode, rows: typeof roster) => {
         const view: TableView = { cols, sort: 'aa', dir: 'desc', mode };
-        return rosterTableHtml(rows, view, { mode, tagLabel: id => `#${id}` });
+        return rosterTableHtml(rows, view, { mode, tagLabel: id => `#${id}`, goalShips: new Set(), remodelable: id => remodelTargets(state, id).length > 0 });
     };
     // 結婚艦與做過特殊改修的艦排前面，確保預覽看得到耐久／對潛／運的各種狀態。
     const remainRows = sortRoster(roster, 'aa', 'desc', true).slice(0, 20);
