@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { GameState } from '../../utils/state';
 import { setLang, t } from '../../utils/ui-i18n';
 import type { Lang } from '../../utils/gamedata-i18n';
-import { goalsHtml } from '../../entrypoints/overview/sections/goals';
+import { goalsHtml, type GoalEta } from '../../entrypoints/overview/sections/goals';
 import { remodelTargets, type RemodelGoal } from '../../utils/remodel-goals';
 // 離線預覽也要顯示艦名與介面文案：安裝 state.ts 的顯示命名（見 utils/state-format.ts）。
 import '../../utils/state-display';
@@ -29,6 +29,10 @@ state.applyEvent('api_port/port', readJson('samples/slot_to_port.json').api_data
 // 只覆寫這個 GameState 實例的讀取方法，不寫任何檔案或 DB。
 const FAKE_USEITEM: Record<number, number> = { 58: 3, 78: 1, 94: 4 };
 state.useItemCount = (id: number) => FAKE_USEITEM[id] ?? null;
+// 資材也壓低，讓彈藥、鋼材、開發資材出現缺口，才看得到到達日的各種狀態（api_material 的 api_id）。
+const FAKE_MATERIAL: Record<number, number> = { 2: 6000, 3: 9000, 5: 600, 7: 120, 8: 40 };
+const realMaterial = state.materialCount.bind(state);
+state.materialCount = (id: number) => FAKE_MATERIAL[id] ?? realMaterial(id);
 
 // 目標（實例 id 取自 slot_to_port.json）：
 //   稲木改 Lv81 → 稲木改二：等級已達、道具夠 → 可改造
@@ -52,6 +56,22 @@ for (const goal of GOALS) {
     goal.targetMst = ship ? remodelTargets(state, ship.masterId).at(-1)! : 911;
 }
 
+// 預覽專用的假流量（每日淨增加）：彈藥兩端都為正 → 區間；鋼材最慢一週為負 → 只有下界；
+// 開發資材每週都沒增加 → 湊不齊。起點固定，預覽輸出的日期才穩定。
+const ETA: GoalEta = {
+    now: Date.UTC(2026, 10, 17, 3),
+    flow: {
+        fromTs: 0, toTs: 0, weeks: 4,
+        rates: {
+            ammo: { low: 300, high: 900, mean: 600 },
+            steel: { low: -50, high: 600, mean: 250 },
+            torch: { low: 2, high: 5, mean: 3 },
+            devmat: { low: -10, high: 0, mean: -4 },
+            screw: { low: 1, high: 3, mean: 2 },
+        },
+    },
+};
+
 const SCENES = [
     { title: '1366 寬（側欄釘選）', width: 1366 - 200, pad: '16px 20px' },
     { title: '760 寬（側欄浮層）', width: 760, pad: '12px 12px 20px' },
@@ -64,10 +84,11 @@ function page(lang: Lang, theme: 'dark' | 'light'): string {
     setLang(lang);
     // 預覽把「新增目標」展開，候選表格才看得到（正式分區有目標時預設收合）
     const blocks = SCENES.map(scene => `<h2 class="pv-title">${scene.title}<small>內容區 ${scene.width}px</small></h2>
-        <div class="pv-frame" style="width:${scene.width}px;padding:${scene.pad}"><div class="ov-section-host">${goalsHtml(state, GOALS, '').replace('<details class="gl-add"', '<details class="gl-add" open')}</div></div>`);
+        <div class="pv-frame" style="width:${scene.width}px;padding:${scene.pad}"><div class="ov-section-host">${goalsHtml(state, GOALS, '', ETA).replace('<details class="gl-add"', '<details class="gl-add" open')}</div></div>`);
     // 空狀態與「遊戲資料尚未載入」各一格（只看 1366 寬）
-    const empty = `<h2 class="pv-title">沒有目標</h2><div class="pv-frame" style="width:${SCENES[0].width}px;padding:${SCENES[0].pad}"><div class="ov-section-host">${goalsHtml(state, [], '')}</div></div>`;
-    const noMaster = `<h2 class="pv-title">遊戲資料尚未載入</h2><div class="pv-frame" style="width:${SCENES[0].width}px;padding:${SCENES[0].pad}"><div class="ov-section-host">${goalsHtml(new GameState(), [], '')}</div></div>`;
+    const noFlow = `<h2 class="pv-title">資源紀錄未滿一週</h2><div class="pv-frame" style="width:${SCENES[1].width}px;padding:${SCENES[1].pad}"><div class="ov-section-host">${goalsHtml(state, GOALS.slice(1, 3), '', { ...ETA, flow: null })}</div></div>`;
+    const empty = `<h2 class="pv-title">沒有目標</h2><div class="pv-frame" style="width:${SCENES[0].width}px;padding:${SCENES[0].pad}"><div class="ov-section-host">${goalsHtml(state, [], '', ETA)}</div></div>`;
+    const noMaster = `<h2 class="pv-title">遊戲資料尚未載入</h2><div class="pv-frame" style="width:${SCENES[0].width}px;padding:${SCENES[0].pad}"><div class="ov-section-host">${goalsHtml(new GameState(), [], '', ETA)}</div></div>`;
     return `<!doctype html><html lang="${lang}" data-theme="${theme}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${t('ov.goals')}</title>
@@ -76,7 +97,7 @@ body { display: block; height: auto; padding: 16px; overflow: auto; background: 
 .pv-title { display: flex; gap: 12px; align-items: baseline; font-size: 13px; margin: 28px 0 6px; }
 .pv-title small { color: var(--dim); font-weight: 400; }
 .pv-frame { border: 1px dashed var(--line); }
-</style></head><body>${blocks.join('')}${empty}${noMaster}</body></html>`;
+</style></head><body>${blocks.join('')}${noFlow}${empty}${noMaster}</body></html>`;
 }
 
 mkdirSync(resolve(root, '.preview'), { recursive: true });
