@@ -68,15 +68,20 @@
 ### 步驟 3：劇場模式 content script 不再帶整份介面字串表（可選，另案）
 
 **現況**：`content-scripts/theater.js` 374 kB 中有 388 kB（壓縮前）是 `utils/ui-i18n.ts` 的三語
-全表，劇場模式只用到其中少數幾個鍵。這是唯一在**遊戲頁**裡解析的大檔，雖不在這次警告內，
-實際體感成本比擴充頁的 chunk 高。
+全表，而劇場腳本（視窗適應與獨立視窗共用同一支）實際只用 15 個鍵：`theater.enter`、`exit`、
+`mute`、`unmute`、`screenshot`、`popIn`、`hint`、`popoutHint`、`muteNoTab`、`notFound`、
+`popInFailed`、`popoutFailed` 與 `screenshot.done`／`failed`／`noReply`。這是唯一在**遊戲頁**裡
+解析的大檔，雖不在這次警告內，實際體感成本比擴充頁的 chunk 高。
 
 **做法**：把劇場模式用到的鍵抽成一份小型三語表，`theater.content.ts` 只匯入它；`ui-i18n.ts`
 從同一份表合併，維持「同一文案只有一個來源」。加一個測試斷言 `theater.js` 的大小上限，
 避免之後又被整表拖回來。
 
 **約束**：只改字串來源，不改 content script 的行為、注入時機或權限（硬約束 1、7）。
-劇場模式需要 live 驗證，由開發者手動確認三語文案與功能正常。
+
+**驗證**：三語 × 15 個鍵全部以測試逐一斷言可取得且與 `ui-i18n.ts` 同值（其中 6 個是錯誤與
+邊界訊息，手動難觸發，不靠肉眼看）。開發者只需在遊戲頁開一次視窗適應與獨立視窗，確認工具列
+仍正常；不必為文案逐語言檢查。
 
 **建議模型**：Sonnet 5.5、中～高 effort。
 
