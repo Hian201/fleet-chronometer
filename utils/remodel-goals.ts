@@ -8,15 +8,19 @@
 //     取自 utils/remodel-cost-data.ts 的外部參照表（來源見該檔檔頭）。
 import { BLUEPRINT_STILL_NEEDS_DEVMAT, REMODEL_EXTRA_COST, SHIP_EXP_TOTAL } from './remodel-cost-data';
 
+/**
+ * 目標涉及的項目。燃料、鋁土、高速修復材（drum，沿用 mat.drum 文案鍵）不會出現在改造消耗，
+ * 只為了讓備蓄（utils/stockpile.ts）讀得到持有量與流量。
+ */
 export type RemodelCostKey =
-    | 'ammo' | 'steel'
+    | 'fuel' | 'ammo' | 'steel' | 'bauxite'
     | 'blueprint' | 'catapult' | 'report' | 'aviationMat' | 'armsMat' | 'tech' | 'boiler'
-    | 'gunMat' | 'devmat' | 'torch' | 'screw' | 'arsenalMat';
+    | 'gunMat' | 'devmat' | 'torch' | 'screw' | 'arsenalMat' | 'drum';
 
 /** 顯示順序：封包事實在前，推算在後。 */
 export const REMODEL_COST_KEYS: readonly RemodelCostKey[] = [
-    'ammo', 'steel', 'blueprint', 'catapult', 'report', 'aviationMat', 'armsMat', 'tech', 'boiler',
-    'gunMat', 'devmat', 'torch', 'screw', 'arsenalMat',
+    'fuel', 'ammo', 'steel', 'bauxite', 'blueprint', 'catapult', 'report', 'aviationMat', 'armsMat', 'tech', 'boiler',
+    'gunMat', 'devmat', 'torch', 'screw', 'arsenalMat', 'drum',
 ];
 
 const ESTIMATED = new Set<RemodelCostKey>(['gunMat', 'devmat', 'torch', 'screw', 'arsenalMat']);
@@ -121,10 +125,10 @@ export interface RemodelGoalRow {
 
 export const remodelGoalKey = (shipId: number) => `remodel:${shipId}`;
 
-/** 依 order 排回玩家的順序；種類不符或同一艘艦的重複列丟棄。 */
-export function goalsFromRows(rows: readonly { kind: string; order: number; shipId: number; targetMst: number }[]): RemodelGoal[] {
+/** 依 order 排回玩家的順序；其他種類（備蓄，見 utils/stockpile.ts）與同一艘艦的重複列丟棄。 */
+export function goalsFromRows(rows: readonly ({ kind: string } | { kind: string; order: number; shipId: number; targetMst: number })[]): RemodelGoal[] {
     const seen = new Set<number>();
-    return rows.filter(row => row.kind === 'remodel').sort((a, b) => a.order - b.order)
+    return (rows.filter(row => row.kind === 'remodel') as Omit<RemodelGoalRow, 'key'>[]).sort((a, b) => a.order - b.order)
         .filter(row => !seen.has(row.shipId) && seen.add(row.shipId))
         .map(row => ({ shipId: row.shipId, targetMst: row.targetMst }));
 }
@@ -242,7 +246,7 @@ export const REMODEL_USEITEM_ID: Partial<Record<RemodelCostKey, number>> = {
 
 /** 各消耗項對應的資材序（api_material 的 api_id，1 起算）。 */
 export const REMODEL_MATERIAL_ID: Partial<Record<RemodelCostKey, number>> = {
-    ammo: 2, steel: 3, torch: 5, devmat: 7, screw: 8,
+    fuel: 1, ammo: 2, steel: 3, bauxite: 4, torch: 5, drum: 6, devmat: 7, screw: 8,
 };
 
 export function remodelStockOf(source: RemodelStockSource): RemodelStock {

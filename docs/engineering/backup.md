@@ -19,7 +19,7 @@ raw events 存在時，僅採用 `eventId` 嚴格小於第一筆 retained raw ev
 baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，避免較新的 snapshot
 污染較舊事件的 state context。
 
-**現行備份契約（`BACKUP_SCHEMA_VERSION = 11`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
+**現行備份契約（`BACKUP_SCHEMA_VERSION = 12`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
 `expeditions`、`factory`、`wanted`、`shipObtained`、`eventPlans`、`resources`、`resourceMarks`、
 `questObserved`、`questSeen`、`goals`、`materialUse`、`sortieBills` 與 `replays`。不含 raw `events`、`notified`、projection metadata，也不含
 語言／主題／各分區篩選等顯示偏好。
@@ -33,8 +33,9 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
   兩個 event id 都進 `highestReferencedEventId()`。`questSeen` 另有選填的 `title`／`detail`（最近一次觀測的
   遊戲原文），舊備份沒有這兩欄，照常還原；不是索引欄位，不需升 DB 或備份版本。`eventPlans` 與 `goals` 是純使用者輸入、不參照
   event id，不進 `highestReferencedEventId()`。
-- `goals`（目標規劃，見 [goals.md](goals.md)）的主鍵必須與內容一致（`remodel:${shipId}`），種類目前只
-  接受 `remodel`；它算在「還原目標資料」之內，目的地已有目標時整批拒絕。
+- `goals`（目標規劃，見 [goals.md](goals.md)）的改造目標主鍵必須與內容一致（`remodel:${shipId}`）。
+  備蓄目標（`kind: 'stockpile'`）只在 v12 以後接受，主鍵固定為 `stockpile`，`until` 為 null 或有效的
+  `YYYY-MM-DD`；v11 以前的檔案夾帶時拒絕。整張表算在「還原目標資料」之內，目的地已有目標時整批拒絕。
 - 出擊紀錄的 optional 欄位（`SortieLogRow.getExp`／`mvp`／`mvpEscort`／`enemyName`、
   `ReplayRow.fleet3`／`fleet4`／`lbas`）缺席即維持缺席，舊備份不會被拒，也不補預設值。
 - `wanted` 匯入時重配自身自增 id，但保留 eventId reference。
@@ -55,6 +56,7 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 | v9 | full | `goals` |
 | v10 | full | `materialUse` |
 | v11 | full | `sortieBills`；`materialUse` 新增 `airSupply` 與 bucket 的選填 `shipId` |
+| v12 | full | 表組合同 v11；`goals` 新增備蓄目標（`kind: 'stockpile'`）。升版讓舊版擴充明確回報「不支援較新的備份版本」 |
 
 v1 與 v6 以後可單檔匯入；v2–v5 的拆檔可同次選取，或分兩次選取後由介面在記憶體暫存湊成一對，
 再正規化成現行完整版本以一個 transaction 還原。

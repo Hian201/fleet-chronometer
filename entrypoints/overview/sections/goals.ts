@@ -1,5 +1,6 @@
-// 目標規劃：玩家指定「某艘艦改到某個形態」，列出還缺的等級、經驗、各項消耗與資材湊齊日。
-// 計算全在 utils/remodel-goals.ts 與 utils/goal-arrival.ts（純函式）；本檔只負責 HTML、事件與讀 DB。
+// 目標規劃：玩家指定「某艘艦改到某個形態」，列出還缺的等級、經驗、各項消耗與資材湊齊日；
+// 另可宣告「正在備蓄」（存到蓄積上限，可設期限），列出各資材哪天到上限、期限當天有多少。
+// 計算全在 utils/remodel-goals.ts、utils/goal-arrival.ts 與 utils/stockpile.ts（純函式）；本檔只負責 HTML、事件與讀 DB。
 //
 // HTML 由下面幾個匯出的純函式產生（只吃 GameState 與目標陣列，不碰 DOM），
 // 離線預覽 tools/preview/goals.ts 直接共用，避免預覽與正式分區各寫一套。
@@ -19,8 +20,9 @@ import {
 import { goalArrivals, observeFlow, FLOW_BLOCK_DAYS, FLOW_MAX_BLOCKS, type ArrivalLine, type GoalArrival, type ObservedFlow } from '@/utils/goal-arrival';
 import { normalizeSamples } from '@/utils/resource-log';
 import { DAY_MS, formatDate } from '@/utils/date-format';
-import { db, type ResourceRow } from '@/utils/db';
-import { esc, fmtNum, fuzzyMatch } from '../lib';
+import { db, type GoalRow, type ResourceRow } from '@/utils/db';
+import { STOCKPILE_GOAL_KEY, stockpileFromRows, stockpileOutlook, stockpileToRow, type StockpileGoal, type StockpileLine } from '@/utils/stockpile';
+import { dateStart, esc, fmtNum, fuzzyMatch } from '../lib';
 
 /** 消耗項的顯示名：資材走既有文案，道具走道具目錄，缶走裝備譯名；查不到不自編名稱。 */
 export function goalCostName(state: GameState, key: RemodelCostKey): string {
@@ -84,6 +86,14 @@ function costTableHtml(state: GameState, heads: string[], rows: string[]) {
 
 const days = (n: number) => Math.ceil(n);
 
+/** 天數區間的文字：最慢一週沒有淨增加（latest 為 null）時只寫下界；天數加千分位，同表內其他數字。 */
+function daysRangeText(earliest: number, latest: number | null): string {
+    const a = days(earliest);
+    if (latest === null) return t('ov.glDaysMin', { n: fmtNum(a) });
+    const b = days(latest);
+    return a === b ? t('ov.glDays', { n: fmtNum(a) }) : t('ov.glDaysRange', { a: fmtNum(a), b: fmtNum(b) });
+}
+
 const ETA_REASON: Record<Exclude<ArrivalLine['status'], 'met' | 'range'>, [string, string, string]> = {
     untracked: ['gl-unknown', 'ov.glUnknown', 'ov.glUntrackedTitle'],
     'no-data': ['gl-unknown', 'ov.glUnknown', 'ov.glNoDataTitle'],
@@ -100,10 +110,7 @@ function etaCellHtml(line: ArrivalLine | undefined): string {
         const [cls, text, title] = ETA_REASON[line.status];
         return titled(cls, text, title);
     }
-    const a = days(line.earliest);
-    if (line.latest === null) return esc(t('ov.glDaysMin', { n: a }));
-    const b = days(line.latest);
-    return esc(a === b ? t('ov.glDays', { n: a }) : t('ov.glDaysRange', { a, b }));
+    return esc(daysRangeText(line.earliest, line.latest));
 }
 
 const lineRow = (state: GameState, line: GoalCostLine, withEta: boolean, eta: ArrivalLine | undefined) =>
@@ -171,9 +178,9 @@ function cardHtml(state: GameState, plan: GoalPlan, arrival: GoalArrival | null,
     return `<article class="gl-card${ready ? ' gl-card-ready' : ''}">${head}${path}${levelRow}${etaSummaryHtml(arrival, eta)}${table}</article>`;
 }
 
-/** 目標清單（卡片）；沒有目標時是一句提示。 */
-export function goalListHtml(state: GameState, plans: readonly GoalPlan[], arrivals: readonly (GoalArrival | null)[], eta: GoalEta): string {
-    if (!plans.length) return `<div class="ov-empty">${esc(t('ov.glEmpty'))}</div>`;
+/** 改造目標清單（卡片）；改造與備蓄都沒有時是一句提示。 */
+export function goalListHtml(state: GameState, plans: readonly GoalPlan[], arrivals: readonly (GoalArrival | null)[], eta: GoalEta, hasStockpile = false): string {
+    if (!plans.length) return hasStockpile ? '' : `<div class="ov-empty">${esc(t('ov.glEmpty'))}</div>`;
     return plans.map((plan, index) => cardHtml(state, plan, arrivals[index] ?? null, eta, index, plans.length)).join('');
 }
 
@@ -182,6 +189,62 @@ export function goalTotalsHtml(state: GameState, plans: readonly GoalPlan[], tot
     if (plans.filter(plan => plan.status === 'active').length < 2 || !totals.length) return '';
     return `<h3 class="ov-subhead">${esc(t('ov.glTotals'))}</h3>${costTableHtml(state,
         ['ov.glColItem', 'ov.glColNeedTotal', 'ov.glColStock', 'ov.glColShort'], totals.map(line => totalRow(state, line)))}`;
+}
+
+// ── 備蓄 ─────────────────────────────────────────────────────────────
+
+/** 期限距今的天數（期限日 0 時起算）；沒有期限或日期無效為 null。 */
+function daysToDeadline(stockpile: StockpileGoal, now: number): number | null {
+    const at = stockpile.until ? dateStart(stockpile.until) : null;
+    return at === null ? null : (at - now) / DAY_MS;
+}
+
+function toCapCellHtml(line: StockpileLine): string {
+    const { toCap } = line;
+    let html: string;
+    if (toCap.status === 'range') html = esc(daysRangeText(toCap.earliest, toCap.latest));
+    else if (toCap.status === 'full') html = esc(t('ov.gsFull'));
+    else if (toCap.status === 'unknown') html = `<span class="gl-unknown" title="${esc(t('ov.glNoDataTitle'))}">${esc(t('ov.glUnknown'))}</span>`;
+    else html = `<span class="gl-stalled" title="${esc(t('ov.gsStalledTitle'))}">${esc(t('ov.gsStalled'))}</span>`;
+    // 期限前就會滿：之後流進來的收入會浪費。持有量到上限是合法狀態，只加粗不用警示色（同資源紀錄的溢出提醒）。
+    return line.fillsBeforeDeadline ? `<span class="gl-fills" title="${esc(t('ov.gsFillsTitle'))}">${html}</span>` : html;
+}
+
+function atDeadlineHtml(line: StockpileLine): string {
+    const at = line.atDeadline;
+    if (!at) return unknownHtml();
+    const low = Math.floor(at.low), high = Math.floor(at.high);
+    return esc(low === high ? fmtNum(low) : `${fmtNum(low)}–${fmtNum(high)}`);
+}
+
+/**
+ * 備蓄卡片的內容（說明與表格）。卡片外殼（期限輸入、移除鈕）只在出現時建一次，重繪只換這裡，
+ * 期限輸入框才不會被打斷（design-guidelines §4.2）。
+ */
+export function stockpileBodyHtml(state: GameState, goals: readonly RemodelGoal[], stockpile: StockpileGoal, eta: GoalEta): string {
+    const { totals } = goalPlans(state, goals, eta);
+    const reserved = Object.fromEntries(totals.map(line => [line.key, line.need]));
+    const deadline = daysToDeadline(stockpile, eta.now);
+    const lines = stockpileOutlook(remodelStockOf(state), reserved, eta.flow, deadline);
+    const ahead = deadline !== null && deadline > 0;
+    const withReserved = lines.some(line => line.reserved > 0);
+    const notes: string[] = [];
+    if (!eta.flow) notes.push(esc(t('ov.gsNoFlow')));
+    if (deadline !== null && !ahead) notes.push(esc(t('ov.gsPast')));
+    const filling = lines.filter(line => line.fillsBeforeDeadline);
+    if (filling.length) notes.push(`<b>${esc(t('ov.gsFills', { items: filling.map(line => goalCostName(state, line.key)).join(t('ov.gsSep')) }))}</b>`);
+    const heads = ['ov.glColItem', 'ov.glColStock', ...(withReserved ? ['ov.gsColReserved'] : []), 'ov.gsColToCap', ...(ahead ? ['ov.gsColAtDeadline'] : [])];
+    const rows = lines.map(line => `<tr><td>${esc(goalCostName(state, line.key))}</td><td class="gl-num">${numOrUnknown(line.have)}</td>${withReserved
+        ? `<td class="gl-num">${line.reserved > 0 ? esc(fmtNum(line.reserved)) : ''}</td>` : ''}<td class="gl-num gl-eta-cell">${toCapCellHtml(line)}</td>${ahead
+        ? `<td class="gl-num">${atDeadlineHtml(line)}</td>` : ''}</tr>`);
+    const basis = eta.flow ? t('ov.gsBasis', { weeks: eta.flow.weeks }) : t('ov.gsBasisNoFlow');
+    return `${notes.map(note => `<div class="gl-eta">${note}</div>`).join('')}${costTableHtml(state, heads, rows)}<p class="gl-reason">${esc(basis)}</p>`;
+}
+
+function stockpileCardHtml(state: GameState, goals: readonly RemodelGoal[], stockpile: StockpileGoal, eta: GoalEta): string {
+    const remove = `<button type="button" class="ov-btn gl-act" data-act="stock-remove" title="${esc(t('ov.glRemove'))}" aria-label="${esc(t('ov.glRemove'))}">✕</button>`;
+    const until = `<label class="gl-until">${esc(t('ov.gsUntil'))}<input type="date" class="rs-search gl-until-input" value="${esc(stockpile.until ?? '')}" aria-label="${esc(t('ov.gsUntil'))}"></label>`;
+    return `<article class="gl-card gl-stock-card"><div class="gl-head"><span class="gl-no"></span><span class="gl-kind">${esc(t('ov.gsKind'))}</span><span class="gl-target">${esc(t('ov.gsTarget'))}</span>${until}<span class="grow"></span><span class="gl-acts">${remove}</span></div><div class="gl-stock-body">${stockpileBodyHtml(state, goals, stockpile, eta)}</div></article>`;
 }
 
 /** 新增目標的候選表格：還能改造、尚未設目標的艦，依「離下一段改造多近」排序。 */
@@ -204,19 +267,27 @@ export function goalCandidatesHtml(state: GameState, goals: readonly RemodelGoal
             `<option value="${id}">${esc(state.shipName(id))}</option>`).join('')}</select></td><td><button type="button" class="ov-btn gl-act" data-act="add" data-ship="${row.ship.id}">${esc(t('ov.glAddBtn'))}</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
-/** 整個分區的 HTML（含外殼與三塊內容）；遊戲資料未載入時只有一句說明。 */
-export function goalsHtml(state: GameState, goals: readonly RemodelGoal[], query: string, eta: GoalEta): string {
+/** 整個分區的 HTML（含外殼與四塊內容）；遊戲資料未載入時只有一句說明。 */
+export function goalsHtml(state: GameState, goals: readonly RemodelGoal[], stockpile: StockpileGoal | null, query: string, eta: GoalEta): string {
     if (state.master.size === 0) return `<div class="ov-empty">${esc(t('ov.glNoMaster'))}</div>`;
     const { plans, totals, arrivals } = goalPlans(state, goals, eta);
     return `<div class="gl">
         <p class="ov-note dim">${esc(t('ov.glIntro'))}</p>
-        <div class="gl-list">${goalListHtml(state, plans, arrivals, eta)}</div>
+        <div class="gl-stock">${stockpile ? stockpileCardHtml(state, goals, stockpile, eta) : ''}</div>
+        <div class="gl-list">${goalListHtml(state, plans, arrivals, eta, stockpile !== null)}</div>
         <div class="gl-totals">${goalTotalsHtml(state, plans, totals)}</div>
-        <details class="gl-add"${goals.length ? '' : ' open'}><summary>${esc(t('ov.glAdd'))}</summary>
-            <div class="ov-toolbar gl-add-bar"><input class="rs-search gl-search" type="search" autocomplete="off" value="${esc(query)}" placeholder="${esc(t('ov.glSearch'))}" aria-label="${esc(t('ov.glSearch'))}"></div>
+        <details class="gl-add"${goals.length || stockpile ? '' : ' open'}><summary>${esc(t('ov.glAdd'))}</summary>
+            <div class="ov-toolbar gl-add-bar gl-stock-add"${stockpile ? ' hidden' : ''}><span class="gl-add-label">${esc(t('ov.gsKind'))}</span><span class="dim">${esc(t('ov.gsTarget'))}</span><label class="gl-until">${esc(t('ov.gsUntilOptional'))}<input type="date" class="rs-search gl-new-until" aria-label="${esc(t('ov.gsUntilOptional'))}"></label><button type="button" class="ov-btn gl-act" data-act="stock-add">${esc(t('ov.glAddBtn'))}</button></div>
+            <div class="ov-toolbar gl-add-bar"><span class="gl-add-label">${esc(t('ov.glRemodelAdd'))}</span><input class="rs-search gl-search" type="search" autocomplete="off" value="${esc(query)}" placeholder="${esc(t('ov.glSearch'))}" aria-label="${esc(t('ov.glSearch'))}"></div>
             <div class="gl-cands">${goalCandidatesHtml(state, goals, query)}</div>
         </details>
     </div>`;
+}
+
+// 備蓄只有一列，直接 put／delete，不碰改造目標的列。
+async function saveStockpile(stockpile: StockpileGoal | null): Promise<void> {
+    if (stockpile) await db.goals.put(stockpileToRow(stockpile));
+    else await db.goals.delete(STOCKPILE_GOAL_KEY);
 }
 
 // 整份目標在同一個 transaction 內換掉：順序存在每一列的 order，逐列 put 中途失敗會留下
@@ -234,18 +305,30 @@ export const goalsSection: OverviewSection = {
         // 先畫殼、綁事件，再讀 DB（design-guidelines §4.2.1）：讀取卡住或失敗都不留白。
         el.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         let goals: RemodelGoal[] = [];
+        let stockpile: StockpileGoal | null = null;
         let flow: ObservedFlow | null = null;
+        let rows: GoalRow[] = [];
         let loaded = false;
         // 推算起點用每次重繪的當下：持有量是即時的，流量則是進入分區時讀的那份。
         const eta = (): GoalEta => ({ flow, now: Date.now() });
         const search = () => el.querySelector<HTMLInputElement>('.gl-search')?.value ?? '';
         // 外殼不存在（剛讀完 DB，或先前遊戲資料未載入）時整個重建；否則只換三塊內容。
+        // 備蓄卡片：出現／消失時整張重建，其餘只換內容，期限輸入框才不會被打斷。
+        const drawStock = (now: GoalEta) => {
+            const box = el.querySelector<HTMLElement>('.gl-stock')!;
+            el.querySelector<HTMLElement>('.gl-stock-add')!.hidden = stockpile !== null;
+            if (!stockpile) { box.innerHTML = ''; return; }
+            const body = box.querySelector('.gl-stock-body');
+            if (!body) box.innerHTML = stockpileCardHtml(ctx.state, goals, stockpile, now);
+            else body.innerHTML = stockpileBodyHtml(ctx.state, goals, stockpile, now);
+        };
         const draw = () => {
             if (!loaded) return;
-            if (!el.querySelector('.gl')) { el.innerHTML = goalsHtml(ctx.state, goals, '', eta()); return; }
+            if (!el.querySelector('.gl')) { el.innerHTML = goalsHtml(ctx.state, goals, stockpile, '', eta()); return; }
             const now = eta();
             const { plans, totals, arrivals } = goalPlans(ctx.state, goals, now);
-            el.querySelector('.gl-list')!.innerHTML = goalListHtml(ctx.state, plans, arrivals, now);
+            drawStock(now);
+            el.querySelector('.gl-list')!.innerHTML = goalListHtml(ctx.state, plans, arrivals, now, stockpile !== null);
             el.querySelector('.gl-totals')!.innerHTML = goalTotalsHtml(ctx.state, plans, totals);
             el.querySelector('.gl-cands')!.innerHTML = goalCandidatesHtml(ctx.state, goals, search());
         };
@@ -262,9 +345,33 @@ export const goalsSection: OverviewSection = {
                     { msg: String((error as Error)?.message ?? error) }))}</div>`);
             });
         };
+        const saveFailed = (error: unknown) => el.querySelector('.gl-list')?.insertAdjacentHTML('afterbegin',
+            `<div class="ov-empty">${esc(t('ov.glSaveFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`);
+        const updateStock = (next: StockpileGoal | null) => {
+            const previous = stockpile;
+            stockpile = next;
+            draw();
+            saveStockpile(next).catch(error => {
+                stockpile = previous;
+                // 期限輸入框的值也要退回，所以整張卡重建。
+                el.querySelector('.gl-stock')!.innerHTML = '';
+                draw();
+                saveFailed(error);
+            });
+        };
+        el.addEventListener('change', event => {
+            const input = event.target as HTMLInputElement;
+            if (!input.classList.contains('gl-until-input') || !stockpile) return;
+            updateStock({ until: input.value || null });
+        });
         el.addEventListener('click', event => {
             const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.gl-act');
             if (!button || button.disabled) return;
+            if (button.dataset.act === 'stock-add') {
+                if (!stockpile) updateStock({ until: el.querySelector<HTMLInputElement>('.gl-new-until')?.value || null });
+                return;
+            }
+            if (button.dataset.act === 'stock-remove') { updateStock(null); return; }
             const shipId = Number(button.dataset.ship);
             const index = goals.findIndex(goal => goal.shipId === shipId);
             const act = button.dataset.act;
@@ -288,14 +395,16 @@ export const goalsSection: OverviewSection = {
         ctx.onStateChange?.(() => { if (el.isConnected) draw(); });
         try {
             // 流量讀不到只影響湊齊日（顯示不可考），不擋住目標本身。
-            [goals, flow] = await Promise.all([
-                db.goals.toArray().then(goalsFromRows),
+            [rows, flow] = await Promise.all([
+                db.goals.toArray(),
                 loadGoalFlow(ctx.state).catch(() => null),
             ]);
         } catch (error) {
             el.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
             return;
         }
+        goals = goalsFromRows(rows);
+        stockpile = stockpileFromRows(rows);
         loaded = true;
         draw();
     },

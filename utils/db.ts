@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { PlanStage, PlanTag } from './event-plan';
 import type { SortieBill } from './sortie-bill';
+import type { StockpileGoalRow } from './stockpile';
 import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 
 // 事件日誌一筆 = provider 合約的載體。所有封包來源（目前 MAIN world interceptor；
@@ -452,8 +453,11 @@ export type SortieBillRow = { sortieKey: number; ts: number; map: string; diffic
 // 「SW 不持跨事件狀態」的資料契約；以 deckId 為主鍵，同艦隊只需一筆、天然去重。
 // 玩家設定的目標（情報總括「目標規劃」）。這是玩家的意圖，不是封包衍生資料：由分區直接
 // 寫入（同 eventPlans），不經 EventProjector；備份要帶走，重裝後才不必重設。
-// 主鍵 key 帶種類前綴，日後新增其他種類的目標不必再開表。
-export interface GoalRow {
+// 主鍵 key 帶種類前綴，日後新增其他種類的目標不必再開表。備蓄目標只有一列（StockpileGoalRow，
+// 見 utils/stockpile.ts），不帶 order：它不參與改造目標的排序分配。
+export type GoalRow = RemodelGoalRow | StockpileGoalRow;
+
+export interface RemodelGoalRow {
     /** `remodel:${shipId}`——一艘艦只有一個改造目標。 */
     key: string;
     kind: 'remodel';

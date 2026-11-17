@@ -4,7 +4,7 @@ import Dexie from 'dexie';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { KcDb, type MaterialUseRow } from '../utils/db';
 import {
-    BackupValidationError, buildFullEnvelope, highestReferencedEventId, restoreBackup, validateBackupEnvelope,
+    BACKUP_SCHEMA_VERSION, BackupValidationError, buildFullEnvelope, highestReferencedEventId, restoreBackup, validateBackupEnvelope,
 } from '../utils/backup';
 
 const TS = 1_700_000_000_000;
@@ -67,7 +67,7 @@ describe('匯出與還原', () => {
     it('匯出帶 materialUse，還原到乾淨環境後逐筆相同', async () => {
         await database.materialUse.bulkPut(ROWS);
         const envelope = await buildFullEnvelope(database);
-        expect(envelope.schemaVersion).toBe(11);
+        expect(envelope.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
         expect(envelope.tables.materialUse).toEqual(ROWS);
 
         const fresh = new KcDb(`backup-v10-material-use-fresh-${dbIndex++}`);

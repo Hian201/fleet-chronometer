@@ -8576,6 +8576,13 @@
         }
         .gl-name, .gl-target { font-weight: 600; }
         .gl-lv { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+        .gl-kind { color: var(--dim); font-size: 12px; }
+        .gl-until { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+        .gl-until input { min-height: 26px; padding: 2px 6px; }
+        /* 期限前就會到上限：只加粗，不用警示色（持有量到上限是合法狀態，同 .rl-overflow） */
+        .gl-fills { font-weight: 600; }
+        .gl-stock:empty { display: none; }
+        .gl-stock { margin-bottom: 8px; }
         .gl-arrow { color: var(--dim); }
         .gl-target { color: var(--sparkle); }
         .gl-ready, .gl-reached, .gl-est {
@@ -8648,6 +8655,9 @@
             font-size: 14px;
         }
         .gl-add-bar { margin: 8px 0; }
+        .gl-add-bar { align-items: center; }
+        .gl-add-bar[hidden] { display: none; }
+        .gl-add-label { min-width: 6em; color: var(--dim); font-size: 12px; }
         .gl-pick { min-width: 0; min-height: 26px; padding: 2px 6px; }
 
         /* ── 工廠（factory）：建造／開發／改修三個子分頁；選取用黃銅底線，同面板分頁列的語彙 ── */

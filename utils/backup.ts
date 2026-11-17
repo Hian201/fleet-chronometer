@@ -8,6 +8,7 @@ import type {
 } from './db';
 import { borrowEventId } from './event-id-borrow';
 import { isPlainObject } from './plain-object';
+import { STOCKPILE_GOAL_KEY, isStockpileDate } from './stockpile';
 import {
     applyQuestFlowBackupPrefs, hasQuestFlowBackupPrefs, readQuestFlowBackupPrefs,
     type QuestFlowBackupPrefs,
@@ -40,7 +41,11 @@ import { loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps } from './sort
 // v11 在 full envelope 新增 sortieBills（出擊帳單，含選填的支援艦隊花費），materialUse 多了 airSupply（基地航空隊補充）與
 // bucket.shipId。帳單要靠出擊開始當下的 GameState 才算得出，raw events 裁剪後無從重建。
 // v10 以前的檔案沒有這張表，照常匯入、表保持空白。
-export const BACKUP_SCHEMA_VERSION = 11 as const;
+//
+// v12 的 goals 多了備蓄目標（kind 'stockpile'，唯一一列）。表組合與 v11 相同；升版是為了讓舊版擴充
+// 讀到新檔時明確回報「不支援較新的備份版本」，而不是在目標種類上報欄位錯誤。v11 以前的檔案不會有
+// 備蓄目標，夾帶時拒絕。
+export const BACKUP_SCHEMA_VERSION = 12 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -835,7 +840,7 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
     return kind;
 }
 
-function validateTables(value: unknown): BackupTables {
+function validateTables(value: unknown, schemaVersion: number): BackupTables {
     const tables = objectAt(value, 'tables');
     for (const name of Object.keys(tables)) {
         if (!(TABLE_NAMES as readonly string[]).includes(name)) invalid(`tables.${name} 不是支援的資料表。`);
@@ -874,7 +879,7 @@ function validateTables(value: unknown): BackupTables {
     const questSeen = tables.questSeen === undefined ? undefined
         : unique((tables.questSeen as unknown[]).map(validateQuestSeen), row => row.questNo, 'tables.questSeen');
     const goals = tables.goals === undefined ? undefined
-        : unique((tables.goals as unknown[]).map(validateGoal), row => row.key, 'tables.goals');
+        : unique((tables.goals as unknown[]).map((row, index) => validateGoal(row, index, schemaVersion)), row => row.key, 'tables.goals');
     const materialUse = tables.materialUse === undefined ? undefined
         : unique((tables.materialUse as unknown[]).map(validateMaterialUse), row => row.eventId, 'tables.materialUse');
     const sortieBills = tables.sortieBills === undefined ? undefined
@@ -899,10 +904,16 @@ function validateTables(value: unknown): BackupTables {
 }
 
 // 目標的主鍵必須與內容一致（`remodel:${shipId}`），否則同一艘艦可能帶進兩個目標。
-function validateGoal(value: unknown, index: number): GoalRow {
+// 備蓄目標（v12 起）只有一列，主鍵固定；期限為 null 或有效的 YYYY-MM-DD。
+function validateGoal(value: unknown, index: number, schemaVersion: number): GoalRow {
     const where = `tables.goals[${index}]`;
     const row = objectAt(value, where);
-    if (row.kind !== 'remodel') invalid(`${where}.kind 必須是 remodel。`);
+    if (row.kind === 'stockpile' && schemaVersion >= 12) {
+        if (row.key !== STOCKPILE_GOAL_KEY) invalid(`${where}.key 必須是 ${STOCKPILE_GOAL_KEY}。`);
+        if (row.until !== null && !isStockpileDate(row.until)) invalid(`${where}.until 必須是 null 或 YYYY-MM-DD 日期。`);
+        return { key: STOCKPILE_GOAL_KEY, kind: 'stockpile', until: row.until };
+    }
+    if (row.kind !== 'remodel') invalid(`${where}.kind 必須是 remodel${schemaVersion >= 12 ? ' 或 stockpile' : ''}。`);
     const shipId = integer(row.shipId, `${where}.shipId`, 1);
     if (row.key !== `remodel:${shipId}`) invalid(`${where}.key 必須是 remodel:${shipId}。`);
     return {
@@ -967,7 +978,7 @@ export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope 
     if (schemaVersion > BACKUP_SCHEMA_VERSION) invalid(`不支援較新的備份版本 ${schemaVersion}。`);
     const rawTables = objectAt(envelope.tables, 'tables');
     const kind = determineKind(schemaVersion, envelope.kind, rawTables);
-    const tables = validateTables(rawTables);
+    const tables = validateTables(rawTables, schemaVersion);
     highestReferencedEventId(tables);
     return {
         schemaVersion,
