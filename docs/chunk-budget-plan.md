@@ -6,11 +6,16 @@
 
 ## 1. 現況
 
-- 原先超標的共用 chunk（panel 與情報總括共用的模組，檔名 `quest-goal-label-*.js` 只是取其中一個
-  模組）已把任務目錄譯文依語言分出，從 1235 kB 降到 976 kB，build 不再有預算警告。現行做法見
-  `docs/engineering/quests.md`「任務目錄譯文的載入」。
-- 下一個會撞到 1200 kB 預算的是 `background.js`（1168 kB）。它是 service worker 單檔、不能用
-  `import()`，要縮只能減少它匯入的內容（見步驟 4 的介面字串表）。
+- 原先超標的共用 chunk（panel 與情報總括共用的模組）已把任務目錄譯文依語言分出，從 1235 kB
+  降到 976 kB，build 不再有預算警告。現行做法見 `docs/engineering/quests.md`「任務目錄譯文的載入」。
+- 任務產生物與獎勵 JSON 另分成 `quest-data`（575 kB），檔名可歸因；其餘共用模組仍在
+  `quest-goal-label-*`（401 kB，實際內容是 `state`、`battle`、`db`、dexie，檔名不說明內容）。
+  分組規則與不另設 `core` 組的理由寫在 `wxt.config.ts` 的 `shared-chunk-groups` 外掛註解。
+- 目前各 chunk：`background.js` 1168 kB、`overview-*` 1072 kB、`quest-data-*` 575 kB、
+  `ui-prefs-*` 504 kB、`quest-goal-label-*` 401 kB、譯文兩檔 115／140 kB、`panel-*` 144 kB、
+  `popup-*` 5 kB。
+- 下一個會撞到 1200 kB 預算的是 `background.js`。它是 service worker 單檔、不能用 `import()`，
+  要縮只能減少它匯入的內容（見步驟 4 的介面字串表）。
 - 以下步驟都是可選的改善，沒有急迫性。第 2 節是分出譯文**之前**的量測，保留作為組成比例的參考。
 
 ## 2. 量測結果
@@ -58,26 +63,7 @@
 
 ## 3. 步驟
 
-每個步驟獨立成一個 session、獨立驗證與 commit。步驟 1（任務目錄譯文依語言動態載入）已完成。
-
-### 步驟 2：共用 chunk 依職責分組，預算改成可歸因（可選）
-
-**效果**：不減少載入量，只讓警告說得出是哪一類資料成長。把共用 chunk 分成「核心」
-（`state`、`battle`、`dexie`、`db`）與「任務資料」（`quest-*-data`、獎勵 JSON）兩組，檔名有
-意義，之後超標時不必再跑分析就知道來源。
-
-**做法**：在 `wxt.config.ts` 的 `vite.build` 設定打包器的分組選項。本專案是 Vite 8
-（Rolldown），選項是 `build.rolldownOptions.output.codeSplitting` 的 groups，寫法先查
-<https://rolldown.rs/reference/OutputOptions.codeSplitting>，不要憑 Rollup `manualChunks` 的記憶寫。
-`CHUNK_BUDGET_KB` 上方的註解同步改寫成現況。
-
-**風險**：分組設錯會讓 popup 或 content script 連帶載入大 chunk。驗證時比對各 HTML 入口與
-`background.js`、`content-scripts/*` 的大小與匯入清單，不得比分組前多載入。
-
-**驗證**：正式 build、型別檢查、`tests/manifest.test.ts`；開發者開 panel、情報總括、popup
-各一次確認正常。
-
-**建議模型**：Sonnet 5.5、中 effort。純建置設定，結果可用檔案大小與匯入清單客觀驗收。
+每個步驟獨立成一個 session、獨立驗證與 commit。步驟 1（任務目錄譯文依語言動態載入）與步驟 2（共用 chunk 依職責分組）已完成。
 
 ### 步驟 3：劇場模式 content script 不再帶整份介面字串表（可選，另案）
 
@@ -108,3 +94,6 @@ plan mode 列出所有啟動路徑。
 - 不拆 `quest-catalog-data.ts`、`quest-goal-data.ts`、`quest-prep-data.ts`：`state.ts` 的
   reducer 同步使用它們，改成動態載入會動到狀態核心（硬約束 6）。
 - 不為了縮小檔案而刪減任務關係圖的來源或翻譯內容。
+- 不把 `state`、`battle`、`db`、dexie 另分成 `core` chunk：`state` 一旦集中成固定 chunk，popup
+  共用的 `ui-prefs` 會改為依賴它，popup 從約 0.5 MB 連帶變成約 1.4 MB。要讓這些模組也能歸因，
+  得先讓 `ui-prefs` 不依賴 `state`，那是程式碼改動，不在本檔範圍。

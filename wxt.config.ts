@@ -3,9 +3,10 @@ import { GAME_PAGE_MATCHES } from './utils/game-page';
 
 // 單一 chunk 壓縮後的大小預算（kB，1 kB = 1000 bytes，與 Vite 計算方式相同）。
 // Vite 預設 500 kB 是為經網路下載的網站設計；擴充頁 chunk 都從本機載入，大小只影響
-// 解析時間。目前最大的是 background.js（約 1.17 MB，service worker 單檔、不能用 import()），
-// 其次是 panel 與情報總括共用的任務資料 chunk（約 0.98 MB）；任務目錄譯文已依語言以 import()
-// 分出（英文約 115 kB、台灣華語約 140 kB）。超過即代表資料又成長一截，先找出成長來源再決定拆分。
+// 解析時間。目前最大的是 overview（約 1.06 MB）與 background.js（約 1.17 MB，service worker
+// 單檔、不能用 import()）。任務資料集中在 quest-data（約 575 kB，下方外掛分組）；任務目錄譯文
+// 已依語言以 import() 分出（英文約 115 kB、台灣華語約 140 kB）。超過即代表資料又成長一截，
+// 先依檔名找出成長來源再決定拆分。
 const CHUNK_BUDGET_KB = 1200;
 
 // See https://wxt.dev/api/config.html
@@ -37,9 +38,37 @@ export default defineConfig({
                 const list = over.map((chunk) => `${chunk.name} ${chunk.kb.toFixed(0)} kB`).join('、');
                 this.warn(
                     `chunk 超出 ${CHUNK_BUDGET_KB} kB 預算：${list}。`
-                    + '請用 bundle 分析確認成長來源；若是翻譯資料，評估改成依語言以 import() 動態載入，'
-                    + '確認不需處理才調高 wxt.config.ts 的 CHUNK_BUDGET_KB。',
+                    + '依檔名判斷成長來源：quest-data 是任務產生物與獎勵 JSON；quest-catalog-translations.* '
+                    + '是依語言動態載入的任務譯文；overview／panel 是入口本身；background.js 是 service worker 單檔。'
+                    + '其餘共用 chunk 請用 bundle 分析確認；確認不需處理才調高 wxt.config.ts 的 CHUNK_BUDGET_KB。',
                 );
+            },
+        }, {
+            // 任務產生物與獎勵 JSON 獨立成 quest-data chunk（Rolldown `output.codeSplitting.groups`），
+            // 讓任務資料成長有固定檔名可歸因。只影響歸屬，不改變各入口載入的內容。
+            // 不為 state／battle／db／dexie 另設 core 組：state 一旦集中成固定 chunk，popup 共用的
+            // ui-prefs 會改為依賴它而連帶載入，popup 因此變大；它們維持由打包器判斷。
+            // WXT 的 background 與 content script 是 iife 單檔建置，Rolldown 不允許 iife 搭配
+            // code splitting，故只在 es 格式（擴充頁）的建置套用。
+            name: 'shared-chunk-groups',
+            apply: 'build',
+            outputOptions(options) {
+                if (options.format !== 'es') return;
+                return {
+                    ...options,
+                    codeSplitting: {
+                        groups: [
+                            {
+                                name: 'quest-data',
+                                test: /[\\/]utils[\\/]quest-(?:[\w-]*-data\.ts|catalog-reward[\w-]*\.json)$/,
+                                priority: 2,
+                                // 只收兩個入口都用到的模組，避免把只有情報總括用的任務資料
+                                // 也塞進共用 chunk、讓面板多載入。
+                                minShareCount: 2,
+                            },
+                        ],
+                    },
+                };
             },
         }, {
             // lzma_worker.js 把 API 掛在 CJS `this` 上，沒有 ESM export。套件入口
