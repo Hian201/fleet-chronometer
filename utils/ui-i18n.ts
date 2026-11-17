@@ -10,16 +10,9 @@
 // 面板層（entrypoints/panel/main.ts），這裡只放記憶體變數＋純函式，讓 state.ts
 // 可繼續獨立編譯、用 node 餵封包測試（AGENTS.md 硬約束 6：核心零瀏覽器依賴）。
 import { setDisplayLang, type Lang } from './gamedata-i18n';
+import { THEATER_STRINGS } from './theater-i18n';
 
-// 支援語系的單一真相來源。label 用各語言的自稱（下拉選單直接顯示）。
-// 新增語系只要：(1) 在 gamedata-i18n.ts 的 Lang union 加碼、(2) 在下方 STRINGS 補一本
-// 字典（Record<Lang,…> 會逼你補，漏不了）、(3) 這裡加一列。選單生成與 localStorage
-// 驗證都從此表推導，不會再有「加了語系卻忘了更新某個字面值列舉」的漏洞。
-export const LANGS: { code: Lang; label: string }[] = [
-    { code: 'zh-TW', label: '台灣華語' },
-    { code: 'ja', label: '日本語' },
-    { code: 'en', label: 'English' },
-];
+export { LANGS } from './lang';
 
 let lang: Lang = 'ja';
 export function getLang(): Lang { return lang; }
@@ -1512,32 +1505,14 @@ const STRINGS: Record<Lang, Dict> = {
         'ov.menuMute': '遊戲靜音',
         'ov.menuScreenshot': '拍照',
         'ov.menuScreenshotSub': '只擷取遊戲畫面並下載（首次需授權 dmm.com）',
-        'screenshot.done': '已下載遊戲畫面截圖',
-        'screenshot.failed': '拍照失敗，請稍後再試',
-        // 「沒收到回覆」不等於「找不到遊戲畫面」，兩者的下一步完全不同（見 utils/runtime-reply.ts）
-        'screenshot.noReply': '拍照沒有收到回覆：請在遊戲分頁按 F5 重新整理後再試一次',
-        // 視窗適應工具列（跑在 dmm.com 的 content script，見 entrypoints/theater.content.ts）
-        'theater.enter': '適應',
-        'theater.exit': '離開視窗適應',
-        'theater.mute': '靜音',
-        'theater.unmute': '解除靜音',
         'theater.muteOn': '已靜音（整個遊戲分頁）',
         'theater.muteOff': '有聲',
-        'theater.muteNoTab': '尚未連線到遊戲分頁：擴充更新後請在遊戲分頁按 F5 重新整理',
         // 查不到狀態時一律說「不可考」，不可拿它當「沒有遊戲分頁」的證據去要使用者按 F5
         'theater.muteUnknown': '目前狀態不可考（沒收到回覆，按一下仍可切換）',
         'theater.muteNoReply': '切換已送出，但沒收到目前狀態',
         'theater.muteFailed': '靜音切換失敗：擴充背景沒有回應',
-        'theater.notFound': '找不到遊戲畫面：請先在這個分頁登入並開啟遊戲',
-        'theater.hint': '拉動瀏覽器邊框可調整大小・Esc 離開',
         'theater.permissionDenied': '未授權 dmm.com，視窗適應無法啟用',
         'theater.needGameTab': '請先切換到 DMM 遊戲分頁再啟用視窗適應',
-        'theater.screenshot': '拍照（只擷取遊戲畫面）',
-        // 獨立視窗：紅色關閉鈕會連同遊戲分頁一起關掉，提示必須講明
-        'theater.popIn': '回到原視窗',
-        'theater.popoutHint': '✕ 或 Esc 回到原視窗・直接關閉此視窗會關掉遊戲',
-        'theater.popoutFailed': '無法移到獨立視窗',
-        'theater.popInFailed': '無法回到原視窗',
         'ov.menuOverview': '鎮守府情報總括',
         'ov.menuOverviewSub': '全覽・紀錄・設定・備份',
         'ov.fleetOverview': '艦隊全覽',
@@ -3446,28 +3421,13 @@ const STRINGS: Record<Lang, Dict> = {
         'ov.menuMute': 'ゲームをミュート',
         'ov.menuScreenshot': 'スクリーンショット',
         'ov.menuScreenshotSub': 'ゲーム画面だけを撮影してダウンロード（初回は dmm.com の許可が必要）',
-        'screenshot.done': 'ゲーム画面のスクリーンショットを保存しました',
-        'screenshot.failed': '撮影に失敗しました。しばらくしてから再試行してください',
-        'screenshot.noReply': '撮影の応答がありません：ゲームタブを F5 で再読み込みしてから再試行してください',
-        'theater.enter': '適応',
-        'theater.exit': 'ウィンドウ適応を終了',
-        'theater.mute': 'ミュート',
-        'theater.unmute': 'ミュート解除',
         'theater.muteOn': 'ミュート中（ゲームタブ全体）',
         'theater.muteOff': '音あり',
-        'theater.muteNoTab': 'ゲームタブに未接続：拡張機能の更新後はゲームタブを F5 で再読み込みしてください',
         'theater.muteUnknown': '現在の状態は不明（応答なし。クリックで切り替えは可能）',
         'theater.muteNoReply': '切り替えは送信しましたが、現在の状態を取得できませんでした',
         'theater.muteFailed': 'ミュート切り替えに失敗：拡張機能のバックグラウンドが応答しません',
-        'theater.notFound': 'ゲーム画面が見つかりません：このタブでログインしてゲームを開いてください',
-        'theater.hint': 'ウィンドウ枠をドラッグしてサイズ調整・Esc で終了',
         'theater.permissionDenied': 'dmm.com が許可されていないため、ウィンドウ適応を開始できません',
         'theater.needGameTab': 'DMM のゲームタブに切り替えてからウィンドウ適応を実行してください',
-        'theater.screenshot': 'スクリーンショット（ゲーム画面のみ）',
-        'theater.popIn': '元のウィンドウに戻す',
-        'theater.popoutHint': '✕ または Esc で元のウィンドウへ・このウィンドウを閉じるとゲームも閉じます',
-        'theater.popoutFailed': '独立ウィンドウに移せませんでした',
-        'theater.popInFailed': '元のウィンドウに戻せませんでした',
         'ov.menuOverview': '鎮守府情報総括',
         'ov.menuOverviewSub': '一覧・記録・設定・バックアップ',
         'ov.fleetOverview': '艦隊一覧',
@@ -5371,28 +5331,13 @@ const STRINGS: Record<Lang, Dict> = {
         'ov.menuMute': 'Mute Game',
         'ov.menuScreenshot': 'Screenshot',
         'ov.menuScreenshotSub': 'Capture just the game screen and download it (asks for dmm.com access once)',
-        'screenshot.done': 'Game screenshot downloaded',
-        'screenshot.failed': 'Screenshot failed, please try again',
-        'screenshot.noReply': 'No response for the screenshot — press F5 on the game tab and try again',
-        'theater.enter': 'Fit',
-        'theater.exit': 'Exit Fit to Window',
-        'theater.mute': 'Mute',
-        'theater.unmute': 'Unmute',
         'theater.muteOn': 'Muted (entire game tab)',
         'theater.muteOff': 'Sound on',
-        'theater.muteNoTab': 'No game tab connected — press F5 on the game tab after updating the extension',
         'theater.muteUnknown': 'Current state unknown (no response; clicking still toggles)',
         'theater.muteNoReply': 'Toggle sent, but the current state could not be read',
         'theater.muteFailed': 'Mute toggle failed — the extension background did not respond',
-        'theater.notFound': 'No game frame found — log in and open the game in this tab first',
-        'theater.hint': 'Drag the browser window edge to resize · Esc to exit',
         'theater.permissionDenied': 'dmm.com access was not granted, so Fit to Window cannot start',
         'theater.needGameTab': 'Switch to the DMM game tab first, then start Fit to Window',
-        'theater.screenshot': 'Screenshot (game screen only)',
-        'theater.popIn': 'Return to original window',
-        'theater.popoutHint': '✕ or Esc returns to the original window · closing this window closes the game',
-        'theater.popoutFailed': 'Could not move the game to a pop-out window',
-        'theater.popInFailed': 'Could not return to the original window',
         'ov.menuOverview': 'HQ Overview',
         'ov.menuOverviewSub': 'Lists · Logs · Settings · Backup',
         'ov.fleetOverview': 'Fleet Overview',
@@ -5828,19 +5773,20 @@ const STRINGS: Record<Lang, Dict> = {
     },
 };
 
+// t() 與 tFor() 同一套查找：劇場工具列的鍵（theater-i18n.ts）刻意不以展開運算式併進 STRINGS 字面量
+// （bundler 無法證明展開無副作用，bridge 等只間接匯入本檔的入口會連字典一起帶著）。兩表的鍵
+// 不重疊，查找順序只決定缺譯時的日文退回。
 export function t(key: string, vars?: Record<string, string | number>): string {
-    let s = STRINGS[lang][key] ?? STRINGS.ja[key] ?? key;
-    if (vars) for (const k in vars) s = s.split(`{${k}}`).join(String(vars[k]));
-    return s;
+    return tFor(lang, key, vars);
 }
 
 /** 該語系字典的全部鍵；三語一致性測試用（缺鍵時 t() 會靜默退回日文）。 */
 export function uiStringKeys(locale: Lang): string[] {
-    return Object.keys(STRINGS[locale]);
+    return [...Object.keys(STRINGS[locale]), ...Object.keys(THEATER_STRINGS[locale])];
 }
 
 export function tFor(locale: Lang, key: string, vars?: Record<string, string | number>): string {
-    let s = STRINGS[locale][key] ?? STRINGS.ja[key] ?? key;
+    let s = STRINGS[locale][key] ?? THEATER_STRINGS[locale][key] ?? STRINGS.ja[key] ?? THEATER_STRINGS.ja[key] ?? key;
     if (vars) for (const k in vars) s = s.split(`{${k}}`).join(String(vars[k]));
     return s;
 }

@@ -118,7 +118,10 @@ background 在靜音回覆裡附上 `connected`（目前連上的遊戲分頁數
 **狀態存放**：靜音開關與語言鏡像存 `db.meta['game-page']`（`GamePageMetaRow`）——SW 沒有
 localStorage，而 `chrome.storage` 要新增權限。語言的真相仍在擴充頁面的 localStorage
 （`ui-prefs.ts`），這裡只是鏡像：劇場模式跑在 dmm.com，跨 origin 讀不到擴充頁面的
-localStorage，讀不到鏡像時退回瀏覽器語言偵測。**這一列不參與投影、不引用任何 event id**，
+localStorage，讀不到鏡像時退回瀏覽器語言偵測（`utils/lang.ts`）。劇場腳本只匯入 `utils/lang.ts`
+與 `utils/theater-i18n.ts`（工具列 15 個鍵的唯一來源，`ui-i18n.ts` 查找時併用），不得匯入
+`ui-i18n.ts`／`ui-prefs.ts`，否則整份介面字串表會進遊戲頁；`tests/theater-i18n.test.ts` 以靜態
+追蹤匯入把關。**這一列不參與投影、不引用任何 event id**，
 故 `backup.ts` 的 `restoreMarker()` 會略過它（否則按過一次靜音就會讓備份還原判定為
 「來源不明的既有資料」而被拒）。縮放倍率與「上次是否在劇場」存 DMM 頁自己的 localStorage
 （`kc-theater`），不進 Dexie、不進備份。

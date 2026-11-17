@@ -6,7 +6,8 @@
 //   - 本檔：localStorage＋navigator 等瀏覽器 API 集中於此，三個頁面共用同一份持久化邏輯，
 //     三個頁面共用同一份持久化邏輯，避免各頁面產生不同的偏好語意。
 //   - 刻意不用 chrome.storage：維持權限精簡（不新增 storage 權限）。SW 不需讀取偏好。
-import { LANGS, setLang, getLang } from './ui-i18n';
+import { setLang, getLang } from './ui-i18n';
+import { LANGS, detectBrowserLang } from './lang';
 import { MSG_UI_LANG_SET } from './game-page';
 import type { Lang } from './gamedata-i18n';
 
@@ -15,15 +16,6 @@ const LANG_KEY = 'kc-panel-lang';
 const THEME_KEY = 'kc-theme';
 
 export type Theme = 'dark' | 'light';
-
-// 瀏覽器語言 → 支援語系。**遊戲頁的劇場模式 content script 也用這支**：它跑在 dmm.com，
-// 讀不到擴充頁面的 localStorage（不同 origin），只能靠這個偵測或 background 的鏡像。
-export function detectBrowserLang(): Lang {
-    const n = navigator.language.toLowerCase();
-    if (n.startsWith('ja')) return 'ja';
-    if (n.startsWith('zh')) return 'zh-TW';
-    return 'en';
-}
 
 // 啟動時呼叫：讀 localStorage（無效值回退瀏覽器語言偵測）並套用到 i18n 層。回傳生效語言。
 export function initLang(): Lang {

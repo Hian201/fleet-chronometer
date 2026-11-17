@@ -37,8 +37,9 @@ import {
 } from '@/utils/game-page';
 import { downloadCroppedScreenshot } from '@/utils/screenshot';
 import { replyWhenSettled } from '@/utils/runtime-reply';
-import { LANGS, setLang, t } from '@/utils/ui-i18n';
-import { detectBrowserLang } from '@/utils/ui-prefs';
+import { LANGS, detectBrowserLang } from '@/utils/lang';
+import { tTheater } from '@/utils/theater-i18n';
+import type { Lang } from '@/utils/gamedata-i18n';
 
 // 我們自己的 UI 容器標記：貼標時要跳過它（否則會把自己藏起來）。
 const UI_ATTR = 'data-kc-theater-ui';
@@ -54,6 +55,9 @@ interface Stored { active?: boolean }
 // 下次開遊戲會被當成「上次在視窗適應」自動進入。
 const POPOUT_KEY = 'kc-popout';
 interface PopoutState { origin: PopoutOrigin | null; wasActive: boolean }
+// 工具列文案的顯示語言；啟動時由 background 的語言鏡像或瀏覽器語言決定（初值同 ui-i18n）。
+let lang: Lang = 'ja';
+const t = (key: string) => tTheater(lang, key);
 // 等遊戲框出現的逾時（ms）；遊戲框是 SPA 動態插入，載入當下可能尚未存在。
 const FRAME_WAIT_MS = 15000;
 
@@ -573,7 +577,7 @@ export default defineContentScript({
             // 語言：content script 讀不到擴充頁面的 localStorage（那是 extension origin），
             // 故向 background 要一份鏡像；沒有紀錄時退回瀏覽器語言偵測（與 ui-prefs 同規則）。
             const saved = await browser.runtime.sendMessage({ type: MSG_UI_LANG }).catch(() => null);
-            setLang(LANGS.find(l => l.code === saved)?.code ?? detectBrowserLang());
+            lang = LANGS.find(l => l.code === saved)?.code ?? detectBrowserLang();
             const state: any = await browser.runtime.sendMessage({ type: MSG_MUTE_GET }).catch(() => null);
             muted = !!state?.muted;
             ui.render();

@@ -11,9 +11,13 @@
 - 任務產生物與獎勵 JSON 另分成 `quest-data`（575 kB），檔名可歸因；其餘共用模組仍在
   `quest-goal-label-*`（401 kB，實際內容是 `state`、`battle`、`db`、dexie，檔名不說明內容）。
   分組規則與不另設 `core` 組的理由寫在 `wxt.config.ts` 的 `shared-chunk-groups` 外掛註解。
-- 目前各 chunk：`background.js` 1168 kB、`overview-*` 1072 kB、`quest-data-*` 575 kB、
+- 注入遊戲頁的劇場腳本不再帶整份介面字串表，`content-scripts/theater.js` 從 374 kB 降到 24 kB；
+  工具列 15 個鍵移到 `utils/theater-i18n.ts`，規則與把關測試見 `docs/engineering/game-page.md`。
+- 目前各產物：`background.js` 1168 kB、`overview-*` 1072 kB、`quest-data-*` 575 kB、
   `ui-prefs-*` 504 kB、`quest-goal-label-*` 401 kB、譯文兩檔 115／140 kB、`panel-*` 144 kB、
-  `popup-*` 5 kB。
+  `theater.js` 24 kB、`bridge.js` 9 kB、`interceptor.js` 8 kB、`popup-*` 5 kB。
+- 量大小前要重跑 `npm run build`：`tests/manifest.test.ts` 會自己跑一次 build，`npm test` 之後
+  `.output` 裡的產物與正式 build 不完全相同（實測差約 2.5 kB）。
 - 下一個會撞到 1200 kB 預算的是 `background.js`。它是 service worker 單檔、不能用 `import()`，
   要縮只能減少它匯入的內容（見步驟 4 的介面字串表）。
 - 以下步驟都是可選的改善，沒有急迫性。第 2 節是分出譯文**之前**的量測，保留作為組成比例的參考。
@@ -63,27 +67,7 @@
 
 ## 3. 步驟
 
-每個步驟獨立成一個 session、獨立驗證與 commit。步驟 1（任務目錄譯文依語言動態載入）與步驟 2（共用 chunk 依職責分組）已完成。
-
-### 步驟 3：劇場模式 content script 不再帶整份介面字串表（可選，另案）
-
-**現況**：`content-scripts/theater.js` 374 kB 中有 388 kB（壓縮前）是 `utils/ui-i18n.ts` 的三語
-全表，而劇場腳本（視窗適應與獨立視窗共用同一支）實際只用 15 個鍵：`theater.enter`、`exit`、
-`mute`、`unmute`、`screenshot`、`popIn`、`hint`、`popoutHint`、`muteNoTab`、`notFound`、
-`popInFailed`、`popoutFailed` 與 `screenshot.done`／`failed`／`noReply`。這是唯一在**遊戲頁**裡
-解析的大檔，雖不在這次警告內，實際體感成本比擴充頁的 chunk 高。
-
-**做法**：把劇場模式用到的鍵抽成一份小型三語表，`theater.content.ts` 只匯入它；`ui-i18n.ts`
-從同一份表合併，維持「同一文案只有一個來源」。加一個測試斷言 `theater.js` 的大小上限，
-避免之後又被整表拖回來。
-
-**約束**：只改字串來源，不改 content script 的行為、注入時機或權限（硬約束 1、7）。
-
-**驗證**：三語 × 15 個鍵全部以測試逐一斷言可取得且與 `ui-i18n.ts` 同值（其中 6 個是錯誤與
-邊界訊息，手動難觸發，不靠肉眼看）。開發者只需在遊戲頁開一次視窗適應與獨立視窗，確認工具列
-仍正常；不必為文案逐語言檢查。
-
-**建議模型**：Sonnet 5.5、中～高 effort。
+每個步驟獨立成一個 session、獨立驗證與 commit。步驟 1（任務目錄譯文依語言動態載入）、步驟 2（共用 chunk 依職責分組）與步驟 3（劇場腳本不帶整份字串表）已完成。
 
 ### 步驟 4：介面字串表依語言拆（目前不建議）
 

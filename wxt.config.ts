@@ -13,8 +13,13 @@ const CHUNK_BUDGET_KB = 1200;
 export default defineConfig({
     imports: {
         dirsScanOptions: {
-            // 戰鬥型別由 state.ts 統一重新匯出，自動匯入只保留該入口，避免同名來源衝突。
-            fileFilter: (file) => !file.replace(/\\/g, '/').endsWith('/utils/battle-types.ts'),
+            // 這些模組由別處統一重新匯出，自動匯入只保留該入口，避免同名來源衝突：
+            // battle-types 由 state.ts 匯出，lang.ts 的 LANGS 由 ui-i18n.ts 匯出
+            // （劇場 content script 直接匯入 lang.ts，才不必載入整份字串表）。
+            fileFilter: (file) => {
+                const path = file.replace(/\\/g, '/');
+                return !['/utils/battle-types.ts', '/utils/lang.ts'].some((tail) => path.endsWith(tail));
+            },
         },
     },
     // 開發模式：擴充頁（chrome-extension://）會向 Vite 拉 @vite/client；Vite 預設
