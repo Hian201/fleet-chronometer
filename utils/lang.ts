@@ -20,3 +20,9 @@ export function detectBrowserLang(): Lang {
     if (n.startsWith('zh')) return 'zh-TW';
     return 'en';
 }
+
+// 把來路不明的語言碼（localStorage、background 鏡像、訊息欄位）收斂成支援語系；
+// 認不出時回 null，由呼叫端決定要偵測瀏覽器語言還是維持現狀。
+export function pickLang(value: unknown): Lang | null {
+    return LANGS.find(l => l.code === value)?.code ?? null;
+}

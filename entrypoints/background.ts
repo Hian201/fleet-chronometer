@@ -1,6 +1,7 @@
 import { db, type ApiEventRow, type GamePageMetaRow } from '@/utils/db';
 import {
   MSG_MUTE_GET, MSG_MUTE_SET,
+  GAME_PAGE_MATCHES,
   MSG_CAPTURE_TAB, MSG_THEATER_FIT_WINDOW, MSG_THEATER_TOGGLE, MSG_UI_LANG, MSG_UI_LANG_SET, PORT_MUTE,
   MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES, PORT_GAME_FRAME,
   type FleetPhotoCaptureMessage, type FleetPhotoSource,
@@ -158,6 +159,18 @@ export default defineBackground(() => {
     browser.runtime.sendMessage({ type: MSG_CAPTURE_HEALTH, health }).catch(() => { });
   };
   const captureHealth = new CaptureHealthRegistry(broadcastCaptureHealth);
+  // 語言改了就轉發給已連線的遊戲分頁：劇場工具列跑在 dmm.com，跨 origin 讀不到擴充頁面的
+  // localStorage，只能靠這則訊息即時換文案（沒收到時仍會在下次載入向鏡像取語言）。
+  // tabs.sendMessage 需要該分頁的 host permission，故先確認使用者已授權 dmm.com：有工具列
+  // 就一定已授權（劇場腳本是靠該權限注入的），沒授權時直接略過，絕不在這裡索取權限
+  // （權限精簡，AGENTS.md 硬約束 7）。分頁清單沿用靜音的長連線，不另外查詢分頁。
+  const notifyGameTabsLang = async (lang: string): Promise<void> => {
+    const granted = await browser.permissions.contains({ origins: GAME_PAGE_MATCHES }).catch(() => false);
+    if (!granted) return;
+    await Promise.all([...new Set(mutePortTabs.values())].map(tabId =>
+      browser.tabs.sendMessage(tabId, { type: MSG_UI_LANG_SET, lang }).catch(() => undefined),
+    ));
+  };
   browser.runtime.onConnect.addListener(port => {
     if (port.name !== PORT_GAME_FRAME) return;
     fleetPhotoCapture.connect(port);
@@ -260,8 +273,9 @@ export default defineBackground(() => {
       return replyWhenSettled(readGamePagePrefs().then(p => p.lang), sendResponse);
     }
     if (msg?.type === MSG_UI_LANG_SET) {
+      const lang = String(msg.lang ?? '');
       return replyWhenSettled(
-        writeGamePagePrefs({ lang: String(msg.lang ?? '') }).then(() => undefined),
+        writeGamePagePrefs({ lang }).then(() => notifyGameTabsLang(lang)),
         sendResponse,
       );
     }

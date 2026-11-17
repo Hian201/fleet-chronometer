@@ -30,14 +30,14 @@ import {
 } from '@/utils/theater';
 import {
     MSG_CAPTURE_TAB, MSG_MUTE_GET, MSG_MUTE_SET, MSG_SCREENSHOT_RECT, MSG_THEATER_FIT_WINDOW,
-    MSG_THEATER_TOGGLE, MSG_UI_LANG, RELAY_MARK, isGameFrameOrigin,
+    MSG_THEATER_TOGGLE, MSG_UI_LANG, MSG_UI_LANG_SET, RELAY_MARK, isGameFrameOrigin,
     MSG_POPOUT_CLOSE, MSG_POPOUT_OPEN, MSG_POPOUT_STATE,
     type CaptureTabReply, type ScreenshotRectReply, type TheaterRelayMessage,
     type PopoutCloseReply, type PopoutOpenReply, type PopoutOrigin, type PopoutStateReply,
 } from '@/utils/game-page';
 import { downloadCroppedScreenshot } from '@/utils/screenshot';
 import { replyWhenSettled } from '@/utils/runtime-reply';
-import { LANGS, detectBrowserLang } from '@/utils/lang';
+import { detectBrowserLang, pickLang } from '@/utils/lang';
 import { tTheater } from '@/utils/theater-i18n';
 import type { Lang } from '@/utils/gamedata-i18n';
 
@@ -548,6 +548,11 @@ export default defineContentScript({
                 return;
             }
             if (msg?.type === MSG_MUTE_SET) { muted = !!msg.muted; ui.render(); }
+            // 擴充頁面切換語言後 background 會轉發過來，工具列即時換文案，不必重整遊戲頁。
+            if (msg?.type === MSG_UI_LANG_SET) {
+                const next = pickLang(msg.lang);
+                if (next && next !== lang) { lang = next; ui.render(); }
+            }
             if (msg?.type === MSG_SCREENSHOT_RECT) {
                 return replyWhenSettled(measureScreenshotRect(), sendResponse);
             }
@@ -577,7 +582,7 @@ export default defineContentScript({
             // 語言：content script 讀不到擴充頁面的 localStorage（那是 extension origin），
             // 故向 background 要一份鏡像；沒有紀錄時退回瀏覽器語言偵測（與 ui-prefs 同規則）。
             const saved = await browser.runtime.sendMessage({ type: MSG_UI_LANG }).catch(() => null);
-            lang = LANGS.find(l => l.code === saved)?.code ?? detectBrowserLang();
+            lang = pickLang(saved) ?? detectBrowserLang();
             const state: any = await browser.runtime.sendMessage({ type: MSG_MUTE_GET }).catch(() => null);
             muted = !!state?.muted;
             ui.render();

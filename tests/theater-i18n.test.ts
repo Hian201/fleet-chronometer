@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LANGS } from '../utils/lang';
+import { LANGS, pickLang } from '../utils/lang';
 import { THEATER_STRINGS, tTheater } from '../utils/theater-i18n';
 import { tFor } from '../utils/ui-i18n';
 
@@ -71,5 +71,39 @@ describe('劇場 content script 不帶大表', () => {
         const banned = ['utils/ui-i18n.ts', 'utils/ui-prefs.ts', 'utils/gamedata-i18n.ts', 'utils/gamedata-names.ts'];
         expect(rel.filter(f => banned.includes(f))).toEqual([]);
         expect(rel).toContain('utils/theater-i18n.ts');
+    });
+});
+
+describe('語言碼收斂（pickLang）', () => {
+    it('支援語系原樣回傳，其餘一律 null', () => {
+        for (const { code } of LANGS) expect(pickLang(code)).toBe(code);
+        for (const bad of ['zh-CN', 'ZH-TW', 'en-US', '', null, undefined, 0, {}]) {
+            expect(pickLang(bad), String(bad)).toBeNull();
+        }
+    });
+});
+
+describe('語言切換即時生效的接線', () => {
+    // 工具列的語言在遊戲頁，只能靠 background 轉發；兩端任一邊被拿掉就會退回「要 F5」。
+    // 這裡只守住接線存在，實際訊息往返仍需開發者在遊戲頁確認。
+    const background = readFileSync(resolve(ROOT, 'entrypoints/background.ts'), 'utf8');
+    const entry = readFileSync(ENTRY, 'utf8');
+
+    it('background 收到語言變更會轉發給已連線的遊戲分頁', () => {
+        expect(background).toContain('notifyGameTabsLang');
+        expect(background).toMatch(/browser\.tabs\.sendMessage\([\s\S]*MSG_UI_LANG_SET/);
+    });
+
+    it('轉發前先確認已授權 dmm.com，不自行索取權限', () => {
+        const forward = background.slice(background.indexOf('const notifyGameTabsLang'));
+        const body = forward.slice(0, forward.indexOf('browser.tabs.sendMessage'));
+        expect(body).toMatch(/permissions\.contains/);
+        expect(forward).not.toMatch(/permissions\.request/);
+    });
+
+    it('劇場腳本收到語言變更會換文案並重繪', () => {
+        const handler = entry.slice(entry.indexOf('MSG_UI_LANG_SET'));
+        expect(handler).toMatch(/pickLang\(msg\.lang\)/);
+        expect(handler).toMatch(/ui\.render\(\)/);
     });
 });
