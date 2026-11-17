@@ -4,12 +4,13 @@ import {
     condTier,
     fleetCondRecoveryEta,
     fleetSupplyCapAt,
+    fleetSupplyProgress,
     naturalRecoveryAt,
     projectNaturalCond,
     projectShipCond,
     shipRecoveryAt,
 } from '../utils/cond';
-import { MORALE_INTERVAL_MS, TIMER_SAFETY_MS } from '../utils/repair';
+import { MORALE_INTERVAL_MS, TIMER_SAFETY_MS, moraleTimer } from '../utils/repair';
 import { GameState, type FleetView, type ShipView } from '../utils/state';
 
 const MIN = 60_000;
@@ -289,5 +290,34 @@ describe('fleetSupplyCapAt', () => {
         expect(fleetSupplyCapAt(fleet(ships, { mission: true }))).toBeUndefined();
         expect(fleetSupplyCapAt(fleet(ships, { moraleAnchor: undefined }))).toBeUndefined();
         expect(fleetSupplyCapAt(fleet(ships, { condAsOf: undefined }))).toBeUndefined();
+    });
+});
+
+describe('給糧累積（moraleTimer／fleetSupplyProgress）', () => {
+    const tick = (k: number) => AS_OF + k * MORALE_INTERVAL_MS + TIMER_SAFETY_MS;
+
+    it('倒數到了不停住：次數 +1，接著倒數下一次', () => {
+        expect(moraleTimer(AS_OF, AS_OF)).toEqual({ ticks: 0, nextIn: MORALE_INTERVAL_MS + TIMER_SAFETY_MS });
+        expect(moraleTimer(AS_OF, tick(1) - 1)).toEqual({ ticks: 0, nextIn: 1 });
+        expect(moraleTimer(AS_OF, tick(1))).toEqual({ ticks: 1, nextIn: MORALE_INTERVAL_MS });
+        expect(moraleTimer(AS_OF, tick(2) + 5 * MIN).ticks).toBe(2);
+    });
+
+    it('全員 ≥49 也回報累積；給糧對象全員到 54 的時點起標成「回港即滿」', () => {
+        const f = fleet([ship({ mst: NOSAKI_KAI, cond: 49 }), ship({ cond: 49 }), ship({ cond: 51 })]);
+        // 野埼改 +3：49 要兩次才到 54（49+6 封頂）。
+        expect(fleetSupplyProgress(f, tick(1))).toEqual({ ticks: 1, full: false, fullAt: tick(2) });
+        expect(fleetSupplyProgress(f, tick(2))).toEqual({ ticks: 2, full: true, fullAt: null });
+        // 給糧對象都已 54：現在回港就是滿的。
+        expect(fleetSupplyProgress(fleet([ship({ mst: NOSAKI_KAI }), ship({ cond: 54 })]), AS_OF))
+            .toEqual({ ticks: 0, full: true, fullAt: null });
+    });
+
+    it('給糧不發動、出門中或錨點不可考時回 undefined', () => {
+        const ships = [ship({ mst: NOSAKI }), ship({ cond: 40 })];
+        expect(fleetSupplyProgress(fleet(ships, { mission: true }), AS_OF)).toBeUndefined();
+        expect(fleetSupplyProgress(fleet(ships, { moraleAnchor: null }), AS_OF)).toBeUndefined();
+        expect(fleetSupplyProgress(fleet(ships, { moraleAnchor: undefined }), AS_OF)).toBeUndefined();
+        expect(fleetSupplyProgress(fleet([ship(), ship({ cond: 40 })]), AS_OF)).toBeUndefined();
     });
 });

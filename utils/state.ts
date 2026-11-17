@@ -29,6 +29,7 @@ import {
 import { nodeLetter } from './map-node-letters';
 import { checkPrep, prepGateOpen, questPrepDef, type PrepCheck, type PrepFacts, type PrepFleet, type QuestPrepDef } from './quest-prep';
 import { COND_DOCK_FLOOR } from './cond';
+import { MORALE_INTERVAL_MS, NOSAKI_MST, REPAIR_INTERVAL_MS } from './repair';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
     LBAS_COND_EXHAUSTED, LBAS_COND_MILD, LBAS_COND_TIRED,
@@ -466,7 +467,8 @@ export interface BuildStartView {
 export interface SpeedupView {
     kdockId: number; shipMst: number; qty: number; secretary: number;
 }
-// repairAnchor：泊地修理/給糧計時器的起算時間戳（估算，見 repairAnchorByDeck）。
+// repairAnchor：泊地修理計時器的起算時間戳（估算，見 repairAnchorByDeck）；
+// moraleAnchor：全帳號共用的給糧計時器（見 GameState.moraleAnchor），出門中的艦隊為 null。
 // null＝出門中、undefined＝從未觀測到重置事件（不可考）——兩者都不該顯示倒數。
 export interface FleetView {
     name: string; ships: ShipView[]; mission: boolean;
@@ -1064,17 +1066,23 @@ export class GameState {
     // boss 戰打完的血量不能污染這個問題。`null` 一律不當「沒有大破」用（未知不是安全）。
     bossEntryTaiha: boolean | null = null;
 
-    // ── 泊地修理／給糧的計時器錨點（key: deckIdx，值為該艦隊「最後一次重置計時」的時間戳）──
-    // 遊戲**不送任何泊地修理封包**，20 分／15 分是伺服器內部從「編成完了」起算的計時，
+    // ── 泊地修理的計時器錨點（key: deckIdx，值為該艦隊「最後一次重置計時」的時間戳）──
+    // 遊戲**不送任何泊地修理封包**，20 分是伺服器內部從「編成完了」起算的計時，
     // 只能靠觀察會重置它的封包來推算，故一律視為估算值（UI 需標示）。
     // 重置（依使用者提供之遊戲行為）：[變更]改動該隊成員、該隊出擊/遠征後回港。
     // **不重置**：陣容保存/讀取（preset_select）、隨伴艦一括解除（change 的 api_ship_id=-2）、
     // 僅更換裝備、其他艦隊的任何操作——這幾條是刻意的例外，別「順手」補進重置清單。
-    // null＝該隊出門中（出擊/遠征），回港時才重新錨定。
-    // **兩個機制的週期不同（修理20分／給糧15分）故各存一份錨點**：共用一份無法表達
-    // 「經過15分時給糧已結算、修理還沒」這種不同步狀態，結算後重新起算也會互相打架。
+    // null＝該隊出門中（出擊/遠征），回港時才重新錨定；fleets() 也據此把出門中的隊標成 null。
     repairAnchorByDeck = new Map<number, number | null>();
-    moraleAnchorByDeck = new Map<number, number | null>();
+    // ── 給糧（野埼）計時器：**全帳號共用一個**，與泊地修理互相獨立 ──
+    // wikiwiki「野埼」：複数の艦隊でそれぞれ野埼を運用する場合でもタイマーは共通；NGA 野埼研究
+    // （2025-12）：重置對象是所有艦隊含預設、沒有野埼時計時器也在跑。兩者一致：
+    // ・進母港時距上次重置 ≥15 分即結算並重置（不足 15 分的零頭捨去；結算次數＝floor(經過/15)）。
+    // ・編成變更後 1、2 號位有野埼（任一艦隊）→ 重置。野埼移出、從 3 號位以後放入、
+    //   與 3 號位以後互換都不重置。
+    // ・不重置：預設展開、隨伴艦一括解除、解體／改修素材使野埼遞補到 1、2 號位、出擊與演習。
+    // undefined＝不可考；兩次觀測到的進港相隔 ≥15 分時，後一次必定是重置點（見 onPortPort）。
+    moraleAnchor: number | undefined;
     // 最近一次 api_port/port 的時間戳：伺服器只在進入母港時補算士氣自然回復，
     // 推算「何時回到 49」必須從這個時刻起算（見 utils/cond.ts）。
     portAt: number | undefined;
@@ -1095,12 +1103,20 @@ export class GameState {
     private resetRepairAnchor(deckIdx: number, ts: number) {
         if (deckIdx < 0) return;
         this.repairAnchorByDeck.set(deckIdx, ts);
-        this.moraleAnchorByDeck.set(deckIdx, ts);
+    }
+
+    // 編成變更後該隊 1、2 號位有野埼才重置全域給糧計時器（見 moraleAnchor）。
+    private resetMoraleIfNosakiFront(deckIdx: number, ts: number) {
+        const ships = this.decks[deckIdx]?.api_ship;
+        if (!Array.isArray(ships)) return;
+        if (ships.slice(0, 2).some((id: number) => NOSAKI_MST.includes(this.ships.get(id)?.api_ship_id)))
+            this.moraleAnchor = ts;
     }
 
     // 解体與近代化改修共用：移除艦娘，destroyGear 時連同一般槽與補強增設的裝備一起移出倉庫
     // （KC3Kai ShipManager.remove 亦含補強增設）。必須在刪艦前讀 api_slot，刪後就查不到。
-    // 移出編成等同改動成員，比照 api_req_hensei/change 重置受影響艦隊的泊地修理／給糧錨點。
+    // 移出編成等同改動成員，比照 api_req_hensei/change 重置受影響艦隊的泊地修理錨點；
+    // 給糧計時器不重置（wikiwiki：除籍で野埼が旗艦または2番艦になった場合はリセットされない）。
     private removeShips(ids: number[], destroyGear: boolean, ts: number) {
         for (const sid of ids) {
             const s = this.ships.get(sid);
@@ -1151,7 +1167,6 @@ export class GameState {
     private markFleetAway(deckIdx: number) {
         if (deckIdx < 0) return;
         this.repairAnchorByDeck.set(deckIdx, null);
-        this.moraleAnchorByDeck.set(deckIdx, null);
     }
 
     // 這則戰鬥封包是否真的帶隨伴（第2）艦隊——只有連合艦隊出擊才會有 *_combined 血量欄位。
@@ -2023,6 +2038,7 @@ export class GameState {
     }
 
     private onPortPort(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        const previousPortAt = this.portAt;
         this.portAt = ts;
         this.bucketDockAtByShip.clear();
         this.ships.clear();
@@ -2075,10 +2091,11 @@ export class GameState {
             }
             if (ts - anchor >= intervalMs) m.set(i, ts);            // 本次進港已結算 → 下一輪
         };
-        this.decks.forEach((d: any, i: number) => {
-            advance(this.repairAnchorByDeck, i, d, 20 * 60_000);
-            advance(this.moraleAnchorByDeck, i, d, 15 * 60_000);
-        });
+        this.decks.forEach((d: any, i: number) => advance(this.repairAnchorByDeck, i, d, REPAIR_INTERVAL_MS));
+        // 給糧計時器全域共用、出門與否都在跑：滿 15 分即在此刻結算並重置。錨點不可考時，
+        // 真正的錨點不晚於上次觀測到的進港，故兩次進港相隔 ≥15 分就能確定此刻重置。
+        const since = this.moraleAnchor ?? previousPortAt;
+        if (since !== undefined && ts - since >= MORALE_INTERVAL_MS) this.moraleAnchor = ts;
     }
 
     private onReqMapSelectEventmapRank(path: string, api: any, req: Record<string, string>, ts: number) {
@@ -2231,6 +2248,7 @@ export class GameState {
                     if (d !== deck) {
                         this.compactDeckShips(d);
                         this.resetRepairAnchor(this.decks.indexOf(d), ts);
+                        this.resetMoraleIfNosakiFront(this.decks.indexOf(d), ts);
                     }
                 }
             }
@@ -2240,6 +2258,7 @@ export class GameState {
         deck.api_ship[idx] = newId;
         this.compactDeckShips(deck);
         this.resetRepairAnchor(deckIdx, ts);
+        this.resetMoraleIfNosakiFront(deckIdx, ts);
     }
 
     private onReqKousyouDestroyship(path: string, api: any, req: Record<string, string>, ts: number) {
@@ -4589,7 +4608,8 @@ export class GameState {
             name: this.fleetName(d, i),
             mission: d.api_mission?.[0] > 0,
             repairAnchor: this.repairAnchorByDeck.get(i),
-            moraleAnchor: this.moraleAnchorByDeck.get(i),
+            // 出門中（出擊／遠征）不在母港，不會結算，與修理錨點同樣標 null。
+            moraleAnchor: this.repairAnchorByDeck.get(i) === null || d.api_mission?.[0] > 0 ? null : this.moraleAnchor,
             condAsOf: this.portAt,
             ships: d.api_ship
                 .filter((id: number) => id > 0)

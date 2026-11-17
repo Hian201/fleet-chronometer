@@ -186,6 +186,15 @@ export function planMoraleSupply(fleet: FleetView, elapsedMs?: number): MoralePl
 }
 
 /**
+ * 全域給糧計時器的累積狀態：`ticks`＝現在進母港可結算幾次（floor(經過/15 分)，含安全緩衝），
+ * `nextIn`＝再過多久累積下一次。給糧不是「倒數到 0 就結束」：不進港也會繼續累積。
+ */
+export function moraleTimer(anchor: number, now: number = Date.now()): { ticks: number; nextIn: number } {
+    const ticks = Math.max(0, Math.floor((now - anchor - TIMER_SAFETY_MS) / MORALE_INTERVAL_MS));
+    return { ticks, nextIn: anchor + (ticks + 1) * MORALE_INTERVAL_MS + TIMER_SAFETY_MS - now };
+}
+
+/**
  * 下次結算的剩餘毫秒（已含 1 分鐘安全緩衝，見 TIMER_SAFETY_MS）。
  * anchor 為 null（出門中）或 undefined（不可考）時回 undefined——UI 應只顯示範圍、不顯示倒數。
  */

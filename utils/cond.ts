@@ -16,7 +16,7 @@
 
 import type { FleetView, ShipView } from './state';
 import {
-    MORALE_CAP, MORALE_INTERVAL_MS, MORALE_SOURCE_MIN_COND, TIMER_SAFETY_MS, planMoraleSupply,
+    MORALE_CAP, MORALE_INTERVAL_MS, MORALE_SOURCE_MIN_COND, TIMER_SAFETY_MS, moraleTimer, planMoraleSupply,
 } from './repair';
 
 export const COND_STEP_MS = 3 * 60_000;     // 自然回復週期（伺服器時鐘的 3 分鐘邊界）
@@ -153,6 +153,36 @@ export function fleetSupplyCapAt(fleet: FleetView): number | null | undefined {
         at = Math.max(at ?? eta, eta);
     }
     return at;
+}
+
+export interface SupplyProgress {
+    /** 現在進母港可結算的給糧次數。 */
+    ticks: number;
+    /** 給糧對象全員現在進母港即達 54（再等也不會多）。 */
+    full: boolean;
+    /** 給糧對象全員到 54 的推算時刻；已滿或無對象時為 null。 */
+    fullAt: number | null;
+}
+
+/**
+ * 泊地分組用：給糧發動中的艦隊「現在回母港」能得到什麼。與 fleetSupplyCapAt 不同，
+ * 不以隊上有艦未滿 49 為前提（給糧常用來把 49 推到 54）。給糧不發動、出門中或錨點／
+ * 觀測時間不可考時回 undefined。
+ */
+export function fleetSupplyProgress(fleet: FleetView, now: number = Date.now()): SupplyProgress | undefined {
+    const asOf = fleet.condAsOf;
+    if (asOf === undefined || fleet.mission) return undefined;
+    const supply = supplyContext(fleet);
+    if (!supply) return undefined;
+    const { ticks } = moraleTimer(supply.anchor, now);
+    let fullAt: number | null = null;
+    for (const [index, ship] of fleet.ships.entries()) {
+        if (!supply.recovers(index)) continue;
+        const eta = supplyCapReachAt(ship, asOf, supply);
+        fullAt = Math.max(fullAt ?? eta, eta);
+    }
+    const full = fullAt === null || fullAt <= now;
+    return { ticks, full, fullAt: full ? null : fullAt };
 }
 
 /**

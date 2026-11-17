@@ -14,8 +14,11 @@ import { prepCheckShort, prepCheckText, questConditionShort, questConditionText,
 import type { GameState, QuestPrepView, QuestView } from '@/utils/state';
 import { questCatalogIdentity } from '@/utils/quest-identity';
 import {
-    MORALE_INTERVAL_MS, REPAIR_INTERVAL_MS, nextSettlementIn, planAnchorageRepair, planMoraleSupply,
+    REPAIR_INTERVAL_MS, moraleTimer, nextSettlementIn, planAnchorageRepair, planMoraleSupply, type MoralePlan,
 } from '@/utils/repair';
+import { fleetSupplyProgress } from '@/utils/cond';
+import { formatTime } from '@/utils/date-format';
+import type { FleetView } from '@/utils/state';
 
 type Page = 'harbor' | 'quests' | 'items';
 // anchor＝泊地修理／給糧：只在有艦隊運作時出現（見 render 的 upkeep）。
@@ -408,18 +411,39 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         if (ms === undefined) return '<span class="time"></span>';
         return `<span class="time rcd" data-anchor="${anchor}" data-interval="${interval}">${esc(repairCountdown(ms))}</span>`;
     }
+    // 給糧計時器全帳號共用（見 GameState.moraleAnchor），倒數只放欄頭一份：「×已累積次數 下次 m:ss」。
+    // 不進母港也會繼續累積，所以倒數到了不停在「可結算」，而是次數 +1、接著倒數下一次。
+    // data-ticks 讓每秒 tick 在次數變動時重繪泊地分組（各隊的 +N／回港即滿跟著變）。
+    function moraleHeadTimer() {
+        const anchor = state.moraleAnchor;
+        if (anchor === undefined) return `<span class="next unknown" title="${esc(t('repair.unknownAnchorTitle'))}">${esc(t('repair.unknownAnchor'))}</span>`;
+        const { ticks, nextIn } = moraleTimer(anchor);
+        return `<span class="next"><b class="ticks">×${ticks}</b><span class="mcd" data-anchor="${anchor}" data-ticks="${ticks}">${esc(t('repair.nextLabel'))} ${esc(repairCountdown(nextIn))}</span></span>`;
+    }
+    // 各隊給糧欄的右側：現在回母港可得的士氣（+次數×增量），給糧對象全員會到 54 時改寫「回港即滿」
+    // ——那是再等也不會多的時點，玩家要決定的正是何時回去。
+    function moraleGain(fleet: FleetView, mor: MoralePlan) {
+        const progress = fleetSupplyProgress(fleet);
+        if (!progress) return '<span class="time"></span>';
+        if (progress.full) return `<span class="time full" title="${esc(t('repair.moraleFullTitle'))}">${esc(t('repair.moraleFull'))}</span>`;
+        const title = t('repair.moraleGainTitle', { k: progress.ticks, n: progress.ticks * mor.perTick, at: progress.fullAt === null ? '—' : formatTime(progress.fullAt, false) });
+        return `<span class="time${progress.ticks ? '' : ' idle'}" title="${esc(title)}">+${progress.ticks * mor.perTick}</span>`;
+    }
     function upkeepHtml(rows: ReturnType<typeof upkeepRows>) {
         const none = '<span class="upkeep-cell none" aria-hidden="true">—</span>';
-        // 欄頭右側的「下次」對齊下方倒數：這裡的時間是下次結算的週期倒數，不是士氣到達時刻
+        // 修理欄頭右側的「下次」對齊下方倒數：這裡的時間是下次結算的週期倒數，不是士氣到達時刻
         // （那個在編成摘要的「士氣 49 › 54」）。
         const next = `<span class="next">${esc(t('repair.nextLabel'))}</span>`;
-        return `<div class="upkeep-row upkeep-head"><span></span><span title="${esc(t('repair.repairTitle'))}"><img class="upkeep-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">${esc(t('repair.colRepair'))}${next}</span><span title="${esc(t('repair.moraleTitle'))}"><img class="upkeep-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">${esc(t('repair.colMorale'))}${next}</span></div>` +
+        const moraleHead = rows.some(row => row.mor.active)
+            ? `<span title="${esc(t('repair.moraleTitle') + '\n' + t('repair.moraleTimerTitle'))}"><img class="upkeep-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">${esc(t('repair.colMorale'))}${moraleHeadTimer()}</span>`
+            : `<span title="${esc(t('repair.moraleTitle'))}"><img class="upkeep-icon" src="/icons/ui/provision.svg" alt="" aria-hidden="true">${esc(t('repair.colMorale'))}</span>`;
+        return `<div class="upkeep-row upkeep-head"><span></span><span title="${esc(t('repair.repairTitle'))}"><img class="upkeep-icon" src="/icons/ui/dock.svg" alt="" aria-hidden="true">${esc(t('repair.colRepair'))}${next}</span>${moraleHead}</div>` +
             rows.map(({ fleet, no, rep, mor }) => {
                 const repCell = rep.active
                     ? `<span class="upkeep-cell${rep.accelerated ? ' accel' : ''}"><span class="n">${esc(t('repair.shipCount', { n: rep.coverage }))}</span>${rep.accelerated ? `<em class="mode">${esc(t('repair.accelLabel'))}</em>` : ''}${upkeepTime(fleet.repairAnchor, REPAIR_INTERVAL_MS)}</span>`
                     : none;
                 const morCell = mor.active
-                    ? `<span class="upkeep-cell"><span class="n">${esc(t('repair.shipCount', { n: mor.slots.filter(slot => slot.willRecover).length }))}</span>${upkeepTime(fleet.moraleAnchor, MORALE_INTERVAL_MS)}</span>`
+                    ? `<span class="upkeep-cell morale"><span class="n">${esc(t('repair.shipCount', { n: mor.slots.filter(slot => slot.willRecover).length }))}</span>${moraleGain(fleet, mor)}</span>`
                     : none;
                 return `<div class="upkeep-row"><span class="slot">${no}</span>${repCell}${morCell}</div>`;
             }).join('');

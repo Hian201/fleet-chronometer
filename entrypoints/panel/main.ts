@@ -9,7 +9,7 @@ import {
 } from '@/utils/state';
 import { condTier, fleetCondRecoveryEta, fleetSupplyCapAt } from '@/utils/cond';
 import {
-    planAnchorageRepair, planMoraleSupply, nextSettlementIn,
+    planAnchorageRepair, planMoraleSupply, nextSettlementIn, moraleTimer,
     type AnchorageRepairPlan, type MoralePlan,
 } from '@/utils/repair';
 import { applySnapshotBaseline, planStateRecovery } from '@/utils/state-recovery';
@@ -1940,6 +1940,17 @@ function tickRepairCountdowns() {
         const text = countdownText(ms);
         if (el.textContent !== text) el.textContent = text;
     }
+    // 全域給糧計時：倒數跨過一次結算時，次數與各隊的 +N／回港即滿都會變，重繪一般分頁。
+    let moraleTicked = false;
+    for (const el of document.querySelectorAll<HTMLElement>('.mcd[data-anchor]')) {
+        const anchor = Number(el.dataset.anchor);
+        if (!Number.isFinite(anchor)) continue;
+        const { ticks, nextIn } = moraleTimer(anchor);
+        if (String(ticks) !== el.dataset.ticks) { moraleTicked = true; continue; }
+        const text = `${t('repair.nextLabel')} ${countdownText(nextIn)}`;
+        if (el.textContent !== text) el.textContent = text;
+    }
+    if (moraleTicked) renderGeneral();
     for (const el of document.querySelectorAll<HTMLElement>('.ccd[data-eta]')) {
         const eta = Number(el.dataset.eta);
         if (!Number.isFinite(eta)) continue;
