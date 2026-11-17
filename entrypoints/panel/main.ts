@@ -1945,8 +1945,8 @@ function tickRepairCountdowns() {
     for (const el of document.querySelectorAll<HTMLElement>('.mcd[data-anchor]')) {
         const anchor = Number(el.dataset.anchor);
         if (!Number.isFinite(anchor)) continue;
-        const { ticks, nextIn } = moraleTimer(anchor);
-        if (String(ticks) !== el.dataset.ticks) { moraleTicked = true; continue; }
+        const { ticks, nextIn } = moraleTimer(anchor, Date.now(), el.dataset.held === '1');
+        if (String(ticks) !== el.dataset.ticks || nextIn === null) { moraleTicked = true; continue; }
         const text = `${t('repair.nextLabel')} ${countdownText(nextIn)}`;
         if (el.textContent !== text) el.textContent = text;
     }

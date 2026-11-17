@@ -29,7 +29,7 @@ import {
 import { nodeLetter } from './map-node-letters';
 import { checkPrep, prepGateOpen, questPrepDef, type PrepCheck, type PrepFacts, type PrepFleet, type QuestPrepDef } from './quest-prep';
 import { COND_DOCK_FLOOR } from './cond';
-import { MORALE_INTERVAL_MS, NOSAKI_MST, REPAIR_INTERVAL_MS } from './repair';
+import { MORALE_INTERVAL_MS, NOSAKI_MST, REPAIR_INTERVAL_MS, planMoraleSupply } from './repair';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
     LBAS_COND_EXHAUSTED, LBAS_COND_MILD, LBAS_COND_TIRED,
@@ -474,6 +474,8 @@ export interface FleetView {
     name: string; ships: ShipView[]; mission: boolean;
     repairAnchor: number | null | undefined;
     moraleAnchor: number | null | undefined;
+    /** 給糧計時器因士氣條件暫停（見 GameState.moraleHeld）：進港只結算 1 次。 */
+    moraleHeld?: boolean;
     /** cond 的觀測時刻＝最近一次 api_port/port（伺服器在此刻補算自然回復）；未觀測過為 undefined。 */
     condAsOf?: number;
 }
@@ -1083,6 +1085,10 @@ export class GameState {
     // ・不重置：預設展開、隨伴艦一括解除、解體／改修素材使野埼遞補到 1、2 號位、出擊與演習。
     // undefined＝不可考；兩次觀測到的進港相隔 ≥15 分時，後一次必定是重置點（見 onPortPort）。
     moraleAnchor: number | undefined;
+    // 士氣條件落空時計時器不重置（NGA 野埼研究，社群驗證）：滿 15 分進港時，若沒有任何艦隊結算、
+    // 而有艦隊只因士氣條件（野埼自身 <30，或未改野埼的給糧對象都未滿 49）落空，錨點保留並標記暫停；
+    // 之後條件滿足的那次進港只結算 1 次（不按經過時間累積）並重置。燃彈、損傷等其他條件落空照常重置。
+    moraleHeld = false;
     // 最近一次 api_port/port 的時間戳：伺服器只在進入母港時補算士氣自然回復，
     // 推算「何時回到 49」必須從這個時刻起算（見 utils/cond.ts）。
     portAt: number | undefined;
@@ -1109,8 +1115,25 @@ export class GameState {
     private resetMoraleIfNosakiFront(deckIdx: number, ts: number) {
         const ships = this.decks[deckIdx]?.api_ship;
         if (!Array.isArray(ships)) return;
-        if (ships.slice(0, 2).some((id: number) => NOSAKI_MST.includes(this.ships.get(id)?.api_ship_id)))
+        if (ships.slice(0, 2).some((id: number) => NOSAKI_MST.includes(this.ships.get(id)?.api_ship_id))) {
             this.moraleAnchor = ts;
+            this.moraleHeld = false;
+        }
+    }
+
+    // 滿 15 分進港時各艦隊的給糧結果。母港封包的 cond 已含本次自然回復與給糧：結算成功的未改野埼
+    // 對象會 ≥51，故「給糧對象都未滿 49」只會出現在落空時。
+    private moraleSettlement(): 'settled' | 'held' | 'reset' {
+        let held = false;
+        for (const fleet of this.fleets()) {
+            const plan = planMoraleSupply(fleet);
+            if (plan.reason === 'low-cond') { held = true; continue; }
+            if (!plan.active) continue;
+            const targets = plan.slots.filter(slot => slot.willRecover).map(slot => fleet.ships[slot.index]!);
+            if (targets.length && targets.every(ship => ship.cond < plan.targetMinCond)) { held = true; continue; }
+            return 'settled';
+        }
+        return held ? 'held' : 'reset';
     }
 
     // 解体與近代化改修共用：移除艦娘，destroyGear 時連同一般槽與補強增設的裝備一起移出倉庫
@@ -2094,8 +2117,13 @@ export class GameState {
         this.decks.forEach((d: any, i: number) => advance(this.repairAnchorByDeck, i, d, REPAIR_INTERVAL_MS));
         // 給糧計時器全域共用、出門與否都在跑：滿 15 分即在此刻結算並重置。錨點不可考時，
         // 真正的錨點不晚於上次觀測到的進港，故兩次進港相隔 ≥15 分就能確定此刻重置。
-        const since = this.moraleAnchor ?? previousPortAt;
-        if (since !== undefined && ts - since >= MORALE_INTERVAL_MS) this.moraleAnchor = ts;
+        // 錨點已知時，士氣條件落空會保留錨點（見 moraleHeld）。
+        if (this.moraleAnchor === undefined) {
+            if (previousPortAt !== undefined && ts - previousPortAt >= MORALE_INTERVAL_MS) this.moraleAnchor = ts;
+        } else if (ts - this.moraleAnchor >= MORALE_INTERVAL_MS) {
+            if (this.moraleSettlement() === 'held') this.moraleHeld = true;
+            else { this.moraleAnchor = ts; this.moraleHeld = false; }
+        }
     }
 
     private onReqMapSelectEventmapRank(path: string, api: any, req: Record<string, string>, ts: number) {
@@ -4610,6 +4638,7 @@ export class GameState {
             repairAnchor: this.repairAnchorByDeck.get(i),
             // 出門中（出擊／遠征）不在母港，不會結算，與修理錨點同樣標 null。
             moraleAnchor: this.repairAnchorByDeck.get(i) === null || d.api_mission?.[0] > 0 ? null : this.moraleAnchor,
+            moraleHeld: this.moraleHeld,
             condAsOf: this.portAt,
             ships: d.api_ship
                 .filter((id: number) => id > 0)

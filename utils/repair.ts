@@ -19,6 +19,9 @@ export const REPAIR_INTERVAL_MS = 20 * 60_000;   // 泊地修理最短結算間�
 export const MORALE_INTERVAL_MS = 15 * 60_000;   // 母港給糧結算間隔
 export const MORALE_CAP = 54;                    // 給糧的 cond 上限（高於一般的 49，屬キラ區間）
 export const MORALE_SOURCE_MIN_COND = 30;        // 野埼自身可發動的 cond 下限
+// 未改造的野埼只給糧結算當下（自然回復後）cond ≥49 的艦；野埼改不限。依 NGA 野埼研究（2025-12），
+// 社群驗證結果；wikiwiki 未記載，但兩者不衝突。
+export const NOSAKI_TARGET_MIN_COND = 49;
 
 // 雙工作艦（明石＋朝日改同列 1、2 號位且 2 號位帶吊車）的修理時間倍率。
 // 使用者實測為 82%~84% 且與雙方等級有關，wiki 記 5/6≈83.3%——取 5/6 為代表值，
@@ -79,6 +82,8 @@ export interface MoralePlan {
     sourceIndex: number;
     /** 每次結算的 cond 增量（野埼 +2／野埼改 +3）。 */
     perTick: number;
+    /** 給糧對象在結算當下（自然回復後）須達到的 cond（野埼 49／野埼改 0）。 */
+    targetMinCond: number;
     slots: MoraleSlot[];
     /** 本次結算預估消耗燃料（每艘實際回復的艦 1）。 */
     fuelCost: number;
@@ -156,7 +161,7 @@ export function predictRepairHp(s: ShipView, elapsedMs: number | undefined, acce
  */
 export function planMoraleSupply(fleet: FleetView, elapsedMs?: number): MoralePlan {
     const ships = fleet.ships;
-    const idle: MoralePlan = { active: false, sourceIndex: -1, perTick: 0, slots: [], fuelCost: 0 };
+    const idle: MoralePlan = { active: false, sourceIndex: -1, perTick: 0, targetMinCond: 0, slots: [], fuelCost: 0 };
 
     const sourceIndex = ships.findIndex((s, i) => i < 2 && isNosaki(s.mst));
     if (sourceIndex < 0) {
@@ -165,12 +170,13 @@ export function planMoraleSupply(fleet: FleetView, elapsedMs?: number): MoralePl
     }
     const src = ships[sourceIndex]!;
     const perTick = src.mst === 1002 ? 3 : 2;               // 野埼改 +3／野埼 +2
+    const targetMinCond = src.mst === 1002 ? 0 : NOSAKI_TARGET_MIN_COND;
 
-    if (fleet.mission) return { ...idle, sourceIndex, perTick, reason: 'on-mission' };
-    if (src.inDock) return { ...idle, sourceIndex, perTick, reason: 'dock' };
-    if (!isBelowShouha(src)) return { ...idle, sourceIndex, perTick, reason: 'damaged' };
-    if (!isResupplied(src)) return { ...idle, sourceIndex, perTick, reason: 'unsupplied' };
-    if (src.cond < MORALE_SOURCE_MIN_COND) return { ...idle, sourceIndex, perTick, reason: 'low-cond' };
+    if (fleet.mission) return { ...idle, sourceIndex, perTick, targetMinCond, reason: 'on-mission' };
+    if (src.inDock) return { ...idle, sourceIndex, perTick, targetMinCond, reason: 'dock' };
+    if (!isBelowShouha(src)) return { ...idle, sourceIndex, perTick, targetMinCond, reason: 'damaged' };
+    if (!isResupplied(src)) return { ...idle, sourceIndex, perTick, targetMinCond, reason: 'unsupplied' };
+    if (src.cond < MORALE_SOURCE_MIN_COND) return { ...idle, sourceIndex, perTick, targetMinCond, reason: 'low-cond' };
 
     const ticks = elapsedMs === undefined ? 1 : Math.max(1, Math.floor(elapsedMs / MORALE_INTERVAL_MS));
     let fuelCost = 0;
@@ -179,18 +185,23 @@ export function planMoraleSupply(fleet: FleetView, elapsedMs?: number): MoralePl
         if (s.inDock) return { index, willRecover: false, skip: 'dock' };
         if (s.cond >= MORALE_CAP) return { index, willRecover: false, skip: 'capped' };
         fuelCost += 1;   // 每艘實際回復的艦消耗燃料 1
+        // 未改野埼：cond 未滿 49 的艦本次不回復（自然回復到 49 後才輪得到），仍列入給糧對象。
+        if (s.cond < targetMinCond) return { index, willRecover: true, predictedCond: s.cond };
         return { index, willRecover: true, predictedCond: Math.min(MORALE_CAP, s.cond + perTick * ticks) };
     });
 
-    return { active: true, sourceIndex, perTick, slots, fuelCost };
+    return { active: true, sourceIndex, perTick, targetMinCond, slots, fuelCost };
 }
 
 /**
  * 全域給糧計時器的累積狀態：`ticks`＝現在進母港可結算幾次（floor(經過/15 分)，含安全緩衝），
  * `nextIn`＝再過多久累積下一次。給糧不是「倒數到 0 就結束」：不進港也會繼續累積。
+ * `held`（上次結算因士氣條件落空、計時器未重置，見 GameState.moraleHeld）時只會結算 1 次，
+ * 不再累積，`nextIn` 為 null。
  */
-export function moraleTimer(anchor: number, now: number = Date.now()): { ticks: number; nextIn: number } {
+export function moraleTimer(anchor: number, now: number = Date.now(), held = false): { ticks: number; nextIn: number | null } {
     const ticks = Math.max(0, Math.floor((now - anchor - TIMER_SAFETY_MS) / MORALE_INTERVAL_MS));
+    if (held && ticks >= 1) return { ticks: 1, nextIn: null };
     return { ticks, nextIn: anchor + (ticks + 1) * MORALE_INTERVAL_MS + TIMER_SAFETY_MS - now };
 }
 

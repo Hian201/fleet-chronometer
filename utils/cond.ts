@@ -174,7 +174,7 @@ export function fleetSupplyProgress(fleet: FleetView, now: number = Date.now()):
     if (asOf === undefined || fleet.mission) return undefined;
     const supply = supplyContext(fleet);
     if (!supply) return undefined;
-    const { ticks } = moraleTimer(supply.anchor, now);
+    const { ticks } = moraleTimer(fleet.moraleAnchor as number, now, fleet.moraleHeld);
     let fullAt: number | null = null;
     for (const [index, ship] of fleet.ships.entries()) {
         if (!supply.recovers(index)) continue;
@@ -190,24 +190,30 @@ export function fleetSupplyProgress(fleet: FleetView, now: number = Date.now()):
  * 所以候選時刻只需看各週期門檻。野埼自身 cond 會自然回復到 49，迴圈必定結束。
  */
 function supplyCapReachAt(ship: ShipView, asOf: number, supply: SupplyContext): number {
-    const { anchor, perTick, source } = supply;
+    const { anchor, perTick, source, targetMin } = supply;
     for (let ticks = 1; ; ticks++) {
         const at = anchor + ticks * MORALE_INTERVAL_MS + TIMER_SAFETY_MS;
         if (at <= asOf || projectShipCond(source, asOf, at) < MORALE_SOURCE_MIN_COND) continue;
-        if (projectShipCond(ship, asOf, at) + perTick * ticks >= MORALE_CAP) return at;
+        const natural = projectShipCond(ship, asOf, at);
+        if (natural >= targetMin && natural + perTick * ticks >= MORALE_CAP) return at;
     }
 }
 
 interface SupplyContext {
     anchor: number;
     perTick: number;
+    /** 給糧對象自然回復後須達的 cond（未改野埼 49）。 */
+    targetMin: number;
     source: ShipView;
     recovers(index: number): boolean;
 }
 
 function supplyContext(fleet: FleetView): SupplyContext | undefined {
-    const anchor = fleet.moraleAnchor;
-    if (typeof anchor !== 'number') return undefined;
+    const raw = fleet.moraleAnchor;
+    if (typeof raw !== 'number') return undefined;
+    // 計時器因士氣條件暫停（moraleHeld）時，進港只結算 1 次、之後重新起算。推算一律假設單次進港，
+    // 故保守地改從觀測時刻起算：第 1 次的時點與實際相同，之後只會晚、不會提早（通知不早響）。
+    const anchor = fleet.moraleHeld && fleet.condAsOf !== undefined ? Math.max(raw, fleet.condAsOf) : raw;
     let plan = planMoraleSupply(fleet);
     // low-cond 是 planMoraleSupply 的最後一道檢查：野埼現在 cond 低於 30 不發動，但它也會
     // 自然回復。先把它抬到門檻上確認其餘條件，實際門檻改在每個候選時刻判定。
@@ -220,7 +226,7 @@ function supplyContext(fleet: FleetView): SupplyContext | undefined {
     if (!plan.active) return undefined;
     const slots = plan.slots;
     return {
-        anchor, perTick: plan.perTick, source: fleet.ships[plan.sourceIndex]!,
+        anchor, perTick: plan.perTick, targetMin: plan.targetMinCond, source: fleet.ships[plan.sourceIndex]!,
         recovers: index => slots[index]?.willRecover === true,
     };
 }
@@ -243,7 +249,7 @@ function withSupplyAt(ship: ShipView, asOf: number, naturalAt: number, supply: S
         const ticks = supplyTicks(at);
         // 進母港時先自然回復，野埼的 cond 要在那之後仍 ≥30 才發動。
         if (ticks === 0 || projectShipCond(source, asOf, at) < MORALE_SOURCE_MIN_COND) continue;
-        if (Math.min(MORALE_CAP, natural + perTick * ticks) >= COND_NATURAL_CAP) return at;
+        if (natural >= supply.targetMin && Math.min(MORALE_CAP, natural + perTick * ticks) >= COND_NATURAL_CAP) return at;
     }
     return naturalAt;
 }

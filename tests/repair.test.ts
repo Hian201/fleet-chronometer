@@ -135,9 +135,10 @@ describe('野埼母港給糧預估', () => {
     });
 
     it('elapsedMs 不可考時維持一個 tick 的既有預估', () => {
-        const plan = planMoraleSupply(fleet([ship({ mst: 996 }), ship({ cond: 40 })]));
-        expect(plan.slots[1]).toMatchObject({ willRecover: true, predictedCond: 42 });
-        expect(plan.fuelCost).toBe(1);
+        const plan = planMoraleSupply(fleet([ship({ mst: 996 }), ship({ cond: 49 }), ship({ cond: 40 })]));
+        expect(plan.slots[1]).toMatchObject({ willRecover: true, predictedCond: 51 });
+        // 未改野埼：未滿 49 的艦本次不回復，仍列為給糧對象。
+        expect(plan.slots[2]).toMatchObject({ willRecover: true, predictedCond: 40 });
     });
 });
 
@@ -250,5 +251,54 @@ describe('全域給糧計時器（wikiwiki「野埼」＋NGA 野埼研究）', (
         expect(state.moraleAnchor).toBe(TS + 4 * MIN);
         expect(state.fleets()[0].moraleAnchor).toBe(TS + 4 * MIN);
         expect(state.fleets()[1].moraleAnchor).toBeNull();   // 出擊中的隊不在母港
+    });
+
+    it('只因士氣條件落空時計時器保留並暫停，條件滿足的那次進港只結算 1 次並重置', () => {
+        const port = (nosakiCond: number) => {
+            const api = nosakiPort();
+            api.api_ship.find(ship => ship.api_id === 3)!.api_cond = nosakiCond;
+            api.api_deck_port[1].api_ship = [3, 4, -1, -1, -1, -1];
+            return api;
+        };
+        const state = new GameState();
+        state.applyEvent('api_port/port', port(49), {}, TS);
+        state.moraleAnchor = TS;
+        state.applyEvent('api_port/port', port(20), {}, TS + 16 * MIN);
+        expect(state).toMatchObject({ moraleAnchor: TS, moraleHeld: true });
+        expect(state.fleets()[1].moraleHeld).toBe(true);
+        state.applyEvent('api_port/port', port(35), {}, TS + 40 * MIN);
+        expect(state).toMatchObject({ moraleAnchor: TS + 40 * MIN, moraleHeld: false });
+    });
+
+    it('未改野埼的給糧對象都未滿 49 也算士氣條件落空；損傷等其他條件落空照常重置', () => {
+        const port = (mst: number, targetCond: number, nosakiHp = 20) => {
+            const api = nosakiPort();
+            const nosaki = api.api_ship.find(ship => ship.api_id === 3)!;
+            nosaki.api_ship_id = mst;
+            nosaki.api_nowhp = nosakiHp;
+            api.api_ship.find(ship => ship.api_id === 4)!.api_cond = targetCond;
+            api.api_deck_port[1].api_ship = [3, 4, -1, -1, -1, -1];
+            return api;
+        };
+        const held = new GameState();
+        held.applyEvent('api_port/port', port(996, 40), {}, TS);
+        held.moraleAnchor = TS;
+        held.applyEvent('api_port/port', port(996, 40), {}, TS + 16 * MIN);
+        expect(held.moraleHeld).toBe(true);
+        const kai = new GameState();
+        kai.applyEvent('api_port/port', port(1002, 40), {}, TS);
+        kai.moraleAnchor = TS;
+        kai.applyEvent('api_port/port', port(1002, 43), {}, TS + 16 * MIN);
+        expect(kai).toMatchObject({ moraleAnchor: TS + 16 * MIN, moraleHeld: false });
+        const empty = new GameState();
+        empty.applyEvent('api_port/port', port(996, 40, 10), {}, TS);
+        empty.moraleAnchor = TS;
+        empty.applyEvent('api_port/port', port(996, 40, 10), {}, TS + 16 * MIN);
+        expect(empty).toMatchObject({ moraleAnchor: TS + 16 * MIN, moraleHeld: false });
+    });
+
+    it('未改野埼的給糧門檻為 49、野埼改不限', () => {
+        expect(planMoraleSupply(fleet([ship({ mst: 996 }), ship({ cond: 40 })])).targetMinCond).toBe(49);
+        expect(planMoraleSupply(fleet([ship({ mst: 1002 }), ship({ cond: 40 })])).targetMinCond).toBe(0);
     });
 });

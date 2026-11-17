@@ -1,5 +1,5 @@
 // 一般分頁泊地分組（修理＋給糧）的離線預覽：直接打包正式 entrypoints/panel/general.ts 與面板 CSS／骨架，
-// 不另寫一份模擬邏輯。輸出 .preview/panel-anchorage.html，以 ?lang=&theme=&min=&unknown 切換情境。
+// 不另寫一份模擬邏輯。輸出 .preview/panel-anchorage.html，以 ?lang=&theme=&min=&unknown&held 切換情境。
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

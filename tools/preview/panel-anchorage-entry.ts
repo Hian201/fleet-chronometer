@@ -10,7 +10,7 @@ setLang(lang);
 document.documentElement.lang = lang;
 if (params.has('theme')) document.documentElement.dataset.theme = params.get('theme')!;
 
-// 假設情境：?min= 距給糧計時重置的分鐘數（預設 31＝已累積 2 次）；?unknown 為計時不可考。
+// 假設情境：?min= 距給糧計時重置的分鐘數（預設 31＝已累積 2 次）；?unknown 為計時不可考；?held 為士氣條件落空而暫停。
 const MIN = 60_000;
 const now = Date.now();
 const anchor = now - Number(params.get('min') ?? 31) * MIN;
@@ -35,6 +35,7 @@ state.applyEvent('api_port/port', {
 }, {}, anchor);
 state.repairAnchorByDeck.set(0, now - 7 * MIN);
 state.moraleAnchor = params.has('unknown') ? undefined : anchor;
+state.moraleHeld = params.has('held');
 const mmss = (ms: number) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const general = mountGeneral(state, () => '0:00:00', mmss);
 general();

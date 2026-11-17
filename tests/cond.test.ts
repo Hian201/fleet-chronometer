@@ -320,4 +320,19 @@ describe('給糧累積（moraleTimer／fleetSupplyProgress）', () => {
         expect(fleetSupplyProgress(fleet(ships, { moraleAnchor: undefined }), AS_OF)).toBeUndefined();
         expect(fleetSupplyProgress(fleet([ship(), ship({ cond: 40 })]), AS_OF)).toBeUndefined();
     });
+
+    it('暫停中只結算 1 次、不再倒數', () => {
+        expect(moraleTimer(AS_OF, tick(3), true)).toEqual({ ticks: 1, nextIn: null });
+        expect(moraleTimer(AS_OF, AS_OF, true).nextIn).toBe(MORALE_INTERVAL_MS + TIMER_SAFETY_MS);
+    });
+});
+
+describe('未改野埼只給糧 cond ≥49 的艦', () => {
+    it('自然回復後未滿 49 的艦不靠給糧提早回到 49；野埼改照常', () => {
+        // 32 在第 1 次門檻（16 分）自然回復到 47：野埼改 +3＝50 提早，未改野埼不給糧。
+        const plain = fleetCondRecoveryEta(fleet([ship({ mst: NOSAKI, cond: 49 }), ship({ cond: 32 })]))!;
+        expect(plain.supplyHelps).toBe(false);
+        expect(plain.at).toBe(plain.naturalAt);
+        expect(fleetCondRecoveryEta(fleet([ship({ mst: NOSAKI_KAI, cond: 49 }), ship({ cond: 32 })]))!.supplyHelps).toBe(true);
+    });
 });

@@ -417,8 +417,11 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     function moraleHeadTimer() {
         const anchor = state.moraleAnchor;
         if (anchor === undefined) return `<span class="next unknown" title="${esc(t('repair.unknownAnchorTitle'))}">${esc(t('repair.unknownAnchor'))}</span>`;
-        const { ticks, nextIn } = moraleTimer(anchor);
-        return `<span class="next"><b class="ticks">×${ticks}</b><span class="mcd" data-anchor="${anchor}" data-ticks="${ticks}">${esc(t('repair.nextLabel'))} ${esc(repairCountdown(nextIn))}</span></span>`;
+        const held = state.moraleHeld;
+        const { ticks, nextIn } = moraleTimer(anchor, Date.now(), held);
+        // 士氣條件落空而暫停：已累積的 1 次留著，不再倒數（條件滿足後回港只結算這 1 次）。
+        if (nextIn === null) return `<span class="next" title="${esc(t('repair.moraleHeldTitle'))}"><b class="ticks">×${ticks}</b><span class="held">${esc(t('repair.moraleHeld'))}</span></span>`;
+        return `<span class="next"><b class="ticks">×${ticks}</b><span class="mcd" data-anchor="${anchor}" data-ticks="${ticks}"${held ? ' data-held="1"' : ''}>${esc(t('repair.nextLabel'))} ${esc(repairCountdown(nextIn))}</span></span>`;
     }
     // 各隊給糧欄的右側：現在回母港可得的士氣（+次數×增量），給糧對象全員會到 54 時改寫「回港即滿」
     // ——那是再等也不會多的時點，玩家要決定的正是何時回去。
