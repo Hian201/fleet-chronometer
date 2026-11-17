@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -172,6 +172,21 @@ describe('正式版 manifest', () => {
             .map(path => readFileSync(path, 'utf8'))
             .join('\n');
         expect(js).toMatch(/getItem\(`kc-debug-ui`\)===`1`\)return!0\}catch\{\}return!1/);
+    });
+
+    // chunk 預算（wxt.config.ts 的 CHUNK_BUDGET_KB）在 build 只是警告，容易被滑過去；這裡讓它
+    // 變成測試失敗，資料長過門檻時一定會被擋下來。門檻值從 wxt.config.ts 讀，避免兩邊各說各話。
+    // 超標時的處理順序見 docs/engineering/bundle.md：先依檔名找成長來源，調高預算是最後手段。
+    it('沒有產物超出 chunk 預算', () => {
+        const config = readFileSync(join(projectRoot, 'wxt.config.ts'), 'utf8');
+        const budgetKb = Number(/const CHUNK_BUDGET_KB = (\d+);/.exec(config)?.[1]);
+        expect(budgetKb).toBeGreaterThan(0);
+        const over = outputFiles(outputRoot)
+            .filter(path => path.endsWith('.js'))
+            .map(path => ({ name: path.slice(outputRoot.length), kb: statSync(path).size / 1000 }))
+            .filter(file => file.kb > budgetKb)
+            .map(file => `${file.name} ${file.kb.toFixed(0)} kB`);
+        expect(over, `預算 ${budgetKb} kB`).toEqual([]);
     });
 
     // manifest 的 `__MSG_*` 只有在 `_locales/<default_locale>/messages.json` 補齊時才成立：
