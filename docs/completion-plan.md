@@ -157,4 +157,4 @@ Fable 5.2 中 effort，先給預覽。
 | 5 | 登出前閒置檢查 | 4.4 | 2026-11-13 | `e26b235` | [`docs/engineering/fleet-status.md`](engineering/fleet-status.md)「登出前閒置檢查」 |
 | 6 | 基本資源分帳與溢出 | 4.5 | 2026-11-16 | `a2cda98` | [`docs/engineering/resources.md`](engineering/resources.md)「基本資源分帳與溢出提醒」；基地航空隊補充的規則補洞見 [`docs/engineering/records.md`](engineering/records.md)「出擊帳單估算」 |
 | 7 | 改修日程 | 4.7 | 2026-11-16 | `26998e4` | [`docs/engineering/records.md`](engineering/records.md)「改修日程」與「工廠紀錄」；面板慣例見 [`docs/design-guidelines.md`](design-guidelines.md) §7.2 |
-| 9 | 遠征組合建議（睡前組合、支出假設、月常本期截止） | 4.9 | 2026-11-18 | `14a5c98`、`4e42c77`、`9eb6753` | [`docs/engineering/expeditions.md`](engineering/expeditions.md)「遠征組合建議」；以社群推薦組合（`tests/expedition-community.test.ts`）與開發者 2026-11-17 的備份交叉驗證 |
+| 9 | 遠征組合建議（睡前組合、支出假設、月常本期截止、精確解、遠征清單） | 4.9 | 2026-11-18 | `14a5c98`、`4e42c77`、`9eb6753`、`42b0b52`、`bc4b8ed` | [`docs/engineering/expeditions.md`](engineering/expeditions.md)「遠征組合建議」；以社群推薦組合（`tests/expedition-community.test.ts`）與開發者 2026-11-17 的備份交叉驗證 |
