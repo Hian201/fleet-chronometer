@@ -112,7 +112,8 @@ ElectronicObserver（MIT）`Data/MissionClearCondition.cs`，轉換規則見下�
    `api_useitem_id` 不是正數，投影時直接存成 useitem id 1／2／3（正好就是這三種資材的
    useitem id）；4 以上才看 `api_useitem_id`（家具箱 10–12、改修資材 4 等）。數量一律取
    `api_get_item{i+1}.api_useitem_count`。依據：KC3Kai `src/library/modules/Kcsapi.js` 與
-   ElectronicObserver `Observer/kcsapi/api_req_mission/result.cs`，本專案沒有這支封包的樣本。
+   ElectronicObserver `Observer/kcsapi/api_req_mission/result.cs`。本專案沒有這支封包的原始樣本，但開發者 2026-11-18 的
+   備份有依此規則寫入的實際紀錄：高速修復材 11 筆、開發資材 3 筆（11-13 起）。
    缺 `api_useitem_flag` 的封包維持只收 `api_useitem_id > 0`。修正前的紀錄沒有 flag 1–3 的道具，
    raw events 已裁剪，無從回填。依這個規則寫入的紀錄帶 `flagItems: true`（備份往返保留），讀的一方用它分辨
    「真的沒拿到」與「沒記到」，不用時間切分：更新前的版本寫的紀錄時間再新也缺這三種道具。

@@ -132,7 +132,7 @@ Fable 5.2 中 effort，先給預覽。
 | 封包 | 佐證 | 還缺什麼 | 影響的小節 |
 |---|---|---|---|
 | `api_req_kaisou/remodeling` | KC3Kai `Kcsapi.js`、`RemodelDb.js` | 無（消耗屬推算） | 4.6 |
-| `api_req_mission/result` 的回航道具 | KC3Kai `Kcsapi.js`、ElectronicObserver `api_req_mission/result.cs` | 無 | 4.9 |
+| `api_req_mission/result` 的回航道具 | KC3Kai `Kcsapi.js`、ElectronicObserver `api_req_mission/result.cs`；開發者備份中的實際紀錄 | 無 | 4.9 |
 
 ## 7. 查證來源
 
