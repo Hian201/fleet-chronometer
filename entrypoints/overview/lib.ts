@@ -9,10 +9,20 @@ import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
 import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { applyArchivedQuestSeen } from '@/utils/quest-seen';
-import { t } from '@/utils/ui-i18n';
+import { getLang, t } from '@/utils/ui-i18n';
+import { itemCatalog } from '@/utils/item-catalog';
 import { formatDateTime } from '@/utils/date-format';
 
 export { esc, gearIconHtml, matIconHtml };
+
+// 遠征紀錄與遠征開放共用：useitem id 的名稱與圖示。資材在目錄中也以同一組 id 識別，不能拿 material apiId 對照。
+export const itemName = (id: number) => itemCatalog.find(entry => entry.id === id
+    && (entry.countSource.kind === 'useitem' || entry.countSource.kind === 'material'))?.names[getLang()] ?? `#${id}`;
+export const USE_ITEM_ICONS: Readonly<Record<number, string>> = {
+    1: 'resource/drum', 2: 'resource/torch', 3: 'resource/devmat', 4: 'resource/screw',
+    10: 'resource/furniture-box-small', 11: 'resource/furniture-box-medium', 12: 'resource/furniture-box-large',
+    59: 'ui/provision',
+};
 
 /** rank → CSS class 後綴（s/a/b/c/d）；非 S/A/B/C/D 回空，避免匯入字串進 class。 */
 export function rankClassSuffix(rank: string): string {

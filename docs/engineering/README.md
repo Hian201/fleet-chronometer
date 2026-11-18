@@ -19,7 +19,7 @@
 | [event-ops.md](event-ops.md) | 活動作戰板：出擊標籤機制、三層結構、燈號、實際貼標觀測、master 海域對應 | `utils/event-plan.ts`、`entrypoints/overview/sections/event-ops.ts`、`tests/event-plan.test.ts` |
 | [roster.md](roster.md) | 艦名／裝備名譯名表、全船篩選、艦娘全覽、先制對潛、國籍、裝備全覽、配裝參考、收藏日誌兩個日期 | `utils/ship-filter.ts`、`ship-roster.ts`、`opening-asw.ts`、`ship-nationality.ts`、`gear-inventory.ts`、`equip-ref.ts`、`stype-label.ts`、`gamedata-i18n.ts` |
 | [resources.md](resources.md) | 資源序列擷取、量表里程碑、趨勢圖、活動資源消耗切分 | `utils/resource-capture.ts`、`resource-log.ts`、`line-chart.ts`、`event-calendar.ts` |
-| [expeditions.md](expeditions.md) | 遠征大發加成公式、遠征資料完整性與 EO 條件轉寫、期間彙總 | `utils/expedition-bonus.ts`、`expedition-data.ts`、`expedition-stats.ts` |
+| [expeditions.md](expeditions.md) | 遠征大發加成公式、遠征資料完整性與 EO 條件轉寫、期間彙總、組合建議、開放檢查 | `utils/expedition-bonus.ts`、`expedition-data.ts`、`expedition-stats.ts`、`expedition-plan.ts`、`expedition-unlock.ts` |
 | [fleet-status.md](fleet-status.md) | 基地航空隊疲勞推論、泊地修理與野埼給糧、士氣回到 49 的倒數、登出前閒置檢查、疲勞回復通知 | `utils/lbas-cond.ts`、`repair.ts`、`cond.ts`、`idle-check.ts`、`tests/repair.test.ts`、`tests/lbas-cond.test.ts`、`tests/idle-check.test.ts` |
 | [game-page.md](game-page.md) | 視窗適應（劇場）、遊戲靜音、獨立視窗、拍照、關閉分頁前警示 | `entrypoints/theater.content.ts`、`utils/theater.ts`、`screenshot.ts`、`entrypoints/bridge.content.ts` |
 | [fleet-photo.md](fleet-photo.md) | 面板編成寫真：讀遊戲畫布、裁切範圍、輸出版面、header 縮放 | `entrypoints/panel/fleet-photo.ts`、`utils/fleet-photo.ts`、`tests/fleet-photo.test.ts` |

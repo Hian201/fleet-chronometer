@@ -26,7 +26,7 @@ export const sections: OverviewSection[] = [
     sortieLogSection,       // 出擊紀錄（＋KC3Kai 重播匯出）
     routeForecastSection,   // 常規導航（分岐法則 × 目前編成，真實地理底圖）
     dropLogSection,         // 打撈紀錄（通常／活動篩選＋可選欄位詳細清單）
-    expedLogSection,        // 遠征紀錄
+    expedLogSection,        // 遠征（子分頁：紀錄／規劃／開放；hash 仍為 exped-log）
     factorySection,         // 工廠（子分頁：建造紀錄／開發紀錄／改修日程；舊 #/build-log 等網址轉進來）
     resourceLogSection,     // 資源紀錄（趨勢圖＋詳細清單＋活動區段消耗）
     questFlowSection,       // 任務導覽（目錄＋關聯路線＋本機狀態）

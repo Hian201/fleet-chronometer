@@ -13,6 +13,8 @@ const BEFORE = AFTER - 1000;
 // 測試用的遠征編號從 900 起，避開 expedition-data 的固定報酬（那些另外測）。
 const mission = (id: number, time: number, over: Partial<PlanMission> = {}): PlanMission =>
     ({ id, dispNo: String(id), name: `遠征${id}`, time, resetType: 0, winItems: [[0, 0], [0, 0]], use: [0, 0], ...over });
+/** 月常（獎勵含改修資材，大成功限定，同 A6 等）。 */
+const monthlyMission = (id: number, winItems: [number, number][] = [[0, 0], [4, 1]]) => mission(id, 60, { resetType: 1, winItems });
 const run = (missionId: number, over: Partial<ExpeditionRow> = {}): ExpeditionRow => ({
     eventId: 1, ts: AFTER, deckId: 2, missionId, name: `遠征${missionId}`, result: 1,
     resources: [0, 0, 0, 0], items: [], flagItems: true, ...over,
@@ -27,9 +29,9 @@ const plan = (input: Partial<Parameters<typeof planExpeditions>[0]> & Pick<Param
     planExpeditions({ intervalMinutes: DAILY, horizonDays: 10, ...input });
 
 describe('planExpeditions：候選與收益', () => {
-    it('月常不進組合，另列最後一次成功時間；沒有紀錄的月常不列', () => {
+    it('月常不進組合；只列獎勵含開發資材或改修資材的，附最後一次成功時間（沒紀錄也列）', () => {
         const result = plan({
-            missions: [mission(905, 60), mission(942, 60, { resetType: 1 }), mission(943, 60, { resetType: 1 }), mission(944, 60, { resetType: 1 })],
+            missions: [mission(905, 60), monthlyMission(942), monthlyMission(943, [[3, 2], [0, 0]]), monthlyMission(944), monthlyMission(945, [[1, 2], [12, 1]])],
             records: [
                 ...runs(MIN_RUNS, 905, { resources: [100, 0, 0, 0] }),
                 run(942, { ts: 1000 }), run(942, { ts: 3000 }), run(942, { ts: 5000, result: 0 }),
@@ -39,8 +41,9 @@ describe('planExpeditions：候選與收益', () => {
         });
         expect(ids(result.top)).toEqual([905]);
         expect(result.monthly).toEqual([
-            { missionId: 942, dispNo: '942', name: '遠征942', lastSuccessTs: 3000, doneThisCycle: false, open: null },
-            { missionId: 943, dispNo: '943', name: '遠征943', lastSuccessTs: null, doneThisCycle: false, open: null },
+            { missionId: 942, dispNo: '942', name: '遠征942', lastSuccessTs: 3000, open: null },
+            { missionId: 943, dispNo: '943', name: '遠征943', lastSuccessTs: null, open: null },
+            { missionId: 944, dispNo: '944', name: '遠征944', lastSuccessTs: null, open: null },
         ]);
     });
 
@@ -192,10 +195,10 @@ describe('月常遠征的本期', () => {
         expect(monthlyExpeditionCycle(utc('2027-01-10T00:00:00'))).toEqual({ start: utc('2026-12-15T03:00:00'), end: utc('2027-01-15T03:00:00') });
     });
 
-    it('本期有成功紀錄才算已完成（失敗可再跑）；未完成的排前面', () => {
+    it('本期有成功紀錄就算已完成、不再提示（失敗可再跑）', () => {
         const now = utc('2026-11-18T00:00:00');
         const result = plan({
-            missions: [mission(905, 60), mission(942, 60, { resetType: 1 }), mission(943, 60, { resetType: 1 }), mission(944, 60, { resetType: 1 })],
+            missions: [mission(905, 60), monthlyMission(942), monthlyMission(943), monthlyMission(944)],
             records: [
                 ...runs(MIN_RUNS, 905, { resources: [100, 0, 0, 0] }),
                 run(942, { ts: utc('2026-11-16T00:00:00') }),                       // 本期成功
@@ -205,14 +208,14 @@ describe('月常遠征的本期', () => {
             needs: [need('fuel', 1000)], now,
         });
         expect(result.monthlyCycle).toEqual({ start: utc('2026-11-15T03:00:00'), end: utc('2026-12-15T03:00:00') });
-        expect(result.monthly.map(row => [row.missionId, row.doneThisCycle])).toEqual([[943, false], [944, false], [942, true]]);
+        expect(result.monthly.map(row => row.missionId)).toEqual([943, 944]);
     });
 
     it('遠征清單：不在清單的一般遠征不列入候選；本期的清單決定月常開放與本期截止', () => {
         const now = utc('2026-11-18T00:00:00');
         const resetAt = utc('2026-12-15T03:00:00');
         const data = {
-            missions: [mission(905, 60), mission(906, 60), mission(942, 60, { resetType: 1 }), mission(943, 60, { resetType: 1 })],
+            missions: [mission(905, 60), mission(906, 60), monthlyMission(942), monthlyMission(943)],
             records: [
                 ...runs(MIN_RUNS, 905, { resources: [100, 0, 0, 0] }), ...runs(MIN_RUNS, 906, { resources: [200, 0, 0, 0] }),
                 run(942, { ts: utc('2026-08-01T00:00:00') }), run(943, { ts: utc('2026-08-02T00:00:00') }),
@@ -230,7 +233,7 @@ describe('月常遠征的本期', () => {
 
         // 本期清單狀態 2＝本期已完成，即使沒有本期紀錄（擴充沒開著時跑的）。
         const done = plan({ ...data, missionList: { ...missionList, states: new Map([[905, 2], [942, 2], [943, 1]]) } });
-        expect(done.monthly.map(row => [row.missionId, row.doneThisCycle])).toEqual([[943, false], [942, true]]);
+        expect(done.monthly.map(row => row.missionId)).toEqual([943]);
 
         // 上一期的清單（換期時間已過）：一般遠征照樣過濾，月常開放與否不可知，本期截止回到推算。
         const stale = plan({ ...data, missionList: { ...missionList, resetAt: utc('2026-11-15T03:00:00') } });
@@ -238,7 +241,7 @@ describe('月常遠征的本期', () => {
         expect(stale.monthly.map(row => row.open)).toEqual([null, null]);
         // 上一期清單的狀態 2 不算本期完成。
         const staleDone = plan({ ...data, missionList: { states: new Map([[905, 2], [942, 2]]), resetAt: utc('2026-11-15T03:00:00') } });
-        expect(staleDone.monthly.map(row => row.doneThisCycle)).toEqual([false, false]);
+        expect(staleDone.monthly.map(row => row.missionId)).toEqual([942, 943]);
         expect(stale.monthlyCycle).toEqual(monthlyExpeditionCycle(now));
 
         // 從沒收到清單：全部照列。

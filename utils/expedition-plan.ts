@@ -111,11 +111,16 @@ export interface ResourceOutlook {
     planDays: number | null;
 }
 
+/** 月常提示只列獎勵含這些 useitem 的：開發資材（3）、改修資材（4）。 */
+export const MONTHLY_HINT_ITEMS: readonly number[] = [3, 4];
+
+/**
+ * 月常提示：獎勵含開發資材或改修資材、且本期還沒完成的月常（不論有沒有紀錄）。
+ * 本期已完成＝本期的遠征清單狀態為 2，或本期（monthlyExpeditionCycle）有成功紀錄；失敗可以再跑，不算。
+ * 清單補上擴充沒開著時跑的月常，紀錄補上跑完後還沒重新進遠征畫面的情形。
+ */
 export interface MonthlyRow {
     missionId: number; dispNo: string; name: string; lastSuccessTs: number | null;
-    /** 本期已完成：本期的遠征清單狀態為 2，或本期（monthlyExpeditionCycle）有成功紀錄；失敗可以再跑，不算。
-     *  清單補上擴充沒開著時跑的月常，紀錄補上跑完後還沒重新進遠征畫面的情形。 */
-    doneThisCycle: boolean;
     /** 本期能不能派：在本期的遠征清單裡才算開放；沒有本期的清單為 null（月常每期換期後前置要重跑，舊清單不算）。 */
     open: boolean | null;
 }
@@ -525,12 +530,12 @@ export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan
     for (const mission of input.missions) {
         const records = byMission.get(mission.id) ?? [];
         if (mission.resetType === 1) {
-            if (!records.length) continue;
+            if (!mission.winItems.some(([id, n]) => n > 0 && MONTHLY_HINT_ITEMS.includes(id))) continue;
             const successes = records.filter(row => row.result >= 1).map(row => row.ts);
             const lastSuccessTs = successes.length ? Math.max(...successes) : null;
-            monthly.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, lastSuccessTs,
-                doneThisCycle: (listThisCycle && list!.states.get(mission.id) === 2)
-                    || (lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end),
+            const done = (listThisCycle && list!.states.get(mission.id) === 2)
+                || (lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end);
+            if (!done) monthly.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, lastSuccessTs,
                 open: listThisCycle ? list!.states.has(mission.id) : null });
             continue;
         }
@@ -549,9 +554,8 @@ export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan
         candidates.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, time: mission.time, income, perDay, runs: records.length, itemRuns, estimated, supply, supplyEstimated });
     }
     candidates.sort((a, b) => a.missionId - b.missionId);
-    // 月常：本期還能跑的在前，本期未開放的其次，已完成的最後。
-    const monthlyRank = (row: MonthlyRow) => (row.doneThisCycle ? 2 : row.open === false ? 1 : 0);
-    monthly.sort((a, b) => monthlyRank(a) - monthlyRank(b) || a.missionId - b.missionId);
+    // 月常提示：本期還能跑的在前，本期未開放的其次。
+    monthly.sort((a, b) => Number(a.open === false) - Number(b.open === false) || a.missionId - b.missionId);
 
     // 一隊一天：睡前遠征一天一趟；在線遠征在扣掉睡前遠征佔用後的時間裡照 interval 收。
     // 睡前遠征佔用＝離開時間，比離開時間長時再加上回來後等到下一個收取點的時間。

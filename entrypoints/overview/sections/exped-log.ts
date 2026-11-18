@@ -1,5 +1,8 @@
-// 遠征紀錄：期間彙總（跑了哪些遠征、各幾次、總共拿回多少資源）＋可選欄位的詳細清單。
+// 遠征：紀錄／規劃／開放三個子分頁（hash 參數 sub=log|plan|unlock，預設紀錄）。
+// 紀錄：期間彙總（跑了哪些遠征、各幾次、總共拿回多少資源）＋可選欄位的詳細清單。
 // 遠征編成是 result 當下的摘要快照；缺少快照的紀錄誠實標為不可考。
+// 規劃：遠征組合建議。開放：月常解鎖路徑與一般遠征的開放狀況（exped-unlock.ts）。
+// 三頁都在同一次 render 建好、切換只改 hidden，輸入、展開與捲動都保留（design-guidelines §4.2）。
 //
 // ── 期間彙總為什麼落在這一區（別搬到資源紀錄）────────────────────────────
 // 遠征收入是**逐筆事件的獲得量**（`api_get_material`，封包直接給、可加總），資源紀錄
@@ -14,7 +17,6 @@ import type { ExpeditionRow, ResourceMarkRow } from '@/utils/db';
 import type { OverviewSection, SectionContext } from './types';
 import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
-import { itemCatalog } from '@/utils/item-catalog';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
 import { DAY_MS, formatDate, formatDateTime } from '@/utils/date-format';
 import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_KEYS, SPEND_BASES, lightestWeek, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type SpendBasis } from '@/utils/expedition-plan';
@@ -26,11 +28,12 @@ import {
     type ExpeditionStat, type ExpeditionTotals, type StatSortKey,
 } from '@/utils/expedition-stats';
 import {
-    clearHashParams, copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtNum, fmtTs, hashParams,
-    loadJsonPrefs, matIconHtml, paginate, parseColumnIds, parsePageSize, saveJsonPrefs,
+    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtNum, fmtTs, hashParams,
+    itemName, loadJsonPrefs, matIconHtml, paginate, USE_ITEM_ICONS, parseColumnIds, parsePageSize, saveJsonPrefs,
 } from '../lib';
 import { loadGoalFlow, stockpileLinesOf } from './goals';
 import { rowsToCsv } from '@/utils/csv';
+import { unlockPageHtml } from './exped-unlock';
 
 const PREFS_KEY = 'kc-exped-log-view';
 const RESULT_KEYS = ['ov.expedFail', 'ov.expedSuccess', 'ov.expedGreat'];
@@ -67,18 +70,10 @@ const materialCell = (index: number) => (row: ExpeditionRow) => {
         : `<span class="el-none">–</span>`;
 };
 
-// 紀錄存的是 useitem id；目錄中的資材亦以同一組 id 識別，不能拿 material apiId 對照。
-const itemName = (id: number) => itemCatalog.find(entry => entry.id === id
-    && (entry.countSource.kind === 'useitem' || entry.countSource.kind === 'material'))?.names[getLang()] ?? `#${id}`;
 const itemText = (item: { id: number; count: number }) => `${itemName(item.id)} ×${item.count}`;
 const itemsText = (row: ExpeditionRow) => (row.items ?? []).map(itemText).join(' / ');
-const ITEM_FILES: Record<number, string> = {
-    1: 'resource/drum', 2: 'resource/torch', 3: 'resource/devmat', 4: 'resource/screw',
-    10: 'resource/furniture-box-small', 11: 'resource/furniture-box-medium', 12: 'resource/furniture-box-large',
-    59: 'ui/provision',
-};
-const itemHtml = (item: { id: number; count: number }) => ITEM_FILES[item.id]
-    ? `<img class="m-icon" src="/icons/${ITEM_FILES[item.id]}.svg" alt="${esc(itemName(item.id))}"><b>×${esc(String(item.count))}</b>`
+const itemHtml = (item: { id: number; count: number }) => USE_ITEM_ICONS[item.id]
+    ? `<img class="m-icon" src="/icons/${USE_ITEM_ICONS[item.id]}.svg" alt="${esc(itemName(item.id))}"><b>×${esc(String(item.count))}</b>`
     : esc(itemText(item));
 
 export const COLUMNS: Column[] = [
@@ -270,7 +265,7 @@ const PLAN_DEFAULT_HOURS = 3;
 const PLAN_DEFAULT_HORIZON_DAYS = FLOW_MAX_BLOCKS * FLOW_BLOCK_DAYS;
 
 /** hours：在線時多久回來收一次遠征；sleep：每天一次較長離開的小時數（0＝不另排睡前組合）；basis：支出照哪一段算。 */
-export interface PlanPrefs { open: boolean; hours: number; sleep: number; basis: SpendBasis; chosen: PlanKey[] }
+export interface PlanPrefs { hours: number; sleep: number; basis: SpendBasis; chosen: PlanKey[] }
 
 /** 睡前離開的上限（小時）：再長就幾乎沒有在線時間，在線組合失去意義。 */
 const PLAN_MAX_SLEEP = 20;
@@ -279,14 +274,13 @@ const PLAN_SYNC_MS = 100;
 /** 之後在背景每段算多久（毫秒）。 */
 const PLAN_SLICE_MS = 30;
 
-export const defaultPlanPrefs = (): PlanPrefs => ({ open: false, hours: PLAN_DEFAULT_HOURS, sleep: 0, basis: 'recent', chosen: [...DEFAULT_CHOSEN] });
+export const defaultPlanPrefs = (): PlanPrefs => ({ hours: PLAN_DEFAULT_HOURS, sleep: 0, basis: 'recent', chosen: [...DEFAULT_CHOSEN] });
 
 function loadPlanPrefs(): PlanPrefs {
     const d = defaultPlanPrefs();
     return loadJsonPrefs(PLAN_PREFS_KEY, d, raw => {
         const r = raw as Partial<Record<keyof PlanPrefs, unknown>> | null;
         return {
-            open: typeof r?.open === 'boolean' ? r.open : d.open,
             hours: typeof r?.hours === 'number' && r.hours > 0 && r.hours <= 168 ? r.hours : d.hours,
             sleep: typeof r?.sleep === 'number' && r.sleep >= 0 && r.sleep <= PLAN_MAX_SLEEP ? r.sleep : d.sleep,
             basis: SPEND_BASES.includes(r?.basis as SpendBasis) ? r!.basis as SpendBasis : d.basis,
@@ -403,8 +397,8 @@ function verdictHtml(plan: ExpeditionPlan, view: PlanView): string {
 
 /** 建議區外殼（控制項與說明）；body 是結果區的初始內容，離線預覽與正式分區共用。 */
 export function planShellHtml(prefs: PlanPrefs, body: string): string {
-    return `<details class="el-plan"${prefs.open ? ' open' : ''}>
-        <summary class="el-h">${esc(t('ov.epTitle'))}<span class="gl-est" title="${esc(t('ov.epBasis'))}">${esc(t('ov.epEst'))}</span></summary>
+    return `<section class="el-plan">
+        <h3 class="el-h">${esc(t('ov.epTitle'))}<span class="gl-est" title="${esc(t('ov.epBasis'))}">${esc(t('ov.epEst'))}</span></h3>
         <div class="ov-toolbar el-plan-bar">
             <label class="rs-inline"><span title="${esc(t('ov.epAwayTip'))}">${esc(t('ov.epAway'))}</span>
                 <input type="number" class="rs-search el-plan-hours" min="0.5" max="168" step="0.5" value="${prefs.hours}" aria-label="${esc(t('ov.epAway'))}">
@@ -420,7 +414,7 @@ export function planShellHtml(prefs: PlanPrefs, body: string): string {
         </div>
         <p class="ov-note dim">${esc(t('ov.epBasis'))}</p>
         <div class="el-plan-body">${body}</div>
-    </details>`;
+    </section>`;
 }
 
 /** 建議區的結果（組合、各資材到上限天數、月常）；控制項不在這裡，重繪不會打斷輸入。 */
@@ -439,9 +433,9 @@ export function planResultHtml(view: PlanView): string {
             week ? t('ov.epSpendWeek', { from: formatDate(week.fromTs), to: formatDate(week.toTs) }) : '',
             week && week.itemsRecorded === false && view.chosen.some(key => key === 'drum' || key === 'torch' || key === 'devmat') ? t('ov.epSpendWeekItems') : '',
             view.basis === 'lightest' && !view.noFlow && !week ? t('ov.epSpendNoWeek') : '',
-            plan.lockedCount ? t('ov.epLocked', { n: plan.lockedCount }) : '',
             t('ov.epProfile', { gs: Math.round(plan.profile.great * 100), bonus: plan.profile.bonus.toFixed(2), n: MIN_RUNS }),
-        ].filter(Boolean).map(note => `<p class="ov-note dim el-plan-note">${esc(note)}</p>`).join('');
+        ].filter(Boolean).map(note => `<p class="ov-note dim el-plan-note">${esc(note)}</p>`).join('')
+            + (plan.lockedCount ? `<p class="ov-note dim el-plan-note">${esc(t('ov.epLocked', { n: plan.lockedCount }))} <a href="#/exped-log?sub=unlock">${esc(t('ov.euSeeUnlock'))}</a></p>` : '');
         const night = plan.sleep.length
             ? `<h4 class="el-h">${esc(t('ov.epOnline'))}</h4>${missionTableHtml(plan.top, view.chosen, false, plan.roles.top, plan.listKnown)}
                 <h4 class="el-h" title="${esc(t('ov.epNightTip'))}">${esc(t('ov.epNight', { h: plan.sleepMinutes / 60 }))}</h4>${missionTableHtml(plan.sleep, view.chosen, false, plan.roles.sleep, plan.listKnown)}`
@@ -463,8 +457,7 @@ export function planResultHtml(view: PlanView): string {
         <div class="el-table-wrap"><table class="el-table el-plan-table"><thead><tr><th>${esc(t('ov.expedColMission'))}</th><th>${esc(t('ov.epCycle'))}</th><th>${esc(t('ov.epLastSuccess'))}</th></tr></thead><tbody>${plan.monthly.map(row => {
         const name = expedDisplayName(row.missionId, row.name);
         return `<tr><td><div class="el-type"><b title="${esc(name)}">${esc(name)}</b><span>${esc(row.dispNo)}</span></div></td>
-            <td class="el-plan-time">${row.doneThisCycle ? `<span class="el-none">${esc(t('ov.epCycleDone'))}</span>`
-        : row.open === false ? `<span class="el-none" title="${esc(t('ov.epCycleLockedTip'))}">${esc(t('ov.epCycleLocked'))}</span>`
+            <td class="el-plan-time">${row.open === false ? `<span class="el-none" title="${esc(t('ov.epCycleLockedTip'))}">${esc(t('ov.epCycleLocked'))}</span>`
         : `<b>${esc(t('ov.epCycleOpen'))}</b>`}</td>
             <td class="el-plan-time">${row.lastSuccessTs === null ? `<span class="el-none">${esc(t('ov.epNever'))}</span>` : esc(formatDate(row.lastSuccessTs))}</td></tr>`;
     }).join('')}</tbody></table></div>` : '';
@@ -477,19 +470,32 @@ function periodLabel(period: EventPeriod, ctx: SectionContext): string {
     return `${name}（${dateInputValue(period.startTs)} – ${dateInputValue(period.endTs)}）`;
 }
 
+export const EXPED_SUBS = [
+    { key: 'log', labelKey: 'ov.exSubLog' },
+    { key: 'plan', labelKey: 'ov.exSubPlan' },
+    { key: 'unlock', labelKey: 'ov.exSubUnlock' },
+] as const;
+export type ExpedSub = typeof EXPED_SUBS[number]['key'];
+
+/** 網址的 sub 參數；沒有或不認得時看紀錄。 */
+export function resolveExpedSub(param: string | null): ExpedSub {
+    return EXPED_SUBS.some(sub => sub.key === param) ? param as ExpedSub : 'log';
+}
+
 export const expedLogSection: OverviewSection = {
     id: 'exped-log',
-    titleKey: 'ov.expedLog',
+    titleKey: 'ov.exped',
     async render(el, ctx) {
         // 先畫殼，再讀 IndexedDB；讀取被其他頁面的 schema 升級阻塞時也不能留下空白分區。
         const prefs = loadPrefs();
         const planPrefs = loadPlanPrefs();
-        // 備蓄卡片的連結（#/exped-log?plan=1）：展開建議區並捲到它；參數只用一次。
-        const wantPlan = hashParams().get('plan') === '1';
-        if (wantPlan) { planPrefs.open = true; clearHashParams(); }
+        let active = resolveExpedSub(hashParams().get('sub'));
         let page = 1;
-        el.innerHTML = `<div class="el">
-            ${planShellHtml(planPrefs, `<div class="ov-empty">${esc(t('ov.loading'))}</div>`)}
+        el.innerHTML = `<div class="el"><nav class="fa-nav" role="tablist" aria-label="${esc(t('ov.exped'))}">${EXPED_SUBS.map(sub =>
+            `<button type="button" role="tab" class="fa-tab" id="el-tab-${sub.key}" data-sub="${sub.key}" aria-selected="${sub.key === active}" aria-controls="el-page-${sub.key}">${esc(t(sub.labelKey))}</button>`).join('')}</nav>
+            <div class="fa-page" id="el-page-plan" role="tabpanel" aria-labelledby="el-tab-plan" hidden>${planShellHtml(planPrefs, `<div class="ov-empty">${esc(t('ov.loading'))}</div>`)}</div>
+            <div class="fa-page eu" id="el-page-unlock" role="tabpanel" aria-labelledby="el-tab-unlock" hidden></div>
+            <div class="fa-page" id="el-page-log" role="tabpanel" aria-labelledby="el-tab-log" hidden>
             <p class="ov-note">${esc(t('ov.expedStatsNote'))}</p>
             <div class="ov-toolbar el-bar">
                 <span class="el-label">${esc(t('ov.rlRange'))}</span>
@@ -518,7 +524,34 @@ export const expedLogSection: OverviewSection = {
             </div>
             <div class="el-body"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <div class="rs-pager el-pager" hidden></div>
+            </div>
         </div>`;
+
+        // ── 子分頁 ────────────────────────────────────────────────────
+        const unlockPage = el.querySelector<HTMLElement>('#el-page-unlock')!;
+        let unlockDrawn = false;
+        // 開放頁只有一般遠征的 <details>，重繪時保留玩家的展開選擇。
+        const drawUnlock = () => {
+            const box = unlockPage.querySelector<HTMLDetailsElement>('.eu-general');
+            unlockPage.innerHTML = unlockPageHtml(ctx.state, Date.now(), unlockDrawn ? box?.open : undefined);
+            unlockDrawn = true;
+        };
+        const show = (key: ExpedSub) => {
+            active = key;
+            for (const button of el.querySelectorAll<HTMLButtonElement>('.el > .fa-nav .fa-tab')) button.setAttribute('aria-selected', String(button.dataset.sub === key));
+            for (const sub of EXPED_SUBS) el.querySelector<HTMLElement>(`#el-page-${sub.key}`)!.hidden = sub.key !== key;
+            if (key === 'unlock' && !unlockDrawn) drawUnlock();
+        };
+        el.querySelector('.el > .fa-nav')!.addEventListener('click', event => {
+            const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.fa-tab');
+            if (!button || button.dataset.sub === active) return;
+            show(button.dataset.sub as ExpedSub);
+            // 網址跟著子頁走，切語言重繪才不會被舊的 sub 參數拉回去；replaceState 不觸發 hashchange。
+            history.replaceState(null, '', `${location.pathname}${location.search}#/exped-log?sub=${active}`);
+        });
+        show(active);
+        // 進遠征畫面（新的遠征清單）時更新開放頁；還沒打開過就等第一次切過去再畫。
+        ctx.onStateChange?.(() => { if (el.isConnected && unlockDrawn) drawUnlock(); });
 
         const body = el.querySelector<HTMLElement>('.el-body')!;
         const count = el.querySelector<HTMLElement>('.el-count')!;
@@ -534,7 +567,6 @@ export const expedLogSection: OverviewSection = {
         let periods: EventPeriod[] = [];
 
         // ── 遠征組合建議（控制項只建一次，只重繪 .el-plan-body）──────────────
-        const planBox = el.querySelector<HTMLDetailsElement>('.el-plan')!;
         const planBody = el.querySelector<HTMLElement>('.el-plan-body')!;
         const planPick = el.querySelector<HTMLElement>('.el-plan-pick')!;
         const hoursInput = el.querySelector<HTMLInputElement>('.el-plan-hours:not(.el-plan-sleep)')!;
@@ -603,10 +635,6 @@ export const expedLogSection: OverviewSection = {
                 planBody.innerHTML = `<div class="ov-empty">${esc(String(error))}</div>`;
             }
         }
-        planBox.addEventListener('toggle', () => {
-            planPrefs.open = planBox.open;
-            saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
-        });
         // 有睡前組合時近似解要零點幾秒；數字輸入停下來才算，打字不卡。
         // 一輸入就放棄背景還在算的舊結果，等待期間不會再畫上舊條件的組合。
         let planTimer: ReturnType<typeof setTimeout> | undefined;
@@ -813,6 +841,5 @@ export const expedLogSection: OverviewSection = {
         } catch (error) {
             planBody.innerHTML = `<div class="ov-empty">${esc(String(error))}</div>`;
         }
-        if (wantPlan) planBox.scrollIntoView({ block: 'start' });
     },
 };

@@ -193,7 +193,9 @@ describe('逐筆明細的編成欄', () => {
 describe('遠征組合建議', () => {
     const missions = [
         { id: 905, dispNo: '905', name: '海上護衛任務', time: 90, resetType: 0, winItems: [[0, 0], [1, 1]] as [number, number][], use: [0, 0] as [number, number] },
-        { id: 942, dispNo: '42', name: '月常遠征', time: 60, resetType: 1, winItems: [[0, 0], [0, 0]] as [number, number][], use: [0, 0] as [number, number] },
+        { id: 942, dispNo: '42', name: '月常遠征', time: 60, resetType: 1, winItems: [[3, 2], [0, 0]] as [number, number][], use: [0, 0] as [number, number] },
+        // 獎勵沒有開發資材或改修資材的月常不提示
+        { id: 946, dispNo: '46', name: '月常遠征二', time: 60, resetType: 1, winItems: [[1, 1], [12, 1]] as [number, number][], use: [0, 0] as [number, number] },
     ];
     const need = (key: ResourceNeed['key'], have: number | null, base: number | null = null, cap = 3000): ResourceNeed =>
         ({ key, have, cap, base, current: base });
@@ -212,6 +214,7 @@ describe('遠征組合建議', () => {
         expect(html).toContain(t('ov.epNever'));
         // 月常：本期截止與剩餘時間、本期狀態欄。
         expect(html).toContain(t('ov.epCycleOpen'));
+        expect(html).not.toContain('月常遠征二');
         const now = Date.parse('2026-12-14T23:00:00Z');
         const monthlyRecords = [...tenRuns, exped({ ts: 2000, missionId: 942, result: 0 })];
         const due = planResultHtml({
@@ -267,7 +270,7 @@ describe('遠征組合建議', () => {
         const html = planResultHtml(withSleep);
         expect(html).toContain(t('ov.epOnline'));
         expect(html).toContain(t('ov.epNight', { h: 7.5 }));
-        expect(html.split('el-plan-table').length).toBe(1 + 3);     // 在線、睡前、全部候選
+        expect(html.split('el-plan-table').length).toBe(1 + 4);     // 在線、睡前、全部候選、月常提示
         expect(planResultHtml(view(tenRuns))).not.toContain(t('ov.epOnline'));
     });
 

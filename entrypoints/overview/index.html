@@ -4016,7 +4016,7 @@
 
         /* 各遠征次數與收穫＝次要的查詢工具（主體是逐筆明細），收進 <details> 放在明細下方。
            summary 沿用 .el-h 的字級／字色，只補 caret 與游標。 */
-        :is(.el-stats, .el-plan, .el-plan-all)>summary {
+        :is(.el-stats, .el-plan-all, .eu-general)>summary {
             display: flex;
             align-items: center;
             gap: 6px;
@@ -4024,18 +4024,18 @@
             list-style: none;
         }
 
-        :is(.el-stats, .el-plan, .el-plan-all)>summary::-webkit-details-marker { display: none; }
+        :is(.el-stats, .el-plan-all, .eu-general)>summary::-webkit-details-marker { display: none; }
 
-        :is(.el-stats, .el-plan, .el-plan-all)>summary::before {
+        :is(.el-stats, .el-plan-all, .eu-general)>summary::before {
             content: '▸';
             display: inline-block;
             width: 12px;
             font-size: 10px;
         }
 
-        :is(.el-stats, .el-plan, .el-plan-all)[open]>summary::before { content: '▾'; }
-        :is(.el-stats, .el-plan, .el-plan-all)>summary:hover { color: var(--text); }
-        :is(.el-stats, .el-plan, .el-plan-all)>summary:hover::before { color: var(--sparkle); }
+        :is(.el-stats, .el-plan-all, .eu-general)[open]>summary::before { content: '▾'; }
+        :is(.el-stats, .el-plan-all, .eu-general)>summary:hover { color: var(--text); }
+        :is(.el-stats, .el-plan-all, .eu-general)>summary:hover::before { color: var(--sparkle); }
 
         .el-stats .el-table-wrap { max-height: min(50vh, 460px); }
 
@@ -4083,6 +4083,44 @@
         .el-plan-all { margin-top: 8px; }
         .el-plan-neck { font-size: 11px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font-weight: 400; }
         .el-plan .el-table-wrap { max-height: none; }
+        .el-plan > .el-h { display: flex; align-items: center; gap: 6px; margin-top: 0; }
+
+        /* ── 遠征「開放」子頁（exped-unlock.ts）──
+           月常路徑是一張依組分段的表：組標題列不吸頂（只有欄名吸頂），表格隨內容區寬度收，收入欄可換行。
+           狀態不借語意色：下一步用黃銅左線＋閃光字（同子分頁選取的語彙），未出現／未開放用淡字。 */
+        .eu-bar { flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+        .eu-stat { font-size: 13px; font-variant-numeric: tabular-nums; }
+        .eu-wrap.el-table-wrap { max-height: none; margin-bottom: 16px; }
+        .eu-table { width: 100%; }
+        .eu-table td:last-child, .eu-table .el-type b { white-space: normal; }
+        .eu-table .eu-gh th { position: static; padding-top: 12px; color: var(--text); font-size: 12px; white-space: normal; }
+        .eu-gmeta { margin-left: 12px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+        .eu-st { color: var(--dim); }
+        .eu-tr.is-done .eu-st { color: var(--text); }
+        .eu-tr.is-next .eu-st { color: var(--sparkle); font-weight: 600; }
+        .eu-tr.is-next td:first-child { box-shadow: inset 2px 0 0 var(--brass); }
+        .eu-tr:is(.is-absent, .is-locked) .el-type b { color: var(--dim); }
+        .eu-cost { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+        :is(.eu-cost, .eu-chip) .m-icon { width: 14px; height: 14px; }
+        .eu-cost .m-icon:nth-of-type(2) { margin-left: 6px; }
+        .eu-chips { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+        .eu-chip { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .eu-chip b { font-weight: 500; }
+        .eu-chip i { color: var(--sparkle); font-size: 10px; font-style: normal; }
+        .eu-general { margin: 8px 0 16px; }
+        .eu-gsum { margin-left: 10px; color: var(--dim); font-weight: 400; }
+        .eu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 12px; align-items: start; margin-top: 8px; }
+        .eu-card { min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+        .eu-area { display: flex; justify-content: space-between; margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+        .eu-count { color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+        .eu-list { margin: 0; padding: 0; list-style: none; }
+        .eu-row { display: grid; grid-template-columns: 14px 28px minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; padding: 2px 0; font-size: 12px; }
+        .eu-mark { color: var(--dim); text-align: center; }
+        .eu-no { color: var(--dim); font-variant-numeric: tabular-nums; }
+        .eu-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .eu-time { padding-left: 8px; color: var(--dim); font-variant-numeric: tabular-nums; }
+        .eu-need { grid-column: 3 / -1; color: var(--dim); font-size: 11px; }
+        .eu-row.is-locked .eu-name { color: var(--dim); }
         .el-sum-table .el-num { text-align: right; font-variant-numeric: tabular-nums; }
         .el-sum-table th.on { color: var(--text); }
 

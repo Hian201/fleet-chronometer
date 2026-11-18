@@ -528,7 +528,8 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - ElectronicObserver `ElectronicObserver/Other/Information/apilist.txt`（`api_state` 0＝未出撃、1＝未達成、2＝達成済み）
     — https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
 - **用途**：`utils/state.ts` 記下最近一次的清單，`utils/expedition-plan.ts` 只建議清單裡的遠征、以 `api_limit_time`
-  當月常本期截止；不收錄 `monthlyUnlockTable` 的資料，只採用欄位名稱與語意，未複製第三方程式碼。
+  當月常本期截止。`utils/expedition-unlock.ts` 的月常每期前置（九條）取自 wikiwiki.jp/kancolle「遠征」的開放要件表，
+  再與 `monthlyUnlockTable` 逐條比對一致；只採用欄位名稱、語意與這九條遊戲事實，未複製第三方程式碼。
 
 ---
 

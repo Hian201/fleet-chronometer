@@ -67,7 +67,7 @@ const planHtml = (withFlow: boolean) => {
     const chosen: PlanKey[] = withFlow ? [...DEFAULT_CHOSEN, 'screw'] : ['bauxite', 'drum'];
     const needs = resourceNeeds(chosen, stock, caps, withFlow ? flow : null, records, missions, shipMax);
     const plan = planExpeditions({ missions, records, intervalMinutes: 60, sleepMinutes: withFlow ? 420 : 0, needs, horizonDays: withFlow ? 44 : 28, untilFull: !withFlow, shipMax });
-    return planShellHtml({ ...defaultPlanPrefs(), open: true, chosen, hours: 1, sleep: withFlow ? 7 : 0 },
+    return planShellHtml({ ...defaultPlanPrefs(), chosen, hours: 1, sleep: withFlow ? 7 : 0 },
         planResultHtml({ plan, chosen: needs.map(need => need.key), hasMaster: true, noFlow: !withFlow, deadline: withFlow ? '2026-12-31' : null }))
         .replaceAll('<details class="el-plan-all" data-part', '<details class="el-plan-all" open data-part');
 };

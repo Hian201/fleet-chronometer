@@ -238,7 +238,7 @@ export function stockpileBodyHtml(state: GameState, goals: readonly RemodelGoal[
     if (deadline !== null && !ahead) notes.push(esc(t('ov.gsPast')));
     const filling = lines.filter(line => line.fillsBeforeDeadline);
     // 連到遠征紀錄的組合建議（換哪條遠征由那裡回答，目標規劃不列遠征）。
-    if (filling.length) notes.push(`<b>${esc(t('ov.gsFills', { items: filling.map(line => goalCostName(state, line.key)).join(t('ov.gsSep')) }))}</b> <a class="rs-goal" href="#/exped-log?plan=1">${esc(t('ov.gsFillsLink'))}</a>`);
+    if (filling.length) notes.push(`<b>${esc(t('ov.gsFills', { items: filling.map(line => goalCostName(state, line.key)).join(t('ov.gsSep')) }))}</b> <a class="rs-goal" href="#/exped-log?sub=plan">${esc(t('ov.gsFillsLink'))}</a>`);
     const heads = ['ov.glColItem', 'ov.glColStock', ...(withReserved ? ['ov.gsColReserved'] : []), 'ov.gsColToCap', ...(ahead ? ['ov.gsColAtDeadline'] : [])];
     const rows = lines.map(line => `<tr><td>${esc(goalCostName(state, line.key))}</td><td class="gl-num">${numOrUnknown(line.have)}</td>${withReserved
         ? `<td class="gl-num">${line.reserved > 0 ? esc(fmtNum(line.reserved)) : ''}</td>` : ''}<td class="gl-num gl-eta-cell">${toCapCellHtml(line)}</td>${ahead
