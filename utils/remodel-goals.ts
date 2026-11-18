@@ -114,12 +114,16 @@ export interface RemodelGoal {
     targetMst: number;
 }
 
-/** db.goals 的列在結構上滿足這個介面（本檔不 import Dexie）。 */
+/** db.goals 的改造目標列；定義放在這裡，本檔才不必 import Dexie。 */
 export interface RemodelGoalRow {
+    /** `remodel:${shipId}`——一艘艦只有一個改造目標。 */
     key: string;
     kind: 'remodel';
+    /** 優先順序，小的在前；庫存依此順序分配。 */
     order: number;
+    /** 艦娘實例 id（api_ship[].api_id）。 */
     shipId: number;
+    /** 目標形態的 master id。 */
     targetMst: number;
 }
 

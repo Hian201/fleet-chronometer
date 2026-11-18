@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { PlanStage, PlanTag } from './event-plan';
 import type { SortieBill } from './sortie-bill';
+import type { RemodelGoalRow } from './remodel-goals';
 import type { StockpileGoalRow } from './stockpile';
 import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 
@@ -456,18 +457,6 @@ export type SortieBillRow = { sortieKey: number; ts: number; map: string; diffic
 // 主鍵 key 帶種類前綴，日後新增其他種類的目標不必再開表。備蓄目標只有一列（StockpileGoalRow，
 // 見 utils/stockpile.ts），不帶 order：它不參與改造目標的排序分配。
 export type GoalRow = RemodelGoalRow | StockpileGoalRow;
-
-export interface RemodelGoalRow {
-    /** `remodel:${shipId}`——一艘艦只有一個改造目標。 */
-    key: string;
-    kind: 'remodel';
-    /** 優先順序，小的在前；庫存依此順序分配（見 utils/remodel-goals.ts）。 */
-    order: number;
-    /** 艦娘實例 id（api_ship[].api_id）。 */
-    shipId: number;
-    /** 目標形態的 master id。 */
-    targetMst: number;
-}
 
 export interface NotifiedRow {
     deckId: number;
