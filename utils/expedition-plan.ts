@@ -111,7 +111,25 @@ export interface ResourceOutlook {
     planDays: number | null;
 }
 
-export interface MonthlyRow { missionId: number; dispNo: string; name: string; lastSuccessTs: number | null }
+export interface MonthlyRow {
+    missionId: number; dispNo: string; name: string; lastSuccessTs: number | null;
+    /** 本期（monthlyExpeditionCycle）已有成功紀錄；失敗可以再跑，不算。 */
+    doneThisCycle: boolean;
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * 月常遠征的本期起訖（毫秒；end 是下次換期，本期不含 end）。日本時間每月 15 日 12:00 換期，
+ * 依 wikiwiki.jp/kancolle「遠征」マンスリー遠征：「開始月15日の昼12:00 ～ 翌月15日の昼12:00まで」、
+ * 換期時不必重新登入。日本時間 12:00＝UTC 03:00。
+ */
+export function monthlyExpeditionCycle(ts: number): { start: number; end: number } {
+    const jst = new Date(ts + 9 * HOUR_MS);
+    const year = jst.getUTCFullYear(), month = jst.getUTCMonth();
+    const at = (m: number) => Date.UTC(year, m, 15, 3);
+    return ts >= at(month) ? { start: at(month), end: at(month + 1) } : { start: at(month - 1), end: at(month) };
+}
 
 export interface ExpeditionPlan {
     /** 建議的（在線）組合（最多三條，遠征不重複），依對 focus 資材的每日收入排列。 */
@@ -128,7 +146,10 @@ export interface ExpeditionPlan {
     /** 最需要補的資材（結論句、top 與 candidates 的排列依據）：有候選遠征給得到、還沒滿的資材中，
      *  不跑遠征時推算時點比例最低的一項（只看持有與基本淨增減，不隨組合或收取間隔改變）；沒有為 null。 */
     focus: PlanKey | null;
+    /** 月常小表：本期還沒成功的在前。 */
     monthly: MonthlyRow[];
+    /** 月常遠征的本期起訖。 */
+    monthlyCycle: { start: number; end: number };
     /** 候選遠征數；0 表示沒有可建議的遠征。 */
     candidateCount: number;
     /** 全部候選，依對 focus 資材的每日收入排列（供玩家對照）。 */
@@ -434,6 +455,8 @@ export function planExpeditions(input: {
     /** 沒設期限：目標改為全部存滿的天數最短（推算時點改為那個天數，見 planExpeditions 的說明）。 */
     untilFull?: boolean;
     shipMax?: ShipMaxByName;
+    /** 現在時刻（判斷月常本期是否已跑過）；省略為 Date.now()。 */
+    now?: number;
 }): ExpeditionPlan {
     const shipMax = input.shipMax ?? new Map();
     let horizon = Math.max(0, input.horizonDays);
@@ -449,13 +472,16 @@ export function planExpeditions(input: {
     }
     const profile = playerProfile(input.missions, input.records, shipMax);
     const monthly: MonthlyRow[] = [];
+    const monthlyCycle = monthlyExpeditionCycle(input.now ?? Date.now());
     const candidates: PlanRow[] = [];
     for (const mission of input.missions) {
         const records = byMission.get(mission.id) ?? [];
         if (mission.resetType === 1) {
             if (!records.length) continue;
             const successes = records.filter(row => row.result >= 1).map(row => row.ts);
-            monthly.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, lastSuccessTs: successes.length ? Math.max(...successes) : null });
+            const lastSuccessTs = successes.length ? Math.max(...successes) : null;
+            monthly.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, lastSuccessTs,
+                doneThisCycle: lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end });
             continue;
         }
         if (!(mission.time > 0)) continue;
@@ -471,7 +497,7 @@ export function planExpeditions(input: {
         candidates.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, time: mission.time, income, perDay, runs: records.length, itemRuns, estimated, supply, supplyEstimated });
     }
     candidates.sort((a, b) => a.missionId - b.missionId);
-    monthly.sort((a, b) => a.missionId - b.missionId);
+    monthly.sort((a, b) => Number(a.doneThisCycle) - Number(b.doneThisCycle) || a.missionId - b.missionId);
 
     // 一隊一天：在線組合在扣掉睡前遠征佔用的時間裡照 interval 收；睡前遠征一天一趟。
     // 睡前遠征佔用＝離開時間，比離開時間長時再加上回來後等到下一個收取點的時間。
@@ -606,7 +632,7 @@ export function planExpeditions(input: {
     const roles = rolesOf(outlook, parts);
     return {
         top, sleep: night, sleepMinutes: sleep, roles: { top: roles.slice(0, top.length), sleep: roles.slice(top.length) },
-        outlook, bottleneck, focus, monthly,
+        outlook, bottleneck, focus, monthly, monthlyCycle,
         candidateCount: candidates.length, candidates: byFocus(candidates), profile, horizonDays: horizon,
     };
 }

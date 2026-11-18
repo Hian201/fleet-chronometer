@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { DAY_MS } from '../utils/date-format';
 import {
-    ITEM_FLAG_SINCE, MIN_RUNS, daysToFill, fleetSupply, lightestWeek, planExpeditions, playerProfile, resourceNeeds,
+    ITEM_FLAG_SINCE, MIN_RUNS, daysToFill, fleetSupply, lightestWeek, monthlyExpeditionCycle, planExpeditions, playerProfile, resourceNeeds,
     type PlanMission, type ResourceNeed,
 } from '../utils/expedition-plan';
 import { stockpileCap, STOCKPILE_KEYS } from '../utils/stockpile';
@@ -39,8 +39,8 @@ describe('planExpeditions：候選與收益', () => {
         });
         expect(ids(result.top)).toEqual([905]);
         expect(result.monthly).toEqual([
-            { missionId: 942, dispNo: '942', name: '遠征942', lastSuccessTs: 3000 },
-            { missionId: 943, dispNo: '943', name: '遠征943', lastSuccessTs: null },
+            { missionId: 942, dispNo: '942', name: '遠征942', lastSuccessTs: 3000, doneThisCycle: false },
+            { missionId: 943, dispNo: '943', name: '遠征943', lastSuccessTs: null, doneThisCycle: false },
         ]);
     });
 
@@ -179,6 +179,33 @@ describe('playerProfile', () => {
     it('fleetSupply：艦名對不到 master 時為 null', () => {
         expect(fleetSupply([{ name: '不存在' }], [0.5, 0.5], new Map())).toBeNull();
         expect(fleetSupply([], [0.5, 0.5], new Map())).toBeNull();
+    });
+});
+
+describe('月常遠征的本期', () => {
+    const utc = (iso: string) => Date.parse(`${iso}Z`);
+
+    it('日本時間每月 15 日 12:00（UTC 03:00）換期，跨年照算', () => {
+        expect(monthlyExpeditionCycle(utc('2026-11-15T02:59:59'))).toEqual({ start: utc('2026-10-15T03:00:00'), end: utc('2026-11-15T03:00:00') });
+        expect(monthlyExpeditionCycle(utc('2026-11-15T03:00:00'))).toEqual({ start: utc('2026-11-15T03:00:00'), end: utc('2026-12-15T03:00:00') });
+        expect(monthlyExpeditionCycle(utc('2026-12-31T20:00:00'))).toEqual({ start: utc('2026-12-15T03:00:00'), end: utc('2027-01-15T03:00:00') });
+        expect(monthlyExpeditionCycle(utc('2027-01-10T00:00:00'))).toEqual({ start: utc('2026-12-15T03:00:00'), end: utc('2027-01-15T03:00:00') });
+    });
+
+    it('本期有成功紀錄才算已完成（失敗可再跑）；未完成的排前面', () => {
+        const now = utc('2026-11-18T00:00:00');
+        const result = plan({
+            missions: [mission(905, 60), mission(942, 60, { resetType: 1 }), mission(943, 60, { resetType: 1 }), mission(944, 60, { resetType: 1 })],
+            records: [
+                ...runs(MIN_RUNS, 905, { resources: [100, 0, 0, 0] }),
+                run(942, { ts: utc('2026-11-16T00:00:00') }),                       // 本期成功
+                run(943, { ts: utc('2026-11-14T00:00:00') }),                       // 上一期成功
+                run(944, { ts: utc('2026-11-17T00:00:00'), result: 0 }),            // 本期失敗
+            ],
+            needs: [need('fuel', 1000)], now,
+        });
+        expect(result.monthlyCycle).toEqual({ start: utc('2026-11-15T03:00:00'), end: utc('2026-12-15T03:00:00') });
+        expect(result.monthly.map(row => [row.missionId, row.doneThisCycle])).toEqual([[943, false], [944, false], [942, true]]);
     });
 });
 

@@ -16,7 +16,7 @@ import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { itemCatalog } from '@/utils/item-catalog';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
-import { DAY_MS, formatDate } from '@/utils/date-format';
+import { DAY_MS, formatDate, formatDateTime } from '@/utils/date-format';
 import { DEFAULT_CHOSEN, ITEM_FLAG_SINCE, MIN_RUNS, PLAN_KEYS, SPEND_BASES, lightestWeek, planExpeditions, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type SpendBasis } from '@/utils/expedition-plan';
 import { stockpileFromRows, type StockpileGoal } from '@/utils/stockpile';
 import { goalsFromRows, remodelStockOf, type RemodelGoal } from '@/utils/remodel-goals';
@@ -301,6 +301,8 @@ export interface PlanView {
     /** 支出照哪一段算；lightest 時 week 是實際採用的那一週（沒有各週明細為 null，退回整段平均）。 */
     basis?: SpendBasis;
     week?: { fromTs: number; toTs: number } | null;
+    /** 現在時刻（月常剩餘時間）；省略為 Date.now()。 */
+    now?: number;
     /** 備蓄期限（YYYY-MM-DD）；沒設期限為 null，推算時點改為 plan.horizonDays 天後。 */
     deadline: string | null;
 }
@@ -442,11 +444,16 @@ export function planResultHtml(view: PlanView): string {
             <details class="el-plan-all" data-part="all"><summary class="el-h">${esc(t('ov.epAll', { n: plan.candidates.length }))}</summary>
             ${plan.focus ? `<p class="ov-note dim">${esc(t('ov.epAllNote', { item: keyName(plan.focus) }))}</p>` : ''}${missionTableHtml(plan.candidates, view.chosen, true)}</details>`;
     }
+    // 本期截止：顯示本機時間，剩餘不到一天改用小時。
+    const left = plan.monthlyCycle.end - (view.now ?? Date.now());
+    const leftText = left >= DAY_MS ? t('ov.epLeftDays', { n: Math.floor(left / DAY_MS) }) : t('ov.epLeftHours', { n: Math.max(0, Math.ceil(left / 3600000)) });
     const monthly = plan.monthly.length ? `<h4 class="el-h">${esc(t('ov.epMonthly'))}</h4>
         <p class="ov-note dim">${esc(t('ov.epMonthlyNote'))}</p>
-        <div class="el-table-wrap"><table class="el-table el-plan-table"><thead><tr><th>${esc(t('ov.expedColMission'))}</th><th>${esc(t('ov.epLastSuccess'))}</th></tr></thead><tbody>${plan.monthly.map(row => {
+        <p class="ov-note el-plan-note">${esc(t('ov.epMonthlyDue', { date: formatDateTime(plan.monthlyCycle.end, false), left: leftText }))}</p>
+        <div class="el-table-wrap"><table class="el-table el-plan-table"><thead><tr><th>${esc(t('ov.expedColMission'))}</th><th>${esc(t('ov.epCycle'))}</th><th>${esc(t('ov.epLastSuccess'))}</th></tr></thead><tbody>${plan.monthly.map(row => {
         const name = expedDisplayName(row.missionId, row.name);
         return `<tr><td><div class="el-type"><b title="${esc(name)}">${esc(name)}</b><span>${esc(row.dispNo)}</span></div></td>
+            <td class="el-plan-time">${row.doneThisCycle ? `<span class="el-none">${esc(t('ov.epCycleDone'))}</span>` : `<b>${esc(t('ov.epCycleOpen'))}</b>`}</td>
             <td class="el-plan-time">${row.lastSuccessTs === null ? `<span class="el-none">${esc(t('ov.epNever'))}</span>` : esc(formatDate(row.lastSuccessTs))}</td></tr>`;
     }).join('')}</tbody></table></div>` : '';
     return `${main}${monthly}`;

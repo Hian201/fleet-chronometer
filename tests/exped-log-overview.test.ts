@@ -210,6 +210,17 @@ describe('遠征組合建議', () => {
         expect(html).toContain('>300<');
         expect(html).toContain('el-plan-est');            // 高速修復材修正後的紀錄不足 MIN_RUNS → 推算
         expect(html).toContain(t('ov.epNever'));
+        // 月常：本期截止與剩餘時間、本期狀態欄。
+        expect(html).toContain(t('ov.epCycleOpen'));
+        const now = Date.parse('2026-12-14T23:00:00Z');
+        const monthlyRecords = [...tenRuns, exped({ ts: 2000, missionId: 942, result: 0 })];
+        const due = planResultHtml({
+            ...view(monthlyRecords), now,
+            plan: planExpeditions({ missions, records: monthlyRecords, intervalMinutes: 180, needs: [need('fuel', 1000, null, 350000)], horizonDays: 10, now }),
+        });
+        // 本期在 12/15 03:00 UTC 截止：剩 4 小時（不到一天改用小時）。
+        expect(due).toContain(t('ov.epMonthlyDue', { date: formatDateTime(Date.parse('2026-12-15T03:00:00Z'), false), left: t('ov.epLeftHours', { n: 4 }) }));
+        expect(due).toContain(`<th>${t('ov.epCycle')}</th>`);
         expect(html).toContain(t('ov.epAll', { n: 1 }));
         expect(html).toContain(t('ov.epWhenDays', { n: 10 }));
         // 燃料：每 3 小時收一次 → 8 趟 × 300 + 100 = 2,500／日，十天後 200,000（57%）；高速修復材 300 + 10 = 310（10%），是瓶頸
