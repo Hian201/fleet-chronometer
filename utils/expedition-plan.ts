@@ -113,7 +113,8 @@ export interface ResourceOutlook {
 
 export interface MonthlyRow {
     missionId: number; dispNo: string; name: string; lastSuccessTs: number | null;
-    /** 本期（monthlyExpeditionCycle）已有成功紀錄；失敗可以再跑，不算。 */
+    /** 本期已完成：本期的遠征清單狀態為 2，或本期（monthlyExpeditionCycle）有成功紀錄；失敗可以再跑，不算。
+     *  清單補上擴充沒開著時跑的月常，紀錄補上跑完後還沒重新進遠征畫面的情形。 */
     doneThisCycle: boolean;
     /** 本期能不能派：在本期的遠征清單裡才算開放；沒有本期的清單為 null（月常每期換期後前置要重跑，舊清單不算）。 */
     open: boolean | null;
@@ -528,7 +529,8 @@ export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan
             const successes = records.filter(row => row.result >= 1).map(row => row.ts);
             const lastSuccessTs = successes.length ? Math.max(...successes) : null;
             monthly.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, lastSuccessTs,
-                doneThisCycle: lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end,
+                doneThisCycle: (listThisCycle && list!.states.get(mission.id) === 2)
+                    || (lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end),
                 open: listThisCycle ? list!.states.has(mission.id) : null });
             continue;
         }

@@ -32,6 +32,22 @@ describe('遠征清單（api_get_member/mission）', () => {
         expect(monthly.every(m => state.missionList!.states.get(m.api_id) === 1)).toBe(true);
     });
 
+    it('真封包：月常本期成功後狀態變 2，以它為前置的月常同時出現在清單', () => {
+        // samples/mission-list-a4-done.json：同一期跑完 A4（103）後再進遠征畫面取得。
+        const after = JSON.parse(readFileSync(new URL('../samples/mission-list-a4-done.json', import.meta.url), 'utf8'));
+        const before = new GameState();
+        before.applyEvent('api_get_member/mission', sample);
+        const state = new GameState();
+        state.applyEvent('api_get_member/mission', after);
+        const changed = [...new Set([...before.missionList!.states.keys(), ...state.missionList!.states.keys()])]
+            .filter(id => before.missionList!.states.get(id) !== state.missionList!.states.get(id))
+            .sort((a, b) => a - b)
+            .map(id => [id, before.missionList!.states.get(id), state.missionList!.states.get(id)]);
+        // 44 的前置是 103（KC3Kai monthlyUnlockTable）。
+        expect(changed).toEqual([[44, undefined, 1], [103, 1, 2]]);
+        expect(state.missionList!.resetAt).toBe(before.missionList!.resetAt);
+    });
+
     it('清單不是陣列時保留舊值；換期時間缺漏為 null，壞掉的單筆略過', () => {
         const state = new GameState();
         state.applyEvent('api_get_member/mission', sample);

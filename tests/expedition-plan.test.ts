@@ -228,10 +228,17 @@ describe('月常遠征的本期', () => {
         // 本期能跑的在前，未開放的其次。
         expect(result.monthly.map(row => [row.missionId, row.open])).toEqual([[942, true], [943, false]]);
 
+        // 本期清單狀態 2＝本期已完成，即使沒有本期紀錄（擴充沒開著時跑的）。
+        const done = plan({ ...data, missionList: { ...missionList, states: new Map([[905, 2], [942, 2], [943, 1]]) } });
+        expect(done.monthly.map(row => [row.missionId, row.doneThisCycle])).toEqual([[943, false], [942, true]]);
+
         // 上一期的清單（換期時間已過）：一般遠征照樣過濾，月常開放與否不可知，本期截止回到推算。
         const stale = plan({ ...data, missionList: { ...missionList, resetAt: utc('2026-11-15T03:00:00') } });
         expect(stale.candidates.map(row => row.missionId)).toEqual([905]);
         expect(stale.monthly.map(row => row.open)).toEqual([null, null]);
+        // 上一期清單的狀態 2 不算本期完成。
+        const staleDone = plan({ ...data, missionList: { states: new Map([[905, 2], [942, 2]]), resetAt: utc('2026-11-15T03:00:00') } });
+        expect(staleDone.monthly.map(row => row.doneThisCycle)).toEqual([false, false]);
         expect(stale.monthlyCycle).toEqual(monthlyExpeditionCycle(now));
 
         // 從沒收到清單：全部照列。
