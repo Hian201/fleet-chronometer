@@ -5,8 +5,8 @@ import type { ExpeditionRow } from '../utils/db';
 import { groupByMission, summarize } from '../utils/expedition-stats';
 import { MIN_RUNS, planExpeditions, type ResourceNeed } from '../utils/expedition-plan';
 import { COLUMNS, defaultPrefs, planResultHtml, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
-import { setLang, t } from '../utils/ui-i18n';
-import { formatDateTime } from '../utils/date-format';
+import { getLang, setLang, t } from '../utils/ui-i18n';
+import { formatDate, formatDateTime } from '../utils/date-format';
 import { parseHTML } from 'linkedom';
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -243,5 +243,35 @@ describe('遠征組合建議', () => {
         expect(html).toContain(t('ov.epNight', { h: 7.5 }));
         expect(html.split('el-plan-table').length).toBe(1 + 3);     // 在線、睡前、全部候選
         expect(planResultHtml(view(tenRuns))).not.toContain(t('ov.epOnline'));
+    });
+
+    it('頂端一句結論：最需要補的資材現有、這組遠征帶進與合計多少（只算遠征）；會存滿時說幾天；細節預設收合', () => {
+        // 燃料：每 3 小時 8 趟 × 300 ＝ 遠征 2,400／日，十天 24,000；基本淨增減 100／日不算進結論。
+        const html = planResultHtml(view(tenRuns, [need('fuel', 175000, 100, 350000)]));
+        const amount = (n: number) => new Intl.NumberFormat(getLang(), { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+        expect(html).toContain(t('ov.epVerdict', {
+            item: t('mat.fuel.full'), have: amount(175000), gain: amount(24000), total: amount(199000), cap: amount(350000),
+            span: t('ov.epSpanDays', { n: 10 }),
+        }));
+        expect(html).toContain(t('ov.epVerdictNote'));
+        expect(html).toContain(t('ov.epRole', { item: t('mat.fuel.full') }));
+        expect(html).toContain('<details class="el-plan-all" data-part="outlook">');
+        expect(html).not.toMatch(/<details[^>]* open/);
+        // 期限：改寫到期限為止。會存滿：(350,000 − 340,000) ÷ 2,400 ≈ 4.2 → 5 天。
+        expect(planResultHtml({ ...view(tenRuns, [need('fuel', 175000, 100, 350000)]), deadline: '2026-12-31' }))
+            .toContain(t('ov.epSpanDeadline', { date: '2026-12-31' }));
+        // 支出照最少的一週：寫明是哪一週；那週早於道具記錄且勾了道具時另外說明。
+        const weekView = { ...view(tenRuns, [need('fuel', 175000, 100, 350000), need('drum', 300, 1)]), basis: 'lightest' as const, week: { fromTs: 0, toTs: 7 * 86400000 } };
+        expect(planResultHtml(weekView)).toContain(t('ov.epSpendWeek', { from: formatDate(0), to: formatDate(7 * 86400000) }));
+        expect(planResultHtml(weekView)).toContain(t('ov.epSpendWeekItems'));
+        expect(planResultHtml({ ...weekView, week: null })).toContain(t('ov.epSpendNoWeek'));
+        expect(planResultHtml({ ...weekView, basis: 'recent' })).not.toContain(t('ov.epSpendWeekItems'));
+        // 沒設期限、組合能全部存滿：先講幾天全部存滿。
+        const filling = view(tenRuns, [need('fuel', 340000, null, 350000)]);
+        filling.plan = planExpeditions({ missions, records: tenRuns, intervalMinutes: 180, needs: [need('fuel', 340000, null, 350000)], horizonDays: 10, untilFull: true });
+        expect(planResultHtml(filling)).toContain(t('ov.epAllFull', { n: 5 }));
+        expect(planResultHtml({ ...filling, deadline: '2026-12-31' })).not.toContain(t('ov.epAllFull', { n: 5 }));
+        expect(planResultHtml(view(tenRuns, [need('fuel', 340000, null, 350000)])))
+            .toContain(t('ov.epVerdictFull', { item: t('mat.fuel.full'), have: amount(340000), cap: amount(350000), n: 5 }));
     });
 });

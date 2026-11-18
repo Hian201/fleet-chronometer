@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { DAY_MS } from '../utils/date-format';
 import {
-    ITEM_FLAG_SINCE, MIN_RUNS, daysToFill, fleetSupply, planExpeditions, playerProfile, resourceNeeds,
+    ITEM_FLAG_SINCE, MIN_RUNS, daysToFill, fleetSupply, lightestWeek, planExpeditions, playerProfile, resourceNeeds,
     type PlanMission, type ResourceNeed,
 } from '../utils/expedition-plan';
 import { stockpileCap, STOCKPILE_KEYS } from '../utils/stockpile';
@@ -201,6 +201,26 @@ describe('resourceNeeds', () => {
         ]);
     });
 
+    it('支出照：最近平均／支出最少的一週／不計；最少的一週早於道具記錄時道具沿用平均', () => {
+        const W = 7 * DAY_MS;
+        const week = (from: number, fuel: number, ammo: number, steel: number, bauxite: number, drum: number) =>
+            ({ fromTs: from, toTs: from + W, rates: { fuel, ammo, steel, bauxite, drum } });
+        // 兩週：前一週（早於道具記錄）每天各 +100、水桶 +9；後一週每天各 −900、水桶 −1。沒有遠征紀錄，淨增減＝基本淨增減。
+        const light = week(BEFORE - W, 100, 100, 100, 100, 9);
+        const heavy = week(BEFORE, -900, -900, -900, -900, -1);
+        const avg = (key: 'fuel' | 'drum') => (light.rates[key] + heavy.rates[key]) / 2;
+        const flow = { fromTs: light.fromTs, toTs: heavy.toTs, weeks: 2, blocks: [heavy, light], rates: Object.fromEntries(
+            (['fuel', 'ammo', 'steel', 'bauxite', 'drum'] as const).map(key => [key, { low: 0, high: 0, mean: avg(key === 'drum' ? 'drum' : 'fuel') }])) };
+        const of = (basis: Parameters<typeof resourceNeeds>[7]) =>
+            Object.fromEntries(resourceNeeds(['fuel', 'drum'], { fuel: 0, drum: 0 }, caps, flow, [], [], new Map(), basis).map(need => [need.key, need.base]));
+        expect(of('recent')).toEqual({ fuel: -400, drum: 4 });
+        expect(of('lightest')).toEqual({ fuel: 100, drum: 4 });
+        expect(of('none')).toEqual({ fuel: 0, drum: 0 });
+        expect(lightestWeek(flow, [])).toMatchObject({ fromTs: light.fromTs, toTs: light.toTs });
+        // 沒有各週明細：退回整段平均。
+        expect(resourceNeeds(['fuel'], { fuel: 0 }, caps, { ...flow, blocks: undefined }, [], [], new Map(), 'lightest')[0].base).toBe(-400);
+    });
+
     it('沒有流量時基本淨增減不可考', () => {
         expect(resourceNeeds(['fuel'], { fuel: 999 }, caps, null, [])).toEqual([{ key: 'fuel', have: 999, cap: caps.fuel, base: null, current: null }]);
     });
@@ -259,5 +279,63 @@ describe('planExpeditions：睡前組合', () => {
         }));
         // 904 單趟最多：睡前一定派它，且由在線也跑 904 的那一隊（若有）派。
         expect(result.sleep.map(row => row.missionId)).toContain(904);
+    });
+});
+
+describe('planExpeditions：每條遠征主要補哪一項', () => {
+    const fuelBaux = (id: number, fuel: number, bauxite: number) => runs(MIN_RUNS, id, { resources: [fuel, 0, 0, bauxite] });
+
+    it('取這條占組合中該資材收入比例最高的一項；都是唯一來源時取較缺的', () => {
+        const result = plan({
+            missions: [mission(901, 60), mission(902, 60)],
+            records: [...fuelBaux(901, 100, 0), ...fuelBaux(902, 50, 50)],
+            needs: [need('fuel', 0), need('bauxite', 0)],
+        });
+        const roleOf = (id: number) => result.roles.top[result.top.findIndex(row => row.missionId === id)];
+        expect(roleOf(901)).toBe('fuel');        // 燃料 100／150
+        expect(roleOf(902)).toBe('bauxite');     // 鋁土的唯一來源
+        // 只有一條同時給兩項：都是唯一來源，取期限時比例較低的鋁土（持有較少）。
+        const solo = plan({ missions: [mission(902, 60)], records: fuelBaux(902, 50, 50), needs: [need('fuel', 100000), need('bauxite', 0)] });
+        expect(solo.roles.top).toEqual(['bauxite']);
+    });
+
+    it('已滿或沒有正收入的資材不標；沒有可標的為 null', () => {
+        const result = plan({
+            missions: [mission(901, 60)], records: fuelBaux(901, 100, 0),
+            needs: [need('fuel', stockpileCap('fuel')), need('bauxite', 0)],
+        });
+        expect(result.roles.top).toEqual([null]);
+        expect(result.roles.sleep).toEqual([]);
+    });
+});
+
+describe('planExpeditions：沒設期限時比全部存滿的天數', () => {
+    // 燃料已有 9,000、鋁土 0，上限都是 10,000；每天收一次，perDay＝每趟。
+    const baux = (id: number, fuel: number, bauxite: number) => runs(MIN_RUNS, id, { resources: [fuel, 0, 0, bauxite] });
+    const data = {
+        missions: [mission(901, 60), mission(902, 60), mission(903, 60), mission(904, 60)],
+        records: [...baux(901, 0, 100), ...baux(902, 0, 100), ...baux(903, 0, 100), ...baux(904, 50, 50)],
+    };
+    const needs = [need('fuel', 9000, 0, 10000), need('bauxite', 0, 0, 10000)];
+
+    it('有期限時比期限時的比例；沒設期限時挑最快全部存滿的組合，推算時點改為那一天', () => {
+        // 28 天後：三條鋁土 → 燃料 90%、鋁土 84%；換一條給燃料的 → 燃料滿、鋁土 70%。比例看前者較好，
+        // 但前者燃料永遠差 1,000 存不滿；後者 20 天燃料滿、40 天鋁土滿。
+        expect(ids(plan({ ...data, needs, horizonDays: 28 }).top)).toEqual([901, 902, 903]);
+        const result = plan({ ...data, needs, horizonDays: 28, untilFull: true });
+        expect(ids(result.top)).toContain(904);
+        expect(result.horizonDays).toBeCloseTo(40);
+    });
+
+    it('怎樣都存不滿（消耗大於遠征）時維持呼叫端的推算時點', () => {
+        const result = plan({ ...data, needs: [need('fuel', 9000, -1000, 10000), need('bauxite', 0, -1000, 10000)], horizonDays: 28, untilFull: true });
+        expect(result.horizonDays).toBe(28);
+    });
+
+    it('最需要補＝不跑遠征時推算時點比例最低的一項，不隨收取間隔改變', () => {
+        const flowNeeds = [need('fuel', 9000, -100, 10000), need('bauxite', 5000, -100, 10000)];
+        for (const intervalMinutes of [60, 180, 1440]) {
+            expect(plan({ ...data, needs: flowNeeds, horizonDays: 28, intervalMinutes }).focus).toBe('bauxite');
+        }
     });
 });

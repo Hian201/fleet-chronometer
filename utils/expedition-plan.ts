@@ -105,6 +105,8 @@ export interface ResourceOutlook {
     planAt: number | null;
     /** 照建議組合的每日淨增減。 */
     planRate: number;
+    /** 其中建議組合的遠征本身每日淨收入（已扣補給，不含基本淨增減）。 */
+    expRate: number;
     /** 照建議組合到上限的天數（0＝已滿，Infinity＝不會滿）；持有不可考為 null。 */
     planDays: number | null;
 }
@@ -118,10 +120,13 @@ export interface ExpeditionPlan {
     sleep: PlanRow[];
     /** 每天一次的較長離開（分鐘）；0＝沒有。 */
     sleepMinutes: number;
+    /** top、sleep 各條主要補哪一項（同位置對應）；沒有可標的為 null。規則見 rolesOf()。 */
+    roles: { top: (PlanKey | null)[]; sleep: (PlanKey | null)[] };
     outlook: ResourceOutlook[];
     /** 建議組合下推算時點存量比例最低（且未滿）的資材；都會滿或不可考為 null。 */
     bottleneck: PlanKey | null;
-    /** top 與 candidates 的排列依據：有候選遠征給得到、未滿的資材中期限時比例最低（都會滿時取最慢滿）的一項；沒有為 null。 */
+    /** 最需要補的資材（結論句、top 與 candidates 的排列依據）：有候選遠征給得到、還沒滿的資材中，
+     *  不跑遠征時推算時點比例最低的一項（只看持有與基本淨增減，不隨組合或收取間隔改變）；沒有為 null。 */
     focus: PlanKey | null;
     monthly: MonthlyRow[];
     /** 候選遠征數；0 表示沒有可建議的遠征。 */
@@ -129,7 +134,7 @@ export interface ExpeditionPlan {
     /** 全部候選，依對 focus 資材的每日收入排列（供玩家對照）。 */
     candidates: PlanRow[];
     profile: PlayerProfile;
-    /** 推算時點距今的天數。 */
+    /** 推算時點距今的天數；沒設期限時是建議組合全部存滿的天數（最多 UNTIL_FULL_MAX_DAYS），存不滿時為呼叫端的預設。 */
     horizonDays: number;
 }
 
@@ -254,32 +259,81 @@ function incomeOf(mission: PlanMission, records: readonly ExpeditionRow[], profi
 export const daysToFill = (gap: number, perDay: number) => (gap <= 0 ? 0 : perDay > 0 ? gap / perDay : Infinity);
 
 /**
- * 勾選資材的需求。基本淨增減＝觀測期間的每日淨增減 − 同期間遠征紀錄的每日收入。
- * @param free 各資材扣掉改造保留後的持有量；不可考為 null。
+ * 推算時每天的支出照哪一段算（遠征以外的淨增減：自然回復、任務收入減去出擊、工廠等消耗）：
+ *   recent：整段觀測期間（最近最多四週）的平均，照常出擊時用。
+ *   lightest：觀測期間裡支出最少的一週（lightestWeek()），準備進入備蓄、少出擊時用。
+ *   none：不計，只看遠征本身能存多少。
+ * 接下來怎麼打只有玩家知道，所以由玩家選，不由程式猜。
  */
-export function resourceNeeds(
-    chosen: readonly PlanKey[], free: Partial<Record<PlanKey, number | null>>, caps: Record<PlanKey, number>,
-    flow: ObservedFlow | null, records: readonly ExpeditionRow[],
-    missions: readonly PlanMission[] = [], shipMax: ShipMaxByName = new Map(),
-): ResourceNeed[] {
-    const days = flow ? (flow.toTs - flow.fromTs) / DAY_MS : 0;
-    const inWindow = flow && days > 0 ? records.filter(row => row.ts > flow.fromTs && row.ts <= flow.toTs) : [];
-    // 遠征的補給也算在遠征帳上：基本淨增減扣掉的是遠征的淨收入（收益 − 補給），換遠征時補給才不會重複算或漏算。
+export type SpendBasis = 'recent' | 'lightest' | 'none';
+export const SPEND_BASES: readonly SpendBasis[] = ['recent', 'lightest', 'none'];
+
+/**
+ * 一段期間各資材的基本淨增減＝期間的每日淨增減 − 同期間遠征紀錄的每日淨收入（收益 − 補給）。
+ * 遠征的補給算在遠征帳上，換遠征時補給才不會重複算或漏算。
+ */
+function basesOver(
+    fromTs: number, toTs: number, netOf: (key: PlanKey) => number | undefined,
+    records: readonly ExpeditionRow[], missions: readonly PlanMission[], shipMax: ShipMaxByName,
+): Partial<Record<PlanKey, number>> {
+    const days = (toTs - fromTs) / DAY_MS;
+    if (!(days > 0)) return {};
+    const inWindow = records.filter(row => row.ts > fromTs && row.ts <= toTs);
     const missionById = new Map(missions.map(mission => [mission.id, mission]));
     const supplies = inWindow.map(row => {
         const mission = missionById.get(row.missionId);
         return mission ? fleetSupply(row.fleet, mission.use, shipMax) ?? [0, 0] : [0, 0];
     });
+    const bases: Partial<Record<PlanKey, number>> = {};
+    for (const key of PLAN_KEYS) {
+        const net = netOf(key);
+        if (net === undefined) continue;
+        const spent = key === 'fuel' ? 0 : key === 'ammo' ? 1 : -1;
+        bases[key] = net - inWindow.reduce((sum, row, i) => sum + gainOf(row, key) - (spent >= 0 ? supplies[i][spent] : 0), 0) / days;
+    }
+    return bases;
+}
+
+const BASIC_KEYS: readonly PlanKey[] = ['fuel', 'ammo', 'steel', 'bauxite'];
+
+/** 觀測期間裡支出最少的一週：四大資源基本淨增減 ÷ 上限的總和最大者。沒有各週明細時為 null。 */
+export function lightestWeek(
+    flow: ObservedFlow | null, records: readonly ExpeditionRow[],
+    missions: readonly PlanMission[] = [], shipMax: ShipMaxByName = new Map(),
+): { fromTs: number; toTs: number; bases: Partial<Record<PlanKey, number>> } | null {
+    let best: { fromTs: number; toTs: number; bases: Partial<Record<PlanKey, number>>; score: number } | null = null;
+    for (const block of flow?.blocks ?? []) {
+        const bases = basesOver(block.fromTs, block.toTs, key => block.rates[key], records, missions, shipMax);
+        if (BASIC_KEYS.some(key => bases[key] === undefined)) continue;
+        const score = BASIC_KEYS.reduce((sum, key) => sum + bases[key]! / stockpileCap(key), 0);
+        if (!best || score > best.score) best = { fromTs: block.fromTs, toTs: block.toTs, bases, score };
+    }
+    return best && { fromTs: best.fromTs, toTs: best.toTs, bases: best.bases };
+}
+
+/**
+ * 勾選資材的需求：持有、上限、依 basis 的每日基本淨增減，以及觀測期間的實際步調（current，作對照）。
+ * @param free 各資材扣掉改造保留後的持有量；不可考為 null。
+ */
+export function resourceNeeds(
+    chosen: readonly PlanKey[], free: Partial<Record<PlanKey, number | null>>, caps: Record<PlanKey, number>,
+    flow: ObservedFlow | null, records: readonly ExpeditionRow[],
+    missions: readonly PlanMission[] = [], shipMax: ShipMaxByName = new Map(), basis: SpendBasis = 'recent',
+): ResourceNeed[] {
+    // 捷徑：觀測期間跨過 ITEM_FLAG_SINCE 時，之前的遠征道具收入沒有紀錄，高速修復材等的基本淨增減會偏高；
+    // 觀測期間（最多四週）完全落在修正之後就沒有這個偏差。
+    const recent = flow ? basesOver(flow.fromTs, flow.toTs, key => flow.rates[key]?.mean, records, missions, shipMax) : {};
+    const week = basis === 'lightest' ? lightestWeek(flow, records, missions, shipMax) : null;
     return PLAN_KEYS.filter(key => chosen.includes(key)).map(key => {
         const raw = free[key];
         const have = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
-        const rate = flow?.rates[key];
-        if (!rate || !(days > 0)) return { key, have, cap: caps[key], base: null, current: null };
-        // 捷徑：觀測期間跨過 ITEM_FLAG_SINCE 時，之前的遠征道具收入沒有紀錄，高速修復材等的基本淨增減會偏高；
-        // 觀測期間（最多四週）完全落在修正之後就沒有這個偏差。
-        const spent = key === 'fuel' ? 0 : key === 'ammo' ? 1 : -1;
-        const expedPerDay = inWindow.reduce((sum, row, i) => sum + gainOf(row, key) - (spent >= 0 ? supplies[i][spent] : 0), 0) / days;
-        return { key, have, cap: caps[key], base: rate.mean - expedPerDay, current: rate.mean };
+        const current = flow?.rates[key]?.mean;
+        if (current === undefined || recent[key] === undefined) return { key, have, cap: caps[key], base: null, current: null };
+        // 支出最少的一週早於道具開始記錄時，那週的道具類基本淨增減不準，沿用整段平均。
+        const base = basis === 'none' ? 0
+            : week && week.bases[key] !== undefined && !(FLAG_ITEM_KEYS.includes(key) && week.fromTs < ITEM_FLAG_SINCE) ? week.bases[key]!
+            : recent[key]!;
+        return { key, have, cap: caps[key], base, current };
     });
 }
 
@@ -292,24 +346,29 @@ const rateWith = (need: ResourceNeed, fleets: readonly Daily[]) =>
     (need.base ?? 0) + fleets.reduce((sum, fleet) => sum + fleet[need.key], 0);
 
 /**
- * 一個組合的評分，依序比較：
+ * 一個組合的評分。有期限時依序比較：
  *   1. fill：各資材推算時點的存量比例（上限算 1），由小到大排，越大越好。
  *   2. days：各資材到上限的天數，由大到小排，越小越好。期限前都會滿的組合在 fill 全部同分，
  *      這一層讓它們比誰最快滿，不會隨便挑到不給該資材的遠征。
- *   3. total：勾選資材每日淨增減 ÷ 上限的總和，越大越好（前兩層都同分時，多拿的才是好組合）。
+ *   3. total：推算時點仍未滿的勾選資材每日淨增減 ÷ 上限的總和，越大越好（前兩層都同分時，多拿的才是好組合；
+ *      已滿資材多拿只是溢出，不算）。
  *   4. byproduct：所有八種資材每日淨收入 ÷ 上限的總和，越大越好。勾選資材完全同分時（例如兩條遠征每天給一樣多的鋼），
  *      順便多給沒勾的資材的那組較好，不由窮舉順序決定。
+ * 「到上限天數」：已滿但每日淨增減為負的資材會掉出上限，算存不滿（Infinity）；溢出不算好處，維持在上限才算數。
  */
 interface ComboScore { fill: number[]; days: number[]; total: number; byproduct: number }
 
-function scoreOf(needs: readonly ResourceNeed[], fleets: readonly Daily[], horizon: number): ComboScore {
-    const known = needs.filter(need => need.have !== null);
-    const rates = known.map(need => rateWith(need, fleets));
+const daysAtCap = (gap: number, rate: number) => (gap <= 0 ? (rate >= 0 ? 0 : Infinity) : rate > 0 ? gap / rate : Infinity);
+
+/** known：持有可考的勾選資材（不可考的不參與比較，呼叫端先篩好）；sum：三隊每日收入的合計。 */
+function scoreOf(known: readonly ResourceNeed[], sum: Daily, horizon: number): ComboScore {
+    const rates = known.map(need => (need.base ?? 0) + sum[need.key]);
+    const days = known.map((need, i) => daysAtCap(need.cap - need.have!, rates[i])).sort((a, b) => b - a);
     return {
         fill: known.map((need, i) => Math.min(1, (need.have! + rates[i] * horizon) / need.cap)).sort((a, b) => a - b),
-        days: known.map((need, i) => daysToFill(need.cap - need.have!, rates[i])).sort((a, b) => b - a),
-        total: known.reduce((sum, need, i) => sum + rates[i] / need.cap, 0),
-        byproduct: fleets.reduce((sum, fleet) => sum + PLAN_KEYS.reduce((acc, key) => acc + fleet[key] / stockpileCap(key), 0), 0),
+        days,
+        total: known.reduce((sum, need, i) => sum + (need.have! + rates[i] * horizon < need.cap ? rates[i] / need.cap : 0), 0),
+        byproduct: PLAN_KEYS.reduce((acc, key) => acc + sum[key] / stockpileCap(key), 0),
     };
 }
 
@@ -326,6 +385,25 @@ const compareNumbers = (a: number, b: number) => (a === b ? 0 : a > b ? 1 : -1);
 const compareScores = (a: ComboScore, b: ComboScore) =>
     compareVectors(a.fill, b.fill) || compareVectors(a.days, b.days, true)
     || compareNumbers(a.total, b.total) || compareNumbers(a.byproduct, b.byproduct);
+
+/** 沒設期限時，推算時點最多推到幾天後（再遠的「存滿」已沒有參考價值）。 */
+export const UNTIL_FULL_MAX_DAYS = 365;
+
+/**
+ * 組合裡每條遠征主要補哪一項，給畫面一眼看出「這條為什麼在這裡」。
+ * 候選：勾選、持有可考、還沒滿、這條有正收入的資材；推算時點仍未滿的優先（會滿的多拿也不改善目標）。
+ * 取這條占組合中該資材遠征收入比例最高的一項（「這項主要靠它」）；比例相同（例如都是唯一來源）時取推算比例較低、較缺的一項。
+ */
+function rolesOf(outlook: readonly ResourceOutlook[], parts: readonly Daily[]): (PlanKey | null)[] {
+    const totals = new Map(outlook.map(line => [line.key, parts.reduce((sum, part) => sum + Math.max(0, part[line.key]), 0)]));
+    return parts.map(part => {
+        const open = outlook.filter(line => line.have !== null && line.have < line.cap && part[line.key] > 0);
+        const short = open.filter(line => line.planAt! < line.cap);
+        const pool = short.length ? short : open;
+        const share = (line: ResourceOutlook) => part[line.key] / totals.get(line.key)!;
+        return [...pool].sort((a, b) => share(b) - share(a) || a.planAt! / a.cap - b.planAt! / b.cap)[0]?.key ?? null;
+    });
+}
 
 function* mapIter<T, U>(items: readonly T[], fn: (item: T) => U): Generator<U> {
     for (const item of items) yield fn(item);
@@ -353,10 +431,12 @@ export function planExpeditions(input: {
     needs: readonly ResourceNeed[];
     /** 推算時點距今的天數（備蓄期限，沒設期限時由呼叫端給預設）。 */
     horizonDays: number;
+    /** 沒設期限：目標改為全部存滿的天數最短（推算時點改為那個天數，見 planExpeditions 的說明）。 */
+    untilFull?: boolean;
     shipMax?: ShipMaxByName;
 }): ExpeditionPlan {
     const shipMax = input.shipMax ?? new Map();
-    const horizon = Math.max(0, input.horizonDays);
+    let horizon = Math.max(0, input.horizonDays);
     const interval = input.intervalMinutes;
     const sleep = Math.min(DAY_MINUTES, Math.max(0, input.sleepMinutes ?? 0));
     const missionById = new Map(input.missions.map(mission => [mission.id, mission]));
@@ -396,18 +476,25 @@ export function planExpeditions(input: {
     // 一隊一天：在線組合在扣掉睡前遠征佔用的時間裡照 interval 收；睡前遠征一天一趟。
     // 睡前遠征佔用＝離開時間，比離開時間長時再加上回來後等到下一個收取點的時間。
     const occupied = (row: PlanRow) => (row.time <= sleep ? sleep : sleep + interval * Math.ceil((row.time - sleep) / interval));
-    const fleetDaily = (day: PlanRow | undefined, night: PlanRow | undefined): Daily => {
-        const online = DAY_MINUTES - (night ? occupied(night) : sleep);
+    const fleetDaily = (day: PlanRow | undefined, night: PlanRow | undefined, online = DAY_MINUTES - (night ? occupied(night) : sleep)): Daily => {
         const daily = {} as Daily;
         for (const key of PLAN_KEYS) {
             daily[key] = (day ? (day.perDay[key] ?? 0) * online / DAY_MINUTES : 0) + (night ? night.income[key] ?? 0 : 0);
         }
         return daily;
     };
-    interface Pick { day: PlanRow[]; night: PlanRow[]; fleets: Daily[]; score: ComboScore }
+    // 窮舉時每個組合都要算，只累計三隊合計，不建每隊的物件。
+    interface Pick { day: PlanRow[]; night: PlanRow[]; sum: Daily; score: ComboScore }
+    const known = input.needs.filter(need => need.have !== null);
     const pickOf = (day: PlanRow[], night: PlanRow[]): Pick => {
-        const fleets = Array.from({ length: Math.max(day.length, night.length) }, (_, i) => fleetDaily(day[i], night[i]));
-        return { day, night, fleets, score: scoreOf(input.needs, fleets, horizon) };
+        const sum = {} as Daily;
+        for (const key of PLAN_KEYS) sum[key] = 0;
+        for (let i = 0; i < Math.max(day.length, night.length); i++) {
+            const d = day[i], z = night[i];
+            const share = d ? (DAY_MINUTES - (z ? occupied(z) : sleep)) / DAY_MINUTES : 0;
+            for (const key of PLAN_KEYS) sum[key] += (d ? (d.perDay[key] ?? 0) * share : 0) + (z ? z.income[key] ?? 0 : 0);
+        }
+        return { day, night, sum, score: scoreOf(known, sum, horizon) };
     };
     // 同一條遠征不能兩隊同時跑：在線組合的某條若是另一隊的睡前遠征，睡前出發時它可能還沒回來。
     // 同一隊白天、睡前跑同一條沒有衝突。
@@ -432,14 +519,25 @@ export function planExpeditions(input: {
     };
 
     // 候選約六十條，C(n, 3) 在數萬以內，沒有作息離開時直接窮舉求精確解。
-    const size = Math.min(PLAN_FLEETS, candidates.length);
-    const daySets = [...combinations(candidates, size)];
-    let best: Pick;
-    if (!sleep) best = argmax(daySets.map(day => pickOf(day, [])))!;
-    else {
-        // 超過一天才回得來的遠征不能每天睡前派，只當在線組合。
-        const nightCandidates = candidates.filter(row => occupied(row) <= DAY_MINUTES);
-        const nightSets = [...combinations(nightCandidates, Math.min(PLAN_FLEETS, nightCandidates.length))];
+    // 先剔除被至少五條其他遠征全面勝過（八種資材都不少、睡前的還要佔用不更長）的遠征：組合裡用到它時，
+    // 至少有一條勝過它的不在組合中、也不和別隊衝突（同組另兩條＋另兩隊的另一組最多排除四條），換上去每項都不減，
+    // 評分只會更好或同分，所以不影響結果，只減少窮舉量。
+    const vector = (row: PlanRow, night: boolean) => PLAN_KEYS.map(key => ((night ? row.income : row.perDay)[key] ?? 0));
+    const undominated = (rows: PlanRow[], night: boolean) => {
+        const vectors = rows.map(row => vector(row, night));
+        return rows.filter((row, i) => rows.filter((other, j) => j !== i
+            && (!night || occupied(other) <= occupied(row))
+            && vectors[j].every((v, k) => v >= vectors[i][k])
+            && (vectors[j].some((v, k) => v > vectors[i][k]) || (night && occupied(other) < occupied(row)) || other.missionId < row.missionId)).length < 5);
+    };
+    const dayPool = undominated(candidates, false);
+    const size = Math.min(PLAN_FLEETS, dayPool.length);
+    const daySets = [...combinations(dayPool, size)];
+    // 超過一天才回得來的遠征不能每天睡前派，只當在線組合。
+    const nightCandidates = sleep ? undominated(candidates.filter(row => occupied(row) <= DAY_MINUTES), true) : [];
+    const nightSets = sleep ? [...combinations(nightCandidates, Math.min(PLAN_FLEETS, nightCandidates.length))] : [];
+    const search = (): Pick => {
+        if (!sleep) return argmax(daySets.map(day => pickOf(day, [])))!;
         const withDay = (night: PlanRow[]) => argmax(mapIter(daySets, day => bestPairing(day, night)));
         const withNight = (day: PlanRow[]) => argmax(mapIter(nightSets, night => bestPairing(day, night)));
         // 交替固定一組、窮舉另一組；每一步都含目前的組合，分數不會下降，不再變好就停。
@@ -457,36 +555,58 @@ export function planExpeditions(input: {
         };
         const fromDay = alternate(argmax(daySets.map(day => pickOf(day, [])))!, true);
         const fromNight = alternate(argmax(nightSets.map(night => pickOf([], night)))!, false);
-        best = compareScores(fromNight.score, fromDay.score) > 0 ? fromNight : fromDay;
-    }
+        return compareScores(fromNight.score, fromDay.score) > 0 ? fromNight : fromDay;
+    };
+    // 沒設期限：目標是全部存滿的天數最短。推算時點先放在一年後找：一年內能讓勾選資材全部存滿的組合比例都是 1，
+    // 勝過任何有資材存不滿的組合，再由「到上限天數」挑最快的；推算時點收到這組實際存滿的那天。
+    // 一年內怎樣都存不滿（消耗大於遠征補得上的量，或已滿卻會掉出上限）時，「最快存滿」沒有意義，回到預設時點照常比較。
+    const slowestOf = (pick: Pick) => Math.max(0, ...pick.score.days);
+    let best: Pick;
+    if (input.untilFull) {
+        const fallback = horizon;
+        horizon = UNTIL_FULL_MAX_DAYS;
+        best = search();
+        if (slowestOf(best) <= UNTIL_FULL_MAX_DAYS) horizon = slowestOf(best);
+        else { horizon = fallback; best = search(); }
+    } else best = search();
 
     const outlook: ResourceOutlook[] = input.needs.map(need => {
-        const planRate = rateWith(need, best.fleets);
-        if (need.have === null) return { key: need.key, have: null, cap: need.cap, nowAt: null, planAt: null, planRate, planDays: null };
+        const planRate = rateWith(need, [best.sum]);
+        const expRate = planRate - (need.base ?? 0);
+        if (need.have === null) return { key: need.key, have: null, cap: need.cap, nowAt: null, planAt: null, planRate, expRate, planDays: null };
         return {
             key: need.key, have: need.have, cap: need.cap,
             nowAt: need.current === null ? null : need.have + need.current * horizon,
             planAt: need.have + planRate * horizon,
-            planRate,
+            planRate, expRate,
             planDays: daysToFill(need.cap - need.have, planRate),
         };
     });
     const lowest = outlook.filter(line => line.planAt !== null && line.planAt < line.cap)
         .sort((a, b) => a.planAt! / a.cap - b.planAt! / b.cap)[0];
     const bottleneck = lowest?.key ?? null;
-    // 排列依據：有候選遠征給得到、還沒滿的資材中，期限時比例最低的一項（與瓶頸同一個判準）；
-    // 期限前都會滿時改取最慢滿的一項。瓶頸若沒有任何遠征給得到，依它排序沒有意義，所以只看給得到的資材。
-    const focus = outlook.filter(line => line.planDays !== null && line.planDays > 0
-        && candidates.some(row => (row.perDay[line.key] ?? 0) > 0))
-        .sort((a, b) => Math.min(1, a.planAt! / a.cap) - Math.min(1, b.planAt! / b.cap)
-            || compareVectors([a.planDays!], [b.planDays!]))[0]?.key ?? null;
+    // 最需要補：不跑遠征時推算時點比例最低的一項（現況加上最近的消耗），不隨組合或收取間隔改變；
+    // 只看有候選遠征給得到、還沒滿的資材（例如改修資材給不到，依它排序沒有意義）。同樣低時取持有比例較低的。
+    // 用呼叫端給的推算時點（沒設期限時的延後時點取決於組合，會讓結果又隨收取間隔改變）。
+    const bare = (need: ResourceNeed) => (need.have! + (need.base ?? 0) * Math.max(0, input.horizonDays)) / need.cap;
+    const focus = input.needs.filter(need => need.have !== null && need.have < need.cap
+        && candidates.some(row => (row.perDay[need.key] ?? 0) > 0))
+        .sort((a, b) => bare(a) - bare(b) || a.have! / a.cap - b.have! / b.cap)[0]?.key ?? null;
     const focusOrder = (a: PlanRow, b: PlanRow) => focus ? (b.perDay[focus] ?? 0) - (a.perDay[focus] ?? 0) || a.time - b.time : 0;
     const byFocus = (rows: PlanRow[]) => (focus ? [...rows].sort(focusOrder) : rows);
     // 在線組合依 focus 排列，睡前組合跟著同一隊移動。
     const fleetOrder = best.day.map((_, i) => i).sort((a, b) => focusOrder(best.day[a], best.day[b]));
+    const top = fleetOrder.map(i => best.day[i]);
+    const night = best.day.length ? fleetOrder.map(i => best.night[i]).filter(Boolean) : best.night;
+    // 每條遠征在組合裡實際貢獻的每日收入：在線那條按該隊的在線時間換算，睡前那條一天一趟。
+    const parts = [
+        ...top.map((row, i) => fleetDaily(row, undefined, night[i] ? DAY_MINUTES - occupied(night[i]) : DAY_MINUTES - sleep)),
+        ...night.map(row => fleetDaily(undefined, row)),
+    ];
+    const roles = rolesOf(outlook, parts);
     return {
-        top: fleetOrder.map(i => best.day[i]), sleep: best.day.length ? fleetOrder.map(i => best.night[i]).filter(Boolean) : best.night,
-        sleepMinutes: sleep, outlook, bottleneck, focus, monthly,
+        top, sleep: night, sleepMinutes: sleep, roles: { top: roles.slice(0, top.length), sleep: roles.slice(top.length) },
+        outlook, bottleneck, focus, monthly,
         candidateCount: candidates.length, candidates: byFocus(candidates), profile, horizonDays: horizon,
     };
 }

@@ -35,6 +35,10 @@ describe('observeFlow', () => {
         expect(flow.rates.steel).toEqual({ low: -100, high: 0, mean: -50 });
         // 道具類沒有序列
         expect(flow.rates.blueprint).toBeUndefined();
+        // 各週明細由新到舊
+        expect(flow.blocks!.map(block => [block.fromTs, block.toTs, block.rates.ammo])).toEqual([
+            [T0 + 7 * DAY_MS, T0 + 14 * DAY_MS, 200], [T0, T0 + 7 * DAY_MS, 100],
+        ]);
     });
 
     it('最多往回取四週', () => {

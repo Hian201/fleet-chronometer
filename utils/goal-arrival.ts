@@ -29,12 +29,17 @@ export const isFlowTracked = (key: RemodelCostKey) => FLOW_MAT_INDEX[key] !== un
 /** 每日淨增加；low／high 是最慢與最快一週，mean 是整段觀測期間。 */
 export interface FlowRate { low: number; high: number; mean: number }
 
+/** 觀測期間的其中一週：期間與該週的每日淨增加（同 FlowRate 的算法）。 */
+export interface FlowBlock { fromTs: number; toTs: number; rates: Partial<Record<RemodelCostKey, number>> }
+
 export interface ObservedFlow {
     fromTs: number;
     toTs: number;
     /** 實際用到的整週數（1–FLOW_MAX_BLOCKS）。 */
     weeks: number;
     rates: Partial<Record<RemodelCostKey, FlowRate>>;
+    /** 各週明細，由新到舊（遠征組合建議的「支出最少的一週」用）；手建的流量可省略。 */
+    blocks?: FlowBlock[];
 }
 
 /**
@@ -65,16 +70,18 @@ export function observeFlow(
     };
     const first = blocks[blocks.length - 1].start;
     const rates: ObservedFlow['rates'] = {};
+    const weeks: FlowBlock[] = blocks.map(({ start, end }) => ({ fromTs: start.ts, toTs: end.ts, rates: {} }));
     for (const key of REMODEL_COST_KEYS) {
         const mat = FLOW_MAT_INDEX[key];
         if (mat === undefined) continue;
         const weekly = blocks.map(({ start, end }) => gain(key, mat, start, end) / ((end.ts - start.ts) / DAY_MS));
+        weekly.forEach((rate, i) => { weeks[i].rates[key] = rate; });
         rates[key] = {
             low: Math.min(...weekly), high: Math.max(...weekly),
             mean: gain(key, mat, first, last) / ((last.ts - first.ts) / DAY_MS),
         };
     }
-    return { fromTs: first.ts, toTs: last.ts, weeks: blocks.length, rates };
+    return { fromTs: first.ts, toTs: last.ts, weeks: blocks.length, rates, blocks: weeks };
 }
 
 /**
