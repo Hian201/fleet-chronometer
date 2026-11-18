@@ -51,10 +51,26 @@ const state = new GameState();
 for (const g of gears) state.slotItems.set(g.id, { mst: g.mst, level: g.level, alv: 0 });
 state.ownedGears = () => gears;
 
+const showShips = params.get('view') === 'ships';
+if (showShips) {
+    const stats = [
+        { lv: 99, firepower: 100, torpedo: 0 },
+        { lv: 80, firepower: 50, torpedo: 90 },
+        { lv: 75, firepower: 0, torpedo: 0 },
+    ];
+    stats.forEach(({ lv, firepower, torpedo }, index) => {
+        const id = index + 1;
+        state.ships.set(id, {
+            api_id: id, api_ship_id: id, api_lv: lv, api_karyoku: [firepower], api_raisou: [torpedo],
+        });
+    });
+}
+
 const el = document.getElementById('tab-order')!;
 mountOrder(el, () => state);
 renderOrder();
-document.getElementById('od-mode')!.click();
+if (showShips) document.querySelector<HTMLElement>('[data-sort="night"]')?.click();
+else document.getElementById('od-mode')!.click();
 if (params.get('view') === 'holders') document.querySelector<HTMLButtonElement>('[data-toggle="gearView"]')!.click();
 for (const mst of (params.get('open') ?? '').split(',').filter(Boolean)) {
     document.querySelector<HTMLElement>(`[data-gear="${mst}"]`)?.click();

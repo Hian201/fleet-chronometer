@@ -7,7 +7,7 @@ import { nationOf, nationsOf, NATIONS, type Nation } from '@/utils/ship-national
 import {
     compareGameOrder, EQUIP_TYPE, matchEquip, matchSpeed, type EquipFilter, type SpeedFilter,
 } from '@/utils/ship-filter';
-import { SPARKLE_COND } from '@/utils/ship-roster';
+import { nightBattlePower, SPARKLE_COND } from '@/utils/ship-roster';
 import {
     addMembers, createGroup, deleteGroup, filterByGroup, loadOrderGroups, removeMembers,
     saveOrderGroups, type OrderGroup,
@@ -26,10 +26,11 @@ type GearView = 'stats' | 'holders';
 type Amphib = 'all' | 'daihatsu' | 'naikatei' | 'either' | 'both';
 type ShipSortKey =
     'name' | 'lv' | 'cond' | 'maxhp' | 'firepower' | 'torpedo' | 'aa' | 'armor'
-    | 'asw' | 'evasion' | 'los' | 'luck';
+    | 'asw' | 'evasion' | 'los' | 'luck' | 'night';
 type SortDir = 'asc' | 'desc';
 
 interface ShipRow extends OwnedShipView {
+    night: number;
     nation: Nation | null;
     nations: Nation[];
 }
@@ -49,6 +50,7 @@ const SHIP_COLS: { key: ShipSortKey; labelKey: string }[] = [
     { key: 'maxhp', labelKey: 'order.colHp' },
     { key: 'firepower', labelKey: 'ov.rsColFire' },
     { key: 'torpedo', labelKey: 'ov.rsColTorp' },
+    { key: 'night', labelKey: 'ov.rsColNight' },
     { key: 'aa', labelKey: 'ov.rsColAa' },
     { key: 'armor', labelKey: 'ov.rsColArmor' },
     { key: 'asw', labelKey: 'ov.rsColAsw' },
@@ -284,7 +286,7 @@ function paintSelBar(): void {
 function shipRows(): ShipRow[] {
     const state = getState!();
     let rows: ShipRow[] = state.ownedShips().map(s => ({
-        ...s, nation: nationOf(s.ctype), nations: nationsOf(s.masterId, s.ctype),
+        ...s, night: nightBattlePower(s.stats), nation: nationOf(s.ctype), nations: nationsOf(s.masterId, s.ctype),
     }));
     rows = rows.filter(s => {
         if (!matchSpeed(s.soku, speed)) return false;
@@ -300,7 +302,7 @@ function shipRows(): ShipRow[] {
 
 function sortShips(rows: ShipRow[]): ShipRow[] {
     const { key, dir } = shipSort;
-    const zeroLast = key !== 'name' && key !== 'lv' && key !== 'cond' && key !== 'maxhp';
+    const zeroLast = key !== 'name' && key !== 'lv' && key !== 'cond' && key !== 'maxhp' && key !== 'night';
     return [...rows].sort((a, b) => {
         let av: string | number;
         let bv: string | number;
@@ -308,6 +310,7 @@ function sortShips(rows: ShipRow[]): ShipRow[] {
         else if (key === 'lv') { av = a.lv; bv = b.lv; }
         else if (key === 'cond') { av = a.cond; bv = b.cond; }
         else if (key === 'maxhp') { av = a.maxhp; bv = b.maxhp; }
+        else if (key === 'night') { av = a.night; bv = b.night; }
         else { av = a.stats[key]; bv = b.stats[key]; }
         if (zeroLast) {
             const aE = av === 0, bE = bv === 0;
@@ -364,6 +367,7 @@ function paintTable(): void {
               <td>${s.maxhp}</td>
               <td>${s.stats.firepower}</td>
               <td>${statOrDot(s.stats.torpedo)}</td>
+              <td>${s.night}</td>
               <td>${s.stats.aa}</td>
               <td>${s.stats.armor}</td>
               <td>${statOrDot(s.stats.asw)}</td>
@@ -421,7 +425,8 @@ function sortHead(key: GearSortKey | ShipSortKey, labelKey: string, cls: string)
     const sort = mode === 'ship' ? shipSort : gearSort;
     const on = sort.key === key;
     const arrow = on ? (sort.dir === 'asc' ? '▲' : '▼') : '';
-    return `<th class="${cls} ${on ? 'on' : ''}" data-sort="${key}"><span class="od-head"><span class="od-label">${esc(t(labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
+    const tip = key === 'night' ? ` title="${esc(t('ov.rsColNightTip'))}"` : '';
+    return `<th class="${cls} ${on ? 'on' : ''}" data-sort="${key}"${tip}><span class="od-head"><span class="od-label">${esc(t(labelKey))}</span><span class="od-arrow" aria-hidden="true">${arrow}</span></span></th>`;
 }
 
 function holderTable(rows: GearGroup[]): string {

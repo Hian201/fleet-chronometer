@@ -210,6 +210,10 @@ export interface RosterAnnotations {
     obtainedOf(shipId: number): number | null;
 }
 
+export function nightBattlePower(stats: OwnedShipView['stats']): number {
+    return stats.firepower + stats.torpedo;
+}
+
 /** 把 ownedShips() 的輸出補成清單列。多號機需要全體脈絡，故一次算完整份名冊。 */
 export function annotateRoster(ships: OwnedShipView[], ann: RosterAnnotations): RosterShip[] {
     // 多號機：以**基礎形態**計數，這樣「睦月＋睦月改」也會正確算成同一艘船的兩份。
@@ -230,7 +234,7 @@ export function annotateRoster(ships: OwnedShipView[], ann: RosterAnnotations): 
         modernSpecial: isModernSpecial(s),
         openingAsw: isOpeningAsw(s),
         openingTorpedo: isOpeningTorpedo(s),
-        night: s.stats.firepower + s.stats.torpedo,
+        night: nightBattlePower(s.stats),
         nation: nationOf(s.ctype),
         nations: nationsOf(s.masterId, s.ctype),
         modernRemain: modernRemainOf(s),
