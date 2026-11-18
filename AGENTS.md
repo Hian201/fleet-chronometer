@@ -12,6 +12,7 @@
 - GitHub／GitLab 等程式碼託管平台的操作界線：[`docs/code-hosting-safety.md`](docs/code-hosting-safety.md)。動 git 遠端、release、`gh`／`glab` 前必讀。
 - 遊戲不再經 `window.axios` 送請求時的擷取備案（各工具做法、XHR 掛鉤衝突、DevTools／偵錯 API／Firefox 比較、頁面內掛鉤的包容寫法）：[`docs/capture-contingency.md`](docs/capture-contingency.md)。動擷取方式或硬約束 1 前必讀。
 - 尚未實作的功能計畫、排序理由與跨項目原則：[`docs/completion-plan.md`](docs/completion-plan.md)。規劃新功能或實作計畫內項目前先讀對應小節；做完並經開發者驗證的項目，現行事實寫進 `docs/engineering/`，並在該檔第 8 節「已完成項目」登記完成日期與 commit，再從總覽表與第 4 節刪掉該項。
+- 派工格式、檢查位置與例外分流：[`docs/task-template.md`](docs/task-template.md)。任務說明沒寫的例外，依該檔分流表處理。
 - `docs/archive/`：封存的原始設計，只在調查原始設計意圖時查閱，平常不讀、不據以實作。
 
 文件與程式碼或測試不一致時，以目前程式碼與測試為準。
@@ -58,8 +59,10 @@ npm run dev         # 開發模式，輸出 .output/chrome-mv3-dev
 npx tsc --noEmit    # 型別檢查
 npx wxt prepare     # 型別生成（首次或型別錯誤時）
 npm test            # Vitest
+npm run check       # 型別檢查＋全部測試＋正式 build；pre-commit hook 執行的就是它
 ```
 
+- pre-commit hook 在 `.githooks/`，新 clone 要執行 `git config core.hooksPath .githooks` 啟用；不得用 `--no-verify` 略過，需要時先問開發者。
 - 一般改動最低驗證：正式 build 與型別檢查。戰鬥／狀態／資料格式改動另跑相關 Vitest 與 samples 驗證。
 - 修改 source 後需重新 build、在 `chrome://extensions` 重新整理擴充；已開啟的遊戲分頁要 F5 才會重新注入 content script。
 - 離線 UI 預覽（不連遊戲）：`npx vite-node --config vitest.config.ts tools/preview/<name>.ts`，可用的 `<name>` 見 `tools/preview/`，輸出到 `.preview/`。

@@ -1,0 +1,5 @@
+#!/bin/sh
+# commit 前跑型別檢查、測試與正式 build（約 25 秒）。
+# 檢查的是工作目錄，不只暫存區；未暫存的改動也會影響結果。
+# 啟用：git config core.hooksPath .githooks
+exec npm run --silent check
