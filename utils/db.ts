@@ -242,6 +242,9 @@ export interface ExpeditionRow {
     result: number;          // api_clear_result：0=失敗, 1=成功, 2=大成功
     resources: number[];     // api_get_material：[燃, 彈, 鋼, 鋁]（可能缺，補 0）
     items: { id: number; count: number }[];   // api_get_item1/2（回航道具，如ネジ/バケツ/開発資材）
+    // 回航道具依 api_useitem_flag 判種類寫入：高速修復材、高速建造材、開發資材有記錄。沒有此欄的舊紀錄缺這三種道具
+    // （不是真的 0），遠征組合建議只用有此欄的紀錄算這三種的平均。
+    flagItems?: boolean;
     // 結算封包到達時的艦隊快照。舊紀錄沒有這筆資料，UI 必須誠實顯示不可考。
     fleet?: { name: string; level: number }[];
 }

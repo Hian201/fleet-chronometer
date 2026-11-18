@@ -331,6 +331,17 @@ describe('備份 envelope runtime validation', () => {
         expect(() => validateBackupEnvelope(malformed)).toThrow(BackupValidationError);
     });
 
+    it('遠征紀錄的道具標記可往返；舊備份沒有這欄照常接受，格式不對時拒絕', () => {
+        const input = v3Restore();
+        (input.tables.expeditions[0] as ExpeditionRow).flagItems = true;
+        expect(validateBackupEnvelope(input).tables.expeditions?.[0].flagItems).toBe(true);
+        expect(validateBackupEnvelope(v3Restore()).tables.expeditions?.[0]).not.toHaveProperty('flagItems');
+
+        const malformed = v3Restore();
+        (malformed.tables.expeditions[0] as Record<string, unknown>).flagItems = 1;
+        expect(() => validateBackupEnvelope(malformed)).toThrow(BackupValidationError);
+    });
+
     it('最高來源 ID 計算涵蓋所有關聯欄位，factory 小數主鍵以原值納入上界', () => {
         const cases: Array<[string, (tables: BackupTables) => void, number]> = [
             ['snapshot.eventId', tables => { tables.snapshot![0].eventId = 101; }, 101],

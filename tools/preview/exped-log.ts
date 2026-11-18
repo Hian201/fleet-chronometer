@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { COLUMNS, defaultPlanPrefs, planResultHtml, planShellHtml, summaryHtml, tableHtml } from '../../entrypoints/overview/sections/exped-log';
 import { summarize } from '../../utils/expedition-stats';
-import { DEFAULT_CHOSEN, ITEM_FLAG_SINCE, planExpeditions, resourceNeeds, type PlanKey, type PlanMission } from '../../utils/expedition-plan';
+import { DEFAULT_CHOSEN, planExpeditions, resourceNeeds, type PlanKey, type PlanMission } from '../../utils/expedition-plan';
 import { STOCKPILE_KEYS, stockpileCap } from '../../utils/stockpile';
 import type { ExpeditionRow } from '../../utils/db';
 import { setLang } from '../../utils/ui-i18n';
@@ -40,11 +40,12 @@ const missions: PlanMission[] = [
     mission(42, '42', '強行輸送艦隊、抜錨！', 90, [[0, 0], [0, 0]], [0.5, 0.5], 1),
     mission(43, '43', '兵站強化任務', 120, [[0, 0], [0, 0]], [0.5, 0.5], 1),
 ];
-const NEW = ITEM_FLAG_SINCE + 3600000, OLD = ITEM_FLAG_SINCE - 86400000;
+// NEW 起的紀錄有道具標記，OLD 是沒有標記的舊紀錄。
+const NEW = Date.parse('2026-11-15T03:00:00Z'), OLD = NEW - 86400000;
 const fleet = [{ name: '睦月', level: 80 }, { name: '如月', level: 80 }, { name: '弥生', level: 80 }, { name: '卯月', level: 80 }];
 const shipMax = new Map(fleet.map(ship => [ship.name, [15, 15] as const]));
 const run = (missionId: number, ts: number, result: number, resources: number[], items: ExpeditionRow['items'] = []): ExpeditionRow =>
-    ({ eventId: ts + missionId, ts, deckId: 2, missionId, name: missions.find(m => m.id === missionId)!.name, result, resources, items, fleet });
+    ({ eventId: ts + missionId, ts, deckId: 2, missionId, name: missions.find(m => m.id === missionId)!.name, result, resources, items, fleet, ...(ts >= NEW ? { flagItems: true } : {}) });
 const many = (n: number, f: (i: number) => ExpeditionRow) => Array.from({ length: n }, (_, i) => f(i));
 const records: ExpeditionRow[] = [
     ...many(12, i => run(5, NEW + i, 2, [360, 360, 36, 36])),

@@ -4046,6 +4046,28 @@
         .el-plan-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
         .el-plan-note { margin-bottom: 4px; }
         .el-plan-verdict { margin: 4px 0 8px; font-weight: 600; }
+        /* 精確搜尋還在背景算：膠囊＋轉圈，與說明文字區隔；顏色用中性的 --text／--line，不挪用語意色（§4.5）。 */
+        .el-plan-refining {
+            display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 2px 10px;
+            border: 1px solid var(--dim); border-radius: 999px; font-size: 12px; color: var(--text);
+            background: color-mix(in srgb, var(--text) 14%, transparent);
+        }
+        .el-plan-spin {
+            flex: none; width: 10px; height: 10px; border-radius: 50%;
+            border: 2px solid var(--dim); border-top-color: var(--text);
+            animation: el-plan-spin .8s linear infinite;
+        }
+        @keyframes el-plan-spin { to { transform: rotate(360deg); } }
+        /* 不轉時改成實心圓點，膠囊仍在，訊號不消失。 */
+        @media (prefers-reduced-motion: reduce) {
+            .el-plan-spin { animation: none; border-color: var(--text); background: var(--text); width: 8px; height: 8px; border-width: 0; }
+        }
+        @media (prefers-reduced-transparency: reduce) {
+            .el-plan-refining { background: var(--panel); }
+        }
+        @media (prefers-contrast: more) {
+            .el-plan-refining { border-color: var(--text); }
+        }
         .el-type .el-plan-role { margin-left: 6px; color: var(--text); white-space: nowrap; }
         .el-plan-role .m-icon { width: 12px; height: 12px; margin-right: 2px; vertical-align: -2px; }
         .el-plan-verdict .m-icon { width: 16px; height: 16px; vertical-align: -3px; }

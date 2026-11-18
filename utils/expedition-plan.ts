@@ -13,8 +13,9 @@
 //     interval × ⌈t ÷ interval⌉。
 //   · 作息：每天有一段較長的離開（睡覺、上班，sleep 分鐘）時，三隊在離開前各派一條「睡前」遠征，其餘時間跑「在線」組合。
 //     睡前遠征比離開時間長時，回來後要等到下一個收取點才收得到，那一隊在線的時間跟著變短。
-//     兩組合一起比同一個目標；窮舉兩組的所有配對太大（數萬 × 數萬），改為交替固定一組、窮舉另一組直到不再變（近似解）。
-//   · 候選＝所有非月常、有收益的遠征。開放狀態沒有封包可判斷，沒跑過的照列並標明；不檢查編成。
+//     有作息離開時在線趟數取整數（最後一趟睡前收不回來就不能派）。兩組合一起比同一個目標，求精確解：先以交替搜尋得到近似解，
+//     再以它為下限做分枝定界（planExpeditionSteps 分段執行，畫面先顯示近似解）。
+//   · 候選＝所有非月常、有收益、目前能派的遠征（最近一次遠征畫面的清單裡有的；從沒收到清單時全部照列）。不檢查編成。
 //   · 月常（resetType === 1）每月只能通關一次，當定額收入，不進排序，另列最後成功時間。
 //   · 每趟收益：玩家自己的紀錄夠多（MIN_RUNS）就用紀錄平均（含失敗、大成功與大發加成，是玩家實際的跑法）；
 //     不夠時以固定報酬推算，套用玩家自己的成功／大成功比例與大發加成水準（expectedIncome）。
@@ -52,11 +53,10 @@ const GREAT_SUCCESS_RATE = 1.5;
 const ITEM_ID = { drum: 1, torch: 2, devmat: 3, screw: 4 } as const;
 const MAT_INDEX = { fuel: 0, ammo: 1, steel: 2, bauxite: 3 } as const;
 
-// 捷徑：以修正 commit（f2b6986，回航道具依 api_useitem_flag 投影）的時刻切分；那之前的紀錄沒有
-// useitem 1／2／3（高速修復材、高速建造材、開發資材），不能當 0。那之後若仍跑舊版 build，紀錄會被當成真的 0；
-// 改用紀錄裡的投影版本標記時再移除。
-export const ITEM_FLAG_SINCE = Date.parse('2026-11-12T13:21:27Z');
+// 高速修復材、高速建造材、開發資材只有帶 flagItems 標記的紀錄才有記錄（見 db.ts ExpeditionRow）；
+// 沒有標記的舊紀錄這三項不能當 0。用紀錄本身的標記而不是時間切分：更新前的版本寫的紀錄時間再新也缺這三種道具。
 const FLAG_ITEM_KEYS: readonly PlanKey[] = ['drum', 'torch', 'devmat'];
+const itemsRecorded = (row: ExpeditionRow) => row.flagItems === true;
 
 type Income = Record<PlanKey, number | null>;
 
@@ -78,7 +78,7 @@ export interface PlanRow {
     supply: [number, number];
     /** 補給是用最低編成艘數推算（沒有可換算的紀錄編成）。 */
     supplyEstimated: boolean;
-    /** 高速修復材／高速建造材／開發資材平均所依據的紀錄筆數（修正 commit 之後）。 */
+    /** 高速修復材／高速建造材／開發資材平均所依據的紀錄筆數（有道具標記的紀錄）。 */
     itemRuns: number;
 }
 
@@ -115,6 +115,14 @@ export interface MonthlyRow {
     missionId: number; dispNo: string; name: string; lastSuccessTs: number | null;
     /** 本期（monthlyExpeditionCycle）已有成功紀錄；失敗可以再跑，不算。 */
     doneThisCycle: boolean;
+    /** 本期能不能派：在本期的遠征清單裡才算開放；沒有本期的清單為 null（月常每期換期後前置要重跑，舊清單不算）。 */
+    open: boolean | null;
+}
+
+/** 最近一次遠征畫面的遠征清單（GameState.missionList）：清單裡的遠征 id、下次月常換期（毫秒）。 */
+export interface MissionListView {
+    states: ReadonlyMap<number, number>;
+    resetAt: number | null;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -146,10 +154,14 @@ export interface ExpeditionPlan {
     /** 最需要補的資材（結論句、top 與 candidates 的排列依據）：有候選遠征給得到、還沒滿的資材中，
      *  不跑遠征時推算時點比例最低的一項（只看持有與基本淨增減，不隨組合或收取間隔改變）；沒有為 null。 */
     focus: PlanKey | null;
-    /** 月常小表：本期還沒成功的在前。 */
+    /** 月常小表：本期還能跑的在前，本期未開放的其次，已完成的最後。 */
     monthly: MonthlyRow[];
-    /** 月常遠征的本期起訖。 */
+    /** 月常遠征的本期起訖；有本期的遠征清單時 end 用伺服器給的換期時間。 */
     monthlyCycle: { start: number; end: number };
+    /** 有收益、但不在遠征清單裡（目前不能派）而不列入候選的一般遠征數；沒有清單為 0。 */
+    lockedCount: number;
+    /** 有遠征清單：候選都是能派的，「沒跑過」不必再請玩家確認是否開放。 */
+    listKnown: boolean;
     /** 候選遠征數；0 表示沒有可建議的遠征。 */
     candidateCount: number;
     /** 全部候選，依對 focus 資材的每日收入排列（供玩家對照）。 */
@@ -263,7 +275,7 @@ function supplyOf(mission: PlanMission, records: readonly ExpeditionRow[], profi
 }
 
 function incomeOf(mission: PlanMission, records: readonly ExpeditionRow[], profile: PlayerProfile): { income: Income; itemRuns: number; estimated: PlanKey[] } {
-    const flagged = records.filter(row => row.ts >= ITEM_FLAG_SINCE);
+    const flagged = records.filter(itemsRecorded);
     const income = {} as Income;
     const estimated: PlanKey[] = [];
     for (const key of PLAN_KEYS) {
@@ -317,11 +329,14 @@ function basesOver(
 
 const BASIC_KEYS: readonly PlanKey[] = ['fuel', 'ammo', 'steel', 'bauxite'];
 
-/** 觀測期間裡支出最少的一週：四大資源基本淨增減 ÷ 上限的總和最大者。沒有各週明細時為 null。 */
+/**
+ * 觀測期間裡支出最少的一週：四大資源基本淨增減 ÷ 上限的總和最大者。沒有各週明細時為 null。
+ * itemsRecorded：那週的遠征紀錄都有道具標記；否則那週高速修復材等的遠征收入不全，道具類的基本淨增減不準。
+ */
 export function lightestWeek(
     flow: ObservedFlow | null, records: readonly ExpeditionRow[],
     missions: readonly PlanMission[] = [], shipMax: ShipMaxByName = new Map(),
-): { fromTs: number; toTs: number; bases: Partial<Record<PlanKey, number>> } | null {
+): { fromTs: number; toTs: number; bases: Partial<Record<PlanKey, number>>; itemsRecorded: boolean } | null {
     let best: { fromTs: number; toTs: number; bases: Partial<Record<PlanKey, number>>; score: number } | null = null;
     for (const block of flow?.blocks ?? []) {
         const bases = basesOver(block.fromTs, block.toTs, key => block.rates[key], records, missions, shipMax);
@@ -329,7 +344,10 @@ export function lightestWeek(
         const score = BASIC_KEYS.reduce((sum, key) => sum + bases[key]! / stockpileCap(key), 0);
         if (!best || score > best.score) best = { fromTs: block.fromTs, toTs: block.toTs, bases, score };
     }
-    return best && { fromTs: best.fromTs, toTs: best.toTs, bases: best.bases };
+    return best && {
+        fromTs: best.fromTs, toTs: best.toTs, bases: best.bases,
+        itemsRecorded: records.every(row => row.ts <= best!.fromTs || row.ts > best!.toTs || itemsRecorded(row)),
+    };
 }
 
 /**
@@ -341,8 +359,8 @@ export function resourceNeeds(
     flow: ObservedFlow | null, records: readonly ExpeditionRow[],
     missions: readonly PlanMission[] = [], shipMax: ShipMaxByName = new Map(), basis: SpendBasis = 'recent',
 ): ResourceNeed[] {
-    // 捷徑：觀測期間跨過 ITEM_FLAG_SINCE 時，之前的遠征道具收入沒有紀錄，高速修復材等的基本淨增減會偏高；
-    // 觀測期間（最多四週）完全落在修正之後就沒有這個偏差。
+    // 捷徑：觀測期間有沒有道具標記的遠征紀錄時，那些紀錄的道具收入沒算到，高速修復材等的基本淨增減會偏高；
+    // 觀測期間（最多四週）的紀錄都有標記後就沒有這個偏差。
     const recent = flow ? basesOver(flow.fromTs, flow.toTs, key => flow.rates[key]?.mean, records, missions, shipMax) : {};
     const week = basis === 'lightest' ? lightestWeek(flow, records, missions, shipMax) : null;
     return PLAN_KEYS.filter(key => chosen.includes(key)).map(key => {
@@ -350,9 +368,9 @@ export function resourceNeeds(
         const have = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
         const current = flow?.rates[key]?.mean;
         if (current === undefined || recent[key] === undefined) return { key, have, cap: caps[key], base: null, current: null };
-        // 支出最少的一週早於道具開始記錄時，那週的道具類基本淨增減不準，沿用整段平均。
+        // 支出最少的一週有沒有道具標記的紀錄時，那週的道具類基本淨增減不準，沿用整段平均。
         const base = basis === 'none' ? 0
-            : week && week.bases[key] !== undefined && !(FLAG_ITEM_KEYS.includes(key) && week.fromTs < ITEM_FLAG_SINCE) ? week.bases[key]!
+            : week && week.bases[key] !== undefined && !(FLAG_ITEM_KEYS.includes(key) && !week.itemsRecorded) ? week.bases[key]!
             : recent[key]!;
         return { key, have, cap: caps[key], base, current };
     });
@@ -442,7 +460,7 @@ function* combinations<T>(items: readonly T[], size: number, start = 0, picked: 
     for (let i = start; i <= items.length - (size - picked.length); i++) yield* combinations(items, size, i + 1, [...picked, items[i]]);
 }
 
-export function planExpeditions(input: {
+export interface PlanInput {
     missions: readonly PlanMission[];
     records: readonly ExpeditionRow[];
     /** 玩家（在線時）多久回來收一次遠征（分鐘）。 */
@@ -457,9 +475,31 @@ export function planExpeditions(input: {
     shipMax?: ShipMaxByName;
     /** 現在時刻（判斷月常本期是否已跑過）；省略為 Date.now()。 */
     now?: number;
-}): ExpeditionPlan {
+    /** 最近一次遠征畫面的清單；沒有（從沒收到）為 null 或省略，候選照列。 */
+    missionList?: MissionListView | null;
+}
+
+/** 一次算完，回傳精確解（測試與不需要分段的呼叫端用）。 */
+export function planExpeditions(input: PlanInput): ExpeditionPlan {
+    return finish(planExpeditionSteps(input));
+}
+
+/** 把分段的計算一次跑完。 */
+function finish<T>(steps: Generator<unknown, T>): T {
+    for (;;) {
+        const step = steps.next();
+        if (step.done) return step.value;
+    }
+}
+
+/**
+ * 分段計算，讓畫面不被精確搜尋卡住：第一次 yield 先給近似解的建議（交替搜尋，約零點幾秒），
+ * 之後每段 yield undefined，呼叫端可以隨時接著 next()；結束時 return 精確解。沒有作息離開時近似解就是精確解，直接 return。
+ */
+export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan | undefined, ExpeditionPlan> {
     const shipMax = input.shipMax ?? new Map();
-    let horizon = Math.max(0, input.horizonDays);
+    const baseHorizon = Math.max(0, input.horizonDays);
+    let horizon = baseHorizon;
     const interval = input.intervalMinutes;
     const sleep = Math.min(DAY_MINUTES, Math.max(0, input.sleepMinutes ?? 0));
     const missionById = new Map(input.missions.map(mission => [mission.id, mission]));
@@ -472,8 +512,15 @@ export function planExpeditions(input: {
     }
     const profile = playerProfile(input.missions, input.records, shipMax);
     const monthly: MonthlyRow[] = [];
-    const monthlyCycle = monthlyExpeditionCycle(input.now ?? Date.now());
+    const now = input.now ?? Date.now();
+    const list = input.missionList ?? null;
+    // 清單的換期時間還沒到＝本期的清單：本期截止用伺服器給的時間，月常開放與否才可信。
+    const listThisCycle = list !== null && list.resetAt !== null && list.resetAt > now;
+    const monthlyCycle = listThisCycle
+        ? { start: monthlyExpeditionCycle(list.resetAt! - 1).start, end: list.resetAt! }
+        : monthlyExpeditionCycle(now);
     const candidates: PlanRow[] = [];
+    let lockedCount = 0;
     for (const mission of input.missions) {
         const records = byMission.get(mission.id) ?? [];
         if (mission.resetType === 1) {
@@ -481,13 +528,16 @@ export function planExpeditions(input: {
             const successes = records.filter(row => row.result >= 1).map(row => row.ts);
             const lastSuccessTs = successes.length ? Math.max(...successes) : null;
             monthly.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, lastSuccessTs,
-                doneThisCycle: lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end });
+                doneThisCycle: lastSuccessTs !== null && lastSuccessTs >= monthlyCycle.start && lastSuccessTs < monthlyCycle.end,
+                open: listThisCycle ? list!.states.has(mission.id) : null });
             continue;
         }
         if (!(mission.time > 0)) continue;
         const { income, itemRuns, estimated } = incomeOf(mission, records, profile);
         // 沒有任何收益的遠征（支援遠征等）不列入。
         if (!PLAN_KEYS.some(key => (income[key] ?? 0) > 0)) continue;
+        // 不在遠征清單的目前不能派。一般遠征開了就不會再鎖，舊的清單也可用。
+        if (list && !list.states.has(mission.id)) { lockedCount++; continue; }
         const { supply, estimated: supplyEstimated } = supplyOf(mission, records, profile, shipMax);
         if (income.fuel !== null) income.fuel -= supply[0];
         if (income.ammo !== null) income.ammo -= supply[1];
@@ -497,28 +547,38 @@ export function planExpeditions(input: {
         candidates.push({ missionId: mission.id, dispNo: mission.dispNo, name: mission.name, time: mission.time, income, perDay, runs: records.length, itemRuns, estimated, supply, supplyEstimated });
     }
     candidates.sort((a, b) => a.missionId - b.missionId);
-    monthly.sort((a, b) => Number(a.doneThisCycle) - Number(b.doneThisCycle) || a.missionId - b.missionId);
+    // 月常：本期還能跑的在前，本期未開放的其次，已完成的最後。
+    const monthlyRank = (row: MonthlyRow) => (row.doneThisCycle ? 2 : row.open === false ? 1 : 0);
+    monthly.sort((a, b) => monthlyRank(a) - monthlyRank(b) || a.missionId - b.missionId);
 
-    // 一隊一天：在線組合在扣掉睡前遠征佔用的時間裡照 interval 收；睡前遠征一天一趟。
+    // 一隊一天：睡前遠征一天一趟；在線遠征在扣掉睡前遠征佔用後的時間裡照 interval 收。
     // 睡前遠征佔用＝離開時間，比離開時間長時再加上回來後等到下一個收取點的時間。
+    // 有作息離開時在線趟數取整數：醒來出發、睡前收回，最後一趟睡前收不回來就不能派（那一隊也派不了睡前遠征）；
+    // 沒有作息離開時整天連續收，一天的趟數不必是整數。
+    const cycle = (row: PlanRow) => interval * Math.ceil(row.time / interval);
     const occupied = (row: PlanRow) => (row.time <= sleep ? sleep : sleep + interval * Math.ceil((row.time - sleep) / interval));
-    const fleetDaily = (day: PlanRow | undefined, night: PlanRow | undefined, online = DAY_MINUTES - (night ? occupied(night) : sleep)): Daily => {
+    const onlineOf = (night: PlanRow | undefined) => DAY_MINUTES - (night ? occupied(night) : sleep);
+    const dayRuns = (row: PlanRow, online: number) => (sleep ? Math.floor(online / cycle(row)) : online / cycle(row));
+    const zero = () => {
         const daily = {} as Daily;
-        for (const key of PLAN_KEYS) {
-            daily[key] = (day ? (day.perDay[key] ?? 0) * online / DAY_MINUTES : 0) + (night ? night.income[key] ?? 0 : 0);
-        }
+        for (const key of PLAN_KEYS) daily[key] = 0;
+        return daily;
+    };
+    const fleetDaily = (day: PlanRow | undefined, night: PlanRow | undefined, online = onlineOf(night)): Daily => {
+        const daily = zero();
+        const runs = day ? dayRuns(day, online) : 0;
+        for (const key of PLAN_KEYS) daily[key] = (day ? (day.income[key] ?? 0) * runs : 0) + (night ? night.income[key] ?? 0 : 0);
         return daily;
     };
     // 窮舉時每個組合都要算，只累計三隊合計，不建每隊的物件。
     interface Pick { day: PlanRow[]; night: PlanRow[]; sum: Daily; score: ComboScore }
     const known = input.needs.filter(need => need.have !== null);
     const pickOf = (day: PlanRow[], night: PlanRow[]): Pick => {
-        const sum = {} as Daily;
-        for (const key of PLAN_KEYS) sum[key] = 0;
+        const sum = zero();
         for (let i = 0; i < Math.max(day.length, night.length); i++) {
             const d = day[i], z = night[i];
-            const share = d ? (DAY_MINUTES - (z ? occupied(z) : sleep)) / DAY_MINUTES : 0;
-            for (const key of PLAN_KEYS) sum[key] += (d ? (d.perDay[key] ?? 0) * share : 0) + (z ? z.income[key] ?? 0 : 0);
+            const runs = d ? dayRuns(d, onlineOf(z)) : 0;
+            for (const key of PLAN_KEYS) sum[key] += (d ? (d.income[key] ?? 0) * runs : 0) + (z ? z.income[key] ?? 0 : 0);
         }
         return { day, night, sum, score: scoreOf(known, sum, horizon) };
     };
@@ -545,94 +605,152 @@ export function planExpeditions(input: {
     };
 
     // 候選約六十條，C(n, 3) 在數萬以內，沒有作息離開時直接窮舉求精確解。
-    // 先剔除被至少五條其他遠征全面勝過（八種資材都不少、睡前的還要佔用不更長）的遠征：組合裡用到它時，
-    // 至少有一條勝過它的不在組合中、也不和別隊衝突（同組另兩條＋另兩隊的另一組最多排除四條），換上去每項都不減，
-    // 評分只會更好或同分，所以不影響結果，只減少窮舉量。
-    const vector = (row: PlanRow, night: boolean) => PLAN_KEYS.map(key => ((night ? row.income : row.perDay)[key] ?? 0));
+    // 先剔除被至少五條其他遠征全面勝過的遠征：組合裡用到它時，至少有一條勝過它的不在組合中、也不和別隊衝突
+    // （同組另兩條＋另兩隊的另一組最多排除四條），換上去每項都不減，評分只會更好或同分，所以不影響結果，只減少窮舉量。
+    // 「全面勝過」：睡前遠征比每趟收入且佔用不更長；在線遠征比每一種可能的在線時數下的收入（趟數取整數後，
+    // 每日收入較高的遠征在某些在線時數下反而較少）。
+    // 超過一天才回得來的遠征不能每天睡前派，只當在線組合。
+    const nightCandidates = sleep ? candidates.filter(row => occupied(row) <= DAY_MINUTES) : [];
+    const onlines = sleep ? [...new Set([DAY_MINUTES - sleep, ...nightCandidates.map(row => onlineOf(row))])] : [DAY_MINUTES];
+    const dayVector = (row: PlanRow) => onlines.flatMap(online => PLAN_KEYS.map(key => (row.income[key] ?? 0) * dayRuns(row, online)));
+    const nightVector = (row: PlanRow) => PLAN_KEYS.map(key => row.income[key] ?? 0);
     const undominated = (rows: PlanRow[], night: boolean) => {
-        const vectors = rows.map(row => vector(row, night));
+        const vectors = rows.map(night ? nightVector : dayVector);
         return rows.filter((row, i) => rows.filter((other, j) => j !== i
             && (!night || occupied(other) <= occupied(row))
             && vectors[j].every((v, k) => v >= vectors[i][k])
             && (vectors[j].some((v, k) => v > vectors[i][k]) || (night && occupied(other) < occupied(row)) || other.missionId < row.missionId)).length < 5);
     };
     const dayPool = undominated(candidates, false);
-    const size = Math.min(PLAN_FLEETS, dayPool.length);
-    const daySets = [...combinations(dayPool, size)];
-    // 超過一天才回得來的遠征不能每天睡前派，只當在線組合。
-    const nightCandidates = sleep ? undominated(candidates.filter(row => occupied(row) <= DAY_MINUTES), true) : [];
-    const nightSets = sleep ? [...combinations(nightCandidates, Math.min(PLAN_FLEETS, nightCandidates.length))] : [];
-    const search = (): Pick => {
-        if (!sleep) return argmax(daySets.map(day => pickOf(day, [])))!;
-        const withDay = (night: PlanRow[]) => argmax(mapIter(daySets, day => bestPairing(day, night)));
-        const withNight = (day: PlanRow[]) => argmax(mapIter(nightSets, night => bestPairing(day, night)));
-        // 交替固定一組、窮舉另一組；每一步都含目前的組合，分數不會下降，不再變好就停。
-        // 從「先挑在線」與「先挑睡前」兩個起點各跑一次，取較好的，減少卡在局部解。
-        // 候選很少時可能每個組合都衝突（沒有解），就停在目前的組合。
-        const alternate = (start: Pick, nightNext: boolean): Pick => {
-            let current = start;
-            for (let step = 0; step < 20; step++) {
-                const next = nightNext ? withNight(current.day) : withDay(current.night);
-                nightNext = !nightNext;
-                if (!next || (step > 0 && compareScores(next.score, current.score) <= 0)) break;
-                current = next;
-            }
-            return current;
-        };
-        const fromDay = alternate(argmax(daySets.map(day => pickOf(day, [])))!, true);
-        const fromNight = alternate(argmax(nightSets.map(night => pickOf([], night)))!, false);
-        return compareScores(fromNight.score, fromDay.score) > 0 ? fromNight : fromDay;
+    const daySets = [...combinations(dayPool, Math.min(PLAN_FLEETS, dayPool.length))];
+    const nightPool = undominated(nightCandidates, true);
+    const nightSets = sleep ? [...combinations(nightPool, Math.min(PLAN_FLEETS, nightPool.length))] : [];
+
+    // 近似解：交替固定一組、窮舉另一組；每一步都含目前的組合，分數不會下降，不再變好就停。
+    // 從「先挑在線」與「先挑睡前」兩個起點各跑一次，取較好的，減少卡在局部解。
+    // 候選很少時可能每個組合都衝突（沒有解），就停在目前的組合。同一個推算時點只算一次（精確搜尋拿它當起點）。
+    const approxByHorizon = new Map<number, Pick>();
+    const approxSearch = (): Pick => {
+        const cached = approxByHorizon.get(horizon);
+        if (cached) return cached;
+        let result: Pick;
+        if (!sleep) result = argmax(daySets.map(day => pickOf(day, [])))!;
+        else {
+            const withDay = (night: PlanRow[]) => argmax(mapIter(daySets, day => bestPairing(day, night)));
+            const withNight = (day: PlanRow[]) => argmax(mapIter(nightSets, night => bestPairing(day, night)));
+            const alternate = (start: Pick, nightNext: boolean): Pick => {
+                let current = start;
+                for (let step = 0; step < 20; step++) {
+                    const next = nightNext ? withNight(current.day) : withDay(current.night);
+                    nightNext = !nightNext;
+                    if (!next || (step > 0 && compareScores(next.score, current.score) <= 0)) break;
+                    current = next;
+                }
+                return current;
+            };
+            const fromDay = alternate(argmax(daySets.map(day => pickOf(day, [])))!, true);
+            const fromNight = alternate(argmax(nightSets.map(night => pickOf([], night)))!, false);
+            result = compareScores(fromNight.score, fromDay.score) > 0 ? fromNight : fromDay;
+        }
+        approxByHorizon.set(horizon, result);
+        return result;
     };
+
+    // 精確解：分枝定界。以近似解為目前最好，對每個在線組合算上界（在線那條取各種在線時數裡最有利的趟數，
+    // 睡前取各項收入最高的幾條，不必是同一組）；上界的 fill 與到上限天數都比目前最好差就整組跳過，
+    // 再對每個睡前組合用同樣的上界（睡前改用該組的實際收入）篩一次。fill 與天數對每項收入都是單調的，
+    // 收入只會更少的組合不可能更好，所以跳過不影響結果。後兩層同分規則（total、byproduct）不單調，上界同分時照常比較。
+    const nightSize = Math.min(PLAN_FLEETS, nightPool.length);
+    const nightTop = PLAN_KEYS.map(key => nightPool.map(row => row.income[key] ?? 0).sort((a, b) => b - a)
+        .slice(0, nightSize).reduce((sum, v) => sum + v, 0));
+    const nightSums = nightSets.map(set => PLAN_KEYS.map(key => set.reduce((sum, row) => sum + (row.income[key] ?? 0), 0)));
+    const dayBest = new Map(dayPool.map(row => [row, PLAN_KEYS.map(key =>
+        Math.max(...onlines.map(online => (row.income[key] ?? 0) * dayRuns(row, online))))]));
+    const bound = zero();
+    const cannotBeat = (best: Pick) => {
+        const score = scoreOf(known, bound, horizon);
+        return (compareVectors(score.fill, best.score.fill) || compareVectors(score.days, best.score.days, true)) < 0;
+    };
+    function* exactSearch(): Generator<undefined, Pick> {
+        let best = approxSearch();
+        if (!sleep) return best;
+        for (let i = 0; i < daySets.length; i++) {
+            const day = daySets[i];
+            const dayHi = PLAN_KEYS.map((_, k) => day.reduce((sum, row) => sum + dayBest.get(row)![k], 0));
+            PLAN_KEYS.forEach((key, k) => { bound[key] = dayHi[k] + nightTop[k]; });
+            if (cannotBeat(best)) {
+                if (i % 256 === 0) yield;
+                continue;
+            }
+            for (let j = 0; j < nightSets.length; j++) {
+                PLAN_KEYS.forEach((key, k) => { bound[key] = dayHi[k] + nightSums[j][k]; });
+                if (cannotBeat(best)) continue;
+                const pick = bestPairing(day, nightSets[j]);
+                if (pick && compareScores(pick.score, best.score) > 0) best = pick;
+            }
+            yield;
+        }
+        return best;
+    }
+
     // 沒設期限：目標是全部存滿的天數最短。推算時點先放在一年後找：一年內能讓勾選資材全部存滿的組合比例都是 1，
     // 勝過任何有資材存不滿的組合，再由「到上限天數」挑最快的；推算時點收到這組實際存滿的那天。
     // 一年內怎樣都存不滿（消耗大於遠征補得上的量，或已滿卻會掉出上限）時，「最快存滿」沒有意義，回到預設時點照常比較。
-    const slowestOf = (pick: Pick) => Math.max(0, ...pick.score.days);
-    let best: Pick;
-    if (input.untilFull) {
-        const fallback = horizon;
+    function* decide(search: () => Generator<undefined, Pick>): Generator<undefined, Pick> {
+        horizon = baseHorizon;
+        if (!input.untilFull) return yield* search();
         horizon = UNTIL_FULL_MAX_DAYS;
-        best = search();
-        if (slowestOf(best) <= UNTIL_FULL_MAX_DAYS) horizon = slowestOf(best);
-        else { horizon = fallback; best = search(); }
-    } else best = search();
+        const far = yield* search();
+        const slowest = Math.max(0, ...far.score.days);
+        if (slowest <= UNTIL_FULL_MAX_DAYS) { horizon = slowest; return far; }
+        horizon = baseHorizon;
+        return yield* search();
+    }
 
-    const outlook: ResourceOutlook[] = input.needs.map(need => {
-        const planRate = rateWith(need, [best.sum]);
-        const expRate = planRate - (need.base ?? 0);
-        if (need.have === null) return { key: need.key, have: null, cap: need.cap, nowAt: null, planAt: null, planRate, expRate, planDays: null };
+    const build = (best: Pick): ExpeditionPlan => {
+        const outlook: ResourceOutlook[] = input.needs.map(need => {
+            const planRate = rateWith(need, [best.sum]);
+            const expRate = planRate - (need.base ?? 0);
+            if (need.have === null) return { key: need.key, have: null, cap: need.cap, nowAt: null, planAt: null, planRate, expRate, planDays: null };
+            return {
+                key: need.key, have: need.have, cap: need.cap,
+                nowAt: need.current === null ? null : need.have + need.current * horizon,
+                planAt: need.have + planRate * horizon,
+                planRate, expRate,
+                planDays: daysToFill(need.cap - need.have, planRate),
+            };
+        });
+        const lowest = outlook.filter(line => line.planAt !== null && line.planAt < line.cap)
+            .sort((a, b) => a.planAt! / a.cap - b.planAt! / b.cap)[0];
+        const bottleneck = lowest?.key ?? null;
+        // 最需要補：不跑遠征時推算時點比例最低的一項（現況加上最近的消耗），不隨組合或收取間隔改變；
+        // 只看有候選遠征給得到、還沒滿的資材（例如改修資材給不到，依它排序沒有意義）。同樣低時取持有比例較低的。
+        // 用呼叫端給的推算時點（沒設期限時的延後時點取決於組合，會讓結果又隨收取間隔改變）。
+        const bare = (need: ResourceNeed) => (need.have! + (need.base ?? 0) * Math.max(0, input.horizonDays)) / need.cap;
+        const focus = input.needs.filter(need => need.have !== null && need.have < need.cap
+            && candidates.some(row => (row.perDay[need.key] ?? 0) > 0))
+            .sort((a, b) => bare(a) - bare(b) || a.have! / a.cap - b.have! / b.cap)[0]?.key ?? null;
+        const focusOrder = (a: PlanRow, b: PlanRow) => focus ? (b.perDay[focus] ?? 0) - (a.perDay[focus] ?? 0) || a.time - b.time : 0;
+        const byFocus = (rows: PlanRow[]) => (focus ? [...rows].sort(focusOrder) : rows);
+        // 在線組合依 focus 排列，睡前組合跟著同一隊移動。
+        const fleetOrder = best.day.map((_, i) => i).sort((a, b) => focusOrder(best.day[a], best.day[b]));
+        const top = fleetOrder.map(i => best.day[i]);
+        const night = best.day.length ? fleetOrder.map(i => best.night[i]).filter(Boolean) : best.night;
+        // 每條遠征在組合裡實際貢獻的每日收入：在線那條按該隊的在線時間換算，睡前那條一天一趟。
+        const parts = [
+            ...top.map((row, i) => fleetDaily(row, undefined, onlineOf(night[i]))),
+            ...night.map(row => fleetDaily(undefined, row)),
+        ];
+        const roles = rolesOf(outlook, parts);
         return {
-            key: need.key, have: need.have, cap: need.cap,
-            nowAt: need.current === null ? null : need.have + need.current * horizon,
-            planAt: need.have + planRate * horizon,
-            planRate, expRate,
-            planDays: daysToFill(need.cap - need.have, planRate),
+            top, sleep: night, sleepMinutes: sleep, roles: { top: roles.slice(0, top.length), sleep: roles.slice(top.length) },
+            outlook, bottleneck, focus, monthly, monthlyCycle, lockedCount, listKnown: list !== null,
+            candidateCount: candidates.length, candidates: byFocus(candidates), profile, horizonDays: horizon,
         };
-    });
-    const lowest = outlook.filter(line => line.planAt !== null && line.planAt < line.cap)
-        .sort((a, b) => a.planAt! / a.cap - b.planAt! / b.cap)[0];
-    const bottleneck = lowest?.key ?? null;
-    // 最需要補：不跑遠征時推算時點比例最低的一項（現況加上最近的消耗），不隨組合或收取間隔改變；
-    // 只看有候選遠征給得到、還沒滿的資材（例如改修資材給不到，依它排序沒有意義）。同樣低時取持有比例較低的。
-    // 用呼叫端給的推算時點（沒設期限時的延後時點取決於組合，會讓結果又隨收取間隔改變）。
-    const bare = (need: ResourceNeed) => (need.have! + (need.base ?? 0) * Math.max(0, input.horizonDays)) / need.cap;
-    const focus = input.needs.filter(need => need.have !== null && need.have < need.cap
-        && candidates.some(row => (row.perDay[need.key] ?? 0) > 0))
-        .sort((a, b) => bare(a) - bare(b) || a.have! / a.cap - b.have! / b.cap)[0]?.key ?? null;
-    const focusOrder = (a: PlanRow, b: PlanRow) => focus ? (b.perDay[focus] ?? 0) - (a.perDay[focus] ?? 0) || a.time - b.time : 0;
-    const byFocus = (rows: PlanRow[]) => (focus ? [...rows].sort(focusOrder) : rows);
-    // 在線組合依 focus 排列，睡前組合跟著同一隊移動。
-    const fleetOrder = best.day.map((_, i) => i).sort((a, b) => focusOrder(best.day[a], best.day[b]));
-    const top = fleetOrder.map(i => best.day[i]);
-    const night = best.day.length ? fleetOrder.map(i => best.night[i]).filter(Boolean) : best.night;
-    // 每條遠征在組合裡實際貢獻的每日收入：在線那條按該隊的在線時間換算，睡前那條一天一趟。
-    const parts = [
-        ...top.map((row, i) => fleetDaily(row, undefined, night[i] ? DAY_MINUTES - occupied(night[i]) : DAY_MINUTES - sleep)),
-        ...night.map(row => fleetDaily(undefined, row)),
-    ];
-    const roles = rolesOf(outlook, parts);
-    return {
-        top, sleep: night, sleepMinutes: sleep, roles: { top: roles.slice(0, top.length), sleep: roles.slice(top.length) },
-        outlook, bottleneck, focus, monthly, monthlyCycle,
-        candidateCount: candidates.length, candidates: byFocus(candidates), profile, horizonDays: horizon,
     };
+
+    const quick = build(finish(decide(function* () { return approxSearch(); })));
+    if (!sleep) return quick;
+    yield quick;
+    return build(yield* decide(exactSearch));
 }

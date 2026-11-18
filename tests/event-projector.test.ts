@@ -207,6 +207,7 @@ describe('EventProjector persist 模式', () => {
             result: 2,
             resources: [100, 200, 300, 400],
             items: [{ id: 1, count: 2 }],
+            flagItems: true,
             fleet: [{ name: '?', level: 99 }],
         }]);
 

@@ -12,6 +12,7 @@ export const SNAPSHOT_ORDER = [
     'api_port/port',
     'api_get_member/base_air_corps',
     'api_get_member/mapinfo',
+    'api_get_member/mission',
 ] as const;
 
 // master 表要先進來，之後的 reducer 才有 stype／裝備資料可用；它是唯讀參照資料，

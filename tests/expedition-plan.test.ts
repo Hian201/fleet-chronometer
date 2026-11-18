@@ -2,20 +2,20 @@ import { describe, expect, it } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { DAY_MS } from '../utils/date-format';
 import {
-    ITEM_FLAG_SINCE, MIN_RUNS, daysToFill, fleetSupply, lightestWeek, monthlyExpeditionCycle, planExpeditions, playerProfile, resourceNeeds,
+    MIN_RUNS, daysToFill, fleetSupply, lightestWeek, monthlyExpeditionCycle, planExpeditionSteps, planExpeditions, playerProfile, resourceNeeds,
     type PlanMission, type ResourceNeed,
 } from '../utils/expedition-plan';
 import { stockpileCap, STOCKPILE_KEYS } from '../utils/stockpile';
 
-const AFTER = ITEM_FLAG_SINCE + 1000;
-const BEFORE = ITEM_FLAG_SINCE - 1000;
+const AFTER = Date.parse('2026-12-01T00:00:00Z');
+const BEFORE = AFTER - 1000;
 
 // 測試用的遠征編號從 900 起，避開 expedition-data 的固定報酬（那些另外測）。
 const mission = (id: number, time: number, over: Partial<PlanMission> = {}): PlanMission =>
     ({ id, dispNo: String(id), name: `遠征${id}`, time, resetType: 0, winItems: [[0, 0], [0, 0]], use: [0, 0], ...over });
 const run = (missionId: number, over: Partial<ExpeditionRow> = {}): ExpeditionRow => ({
     eventId: 1, ts: AFTER, deckId: 2, missionId, name: `遠征${missionId}`, result: 1,
-    resources: [0, 0, 0, 0], items: [], ...over,
+    resources: [0, 0, 0, 0], items: [], flagItems: true, ...over,
 });
 const runs = (n: number, missionId: number, over: Partial<ExpeditionRow> = {}) => Array.from({ length: n }, () => run(missionId, over));
 const need = (key: ResourceNeed['key'], have: number | null, base: number | null = 0, cap = stockpileCap(key)): ResourceNeed =>
@@ -39,8 +39,8 @@ describe('planExpeditions：候選與收益', () => {
         });
         expect(ids(result.top)).toEqual([905]);
         expect(result.monthly).toEqual([
-            { missionId: 942, dispNo: '942', name: '遠征942', lastSuccessTs: 3000, doneThisCycle: false },
-            { missionId: 943, dispNo: '943', name: '遠征943', lastSuccessTs: null, doneThisCycle: false },
+            { missionId: 942, dispNo: '942', name: '遠征942', lastSuccessTs: 3000, doneThisCycle: false, open: null },
+            { missionId: 943, dispNo: '943', name: '遠征943', lastSuccessTs: null, doneThisCycle: false, open: null },
         ]);
     });
 
@@ -81,15 +81,15 @@ describe('planExpeditions：候選與收益', () => {
         expect(a2.income.devmat).toBeCloseTo(1 * 1 / 2);
     });
 
-    it('高速修復材等只用修正 commit 之後的紀錄判斷筆數；不足時改推算', () => {
+    it('高速修復材等只用有道具標記的紀錄判斷筆數（與時間無關）；不足時改推算', () => {
         const result = plan({
             missions: [mission(903, 30, { winItems: [[0, 0], [1, 1]] })],
-            records: [...runs(MIN_RUNS, 903, { ts: BEFORE, result: 2, items: [{ id: 1, count: 9 }] }), run(903, { result: 2, items: [{ id: 1, count: 1 }] })],
+            records: [...runs(MIN_RUNS, 903, { ts: AFTER + 1000, flagItems: undefined, result: 2, items: [{ id: 1, count: 9 }] }), run(903, { result: 2, items: [{ id: 1, count: 1 }] })],
             needs: [need('drum', 0)],
         });
         const [row] = result.candidates;
         expect(row.itemRuns).toBe(1);
-        expect(row.estimated).toContain('drum');            // 修正後只有 1 筆 < MIN_RUNS
+        expect(row.estimated).toContain('drum');            // 有標記的只有 1 筆 < MIN_RUNS
         expect(row.income.drum).toBeCloseTo(1);             // 玩家全是大成功 → 右欄期望 (1+1)/2
     });
 
@@ -207,6 +207,38 @@ describe('月常遠征的本期', () => {
         expect(result.monthlyCycle).toEqual({ start: utc('2026-11-15T03:00:00'), end: utc('2026-12-15T03:00:00') });
         expect(result.monthly.map(row => [row.missionId, row.doneThisCycle])).toEqual([[943, false], [944, false], [942, true]]);
     });
+
+    it('遠征清單：不在清單的一般遠征不列入候選；本期的清單決定月常開放與本期截止', () => {
+        const now = utc('2026-11-18T00:00:00');
+        const resetAt = utc('2026-12-15T03:00:00');
+        const data = {
+            missions: [mission(905, 60), mission(906, 60), mission(942, 60, { resetType: 1 }), mission(943, 60, { resetType: 1 })],
+            records: [
+                ...runs(MIN_RUNS, 905, { resources: [100, 0, 0, 0] }), ...runs(MIN_RUNS, 906, { resources: [200, 0, 0, 0] }),
+                run(942, { ts: utc('2026-08-01T00:00:00') }), run(943, { ts: utc('2026-08-02T00:00:00') }),
+            ],
+            needs: [need('fuel', 1000)], now,
+        };
+        const missionList = { states: new Map([[905, 2], [942, 1]]), resetAt };
+        const result = plan({ ...data, missionList });
+        expect(result.candidates.map(row => row.missionId)).toEqual([905]);
+        expect(result.lockedCount).toBe(1);
+        expect(result.listKnown).toBe(true);
+        expect(result.monthlyCycle).toEqual({ start: utc('2026-11-15T03:00:00'), end: resetAt });
+        // 本期能跑的在前，未開放的其次。
+        expect(result.monthly.map(row => [row.missionId, row.open])).toEqual([[942, true], [943, false]]);
+
+        // 上一期的清單（換期時間已過）：一般遠征照樣過濾，月常開放與否不可知，本期截止回到推算。
+        const stale = plan({ ...data, missionList: { ...missionList, resetAt: utc('2026-11-15T03:00:00') } });
+        expect(stale.candidates.map(row => row.missionId)).toEqual([905]);
+        expect(stale.monthly.map(row => row.open)).toEqual([null, null]);
+        expect(stale.monthlyCycle).toEqual(monthlyExpeditionCycle(now));
+
+        // 從沒收到清單：全部照列。
+        const none = plan(data);
+        expect(ids(none.candidates)).toEqual([905, 906]);
+        expect([none.lockedCount, none.listKnown]).toEqual([0, false]);
+    });
 });
 
 describe('resourceNeeds', () => {
@@ -228,22 +260,26 @@ describe('resourceNeeds', () => {
         ]);
     });
 
-    it('支出照：最近平均／支出最少的一週／不計；最少的一週早於道具記錄時道具沿用平均', () => {
+    it('支出照：最近平均／支出最少的一週／不計；最少的一週有沒標記的紀錄時道具沿用平均', () => {
         const W = 7 * DAY_MS;
         const week = (from: number, fuel: number, ammo: number, steel: number, bauxite: number, drum: number) =>
             ({ fromTs: from, toTs: from + W, rates: { fuel, ammo, steel, bauxite, drum } });
-        // 兩週：前一週（早於道具記錄）每天各 +100、水桶 +9；後一週每天各 −900、水桶 −1。沒有遠征紀錄，淨增減＝基本淨增減。
+        // 兩週：前一週每天各 +100、水桶 +9；後一週每天各 −900、水桶 −1。前一週有一筆沒道具標記、沒有收益的遠征紀錄，
+        // 不影響基本淨增減，但那週的道具收入不全。
         const light = week(BEFORE - W, 100, 100, 100, 100, 9);
         const heavy = week(BEFORE, -900, -900, -900, -900, -1);
         const avg = (key: 'fuel' | 'drum') => (light.rates[key] + heavy.rates[key]) / 2;
         const flow = { fromTs: light.fromTs, toTs: heavy.toTs, weeks: 2, blocks: [heavy, light], rates: Object.fromEntries(
             (['fuel', 'ammo', 'steel', 'bauxite', 'drum'] as const).map(key => [key, { low: 0, high: 0, mean: avg(key === 'drum' ? 'drum' : 'fuel') }])) };
-        const of = (basis: Parameters<typeof resourceNeeds>[7]) =>
-            Object.fromEntries(resourceNeeds(['fuel', 'drum'], { fuel: 0, drum: 0 }, caps, flow, [], [], new Map(), basis).map(need => [need.key, need.base]));
+        const old = [run(999, { ts: light.fromTs + DAY_MS, flagItems: undefined })];
+        const of = (basis: Parameters<typeof resourceNeeds>[7], records = old) =>
+            Object.fromEntries(resourceNeeds(['fuel', 'drum'], { fuel: 0, drum: 0 }, caps, flow, records, [], new Map(), basis).map(need => [need.key, need.base]));
         expect(of('recent')).toEqual({ fuel: -400, drum: 4 });
         expect(of('lightest')).toEqual({ fuel: 100, drum: 4 });
         expect(of('none')).toEqual({ fuel: 0, drum: 0 });
-        expect(lightestWeek(flow, [])).toMatchObject({ fromTs: light.fromTs, toTs: light.toTs });
+        expect(lightestWeek(flow, old)).toMatchObject({ fromTs: light.fromTs, toTs: light.toTs, itemsRecorded: false });
+        // 那週的紀錄都有標記時，道具也照那週。
+        expect(of('lightest', [run(999, { ts: light.fromTs + DAY_MS })])).toEqual({ fuel: 100, drum: 9 });
         // 沒有各週明細：退回整段平均。
         expect(resourceNeeds(['fuel'], { fuel: 0 }, caps, { ...flow, blocks: undefined }, [], [], new Map(), 'lightest')[0].base).toBe(-400);
     });
@@ -291,11 +327,11 @@ describe('planExpeditions：睡前組合', () => {
         const data = setup(fuelMission(901, 120, 200), fuelMission(921, 600, 1000));
         const result = plan({ ...data, intervalMinutes: 120, sleepMinutes: 480, needs: [need('fuel', 0)] });
         expect(ids(result.top)).toEqual([901, 921]);
-        // 兩條在線、睡前都用上，同一條只能同一隊跑：921 那隊在線 14 小時（每天 2400 × 14/24）＋睡前 1000；
-        // 901 那隊在線 16 小時（每天 2400 × 16/24）＋睡前 200。
+        // 兩條在線、睡前都用上，同一條只能同一隊跑：921 那隊在線 14 小時只跑得完 1 趟 1000（第二趟睡前收不回來）＋睡前 1000；
+        // 901 那隊在線 16 小時 8 趟 1600＋睡前 200。
         const pairs = result.top.map((row, i) => [row.missionId, result.sleep[i].missionId]);
         expect(pairs).toEqual(expect.arrayContaining([[921, 921], [901, 901]]));
-        expect(result.outlook[0].planRate).toBeCloseTo(1400 + 1000 + 1600 + 200);
+        expect(result.outlook[0].planRate).toBeCloseTo(1000 + 1000 + 1600 + 200);
     });
 
     it('同一條遠征不會兩隊同時跑：在線組合的遠征只能是同一隊的睡前遠征', () => {
@@ -306,6 +342,38 @@ describe('planExpeditions：睡前組合', () => {
         }));
         // 904 單趟最多：睡前一定派它，且由在線也跑 904 的那一隊（若有）派。
         expect(result.sleep.map(row => row.missionId)).toContain(904);
+    });
+
+    it('有作息離開時在線趟數取整數：最後一趟睡前收不回來就不算', () => {
+        // 每小時收、睡 8 小時：2 小時 45 分的遠征一輪 3 小時，在線 16 小時只跑得完 5 趟（不是 5.33 趟），睡前再一趟。
+        const data = setup(fuelMission(901, 165, 100));
+        const result = plan({ ...data, intervalMinutes: 60, sleepMinutes: 480, needs: [need('fuel', 0)] });
+        expect(result.outlook[0].planRate).toBeCloseTo(5 * 100 + 100);
+    });
+
+    it('分段計算先給近似解，最後給精確解；精確解在近似解卡在局部解時更好', () => {
+        // 隨機資料找到的例子：交替搜尋停在 [907, 902, 905]＋[904, 903, 905]，最缺的一項較低。
+        const spec: [number, number, number[]][] = [
+            [901, 180, [400, 0, 0, 0]], [902, 30, [200, 250, 500, 0]], [903, 300, [300, 400, 0, 100]],
+            [904, 60, [450, 0, 0, 0]], [905, 120, [0, 0, 0, 250]], [907, 30, [150, 450, 500, 0]],
+        ];
+        const input = {
+            missions: spec.map(([id, time]) => mission(id, time)),
+            records: spec.flatMap(([id, , resources]) => runs(MIN_RUNS, id, { resources })),
+            needs: [need('fuel', 60000), need('ammo', 10000), need('steel', 90000), need('bauxite', 80000)],
+            intervalMinutes: 60, sleepMinutes: 360, horizonDays: 10,
+        };
+        const lowest = (result: ReturnType<typeof planExpeditions>) => Math.min(...result.outlook.map(line => line.planAt! / line.cap));
+        const steps = planExpeditionSteps(input);
+        const quick = steps.next().value!;
+        let step = steps.next();
+        while (!step.done) step = steps.next();
+        const exact = step.value;
+        expect(ids(quick.top)).toEqual([902, 905, 907]);
+        expect(ids(exact.top)).toEqual([903, 905, 907]);
+        expect(ids(exact.sleep)).toEqual([901, 903, 904]);
+        expect(lowest(exact)).toBeGreaterThan(lowest(quick));
+        expect(planExpeditions(input)).toEqual(exact);
     });
 });
 

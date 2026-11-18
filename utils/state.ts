@@ -886,6 +886,11 @@ export class GameState {
     // 道具清單是最近一次觀測到的完整快照；null 代表尚未收到，空 Map 代表收到空清單。
     useItemCounts: Map<number, number> | null = null;
     payItemCounts: Map<number, number> | null = null;
+    // 最近一次遠征畫面（api_get_member/mission）的遠征清單；尚未收到為 null。
+    // states：清單裡的遠征 id → api_state（samples/mission-list.json：已通關的一般遠征 2、本期還沒跑的月常 1）。
+    // 不在清單的遠征目前不能派（同樣本：缺的月常正好是本期前置還沒成功的那些）。
+    // resetAt：下次月常換期（毫秒）；api_limit_time[0] 是 Unix 秒（同樣本，KC3Kai src/library/modules/Kcsapi.js 同樣取 [0]）。
+    missionList: { ts: number; states: Map<number, number>; resetAt: number | null } | null = null;
     // 最近一次改修確認畫面（slotlist_detail）的 useitem 需求，等 remodel_slot 對上才扣。
     pendingRemodelUseItems: { recipeId: string; slotId: string; items: [unknown, unknown][] } | null = null;
     slotItemInventoryKnown = false;
@@ -1312,6 +1317,18 @@ export class GameState {
         if (counts !== undefined) this.payItemCounts = counts;
     }
 
+    // 清單不是陣列時不覆蓋舊值；單筆 id 或狀態不是整數的略過。
+    private observeMissionList(api: any, ts: number) {
+        if (!Array.isArray(api?.api_list_items)) return;
+        const states = new Map<number, number>();
+        for (const item of api.api_list_items) {
+            const id = item?.api_mission_id, state = item?.api_state;
+            if (Number.isInteger(id) && id > 0 && Number.isInteger(state)) states.set(id, state);
+        }
+        const limit = Array.isArray(api.api_limit_time) ? api.api_limit_time[0] : undefined;
+        this.missionList = { ts, states, resetAt: Number.isInteger(limit) && limit > 0 ? limit * 1000 : null };
+    }
+
     private changeUseItemCount(idValue: unknown, deltaValue: unknown) {
         if (!this.useItemCounts) return;
         const id = Number(idValue), delta = Number(deltaValue);
@@ -1453,6 +1470,8 @@ export class GameState {
             this.observeUseItems(api);
         } else if (path === 'api_get_member/payitem') {
             this.observePayItems(api);
+        } else if (path === 'api_get_member/mission') {
+            this.observeMissionList(api, ts);
         } else if (path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
             || path === 'api_get_member/ship2') {
             this.onGetMemberShipDeck(path, api, req, ts);

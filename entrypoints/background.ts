@@ -67,6 +67,8 @@ const SNAPSHOT_PATHS = new Set([
   'api_get_member/slot_item',
   'api_get_member/base_air_corps',
   'api_get_member/mapinfo',
+  // 遠征清單只在進遠征畫面時送；留最新一筆，重新登入後遠征組合建議仍知道哪些遠征能派。
+  'api_get_member/mission',
 ]);
 
 // 通知與計時器的追蹤輸出只在開發建置印出：內容是使用者的遠征／入渠排程，正式建置不留在

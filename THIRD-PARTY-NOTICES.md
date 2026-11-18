@@ -518,6 +518,20 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 遠征清單（`api_get_member/mission`）
+
+- **封包欄位**：`api_list_items[]`（`api_mission_id`、`api_state`）與 `api_limit_time`，佈局以本專案樣本
+  `samples/mission-list.json` 為準；下列資料只作交叉比對：
+  - KC3Kai `src/library/modules/Kcsapi.js`（`api_limit_time[0]` 當月常重置時間）與
+    `src/library/helpers/KanColleHelpers.js` 的 `monthlyUnlockTable`（月常的前置遠征；樣本中不在清單的月常正好是
+    本期前置未成功者）— https://github.com/KC3Kai/KC3Kai ，MIT License，Copyright (c) 2015-2026 dragonjet
+  - ElectronicObserver `ElectronicObserver/Other/Information/apilist.txt`（`api_state` 0＝未出撃、1＝未達成、2＝達成済み）
+    — https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
+- **用途**：`utils/state.ts` 記下最近一次的清單，`utils/expedition-plan.ts` 只建議清單裡的遠征、以 `api_limit_time`
+  當月常本期截止；不收錄 `monthlyUnlockTable` 的資料，只採用欄位名稱與語意，未複製第三方程式碼。
+
+---
+
 ## 解體與近代化改修的裝備去留
 
 - **封包欄位**：解體走 `api_req_kousyou/destroyship`、廢棄裝備走 `api_req_kousyou/destroyitem2`；解體與

@@ -221,6 +221,21 @@ describe('遠征組合建議', () => {
         // 本期在 12/15 03:00 UTC 截止：剩 4 小時（不到一天改用小時）。
         expect(due).toContain(t('ov.epMonthlyDue', { date: formatDateTime(Date.parse('2026-12-15T03:00:00Z'), false), left: t('ov.epLeftHours', { n: 4 }) }));
         expect(due).toContain(`<th>${t('ov.epCycle')}</th>`);
+        // 遠征清單：本期未開放的月常標「未開放」；清單外的一般遠征不列入並說明條數；沒跑過的不再請玩家確認是否開放。
+        const listed = planResultHtml({
+            ...view(monthlyRecords), now,
+            plan: planExpeditions({
+                // 5（海上護衛任務）沒有紀錄、以固定報酬推算；905 不在清單。
+                missions: [...missions, { ...missions[0], id: 5, dispNo: '05' }], records: monthlyRecords, intervalMinutes: 180,
+                needs: [need('fuel', 1000, null, 350000)], horizonDays: 10, now,
+                missionList: { states: new Map([[5, 2]]), resetAt: Date.parse('2026-12-15T03:00:00Z') },
+            }),
+        });
+        expect(listed).toContain(t('ov.epCycleLocked'));
+        expect(listed).not.toContain(t('ov.epCycleOpen'));
+        expect(listed).toContain(t('ov.epLocked', { n: 1 }));
+        expect(listed).toContain(t('ov.epUnrunOpenTip'));
+        expect(listed).not.toContain(t('ov.epUnrunTip'));
         expect(html).toContain(t('ov.epAll', { n: 1 }));
         expect(html).toContain(t('ov.epWhenDays', { n: 10 }));
         // 燃料：每 3 小時收一次 → 8 趟 × 300 + 100 = 2,500／日，十天後 200,000（57%）；高速修復材 300 + 10 = 310（10%），是瓶頸
@@ -268,13 +283,17 @@ describe('遠征組合建議', () => {
         expect(html).toContain(t('ov.epRole', { item: t('mat.fuel.full') }));
         expect(html).toContain('<details class="el-plan-all" data-part="outlook">');
         expect(html).not.toMatch(/<details[^>]* open/);
+        // 精確搜尋還在背景算時，頂端多一行說明；算完就沒有。
+        expect(html).not.toContain(t('ov.epRefining'));
+        expect(planResultHtml({ ...view(tenRuns, [need('fuel', 175000, 100, 350000)]), refining: true })).toContain(t('ov.epRefining'));
         // 期限：改寫到期限為止。會存滿：(350,000 − 340,000) ÷ 2,400 ≈ 4.2 → 5 天。
         expect(planResultHtml({ ...view(tenRuns, [need('fuel', 175000, 100, 350000)]), deadline: '2026-12-31' }))
             .toContain(t('ov.epSpanDeadline', { date: '2026-12-31' }));
-        // 支出照最少的一週：寫明是哪一週；那週早於道具記錄且勾了道具時另外說明。
-        const weekView = { ...view(tenRuns, [need('fuel', 175000, 100, 350000), need('drum', 300, 1)]), basis: 'lightest' as const, week: { fromTs: 0, toTs: 7 * 86400000 } };
+        // 支出照最少的一週：寫明是哪一週；那週有沒道具標記的紀錄且勾了道具時另外說明。
+        const weekView = { ...view(tenRuns, [need('fuel', 175000, 100, 350000), need('drum', 300, 1)]), basis: 'lightest' as const, week: { fromTs: 0, toTs: 7 * 86400000, itemsRecorded: false } };
         expect(planResultHtml(weekView)).toContain(t('ov.epSpendWeek', { from: formatDate(0), to: formatDate(7 * 86400000) }));
         expect(planResultHtml(weekView)).toContain(t('ov.epSpendWeekItems'));
+        expect(planResultHtml({ ...weekView, week: { ...weekView.week, itemsRecorded: true } })).not.toContain(t('ov.epSpendWeekItems'));
         expect(planResultHtml({ ...weekView, week: null })).toContain(t('ov.epSpendNoWeek'));
         expect(planResultHtml({ ...weekView, basis: 'recent' })).not.toContain(t('ov.epSpendWeekItems'));
         // 沒設期限、組合能全部存滿：先講幾天全部存滿。

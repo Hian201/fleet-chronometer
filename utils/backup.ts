@@ -504,6 +504,7 @@ function validateExpedition(value: unknown, index: number): ExpeditionRow {
         result: integer(row.result, `${where}.result`, 0),
         resources: numberArray(row.resources, `${where}.resources`, 0),
         items,
+        ...(row.flagItems === undefined ? {} : { flagItems: booleanValue(row.flagItems, `${where}.flagItems`) }),
         ...(fleet === undefined ? {} : { fleet }),
     };
 }

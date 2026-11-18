@@ -364,6 +364,7 @@ export class EventProjector {
                 ? api.api_get_material.map((value: any) => Number(value) || 0)
                 : [],
             items,
+            flagItems: true,
         };
         // result 到達時艦隊仍維持本次遠征的編成；把名稱與等級存成摘要，日後改編成也能
         // 回看當時帶了誰。歷史紀錄缺少此欄時不可反推，因此不做回填猜測。
