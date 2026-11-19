@@ -214,8 +214,8 @@ commit，再刪除本檔對應段落。內容與程式碼不一致時以程式�
 
 ### 4.5 session 分派與建議模型
 
-模型與 effort 依 `docs/completion-plan.md` 第 3 節的「建議模型」通則（2026-11 可用的 Fable 5.2、
-Opus 5.5、Sonnet 5.5、Haiku 5.5），是擬定者的判斷，不是量測結果。派工格式與例外分流見
+模型與 effort 依 `docs/completion-plan.md` 第 3 節的「建議模型」通則，只用 Opus 5.5、
+Sonnet 5.5、Haiku 5.5，不採用 Fable；是擬定者的判斷，不是量測結果。派工格式與例外分流見
 `docs/task-template.md`。
 
 **分派原則**
@@ -230,10 +230,10 @@ Opus 5.5、Sonnet 5.5、Haiku 5.5），是擬定者的判斷，不是量測結�
 
 | 順序 | session | 範圍 | session 模型 | 可分派的子任務（subagent 模型） |
 |---|---|---|---|---|
-| 1 | 資料層 | §4.1：`useItemDrops` 欄位與三態、`archiveSortie()`、`battleInfo` 的道具欄、`validateSortie()` 備份往返、KC3Kai 出處註解與 `THIRD-PARTY-NOTICES.md` | Opus 5.5 或 Fable 5.2，高 effort；先進 plan mode 列出所有會碰到的地方 | §4.1 測試清單的 Vitest 案例（Sonnet 5.5 中）；`docs/engineering/records.md`／`backup.md` 現行事實（Sonnet 5.5 低） |
-| 2 | 當場顯示 | §4.1 的面板結算格與 `sortie-log.ts` 明細；依賴順序 1 已 commit | Opus 5.5 或 Fable 5.2，中 effort；先給三語預覽 | preview 腳本與三種顯示狀態的 fixture（Sonnet 5.5 中）；三語文案初稿（Sonnet 5.5 低） |
+| 1 | 資料層 | §4.1：`useItemDrops` 欄位與三態、`archiveSortie()`、`battleInfo` 的道具欄、`validateSortie()` 備份往返、KC3Kai 出處註解與 `THIRD-PARTY-NOTICES.md` | Opus 5.5，高 effort；先進 plan mode 列出所有會碰到的地方 | §4.1 測試清單的 Vitest 案例（Sonnet 5.5 中）；`docs/engineering/records.md`／`backup.md` 現行事實（Sonnet 5.5 低） |
+| 2 | 當場顯示 | §4.1 的面板結算格與 `sortie-log.ts` 明細；依賴順序 1 已 commit | Opus 5.5，中 effort；先給三語預覽 | preview 腳本與三種顯示狀態的 fixture（Sonnet 5.5 中）；三語文案初稿（Sonnet 5.5 低） |
 | 3 | 統計純函式 | §4.2 的 k／n／u、S／A 分列、連續無魚場數、場數與趟數分計、area／圖／節點彙總 | Sonnet 5.5，高 effort；規格以 §4.2 與 §7 為準 | 整份可由主模型分派；主模型另用真實備份跑一次核對 |
-| 4 | 道具捕撈子分頁 | §4.2 的 `drop-log.ts` 子分頁、空狀態、排除海域列表、明細連結、非同步與狀態保留 | Opus 5.5 或 Fable 5.2，中 effort；先給預覽 | 照 `factory.ts` 樣式的子分頁切換（Sonnet 5.5 中）；三語文案（Sonnet 5.5 低） |
+| 4 | 道具捕撈子分頁 | §4.2 的 `drop-log.ts` 子分頁、空狀態、排除海域列表、明細連結、非同步與狀態保留 | Opus 5.5，中 effort；先給預覽 | 照 `factory.ts` 樣式的子分頁切換（Sonnet 5.5 中）；三語文案（Sonnet 5.5 低） |
 | 5 | 自訂換海域提醒 | §4.2 末項；統計在實際活動中穩定後才做 | Sonnet 5.5 中 effort（判斷與不連發邏輯）；設定介面由同 session 先給預覽 | 提醒條件的純函式測試（Sonnet 5.5 中） |
 | 6（選做） | 爆雷誤帶提醒 | §4.3 | 裝備 id 清單的查證由主模型（Opus 5.5 中）做，不分派；判斷函式與面板顯示同 session | 判斷函式與測試（Sonnet 5.5 中）；面板文案（Sonnet 5.5 低） |
 | 7 | 任務與兌換防錯 | §4.4；當年任務條件查證後才做 | Sonnet 5.5 中 effort，接既有任務導覽 | 無；範圍小，同 session 完成 |
