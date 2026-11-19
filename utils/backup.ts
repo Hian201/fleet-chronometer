@@ -311,6 +311,11 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         drop,
         taiha: booleanValue(row.taiha, `${where}.taiha`),
         ...(row.dropMst === undefined ? {} : { dropMst: integer(row.dropMst, `${where}.dropMst`, 1) }),
+        // 道具掉落三態：缺席維持缺席（不可考），[] 照樣保留（確認沒有掉落），重複 id 不去重。
+        ...(row.useItemDrops === undefined ? {} : {
+            useItemDrops: arrayAt(row.useItemDrops, `${where}.useItemDrops`)
+                .map((id, at) => integer(id, `${where}.useItemDrops[${at}]`, 1)),
+        }),
         ...(row.newShipOverride === undefined ? {} : {
             newShipOverride: row.newShipOverride === 'old'
                 ? 'old' as const : invalid(`${where}.newShipOverride 必須是 old。`),

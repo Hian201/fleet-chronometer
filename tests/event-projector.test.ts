@@ -466,6 +466,55 @@ describe('EventProjector persist 模式', () => {
         const saved = tables.sorties.put.mock.calls[0][0] as SortieLogRow;
         expect(saved).not.toHaveProperty('dropMst');
     });
+
+    it.each([
+        ['秋刀魚', 'api_req_sortie/battleresult', { api_win_rank: 'S', api_get_useitem: { api_useitem_id: 68, api_useitem_name: '秋刀魚' } }, [68]],
+        ['其他道具', 'api_req_sortie/battleresult', { api_win_rank: 'A', api_get_useitem: { api_useitem_id: 93 } }, [93]],
+        ['聯合艦隊結算', 'api_req_combined_battle/battleresult', { api_win_rank: 'S', api_get_useitem: { api_useitem_id: 68 } }, [68]],
+        ['沒有道具欄位', 'api_req_sortie/battleresult', { api_win_rank: 'S' }, []],
+        ['只有海域獎勵欄位', 'api_req_sortie/battleresult', { api_win_rank: 'S', api_get_exmap_useitem_id: 57 }, []],
+        ['真封包（無道具）', 'api_req_combined_battle/battleresult', fixture('6-5-ec_result.json'), []],
+    ])('battle-result 道具掉落：%s', async (_label, path, api, expected) => {
+        const tables = mockTables();
+        const state = new GameState();
+        state.sortieInfo = { mapArea: 1, mapNo: 5, nodes: [{ id: 10, color: 4 }] };
+        state.battleInfo = mockBattleInfo();
+        const projector = new EventProjector({ state, tables });
+
+        await projector.project(row(1, path, api));
+
+        expect(state.battleInfo?.useItemDrops).toEqual(expected);
+        expect((tables.sorties.put.mock.calls[0][0] as SortieLogRow).useItemDrops).toEqual(expected);
+    });
+
+    it.each([
+        ['null', { api_win_rank: 'S', api_get_useitem: null }],
+        ['缺 id', { api_win_rank: 'S', api_get_useitem: {} }],
+        ['zero', { api_win_rank: 'S', api_get_useitem: { api_useitem_id: 0 } }],
+        ['numeric string', { api_win_rank: 'S', api_get_useitem: { api_useitem_id: '68' } }],
+    ])('battle-result 道具欄位格式無法識別（%s）時記為不可考，不偽裝成沒有掉落', async (_label, api) => {
+        const tables = mockTables();
+        const state = new GameState();
+        state.sortieInfo = { mapArea: 1, mapNo: 5, nodes: [{ id: 10, color: 4 }] };
+        state.battleInfo = mockBattleInfo();
+        const projector = new EventProjector({ state, tables });
+
+        await projector.project(row(1, 'api_req_sortie/battleresult', api));
+
+        expect(state.battleInfo?.useItemDrops).toBeUndefined();
+        expect(tables.sorties.put.mock.calls[0][0]).not.toHaveProperty('useItemDrops');
+    });
+
+    it('沒有戰鬥狀態時不寫出擊紀錄，也不憑結算單獨記道具掉落', async () => {
+        const tables = mockTables();
+        const state = new GameState();
+        state.sortieInfo = { mapArea: 1, mapNo: 5, nodes: [{ id: 10, color: 4 }] };
+        const projector = new EventProjector({ state, tables });
+
+        await projector.project(row(1, 'api_req_sortie/battleresult', { api_win_rank: 'S', api_get_useitem: { api_useitem_id: 68 } }));
+
+        expect(tables.sorties.put).not.toHaveBeenCalled();
+    });
 });
 
 describe('EventProjector 出擊 replay 不含演習', () => {

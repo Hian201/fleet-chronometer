@@ -610,6 +610,19 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 出擊結算的道具掉落（`api_get_useitem`）
+
+- **用途**：`utils/state.ts` 的 `battleResultUseItemDrops` 解析出擊結算的道具掉落（例如秋刀魚），
+  寫進 `battleInfo.useItemDrops`，再由 `utils/event-projector.ts` 存入出擊紀錄的 `useItemDrops`。
+- **性質**：遊戲 API 欄位的事實性語意；本專案自行以 TypeScript 撰寫，未複製任何原始碼。
+- **參照來源**：KC3Kai `src/library/objects/Node.js`（戰鬥結算處理：`api_get_useitem` 存在時取
+  `api_useitem_id`，缺席視為沒有道具掉落）—— https://github.com/KC3Kai/KC3Kai （MIT License），
+  2026-11-19 核對 master。
+- **限制**：本專案尚無含道具掉落的真實封包；取得後補進 `samples/` 交叉比對，不一致時以樣本為準。
+  `api_get_exmap_useitem_id` 的語意沒有證據，不收進出擊紀錄。
+
+---
+
 ## 12. 改修日程資料 (Akashi workshop schedule)
 
 - **用途**：`utils/akashi-schedule-data.ts`（由 `tools/akashi-schedule/generate.py` 產生）的「裝備 × 曜日 × 第一艦隊

@@ -196,6 +196,8 @@ export class EventProjector {
             const dropMst = api?.api_get_ship?.api_ship_id;
             // 只接受 battle-result 已驗證的正整數 master ID；名稱僅供顯示，不能反向猜測。
             if (Number.isSafeInteger(dropMst) && dropMst > 0) row.dropMst = dropMst;
+            // 道具掉落：reducer 剛處理完同一筆結算，三態照抄（見 db.ts SortieLogRow.useItemDrops）。
+            if (info.useItemDrops) row.useItemDrops = [...info.useItemDrops];
             // 結算封包的其餘欄位（皆已用 samples/6-5-ec_result.json 逐欄驗證）：
             // api_get_exp＝提督經驗值、api_mvp/api_mvp_combined＝MVP 位置（1-based，
             // 已與 analyzeBattle 的傷害推算在同一場真封包上比對一致）、

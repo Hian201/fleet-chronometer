@@ -57,6 +57,10 @@ export interface SortieLogRow {
     drop: string | null;
     // battle-result 已驗證的 api_get_ship.api_ship_id。舊資料可能沒有；不得由 drop 名稱反推。
     dropMst?: number;
+    // 結算掉落的道具（`api_get_useitem` 的原始 useitem id，例如秋刀魚 68）。三態：
+    // 欄位缺席＝不可考（舊紀錄、匯入列、格式無法識別）；[]＝已確認沒有道具掉落；非空＝有掉落。
+    // 舊紀錄不回填。`api_get_exmap_useitem_id` 語意未證實，不收進來。
+    useItemDrops?: number[];
     // 舊版曾用於打撈新船篩選修正；保留以相容既有備份，現行判定不讀取此欄位。
     newShipOverride?: 'old';
     taiha: boolean;

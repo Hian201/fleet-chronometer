@@ -43,6 +43,7 @@ tinyurl 上傳。出擊紀錄「下載出擊記錄」把複製 JSON、下載 JSO
 | `SortieLogRow.enemyName` | `api_enemy_info.api_deck_name` | 敵艦隊名（「任務部隊 主力群」） |
 | `SortieLogRow.baseExp` | **不在遊戲封包裡**——只有從 KC3Kai 匯出匯入時才有（`baseEXP`） | 基礎經驗值。本機擷取的紀錄永遠沒有這欄，UI 有值才顯示 |
 | `SortieLogRow.nodeEventId`／`nodeEventKind` | `api_req_map/start\|next` 的 `api_event_id`／`api_event_kind` | 節點類型（見 [maps.md](maps.md)）。**存原始值不存推導出的標籤**——語意對照日後修正時，舊紀錄會跟著變正確 |
+| `SortieLogRow.useItemDrops` | battleresult `api_get_useitem.api_useitem_id`（**例外：尚無真封包**，讀法依 KC3Kai `src/library/objects/Node.js`，見 `THIRD-PARTY-NOTICES.md`） | 道具掉落（秋刀魚等活動道具）。三態：缺席＝不可考；`[]`＝`api_get_useitem` 缺席、已確認沒有道具；`[id]`＝有掉落。欄位存在但格式無法識別時不寫欄位。`api_get_exmap_useitem_id` 語意未證實，不收。同值也寫在 `battleInfo.useItemDrops`，由 `state.ts` 的 `battleResultUseItemDrops` 唯一解析 |
 | `ReplayRow.fleet3`／`fleet4` | `api_req_map/start` 當下的第3/4艦隊快照 | 支援艦隊編組。**戰鬥封包的 `api_support_info.api_ship_id` 是艦實例 id、沒有等級與裝備**，要像 KC3Kai 那樣把支援畫成艦隊只能事前快照 |
 | `ReplayRow.lbas` | 出擊當下同海域的全部基地航空隊 | `api_air_base_attack` 只會出現「有出擊的那幾波」，答不了「這次三個基地各自的編成與行動」（含防空隊） |
 

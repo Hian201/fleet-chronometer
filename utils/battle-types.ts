@@ -142,6 +142,9 @@ export interface BattleInfoView {
     // 這次掉落是不是本鎮守府還沒有的船（以基礎形態比對，見 GameState.ownsShip）。
     // 沒有掉落時恆為 false。判定必須在 battleresult 當下做——見寫入處的說明。
     dropIsNew: boolean;
+    // 結算掉落的道具 useitem id（見 state.ts battleResultUseItemDrops）。結算前、或格式無法識別
+    // 時為 undefined；[] 表示已確認沒有道具掉落。
+    useItemDrops?: number[];
     supportFlag: number;
     aaci: number; // 0 if none, else AACI kind ID
     /** 對空 CI 發動艦、Type 與實際使用的裝備組合；沒有發動時為空陣列。 */

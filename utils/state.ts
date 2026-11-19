@@ -308,6 +308,22 @@ export function sortieNodeOf(api: any): SortieNode {
 }
 
 /**
+ * 出擊結算的道具掉落（`api_get_useitem`），三態：
+ * - 欄位缺席 → `[]`（這場沒有道具掉落）
+ * - `api_useitem_id` 是正整數 → `[id]`
+ * - 欄位存在但格式無法識別 → `undefined`（不可考，不偽裝成沒有掉落）
+ * 讀法依 KC3Kai `src/library/objects/Node.js` 的戰鬥結算處理：欄位存在取 `api_useitem_id`，
+ * 缺席視為沒有道具，每場只取一個 id。本專案尚無含道具掉落的真封包樣本，取得後應補進 samples/。
+ * `api_get_exmap_useitem_id` 語意沒有證據，不收進這裡（庫存累加另見 applyEvent 的 battleresult 分支）。
+ */
+export function battleResultUseItemDrops(api: any): number[] | undefined {
+    const reward = api?.api_get_useitem;
+    if (reward === undefined) return [];
+    const id = reward?.api_useitem_id;
+    return Number.isSafeInteger(id) && id > 0 ? [id] : undefined;
+}
+
+/**
  * Boss 節點判定比照 KC3Kai：有 `api_event_id` 時只認 5；只有舊封包沒有該欄位時，
  * 才回退既有的 `api_color_no=5` 事實，避免重播／舊資料被新規則洗掉。
  */
@@ -2850,6 +2866,7 @@ export class GameState {
             this.battleInfo.dropIsNew = api.api_get_ship
                 ? !this.ownsShip(Number(api.api_get_ship.api_ship_id))
                 : false;
+            this.battleInfo.useItemDrops = battleResultUseItemDrops(api);
             if (api.api_win_rank) this.battleInfo.rank = api.api_win_rank;
         }
         // 出擊戰鬥任務（見 quest-progress.ts QUEST_ID_OVERRIDES）。多數任務任意海域/節點

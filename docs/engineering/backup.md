@@ -38,6 +38,8 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
   `YYYY-MM-DD`；v11 以前的檔案夾帶時拒絕。整張表算在「還原目標資料」之內，目的地已有目標時整批拒絕。
 - 出擊紀錄的 optional 欄位（`SortieLogRow.getExp`／`mvp`／`mvpEscort`／`enemyName`、
   `ReplayRow.fleet3`／`fleet4`／`lbas`）缺席即維持缺席，舊備份不會被拒，也不補預設值。
+  `SortieLogRow.useItemDrops` 的三態都要原樣往返：缺席維持缺席，`[]` 不得被丟掉或當成缺席，
+  重複 id 不去重；元素必須是正整數，否則整批拒絕。
 - `wanted` 匯入時重配自身自增 id，但保留 eventId reference。
 
 **舊版相容**：每個版本的表組合各自固定（`determineKind()`），舊檔不會因缺少後來新增的表被拒，

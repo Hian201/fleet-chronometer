@@ -320,6 +320,25 @@ describe('備份 envelope runtime validation', () => {
         });
     });
 
+    it('出擊紀錄的道具掉落三態與重複 id 經驗證與還原不變；舊備份照常接受，格式不對時拒絕', async () => {
+        type SortieInput = { tables: { sorties: Array<Record<string, unknown>> } };
+        for (const drops of [[], [68], [68, 68]]) {
+            const input = v3Restore() as unknown as SortieInput;
+            input.tables.sorties[0].useItemDrops = drops;
+            expect(validateBackupEnvelope(input).tables.sorties![0].useItemDrops).toEqual(drops);
+            const database = createDb();
+            await restoreBackup(database, input);
+            expect((await database.sorties.get(2))?.useItemDrops).toEqual(drops);
+        }
+        expect(validateBackupEnvelope(v3Restore()).tables.sorties![0]).not.toHaveProperty('useItemDrops');
+
+        for (const bad of [null, 68, [0], [-1], [1.5], ['68']]) {
+            const malformed = v3Restore() as unknown as SortieInput;
+            malformed.tables.sorties[0].useItemDrops = bad;
+            expect(() => validateBackupEnvelope(malformed), JSON.stringify(bad)).toThrow(BackupValidationError);
+        }
+    });
+
     it('遠征編成快照可往返，格式不完整時拒絕而不靜默遺失', () => {
         const input = v3Restore();
         (input.tables.expeditions[0] as ExpeditionRow).fleet = [{ name: '睦月', level: 99 }];
