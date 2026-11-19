@@ -71,6 +71,7 @@ import {
     excludeCandidateGroups, loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps,
 } from '@/utils/sortie-exclude';
 import { PSEUDONYM_NOTES_EN, mapName, operationName } from '@/utils/map-names';
+import { useItemDisplayName } from '@/utils/item-catalog';
 import {
     esc, fmtNum, fmtShortTs, fmtTs, downloadText, copyWithFeedback, gearIconHtml, matIconHtml,
     eventDisplayTitle, eventFilterSelectHtml, eventNameOf, eventTermForFilter,
@@ -544,6 +545,17 @@ function kindTag(n: NodeDetail): string {
     return key ? `<span class="sl-tag kind">${esc(t(key))}</span>` : '';
 }
 
+// 結算道具掉落（秋刀魚等），與艦娘掉落同樣的旗標樣式並列。
+function itemDropFlags(ids: readonly number[], state: SectionContext['state']): string {
+    return ids.map(id => `<span class="sl-flag drop" title="${esc(t('sortie.itemDropTitle'))}">${esc(t('ov.slDrop'))} ${
+        esc(useItemDisplayName(id, getLang(), state.useItemName(id)))}</span>`).join('');
+}
+
+// 「無掉落」：沒有道具資料的舊紀錄只能確認沒掉艦娘，以 title 說明。
+function noDropFlag(itemsUnknown: boolean): string {
+    return `<span class="sl-flag nodrop"${itemsUnknown ? ` title="${esc(t('ov.slNoItemData'))}"` : ''}>${esc(t('ov.slNoDrop'))}</span>`;
+}
+
 function nodeCard(detail: SortieDetail, n: NodeDetail, state: SectionContext['state']): string {
     const label = nodeLabel(detail.map, n.node);
     // 字母是查表得來的，原始 cell 編號與完整節點類型留在 tooltip（對不上時才有辦法回頭查）
@@ -587,9 +599,10 @@ function nodeCard(detail: SortieDetail, n: NodeDetail, state: SectionContext['st
     }
     // 掉落：**有無都要顯示**——結算過的節點沒掉就是「無掉落」，不是資料缺席。
     const drop = dropName(n, state);
-    const dropChip = drop
-        ? `<span class="sl-flag drop" title="${esc(t('sortie.dropTitle'))}">${esc(t('ov.slDrop'))} ${esc(drop)}</span>`
-        : n.rank ? `<span class="sl-flag nodrop">${esc(t('ov.slNoDrop'))}</span>` : '';
+    const items = itemDropFlags(n.useItemDrops ?? [], state);
+    const dropChip = drop || items
+        ? `${drop ? `<span class="sl-flag drop" title="${esc(t('sortie.dropTitle'))}">${esc(t('ov.slDrop'))} ${esc(drop)}</span>` : ''}${items}`
+        : n.rank ? noDropFlag(!n.useItemDrops) : '';
     // 摘要列（收合時唯一看得到的一行）要放「掃描時要比較的東西」：節點・rank・boss／夜戰・
     // 制空・支援／基地・大破・掉落。細節（敵編成、數值、機數、經驗值）留給展開。
     return `<details class="sl-node${n.boss ? ' boss' : ''}">
@@ -1136,6 +1149,7 @@ function battleNodeLog(
         n.getExp ? `<span class="sl-tag">${esc(t('ov.slExp'))} ${n.getExp.toLocaleString()}</span>` : '',
         n.baseExp ? `<span class="sl-tag">${esc(t('ov.slBaseExp'))} ${n.baseExp.toLocaleString()}</span>` : '',
         n.drop || n.dropMst ? `<span class="sl-flag drop">${esc(t('ov.slDrop'))} ${esc(dropName(n, state) ?? '?')}</span>` : '',
+        itemDropFlags(n.useItemDrops ?? [], state),
     ].filter(Boolean).join('');
 
     return `<article id="sl-battle-node-${index}" data-battle-node-panel="${index}" class="sl-battle-node-log${n.boss ? ' boss' : ''}"${active ? '' : ' hidden'}>
@@ -1321,12 +1335,13 @@ export function detailHtml(
         : `<span class="sl-dim">${esc(t('ov.slNoPacket'))}</span>`;
     // 掉落：有就列艦名；沒有掉落但**有結算過**才顯示「無掉落」。Fleet Chronometer 自身匯出
     // 通常是「不知道」；KC3Kai logger 匯入若帶 rating/drop，則能確定是否掉落。
-    const settled = detail.nodes.some(n => n.kind === 'battle' && n.rank);
+    const settledNodes = detail.nodes.filter(n => n.kind === 'battle' && n.rank);
     const summary = [
         detail.totalExp > 0 ? `<span class="sl-tag">${esc(t('ov.slExpTotal'))} ${detail.totalExp.toLocaleString()}</span>` : '',
-        detail.drops.length
+        detail.drops.length || detail.itemDrops.length
             ? detail.drops.map(d => `<span class="sl-flag drop">${esc(t('ov.slDrop'))} ${esc(dropName(d, state) ?? '?')}</span>`).join('')
-            : settled ? `<span class="sl-flag nodrop">${esc(t('ov.slNoDrop'))}</span>` : '',
+                + itemDropFlags(detail.itemDrops, state)
+            : settledNodes.length ? noDropFlag(settledNodes.some(n => !n.useItemDrops)) : '',
     ].filter(Boolean).join('');
 
     // 道中支援／決戰支援：以「有沒有在 boss 節點出動」分（同 KC3Kai 的兩欄）

@@ -82,6 +82,12 @@ export function itemMatches(item: CatalogItem, input: string): boolean {
     return !term || Object.values(item.names).some(name => name.normalize('NFKC').toLocaleLowerCase().includes(term));
 }
 
+/** useitem id 的顯示名：目錄有就用該語言，沒有就用遊戲主檔的日文原名，都沒有才顯示 id。 */
+export function useItemDisplayName(id: number, lang: keyof CatalogItem['names'], masterNameJa?: string): string {
+    const item = itemCatalog.find(entry => entry.countSource.kind === 'useitem' && entry.countSource.id === id);
+    return item?.names[lang] ?? masterNameJa ?? `#${id}`;
+}
+
 export function uncataloguedUseItem(id: number, nameJa?: string): CatalogItem {
     const fallback = nameJa || `名称未登録（ID ${id}）`;
     return {

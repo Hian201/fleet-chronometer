@@ -32,6 +32,8 @@ import {
 import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { practiceBattleHeadHtml, practiceListHtml, practiceNightHtml, type PracticeRow } from './practice';
+import { sortieDropSlotHtml } from './sortie-drop';
+import { useItemDisplayName } from '@/utils/item-catalog';
 import { bossHpReplaySpecificity, observedBossHp } from '@/utils/boss-hp';
 import { NODE_KIND_KEYS, nodeKindKey } from '@/utils/map-node-kind';
 import { formationRects } from '@/utils/formation-geometry';
@@ -1555,9 +1557,12 @@ function renderSortie() {
                 allSunk,
             );
         } else {
-            rightSlot = `<div class="s-drop-slot ${dropChip ? 'filled' : 'empty'}">
-              ${dropChip || '<span class="s-drop-empty">No Drop</span>'}
-            </div>`;
+            // 道具掉落與持有數：reducer 已處理同一筆結算，持有數已含這次掉落。
+            const dropItems = info.hasResult ? (info.useItemDrops ?? []).map(id => ({
+                name: useItemDisplayName(id, getLang(), state.useItemName(id)),
+                held: state.useItemCount(id),
+            })) : [];
+            rightSlot = sortieDropSlotHtml(dropChip, dropItems);
         }
         html += `<div class="s-action-rail with-system">
             ${systemRailHtml}

@@ -5,6 +5,7 @@ import { setLang, t } from '../utils/ui-i18n';
 
 const panelHtml = readFileSync(new URL('../entrypoints/panel/index.html', import.meta.url), 'utf8');
 const panelMain = readFileSync(new URL('../entrypoints/panel/main.ts', import.meta.url), 'utf8');
+const panelDrop = readFileSync(new URL('../entrypoints/panel/sortie-drop.ts', import.meta.url), 'utf8');
 const preview = readFileSync(new URL('../tools/preview/panel-sortie.ts', import.meta.url), 'utf8');
 const agents = readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8');
 
@@ -211,7 +212,7 @@ describe('出擊面板的固定資訊密度', () => {
         expect(preview).toMatch(/\.pv-prop \.s-air-loss-grid\s*\{[\s\S]*?align-content:\s*center;/);
         expect(preview).toMatch(/\.pv-prop \.s-nodes\s*\{[\s\S]*?padding-inline:\s*4px;/);
         expect(panelHtml).toMatch(/\.s-drop-slot\.empty\s*\{[^}]*border:\s*0;/);
-        expect(panelMain).toContain("'<span class=\"s-drop-empty\">No Drop</span>'");
+        expect(panelDrop).toContain("'<span class=\"s-drop-empty\">No Drop</span>'");
         expect(preview).toContain("'<span class=\"s-drop-empty\">No Drop</span>'");
         expect(preview).not.toContain('No drop');
         expect(panelHtml).toContain('.s-node:not(.boss).no-battle::before');

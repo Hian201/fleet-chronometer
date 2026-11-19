@@ -324,6 +324,8 @@ export interface NodeDetail {
     taiha: boolean;
     drop: string | null;
     dropMst?: number;
+    /** 結算掉落的道具 useitem id；缺席＝舊紀錄或匯入列，不可考（見 db.ts SortieLogRow.useItemDrops）。 */
+    useItemDrops?: number[];
     /** 提督經驗值／MVP 位置（1-based）／敵艦隊名——皆來自 battleresult，舊紀錄沒有。 */
     getExp?: number;
     /** 基礎經驗值：只有從 KC3Kai 匯出匯入的紀錄才有（遊戲封包沒這欄）。 */
@@ -392,6 +394,8 @@ export interface SortieDetail {
      * 名字要由呼叫端依當前語言解析（同 NodeDetail.drop／dropMst）。
      */
     drops: { drop: string | null; dropMst?: number }[];
+    /** 本次出擊各節點掉落的道具 useitem id（依節點順序，不去重）。 */
+    itemDrops: number[];
     /** 最後一個戰鬥節點的 rank（清單列的代表值）；無戰鬥節點時為空字串。 */
     lastRank: string;
     hasReplay: boolean;
@@ -607,6 +611,7 @@ export function buildSortieDetail(rows: SortieLogRow[], replay?: ReplayRow): Sor
         drops: ordered
             .filter(r => r.drop || r.dropMst)
             .map(r => ({ drop: r.drop, ...(r.dropMst ? { dropMst: r.dropMst } : {}) })),
+        itemDrops: ordered.flatMap(r => r.useItemDrops ?? []),
         lastRank: battleNodes.length ? battleNodes[battleNodes.length - 1].rank : '',
         hasReplay: !!replay,
     };
@@ -633,6 +638,7 @@ function nodeDetail(row: SortieLogRow | null, entry: ReplayNode | undefined, rep
         taiha: row?.taiha ?? battle?.isTaiha ?? false,
         drop: row?.drop ?? null,
         ...(row?.dropMst === undefined ? {} : { dropMst: row.dropMst }),
+        ...(row?.useItemDrops === undefined ? {} : { useItemDrops: row.useItemDrops }),
         ...(row?.getExp === undefined ? {} : { getExp: row.getExp }),
         ...(row?.baseExp === undefined ? {} : { baseExp: row.baseExp }),
         ...(row?.nodeEventId === undefined ? {} : { nodeEventId: row.nodeEventId }),

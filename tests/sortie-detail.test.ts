@@ -261,6 +261,16 @@ describe('buildSortieDetail：摘要 × 原始封包', () => {
         expect(boss.battle?.resultFleets?.playerMain).toHaveLength(6);
     });
 
+    it('道具掉落逐節點保留三態，整趟彙總依節點順序且不去重', () => {
+        const withItems = rows.map((row, i) => i === 0 ? { ...row, useItemDrops: [68] }
+            : i === 1 ? { ...row, useItemDrops: [] }
+            : i === 2 ? { ...row, useItemDrops: [68] } : row);
+        const d = buildSortieDetail(withItems, replay);
+        expect(d.nodes.map(n => n.useItemDrops)).toEqual([[68], [], [68], undefined, undefined]);
+        expect(d.itemDrops).toEqual([68, 68]);
+        expect(buildSortieDetail(rows, replay).itemDrops).toEqual([]);
+    });
+
     it('沒有 replay 時仍以摘要重建節點（battle/lbas/support 留空，不臆測）', () => {
         const d = buildSortieDetail(rows);
         expect(d.hasReplay).toBe(false);

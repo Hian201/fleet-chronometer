@@ -5285,6 +5285,13 @@
         .s-sakura-anchor.owned { opacity: .88; }
         .sakura-drop-name { max-width: calc(100% - 29px); overflow: hidden; color: #e2bb67; font-size: 9.5px; font-weight: 600; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
         .sakura-drop.owned .sakura-drop-name { color: #8ea0b0; }
+        /* 結算道具：名稱在上、持有數在下；與艦娘晶片並排時各自收縮，過長以省略號收尾（完整內容在 title）。 */
+        .s-drop-item { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; max-width: 100%; }
+        .s-drop-item-name { max-width: 100%; overflow: hidden; color: var(--text); font-size: 9.5px; font-weight: 600; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+        .s-drop-item-held { max-width: 100%; overflow: hidden; color: var(--dim); font-size: 8.5px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+        .s-drop-slot.with-item { gap: 6px; padding-inline: 4px; }
+        .s-drop-slot.with-item .s-drop-chip.sakura-drop { flex: 1 1 auto; }
+        .s-drop-slot.with-item .s-drop-item { flex: 0 0 auto; max-width: 48%; }
 
         /* ── 出擊紀錄（紀錄分頁）── */
         .h-group {
