@@ -290,13 +290,13 @@ export default defineBackground(() => {
       try {
         api = parseKcsapiResponse(msg.apiText);
       } catch (error) {
-        console.warn(
-          error instanceof KcsapiResultError
-            ? '[Fleet Chronometer] 伺服器回報請求未成功，略過此筆事件'
-            : '[Fleet Chronometer] 無法解析 kcsapi response，略過此筆事件',
-          msg.path,
-          error instanceof KcsapiResultError ? error.result : '',
-        );
+        // 伺服器拒絕請求屬遊戲端狀況（例如另一個分頁登入後舊分頁收到的錯誤碼），不是擴充故障：
+        // 用 info 留在 service worker console，不進 chrome://extensions 的錯誤頁。
+        if (error instanceof KcsapiResultError) {
+          console.info('[Fleet Chronometer] 伺服器回報請求未成功，略過此筆事件', msg.path, error.result);
+        } else {
+          console.warn('[Fleet Chronometer] 無法解析 kcsapi response，略過此筆事件', msg.path);
+        }
         return;
       }
     }
