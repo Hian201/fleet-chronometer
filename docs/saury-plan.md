@@ -105,6 +105,7 @@ commit，再刪除本檔對應段落。內容與程式碼不一致時以程式�
 ## 4. 實作步驟
 
 先保存可靠事實，再做統計；沒有確認過的欄位語意就停在證據補齊，不先做會遺失資料的半套投影。
+各步驟拆成哪些 session、用什麼模型、哪些子任務可分派給 subagent，見 §4.5。
 
 ### 4.1 第一步：出擊紀錄保存道具掉落（必要、最小）
 
@@ -210,6 +211,36 @@ commit，再刪除本檔對應段落。內容與程式碼不一致時以程式�
 
 活動結束時間只有在當年公告查證後才顯示，並明示時區；秋刀魚在結束維護時清除，不能把歷史
 持有快照當成下年度可用庫存。[S10] 沒有當年期限資料時不啟用自動期限通知。
+
+### 4.5 session 分派與建議模型
+
+模型與 effort 依 `docs/completion-plan.md` 第 3 節的「建議模型」通則（2026-11 可用的 Fable 5.2、
+Opus 5.5、Sonnet 5.5、Haiku 5.5），是擬定者的判斷，不是量測結果。派工格式與例外分流見
+`docs/task-template.md`。
+
+**分派原則**
+- **主模型**（session 本身的模型）負責設計判斷、證據查證、看 subagent 的 diff 與跑 `npm run check`
+  驗收。動到資料模型的核心（`db.ts` 欄位、`archiveSortie()`、`validateSortie()`）不分派。
+- **可分派給 subagent** 的是規格已在本檔寫死、能獨立驗收的子任務：依 §4.1／§4.2／§7 已列的案例
+  寫 Vitest、照既有樣式的子分頁切換、離線 preview 腳本、三語文案初稿、`docs/engineering/` 的
+  現行事實改寫。subagent 用較便宜的模型，主模型必須看過 diff 才算完成。
+- 每個 session 結束於可 commit 的狀態；動資料格式、DB 或備份前，依 `task-template.md` 分流表
+  先說明相容做法並等開發者同意（本檔 §4.1 已寫明做法，開發者核可即可動工）。
+- 介面 session 先出 `.preview/` 預覽給開發者看，再 commit。
+
+| 順序 | session | 範圍 | session 模型 | 可分派的子任務（subagent 模型） |
+|---|---|---|---|---|
+| 1 | 資料層 | §4.1：`useItemDrops` 欄位與三態、`archiveSortie()`、`battleInfo` 的道具欄、`validateSortie()` 備份往返、KC3Kai 出處註解與 `THIRD-PARTY-NOTICES.md` | Opus 5.5 或 Fable 5.2，高 effort；先進 plan mode 列出所有會碰到的地方 | §4.1 測試清單的 Vitest 案例（Sonnet 5.5 中）；`docs/engineering/records.md`／`backup.md` 現行事實（Sonnet 5.5 低） |
+| 2 | 當場顯示 | §4.1 的面板結算格與 `sortie-log.ts` 明細；依賴順序 1 已 commit | Opus 5.5 或 Fable 5.2，中 effort；先給三語預覽 | preview 腳本與三種顯示狀態的 fixture（Sonnet 5.5 中）；三語文案初稿（Sonnet 5.5 低） |
+| 3 | 統計純函式 | §4.2 的 k／n／u、S／A 分列、連續無魚場數、場數與趟數分計、area／圖／節點彙總 | Sonnet 5.5，高 effort；規格以 §4.2 與 §7 為準 | 整份可由主模型分派；主模型另用真實備份跑一次核對 |
+| 4 | 道具捕撈子分頁 | §4.2 的 `drop-log.ts` 子分頁、空狀態、排除海域列表、明細連結、非同步與狀態保留 | Opus 5.5 或 Fable 5.2，中 effort；先給預覽 | 照 `factory.ts` 樣式的子分頁切換（Sonnet 5.5 中）；三語文案（Sonnet 5.5 低） |
+| 5 | 自訂換海域提醒 | §4.2 末項；統計在實際活動中穩定後才做 | Sonnet 5.5 中 effort（判斷與不連發邏輯）；設定介面由同 session 先給預覽 | 提醒條件的純函式測試（Sonnet 5.5 中） |
+| 6（選做） | 爆雷誤帶提醒 | §4.3 | 裝備 id 清單的查證由主模型（Opus 5.5 中）做，不分派；判斷函式與面板顯示同 session | 判斷函式與測試（Sonnet 5.5 中）；面板文案（Sonnet 5.5 低） |
+| 7 | 任務與兌換防錯 | §4.4；當年任務條件查證後才做 | Sonnet 5.5 中 effort，接既有任務導覽 | 無；範圍小，同 session 完成 |
+
+順序 1 最急，活動期間每天沒記錄就永久少一天資料；順序 2 可緊接在同一天做。順序 3、4 可在
+紀錄累積後進行，3 與 4 也可以並行（4 先用 fixture 畫，最後接上 3 的函式）。開撈後補真樣本、
+確認三態與兌換後持有數校正屬 live 驗證，由開發者手動做，任何 session 都不得自行擷取。
 
 ## 5. 不做的事
 
