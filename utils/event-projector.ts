@@ -1,5 +1,5 @@
 import {
-    db, type ApiEventRow, type ExpeditionRow, type FactoryLogRow, type MaterialUseRow, type ReplayRow, type SortieBillRow,
+    db, type ApiEventRow, type ExpeditionGear, type ExpeditionRow, type ExpeditionShip, type FactoryLogRow, type MaterialUseRow, type ReplayRow, type SortieBillRow,
     type SortieLogRow,
 } from './db';
 import { appendBattle, setDifficulty, startReplay } from './replay';
@@ -370,8 +370,17 @@ export class EventProjector {
         };
         // result 到達時艦隊仍維持本次遠征的編成；把名稱與等級存成摘要，日後改編成也能
         // 回看當時帶了誰。歷史紀錄缺少此欄時不可反推，因此不做回填猜測。
-        const fleet = this.state.fleets()[deckId - 1]?.ships
-            .map(ship => ({ name: ship.name, level: ship.lv }));
+        // 月常與交戰型遠征另記裝備：這兩類要湊條件、會受損，玩家會回頭查當時怎麼配；一般遠征只記艦。
+        const mission = this.state.masterMissions.get(row.missionId);
+        const withGear = !!mission && (mission.resetType === 1 || mission.damageType > 0);
+        const gear = (g: { mst: number; level: number }): ExpeditionGear => ({ mst: g.mst, level: g.level });
+        const fleet = this.state.fleets()[deckId - 1]?.ships.map((ship): ExpeditionShip => ({
+            name: ship.name, level: ship.lv,
+            ...(withGear ? {
+                gears: ship.gears.filter((g): g is NonNullable<typeof g> => !!g).map(gear),
+                ...(ship.exGear ? { ex: gear(ship.exGear) } : {}),
+            } : {}),
+        }));
         if (fleet?.length) row.fleet = fleet;
         if (this.shouldPersist) await this.tables.expeditions.put(row);
     }

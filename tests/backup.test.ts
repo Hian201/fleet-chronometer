@@ -361,6 +361,17 @@ describe('備份 envelope runtime validation', () => {
         expect(() => validateBackupEnvelope(malformed)).toThrow(BackupValidationError);
     });
 
+    it('遠征艦隊快照的裝備可往返；舊備份沒有這欄照常接受，格式不對時拒絕', () => {
+        const input = v3Restore();
+        const fleet = [{ name: '睦月', level: 80, gears: [{ mst: 75, level: 3 }], ex: { mst: 79, level: 0 } }, { name: '如月', level: 80 }];
+        (input.tables.expeditions[0] as ExpeditionRow).fleet = fleet;
+        expect(validateBackupEnvelope(input).tables.expeditions?.[0].fleet).toEqual(fleet);
+
+        const malformed = v3Restore();
+        (malformed.tables.expeditions[0] as ExpeditionRow).fleet = [{ name: '睦月', level: 80, gears: [{ mst: 0, level: 0 }] }];
+        expect(() => validateBackupEnvelope(malformed)).toThrow(BackupValidationError);
+    });
+
     it('最高來源 ID 計算涵蓋所有關聯欄位，factory 小數主鍵以原值納入上界', () => {
         const cases: Array<[string, (tables: BackupTables) => void, number]> = [
             ['snapshot.eventId', tables => { tables.snapshot![0].eventId = 101; }, 101],

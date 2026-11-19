@@ -13,7 +13,8 @@
 // ── 版面慣例 ────────────────────────────────────────────────────────────
 // 控制項只建一次、只重繪 `.el-body`（design-guidelines §4.2 的第二種例外）：這裡有
 // 關鍵字與日期輸入框，整塊重繪會讓輸入框每打一個字就失焦。
-import type { ExpeditionRow, ResourceMarkRow } from '@/utils/db';
+import type { ExpeditionGear, ExpeditionRow, ExpeditionShip, ResourceMarkRow } from '@/utils/db';
+import type { GameState } from '@/utils/state';
 import type { OverviewSection, SectionContext } from './types';
 import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
@@ -28,7 +29,7 @@ import {
     type ExpeditionStat, type ExpeditionTotals, type StatSortKey,
 } from '@/utils/expedition-stats';
 import {
-    copyWithFeedback, dateEnd, dateStart, downloadText, esc, fmtNum, fmtTs, hashParams,
+    copyWithFeedback, dateEnd, gearIconHtml, dateStart, downloadText, esc, fmtNum, fmtTs, hashParams,
     itemName, loadJsonPrefs, matIconHtml, paginate, USE_ITEM_ICONS, parseColumnIds, parsePageSize, saveJsonPrefs,
 } from '../lib';
 import { loadGoalFlow, stockpileLinesOf } from './goals';
@@ -54,14 +55,45 @@ type PageSize = typeof PAGE_SIZES[number];
 
 type ColumnId = 'time' | 'type' | 'fleet' | 'result' | 'fuel' | 'ammo' | 'steel' | 'bauxite' | 'items';
 
+/** 表格需要的主檔查詢：遠征的遊戲內編號（B2 等）、裝備名稱與圖示。主檔沒載入時回 null。 */
+export interface RowLookup {
+    dispNo(missionId: number): string | null;
+    gear(mst: number): { name: string; icon: number } | null;
+}
+const NO_LOOKUP: RowLookup = { dispNo: () => null, gear: () => null };
+
+export function rowLookup(state: GameState): RowLookup {
+    return {
+        dispNo: id => state.masterMissions.get(id)?.dispNo ?? null,
+        gear: mst => {
+            const master = state.masterGears.get(mst);
+            return master ? { name: state.gearName(mst), icon: master.icon } : null;
+        },
+    };
+}
+
 interface Column {
     id: ColumnId;
     labelKey: string;
     on: boolean;
-    cell(row: ExpeditionRow): string;
+    cell(row: ExpeditionRow, look?: RowLookup): string;
     /** CSV 用的純文字（匯出跟著顯示欄位走，同 ships／equipment 分區的規則）。 */
-    text(row: ExpeditionRow): string;
+    text(row: ExpeditionRow, look?: RowLookup): string;
 }
+
+/** 艦隊快照的裝備（只有月常與交戰型遠征記）：圖示＋名稱＋改修值，補強增設前加分隔。 */
+function shipGearsHtml(ship: ExpeditionShip, look: RowLookup): string {
+    const one = (g: ExpeditionGear, ex = false) => {
+        const info = look.gear(g.mst);
+        const name = info?.name ?? `#${g.mst}`;
+        const star = g.level > 0 ? `★${g.level}` : '';
+        return `<span class="el-gear${ex ? ' el-gear-ex' : ''}" title="${esc(ex ? `${t('ov.expedExSlot')}：${name}${star}` : `${name}${star}`)}">`
+            + `${info ? gearIconHtml(info.icon, name) : ''}<span>${esc(name)}</span>${star ? `<i>${star}</i>` : ''}</span>`;
+    };
+    return `<span class="el-gears">${(ship.gears ?? []).map(g => one(g)).join('')}${ship.ex ? one(ship.ex, true) : ''}</span>`;
+}
+
+const typeNo = (r: ExpeditionRow, look: RowLookup) => (r.missionId ? look.dispNo(r.missionId) : null);
 
 const materialCell = (index: number) => (row: ExpeditionRow) => {
     const value = row.resources?.[index] ?? 0;
@@ -86,20 +118,27 @@ export const COLUMNS: Column[] = [
         id: 'type', labelKey: 'ov.expedColType', on: true,
         // 活動限定的 S1／S2 支援遠征補「道中／王點」註記；CSV 的 text 刻意維持封包原名，
         // 匯出的是資料不是解說。
-        cell: r => `<div class="el-type"><b title="${esc(expedDisplayName(r.missionId, r.name))}">${
+        cell: (r, look = NO_LOOKUP) => `<div class="el-type"><b title="${esc(expedDisplayName(r.missionId, r.name))}">${
             esc(r.name ? expedDisplayName(r.missionId, r.name) : `#${r.missionId}`)}</b>`
-            + `<span>${esc(t('ov.expedDeck', { n: r.deckId }))} · #${r.missionId || '–'}</span></div>`,
-        text: r => `${r.name || ''} #${r.missionId || ''}`.trim(),
+            + `<span>${esc(t('ov.expedDeck', { n: r.deckId }))}${typeNo(r, look) ? ` · ${esc(typeNo(r, look)!)}` : ''}</span></div>`,
+        text: (r, look = NO_LOOKUP) => `${r.name || ''} ${typeNo(r, look) ?? ''}`.trim(),
     },
     {
         // 編成**預設收合**（使用者要求）：六艘 chip 攤開會讓每一列高出好幾倍，而逐筆
         // 瀏覽時要看的是「這趟拿了什麼」，編成是想確認時才點開的細節。折疊一律用原生
         // `<details>`（design-guidelines §4.3），caret 走 ::before 字元不用 rotate。
         id: 'fleet', labelKey: 'ov.expedColFleet', on: true,
-        cell: r => r.fleet?.length
-            ? `<details class="el-fleet-d"><summary>${esc(t('unit.ships', { n: r.fleet.length }))}</summary>`
-            + `<div class="el-fleet">${r.fleet.map(ship => `<span class="el-ship" title="${esc(`${ship.name} Lv${ship.level}`)}">${esc(ship.name)}<i>Lv${ship.level}</i></span>`).join('')}</div></details>`
-            : `<span class="el-unknown" title="${esc(t('ov.expedFleetUnknownTip'))}">${esc(t('ov.expedUnknown'))}</span>`,
+        cell: (r, look = NO_LOOKUP) => {
+            if (!r.fleet?.length) return `<span class="el-unknown" title="${esc(t('ov.expedFleetUnknownTip'))}">${esc(t('ov.expedUnknown'))}</span>`;
+            const ship = (s: ExpeditionShip) => `<span class="el-ship" title="${esc(`${s.name} Lv${s.level}`)}">${esc(s.name)}<i>Lv${s.level}</i></span>`;
+            // 有裝備快照（月常、交戰型）時一艦一行：艦名＋裝備；其他遠征維持艦名 chip。
+            const withGear = r.fleet.some(s => s.gears !== undefined);
+            return `<details class="el-fleet-d"><summary>${esc(t('unit.ships', { n: r.fleet.length }))}</summary>`
+                + (withGear
+                    ? `<div class="el-fleet el-fleet-gear">${r.fleet.map(s => `<div class="el-ship-row">${ship(s)}${shipGearsHtml(s, look)}</div>`).join('')}</div>`
+                    : `<div class="el-fleet">${r.fleet.map(ship).join('')}</div>`)
+                + '</details>';
+        },
         text: r => r.fleet?.length ? r.fleet.map(s => `${s.name} Lv${s.level}`).join(' / ') : t('ov.expedUnknown'),
     },
     {
@@ -250,10 +289,10 @@ export function statsHtml(stats: ExpeditionStat[], prefs: Prefs): string {
     </details>`;
 }
 
-export function tableHtml(rows: ExpeditionRow[], cols: Column[]) {
+export function tableHtml(rows: ExpeditionRow[], cols: Column[], look: RowLookup = NO_LOOKUP) {
     return `<div class="el-table-wrap"><table class="el-table"><thead><tr>${cols.map(c =>
         `<th class="el-c-${c.id}">${esc(t(c.labelKey))}</th>`).join('')}</tr></thead><tbody>${rows.map(row =>
-        `<tr>${cols.map(c => `<td class="el-c-${c.id}">${c.cell(row)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        `<tr>${cols.map(c => `<td class="el-c-${c.id}">${c.cell(row, look)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
 // ── 遠征組合建議 ──────────────────────────────────────────────────────────
@@ -713,7 +752,7 @@ export const expedLogSection: OverviewSection = {
             body.innerHTML = all.length
                 ? summaryHtml(totals, from, to, rows)
                     + (p.rows.length
-                        ? `<section class="el-detail">${tableHtml(p.rows, cols)}</section>`
+                        ? `<section class="el-detail">${tableHtml(p.rows, cols, rowLookup(ctx.state))}</section>`
                         : `<div class="ov-empty">${esc(t('ov.expedNoneInRange'))}</div>`)
                     + statsHtml(stats, prefs)
                 : `<div class="ov-empty">${esc(t('ov.expedNone'))}</div>`;
@@ -799,7 +838,7 @@ export const expedLogSection: OverviewSection = {
             const cols = COLUMNS.filter(c => prefs.cols.includes(c.id));
             return rowsToCsv([
                 cols.map(c => t(c.labelKey)),
-                ...selected().map(row => cols.map(c => c.text(row))),
+                ...selected().map(row => cols.map(c => c.text(row, rowLookup(ctx.state)))),
             ]);
         };
         const stamp = () => new Date().toISOString().slice(0, 10);

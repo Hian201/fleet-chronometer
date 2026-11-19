@@ -352,3 +352,16 @@ A4–A6、B2–B6、D2、D3、E1、E2）；`GameState.masterMissions` 存 `reset
 `expedition-data`，沒收錄寫不可考；道具取主檔 `api_win_item1`＝成功時最多 n 個、`api_win_item2`＝大成功限定）。
 一般遠征全開時收成一行放最後；沒開完才展開放在路徑前面，只列還有未開放遠征的海域。
 
+## 遠征紀錄的逐筆明細（`sections/exped-log.ts`）
+
+**遠征類型欄**：遠征名下方寫「第 N 艦隊 · 遊戲內編號」（B2、05 等，取主檔 `api_disp_no`）；主檔沒載入時只寫艦隊。
+`missionId` 是 `api_mission_id`（例：B2＝111），只在內部使用，不顯示。CSV 同樣寫遊戲內編號。
+
+**編成欄**：預設收合，展開看艦名與等級。月常（`api_reset_type` 1）與交戰型（`api_damage_type` 1／2）遠征的紀錄另存
+裝備（`ExpeditionShip.gears`＝一般槽的裝備 master id＋改修值，`ex`＝補強增設），展開時一艦一行列出裝備圖示、名稱與★；
+這兩類要湊條件、會受損，玩家會回頭查當時怎麼配。一般遠征與這次改版前的紀錄只有艦名，不回填。
+`api_damage_type` 的語意：`samples/start2-master.json` 中值為 1 的 43、A5、B4、D2 與值為 2 的 46、A6、B5、B6、D3、E1、E2，
+與 wikiwiki.jp/kancolle「遠征」交戦 I 型／II 型的清單逐條相符。備份還原會驗證並保留 `gears`／`ex`。
+
+**工具列**：打撈、遠征、建造、開發四個紀錄頁的下拉選單與日期、搜尋框共用同一組外觀（`.rs-search` 那組規則）。
+

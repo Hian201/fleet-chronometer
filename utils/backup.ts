@@ -494,10 +494,17 @@ function validateExpedition(value: unknown, index: number): ExpeditionRow {
         };
     });
     const fleet = row.fleet === undefined ? undefined : arrayAt(row.fleet, `${where}.fleet`).map((entry, fleetIndex) => {
-        const ship = objectAt(entry, `${where}.fleet[${fleetIndex}]`);
+        const shipWhere = `${where}.fleet[${fleetIndex}]`;
+        const ship = objectAt(entry, shipWhere);
+        const gear = (raw: unknown, at: string) => {
+            const g = objectAt(raw, at);
+            return { mst: integer(g.mst, `${at}.mst`, 1), level: integer(g.level, `${at}.level`, 0) };
+        };
         return {
-            name: nonEmptyString(ship.name, `${where}.fleet[${fleetIndex}].name`),
-            level: integer(ship.level, `${where}.fleet[${fleetIndex}].level`, 1),
+            name: nonEmptyString(ship.name, `${shipWhere}.name`),
+            level: integer(ship.level, `${shipWhere}.level`, 1),
+            ...(ship.gears === undefined ? {} : { gears: arrayAt(ship.gears, `${shipWhere}.gears`).map((g, i) => gear(g, `${shipWhere}.gears[${i}]`)) }),
+            ...(ship.ex === undefined ? {} : { ex: gear(ship.ex, `${shipWhere}.ex`) }),
         };
     });
     return {

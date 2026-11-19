@@ -303,6 +303,33 @@ describe('EventProjector persist 模式', () => {
         ]);
     });
 
+    it('月常與交戰型遠征的艦隊快照帶裝備（含補強增設），一般遠征只記艦', async () => {
+        const database = createDb();
+        const state = new GameState();
+        const mission = (api_id: number, api_reset_type: number, api_damage_type: number) => ({
+            api_id, api_disp_no: String(api_id), api_maparea_id: 1, api_name: `m${api_id}`, api_reset_type, api_damage_type,
+            api_time: 60, api_deck_num: 2, api_win_item1: [0, 0], api_win_item2: [0, 0], api_use_fuel: 0.5, api_use_bull: 0.5,
+        });
+        state.applyEvent('api_start2/getData', { api_mst_ship: [], api_mst_slotitem: [], api_mst_mission: [mission(5, 0, 0), mission(42, 1, 0), mission(141, 1, 2), mission(110, 0, 1)] });
+        const projector = new EventProjector({ state, mode: 'persist', tables: database });
+        await projector.project(row(1, 'api_get_member/require_info', {
+            api_slot_item: [{ api_id: 201, api_slotitem_id: 301, api_level: 6, api_alv: 0 }, { api_id: 202, api_slotitem_id: 302, api_level: 0, api_alv: 0 }],
+        }));
+        await projector.project(row(2, 'api_port/port', { ...portApi(), api_ship: [{ ...portApi().api_ship[0], api_slot: [201, -1], api_slot_ex: 202 }] }));
+        const startAndResult = async (id: number, missionId: number) => {
+            await projector.project(row(id, 'api_req_mission/start', {}, { api_deck_id: '1', api_mission_id: String(missionId) }));
+            await projector.project(row(id + 1, 'api_req_mission/result', { api_quest_name: 'x', api_clear_result: 1, api_get_material: [0, 0, 0, 0] }, { api_deck_id: '1' }));
+        };
+        await startAndResult(10, 5);
+        await startAndResult(20, 42);
+        await startAndResult(30, 141);
+        await startAndResult(40, 110);   // 交戰型但不是月常（假想）：只看 damageType 也要帶裝備
+        const fleets = (await database.expeditions.orderBy('eventId').toArray()).map(r => r.fleet?.[0]);
+        expect(fleets[0]).toEqual({ name: expect.any(String), level: 99 });
+        const withGear = { name: expect.any(String), level: 99, gears: [{ mst: 301, level: 6 }], ex: { mst: 302, level: 0 } };
+        expect(fleets.slice(1)).toEqual([withGear, withGear, withGear]);
+    });
+
     it('入渠用桶與艦娘改造寫入 materialUse；查不到改造前形態就不寫', async () => {
         const database = createDb();
         const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });

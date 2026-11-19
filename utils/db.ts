@@ -237,6 +237,9 @@ export interface ReplayRow {
 
 // 遠征紀錄（api_req_mission/result 消化後摘要，「遠征紀錄」分區用）。同 sorties/factory
 // 設計：獨立於事件裁剪、永久保留、每筆 <1KB；主鍵 eventId + put ⇒ 冪等、重播自動回填。
+export interface ExpeditionGear { mst: number; level: number }
+export interface ExpeditionShip { name: string; level: number; gears?: ExpeditionGear[]; ex?: ExpeditionGear }
+
 export interface ExpeditionRow {
     eventId: number;
     ts: number;
@@ -250,7 +253,8 @@ export interface ExpeditionRow {
     // （不是真的 0），遠征組合建議只用有此欄的紀錄算這三種的平均。
     flagItems?: boolean;
     // 結算封包到達時的艦隊快照。舊紀錄沒有這筆資料，UI 必須誠實顯示不可考。
-    fleet?: { name: string; level: number }[];
+    // gears／ex：月常與交戰型遠征才記（裝備 master id＋改修值；ex 是補強增設）；其他遠征與舊紀錄沒有。
+    fleet?: ExpeditionShip[];
 }
 
 // 母港快照：不受 M6 event 裁剪影響的「重建目前狀態所需關鍵原始封包」，每個 path 只留

@@ -894,7 +894,9 @@ export class GameState {
     // resetType：api_reset_type（0＝可重複、1＝每月只能通關一次的月常遠征）。依據見 start2 解析處。
     // winItems：[api_win_item1, api_win_item2]，各為 [useitem id, 數量]（0 為無）；1＝成功或大成功時隨機、2＝大成功限定。
     // use：[api_use_fuel, api_use_bull]，遠征出發時各艦燃彈的消費率。
-    masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number; resetType: number; winItems: [number, number][]; use: [number, number] }>();
+    // damageType：api_damage_type（0＝一般、1＝交戰 I 型、2＝交戰 II 型）。samples/start2-master.json 中值為 1 的是
+    // 43、A5、B4、D2，值為 2 的是 46、A6、B5、B6、D3、E1、E2，與 wikiwiki.jp/kancolle「遠征」交戦型遠征的兩份清單逐條相符。
+    masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number; resetType: number; damageType: number; winItems: [number, number][]; use: [number, number] }>();
     ships = new Map<number, any>();
     // locked：api_locked（1＝鎖定）；局部資料不帶時沿用既有值，新取得的裝備為未鎖定。
     slotItems = new Map<number, { mst: number; level: number; alv: number; locked?: boolean }>();
@@ -1824,6 +1826,7 @@ export class GameState {
                 maparea: m.api_maparea_id ?? 0, time: m.api_time ?? 0,
                 deckNum: m.api_deck_num ?? 0,
                 resetType: m.api_reset_type ?? 0,
+                damageType: Number(m.api_damage_type) || 0,
                 winItems: [m.api_win_item1, m.api_win_item2].map(item =>
                     (Array.isArray(item) ? [Number(item[0]) || 0, Number(item[1]) || 0] : [0, 0]) as [number, number]),
                 use: [Number(m.api_use_fuel) || 0, Number(m.api_use_bull) || 0],

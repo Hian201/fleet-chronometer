@@ -3802,16 +3802,6 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .dl-bar select {
-            min-height: 28px;
-            padding: 3px 8px;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            background: var(--panel);
-            color: var(--text);
-            font: inherit;
-            font-size: 12px;
-        }
 
         .dl-event-sel {
             max-width: min(280px, 42vw);
@@ -3961,6 +3951,15 @@
         .el-fleet-d .el-fleet { margin-top: 4px; }
 
         .el-ship { max-width: 138px; overflow: hidden; text-overflow: ellipsis; }
+        /* 月常、交戰型遠征有裝備快照：一艦一行（艦名 chip＋裝備），裝備名可換行，補強增設前加一道分隔。 */
+        .el-fleet-gear { display: grid; gap: 4px; min-width: 360px; max-width: 560px; white-space: normal; }
+        .el-ship-row { display: grid; grid-template-columns: 138px minmax(0, 1fr); column-gap: 8px; align-items: start; }
+        .el-ship-row .el-ship { justify-self: start; }
+        .el-gears { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11px; }
+        .el-gear { display: inline-flex; align-items: center; gap: 3px; }
+        .el-gear .g-icon { width: 16px; height: 16px; flex: none; }
+        .el-gear i { color: var(--sparkle); font-size: 10px; font-style: normal; }
+        .el-gear-ex { padding-left: 8px; border-left: 1px solid var(--line); }
         .el-ship i { color: var(--dim); font-size: 9px; font-style: normal; letter-spacing: var(--track-tag); }
         .el-result { font-size: 11px; font-weight: 700; letter-spacing: var(--track-label); white-space: nowrap; }
         .el-result.r0 { color: #e05555; }
@@ -4679,6 +4678,7 @@
         .rs-bar select,
         .rf-bar select,
         .rl-bar select,
+        :is(.bl-bar, .dl-bar, .el-bar, .vl-bar) select,
         .rs-range input {
             min-height: 30px;
             padding: 4px 8px;
@@ -4694,6 +4694,7 @@
         .rs-bar select:active,
         .rf-bar select:active,
         .rl-bar select:active,
+        :is(.bl-bar, .dl-bar, .el-bar, .vl-bar) select:active,
         .rs-range input:active {
             border-color: var(--sparkle);
             transform: scale(.97);
@@ -8832,6 +8833,7 @@
             .rs-bar select,
             .rf-bar select,
             .rl-bar select,
+            :is(.bl-bar, .dl-bar, .el-bar, .vl-bar) select,
             .rs-range input,
             .rs-seg button,
             .rs-mini,
@@ -8987,7 +8989,7 @@
             .eq-seg button,
             .eq-icon,
             .sl-bar select,
-            .dl-bar select,
+            :is(.bl-bar, .dl-bar, .el-bar, .vl-bar) select,
             .sl-pill,
             .sl-ec,
             .sl-battle-dialog,
