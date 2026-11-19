@@ -13,7 +13,7 @@ import {
     applyQuestFlowBackupPrefs, hasQuestFlowBackupPrefs, readQuestFlowBackupPrefs,
     type QuestFlowBackupPrefs,
 } from './quest-flow-prefs';
-import { loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps } from './sortie-exclude';
+import { loadExcludeCatch, loadExcludedMaps, normalizeExcludedMap, saveExcludeCatch, saveExcludedMaps } from './sortie-exclude';
 
 // v4 在 restore envelope 新增 eventPlans（活動作戰板）。
 // v5 再新增 resources／resourceMarks（資源紀錄的時間序列與活動特殊時間點）——這兩張表
@@ -78,6 +78,8 @@ export interface BackupEnvelope {
     questFlow?: QuestFlowBackupPrefs;
     // 不記錄的海域（`${world}-${mapnum}`）。舊檔缺席＝還原時不碰本機設定。
     sortieExclude?: string[];
+    // 不記錄的海域「仍統計道具掉落」開關。舊檔缺席＝還原時不碰本機設定。
+    sortieExcludeCatch?: boolean;
 }
 
 export interface ValidatedBackupEnvelope extends Omit<BackupEnvelope, 'kind'> {
@@ -315,6 +317,9 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         ...(row.useItemDrops === undefined ? {} : {
             useItemDrops: arrayAt(row.useItemDrops, `${where}.useItemDrops`)
                 .map((id, at) => integer(id, `${where}.useItemDrops[${at}]`, 1)),
+        }),
+        ...(row.catchOnly === undefined ? {} : {
+            catchOnly: row.catchOnly === true ? true as const : invalid(`${where}.catchOnly 必須是 true。`),
         }),
         ...(row.newShipOverride === undefined ? {} : {
             newShipOverride: row.newShipOverride === 'old'
@@ -1000,6 +1005,8 @@ export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope 
         tables,
         questFlow: validateQuestFlow(envelope.questFlow),
         sortieExclude: validateSortieExclude(envelope.sortieExclude),
+        sortieExcludeCatch: envelope.sortieExcludeCatch === undefined
+            ? undefined : booleanValue(envelope.sortieExcludeCatch, 'sortieExcludeCatch'),
     };
 }
 
@@ -1038,6 +1045,7 @@ export async function buildFullEnvelope(
         },
         questFlow: readQuestFlowBackupPrefs(),
         sortieExclude: loadExcludedMaps(),
+        sortieExcludeCatch: loadExcludeCatch(),
     };
 }
 
@@ -1089,6 +1097,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         tables,
         questFlow: restore.questFlow,
         sortieExclude: restore.sortieExclude,
+        sortieExcludeCatch: restore.sortieExcludeCatch,
     };
 }
 
@@ -1334,4 +1343,5 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
     const carriesPrefs = envelope.kind === 'full' || envelope.kind === 'legacy-full' || envelope.kind === 'restore';
     if (carriesPrefs && envelope.questFlow !== undefined) applyQuestFlowBackupPrefs(envelope.questFlow);
     if (carriesPrefs && envelope.sortieExclude !== undefined) saveExcludedMaps(envelope.sortieExclude);
+    if (carriesPrefs && envelope.sortieExcludeCatch !== undefined) saveExcludeCatch(envelope.sortieExcludeCatch);
 }

@@ -119,7 +119,7 @@ async function buildFullReport(state: GameState): Promise<string> {
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - SORTIE_SCOPE_MONTHS);
     const sorties = (await db.sorties.orderBy('eventId').reverse().toArray())
-        .filter(s => s.ts >= cutoff.getTime());
+        .filter(s => s.ts >= cutoff.getTime() && !s.catchOnly);
     lines.push(`## ${t('ov.sortieLog')}（${t('ov.sortieScopeNote', { n: SORTIE_SCOPE_MONTHS })}）`);
     if (sorties.length) {
         type MapStat = { count: number; rank: Record<string, number>; taiha: number; lastTs: number; drops: Record<string, number> };
@@ -206,7 +206,7 @@ async function buildQuickContext(state: GameState): Promise<string> {
     });
     const sorties = await db.sorties.orderBy('eventId').reverse().limit(100).toArray();
     const rankCount: Record<string, number> = {};
-    for (const s of sorties) if (s.kind === 'battle' && s.rank) rankCount[s.rank] = (rankCount[s.rank] ?? 0) + 1;
+    for (const s of sorties) if (s.kind === 'battle' && s.rank && !s.catchOnly) rankCount[s.rank] = (rankCount[s.rank] ?? 0) + 1;
     const rankStr = Object.entries(rankCount).map(([r, n]) => `${r}×${n}`).join(' ');
     if (rankStr) lines.push('', '【近期出擊 rank】', rankStr);
     return lines.join('\n');

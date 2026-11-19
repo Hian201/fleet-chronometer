@@ -1,4 +1,7 @@
-// 打撈紀錄：只讀 db.sorties 的結算摘要。掉落艦、節點、Boss 與 rank 都是既有歸檔欄位，
+// 打撈紀錄：「艦娘打撈」與「道具捕撈」兩個子分頁（hash 參數 sub=ship|item）。道具子頁在
+// item-catch.ts；本檔前半是艦娘打撈清單，檔尾是子分頁切換（同 factory.ts 的做法）。
+//
+// 艦娘打撈：只讀 db.sorties 的結算摘要。掉落艦、節點、Boss 與 rank 都是既有歸檔欄位，
 // 不需要為了這份清單新增資料表或重新解析重播封包。
 // 活動篩選與出擊紀錄共用 planEventMapFilter：歷次活動以年份＋季節區分，關卡數跟紀錄走。
 import type { ShipObtainedRow, SortieLogRow } from '@/utils/db';
@@ -17,9 +20,10 @@ import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-pa
 import {
     copyWithFeedback, dateEnd, dateStart, downloadText, dropName, esc, eventDisplayName,
     eventDisplayTitle, eventFilterSelectHtml, eventNameOf, eventTermForFilter, fmtTs,
-    fuzzyMatch, loadJsonPrefs, mapFilterSelectHtml, paginate, parseColumnIds, parsePageSize, rankClassSuffix,
+    fuzzyMatch, hashParams, loadJsonPrefs, mapFilterSelectHtml, paginate, parseColumnIds, parsePageSize, rankClassSuffix,
     readEventWorldFilter, saveJsonPrefs,
 } from '../lib';
+import { itemCatchSection } from './item-catch';
 import type { OverviewSection, SectionContext } from './types';
 
 const PREFS_KEY = 'kc-drop-log-view';
@@ -106,9 +110,9 @@ export function dropTableHtml(
         `<tr>${cols.map(c => `<td class="dl-c-${c.id}">${c.cell(row, ctx, view)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
-export const dropLogSection: OverviewSection = {
-    id: 'drop-log',
-    titleKey: 'ov.dropLog',
+const shipDropSection: OverviewSection = {
+    id: 'ship-drop',
+    titleKey: 'ov.dropSubShip',
     async render(el, ctx) {
         // 先畫殼，再讀 IndexedDB；讀取被其他頁面的 schema 升級阻塞時也不能留下空白分區。
         const prefs = loadPrefs();
@@ -309,7 +313,8 @@ export const dropLogSection: OverviewSection = {
                     db.sorties.orderBy('ts').reverse().toArray(),
                     db.shipObtained.toArray(),
                 ]);
-                rows = sorties.filter(row => row.kind === 'battle' && !!dropName(row, ctx.state));
+                // catchOnly＝不記錄海域只供道具捕撈統計的列，不列入艦娘打撈。
+                rows = sorties.filter(row => row.kind === 'battle' && !row.catchOnly && !!dropName(row, ctx.state));
                 shipObtained = obtained;
                 // 依歷史上的首次自動入手觀測定位「入手那一撈」，並以 eventId 對應單筆掉落。
                 // 這樣同一場出擊內的多筆掉落不會互相影響。
@@ -329,5 +334,65 @@ export const dropLogSection: OverviewSection = {
             drawFilters();
             draw();
         } catch { /* load() 已顯示錯誤 */ }
+    },
+};
+
+// ── 子分頁 ────────────────────────────────────────────────────────────────
+// 切換不重建（design-guidelines §4.2）：各子頁第一次進入才 render，之後只切 hidden。
+// 子分頁選擇存 localStorage（kc-drop-log-sub，不進備份），網址的 sub 參數優先。
+export const DROP_LOG_SECTION_ID = 'drop-log';
+export const DROP_LOG_SUB_PREFS_KEY = 'kc-drop-log-sub';
+export const DROP_LOG_SUBS = [
+    { key: 'ship', labelKey: 'ov.dropSubShip', section: shipDropSection },
+    { key: 'item', labelKey: 'ov.dropSubItem', section: itemCatchSection },
+] as const;
+export type DropLogSub = typeof DROP_LOG_SUBS[number]['key'];
+
+const isDropLogSub = (value: unknown): value is DropLogSub => DROP_LOG_SUBS.some(sub => sub.key === value);
+
+/** 子分頁的決定順序：網址參數 → 上次選的 → 艦娘打撈。 */
+export function resolveDropLogSub(param: string | null, saved: unknown): DropLogSub {
+    if (isDropLogSub(param)) return param;
+    return isDropLogSub(saved) ? saved : 'ship';
+}
+
+export const dropLogSection: OverviewSection = {
+    id: DROP_LOG_SECTION_ID,
+    titleKey: 'ov.dropLog',
+    async render(el, ctx) {
+        let active = resolveDropLogSub(hashParams().get('sub'),
+            loadJsonPrefs<unknown>(DROP_LOG_SUB_PREFS_KEY, null, raw => raw));
+        el.innerHTML = `<div class="dls"><nav class="fa-nav" role="tablist" aria-label="${esc(t('ov.dropLog'))}">${DROP_LOG_SUBS.map(sub =>
+            `<button type="button" role="tab" class="fa-tab" id="dls-tab-${sub.key}" data-sub="${sub.key}" aria-selected="${sub.key === active}" aria-controls="dls-page-${sub.key}">${esc(t(sub.labelKey))}</button>`).join('')}</nav>${DROP_LOG_SUBS.map(sub =>
+            `<div class="fa-page" id="dls-page-${sub.key}" role="tabpanel" aria-labelledby="dls-tab-${sub.key}" hidden></div>`).join('')}</div>`;
+        const rendered = new Map<DropLogSub, Promise<void>>();
+        // 子頁自己的 render 例外只影響該子頁，顯示原因而不是留白。
+        const open = (key: DropLogSub) => {
+            if (rendered.has(key)) return rendered.get(key)!;
+            const host = el.querySelector<HTMLElement>(`#dls-page-${key}`)!;
+            const sub = DROP_LOG_SUBS.find(item => item.key === key)!;
+            const job = Promise.resolve().then(() => sub.section.render(host, ctx)).catch(error => {
+                console.error(`[overview] 打撈紀錄子頁 ${key} render 失敗`, error);
+                host.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+            });
+            rendered.set(key, job);
+            return job;
+        };
+        const show = (key: DropLogSub) => {
+            active = key;
+            for (const button of el.querySelectorAll<HTMLButtonElement>('.dls > .fa-nav .fa-tab')) button.setAttribute('aria-selected', String(button.dataset.sub === key));
+            for (const sub of DROP_LOG_SUBS) el.querySelector<HTMLElement>(`#dls-page-${sub.key}`)!.hidden = sub.key !== key;
+            return open(key);
+        };
+        el.querySelector('.dls > .fa-nav')!.addEventListener('click', event => {
+            const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.fa-tab');
+            if (!button || button.dataset.sub === active) return;
+            const key = button.dataset.sub as DropLogSub;
+            void show(key);
+            saveJsonPrefs(DROP_LOG_SUB_PREFS_KEY, key);
+            // 網址跟著子頁走，切語言重繪才不會被舊的 sub 參數拉回去；replaceState 不觸發 hashchange。
+            history.replaceState(null, '', `${location.pathname}${location.search}#/${DROP_LOG_SECTION_ID}?sub=${key}`);
+        });
+        await show(active);
     },
 };

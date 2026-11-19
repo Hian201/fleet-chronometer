@@ -263,6 +263,51 @@ describe('EventProjector persist 模式', () => {
         expect(skippedState.questTrackingDetail(201)).toEqual(loggedState.questTrackingDetail(201));
     });
 
+    it('不記錄的海域開了「仍統計道具掉落」：結算寫 catchOnly 列，不存重播與出擊帳單', async () => {
+        const logged = createDb();
+        await projectAll(new EventProjector({ state: new GameState(), tables: logged }), fullEventStream());
+        const [normal] = await logged.sorties.toArray();
+
+        const database = createDb();
+        const projector = new EventProjector({
+            state: new GameState(), tables: database,
+            skipSortieMap: map => map === '6-5', recordExcludedCatch: () => true,
+        });
+        await projectAll(projector, fullEventStream());
+
+        // 斬殺旗標不標到不記錄的海域（見 detectClear），其餘欄位與一般列相同。
+        const { cleared: _cleared, ...expected } = normal;
+        const rows = await database.sorties.toArray();
+        expect(rows).toEqual([{ ...expected, catchOnly: true }]);
+        expect(await database.replays.count()).toBe(0);
+        expect(await database.sortieBills.count()).toBe(0);
+    });
+
+    it('一般海域不受「仍統計道具掉落」影響，不帶 catchOnly', async () => {
+        const database = createDb();
+        await projectAll(new EventProjector({
+            state: new GameState(), tables: database, recordExcludedCatch: () => true,
+        }), fullEventStream());
+        const rows = await database.sorties.toArray();
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).not.toHaveProperty('catchOnly');
+        expect(await database.replays.count()).toBe(1);
+    });
+
+    it('「仍統計道具掉落」也在 map/start 定案', async () => {
+        const database = createDb();
+        let catchOn = false;
+        const projector = new EventProjector({
+            state: new GameState(), tables: database,
+            skipSortieMap: () => true, recordExcludedCatch: () => catchOn,
+        });
+        for (const event of fullEventStream()) {
+            await projector.project(event);
+            if (event.path === 'api_req_map/start') catchOn = true;
+        }
+        expect(await database.sorties.count()).toBe(0);
+    });
+
     it('不記錄的判斷在 map/start 定案，出擊途中改設定不會只記半場', async () => {
         const database = createDb();
         let skip = false;

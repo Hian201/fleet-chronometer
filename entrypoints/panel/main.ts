@@ -44,7 +44,7 @@ import { openingAswBadge } from './opening-asw';
 import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 import { mountFleetPhoto } from './fleet-photo';
 import { fitHeaderScale } from './header-fit';
-import { loadExcludedMaps, onExcludedMapsChange } from '@/utils/sortie-exclude';
+import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
@@ -57,9 +57,12 @@ const state = new GameState();
 // 不記錄的海域可能在總括頁被改動；用 storage 事件同步，下一場出擊開始時生效。
 let excludedSortieMaps = new Set(loadExcludedMaps());
 onExcludedMapsChange(maps => { excludedSortieMaps = new Set(maps); });
+let excludedCatch = loadExcludeCatch();
+onExcludeCatchChange(on => { excludedCatch = on; });
 const projector = new EventProjector({
     state, mode: 'persist', tables: db,
     skipSortieMap: map => excludedSortieMaps.has(map),
+    recordExcludedCatch: () => excludedCatch,
 });
 async function fitPanelInnerWidth() {
     const inner = document.documentElement.clientWidth;
@@ -2123,7 +2126,7 @@ async function restoreMapBossHp(mapArea: number, mapNo: number, diff: number, ga
     const map = `${mapArea}-${mapNo}`;
     // sorties 是每筆 <1KB 的摘要，整表過濾成本可忽略；replays 才是帶原始封包的大列。
     const bossRows = await db.sorties
-        .filter(row => row.map === map && !!row.boss && !row.imported)
+        .filter(row => row.map === map && !!row.boss && !row.imported && !row.catchOnly)
         .toArray();
     let scanned = 0;
     let bestSpecificity = -1;

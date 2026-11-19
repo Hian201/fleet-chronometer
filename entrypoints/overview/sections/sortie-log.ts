@@ -68,7 +68,7 @@ import { getLang, t } from '@/utils/ui-i18n';
 import { bindImportPanel, importPanelHtml, importToggleHtml } from '../import-panel';
 import { isDebugUiEnabled } from '@/utils/debug-ui';
 import {
-    excludeCandidateGroups, loadExcludedMaps, normalizeExcludedMap, saveExcludedMaps,
+    excludeCandidateGroups, loadExcludeCatch, loadExcludedMaps, normalizeExcludedMap, saveExcludeCatch, saveExcludedMaps,
 } from '@/utils/sortie-exclude';
 import { PSEUDONYM_NOTES_EN, mapName, operationName } from '@/utils/map-names';
 import { useItemDisplayName } from '@/utils/item-catalog';
@@ -1452,7 +1452,7 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
                 ${importUi}
             </div>
             <details class="sl-exclude">
-                <summary>${esc(t('ov.slExclude'))}<span class="sl-exclude-sum"></span></summary>
+                <summary>${esc(t('ov.slExclude'))}<span class="sl-exclude-sum"></span><span class="sl-exclude-hint" hidden>${esc(t('ov.slExcludeCatchHint'))}</span></summary>
                 <p class="sl-exclude-note">${esc(t('ov.slExcludeNote'))}</p>
                 <div class="sl-exclude-row">
                     <span class="sl-exclude-list"></span>
@@ -1461,6 +1461,8 @@ export function shellHtml(opts?: { includeImport?: boolean }): string {
                         <button type="button" class="ov-btn sl-exclude-add">${esc(t('ov.slExcludeAdd'))}</button>
                     </span>
                 </div>
+                <label class="sl-exclude-catch"><input type="checkbox" class="sl-exclude-catch-box"${loadExcludeCatch() ? ' checked' : ''}>${esc(t('ov.slExcludeCatch'))}</label>
+                <p class="sl-exclude-note">${esc(t('ov.slExcludeCatchNote'))}</p>
             </details>
             <details class="sl-bsum">
                 <summary>${esc(t('ov.sbSum'))}</summary>
@@ -1554,10 +1556,14 @@ export const sortieLogSection: OverviewSection = {
             const note = getLang() === 'en' ? PSEUDONYM_NOTES_EN[map] : undefined;
             return note ? `${mapTitle(map)} (${note})` : mapTitle(map);
         };
+        // 有排除海域但沒開「仍統計道具掉落」時，摺疊狀態也要看得到提醒（周回圖常是期間限定道具的漁場）。
+        const excludeHint = el.querySelector<HTMLSpanElement>('.sl-exclude-hint')!;
+        const drawCatchHint = () => { excludeHint.hidden = !excludedMaps.length || loadExcludeCatch(); };
         function drawExcluded() {
             // 摺疊時只給數量，完整清單在展開後的鈕列，不重複呈現。
             excludeSum.textContent = excludedMaps.length ? String(excludedMaps.length) : '';
             excludeSum.hidden = !excludedMaps.length;
+            drawCatchHint();
             excludeList.innerHTML = excludedMaps.length
                 ? excludedMaps.map(map => `<button type="button" class="sl-exclude-chip" data-exclude-map="${esc(map)}" title="${esc(`${mapAreaOf(map)}・${mapTip(map)}・${t('ov.slExcludeRemove', { map })}`)}" aria-label="${esc(t('ov.slExcludeRemove', { map }))}">${esc(map)}<span aria-hidden="true">×</span></button>`).join('')
                 : `<span class="sl-exclude-none">${esc(t('ov.slExcludeNone'))}</span>`;
@@ -1585,6 +1591,10 @@ export const sortieLogSection: OverviewSection = {
             drawExcluded();
         });
         drawExcluded();
+        el.querySelector<HTMLInputElement>('.sl-exclude-catch-box')!.addEventListener('change', event => {
+            saveExcludeCatch((event.currentTarget as HTMLInputElement).checked);
+            drawCatchHint();
+        });
         battleDialogBody.addEventListener('click', event => {
             const target = event.target as HTMLElement;
             const nodeButton = target.closest<HTMLButtonElement>('button[data-battle-node]');
@@ -1962,13 +1972,15 @@ export const sortieLogSection: OverviewSection = {
         // 資料載入：失敗／卡住都只影響清單區，工具列與匯入面板照常可用，並如實說明原因。
         body.innerHTML = `<div class="ov-empty">${esc(t('ov.loading'))}</div>`;
         try {
-            const [rows, replays, shipObtained, billRows, materialUse] = await Promise.all([
+            const [allRows, replays, shipObtained, billRows, materialUse] = await Promise.all([
                 db.sorties.orderBy('eventId').toArray(),      // 升冪＝時序，「第幾次」據此計數
                 db.replays.toArray(),
                 db.shipObtained.toArray(),
                 db.sortieBills.toArray(),
                 db.materialUse.toArray(),
             ]);
+            // 不記錄海域的 catchOnly 列只給道具捕撈統計（見 utils/sortie-exclude.ts）。
+            const rows = allRows.filter(row => !row.catchOnly);
             bills = new Map(billRows.map(bill => [bill.sortieKey, bill]));
             billExtras = attributeMaterialUse(billRows, materialUse);
             const newShipEventIds = newShipDropKeys(rows, shipObtained, mst => ctx.state.baseShipId(mst));

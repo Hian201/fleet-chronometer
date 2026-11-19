@@ -88,6 +88,8 @@ export interface EventProjectorOptions {
      * state reducer 照常執行，任務計數不受影響。見 utils/sortie-exclude.ts。
      */
     skipSortieMap?: (map: string) => boolean;
+    /** 不記錄的海域仍寫 `catchOnly` 結算列（見 utils/sortie-exclude.ts）；只在 map/start 讀一次。 */
+    recordExcludedCatch?: () => boolean;
 }
 
 export class EventProjector {
@@ -105,7 +107,10 @@ export class EventProjector {
     readonly gaugeBroken = new Set<number>();
     // 在 map/start 決定整場是否不記錄；出擊途中改設定不會讓同一場只記一半。
     skipCurrentSortie = false;
+    // 不記錄的這一場是否仍寫 catchOnly 結算列；同樣在 map/start 決定。
+    catchOnlyCurrentSortie = false;
     private readonly skipSortieMap: (map: string) => boolean;
+    private readonly recordExcludedCatch: () => boolean;
     private activeMode: EventProjectorMode;
     // projectWithMode() 跨多個 await 步驟共用 this.activeMode；呼叫端（panel/main.ts 的
     // ready/pumping flag）目前保證同一個 projector 一次只處理一筆事件，絕不重入。這面旗標
@@ -119,6 +124,7 @@ export class EventProjector {
         this.activeMode = this.mode;
         this.tables = options.tables ?? db;
         this.skipSortieMap = options.skipSortieMap ?? (() => false);
+        this.recordExcludedCatch = options.recordExcludedCatch ?? (() => false);
     }
 
     async project(event: ProjectableEvent, afterStateApplied?: () => void): Promise<void> {
@@ -153,6 +159,7 @@ export class EventProjector {
             if (path === 'api_req_map/start') {
                 const sortie = this.state.sortieInfo;
                 this.skipCurrentSortie = !!sortie && this.skipSortieMap(`${sortie.mapArea}-${sortie.mapNo}`);
+                this.catchOnlyCurrentSortie = this.skipCurrentSortie && this.recordExcludedCatch();
             }
             afterStateApplied?.();
             await this.archiveSortie(id, ts, path, api);
@@ -176,7 +183,7 @@ export class EventProjector {
 
     private async archiveSortie(id: number, ts: number, path: string, api: any): Promise<void> {
         const sortie = this.state.sortieInfo;
-        if (!sortie || this.skipCurrentSortie) return;
+        if (!sortie || (this.skipCurrentSortie && !this.catchOnlyCurrentSortie)) return;
         if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') {
             const info = this.state.battleInfo;
             if (!info) return;
@@ -210,6 +217,7 @@ export class EventProjector {
             if (Number.isSafeInteger(mvpEscort) && mvpEscort > 0) row.mvpEscort = mvpEscort;
             const enemyName = api?.api_enemy_info?.api_deck_name;
             if (typeof enemyName === 'string' && enemyName) row.enemyName = enemyName;
+            if (this.skipCurrentSortie) row.catchOnly = true;
             if (this.shouldPersist) {
                 // projection version bump 會重寫相同主鍵；cleared 是後續 mapinfo 轉變補上的旗標，
                 // 不能因重投影 battle-result 而洗掉。dropMst 等 raw-derived 欄位仍以本次 row 為準。
@@ -217,7 +225,7 @@ export class EventProjector {
                 if (existing?.cleared) row.cleared = true;
                 await this.tables.sorties.put(row);
             }
-        } else if (path === 'api_req_map/next' && api?.api_destruction_battle) {
+        } else if (path === 'api_req_map/next' && api?.api_destruction_battle && !this.skipCurrentSortie) {
             // 基地空襲欄位仍維持既有 best-effort 讀法，不新增或猜測任何 packet 欄位。
             const destruction = api.api_destruction_battle;
             const row: SortieLogRow = {
@@ -549,7 +557,7 @@ export class EventProjector {
 
     private async markLatestBossCleared(map: string): Promise<void> {
         const bosses = (await this.tables.sorties
-            .filter(row => row.map === map && row.boss && row.kind === 'battle')
+            .filter(row => row.map === map && row.boss && row.kind === 'battle' && !row.catchOnly)
             .toArray())
             .sort((left, right) => right.ts - left.ts);
         const target = bosses.find(row => !row.cleared) ?? bosses[0];

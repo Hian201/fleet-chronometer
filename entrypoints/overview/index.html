@@ -1597,6 +1597,24 @@
             line-height: 1.5;
         }
 
+        .sl-exclude-hint {
+            margin-left: 10px;
+            color: var(--text);
+            font-size: 11px;
+        }
+
+        .sl-exclude-hint[hidden] {
+            display: none;
+        }
+
+        .sl-exclude-catch {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
         .sl-exclude-row,
         .sl-exclude-list {
             display: flex;
@@ -8771,6 +8789,40 @@
         .fa-tab[aria-selected="true"] { border-bottom-color: var(--brass); color: var(--text); font-weight: 600; }
         .fa-tab:focus-visible { outline: 2px solid var(--sparkle); outline-offset: -2px; }
         .fa-page[hidden] { display: none; }
+        /* 打撈紀錄 › 道具捕撈：大海域 → 海域用 <details> 摺疊，同一格線對齊；節點表在海域展開後。 */
+        .ic-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 10px; font-size: 12px; }
+        .ic-chip { display: inline-flex; gap: 6px; align-items: baseline; }
+        .ic-chip[title] .ic-chip-label { border-bottom: 1px dashed currentColor; cursor: help; }
+        .ic-chip-label { color: var(--dim); font-size: 11px; letter-spacing: var(--track-label); }
+        .ic-grid { border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+        .ic-row {
+            display: grid; min-width: 920px; gap: 0 12px; align-items: baseline;
+            grid-template-columns: minmax(10em, 1.6fr) repeat(5, minmax(4.8em, .7fr)) minmax(9em, 1.2fr) minmax(5.5em, .8fr) minmax(9em, 1.2fr);
+            padding: 5px 10px; font-size: 12px;
+        }
+        .ic-row > span { white-space: nowrap; }
+        .ic-head { color: var(--dim); font-size: 11px; letter-spacing: var(--track-label); border-bottom: 1px solid var(--line); }
+        .ic-head [title] { cursor: help; }
+        summary.ic-row { cursor: pointer; list-style: none; }
+        summary.ic-row::-webkit-details-marker { display: none; }
+        summary.ic-row:hover { background: color-mix(in srgb, var(--brass) 8%, transparent); }
+        summary.ic-row:focus-visible { outline: 2px solid var(--sparkle); outline-offset: -2px; }
+        .ic-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ic-name::before { content: '▸'; display: inline-block; width: 1.1em; color: var(--dim); }
+        details[open] > summary > .ic-name::before { content: '▾'; }
+        .ic-area + .ic-area { border-top: 1px solid var(--line); }
+        .ic-area > summary .ic-name { font-weight: 600; }
+        .ic-map > summary .ic-name { padding-left: 1.2em; }
+        .ic-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .ic-none, .ic-unknown, .ic-dry small { color: var(--dim); }
+        .ic-dry small { margin-left: 3px; }
+        .ic-hits[title], .ic-dry[title] { cursor: help; }
+        .ic-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+        .ic-link:hover { color: var(--sparkle); }
+        .ic-excluded a { color: var(--brass); text-decoration: none; }
+        .ic-excluded a:hover { color: var(--sparkle); }
+        .ic-nodes { margin: 2px 10px 10px calc(10px + 2.3em); max-width: 640px; }
+        .ic-nodes .ic-num { text-align: right; }
 
         /* ── 改修日程（improve-plan）──
            一週總表沿用 .vl-table：裝備欄與曜日欄之間、各曜日欄之間都畫 1px 分隔線（§4.1.2，

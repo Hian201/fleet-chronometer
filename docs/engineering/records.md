@@ -234,6 +234,13 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
   套用後判定一次（`skipCurrentSortie`），整場沿用，出擊途中改設定不會只記半場。
   `GameState.applyEvent()` 照常執行，任務計數、戰況顯示與 raw events 都不受影響；既有紀錄不刪、
   不藏。
+- **例外「仍統計道具掉落」**（預設關閉，localStorage `kc-sortie-exclude-catch`，隨完整備份走
+  `sortieExcludeCatch`）：打開時，排除海域的戰鬥結算仍寫一筆 `catchOnly: true` 的 `db.sorties` 列，
+  欄位與一般結算列相同；不存重播、不寫出擊帳單、不寫基地空襲列，也不標斬殺。開關同樣在
+  `api_req_map/start` 定案（`catchOnlyCurrentSortie`）。理由：常設為不記錄的周回圖（例如刷閃的
+  1-1）也是秋刀魚漁場，道具捕撈統計需要所有已知結果的場次當分母，只記有掉落的場次會失真。
+  只有「打撈紀錄 › 道具捕撈」讀這種列；出擊紀錄、艦娘打撈、LLM 匯出、Boss HP 回推與
+  `markLatestBossCleared()` 一律跳過。新增讀 `db.sorties` 的功能也要決定是否跳過。
 - **斬殺標記**：被排除的海域不執行 `markLatestBossCleared()`，否則斬殺會標到該圖較舊的紀錄上。
 - **活動海域不可指定**：活動的 Boss HP 斬殺線與斬殺旗標要從 sorties／replays 回推。
 - **設定與時機**：名單存 localStorage（`kc-sortie-exclude-maps`，panel 與 overview 同源共享），
@@ -244,8 +251,31 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
   關卡表。選單的大區名、關名與作戰名查 `utils/map-names.ts`（規範見
   `docs/translation-guidelines.md`「海域與關卡名稱」）；master 名稱與表中日文不一致（遊戲改名）時
   省略譯名。
-- 測試：`tests/sortie-exclude.test.ts`、`tests/event-projector.test.ts`（不記錄的海域兩則）、
+- 測試：`tests/sortie-exclude.test.ts`、`tests/event-projector.test.ts`（不記錄的海域與道具掉落例外）、
   `tests/backup-sortie-exclude.test.ts`。
+
+## 打撈紀錄的道具捕撈（`utils/item-catch-stats.ts`＋`sections/item-catch.ts`）
+
+「打撈紀錄」分成「艦娘打撈」與「道具捕撈」兩個子分頁（hash `sub=ship|item`，網址參數 → 上次選的
+→ 艦娘打撈；選擇存 localStorage `kc-drop-log-sub`）。道具捕撈只讀 `db.sorties` 的 `useItemDrops`，
+預設看秋刀魚（useitem 68），可切換紀錄中出現過的其他道具。
+
+- **三個數字分開**：`n`＝道具結果已知的結算場數（含 `[]`）；`k`＝其中有該道具的場數；
+  `u`＝`useItemDrops` 缺席（舊紀錄、匯入列）的不可考場數，不併入 `n`。捕獲條數另按 id 出現次數加總。
+  出擊趟數是相異 `sortieKey`，一趟多個漁點時場數多於趟數。基地空襲不列入。
+- **分組**：大海域（`map` 前段）→ 海域 → 節點（原始 edge id，字母查 `map-node-letters.ts`）；
+  節點再分 S／A／其他。期間內有紀錄的戰鬥節點全部列出，從未捕獲也保留 0，分母不因首筆捕獲改變。
+  大海域分組只是整理方式，不代表遊戲內共用同一個隱藏值。
+- **時間欄**：近 6／24 小時以所選截止日（沒選則現在）為基準；最後捕獲、最後戰鬥、上次捕獲後的
+  已知無魚場數（再分 S／A，夾雜的不可考另計）。期間內沒有捕獲時，無魚場數沒有起點，顯示 –。
+  同時間的先後以 event id 決定。這些都是紀錄事實，不推算枯竭、恢復或掉率。
+- **目前持有**：`GameState.useItemCount()`；庫存尚未觀測時顯示不可考，不顯示 0。
+- **不記錄的海域**：子頁列出名單；`catchOnly` 列（見「不記錄的海域」）照常計入，但「上次捕獲」
+  落在這種列時不給出擊紀錄深連結（那一場不在出擊紀錄裡）。
+- **載入與更新**：先畫殼；期間改變才用 `ts` 索引重讀，過期查詢以序號丟棄。收到 battleresult
+  通知後等 1.5 秒（投影由面板寫，與通知先後不保證），只讀較新的列合併，重畫時保留展開狀態。
+- 測試：`tests/item-catch-stats.test.ts`、`tests/overview-routes.test.ts`；離線預覽
+  `tools/preview/item-catch.ts`。
 
 ## 打撈紀錄／建造紀錄的 CSV 匯出入（`utils/csv.ts`＋`drop-log-import.ts`＋`build-log-import.ts`）
 

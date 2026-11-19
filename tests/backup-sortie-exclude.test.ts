@@ -5,7 +5,7 @@ import {
     restoreBackup, validateBackupEnvelope,
 } from '../utils/backup';
 import { KcDb } from '../utils/db';
-import { loadExcludedMaps, saveExcludedMaps } from '../utils/sortie-exclude';
+import { loadExcludeCatch, loadExcludedMaps, saveExcludeCatch, saveExcludedMaps } from '../utils/sortie-exclude';
 
 const databases: KcDb[] = [];
 let serial = 0;
@@ -111,5 +111,43 @@ describe('備份的「不記錄的海域」', () => {
         } };
         const replays = { schemaVersion: 5, kind: 'replays', exportedAt: TS, tables: { replays: [] } };
         expect(combineBackupEnvelopes([restore, replays]).sortieExclude).toBeUndefined();
+    });
+});
+
+describe('備份的「仍統計道具掉落」開關', () => {
+    it('匯出讀取本機開關，還原後覆寫回本機；舊檔缺席時不碰本機', async () => {
+        saveExcludeCatch(true);
+        const source = createDb();
+        await source.snapshot.put({ path: 'api_port/port', ts: TS, api: {}, req: {}, eventId: 1 });
+        const envelope = await buildFullEnvelope(source);
+        expect(envelope.sortieExcludeCatch).toBe(true);
+
+        saveExcludeCatch(false);
+        await restoreBackup(createDb(), envelope);
+        expect(loadExcludeCatch()).toBe(true);
+
+        await restoreBackup(createDb(), v8Full());
+        expect(loadExcludeCatch()).toBe(true);
+    });
+
+    it('不是布林值時拒絕', () => {
+        expect(() => validateBackupEnvelope(v8Full({ sortieExcludeCatch: 'yes' }))).toThrow(BackupValidationError);
+    });
+
+    it('catchOnly 列往返不變；只接受 true', () => {
+        const sortie = {
+            eventId: 2, sortieKey: 2, ts: TS, map: '1-1', node: 1, boss: false, kind: 'battle', rank: 'S',
+            seiku: null, enemyIds: [], enemyIdsEscort: [], drop: null, taiha: false, useItemDrops: [68],
+        };
+        const withRow = (extra: Record<string, unknown>) => {
+            const input = v8Full();
+            (input.tables as { sorties: unknown[] }).sorties = [{ ...sortie, ...extra }];
+            return input;
+        };
+        expect(validateBackupEnvelope(withRow({ catchOnly: true })).tables.sorties![0].catchOnly).toBe(true);
+        expect(validateBackupEnvelope(withRow({})).tables.sorties![0]).not.toHaveProperty('catchOnly');
+        for (const bad of [false, 1, 'true']) {
+            expect(() => validateBackupEnvelope(withRow({ catchOnly: bad })), String(bad)).toThrow(BackupValidationError);
+        }
     });
 });

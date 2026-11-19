@@ -61,6 +61,9 @@ export interface SortieLogRow {
     // 欄位缺席＝不可考（舊紀錄、匯入列、格式無法識別）；[]＝已確認沒有道具掉落；非空＝有掉落。
     // 舊紀錄不回填。`api_get_exmap_useitem_id` 語意未證實，不收進來。
     useItemDrops?: number[];
+    // 不記錄的海域在「仍統計道具掉落」開啟時寫的列（見 utils/sortie-exclude.ts）。只給道具捕撈
+    // 統計讀；出擊紀錄、艦娘打撈與其他讀取端一律跳過，沒有重播也沒有出擊帳單。一般列不帶此欄位。
+    catchOnly?: true;
     // 舊版曾用於打撈新船篩選修正；保留以相容既有備份，現行判定不讀取此欄位。
     newShipOverride?: 'old';
     taiha: boolean;

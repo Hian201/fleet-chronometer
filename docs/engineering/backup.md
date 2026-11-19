@@ -29,6 +29,9 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 - 選填欄位 `sortieExclude`：「不記錄的海域」名單（見 [records.md](records.md)）。匯出帶當下名單，
   還原在 IndexedDB 提交後才覆寫本機名單，缺席則不碰；只接受正規寫法的通常海域編號
   （`1-1`～`9-9`）且不得重複。只有這項設定、資料表全空時仍視為空備份，不寫檔。
+- 選填欄位 `sortieExcludeCatch`：不記錄的海域「仍統計道具掉落」開關（布林值），還原時機同
+  `sortieExclude`，缺席則不碰。`sorties` 列的選填 `catchOnly` 只接受 `true`；舊版程式驗證時會
+  略過這個欄位，降版還原後這些列會出現在出擊紀錄，但不會遺失。
 - `questObserved` 以來源 event id 冪等保存；`questSeen` 以 questNo 為主鍵、min／max 合併首末觀測，
   兩個 event id 都進 `highestReferencedEventId()`。`questSeen` 另有選填的 `title`／`detail`（最近一次觀測的
   遊戲原文），舊備份沒有這兩欄，照常還原；不是索引欄位，不需升 DB 或備份版本。`eventPlans` 與 `goals` 是純使用者輸入、不參照

@@ -8,8 +8,14 @@
 //
 // 偏好存 localStorage（panel 與 overview 同一 extension origin 共享），不用 chrome.storage，
 // 理由同 utils/ui-prefs.ts。讀寫失敗一律回退為「沒有排除任何海域」，寧可多記也不漏記。
+//
+// 例外開關「仍統計道具掉落」（預設關閉）：打開時，排除海域的戰鬥結算仍寫一筆 `catchOnly`
+// 摘要列進 db.sorties，只給「打撈紀錄 › 道具捕撈」統計用；出擊紀錄、艦娘打撈與其他讀取端跳過
+// 這種列，也不存重播、不寫出擊帳單。理由：常被設為不記錄的周回圖（如刷閃的 1-1）也是秋刀魚
+// 漁場，統計要有「已記錄場次」這個分母，只記有掉落的場次會失真。
 
 const STORAGE_KEY = 'kc-sortie-exclude-maps';
+const CATCH_KEY = 'kc-sortie-exclude-catch';
 const MAP_RE = /^([1-9])-([1-9])$/;
 
 /** 正規化成 `${world}-${mapnum}`；非通常海域或格式不符回 null。 */
@@ -65,6 +71,23 @@ export function saveExcludedMaps(maps: readonly string[]): string[] {
     const normalized = parseExcludedMaps(maps);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)); } catch { /* 隱私模式等：維持記憶體值 */ }
     return normalized;
+}
+
+/** 「排除海域仍統計道具掉落」是否開啟；讀不到時當成關閉（維持完全不記錄）。 */
+export function loadExcludeCatch(): boolean {
+    try { return localStorage.getItem(CATCH_KEY) === '1'; } catch { return false; }
+}
+
+export function saveExcludeCatch(on: boolean): boolean {
+    try { localStorage.setItem(CATCH_KEY, on ? '1' : '0'); } catch { /* 隱私模式等：維持記憶體值 */ }
+    return on;
+}
+
+/** 其他已開頁面改了例外開關時通知。 */
+export function onExcludeCatchChange(cb: (on: boolean) => void): void {
+    window.addEventListener('storage', event => {
+        if (event.key === CATCH_KEY) cb(loadExcludeCatch());
+    });
 }
 
 /** 其他已開頁面改了清單時通知（storage 事件只在非發動變更的頁面觸發）。 */

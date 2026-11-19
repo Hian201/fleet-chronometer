@@ -5,6 +5,7 @@ import { sections } from '../entrypoints/overview/sections';
 import {
     DEFAULT_FACTORY_SUB, FACTORY_SECTION_ID, FACTORY_SUBS, factoryNavHtml, factorySection, resolveFactorySub,
 } from '../entrypoints/overview/sections/factory';
+import { DROP_LOG_SUBS, resolveDropLogSub } from '../entrypoints/overview/sections/drop-log';
 import { LANGS, setLang, t, tFor } from '../utils/ui-i18n';
 
 afterEach(() => setLang('zh-TW'));
@@ -106,5 +107,20 @@ describe('用語', () => {
         expect(tFor('zh-TW', 'ov.ipIntro')).toContain('第一艦隊第 2 位的艦');
         expect(tFor('en', 'ov.ipIntro')).toContain('2nd ship in Fleet 1');
         expect(t('ov.ipIntro')).not.toMatch(/第二艦/);
+    });
+});
+
+describe('打撈紀錄子分頁', () => {
+    it('依序是 艦娘打撈｜道具捕撈，網址參數 → 上次選的 → 艦娘打撈', () => {
+        expect(DROP_LOG_SUBS.map(sub => sub.key)).toEqual(['ship', 'item']);
+        expect(resolveDropLogSub('item', 'ship')).toBe('item');
+        expect(resolveDropLogSub(null, 'item')).toBe('item');
+        expect(resolveDropLogSub('nope', 42)).toBe('ship');
+    });
+
+    it('三語都有子分頁名稱', () => {
+        for (const { code } of LANGS) for (const sub of DROP_LOG_SUBS) {
+            expect(tFor(code, sub.labelKey)).not.toBe(sub.labelKey);
+        }
     });
 });
