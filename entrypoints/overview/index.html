@@ -8793,7 +8793,7 @@
         .ic-summary { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 10px; font-size: 12px; }
         .ic-chip { display: inline-flex; gap: 6px; align-items: baseline; }
         .ic-chip[title] .ic-chip-label { border-bottom: 1px dashed currentColor; cursor: help; }
-        .ic-chip-label { color: var(--dim); font-size: 11px; letter-spacing: var(--track-label); }
+        .ic-chip-label { flex: none; white-space: nowrap; color: var(--dim); font-size: 11px; letter-spacing: var(--track-label); }
         .ic-grid { border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
         .ic-row {
             display: grid; min-width: 920px; gap: 0 12px; align-items: baseline;
@@ -8822,6 +8822,15 @@
         .ic-excluded a { color: var(--brass); text-decoration: none; }
         .ic-excluded a:hover { color: var(--sparkle); }
         .ic-nodes { margin: 2px 10px 10px calc(10px + 2.3em); max-width: 640px; }
+        .ic-end-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; font-size: 12px; }
+        .ic-end-row[hidden], .ic-end-clear[hidden] { display: none; }
+        .ic-end-row .rs-inline { cursor: help; }
+        .ic-end-note { color: var(--dim); }
+        .ic-end-note:empty { display: none; }
+        .ic-dc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 6px; font-size: 12px; }
+        .ic-dc .rs-inline { color: var(--text); cursor: help; }
+        .ic-dc-state { color: var(--brass); }
+        .ic-dc-state:empty { display: none; }
         /* 自訂換海域提醒：預設收起；徽章用中性的黃銅框，不借其他功能的語意色（§4.5） */
         .ic-alert { margin: 0 0 10px; font-size: 12px; }
         .ic-alert > summary { cursor: pointer; color: var(--dim); width: fit-content; }

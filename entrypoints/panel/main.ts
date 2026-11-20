@@ -45,6 +45,8 @@ import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 import { mountFleetPhoto } from './fleet-photo';
 import { fitHeaderScale } from './header-fit';
 import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
+import { depthChargeSeasonActive, fleetDepthCharges, loadDcReminderOff, onDcReminderChange, saveDcReminder } from '@/utils/depth-charge';
+import { currentSeasonRange, latestSeason, onSeasonEndChange, SAURY_ITEM, saveInferredEnd, SeasonEndDetector } from '@/utils/catch-season';
 import { catchAlertQueryFrom, catchAlertsToFire, loadCatchAlertFired, loadCatchAlertRule, saveCatchAlertFired } from '@/utils/catch-alert';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
@@ -561,8 +563,44 @@ function repairPlansOf(f: FleetView) {
     const now = Date.now();
     const rep = planAnchorageRepair(f, f.repairAnchor == null ? undefined : now - f.repairAnchor);
     const mor = planMoraleSupply(f, f.moraleAnchor == null ? undefined : now - f.moraleAnchor);
-    const ops = f.mission ? `<span class="fs-op mission">${t('fleet.onMission')}</span>` : condRecoveryOp(f);
+    const base = f.mission ? `<span class="fs-op mission">${t('fleet.onMission')}</span>` : condRecoveryOp(f);
+    // 遠征中的艦隊不會出擊，不提醒爆雷。
+    const ops = base + (f.mission ? '' : depthChargeOp(f, !!base));
     return { rep, mor, ops };
+}
+// 秋刀魚祭的爆雷誤帶提醒（docs/saury-plan.md §4.3）：只在活動期間（depthChargeSeasonActive）、
+// 艦隊帶爆雷類裝備時出現在編成摘要狀態列；與其他狀態同列時縮成「爆雷 n 艘」，說明放提示。
+// 只是提醒，不擋出擊、不換裝；連合檢視沒有狀態列，不顯示。
+// 點一下關閉本季的提醒（所有艦隊）；重新開啟在情報總括「打撈紀錄 › 道具捕撈」，兩邊經 storage 事件同步。
+const SAURY = SAURY_ITEM;
+let lastSauryCatchTs: number | null = null;
+function depthChargeOp(f: FleetView, compact: boolean) {
+    const season = latestSeason();
+    // 結束時刻（官方 → 自填 → 推算）一過就不提醒，即使魚還沒回收（回收可能晚一次維修）。
+    const range = currentSeasonRange(season);
+    if (loadDcReminderOff(season.start) || !depthChargeSeasonActive({
+        now: Date.now(), start: range.start, end: range.end,
+        held: state.useItemCount(SAURY), lastCatchTs: lastSauryCatchTs,
+    })) return '';
+    const hits = fleetDepthCharges(f.ships);
+    if (!hits.length) return '';
+    const list = hits.map(h => `${f.ships[h.index].name}：${h.gears.join('、')}`).join('\n');
+    const n = hits.length;
+    return `<button type="button" class="fs-op dc-op" title="${esc(`${list}\n${t('fleet.dcTitle')}\n${t('fleet.dcDismiss')}`)}"><span class="fs-op-label">${esc(t('fleet.dcBadge'))}</span><span class="fs-op-time">${esc(t(compact ? 'fleet.dcShort' : 'fleet.dcLong', { n }))}</span></button>`;
+}
+onDcReminderChange(() => { if (ready) renderFleets(); });
+onSeasonEndChange(() => { if (ready) renderFleets(); });
+// 最近 72 小時的秋刀魚捕獲時刻：面板開啟時讀一次，之後每場結算投影後更新。
+async function refreshSauryCatch(): Promise<void> {
+    try {
+        const rows = await db.sorties.where('ts').aboveOrEqual(Date.now() - 72 * 3_600_000).toArray();
+        const last = rows.filter(r => r.useItemDrops?.includes(SAURY)).reduce<number | null>((m, r) => Math.max(m ?? 0, r.ts), null);
+        if (last === lastSauryCatchTs) return;
+        lastSauryCatchTs = last;
+        if (ready) renderFleets();
+    } catch {
+        /* 讀不到就沿用舊值；持有數與起點後 72 小時仍會讓提醒照常出現 */
+    }
 }
 // 士氣里程碑：「士氣 [49] 時間 › [54] 時間」。49＝全隊回到 49；野埼給糧中另加 [54]＝給糧對象中
 // 士氣最低者到 54（與背景通知同一定義）。目標值用線框小徽章、時間用一般文字，兩者靠字級與
@@ -965,6 +1003,11 @@ fleetsEl.addEventListener('change', e => {
     renderFleets();
 });
 fleetsEl.addEventListener('click', e => {
+    if ((e.target as HTMLElement).closest('.dc-op')) {
+        saveDcReminder(false, latestSeason().start, 'panel');
+        renderFleets();
+        return;
+    }
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.taiha-cond-toggle');
     if (!btn || !fleetsEl.contains(btn)) return;
     const revealed = btn.getAttribute('aria-expanded') !== 'true';
@@ -1879,8 +1922,11 @@ async function checkCatchAlert(): Promise<void> {
         console.warn('[Fleet Chronometer] 換海域提醒失敗', error);
     }
 }
+// 秋刀魚祭結束的推算（utils/catch-season.ts）：重播與 live 都餵，需要套用前的持有數。
+const seasonEndDetector = new SeasonEndDetector(latestSeason());
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
+    const sauryBefore = state.useItemCount(SAURY_ITEM);
     if (path === 'api_req_map/start' || path === 'api_req_map/next' || isNewBattlePacket(path))
         taihaDetailsHidden = false;
     // [debug] 效能量測：live 事件才量（重播期間量測沒意義，且會洗版）。
@@ -1900,13 +1946,15 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
     );
     // meta write 失敗時不會執行到這裡，記憶體去重位置與耐久游標都保留在失敗事件之前。
     maxId = id;
+    const seasonEnd = seasonEndDetector.feed(path, ts, api, sauryBefore);
+    if (seasonEnd && saveInferredEnd(latestSeason().id, seasonEnd) && ready) renderFleets();
     // 重播歷史事件（ready=false）時完全不碰 DOM：renderAll() 是整頁 innerHTML 重建，
     // 事件數量可能達數千筆（events 只在 start2 時裁剪到約兩個登入世代），逐筆重render
     // 會讓面板開啟瞬間卡死主執行緒，使用者切換遊戲畫面時感覺「非常慢」。
     // 情境自動切換／待驗證封包擷取／log 列表同理，只在 live 事件時才需要即時反映。
     if (ready) {
         appendLogRow(ts, path);
-        if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') void checkCatchAlert();
+        if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') { void checkCatchAlert(); void refreshSauryCatch(); }
         // 斬殺線補撈：**mapinfo 一到就跑**（＝點開出擊海域選單的那一刻，此時量表值剛更新），
         // 不必等到真的出擊。map/start 也跑一次，涵蓋沒經過選單直接再戰的情況；一張圖只掃
         // 一次 DB，重複呼叫是免費的（見 restoreGaugeBossHp）。非同步，補到新值才重畫。
@@ -2250,6 +2298,7 @@ async function restoreGaugeBossHp(): Promise<boolean> {
         // 重播完 events 後，mapGauges 已是最新一次 mapinfo 的內容，這裡把各未攻略海域的
         // 斬殺線一次補齊——面板一開（不論在母港或出擊中）就該看得到，不必等下一則封包。
         await restoreGaugeBossHp();
+        await refreshSauryCatch();
         ready = true;
         setNotice('none');
         // 重播期間累積的 log 一次性補上（陣列已依時間順序，逐筆 prepend 使最新的在最上面）

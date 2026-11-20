@@ -18,14 +18,6 @@
 import type { SortieLogRow } from './db';
 import { isEventWorld, parseMapCode } from './sortie-detail';
 
-/**
- * 本年度秋刀魚祭的統計起點：2026-11-24 20:30 JST，官方公告的維護預定結束時刻（2026-11-19 推文，
- * 見 docs/saury-plan.md §2.4）；伺服器重開後才撈得到魚。之前的場次算進分母只會稀釋活動期間的紀錄，
- * 所以期間的起點一律不早於它。維護若提早結束，提早開服到 20:30 之間的場次不列入；
- * 下一季公告後更新這個值。
- */
-export const CATCH_SEASON_START = Date.parse('2026-11-24T20:30:00+09:00');
-
 /** 道具捕撈統計收的結算：通常海域的戰鬥列（catchOnly 列照收）。 */
 export function isCatchRow(row: SortieLogRow): boolean {
     return row.kind === 'battle' && !isEventWorld(parseMapCode(row.map).world);

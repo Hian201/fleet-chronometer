@@ -43,6 +43,11 @@ const scenes = [
     { key: 'catch-on', query: '?scene=default&catch=1&open=1', hash: '' },
     { key: 'alert', query: '?scene=default&catch=1&alert=1', hash: '' },
     { key: 'alert-bad', query: '?scene=default&alert=bad', hash: '' },
+    { key: 'season-inferred', query: '?scene=default&catch=1&season=inferred', hash: '' },
+    { key: 'season-inferred-375', query: '?scene=default&catch=1&season=inferred&w=375', hash: '' },
+    { key: 'season-user', query: '?scene=default&catch=1&season=user', hash: '' },
+    { key: 'dc-off', query: '?scene=default&catch=1&dc=panel', hash: '' },
+    { key: 'dc-off-375', query: '?scene=default&catch=1&dc=panel&w=375', hash: '' },
     { key: 'alert-375', query: '?scene=default&catch=1&alert=1&w=375', hash: '' },
 ];
 const chrome = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'].find(existsSync);

@@ -9,11 +9,16 @@ import type { SortieLogRow } from '@/utils/db';
 import { db } from '@/utils/db';
 import { useItemDisplayName } from '@/utils/item-catalog';
 import {
-    CATCH_SEASON_START, isCatchRow, itemCatchStats, type AreaCatchStat, type CatchCounts, type DryStreak, type MapCatchStat, type NodeCatchStat,
+    isCatchRow, itemCatchStats, type AreaCatchStat, type CatchCounts, type DryStreak, type MapCatchStat, type NodeCatchStat,
 } from '@/utils/item-catch-stats';
 import {
     catchesInWindow, isValidAlertNumber, loadCatchAlertRule, saveCatchAlertRule, type CatchAlertRule,
 } from '@/utils/catch-alert';
+import {
+    CATCH_SEASONS, currentSeasonRange, jstInputToTs, latestSeason, loadInferredEnd, loadUserEnd, onSeasonEndChange, saveUserEnd,
+    tsToJstInput, type CatchSeason,
+} from '@/utils/catch-season';
+import { loadDcReminderOff, onDcReminderChange, saveDcReminder } from '@/utils/depth-charge';
 import { nodeLabel } from '@/utils/map-node-letters';
 import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
 import { isEventWorld, mapLabel, parseMapCode } from '@/utils/sortie-detail';
@@ -148,11 +153,20 @@ export const itemCatchSection: OverviewSection = {
         // 先畫殼、綁事件，再讀 IndexedDB；讀取被阻塞時也不留白。
         el.innerHTML = `<div class="ic">
             <div class="ov-toolbar dl-bar ic-bar">
+                <label class="rs-inline"><span>${esc(t('ov.icSeason'))}</span><select class="ic-season">${[...CATCH_SEASONS].reverse().map(sn =>
+                    `<option value="${esc(sn.id)}">${esc(t('ov.icSeasonOpt', { year: sn.id }))}</option>`).join('')}<option value="">${esc(t('ov.icSeasonAll'))}</option></select></label>
                 <label class="rs-inline"><span>${esc(t('ov.icItem'))}</span><select class="ic-item"></select></label>
                 <label class="rs-inline dl-date"><span>${esc(t('ov.buildFilterTime'))}</span><input type="date" class="ic-from" aria-label="${esc(t('ov.buildFilterFrom'))}"><span>–</span><input type="date" class="ic-to" aria-label="${esc(t('ov.buildFilterTo'))}"></label>
             </div>
             <div class="ic-summary" aria-live="polite"></div>
+            <p class="ic-end-row" hidden>
+                <label class="rs-inline" title="${esc(t('ov.icEndTip'))}"><span>${esc(t('ov.icEnd'))}</span><input type="datetime-local" class="rs-search ic-end-input"></label>
+                <button type="button" class="ov-btn ic-end-clear" hidden>${esc(t('ov.icEndClear'))}</button>
+                <span class="ic-end-note"></span>
+            </p>
+            <p class="ic-clear-row" hidden><button type="button" class="ov-btn ic-clear" title="${esc(t('ov.icClearTip'))}"></button></p>
             <p class="ov-note dim ic-excluded" hidden></p>
+            <p class="ic-dc"><label class="rs-inline" title="${esc(t('ov.icDcTip'))}"><input type="checkbox" class="ic-dc-on"><span>${esc(t('ov.icDc'))}</span></label><span class="ic-dc-state"></span></p>
             <details class="ic-alert">
                 <summary>${esc(t('ov.icAlert'))}<span class="ic-alert-state"></span></summary>
                 <div class="ic-alert-body">
@@ -180,6 +194,25 @@ export const itemCatchSection: OverviewSection = {
         const alertLabel = el.querySelector<HTMLElement>('.ic-alert-label')!;
         const alertState = el.querySelector<HTMLElement>('.ic-alert-state')!;
         const alertInvalid = el.querySelector<HTMLElement>('.ic-alert-invalid')!;
+        const seasonSel = el.querySelector<HTMLSelectElement>('.ic-season')!;
+        const endRow = el.querySelector<HTMLElement>('.ic-end-row')!;
+        const endInput = el.querySelector<HTMLInputElement>('.ic-end-input')!;
+        const endClear = el.querySelector<HTMLButtonElement>('.ic-end-clear')!;
+        const endNote = el.querySelector<HTMLElement>('.ic-end-note')!;
+        const clearRow = el.querySelector<HTMLElement>('.ic-clear-row')!;
+        const clearBtn = el.querySelector<HTMLButtonElement>('.ic-clear')!;
+        const dcOn = el.querySelector<HTMLInputElement>('.ic-dc-on')!;
+        const dcState = el.querySelector<HTMLElement>('.ic-dc-state')!;
+
+        // 爆雷提醒開關（utils/depth-charge.ts）：預設打開，面板點掉時這裡同步顯示關閉。
+        const drawDc = () => {
+            const off = loadDcReminderOff(latestSeason().start);
+            dcOn.checked = !off;
+            dcState.textContent = off?.from === 'panel' ? t('ov.icDcOffPanel') : '';
+        };
+        drawDc();
+        dcOn.addEventListener('change', () => { saveDcReminder(dcOn.checked, latestSeason().start, 'overview'); drawDc(); });
+        onDcReminderChange(() => { if (el.isConnected) drawDc(); });
 
         let itemId = DEFAULT_CATCH_ITEM;
         let rows: SortieLogRow[] = [];
@@ -246,21 +279,67 @@ export const itemCatchSection: OverviewSection = {
         };
 
         // 提醒徽章只看「現在」：歷史檢視（選了截止日）不標，避免誤以為當時達到過條件。
-        const alertHits = (): AlertHits => {
-            if (!alertRule?.enabled || alertRule.itemId !== itemId || toInput.value) return new Map();
+        const alertHits = (to: number | null): AlertHits => {
+            if (!alertRule?.enabled || alertRule.itemId !== itemId || (to !== null && to < Date.now())) return new Map();
             const rule = alertRule;
             return new Map([...catchesInWindow(rows, rule, Date.now())].filter(([, n]) => n >= rule.count));
         };
 
+        // 季別（utils/catch-season.ts）：期間 = 所選季與日期篩選的交集；「全部期間」只看日期篩選。
+        const selectedSeason = (): CatchSeason | null => CATCH_SEASONS.find(sn => sn.id === seasonSel.value) ?? null;
+        // 結束時刻：官方（新版內建）→ 玩家自填（日本時間）→ 回收推算（只給範圍）→ 下一季開始。
+        const seasonChip = (season: CatchSeason) => {
+            const inferred = loadInferredEnd(season.id);
+            const range = currentSeasonRange(season);
+            const endText = range.end === null ? esc(t('ov.icSeasonOngoing'))
+                : range.endKind === 'inferred' && inferred
+                    ? `<span class="ic-est" title="${esc(t('ov.icSeasonInferredTip'))}">${esc(t('ov.icSeasonInferred', { after: fmtTs(inferred.after), before: fmtTs(inferred.before) }))}</span>`
+                    : range.endKind === 'user' ? esc(t('ov.icSeasonUser', { t: fmtTs(range.end) }))
+                        : esc(fmtTs(range.end));
+            return { range, html: `<span>${esc(fmtTs(range.start))} – ${endText}</span>` };
+        };
+        // 自填欄位：官方結束已內建或選「全部期間」時不顯示。正在輸入時不覆寫欄位值。
+        const drawEnd = (season: CatchSeason | null) => {
+            endRow.hidden = !season || season.end !== null;
+            if (!season || season.end !== null) return;
+            const user = loadUserEnd(season.id);
+            if (document.activeElement !== endInput) endInput.value = user === null ? '' : tsToJstInput(user);
+            endClear.hidden = user === null;
+            const inferred = loadInferredEnd(season.id);
+            endNote.textContent = user === null && inferred ? t('ov.icEndInferredNote') : '';
+        };
+        endInput.addEventListener('change', () => {
+            const season = selectedSeason();
+            const ts = jstInputToTs(endInput.value);
+            if (!season || (endInput.value && ts === null)) return;
+            saveUserEnd(season.id, ts);
+            draw();
+        });
+        endClear.addEventListener('click', () => {
+            const season = selectedSeason();
+            if (!season) return;
+            saveUserEnd(season.id, null);
+            endInput.value = '';
+            draw();
+        });
+        onSeasonEndChange(() => { if (el.isConnected && loaded) draw(); });
+
         const draw = () => {
-            const from = Math.max(dateStart(fromInput.value) ?? -Infinity, CATCH_SEASON_START), to = dateEnd(toInput.value);
+            const season = selectedSeason();
+            const sc = season ? seasonChip(season) : null;
+            drawEnd(season);
+            const dFrom = dateStart(fromInput.value), dTo = dateEnd(toInput.value);
+            const from = sc ? Math.max(dFrom ?? -Infinity, sc.range.start) : dFrom;
+            const toMin = Math.min(dTo ?? Infinity, sc?.range.end ?? Infinity);
+            const to = Number.isFinite(toMin) ? toMin : null;
+            void drawClear(season, sc?.range ?? null);
             const stats = itemCatchStats(rows, { itemId, from, to, now: Date.now() });
             const held = ctx.state.useItemCount(itemId);
             const chip = (label: string, value: string, tip?: string) =>
                 `<span class="ic-chip"${tip ? ` title="${esc(tip)}"` : ''}><span class="ic-chip-label">${esc(label)}</span>${value}</span>`;
             summary.innerHTML = [
                 chip(t('ov.icCaught'), `<b>${num(stats.caught)}</b>`, t('ov.icCaughtTip')),
-                chip(t('ov.icSince'), esc(fmtTs(from)), t('ov.icSinceTip')),
+                sc ? chip(t('ov.icSeasonRange'), sc.html, t('ov.icSeasonRangeTip')) : '',
                 chip(t('ov.icHeld'), held === null ? esc(t('ov.dropUnknown')) : `<b>${num(held)}</b>`),
                 chip(t('ov.icObserved'), stats.observedFrom === null ? none
                     : `${esc(fmtTs(stats.observedFrom))} – ${esc(fmtTs(stats.observedTo!))}`),
@@ -273,8 +352,40 @@ export const itemCatchSection: OverviewSection = {
             }
             const open = new Set([...body.querySelectorAll<HTMLDetailsElement>('details[open]')].map(d => d.dataset.key!));
             body.innerHTML = (stats.caught ? '' : `<p class="ov-note dim">${esc(t('ov.icNoCatch', { item: itemName(itemId) }))}</p>`)
-                + statsHtml(stats.areas, ctx, open, new Set(rows.filter(r => !r.catchOnly).map(r => r.ts)), alertHits(), alertRule);
+                + statsHtml(stats.areas, ctx, open, new Set(rows.filter(r => !r.catchOnly).map(r => r.ts)), alertHits(to), alertRule);
         };
+
+        // 清除該季的捕撈專用紀錄：只刪 catchOnly 列（不記錄海域為統計另寫的列），一般出擊紀錄不動。
+        // 由玩家自己按、確認後才刪；與出擊紀錄刪除重播同屬使用者主動刪除，不經投影。
+        let clearToken = 0;
+        let clearKeys: number[] = [];
+        const drawClear = async (season: CatchSeason | null, range: { start: number; end: number | null } | null) => {
+            const token = ++clearToken;
+            if (!season || !range) { clearRow.hidden = true; return; }
+            try {
+                const keys = await db.sorties.where('ts').between(range.start, range.end ?? Infinity, true, true)
+                    .filter(r => r.catchOnly === true).primaryKeys() as number[];
+                if (token !== clearToken || !el.isConnected) return;
+                clearKeys = keys;
+                clearRow.hidden = !keys.length;
+                clearBtn.textContent = t('ov.icClear', { season: t('ov.icSeasonOpt', { year: season.id }), n: num(keys.length) });
+                clearBtn.dataset.season = season.id;
+            } catch {
+                if (token === clearToken) clearRow.hidden = true;
+            }
+        };
+        clearBtn.addEventListener('click', async () => {
+            const season = selectedSeason();
+            if (!season || clearBtn.dataset.season !== season.id || !clearKeys.length) return;
+            if (!confirm(t('ov.icClearConfirm', { season: t('ov.icSeasonOpt', { year: season.id }), n: num(clearKeys.length) }))) return;
+            try {
+                await db.sorties.bulkDelete(clearKeys);
+            } catch (error) {
+                alert(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }));
+            }
+            await load();
+        });
+        seasonSel.addEventListener('change', () => draw());
 
         // 期間改變才重讀 DB（ts 索引）；道具切換只重算。
         const load = async () => {

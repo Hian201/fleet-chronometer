@@ -5,7 +5,8 @@ import 'fake-indexeddb/auto';
 import { db, type SortieLogRow } from '../../utils/db';
 import { GameState } from '../../utils/state';
 import { setLang } from '../../utils/ui-i18n';
-import { CATCH_SEASON_START } from '../../utils/item-catch-stats';
+import { latestSeason } from '../../utils/catch-season';
+const CATCH_SEASON_START = latestSeason().start;
 import { dropLogSection } from '../../entrypoints/overview/sections/drop-log';
 import type { SectionContext } from '../../entrypoints/overview/sections/types';
 import start2 from '../../samples/start2-master.json';
@@ -25,7 +26,7 @@ state.applyEvent('api_port/port', (port as { api_data: unknown }).api_data);
 if (scene === 'default') state.applyEvent('api_get_member/useitem', [{ api_id: 68, api_count: 37 }]);
 
 const H = 3_600_000;
-// 統計只算秋刀魚祭開始（CATCH_SEASON_START）之後；把預覽的「現在」固定在開始後 16 天，
+// 統計預設只算最新一季開始之後；把預覽的「現在」固定在開始後 16 天，
 // 假資料才落在期間內。400 小時前的匯入列刻意落在起點之前，用來確認會被排除。
 const NOW = CATCH_SEASON_START + 16 * 24 * H;
 Date.now = () => NOW;
@@ -70,6 +71,15 @@ try {
     // 自訂換海域提醒：alert=1 設好「6 小時 2 條」並展開設定；alert=bad 是勾了但沒填
     if (params.get('alert') === '1') localStorage.setItem('kc-catch-alert', JSON.stringify({ enabled: true, itemId: 68, hours: 6, count: 2 }));
     else localStorage.removeItem('kc-catch-alert');
+    // season=inferred：本季結束已由回收推算（30 小時前最後一次捕獲、2 小時前重新登入時已回收）
+    if (params.get('season') === 'inferred') localStorage.setItem('kc-catch-season-end', JSON.stringify({ [latestSeason().id]: { after: NOW - 30 * H, before: NOW - 2 * H } }));
+    else localStorage.removeItem('kc-catch-season-end');
+    // season=user：玩家自填結束時刻（優先於推算）
+    if (params.get('season') === 'user') localStorage.setItem('kc-catch-season-user-end', JSON.stringify({ [latestSeason().id]: NOW - 2 * H }));
+    else localStorage.removeItem('kc-catch-season-user-end');
+    // dc=panel：爆雷提醒已從面板關閉
+    if (params.get('dc') === 'panel') localStorage.setItem('kc-dc-reminder-off', JSON.stringify({ season: CATCH_SEASON_START, from: 'panel' }));
+    else localStorage.removeItem('kc-dc-reminder-off');
 } catch { /* 預覽 */ }
 history.replaceState(null, '', `${location.pathname}${location.search}#/drop-log?sub=${params.get('sub') ?? 'item'}`);
 

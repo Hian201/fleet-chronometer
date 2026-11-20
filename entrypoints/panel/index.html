@@ -2019,6 +2019,13 @@
             font-weight: 400;
         }
 
+        /* 爆雷誤帶提醒：標籤用黃銅，不借大破等語意色（§4.5）；說明在提示 */
+        .fs-op.dc-op { cursor: pointer; padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+        .fs-op + .fs-op.dc-op { padding-left: 6px; border-left: 1px solid var(--line); }
+        .fs-op.dc-op:hover .fs-op-time { color: var(--sparkle); }
+        .fs-op.dc-op:focus-visible { outline: 1px solid var(--sparkle); outline-offset: 1px; }
+        .fs-op.dc-op .fs-op-label { color: var(--brass); }
+
         .fs-op-label {
             color: var(--text);
         }

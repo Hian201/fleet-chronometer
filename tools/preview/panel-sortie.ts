@@ -321,6 +321,19 @@ const missionOp = () => `<span class="fs-op mission">${t('fleet.onMission')}</sp
 const SEVEN_FLEET_FATIGUE_HTML = sevenFleetHtml(SEVEN_SHIPS, fatigueOp());
 const SEVEN_FLEET_FATIGUE_READY_HTML = sevenFleetHtml(SEVEN_SHIPS, fatigueOp(t('cond.recoverReady')), { air: '1234', lv: '1234', tp: '104' });
 const SIX_FLEET_FATIGUE_HTML = sixFleetHtml(SEVEN_SHIPS.slice(0, 6), fatigueOp('7:12', 2), { air: '0', los: '-12.8', lv: '540', tp: '102' });
+// ── 爆雷誤帶提醒（docs/saury-plan.md §4.3）：七船最差情況，兩艘驅逐帶爆雷；與 main.ts depthChargeOp 同結構 ──
+const DC = { name: '二式爆雷改二', short: '爆雷', cat: 'c-asw', icon: 17 };
+const DC2 = { name: '九五式爆雷', short: '爆雷', cat: 'c-asw', icon: 17 };
+const SONAR = { name: '三式水中探信儀', short: 'ソ', cat: 'c-asw', icon: 18 };
+const DC_SHIPS: Ship[] = SEVEN_SHIPS.map((s, i) =>
+    i === 5 ? { ...s, gears: [SONAR, DC, DC2] }
+        : i === 6 ? { ...s, gears: [SONAR, s.gears[1]], ex: DC } : s);
+const dcOp = (compact = false) => {
+    const tip = `照月改：二式爆雷改二、九五式爆雷\n綾波改二：二式爆雷改二\n${t('fleet.dcTitle')}`;
+    return `<button type="button" class="fs-op dc-op" title="${esc(`${tip}\n${t('fleet.dcDismiss')}`)}"><span class="fs-op-label">${esc(t('fleet.dcBadge'))}</span><span class="fs-op-time">${esc(t(compact ? 'fleet.dcShort' : 'fleet.dcLong', { n: 2 }))}</span></button>`;
+};
+const DC_FLEET_HTML = sevenFleetHtml(DC_SHIPS, dcOp());
+const DC_FLEET_FATIGUE_HTML = sevenFleetHtml(DC_SHIPS, fatigueOp() + dcOp(true));
 const FIVE_FLEET_SPACING_HTML = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5));
 const FIVE_FLEET_SPACING_OPS_HTML = fiveFleetHtml(SEVEN_SHIPS.slice(0, 5), fatigueOp());
 // 五格空母的搭載數是 compact 裝備列最容易觸發換行的案例；這是離線版面 fixture，
@@ -2320,6 +2333,22 @@ const REFERENCE_SORTIE_HTML = `<div class="sortie-container">
 // ── 完整出擊情境定義 ──────────────────────────────────────────────────────
 const SCENES = [
     {
+        id: 'dc-a',
+        label: '爆雷提醒｜摘要狀態列',
+        note: '秋刀魚祭期間、艦隊帶爆雷類裝備時，編成摘要上方的狀態列（同疲勞倒數那一行）出現提醒；滑鼠移上去列出哪艘帶了什麼。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: DC_FLEET_HTML,
+    },
+    {
+        id: 'dc-a-fatigue',
+        label: '爆雷提醒｜與疲勞倒數同列',
+        note: '與士氣倒數同時出現時共用同一行，文字縮成「爆雷 2 艘」，說明放在滑鼠提示。',
+        current: REFERENCE_SORTIE_HTML,
+        proposed: REFERENCE_SORTIE_HTML,
+        fleet: DC_FLEET_FATIGUE_HTML,
+    },
+    {
         id: 'reference',
         label: '參考畫面｜E3 甲斬殺期',
         note: '以參考畫面校正：E3 甲斬殺期、10 個節點（非戰鬥藍色／能動分歧白色／目前節點藍綠光暈）、敵方連合艦隊隨伴與主隊雙欄。',
@@ -3621,12 +3650,15 @@ const summaryLanguagePage = (lang: 'zh-TW' | 'en' | 'ja') => {
     const supplyFleet = sevenFleetHtml(SEVEN_SHIPS, condRecoverOp(t('cond.recoverReady'), 3, '1:25:10'));
     const supplyReadyFleet = sevenFleetHtml(SEVEN_SHIPS, condRecoverOp(t('cond.recoverReady'), 3, t('cond.supplyReady')));
     const supplyLongFleet = sevenFleetHtml(SEVEN_SHIPS, condRecoverOp('1:10:34', 3, '1:25:10'));
+    // 爆雷提醒：單獨一行的長文案，以及與最長士氣里程碑同列的縮短文案。
+    const dcFleet = sevenFleetHtml(DC_SHIPS, dcOp());
+    const dcSupplyFleet = sevenFleetHtml(DC_SHIPS, condRecoverOp('1:10:34', 3, '1:25:10') + dcOp(true));
     return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>Summary ${lang}</title><style>
 ${css}
 html,body{height:auto;overflow:auto}body{display:block;margin:0;padding:16px;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,sans-serif}.pv-lang{width:370px;border:1px solid var(--line);box-sizing:border-box;margin-bottom:16px}.pv-lang h1{font-size:14px;color:var(--sparkle);margin:0 10px 10px;padding-top:8px}.pv-lang .fsummary{margin-bottom:8px}.pv-lang .fs-metrics{margin-bottom:4px}
 </style></head><body>
 <main class="pv-lang" data-frame="370"><h1>${lang.toUpperCase()} 370 inner</h1>
-<div id="fleets">${hardCase}${speedSamples}${fleet}${supplyFleet}${supplyReadyFleet}${supplyLongFleet}</div></main>
+<div id="fleets">${hardCase}${speedSamples}${fleet}${supplyFleet}${supplyReadyFleet}${supplyLongFleet}${dcFleet}${dcSupplyFleet}</div></main>
 </body></html>`.replace(/src="\/icons\//g, 'src="../public/icons/');
 };
 writeFileSync(resolve(root, '.preview/panel-summary-zh.html'), summaryLanguagePage('zh-TW'));
