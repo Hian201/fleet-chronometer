@@ -8,7 +8,7 @@ import { itemCatalog } from './item-catalog';
 import { QUEST_CATALOG_BY_NO } from './quest-flow';
 import { questCatalogIdentity } from './quest-identity';
 import { materialQuantity, type IncomeMaterial } from './quest-material-income';
-import { questBasicResources } from './quest-catalog-localization';
+import { questBasicResources, questRewardsKnown } from './quest-catalog-localization';
 import { remodelStep, type RemodelMasterData } from './remodel-goals';
 import { SPECIAL_HARD_CAP, incomeAtCap } from './resource-cap';
 import { sampleAt, type Sample } from './resource-log';
@@ -193,9 +193,10 @@ function trustsCatalog(titles: ReadonlyMap<number, string>, questNo: number, ts:
     return !(identity === 'mismatch' || (identity === 'unknown' && definition.limited));
 }
 
-/** 以任務目錄的報酬文字回傳離散資材的確定報酬（擇一報酬不計）；不可信的領獎回 null。 */
+/** 以任務目錄的報酬文字回傳離散資材的確定報酬（擇一報酬不計）；不可信的領獎或報酬表沒收錄的任務回 null（不當 0）。 */
 export function catalogQuestReward(titles: ReadonlyMap<number, string>): LedgerInputs['questReward'] {
-    return (questNo, ts, mat) => (trustsCatalog(titles, questNo, ts) ? materialQuantity(questNo, MAT_TO_INCOME_NAME[mat]).fixed : null);
+    return (questNo, ts, mat) => (trustsCatalog(titles, questNo, ts) && questRewardsKnown(questNo)
+        ? materialQuantity(questNo, MAT_TO_INCOME_NAME[mat]).fixed : null);
 }
 
 /** 同上，回傳基本資源（索引 0–3）的確定報酬；目錄的資源欄位本身就是確定報酬。 */

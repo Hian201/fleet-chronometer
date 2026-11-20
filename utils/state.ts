@@ -948,6 +948,9 @@ export class GameState {
     private practiceList: { opponents: PracticeOpponentView[]; createKind: number | null; ts: number; battlesSince: number } | null = null;
     // 正在進行的演習戰鬥（api_req_practice/battle 起、回港或重開清單止）；opponent 是清單索引，對不上為 null。
     private practiceBattle: { opponent: number | null } | null = null;
+    // 演習艦隊開戰前的實際血量（艦實例 id → api_nowhp）。演習受損不會留下，戰鬥中寫回 this.ships 的
+    // 血量只給編成面板顯示；入渠候選（damagedShips）在演習期間用這份，與 practiceBattle 同時清除。
+    private practiceRealHp: Map<number, number> | null = null;
     // clearitemget 是本機確實觀測到領取獎勵的證據。仍在 raw events 裡的領獎由 applyEvent
     // 記入；已裁剪或只存在備份 derived table 的列經 ingestArchivedQuestClaim 補回。
     questObservedCompletions = new Map<number, { count: number; lastTs: number }>();
@@ -1541,6 +1544,7 @@ export class GameState {
                 }
                 : null;
             this.practiceBattle = null;
+            this.practiceRealHp = null;
         } else if ((path === 'api_req_quest/clearitemget' || path === 'api_req_quest/stop') && req) {
             this.onReqQuestClearitemget(path, api, req, ts);
         } else if (path === 'api_port/port') {
@@ -2139,6 +2143,7 @@ export class GameState {
         this.battleInfo = null;
         this.sortieInfo = null;
         this.practiceBattle = null;
+        this.practiceRealHp = null;
         this.lastDayBattle = null;
         this.lastDayDamecons = null;
         // 回港＝出擊結束，退避狀態隨之解除（退避艦本來就已經先回到母港）。
@@ -2224,6 +2229,7 @@ export class GameState {
         if (this.combinedFlag > 0 && this.currentSortieFleetId === 0) this.markFleetAway(1);
         this.battleInfo = null;
         this.practiceBattle = null;
+        this.practiceRealHp = null;
         this.lastDayBattle = null;
         this.lastDayDamecons = null;
         this.pendingConsumption = [];
@@ -2730,6 +2736,12 @@ export class GameState {
                     .find(id => Number.isInteger(id) && id >= 1 && id <= this.decks.length && this.decks[id - 1]);
                 this.practiceFleetMasters = practiceDeck === undefined ? null
                     : this.deckMasters(practiceDeck - 1);
+                // 下面的 applyBattleHp 會把演習血量寫進 this.ships；先記下實際血量。
+                this.practiceRealHp = new Map();
+                for (const id of practiceDeck === undefined ? [] : this.decks[practiceDeck - 1].api_ship ?? []) {
+                    const ship = this.ships.get(id);
+                    if (id > 0 && ship) this.practiceRealHp.set(id, Number(ship.api_nowhp));
+                }
             }
 
             // Get player damecons
@@ -5044,7 +5056,8 @@ export class GameState {
         }
         const rows: (DamagedShipView & { sortId: number | undefined })[] = [];
         for (const [id, s] of this.ships) {
-            const hp = Number(s.api_nowhp);
+            // 演習中的艦用開戰前的實際血量：演習受損回港就恢復，不是入渠對象。
+            const hp = this.practiceRealHp?.get(id) ?? Number(s.api_nowhp);
             const maxhp = Number(s.api_maxhp);
             if (!(maxhp > 0) || !(hp >= 0) || hp >= maxhp || inDock.has(id)) continue;
             const deck = fleetOf.get(id);

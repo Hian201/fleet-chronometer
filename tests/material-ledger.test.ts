@@ -296,6 +296,12 @@ describe('catalogQuestReward', () => {
         expect(catalogQuestReward(new Map([[199, limited.name]]))(199, ts, 5)).toBe(3);
     });
 
+    it('目錄有、報酬表沒收錄的任務 → null，不當 0', () => {
+        // 1019 B205「激闘！「第三戦隊」精鋭第二小隊！」只在補充目錄
+        expect(QUEST_CATALOG_BY_NO.has(1019)).toBe(true);
+        expect(catalogQuestReward(new Map([[1019, QUEST_CATALOG_BY_NO.get(1019)!.name]]))(1019, ts, 7)).toBeNull();
+    });
+
     it('目錄沒有的任務編號 → null', () => {
         expect(catalogQuestReward(new Map())(99999, ts, 7)).toBeNull();
     });

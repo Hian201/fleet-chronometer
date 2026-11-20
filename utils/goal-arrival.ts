@@ -44,7 +44,8 @@ export interface ObservedFlow {
 
 /**
  * 從最後一筆取樣往回切整週。第一週的起點之前沒有任何取樣＝觀測不足一週，回 null（不可考）。
- * 取樣有空檔時，週界取「該時刻以前最後一筆」，同一筆取樣不會同時當兩週的端點。
+ * 每段從上一段的起點往回 7 天，週界取「該時刻以前最後一筆」：取樣有空檔時該段會長於 7 天，但不會短於 7 天
+ * （空檔前同一天的密集取樣若各自當端點，會切出只有幾分鐘的一段，除以天數後把單筆收支放大數百倍）。
  */
 export function observeFlow(
     samples: readonly Sample[], materialUse: readonly MaterialUseRow[], data: RemodelMasterData,
@@ -54,9 +55,9 @@ export function observeFlow(
     const list = samples as Sample[];
     const blocks: { start: Sample; end: Sample }[] = [];
     let end = last;
-    for (let i = 1; i <= FLOW_MAX_BLOCKS; i++) {
-        const start = sampleAt(list, last.ts - i * FLOW_BLOCK_DAYS * DAY_MS);
-        if (!start || start.ts >= end.ts) break;
+    while (blocks.length < FLOW_MAX_BLOCKS) {
+        const start = sampleAt(list, end.ts - FLOW_BLOCK_DAYS * DAY_MS);
+        if (!start) break;
         blocks.push({ start, end });
         end = start;
     }
@@ -87,7 +88,7 @@ export function observeFlow(
 /**
  * 單一消耗項的到達狀態。
  *   met：已夠；untracked：沒有流量序列；no-data：持有量或觀測期間不足；
- *   over-cap：排到這個目標為止的累計需求超過蓄積上限，存不到；
+ *   over-cap：這個目標本身的需求超過蓄積上限，存不到；
  *   stalled：最快一週也沒有淨增加，照目前步調湊不齊；
  *   range：earliest／latest 為天數，latest 為 null 表示最慢一週沒有淨增加、上界看不到。
  */
@@ -122,10 +123,12 @@ export function goalArrivals(plans: readonly GoalPlan[], stock: RemodelStock, fl
             const have = stock[line.key];
             if (typeof have !== 'number' || !Number.isFinite(have) || !flow) return { key: line.key, status: 'no-data', deficit: line.short };
             const mat = FLOW_MAT_INDEX[line.key]!;
-            if (before + line.need > hardCapOf(mat)) return { key: line.key, status: 'over-cap', deficit: line.short };
+            // 改造是逐艘花掉的，前面的目標做完就扣，不必同時囤齊累計需求；只有這個目標本身超過上限才真的存不到。
+            if (line.need > hardCapOf(mat)) return { key: line.key, status: 'over-cap', deficit: line.short };
             // line.short 是夾在 0 以上的可用量算出的；前面的目標還沒湊齊時，真正的缺口是累計需求 − 持有量。
             const deficit = before + line.need - have;
-            const rate = flow.rates[line.key]!;
+            const rate = flow.rates[line.key];
+            if (!rate) return { key: line.key, status: 'no-data', deficit: line.short };
             if (rate.high <= 0) return { key: line.key, status: 'stalled', deficit };
             return { key: line.key, status: 'range', deficit, earliest: deficit / rate.high, latest: rate.low > 0 ? deficit / rate.low : null };
         });

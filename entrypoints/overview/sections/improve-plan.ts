@@ -60,7 +60,7 @@ function dayCell(state: GameState, day: WeekRow['week'][number]): string {
     if (day.solo) return `<span class="ip-solo" role="img" title="${esc(t('ov.ipSoloTitle'))}" aria-label="${esc(t('ov.ipSoloTitle'))}">●</span>`;
     if (!day.helpers.length) return `<span class="ip-none" aria-hidden="true">–</span>`;
     // 同一艘艦的各改造形態併成一個名字；持有的排前面並標 ✓，整格以持有與否決定亮暗。
-    const names = groupHelpers(day.helpers).map(group => `${group.owned ? '✓' : ''}${state.shipName(group.shown)}`).join('、');
+    const names = groupHelpers(day.helpers).map(group => `${group.owned ? '✓' : ''}${state.shipName(group.shown)}`).join(t('ui.listSep'));
     const title = t('ov.ipHelperCell', { names });
     return `<span class="ip-need${day.helpers.some(helper => helper.owned) ? ' own' : ''}" role="img" title="${esc(title)}" aria-label="${esc(title)}">○</span>`;
 }
@@ -122,7 +122,7 @@ export function helperPickHtml(state: GameState, candidates: readonly HelperCand
     if (!candidates.length) return `<div class="ov-empty">${esc(t(heldGearCounts(state).size === 0 ? 'ov.ipNoHeld' : 'ov.ipHelperNone'))}</div>`;
     const picked = pickedHelper(candidates, helper);
     const option = (candidate: HelperCandidate) =>
-        `<option value="${candidate.id}"${candidate.id === picked?.id ? ' selected' : ''}>${esc(candidate.name)}（+${candidate.n}）</option>`;
+        `<option value="${candidate.id}"${candidate.id === picked?.id ? ' selected' : ''}>${esc(t('ov.ipHelperOption', { name: candidate.name, n: candidate.n }))}</option>`;
     return `<label class="rs-inline"><span>${esc(t('ov.ipHelperPick'))}</span><select class="rs-search ip-helper" aria-label="${esc(t('ov.ipHelperPick'))}">${helperGroups(candidates).map(group =>
         `<optgroup label="${esc(group.label)}">${group.items.map(option).join('')}</optgroup>`).join('')}</select></label>`;
 }
@@ -182,21 +182,29 @@ export function improvePlanHtml(state: GameState, now: number, stats: readonly I
 export const improvePlanSection: OverviewSection = {
     id: 'improve-plan', titleKey: 'ov.improvePlan',
     async render(el, ctx: SectionContext) {
-        const now = Date.now();
+        // 「今天」每次重繪都重取：分區開著跨過 JST 00:00 時，今天欄與今天可用的秘書艦跟著換日。
+        let now = Date.now();
         const opts = defaultOptions(now);
         let stats: ImproveStat[] | null = null;
         // 先畫殼、綁事件，再讀 DB：讀取卡住或失敗只影響第三塊，前兩塊照常可用。
         el.innerHTML = improvePlanHtml(ctx.state, now, null, opts);
-        if (!el.querySelector('.ip')) return;
+        if (!el.querySelector('.ip')) {
+            // 遊戲資料還沒載入（冷啟動）：載入後整個分區重畫一次。
+            ctx.onStateChange?.(() => { if (el.isConnected && ctx.state.master.size > 0) ctx.rerender(); });
+            return;
+        }
         const q = <T extends HTMLElement>(selector: string) => el.querySelector<T>(selector)!;
-        let pickPainted = q('.ip-helper-pick').innerHTML;
+        // 用產生的字串比對（DOM 的 innerHTML 會把 selected 序列化成 selected=""，比對永遠不同）。
+        let pickPainted = helperPickHtml(ctx.state, helperCandidates(ctx.state, now), opts.helper);
         const drawWeek = () => {
+            now = Date.now();
             const rows = weekRows(ctx.state, opts);
             q('.ip-week-body').innerHTML = weekBodyHtml(ctx.state, now, rows, opts);
             q('.ip-count').textContent = t('ov.ipCount', { n: rows.length });
         };
         // 選單本身就是使用者剛操作的控制項：選擇改變時只換結果，不重建選單（會丟掉焦點）。
         const drawHelper = (rebuildPick = true) => {
+            now = Date.now();
             const candidates = helperCandidates(ctx.state, now);
             const pick = helperPickHtml(ctx.state, candidates, opts.helper);
             if (rebuildPick && pick !== pickPainted) q('.ip-helper-pick').innerHTML = pick;

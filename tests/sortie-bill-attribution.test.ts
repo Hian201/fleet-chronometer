@@ -27,6 +27,15 @@ describe('高速修復材的歸屬', () => {
         expect(out.get(3)?.buckets).toBe(1);
     });
 
+    it('同一趟同一艘最多歸一個：之後再用桶是別的傷，不往前疊加', () => {
+        const bills = [bill(1, 100, '1-5', { damagedShipIds: [11] })];
+        const uses: MaterialUseRow[] = [
+            { eventId: 11, ts: 900, kind: 'bucket', via: 'start', shipId: 11 },
+            { eventId: 10, ts: 200, kind: 'bucket', via: 'start', shipId: 11 },
+        ];
+        expect(attributeMaterialUse(bills, uses).get(1)?.buckets).toBe(1);
+    });
+
     it('沒有 shipId、找不到受損的那一趟、或時間在所有帳單之前都不歸屬', () => {
         const bills = [bill(1, 100, '1-5', { damagedShipIds: [11] })];
         const uses: MaterialUseRow[] = [

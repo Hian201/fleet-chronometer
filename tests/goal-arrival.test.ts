@@ -60,6 +60,15 @@ describe('observeFlow', () => {
         expect(flow.weeks).toBe(1);
         expect(flow.rates.ammo).toEqual({ low: 100, high: 100, mean: 100 });
     });
+
+    it('空檔前同一天的密集取樣不會切出只有幾分鐘的一段', () => {
+        const min = DAY_MS / 1440;
+        const samples = [at(0, 0, 0), { ...at(0, 50, 0), ts: T0 + 3 * min }, at(14, 1450, 0)];
+        const flow = observeFlow(samples, [], state)!;
+        expect(flow.weeks).toBe(1);
+        expect(flow.blocks!.every(block => block.toTs - block.fromTs >= 7 * DAY_MS)).toBe(true);
+        expect(flow.rates.ammo!.high).toBeCloseTo(1400 / (14 - 3 / 1440));
+    });
 });
 
 const ship = (id: number, masterId: number): GoalShip => ({ id, masterId, lv: 99, exp: 0 });
@@ -114,15 +123,14 @@ describe('goalArrivals', () => {
         expect(ise!.lines.find(line => line.key === 'devmat')!.status).toBe('met');
     });
 
-    it('累計需求超過蓄積上限時存不到', () => {
+    it('累計需求超過蓄積上限不算存不到：改造逐艘花掉，前面的做完就扣', () => {
         const goals = Array.from({ length: 40 }, (_, i) => ({ shipId: 100 + i, targetMst: ISE_K2 }));
         const ships = new Map(goals.map(goal => [goal.shipId, ship(goal.shipId, ISE_KAI)]));
         const stock = { ammo: 1e6, steel: 1e6, devmat: 0, blueprint: 99, catapult: 99, report: 99 };
         const { plans } = planRemodelGoals(state, goals, ships, stock);
         const result = goalArrivals(plans, stock, flowOf({ devmat: { low: 10, high: 10, mean: 10 } }));
-        // 開發資材上限 3000：第 37 個目標累計 2960，第 38 個起累計 3040 > 3000
-        expect(result[36]!.lines.find(line => line.key === 'devmat')!.status).toBe('range');
-        expect(result[37]!.lines.find(line => line.key === 'devmat')!.status).toBe('over-cap');
+        // 開發資材上限 3000：第 38 個起累計 3040 > 3000，但每艘只要 80，照樣推得出日期
+        expect(result[37]!.lines.find(line => line.key === 'devmat')).toMatchObject({ status: 'range', deficit: 3040, earliest: 304 });
     });
 
     it('非 active 的目標回 null', () => {

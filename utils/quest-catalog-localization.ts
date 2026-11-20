@@ -229,6 +229,9 @@ export function questBasicResources(apiNo: number): [number, number, number, num
     return resources && [resources.fuel, resources.ammo, resources.steel, resources.bauxite];
 }
 
+/** 報酬表有沒有收錄這個任務（補充目錄的任務只有名稱，沒有報酬）。 */
+export const questRewardsKnown = (apiNo: number): boolean => REWARDS[String(apiNo)] !== undefined;
+
 /** 任務報酬解析後的分組（確定／擇一），供統計道具數量；沒有報酬資料時為空。 */
 export function questRewardGroups(apiNo: number): QuestRewardGroup[] {
     const source = REWARDS[String(apiNo)];

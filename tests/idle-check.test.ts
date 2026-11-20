@@ -138,6 +138,23 @@ describe('演習：本輪剩餘場數', () => {
         expect(idleMarks(state, WED_NOON + 300_000).practice).toBe(3);
     });
 
+    it('演習受損不算入渠閒置：開戰前就受損的照算', () => {
+        const battle = (nowhp: number) => ({
+            api_deck_id: 1, api_f_nowhps: [nowhp], api_f_maxhps: [40],
+            api_e_nowhps: [30], api_e_maxhps: [30], api_ship_ke: [1501],
+        });
+        const fresh = harbor({ decks: [[1]], ndock: [{ state: 0 }] });
+        fresh.applyEvent('api_req_practice/battle', battle(10), { api_deck_id: '1' }, WED_NOON);
+        expect(fresh.ships.get(1)!.api_nowhp).toBe(10);   // 編成面板照樣顯示演習血量
+        expect(idleMarks(fresh, WED_NOON).dock).toBe(0);
+        expect(fresh.damagedShips()).toEqual([]);
+
+        const hurt = harbor({ decks: [[1]], hp: { 1: 20 }, ndock: [{ state: 0 }] });
+        hurt.applyEvent('api_req_practice/battle', battle(5), { api_deck_id: '1' }, WED_NOON);
+        expect(idleMarks(hurt, WED_NOON).dock).toBe(1);
+        expect(hurt.damagedShips()[0].hp).toBe(20);
+    });
+
     it('換輪（15:00 JST）後尚未看到新清單時不可考；沒看過清單也不可考', () => {
         const state = new GameState();
         expect(idleMarks(state, WED_NOON).practice).toBeNull();

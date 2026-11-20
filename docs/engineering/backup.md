@@ -12,7 +12,10 @@
 `api_start2/getData`（**最關鍵**：艦種/裝備 master 表唯一來源，缺了它 `shipName()`/
 `gearName()` 只能回退日文原名、`stype`/`maxeq` 等衍生欄位全缺）、`api_port/port`
 （艦娘/艦隊/資源/暱稱/Lv）、`api_get_member/require_info`／`slot_item`（裝備庫）、
-`api_get_member/base_air_corps`／`mapinfo`（基地航空隊/關卡量表）。刻意不含
+`api_get_member/base_air_corps`／`mapinfo`（基地航空隊/關卡量表）、`useitem`／`payitem`（道具）、
+`mission`（遠征清單：遠征組合建議與開放頁判斷哪些遠征能派）。以上都要在 `KEEP_RECENT` 保護名單內：
+裁剪若留下較早的基石（例如 `start2`）卻刪掉某 path 的最後一筆，該 path 的快照不早於第一筆 raw event、不能當
+baseline，恢復時就會遺失（`tests/event-pruning.test.ts` 把關）。刻意不含
 `api_get_member/questlist`（任務清單靠多頁累積，單一 path 只留最新一筆的快照設計留不住
 完整分頁，優先權較低）。`planStateRecovery()` 只在 raw events 為空時採用 legacy snapshot；
 raw events 存在時，僅採用 `eventId` 嚴格小於第一筆 retained raw event ID 的 snapshot 作

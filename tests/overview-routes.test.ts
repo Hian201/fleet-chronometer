@@ -46,6 +46,8 @@ describe('舊網址轉向', () => {
         expect(resolveRoute('#/goals', sections)).toEqual({ id: 'goals', canonical: null });
         expect(resolveRoute('#/no-such-section', sections)).toEqual({ id: sections[0].id, canonical: null });
         expect(resolveRoute('', sections)).toEqual({ id: sections[0].id, canonical: null });
+        expect(resolveRoute('#/toString', sections)).toEqual({ id: sections[0].id, canonical: null });
+        expect(resolveRoute('#/__proto__', sections)).toEqual({ id: sections[0].id, canonical: null });
     });
 
     it('工廠分區宣告的舊 id 都能解到對應子頁', () => {

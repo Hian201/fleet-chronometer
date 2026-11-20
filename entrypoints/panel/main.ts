@@ -1167,7 +1167,8 @@ function sortieNodeClass(node: { eventId?: number; eventKind?: number }, current
 function practiceRows(now: number): PracticeRow[] | null {
     const list = state.practiceList_();
     if (!list || practiceRound(list.ts) !== practiceRound(now)) return null;
-    const current = state.practiceBattle_()?.opponent ?? null;
+    // 結算後（回港前）該對手已有評價，不再標「交戰中」。
+    const current = state.battleInfo?.hasResult ? null : state.practiceBattle_()?.opponent ?? null;
     return list.opponents.map((o, i) => ({
         name: o.name,
         level: o.level,

@@ -13,6 +13,8 @@
   區塊與曜日／二番艦區塊各自有 rowspan。
 - 二番艦欄 `-`＝明石單獨；多艘以 <br> 分隔；列出的艦名含其後所有改造形態（aftershipid 與
   api_mst_shipupgrade 的轉換邊），除非同一件裝備另外單獨列出了更進階的形態（較具體者優先）。
+  可逆的改装換型會成環：列出環上某一型時，離起點不比它遠的形態（較早的形態、並列的換型）不算其後
+  （例：只列最上改二特時不含最上改二）。較具體的記載用註記排除某形態時，該形態也不退回較淺的記載。
 - 二番艦格內的 tooltip 註記只認下列語法，其餘一律 raise（不猜）：
   <艦名>は不可／以降は不可／は曜日が異なる／以降は曜日が異なる／まで同じ／は更新先が異なる（忽略），
   艦名可用 ・ 或 / 並列，缺艦名的相對寫法（改二は不可、乙…）以本列基準艦的名稱補全。
@@ -129,15 +131,46 @@ class Master:
                     self.convert_edges += 1
                 self.next[cur].add(dst)
         self._desc: dict[int, frozenset[int]] = {}
+        self._depth: dict[int, int] = {}
+
+    def reach(self, sid: int) -> frozenset[int]:
+        """沿改造與改装換型邊走得到的所有形態（含 sid；圖可能有環，故用已訪問集合）。"""
+        seen: set[int] = set()
+        stack = [sid]
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            stack.extend(self.next[cur])
+        return frozenset(seen)
+
+    def depth(self, sid: int) -> int:
+        """從改造鏈起點沿改造與改装換型邊走到 sid 的最少步數。"""
+        if sid not in self._depth:
+            base = self.base(sid)
+            dist = {base: 0}
+            queue = [base]
+            for cur in queue:
+                for nxt in self.next[cur]:
+                    if nxt not in dist:
+                        dist[nxt] = dist[cur] + 1
+                        queue.append(nxt)
+            self._depth[sid] = dist.get(sid, 0)
+        return self._depth[sid]
 
     def desc(self, sid: int) -> frozenset[int]:
-        """sid 與其後所有形態（含改装換型；圖可能有環，故用已訪問集合）。"""
+        """sid 與其後所有形態。可逆的改装換型會成環（例：最上改二→改二特→改二）：與 sid 互相走得到的形態中，
+        離起點比 sid 近或一樣近的（較早的形態、並列的換型）不算「其後」，不納入也不經由它往下走；
+        較遠的（列出最上改二時的改二特）照常納入。列出更早的形態（最上、最上改）時環上各型都在其後。"""
         if sid not in self._desc:
+            reach = self.reach(sid)
+            peers = {x for x in reach if x != sid and sid in self.reach(x) and self.depth(x) <= self.depth(sid)}
             seen: set[int] = set()
             stack = [sid]
             while stack:
                 cur = stack.pop()
-                if cur in seen:
+                if cur in seen or cur in peers:
                     continue
                 seen.add(cur)
                 stack.extend(self.next[cur])
@@ -301,33 +334,37 @@ def build_wiki(master: Master, entries: list[Entry], unmatched_ships: set[str]) 
     同一艦可被多條記載涵蓋時，只取「較具體」的記載（其基準艦是另一條基準艦的後續形態）；
     互為轉換的形態（環）視為同層。對應 wiki 例 5：陸奥 ◯、陸奥改二 × → 陸奥改二當天不可。
     """
-    by_gear: dict[str, list[tuple[Entry, list[int], set[int]]]] = {}
+    # 每條記載帶（記載, 基準艦 ids, 扣掉註記排除後的涵蓋, 展開時的原始涵蓋）。
+    by_gear: dict[str, list[tuple[Entry, list[int], set[int], set[int]]]] = {}
     for entry in entries:
         if entry.base is None:
-            by_gear.setdefault(entry.gear, []).append((entry, [], set()))
+            by_gear.setdefault(entry.gear, []).append((entry, [], set(), set()))
             continue
         ids = master.find_ships(entry.base)
         if not ids:
             unmatched_ships.add(entry.base)
             continue
-        by_gear.setdefault(entry.gear, []).append((entry, ids, expand(master, entry, ids)))
+        raw = set().union(*(master.desc(sid) for sid in ids))
+        by_gear.setdefault(entry.gear, []).append((entry, ids, expand(master, entry, ids), raw))
     result: dict[str, dict[int, int]] = {}
     for gear, items in by_gear.items():
         table: dict[int, int] = {}
-        for entry, ids, covered in items:
+        for entry, ids, covered, _ in items:
             if entry.base is None:
                 table[SOLO] = table.get(SOLO, 0) | entry.bits
         helpers = [it for it in items if it[0].base is not None]
+        # 深度比較用原始涵蓋：較具體的記載用註記把某形態排除（〇〇は不可）時，該形態不能退回較淺的記載而被加回。
         for sid in {s for it in helpers for s in it[2]}:
-            cand = [it for it in helpers if sid in it[2]]
+            cand = [it for it in helpers if sid in it[3]]
 
             def strictly_deeper(a, b) -> bool:  # a 比 b 更具體
                 return any(x in master.desc(y) and y not in master.desc(x) for x in a[1] for y in b[1])
 
             keep = [c for c in cand if not any(strictly_deeper(o, c) for o in cand if o is not c)]
             bits = 0
-            for entry, _, _ in keep:
-                bits |= entry.bits
+            for entry, _, covered, _ in keep:
+                if sid in covered:
+                    bits |= entry.bits
             if bits:
                 table[sid] = bits
         result[gear] = table
@@ -426,7 +463,7 @@ def main() -> None:
         merged[gid] = kc3_by_id[gid]
     unconfirmed = sorted(gid for gid, table in wiki_by_id.items() if not table and gid not in merged)
     helpers = sorted({sid for table in merged.values() for sid in table if sid != SOLO})
-    helper_base = ','.join(f'[{sid},{master.base(sid)}]' for sid in helpers)
+    helper_base = ','.join(f'[{sid},{master.base(sid)},{master.depth(sid)}]' for sid in helpers)
     print(f'旗標未確認的裝備：{[(g, master.gear_name[g]) for g in unconfirmed]}；二番艦形態歸併 {len(helpers)} 筆、起點 {len({master.base(h) for h in helpers})} 個')
     rows = []
     for gid in sorted(merged):
@@ -464,10 +501,11 @@ def main() -> None:
         f'export const AKASHI_UNCONFIRMED: readonly number[] = {json.dumps(unconfirmed)};\n'
         '\n'
         '/**\n'
-        ' * 二番艦 master id → 該艦改造鏈的起點 master id，涵蓋表內出現過的所有二番艦。\n'
+        ' * 二番艦 master id → [該艦改造鏈的起點 master id, 從起點走到該形態的最少步數]，涵蓋表內出現過的所有二番艦。\n'
         ' * 起點取 api_mst_shipupgrade 的 api_original_ship_id；沒有該筆時沿 api_aftershipid 往回推。\n'
+        ' * 步數沿改造與改装換型邊算（不能用 master id 大小判斷先後：例 金剛改 209 → 金剛改二 149）。\n'
         ' */\n'
-        f'export const AKASHI_HELPER_BASE: readonly (readonly [number, number])[] = [{helper_base}];\n',
+        f'export const AKASHI_HELPER_BASE: readonly (readonly [number, number, number])[] = [{helper_base}];\n',
         encoding='utf-8',
     )
     print(f'{OUT.relative_to(ROOT)}：{len(merged)} 件裝備')

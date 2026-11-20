@@ -110,6 +110,17 @@ describe('planExpeditions：候選與收益', () => {
         expect(byId.get(904)!.perDay.fuel).toBeCloseTo((100 - 14) * 8);  // 3 小時收一次 → 一天 8 趟
         expect(byId.get(906)!.perDay.fuel).toBeCloseTo(100 * 4);         // 200 分鐘要兩個間隔 → 一天 4 趟
     });
+
+    it('補給取最近一次可換算的編成，不受紀錄排列方向影響', () => {
+        const shipMax = new Map([['睦月', [15, 15] as const], ['如月', [15, 15] as const]]);
+        const old = run(904, { ts: AFTER, resources: [100, 0, 0, 0], fleet: [{ name: '睦月', level: 1 }] });
+        const recent = run(904, { ts: AFTER + 1000, resources: [100, 0, 0, 0], fleet: [{ name: '睦月', level: 1 }, { name: '如月', level: 1 }] });
+        const supplyWith = (records: ExpeditionRow[]) => plan({
+            missions: [mission(904, 30, { use: [0.5, 0.4] })], records, needs: [need('fuel', 0)], shipMax,
+        }).candidates[0].supply;
+        expect(supplyWith([old, recent])).toEqual([14, 12]);
+        expect(supplyWith([recent, old])).toEqual([14, 12]);
+    });
 });
 
 describe('planExpeditions：組合', () => {
@@ -244,6 +255,10 @@ describe('月常遠征的本期', () => {
         expect(staleDone.monthly.map(row => row.missionId)).toEqual([942, 943]);
         expect(stale.monthlyCycle).toEqual(monthlyExpeditionCycle(now));
 
+        // 維修把換期延到 15 日 17:00（日本時間）：本期起點仍是上個月 15 日。
+        const delayed = plan({ ...data, missionList: { ...missionList, resetAt: utc('2026-12-15T08:00:00') } });
+        expect(delayed.monthlyCycle).toEqual({ start: utc('2026-11-15T03:00:00'), end: utc('2026-12-15T08:00:00') });
+
         // 從沒收到清單：全部照列。
         const none = plan(data);
         expect(ids(none.candidates)).toEqual([905, 906]);
@@ -298,8 +313,9 @@ describe('resourceNeeds', () => {
         expect(resourceNeeds(['fuel'], { fuel: 999 }, caps, null, [])).toEqual([{ key: 'fuel', have: 999, cap: caps.fuel, base: null, current: null }]);
     });
 
-    it('daysToFill：缺口 0 為 0，速度不為正為 Infinity', () => {
-        expect(daysToFill(0, -5)).toBe(0);
+    it('daysToFill：已滿且不減為 0，已滿卻會掉出上限或速度不為正為 Infinity', () => {
+        expect(daysToFill(0, 0)).toBe(0);
+        expect(daysToFill(0, -5)).toBe(Infinity);
         expect(daysToFill(10, 0)).toBe(Infinity);
         expect(daysToFill(10, 4)).toBe(2.5);
     });
@@ -352,6 +368,31 @@ describe('planExpeditions：睡前組合', () => {
         }));
         // 904 單趟最多：睡前一定派它，且由在線也跑 904 的那一隊（若有）派。
         expect(result.sleep.map(row => row.missionId)).toContain(904);
+    });
+
+    it('睡前遠征比在線少時仍排到每一隊，輸出不丟失也不錯位', () => {
+        // 離開 8 小時、每 4 小時收：兩天的 931、932 回不來，睡前只有 951 能派，且只能派給在線也跑 951 的那一隊。
+        // 組合依編號是 [931, 932, 951]：睡前那條不能固定排在第一隊。
+        const data = setup(fuelMission(931, 2880, 5000), fuelMission(932, 2880, 4000), fuelMission(951, 240, 100));
+        const result = plan({ ...data, intervalMinutes: 240, sleepMinutes: 480, needs: [need('fuel', 0)] });
+        expect(ids(result.sleep)).toEqual([951]);
+        expect(ids(result.top)).toEqual([931, 932, 951]);
+        // 951 那隊在線 16 小時跑 4 趟＋睡前 1 趟；兩天的遠征在有作息離開時一天跑不完一趟。
+        expect(result.outlook[0].planRate).toBeCloseTo(5 * 100);
+        expect(result.roles.top[result.top.findIndex(row => row.missionId === 951)]).toBe('fuel');
+    });
+
+    it('在線候選有淨收入為負的項目時，佔用較短的睡前遠征不算勝過佔用較長的', () => {
+        // 905 是唯一的鋼材來源，但每趟燃料 −50。922 與 923–927 每趟燃料相同，922 佔用較長（10 小時）：
+        // 派給 905 那隊時在線少兩趟，燃料多 100、鋼材少 200；鋼材兩種都會滿，燃料是瓶頸，所以 922 較好。
+        const cap = stockpileCap('fuel');
+        const data = setup(
+            { mission: mission(905, 60), records: runs(MIN_RUNS, 905, { resources: [-50, 0, 100, 0] }) },
+            fuelMission(922, 600, 500), ...[923, 924, 925, 926, 927].map(id => fuelMission(id, 480, 500)),
+        );
+        const result = plan({ ...data, intervalMinutes: 60, sleepMinutes: 480, needs: [need('fuel', cap - 30000), need('steel', stockpileCap('steel') - 10000)] });
+        expect(result.top.map(row => row.missionId)).toContain(905);
+        expect(ids(result.sleep)).toContain(922);
     });
 
     it('有作息離開時在線趟數取整數：最後一趟睡前收不回來就不算', () => {

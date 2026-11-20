@@ -20,8 +20,9 @@ export function resolveRoute(hash: string, sections: readonly RouteSection[]): R
     const id = index < 0 ? raw : raw.slice(0, index);
     if (sections.some(section => section.id === id)) return { id, canonical: null };
     for (const section of sections) {
-        const redirect = section.redirects?.[id];
-        if (redirect === undefined) continue;
+        // 只認自有屬性：#/toString 之類的原型鍵名不是舊網址。
+        if (!section.redirects || !Object.hasOwn(section.redirects, id)) continue;
+        const redirect = section.redirects[id];
         // 舊網址自帶的參數保留；redirect 的參數優先（它指定的是子頁）
         const params = new URLSearchParams(index < 0 ? '' : raw.slice(index + 1));
         for (const [key, value] of new URLSearchParams(redirect)) params.set(key, value);

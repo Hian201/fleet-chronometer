@@ -57,6 +57,8 @@ export const factorySection: OverviewSection = {
             const job = Promise.resolve().then(() => sub.section.render(host, ctx)).catch(error => {
                 console.error(`[overview] 工廠子頁 ${key} render 失敗`, error);
                 host.innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
+                // 失敗的子頁不記成已載入：切走再切回會重試。
+                rendered.delete(key);
             });
             rendered.set(key, job);
             return job;

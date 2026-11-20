@@ -2,6 +2,7 @@ import Dexie from 'dexie';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KcDb, type ApiEventRow } from '../utils/db';
 import { KEEP_RECENT, planRawEventPrune, pruneRawEventsBefore } from '../utils/event-pruning';
+import { SNAPSHOT_ORDER } from '../utils/state-recovery';
 import { PROJECTION_META_VERSION } from '../utils/projection-cursor';
 
 const databases: KcDb[] = [];
@@ -238,6 +239,10 @@ describe('投影 cursor 安全事件裁剪', () => {
         await pruneRawEventsBefore(database, 5);
 
         expect(await eventIds(database)).toEqual([4, 5]);
+    });
+
+    it('snapshot 名單內的 path 都受 KEEP_RECENT 保護，恢復時不會因裁剪遺失', () => {
+        for (const path of SNAPSHOT_ORDER) expect(KEEP_RECENT[path]).toBeGreaterThanOrEqual(1);
     });
 
     it('既有 KEEP_RECENT path 的數量規則保持不變', () => {

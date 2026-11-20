@@ -212,10 +212,17 @@ describe('情報總括「改修日程」', () => {
 });
 
 describe('groupHelpers', () => {
-    it('同一艘艦的改造形態歸成一組：持有者顯示持有的形態，否則顯示起點形態', () => {
-        // 13 號艦的改造鏈：11（起點）→ 204 等形態
+    it('同一艘艦的改造形態歸成一組：持有者顯示持有的形態，否則顯示組內最早的形態', () => {
+        // 11 號艦的改造鏈：11（起點）→ 204 等形態
         expect(groupHelpers([{ masterId: 11, owned: false }, { masterId: 204, owned: false }])).toEqual([{ base: 11, shown: 11, owned: false }]);
         expect(groupHelpers([{ masterId: 11, owned: false }, { masterId: 204, owned: true }])).toEqual([{ base: 11, shown: 204, owned: true }]);
+    });
+
+    it('只限改造後形態時不顯示不在清單內的起點；先後看改造步數，不看 master id', () => {
+        // 金剛（78）→ 金剛改（209）→ 金剛改二（149）：id 小的反而是後面的形態
+        expect(groupHelpers([{ masterId: 149, owned: false }, { masterId: 209, owned: false }])).toEqual([{ base: 78, shown: 209, owned: false }]);
+        // 大鯨（184）→ 龍鳳 → 龍鳳改 → 龍鳳改二戊（883）→ 龍鳳改二（888）
+        expect(groupHelpers([{ masterId: 888, owned: false }, { masterId: 883, owned: false }])).toEqual([{ base: 184, shown: 883, owned: false }]);
     });
 
     it('持有的組排前面；表外的艦以自己為起點', () => {

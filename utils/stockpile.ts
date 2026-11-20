@@ -42,7 +42,7 @@ export function stockpileFromRows(rows: readonly { key: string; kind: string; un
 }
 
 export const stockpileToRow = (goal: StockpileGoal): StockpileGoalRow =>
-    ({ key: STOCKPILE_GOAL_KEY, kind: 'stockpile', until: goal.until });
+    ({ key: STOCKPILE_GOAL_KEY, kind: 'stockpile', until: isStockpileDate(goal.until) ? goal.until : null });
 
 /**
  * 到上限的狀態。
@@ -63,7 +63,7 @@ export interface StockpileLine {
     toCap: ToCap;
     /** 期限當天扣掉改造保留後的預估量（最慢一週～最快一週，夾在 0 與上限之間）；沒有期限、期限已過或不可考為 null。 */
     atDeadline: { low: number; high: number } | null;
-    /** 照最快一週的步調，期限前（含已經）就會到上限：之後流進來的收入會浪費。沒有期限時為 false。 */
+    /** 照最快一週的步調，期限前（含已經）就會到上限：之後流進來的收入會浪費。沒有期限，或已滿但最快一週也沒有淨增加時為 false。 */
     fillsBeforeDeadline: boolean;
 }
 
@@ -87,12 +87,19 @@ export function stockpileOutlook(
         const base = { key, cap, have, reserved: held };
         if (have === null) return { ...base, toCap: { status: 'unknown' }, atDeadline: null, fillsBeforeDeadline: false };
         const free = have - held;
-        if (free >= cap) return { ...base, toCap: { status: 'full' }, atDeadline: ahead === null ? null : { low: cap, high: cap }, fillsBeforeDeadline: ahead !== null };
+        // 改造保留比持有多時 free 為負：缺的部分已在改造卡片上列為缺口，這裡只說備蓄剩 0，不顯示負數。
+        const project = (perDay: number) => Math.max(0, Math.min(cap, free + perDay * ahead!));
+        if (free >= cap) {
+            // 已滿：期末量照樣依流量推（淨消耗時會掉下來）；流量不可考時期末不可考。最快一週也沒有淨增加時沒有收入會浪費。
+            return {
+                ...base, toCap: { status: 'full' },
+                atDeadline: ahead === null || !rate ? null : { low: project(rate.low), high: project(rate.high) },
+                fillsBeforeDeadline: ahead !== null && (!rate || rate.high > 0),
+            };
+        }
         if (!rate) return { ...base, toCap: { status: 'unknown' }, atDeadline: null, fillsBeforeDeadline: false };
         const toCap: ToCap = rate.high <= 0 ? { status: 'stalled' }
             : { status: 'range', earliest: (cap - free) / rate.high, latest: rate.low > 0 ? (cap - free) / rate.low : null };
-        // 改造保留比持有多時 free 為負：缺的部分已在改造卡片上列為缺口，這裡只說備蓄剩 0，不顯示負數。
-        const project = (perDay: number) => Math.max(0, Math.min(cap, free + perDay * ahead!));
         return {
             ...base, toCap,
             atDeadline: ahead === null ? null : { low: project(rate.low), high: project(rate.high) },

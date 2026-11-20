@@ -74,7 +74,7 @@ export interface NightRankNeed { rank: 'C' | 'B' | 'A' | 'S'; sink?: number; hp?
 /**
  * 日戰結束時，假設夜戰中我方不再受損，列出比目前評級高的各級還差多少（規則同 predictRank）。
  * 這是門檻不是預測：夜戰命中與傷害是隨機的，實際評級以結算為準。
- * 退避艦不計，呼叫端與 predictRank 一樣先濾掉。我方已有轟沈時 S 不可能，不列。
+ * 退避艦不計，呼叫端與 predictRank 一樣先濾掉。我方已有轟沈時 S 不可能，不列；A 要敵全滅。
  */
 export function nightRankTargets(player: BattleShipView[], enemy: BattleShipView[]): NightRankNeed[] {
     if (enemy.length === 0) return [];
@@ -92,7 +92,9 @@ export function nightRankTargets(player: BattleShipView[], enemy: BattleShipView
     const needs: NightRankNeed[] = [
         { rank: 'C', hp: hpFor(0.9) },
         { rank: 'B', hp: hpFor(2.5) },
-        ...(!pSunk && enemy.length > 1 ? [{ rank: 'A' as const, sink: Math.max(0, Math.floor(enemy.length * 0.7) - eSunk) }] : []),
+        // 我方有轟沈時 A 只剩「敵全滅」一條路（規則同 predictRank 的 1~2）。
+        ...(pSunk ? [{ rank: 'A' as const, sink: enemy.length - eSunk }]
+            : enemy.length > 1 ? [{ rank: 'A' as const, sink: Math.max(0, Math.floor(enemy.length * 0.7) - eSunk) }] : []),
         ...(!pSunk ? [{ rank: 'S' as const, sink: enemy.length - eSunk }] : []),
     ];
     // 需要的傷害超過敵方剩餘 HP 合計就達不到，不列。

@@ -290,7 +290,7 @@
             height: 270px;
             overflow-y: auto;
             scrollbar-width: thin;
-            scrollbar-color: var(--line) var(--panel);
+            scrollbar-color: var(--line) transparent;
         }
 
         /* 調度分頁：整塊由內部表捲動，#tabpanel 本身不捲——否則固定 270px 內
@@ -5545,7 +5545,7 @@
             min-height: 0;
             overflow-y: auto;
             scrollbar-width: thin;
-            scrollbar-color: var(--line) var(--panel);
+            scrollbar-color: var(--line) transparent;
         }
         .fac-page[hidden] { display: none; }
         .fac-page.fac-today {
@@ -5560,7 +5560,7 @@
             min-height: 0;
             overflow-y: auto;
             scrollbar-width: thin;
-            scrollbar-color: var(--line) var(--panel);
+            scrollbar-color: var(--line) transparent;
         }
         .fac-today-list .empty { padding: 8px 0; }
         /* 一列一件：左側圖示＋名稱＋持有數，右側改修秘書艦；欄距 ≥12px（§4.1.2）。

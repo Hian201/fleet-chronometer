@@ -53,8 +53,12 @@ describe('stockpileOutlook', () => {
         expect(line(lines, 'steel')).toMatchObject({ atDeadline: { low: 0, high: 2000 }, fillsBeforeDeadline: false });
     });
 
-    it('已滿又設了期限：期限時為上限且標出；期限已過不推算期限時', () => {
-        expect(stockpileOutlook({ fuel: 360_000 }, {}, null, 5)[0]).toMatchObject({ atDeadline: { low: 350_000, high: 350_000 }, fillsBeforeDeadline: true });
+    it('已滿又設了期限：期限時依流量推且標出；淨消耗時會掉下來、不標；流量不可考時期限時不可考；期限已過不推算', () => {
+        expect(stockpileOutlook({ fuel: 360_000 }, {}, flowOf({ fuel: { low: 100, high: 500, mean: 300 } }), 5)[0])
+            .toMatchObject({ toCap: { status: 'full' }, atDeadline: { low: 350_000, high: 350_000 }, fillsBeforeDeadline: true });
+        expect(stockpileOutlook({ fuel: 350_000 }, {}, flowOf({ fuel: { low: -2000, high: -1000, mean: -1500 } }), 5)[0])
+            .toMatchObject({ toCap: { status: 'full' }, atDeadline: { low: 340_000, high: 345_000 }, fillsBeforeDeadline: false });
+        expect(stockpileOutlook({ fuel: 360_000 }, {}, null, 5)[0]).toMatchObject({ atDeadline: null, fillsBeforeDeadline: true });
         const past = stockpileOutlook({ fuel: 1000 }, {}, flowOf({ fuel: { low: 1, high: 1, mean: 1 } }), -2)[0];
         expect(past).toMatchObject({ atDeadline: null, fillsBeforeDeadline: false });
     });

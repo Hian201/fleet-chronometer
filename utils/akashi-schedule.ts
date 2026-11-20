@@ -25,7 +25,8 @@ export interface AkashiTodayRow {
 
 const SCHEDULE = new Map(AKASHI_SCHEDULE);
 const NONE: ReadonlySet<number> = new Set();
-const HELPER_BASE = new Map(AKASHI_HELPER_BASE);
+const HELPER_BASE = new Map(AKASHI_HELPER_BASE.map(([ship, base]) => [ship, base]));
+const HELPER_DEPTH = new Map(AKASHI_HELPER_BASE.map(([ship, , depth]) => [ship, depth]));
 
 function dayEntry(pairs: readonly (readonly [number, number])[], weekday: number, owned: ReadonlySet<number>) {
     const open = pairs.filter(([, bits]) => bits >> weekday & 1);
@@ -88,6 +89,11 @@ export function akashiUnconfirmed(heldGearCounts: ReadonlyMap<number, number>): 
 /** 二番艦所屬改造鏈的起點 master id；表內沒出現過的艦回傳自己。 */
 export function helperBase(shipMasterId: number): number {
     return HELPER_BASE.get(shipMasterId) ?? shipMasterId;
+}
+
+/** 二番艦從改造鏈起點走到該形態的最少步數（越小越早）；表內沒出現過的艦回傳 0。 */
+export function helperDepth(shipMasterId: number): number {
+    return HELPER_DEPTH.get(shipMasterId) ?? 0;
 }
 
 export interface ImproveStat { gearMst: number; attempts: number; successes: number; certain: number; lastTs: number }

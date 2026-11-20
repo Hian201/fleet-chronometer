@@ -18,3 +18,5 @@ python3 tools/akashi-schedule/generate.py --offline  # 只讀 tools/akashi-sched
 - 二番艦欄的 tooltip 註記只認 `generate.py` 檔頭列出的語法，遇到其他寫法會中止，要人工確認後再擴充。
 - 展開規則：列出的艦名含其後所有改造形態（`api_aftershipid` 與 `api_mst_shipupgrade`，兩者目前完全一致）；
   同一件裝備另外單獨列出較後面的形態時，該形態只採它自己的記載（wiki「表の読み方」例 5）。
+  可逆的改装換型成環時（最上改二⇔改二特等），列出環上某一型只含離起點更遠的形態，不含較早或並列的換型；
+  較具體的記載用註記排除的形態（日向改「日向改二は不可」）不退回較淺的記載。

@@ -20,7 +20,7 @@ import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
 import { DAY_MS, formatDate, formatDateTime } from '@/utils/date-format';
-import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_KEYS, SPEND_BASES, lightestWeek, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type SpendBasis } from '@/utils/expedition-plan';
+import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_KEYS, SPEND_BASES, UNTIL_FULL_MAX_DAYS, lightestWeek, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type SpendBasis } from '@/utils/expedition-plan';
 import { stockpileFromRows, type StockpileGoal } from '@/utils/stockpile';
 import { goalsFromRows, remodelStockOf, type RemodelGoal } from '@/utils/remodel-goals';
 import { FLOW_BLOCK_DAYS, FLOW_MAX_BLOCKS, type ObservedFlow } from '@/utils/goal-arrival';
@@ -396,11 +396,11 @@ function outlookTableHtml(plan: ExpeditionPlan, when: string): string {
         const isNeck = line.key === plan.bottleneck;
         const name = `${matIconHtml(line.key, keyName(line.key))} ${esc(keyName(line.key))}${isNeck
             ? ` <span class="el-plan-neck" title="${esc(t('ov.epNeckTip'))}">${esc(t('ov.epNeck'))}</span>` : ''}`;
-        const rate = Math.round(line.planRate);
+        const rateText = incomeText(line.planRate);
         return `<tr${isNeck ? ' class="el-plan-neck-row"' : ''}><td>${name}</td>
             <td class="el-plan-time">${atHtml(line.have, line.cap)}</td>
             <td class="el-plan-time">${atHtml(line.nowAt, line.cap)}</td><td class="el-plan-time">${atHtml(line.planAt, line.cap)}</td>
-            <td class="el-plan-time">${line.have === null ? unknownHtml() : esc(`${rate > 0 ? '+' : ''}${incomeText(line.planRate)}`)}</td></tr>`;
+            <td class="el-plan-time">${line.have === null ? unknownHtml() : esc(`${line.planRate > 0 && /[1-9]/.test(rateText) ? '+' : ''}${rateText}`)}</td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
 
@@ -428,8 +428,9 @@ function verdictHtml(plan: ExpeditionPlan, view: PlanView): string {
         })
         : t('ov.epVerdictFull', { item, have: amount(line.have), cap: amount(line.cap), n: Math.ceil((line.cap - line.have) / line.expRate) });
     // 沒設期限、而組合能讓勾選資材全部存滿時，先講全部存滿的天數（這時的推算時點就是那一天）。
+    // 超過 UNTIL_FULL_MAX_DAYS 時規劃已退回預設時點，不講天數，免得與推算表矛盾。
     const days = plan.outlook.map(item => item.planDays);
-    const allFull = !view.deadline && days.every(day => day !== null && Number.isFinite(day))
+    const allFull = !view.deadline && days.every(day => day !== null && day <= UNTIL_FULL_MAX_DAYS)
         ? `<p class="el-plan-verdict">${esc(t('ov.epAllFull', { n: Math.ceil(Math.max(...(days as number[]))) }))}</p>` : '';
     return `${allFull}<p class="el-plan-verdict">${matIconHtml(line.key, item)} ${esc(text)}</p><p class="ov-note dim el-plan-note">${esc(t('ov.epVerdictNote'))}</p>`;
 }
@@ -580,17 +581,26 @@ export const expedLogSection: OverviewSection = {
             for (const button of el.querySelectorAll<HTMLButtonElement>('.el > .fa-nav .fa-tab')) button.setAttribute('aria-selected', String(button.dataset.sub === key));
             for (const sub of EXPED_SUBS) el.querySelector<HTMLElement>(`#el-page-${sub.key}`)!.hidden = sub.key !== key;
             if (key === 'unlock' && !unlockDrawn) drawUnlock();
+            // 規劃頁要跑組合搜尋，第一次切過去才算（預設進來看的是紀錄）。
+            if (key === 'plan' && !planDrawn) drawPlan();
+        };
+        const switchSub = (key: ExpedSub) => {
+            show(key);
+            // 網址跟著子頁走，切語言重繪才不會被舊的 sub 參數拉回去；replaceState 不觸發 hashchange。
+            history.replaceState(null, '', `${location.pathname}${location.search}#/exped-log?sub=${active}`);
         };
         el.querySelector('.el > .fa-nav')!.addEventListener('click', event => {
             const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.fa-tab');
             if (!button || button.dataset.sub === active) return;
-            show(button.dataset.sub as ExpedSub);
-            // 網址跟著子頁走，切語言重繪才不會被舊的 sub 參數拉回去；replaceState 不觸發 hashchange。
-            history.replaceState(null, '', `${location.pathname}${location.search}#/exped-log?sub=${active}`);
+            switchSub(button.dataset.sub as ExpedSub);
         });
-        show(active);
-        // 進遠征畫面（新的遠征清單）時更新開放頁；還沒打開過就等第一次切過去再畫。
-        ctx.onStateChange?.(() => { if (el.isConnected && unlockDrawn) drawUnlock(); });
+        // 規劃頁連往開放頁：同一分區內切子頁，不走 hashchange 整區重載（會洗掉紀錄頁的篩選）。
+        el.addEventListener('click', event => {
+            const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href="#/exped-log?sub=unlock"]');
+            if (!link) return;
+            event.preventDefault();
+            switchSub('unlock');
+        });
 
         const body = el.querySelector<HTMLElement>('.el-body')!;
         const count = el.querySelector<HTMLElement>('.el-count')!;
@@ -612,9 +622,14 @@ export const expedLogSection: OverviewSection = {
         const sleepInput = el.querySelector<HTMLInputElement>('.el-plan-sleep')!;
         let planData: { goals: RemodelGoal[]; stockpile: StockpileGoal | null; flow: ObservedFlow | null } | null = null;
         let planRun = 0;   // 每次重算加一；背景還在算的舊結果不再畫上去
+        let planDrawn = false;
 
+        let planTimer: ReturnType<typeof setTimeout> | undefined;
         function drawPlan() {
             if (!planData) return;
+            planDrawn = true;
+            // 勾選框等立即重算時取消等待中的輸入重算，免得 300 毫秒後又中斷這次的搜尋重跑一次。
+            clearTimeout(planTimer);
             planRun++;
             try {
                 const { goals, stockpile, flow } = planData;
@@ -634,7 +649,8 @@ export const expedLogSection: OverviewSection = {
                 const week = planPrefs.basis === 'lightest' ? lightestWeek(flow, all, missions, shipMax) : null;
                 const deadline = stockpile?.until ?? null;
                 const now = Date.now();
-                const end = deadline ? dateEnd(deadline) : null;
+                // 期限從當天 0 時起算，與目標規劃的備蓄卡片一致（活動開始日當天就要用）。
+                const end = deadline ? dateStart(deadline) : null;
                 const horizonDays = end !== null ? Math.max(0, (end - now) / DAY_MS) : PLAN_DEFAULT_HORIZON_DAYS;
                 const steps = planExpeditionSteps({ missions, records: all, intervalMinutes: planPrefs.hours * 60, sleepMinutes: planPrefs.sleep * 60, needs, horizonDays, untilFull: !deadline, shipMax, missionList: ctx.state.missionList });
                 const render = (plan: ExpeditionPlan, refining: boolean) => {
@@ -662,7 +678,8 @@ export const expedLogSection: OverviewSection = {
                 if (pump(PLAN_SYNC_MS)) return;
                 render(first.value!, true);
                 const resume = () => {
-                    if (run !== planRun) return;
+                    // 切到別的分區（el 已卸下）或條件改了就停，背景不再佔用主執行緒。
+                    if (run !== planRun || !el.isConnected) return;
                     try {
                         if (!pump(PLAN_SLICE_MS)) setTimeout(resume, 0);
                     } catch (error) {
@@ -676,7 +693,6 @@ export const expedLogSection: OverviewSection = {
         }
         // 有睡前組合時近似解要零點幾秒；數字輸入停下來才算，打字不卡。
         // 一輸入就放棄背景還在算的舊結果，等待期間不會再畫上舊條件的組合。
-        let planTimer: ReturnType<typeof setTimeout> | undefined;
         const drawPlanSoon = () => { planRun++; clearTimeout(planTimer); planTimer = setTimeout(drawPlan, 300); };
         hoursInput.addEventListener('input', () => {
             const hours = Number(hoursInput.value);
@@ -702,6 +718,15 @@ export const expedLogSection: OverviewSection = {
                 el.querySelector<HTMLInputElement>(`.el-plan-key[value="${key}"]`)?.checked);
             saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
             drawPlan();
+        });
+
+        show(active);
+        // 進遠征畫面（新的遠征清單）時更新開放頁；規劃頁只在遠征清單或主檔變了才重算（組合搜尋較重）。
+        // 還沒打開過的子頁等第一次切過去再畫。
+        ctx.onStateChange?.(paths => {
+            if (!el.isConnected) return;
+            if (unlockDrawn) drawUnlock();
+            if (planDrawn && paths.some(path => path === 'api_get_member/mission' || path === 'api_start2/getData')) drawPlan();
         });
 
         /**
@@ -876,7 +901,7 @@ export const expedLogSection: OverviewSection = {
         try {
             const [goalRows, flow] = await Promise.all([db.goals.toArray(), loadGoalFlow(ctx.state).catch(() => null)]);
             planData = { goals: goalsFromRows(goalRows), stockpile: stockpileFromRows(goalRows), flow };
-            drawPlan();
+            if (active === 'plan') drawPlan();
         } catch (error) {
             planBody.innerHTML = `<div class="ov-empty">${esc(String(error))}</div>`;
         }

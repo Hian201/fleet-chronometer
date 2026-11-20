@@ -118,6 +118,9 @@ describe('夜戰目標門檻', () => {
     it('已全滅時沒有門檻；我方有轟沈時不列 S', () => {
         expect(nightRankTargets([ship(40, 40)], [ship(30, 0), ship(30, 0)])).toEqual([]);
         expect(nightRankTargets([ship(40, 0), ship(40, 40)], [ship(30, 30), ship(30, 0)]).map(n => n.rank)).not.toContain('S');
+        // 我方有轟沈：敵全滅仍得 A
+        expect(nightRankTargets([ship(40, 0), ship(40, 40)], [ship(30, 30), ship(30, 0), ship(30, 30)]))
+            .toContainEqual({ rank: 'A', sink: 2 });
     });
 });
 

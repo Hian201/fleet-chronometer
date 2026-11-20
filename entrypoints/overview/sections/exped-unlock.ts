@@ -80,7 +80,7 @@ function pathsHtml(view: UnlockView, state: GameState): string {
 }
 
 function generalHtml(view: UnlockView, state: GameState, open: boolean | undefined): { html: string; allOpen: boolean } {
-    const general = [...state.masterMissions].filter(([, m]) => m.resetType === 0 && m.maparea !== 62);   // 62＝活動支援（S1／S2）
+    const general = [...state.masterMissions].filter(([, m]) => m.resetType === 0 && m.maparea < 10);   // 活動支援（S1／S2）掛在活動海域（world >= 10），編號每次活動不同
     const opened = general.filter(([id]) => view.kind(id) === 'done' || view.kind(id) === 'open').length;
     const allOpen = opened === general.length;
     const areas = [...new Set(general.map(([, m]) => m.maparea))];

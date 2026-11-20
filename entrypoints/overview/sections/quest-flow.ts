@@ -1126,12 +1126,16 @@ export function parseIncomeFocus(value: string | undefined, material: IncomeMate
         ? { material, key: key as IncomeGroupKey, kind: kind as IncomeFocusKind } : null;
 }
 
-/** 摘要點選後目錄只留下的任務編號；選的那組已不存在（例如資材改了）時回傳 null。 */
+/**
+ * 摘要點選後目錄只留下的任務編號；選的那組已不存在（例如資材改了）或那一類已經一項都不剩
+ * （例如把最後一項標成手動完成，按鈕跟著消失）時回傳 null，聚焦自動取消，目錄不會卡在沒有按鈕可取消的空白。
+ */
 function incomeFocusSet(model: QuestFlowModel, filters: QuestFacetSelection, focus: IncomeFocus | null): Set<number> | null {
     const material = incomeMaterialOf(filters);
     if (!material || !focus || focus.material !== material) return null;
     const group = materialIncome(model.rows, material).find(item => item.key === focus.key);
-    return group ? incomeFocusNos(group, focus.kind) : null;
+    const nos = group ? incomeFocusNos(group, focus.kind) : null;
+    return nos?.size ? nos : null;
 }
 
 /**
@@ -1154,7 +1158,7 @@ export function incomeStripHtml(model: QuestFlowModel, filters: QuestFacetSelect
         ? button(key, kind, `${esc(name)} <b>${esc(t('ov.qfIncomeTaskCount', { n: tasks }))}</b> +${qty}`, tip) : '';
     const count = (key: IncomeGroupKey, kind: IncomeFocusKind, name: string, tasks: number, tip: string) => tasks > 0
         ? button(key, kind, `${esc(name)} <b>${esc(t('ov.qfIncomeTaskCount', { n: tasks }))}</b>`, tip) : '';
-    const unknownChoice = `${t('ov.qfIncomeUnknown')}・${t('ov.qfIncomeChoice')}`;
+    const unknownChoice = `${t('ov.qfIncomeUnknown')}${t('ui.dotSep')}${t('ov.qfIncomeChoice')}`;
     const body = groups.length
         ? groups.map(group => {
             const key = group.key;

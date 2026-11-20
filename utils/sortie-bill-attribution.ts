@@ -2,7 +2,8 @@
 //
 // 高速修復材與基地航空隊補充是回港後才付的帳，帳單列寫入後不再更動（見 utils/sortie-bill.ts），
 // 所以在讀取時依 db.materialUse 的紀錄列歸給某一趟：
-//   · 高速修復材：帶 shipId 的 bucket 列 → ts 在它之前、damagedShipIds 含該艦、最近的一趟。
+//   · 高速修復材：帶 shipId 的 bucket 列 → ts 在它之前、damagedShipIds 含該艦、最近的一趟；同一趟同一艘最多一個
+//     （一趟的傷修一次就好，之後同一艘再用桶是別的傷，例如交戰型遠征）。
 //   · 基地航空隊補充：airSupply 列 → ts 在它之前、海域（map 的第一段）等於 areaId、最近的一趟。
 // 找不到就不歸屬。兩者都另列，不併入 netCost。
 import type { MaterialUseRow, SortieBillRow, SortieLogRow } from './db';
@@ -68,12 +69,15 @@ export function attributeMaterialUse(
         if (!extras) out.set(key, extras = { buckets: 0, air: null });
         return extras;
     };
-    for (const use of uses) {
+    const bucketed = new Set<string>();
+    for (const use of [...uses].sort((a, b) => a.ts - b.ts)) {
         if (use.kind === 'bucket') {
             const shipId = use.shipId;
             if (shipId === undefined) continue;
             const bill = latestBefore(use.ts, candidate => candidate.damagedShipIds.includes(shipId));
-            if (bill) extrasOf(bill.sortieKey).buckets += 1;
+            if (!bill || bucketed.has(`${bill.sortieKey}:${shipId}`)) continue;
+            bucketed.add(`${bill.sortieKey}:${shipId}`);
+            extrasOf(bill.sortieKey).buckets += 1;
         } else if (use.kind === 'airSupply') {
             const bill = latestBefore(use.ts, candidate => areaOf(candidate.map) === use.areaId);
             if (!bill) continue;

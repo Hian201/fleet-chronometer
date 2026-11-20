@@ -143,7 +143,7 @@ describe('helperBase', () => {
     });
 
     it('涵蓋表內所有二番艦，且起點在同一條改造鏈上', () => {
-        const base = new Map(AKASHI_HELPER_BASE);
+        const base = new Map(AKASHI_HELPER_BASE.map(([ship, start]) => [ship, start]));
         for (const [, pairs] of AKASHI_SCHEDULE) {
             for (const [ship] of pairs) if (ship !== AKASHI_SOLO) expect(base.has(ship), `艦 ${ship}`).toBe(true);
         }

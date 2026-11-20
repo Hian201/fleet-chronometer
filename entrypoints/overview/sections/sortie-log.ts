@@ -1679,6 +1679,19 @@ export const sortieLogSection: OverviewSection = {
                 if (!byMap.has(bill.map)) byMap.set(bill.map, entry);
                 return [{ bill, rows: entry.rows, extras: billExtras.get(entry.key) }];
             });
+            // 全程沒進戰鬥的出擊（全資源點、途中撤退）有帳單、沒有 db.sorties 列：照同一組篩選另外收進來，
+            // 與資源紀錄的基本資源分帳一致。
+            const listed = new Set(entries.map(entry => entry.key));
+            for (const bill of bills.values()) {
+                if (listed.has(bill.sortieKey)) continue;
+                const { world } = parseMapCode(bill.map);
+                const event = isEventWorld(world);
+                if ((prefs.cat === 'all' || (prefs.cat === 'event' ? event : !event))
+                    && (eventFilter === 'all' || world === eventFilter)
+                    && (mapFilter === 'all' || bill.map === mapFilter)) {
+                    items.push({ bill, rows: [], extras: billExtras.get(bill.sortieKey) });
+                }
+            }
             const qualify = filterPlan?.qualifyEventWorld === true;
             billBody.innerHTML = billSummaryHtml(groupBillRuns(items, since), ctx.state.materials, group => {
                 const entry = byMap.get(group.map);

@@ -12,6 +12,11 @@ export const KEEP_RECENT: Record<string, number> = {
     'api_get_member/slot_item': 1,
     'api_get_member/require_info': 1,
     'api_port/port': 1,
+    // 以下也在 snapshot 名單：裁剪時若留下較早的基石（例如 start2）卻刪掉它們，快照的 eventId 不早於
+    // 第一筆 raw event，恢復時不能當 baseline，狀態就會遺失。
+    'api_get_member/useitem': 1,
+    'api_get_member/payitem': 1,
+    'api_get_member/mission': 1,
 };
 
 export interface RawEventPrunePlan {

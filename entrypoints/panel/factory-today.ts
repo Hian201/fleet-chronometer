@@ -27,7 +27,7 @@ function rowHtml(state: GameState, row: AkashiTodayRow, only: 'owned' | 'all'): 
         .map(group => ({ text: state.shipName(group.shown), owned: group.owned }));
     const shown = names.slice(0, TODAY_HELPER_LIMIT);
     const more = names.length - shown.length;
-    const title = t('factory.todayHelperTitle', { names: names.map(item => item.text).join('、') });
+    const title = t('factory.todayHelperTitle', { names: names.map(item => item.text).join(t('ui.listSep')) });
     return `<div class="fac-t-row">${left}<span class="fac-t-side" title="${esc(title)}"><span class="fac-t-ships">${shown.map(item =>
         `<span class="fac-h${item.owned ? '' : ' off'}">${esc(item.text)}</span>`).join('')}</span>${more > 0 ? `<span class="fac-more">+${more}</span>` : ''}</span></div>`;
 }
@@ -127,10 +127,15 @@ export function mountFactoryTabs(root: HTMLElement, state: GameState, now: () =>
         else render();
     });
     // toggle 不冒泡，用 capture 在容器上接；開合狀態記在這裡，內容重畫時才還得回來。
+    // 已畫上的字串也跟著改 open 屬性，與 DOM 一致：否則下一秒的 tick 會因字串不同而整塊重寫，捲動位置與焦點就丟了。
+    const syncOpen = (key: 'list' | 'foot', cls: string, isOpen: boolean) => {
+        const shut = `<details class="${cls}">`, opened = `<details class="${cls}" open>`;
+        painted[key] = painted[key].replace(isOpen ? shut : opened, isOpen ? opened : shut);
+    };
     const remember = (event: Event) => {
         const details = event.target as HTMLDetailsElement;
-        if (details.classList.contains('fac-need')) open.need = details.open;
-        else if (details.classList.contains('fac-unconfirmed')) open.unconfirmed = details.open;
+        if (details.classList.contains('fac-need')) { open.need = details.open; syncOpen('list', 'fac-need', details.open); }
+        else if (details.classList.contains('fac-unconfirmed')) { open.unconfirmed = details.open; syncOpen('foot', 'fac-unconfirmed', details.open); }
     };
     list.addEventListener('toggle', remember, true);
     foot.addEventListener('toggle', remember, true);
