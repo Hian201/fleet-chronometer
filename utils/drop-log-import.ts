@@ -35,6 +35,7 @@
 import type { KcDb, SortieLogRow } from './db';
 import { parseDelimitedText, parseTimestamp, rowsToCsv } from './csv';
 import { borrowEventId } from './event-id-borrow';
+import { TimeBucketIndex } from './time-bucket-index';
 
 export class DropLogImportError extends Error {
     constructor(message: string) { super(message); this.name = 'DropLogImportError'; }
@@ -217,9 +218,13 @@ export async function importDropLogRows(database: KcDb, rows: ParsedDropRow[]): 
     let duplicates = 0;
     await database.transaction('rw', [database.events, database.sorties], async () => {
         // catchOnly 列不在出擊紀錄與打撈頁，不能拿來擋玩家補匯同一場。
-        const existing = (await database.sorties.toArray()).filter(r => r.kind === 'battle' && !r.catchOnly && (r.drop || r.dropMst));
+        const existing = new TimeBucketIndex<SortieLogRow>(TIME_TOLERANCE_MS, r => r.map, r => r.ts);
+        for (const r of await database.sorties.toArray()) {
+            if (r.kind === 'battle' && !r.catchOnly && (r.drop || r.dropMst)) existing.add(r);
+        }
+        const fresh: SortieLogRow[] = [];
         for (const row of rows) {
-            if (existing.some(e => isDuplicateDrop(row, e))) { duplicates++; continue; }
+            if (existing.some(row.map, row.ts, e => isDuplicateDrop(row, e))) { duplicates++; continue; }
             const id = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {
                 onOverflow: (message) => { throw new DropLogImportError(message); },
             });
@@ -230,10 +235,12 @@ export async function importDropLogRows(database: KcDb, rows: ParsedDropRow[]): 
                 ...(row.dropMst ? { dropMst: row.dropMst } : {}),
                 ...(row.enemyName ? { enemyName: row.enemyName } : {}),
             };
-            await database.sorties.put(inserted);
-            existing.push(inserted);
+            fresh.push(inserted);
+            existing.add(inserted);
             added++;
         }
+        // 去重判斷只看記憶體索引，與 DB 寫入順序無關；event ID 仍逐列借用（見 event-id-borrow.ts）。
+        if (fresh.length) await database.sorties.bulkPut(fresh);
     });
     return { added, duplicates };
 }

@@ -186,6 +186,7 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
     let questSignature = '';
     let questLoadLocale: string | null = null;
     let itemSignature = '';
+    let inventoryNavHtml = '';
     const openQuests = new Set<number>();
     const questPanes = new Map<number, QuestPane>();
     const openItems = new Set<string>();
@@ -371,11 +372,18 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
             if (firstMatch) inventory = firstMatch;
         }
         const counts = new Map(inventoryKeys.map(key => [key, matches.filter(item => item.inventory === key).length]));
-        inventoryNav.innerHTML = inventoryKeys.map(key =>
+        // 內容沒變就不重建分頁鈕：每筆封包都會呼叫這裡，重建會把鍵盤焦點洗掉（design-guidelines §4.2）。
+        const navHtml = inventoryKeys.map(key =>
             `<button type="button" data-inventory="${key}" role="tab" aria-selected="${key === inventory}" tabindex="${key === inventory ? 0 : -1}"><span>${esc(l[key])}</span><span class="capacity matches">${counts.get(key) ?? 0}</span></button>`).join('');
+        if (navHtml !== inventoryNavHtml) {
+            inventoryNav.innerHTML = navHtml;
+            inventoryNavHtml = navHtml;
+        }
         const shown = sortPinnedFirst(matches.filter(item => item.inventory === inventory), itemIdentity, pins);
         const signature = JSON.stringify([getLang(), inventory, term,
-            shown.map(item => [itemIdentity(item), item.count, item.names[getLang()]]), [...openItems].sort(), pins]);
+            // 展開狀態由原生 <details> 自己保留（toggle 時同步記進 openItems），不列入簽章：
+            // 列入的話使用者每展開一列，下一筆封包就會整份重建、洗掉焦點（design-guidelines §4.2）。
+            shown.map(item => [itemIdentity(item), item.count, item.names[getLang()]]), pins]);
         if (signature === itemSignature) return;
         const scrollTop = results.querySelector('.ledger-item-grid')?.scrollTop ?? 0;
         // 「持有量依最近取得的遊戲資料」只放在數量提示，不另佔一列說明。
@@ -584,7 +592,6 @@ export function mountGeneral(state: GameState, countdown: (time: number) => stri
         showPage(page);
         showOperation(operation);
         showDockView(dockView);
-        if (page !== 'items') renderItems();
     }
     /** 遊戲進入入渠畫面時：切到母港「入渠」分組並顯示渠位。 */
     function showDock() {

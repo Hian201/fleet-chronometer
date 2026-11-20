@@ -84,6 +84,9 @@ export default defineContentScript({
         const pan = { x: 0, y: 0 };   // 永遠置中 fit，平移固定 0（保留物件形狀給 framePlacement）
         let muted = false;
         let gameRect: Rect | null = null;   // 遊戲畫布在框內的位置（量不到就是 null＝不裁切）
+        // 框內回覆的量測值：四個數都要是有限數、寬高為正，否則當成量不到（NaN 會讓 transform 失效）。
+        const usableRect = (r: Rect | null | undefined): Rect | null =>
+            r && [r.x, r.y, r.width, r.height].every(Number.isFinite) && r.width > 0 && r.height > 0 ? r : null;
         let syncScheduled = false;
         let measureTimer = 0;
         let popout: PopoutState | null = null;
@@ -284,14 +287,16 @@ export default defineContentScript({
             };
 
             let done = false;
+            let fallbackTimer = 0;
             const onMessage = (e: MessageEvent) => {
                 const data = e.data as TheaterRelayMessage | undefined;
                 if (!data || (data as any)[RELAY_MARK] !== 1 || data.kind !== 'game-rect') return;
                 if (!found.contentWindow || e.source !== found.contentWindow) return;
                 if (done) return;
                 done = true;
+                clearTimeout(fallbackTimer);
                 window.removeEventListener('message', onMessage);
-                const rect = data.rect && data.rect.width > 0 && data.rect.height > 0 ? data.rect : null;
+                const rect = usableRect(data.rect);
                 if (rect) gameRect = rect;   // 順便更新既有快取，劇場模式下次繪製也受惠
                 finish(rect);
             };
@@ -299,7 +304,7 @@ export default defineContentScript({
             try {
                 found.contentWindow?.postMessage({ [RELAY_MARK]: 1, kind: 'measure' } satisfies TheaterRelayMessage, '*');
             } catch { /* 框還沒好，走下面的逾時後備 */ }
-            setTimeout(() => {
+            fallbackTimer = window.setTimeout(() => {
                 if (done) return;
                 done = true;
                 window.removeEventListener('message', onMessage);
@@ -436,9 +441,15 @@ export default defineContentScript({
             if (!frame?.isConnected) {
                 const found = locate();
                 if (!found) return;   // 遊戲框暫時消失（路由切換中）：保持劇場狀態等它回來
+                // 舊祖先若仍在 DOM 會同時帶 ancestor 與 hidden 標記，ancestor 的 display:block
+                // 宣告在後而勝出、佔滿高度把新框擠出視口；換框前先清掉全部舊標記。
+                unmark();
                 frame = found;
                 gameRect = null;
+                mark();
+                applyTransform();
                 requestMeasure();
+                return;
             }
             mark();
         };
@@ -469,7 +480,7 @@ export default defineContentScript({
             if (data.kind === 'game-rect') {
                 // 只信任「我們正在顯示的那個框」直接回覆的量測值
                 if (!frame?.contentWindow || e.source !== frame.contentWindow) return;
-                gameRect = data.rect && data.rect.width > 0 && data.rect.height > 0 ? data.rect : null;
+                gameRect = usableRect(data.rect);
                 // 遊戲載入完成後才量到畫布時，適應倍率會從「整個 iframe」切成真正遊戲區。
                 if (active) applyTransform();
                 return;

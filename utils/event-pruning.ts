@@ -106,8 +106,10 @@ export async function pruneRawEventsBefore(
         };
     }
 
-    const [events, wanted] = await Promise.all([
-        database.events.where('id').below(cutoff).toArray(),
+    // 逐筆只留 id／path：完整封包（含 start2／port）不整批常駐 service worker 記憶體。
+    const events: Array<Pick<ApiEventRow, 'id' | 'path'>> = [];
+    const [, wanted] = await Promise.all([
+        database.events.where('id').below(cutoff).each(row => { events.push({ id: row.id, path: row.path }); }),
         database.wanted.toArray(),
     ]);
     const plan = planRawEventPrune(events, wanted.map(row => row.eventId), cutoff, metadata);

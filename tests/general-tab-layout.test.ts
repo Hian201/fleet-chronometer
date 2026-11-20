@@ -187,7 +187,9 @@ describe('一般分頁', () => {
         const itemSummary = general.match(/<details class="ledger-item-row[\s\S]*?<\/summary>/)?.[0] ?? '';
         expect(itemSummary).toContain('<span class="count"');
         expect(itemSummary).not.toContain('item-pin');
-        expect(general).toContain('[...openItems].sort(), pins]');
+        // 展開狀態由原生 <details> 保留，不列入簽章，展開一列不會讓下一筆封包整份重建。
+        expect(general).toContain('item.names[getLang()]]), pins]);');
+        expect(general).not.toContain('[...openItems].sort()');
         expect(css).toMatch(/\.ledger-item-row \.item-pin\{[^}]*grid-column:1\/-1[^}]*justify-self:end/);
     });
 });

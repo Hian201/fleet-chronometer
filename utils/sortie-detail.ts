@@ -435,11 +435,15 @@ export function numberSorties(groups: { sortieKey: number; rows: SortieLogRow[] 
     return out;
 }
 
-/** 快照的裝備 → damecon 種別（0無／1要員／2女神），同 state.ts getDamecon。 */
-function dameconOf(ship: ReplayShip): number {
-    const all = [...(ship.equip ?? []), ship.exequip];
-    if (all.includes(GODDESS_MST)) return 2;
-    if (all.includes(DAMECON_MST)) return 1;
+/**
+ * 快照的裝備 → damecon 種別（0無／1要員／2女神），同 state.ts getDamecon：
+ * 遊戲依裝備欄位順序消耗第一顆應急修理道具，補強增設槽排最後，故取第一個命中的種別。
+ */
+export function dameconOf(ship: ReplayShip): number {
+    for (const mst of [...(ship.equip ?? []), ship.exequip]) {
+        if (mst === DAMECON_MST) return 1;
+        if (mst === GODDESS_MST) return 2;
+    }
     return 0;
 }
 
@@ -462,29 +466,40 @@ export function lbasWaves(api: any): LbasWave[] {
             baseId: Number(wave.api_base_id) || 0,
             planes,
             seiku: hasAir && Number.isSafeInteger(s1?.api_disp_seiku) ? s1.api_disp_seiku : null,
-            fCount: s1?.api_f_count ?? 0, fLost: s1?.api_f_lostcount ?? 0,
+            fCount: s1?.api_f_count ?? 0,
+            // 制空戰（stage1）＋對空砲火（stage2）兩段損失，同 battle.ts 的基地航空隊彙總。
+            fLost: (Number(s1?.api_f_lostcount) || 0) + (Number(wave.api_stage2?.api_f_lostcount) || 0),
             eCount: s1?.api_e_count ?? 0, eLost: s1?.api_e_lostcount ?? 0,
         });
     }
     return out;
 }
 
-/** 支援艦隊出動（api_support_info）。兩種結構擇一，皆無則 null。 */
+/**
+ * 支援艦隊出動（api_support_info；夜戰支援為 api_n_support_info）。兩種結構擇一，皆無則 null。
+ * 順序與 battle.ts 一致：夜轉日（api_n_hougeki*）時夜戰支援先於日戰，否則日戰優先；
+ * 同一節點只取第一份編成。
+ */
 export function supportUse(api: any): SupportUse | null {
-    const info = api?.api_support_info;
-    if (!info) return null;
-    const flag = Number(api?.api_support_flag) || Number(info.api_support_flag) || 0;
-    const air = info.api_support_airatack;
-    const shell = info.api_support_hourai;
-    const src = air ?? shell;
-    if (!src) return null;
-    const mappedKind = supportKindFromFlag(flag, Boolean(air));
-    return {
-        deckId: Number(src.api_deck_id) || 0,
-        kind: mappedKind === 'shelling' ? 'shell' : mappedKind,
-        flag,
-        shipIds: Array.isArray(src.api_ship_id) ? src.api_ship_id.filter((v: number) => v > 0) : [],
-    };
+    const day = { info: api?.api_support_info, flag: api?.api_support_flag };
+    const night = { info: api?.api_n_support_info, flag: api?.api_n_support_flag };
+    const nightFirst = !!(api?.api_n_hougeki1 || api?.api_n_hougeki2 || api?.api_n_hougeki3);
+    for (const { info, flag: rawFlag } of nightFirst ? [night, day] : [day, night]) {
+        if (!info) continue;
+        const flag = Number(rawFlag) || Number(info.api_support_flag) || 0;
+        const air = info.api_support_airatack;
+        const shell = info.api_support_hourai;
+        const src = air ?? shell;
+        if (!src) continue;
+        const mappedKind = supportKindFromFlag(flag, Boolean(air));
+        return {
+            deckId: Number(src.api_deck_id) || 0,
+            kind: mappedKind === 'shelling' ? 'shell' : mappedKind,
+            flag,
+            shipIds: Array.isArray(src.api_ship_id) ? src.api_ship_id.filter((v: number) => v > 0) : [],
+        };
+    }
+    return null;
 }
 
 /** 敵艦等級（api_ship_lv／api_ship_lv_combined）。與 api_ship_ke 同為 0-indexed、無 -1。 */
@@ -633,7 +648,7 @@ function nodeDetail(row: SortieLogRow | null, entry: ReplayNode | undefined, rep
         node: row?.node ?? fallbackNode,
         boss: row?.boss ?? false,
         kind: row?.kind ?? 'battle',
-        rank: entry?.rank ?? row?.rank ?? '',
+        rank: entry?.rank || row?.rank || '',
         seiku: row?.seiku ?? (battle ? battle.seiku : null),
         taiha: row?.taiha ?? battle?.isTaiha ?? false,
         drop: row?.drop ?? null,

@@ -146,7 +146,7 @@ export function groupBillRuns(items: readonly BillGroupInput[], since = 0): Bill
         const { map, difficulty } = list[0].bill;
         out.push({
             key, map, ...(difficulty === undefined ? {} : { difficulty }),
-            lastTs: Math.max(...list.map(item => item.bill.ts)),
+            lastTs: list.reduce((max, item) => Math.max(max, item.bill.ts), -Infinity),
             summary,
             partialRuns: list.filter(item => item.bill.balanceDelta === null).length,
             extras: mergeExtras(list.map(item => item.extras)),

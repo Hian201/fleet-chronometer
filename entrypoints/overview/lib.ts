@@ -12,6 +12,7 @@ import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { getLang, t } from '@/utils/ui-i18n';
 import { itemCatalog } from '@/utils/item-catalog';
 import { formatDateTime } from '@/utils/date-format';
+import { downloadBlob } from '@/utils/download';
 
 export { esc, gearIconHtml, matIconHtml };
 
@@ -201,26 +202,23 @@ export function clearHashParams(): void {
     history.replaceState(null, '', `${location.pathname}${location.search}${location.hash.slice(0, index)}`);
 }
 
-// 檔案下載（Blob + 臨時 <a download>）；純前端、不需任何權限。
-export function downloadBlob(filename: string, blob: Blob) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+// 檔案下載（Blob + 臨時 <a download>）；實作共用 utils/download.ts。
+export { downloadBlob };
 
 export function downloadText(filename: string, text: string, mime = 'text/plain') {
     downloadBlob(filename, new Blob([text], { type: mime }));
 }
 
 // 剪貼簿複製＋按鈕暫態回饋（複製成功把按鈕文字換成 doneLabel 1.5 秒）。
+// 連點時按鈕上還是暫態文字：原標籤只在第一次記下，計時器重設，避免把「已複製」存成原標籤。
+const copyFeedbackTimers = new WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>();
 export async function copyWithFeedback(btn: HTMLButtonElement, text: string, doneLabel: string) {
-    const orig = btn.textContent ?? '';
     try {
         await navigator.clipboard.writeText(text);
+        const orig = btn.dataset.origLabel ??= btn.textContent ?? '';
         btn.textContent = doneLabel;
-        setTimeout(() => { btn.textContent = orig; }, 1500);
+        clearTimeout(copyFeedbackTimers.get(btn));
+        copyFeedbackTimers.set(btn, setTimeout(() => { btn.textContent = orig; delete btn.dataset.origLabel; }, 1500));
     } catch { /* 剪貼簿不可用時靜默 */ }
 }
 

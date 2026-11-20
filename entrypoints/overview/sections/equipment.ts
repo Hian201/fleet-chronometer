@@ -37,6 +37,7 @@ import {
     type ImproveFilter, type UsageFilter,
 } from '../../../utils/gear-inventory';
 import { copyWithFeedback, downloadText, esc, gearIconHtml, loadJsonPrefs, saveJsonPrefs } from '../lib';
+import { csvCell } from '../../../utils/csv';
 
 // ── 共用小片段 ──────────────────────────────────────────────────────────
 
@@ -242,9 +243,8 @@ export function cardsHtml(groups: GearGroup[], view: View): string {
  */
 export function gearCsv(groups: GearGroup[], view: View): string {
     const cols = visibleColumns(view);
-    const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-    const lines = [cols.map(c => cell(t(c.labelKey))).join(',')];
-    for (const g of groups) lines.push(cols.map(c => cell(c.text(g))).join(','));
+    const lines = [cols.map(c => csvCell(t(c.labelKey))).join(',')];
+    for (const g of groups) lines.push(cols.map(c => csvCell(c.text(g))).join(','));
     return lines.join('\n');
 }
 

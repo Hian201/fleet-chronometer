@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ReplayRow, ReplayShip, SortieLogRow } from '../utils/db';
 import {
-    buildSortieDetail, eventStageLabel, eventWorldLabel, groupEventWorlds, groupSorties,
+    buildSortieDetail, dameconOf, eventStageLabel, eventWorldLabel, groupEventWorlds, groupSorties,
     isEventWorld, lbasWaves, numberSorties, parseMapCode, planEventMapFilter,
     qualifiedEventMapLabel, supportUse,
 } from '../utils/sortie-detail';
@@ -183,11 +183,23 @@ describe('基地航空隊各波（真封包 61-3 node53）', () => {
         expect(waves).toHaveLength(4);
         expect(waves.map(w => w.baseId)).toEqual([1, 1, 2, 2]);
         expect(waves[0].seiku).toBe(3);
-        expect(waves[0].fLost).toBe(23);
+        expect(waves[0].fLost).toBe(39);   // stage1 損失 23＋stage2（對空砲火）損失 16
         expect(waves[0].planes).toEqual([
             { mst: 225, count: 18 }, { mst: 479, count: 18 },
             { mst: 459, count: 18 }, { mst: 224, count: 18 },
         ]);
+    });
+
+    it('損失機數合計制空戰（stage1）與對空砲火（stage2）', () => {
+        const [wave] = lbasWaves({
+            api_air_base_attack: [{
+                api_base_id: 1,
+                api_stage1: { api_f_count: 18, api_f_lostcount: 3, api_e_count: 10, api_e_lostcount: 2, api_disp_seiku: 1 },
+                api_stage2: { api_f_count: 15, api_f_lostcount: 4 },
+            }],
+        });
+        expect(wave.fLost).toBe(7);
+        expect(lbasWaves({ api_air_base_attack: [{ api_stage1: { api_f_count: 1, api_f_lostcount: 2 } }] })[0].fLost).toBe(2);
     });
 
     it('沒有 api_air_base_attack、或該欄位不是陣列（基地防空的物件形態）時回空陣列', () => {
@@ -222,6 +234,20 @@ describe('支援艦隊編組（真封包）', () => {
             },
         });
         expect(use?.kind).toBe('torpedo');
+    });
+
+    it('夜戰支援（api_n_support_info）在日戰沒有支援時也要解出', () => {
+        const night = { api_support_hourai: { api_deck_id: 3, api_ship_id: [11, 12, -1] } };
+        const use = supportUse({ api_n_support_flag: 2, api_n_support_info: night });
+        expect(use).toEqual({ deckId: 3, kind: 'shell', flag: 2, shipIds: [11, 12] });
+    });
+
+    it('日戰與夜戰支援並存時取第一份：一般日戰優先，夜轉日夜戰優先', () => {
+        const day = { api_support_hourai: { api_deck_id: 2, api_ship_id: [21] } };
+        const night = { api_support_hourai: { api_deck_id: 3, api_ship_id: [31] } };
+        const both = { api_support_flag: 2, api_support_info: day, api_n_support_flag: 2, api_n_support_info: night };
+        expect(supportUse(both)?.deckId).toBe(2);
+        expect(supportUse({ ...both, api_n_hougeki1: {} })?.deckId).toBe(3);
     });
 
     it('沒出支援的節點回 null', () => {
@@ -356,5 +382,31 @@ describe('出擊層級的彙整', () => {
         expect(d.lbas).toEqual([]);
         expect(d.lbasWaves).toEqual([]);
         expect(d.totalExp).toBe(260 * 4 + 3520);           // 摘要欄位仍在
+    });
+});
+
+describe('應急修理道具判定（同 state.ts getDamecon：依裝備欄位順序，增設槽最後）', () => {
+    const ship = (equip: number[], exequip = -1): ReplayShip =>
+        ({ mst_id: 1, lv: 1, equip, stars: [], ace: [], exequip, nowhp: 1, maxhp: 1, cond: 49 });
+
+    it('要員在女神之前的欄位 → 要員；女神在前 → 女神', () => {
+        expect(dameconOf(ship([42, 43, -1]))).toBe(1);
+        expect(dameconOf(ship([-1, 43, 42]))).toBe(2);
+    });
+
+    it('增設槽排在一般欄位之後，沒有道具回 0', () => {
+        expect(dameconOf(ship([-1, 42], 43))).toBe(1);
+        expect(dameconOf(ship([-1, -1], 43))).toBe(2);
+        expect(dameconOf(ship([11, 12], -1))).toBe(0);
+    });
+});
+
+describe('節點 rank 回退', () => {
+    it('replay 節點 rank 為空字串時改用摘要列的 rank', () => {
+        const replay = toReplayRow(load('61-3.json'));
+        const rows = summaryRows(replay, '61-3', { boss: 53, ranks: { 53: 'A' } });
+        replay.battles.forEach(b => { b.rank = ''; });
+        const d = buildSortieDetail(rows, replay);
+        expect(d.nodes.find(n => n.node === 53)?.rank).toBe('A');
     });
 });

@@ -7,7 +7,7 @@ import type {
     ShipObtainedRow, SnapshotRow, SortieBillRow, SortieLogRow, WantedRow,
 } from './db';
 import { borrowEventId } from './event-id-borrow';
-import { isPlainObject } from './plain-object';
+import { containsApiToken, isPlainObject } from './plain-object';
 import { STOCKPILE_GOAL_KEY, isStockpileDate } from './stockpile';
 import {
     applyQuestFlowBackupPrefs, hasQuestFlowBackupPrefs, readQuestFlowBackupPrefs,
@@ -154,6 +154,10 @@ function nonEmptyString(value: unknown, where: string): string {
     return value;
 }
 
+function isBlankString(value: unknown): boolean {
+    return typeof value === 'string' && value.trim() === '';
+}
+
 function stringValue(value: unknown, where: string): string {
     if (typeof value !== 'string') invalid(`${where} 必須是字串。`);
     return value;
@@ -258,19 +262,8 @@ function safeRequest(value: unknown, where: string): Record<string, string> | un
 
 // api 的內容不解讀也不改寫，但 token 不落地是全域硬限制：即使 token 被塞在非預期的
 // unknown 欄位或 raw api 內，也不能讓它通過備份邊界。
-function assertNoApiToken(value: unknown, visited = new WeakSet<object>()): void {
-    if (value === null || typeof value !== 'object') return;
-    if (visited.has(value)) return;
-    visited.add(value);
-    if (Array.isArray(value)) {
-        for (const entry of value) assertNoApiToken(entry, visited);
-        return;
-    }
-    if (!isPlainObject(value)) return;
-    for (const [key, entry] of Object.entries(value)) {
-        if (key === 'api_token') invalid('備份資料不得含有 api_token。');
-        assertNoApiToken(entry, visited);
-    }
+function assertNoApiToken(value: unknown): void {
+    if (containsApiToken(value)) invalid('備份資料不得含有 api_token。');
 }
 
 // ── 逐列驗證 ────────────────────────────────────────────────────────────────
@@ -331,7 +324,8 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         ...(row.getExp === undefined ? {} : { getExp: integer(row.getExp, `${where}.getExp`, 0) }),
         ...(row.mvp === undefined ? {} : { mvp: integer(row.mvp, `${where}.mvp`, 1) }),
         ...(row.mvpEscort === undefined ? {} : { mvpEscort: integer(row.mvpEscort, `${where}.mvpEscort`, 1) }),
-        ...(row.enemyName === undefined ? {} : { enemyName: nonEmptyString(row.enemyName, `${where}.enemyName`) }),
+        // 舊版曾寫入純空白的敵艦隊名／提督名；視同缺欄位，不讓既有資料擋住整份還原。
+        ...(row.enemyName === undefined || isBlankString(row.enemyName) ? {} : { enemyName: nonEmptyString(row.enemyName, `${where}.enemyName`) }),
         ...(row.baseExp === undefined ? {} : { baseExp: integer(row.baseExp, `${where}.baseExp`, 0) }),
         ...(row.nodeEventId === undefined ? {} : { nodeEventId: integer(row.nodeEventId, `${where}.nodeEventId`, 0) }),
         ...(row.nodeEventKind === undefined ? {} : { nodeEventKind: integer(row.nodeEventKind, `${where}.nodeEventKind`, 0) }),
@@ -482,7 +476,7 @@ function validateReplay(value: unknown, index: number): ReplayRow {
         }),
         battles,
         ...(row.hqLv === undefined ? {} : { hqLv: integer(row.hqLv, `${where}.hqLv`, 1) }),
-        ...(row.nickname === undefined ? {} : { nickname: nonEmptyString(row.nickname, `${where}.nickname`) }),
+        ...(row.nickname === undefined || isBlankString(row.nickname) ? {} : { nickname: nonEmptyString(row.nickname, `${where}.nickname`) }),
         ...(row.pinned === undefined ? {} : { pinned: booleanValue(row.pinned, `${where}.pinned`) }),
         ...(row.imported === undefined ? {} : { imported: booleanValue(row.imported, `${where}.imported`) }),
     };
@@ -988,6 +982,17 @@ export function highestReferencedEventId(tables: BackupTables): number {
     return highest;
 }
 
+// 由 validateBackupEnvelope() 親手產出的 envelope。UI 路徑 parse → combine → restore 會把同一份
+// 資料過三關，每關都整份走訪；已在集合內的物件是本模組剛驗證過的產物，不必再驗。
+// 只認物件身分，外部傳入的原始輸入（含手工組出的同形物件）一律仍完整驗證。
+const validatedEnvelopes = new WeakSet<object>();
+
+function ensureValidated(value: unknown): ValidatedBackupEnvelope {
+    return typeof value === 'object' && value !== null && validatedEnvelopes.has(value)
+        ? value as ValidatedBackupEnvelope
+        : validateBackupEnvelope(value);
+}
+
 // 任何寫入之前一次完成全部驗證。回傳值是已驗證、時間戳正規化後的安全資料。
 export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope {
     const envelope = objectAt(value, '備份 envelope');
@@ -998,7 +1003,7 @@ export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope 
     const kind = determineKind(schemaVersion, envelope.kind, rawTables);
     const tables = validateTables(rawTables, schemaVersion);
     highestReferencedEventId(tables);
-    return {
+    const validated: ValidatedBackupEnvelope = {
         schemaVersion,
         kind,
         exportedAt: timestamp(envelope.exportedAt, 'exportedAt'),
@@ -1008,6 +1013,8 @@ export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope 
         sortieExcludeCatch: envelope.sortieExcludeCatch === undefined
             ? undefined : booleanValue(envelope.sortieExcludeCatch, 'sortieExcludeCatch'),
     };
+    validatedEnvelopes.add(validated);
+    return validated;
 }
 
 export function parseBackupJson(text: string): ValidatedBackupEnvelope {
@@ -1057,7 +1064,7 @@ export async function buildFullEnvelope(
  * 的 destination preflight 與所有 writes 仍由 restoreBackup() 的單一 transaction 負責。
  */
 export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBackupEnvelope {
-    const envelopes = inputs.map(validateBackupEnvelope);
+    const envelopes = inputs.map(ensureValidated);
     if (envelopes.length === 1) {
         const only = envelopes[0];
         if (only.kind === 'full' || only.kind === 'legacy-full') return only;
@@ -1219,8 +1226,9 @@ function existingTables(
 // transaction。第一次只接受完全乾淨且 generator 未被推進的環境；第二次只接受 marker
 // 證明的 complementary split kind。任何拒絕或失敗都不得改動 rows 或 generator。
 export async function restoreBackup(database: KcDb, input: unknown): Promise<void> {
-    // 這層再次驗證，避免其他未來呼叫端繞過 parseBackupJson() 後直接把不可信值寫進 DB。
-    const envelope = validateBackupEnvelope(input);
+    // 這層再次驗證，避免其他未來呼叫端繞過 parseBackupJson() 後直接把不可信值寫進 DB；
+    // 已由 validateBackupEnvelope() 產出的 envelope 不重複走訪。
+    const envelope = ensureValidated(input);
     const tables = envelope.tables;
     const incomingHighest = highestReferencedEventId(tables);
     await database.transaction('rw', [

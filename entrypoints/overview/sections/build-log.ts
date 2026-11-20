@@ -159,8 +159,9 @@ export const buildLogSection: OverviewSection = {
         const changed = () => { page = 1; draw(); };
 
         async function load() {
-            rows = (await db.factory.orderBy('eventId').reverse().toArray())
-                .filter(r => r.kind === 'build' || r.kind === 'speedup');
+            // kind 索引先篩掉開發／改修；anyOf 依 kind 再依主鍵排序，須重排回 eventId 新到舊。
+            rows = (await db.factory.where('kind').anyOf('build', 'speedup').toArray())
+                .sort((a, b) => b.eventId - a.eventId);
             const options = (names: string[]) => [...new Set(names)].map(name => `<option value="${esc(name)}"></option>`).join('');
             el.querySelector('#bl-secretaries')?.remove();
             el.querySelector('#bl-ships')?.remove();

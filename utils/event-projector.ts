@@ -216,7 +216,7 @@ export class EventProjector {
             const mvpEscort = api?.api_mvp_combined;
             if (Number.isSafeInteger(mvpEscort) && mvpEscort > 0) row.mvpEscort = mvpEscort;
             const enemyName = api?.api_enemy_info?.api_deck_name;
-            if (typeof enemyName === 'string' && enemyName) row.enemyName = enemyName;
+            if (typeof enemyName === 'string' && enemyName.trim()) row.enemyName = enemyName;
             if (this.skipCurrentSortie) row.catchOnly = true;
             if (this.shouldPersist) {
                 // projection version bump 會重寫相同主鍵；cleared 是後續 mapinfo 轉變補上的旗標，

@@ -110,3 +110,15 @@ describe('出擊紀錄 → 制空権シミュレータ DeckBuilder', () => {
         expect(payload.predeck.s.c[payload.predeck.s.c.length - 1].c).toBe(53);
     });
 });
+
+describe('相容資料的艦隊編號修復', () => {
+    it('第3艦隊獨立出擊被記成連合艦隊時，匯出以修復後的單艦隊為準', () => {
+        const legacy = replay({ combined: 2, fleetnum: 3, fleet3: [ship(300, 50)], fleet2: [ship(538, 90)] });
+        const deck = buildReplayDeckBuilder(legacy) as Record<string, any>;
+        expect(deck.f1.s1.id).toBe(300);
+        expect(deck.f2).toBeUndefined();
+        const air = buildReplayAirCalcDeck(legacy) as Record<string, any>;
+        expect(air.f1.t).toBeUndefined();
+        expect(legacy.combined).toBe(2);
+    });
+});

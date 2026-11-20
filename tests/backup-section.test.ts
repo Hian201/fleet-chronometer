@@ -13,7 +13,7 @@ describe('情報總括資料備份寫檔', () => {
         expect(src).not.toContain("writeFileTo(dir, BACKUP_FILE");
         expect(src).not.toContain("downloadText(BACKUP_FILE");
         const folderRun = src.slice(
-            src.indexOf("querySelector('#backup-folder-run')"),
+            src.indexOf("'#backup-folder-run')"),
             src.indexOf("querySelector('#backup-import')"),
         );
         expect(folderRun).toContain('unusedBackupFileName');
@@ -25,7 +25,7 @@ describe('情報總括資料備份寫檔', () => {
         expect(src).toContain('isEmptyBackup(backup.tables, backup.questFlow)');
         expect(src).toContain("t('ov.backupEmptyRefuse')");
         const folderRun = src.slice(
-            src.indexOf("querySelector('#backup-folder-run')"),
+            src.indexOf("'#backup-folder-run')"),
             src.indexOf("querySelector('#backup-import')"),
         );
         expect(folderRun.indexOf('isEmptyBackup')).toBeLessThan(folderRun.indexOf('ensureRw'));

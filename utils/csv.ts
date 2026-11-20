@@ -40,7 +40,8 @@ function splitRows(text: string, delimiter: string): string[][] {
             }
             cell += ch; i++; continue;
         }
-        if (ch === '"' && cell === '') { inQuotes = true; i++; continue; }
+        // 航海日誌的 TSV 不跳脫引號；只有逗號 CSV 才把開頭的雙引號當成引號欄位。
+        if (ch === '"' && cell === '' && delimiter === ',') { inQuotes = true; i++; continue; }
         if (ch === delimiter) { push(); i++; continue; }
         if (ch === '\r') { i++; continue; }
         if (ch === '\n') { pushRow(); i++; continue; }
@@ -57,7 +58,9 @@ export interface DelimitedText {
 }
 
 /** 依表頭那一行猜分隔符（tab 數 > 逗號數即 TSV，同 logbook 的匯出慣例），再切成表格。 */
-export function parseDelimitedText(text: string): DelimitedText | null {
+export function parseDelimitedText(rawText: string): DelimitedText | null {
+    // Excel 存的「CSV UTF-8」開頭帶 BOM，留著會讓第一個表頭比對不到。
+    const text = rawText.charCodeAt(0) === 0xfeff ? rawText.slice(1) : rawText;
     const firstLineEnd = text.search(/[\r\n]/);
     const firstLine = firstLineEnd === -1 ? text : text.slice(0, firstLineEnd);
     const tabs = (firstLine.match(/\t/g) ?? []).length;
@@ -73,11 +76,12 @@ export function parseDelimitedText(text: string): DelimitedText | null {
 export function parseTimestamp(raw: string): number | null {
     const trimmed = raw.trim();
     if (!trimmed) return null;
+    // 1970 年以前的時刻不是遊戲紀錄，且負的 ts 會讓之後的備份還原驗證失敗。
     const iso = Date.parse(trimmed);
-    if (Number.isFinite(iso)) return iso;
+    if (Number.isFinite(iso)) return iso >= 0 ? iso : null;
     const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(trimmed);
     if (!m) return null;
     const [, y, mo, d, h, mi, s] = m;
     const local = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)).getTime();
-    return Number.isFinite(local) ? local : null;
+    return Number.isFinite(local) && local >= 0 ? local : null;
 }

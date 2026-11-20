@@ -161,4 +161,14 @@ describe('出擊快照', () => {
         expect(replay).not.toHaveProperty('fleet4');
         expect(replay).not.toHaveProperty('lbas');
     });
+
+    it('提督名尚未投影（空字串或純空白）時，replay 列不帶 nickname 鍵', () => {
+        const state = buildState();
+        state.nickname = '';
+        expect(startReplay(state, 13, 1_726_000_000_000, mapStart)).not.toHaveProperty('nickname');
+        state.nickname = '  ';
+        expect(startReplay(state, 14, 1_726_000_000_000, mapStart)).not.toHaveProperty('nickname');
+        state.nickname = '提督';
+        expect(startReplay(state, 15, 1_726_000_000_000, mapStart).nickname).toBe('提督');
+    });
 });

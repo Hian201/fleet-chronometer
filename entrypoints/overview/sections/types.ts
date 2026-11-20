@@ -28,6 +28,13 @@ export interface SectionContext {
      * 不註冊的分區維持「進入分區時讀一次」的行為。
      */
     onStateChange?(listener: (paths: readonly string[]) => void): void;
+    /**
+     * 本次 render 的生命週期訊號：切換分區、語言／主題重繪時由 main.ts abort。
+     * 掛在 window／document 的監聽器、ResizeObserver、裝置端 LLM 串流、延遲計時器都要靠它收尾，
+     * 否則離開分區後仍會留住已卸離的閉包。main.ts 一律提供；tools/preview 的離線預覽與測試
+     * 手動組的 context 可省略（沒有「離開分區」可言），所以型別是選填。
+     */
+    signal?: AbortSignal;
 }
 
 export interface OverviewSection {

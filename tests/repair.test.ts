@@ -149,7 +149,8 @@ describe('結算倒數與 GameState 錨點', () => {
         expect(nextSettlementIn(TS + 1, REPAIR_INTERVAL_MS, TS)).toBeUndefined();
         expect(nextSettlementIn(TS, REPAIR_INTERVAL_MS, TS + 5 * 60_000))
             .toBe(15 * 60_000 + TIMER_SAFETY_MS);
-        expect(nextSettlementIn(TS, REPAIR_INTERVAL_MS, TS + REPAIR_INTERVAL_MS)).toBe(0);
+        expect(nextSettlementIn(TS, REPAIR_INTERVAL_MS, TS + REPAIR_INTERVAL_MS)).toBe(TIMER_SAFETY_MS);
+        expect(nextSettlementIn(TS, REPAIR_INTERVAL_MS, TS + REPAIR_INTERVAL_MS + TIMER_SAFETY_MS)).toBe(0);
         expect(nextSettlementIn(TS, MORALE_INTERVAL_MS, TS + 16 * 60_000)).toBe(0);
         expect(nextSettlementIn(TS, REPAIR_INTERVAL_MS, TS + 16 * 60_000)).toBe(4 * 60_000 + TIMER_SAFETY_MS);
     });

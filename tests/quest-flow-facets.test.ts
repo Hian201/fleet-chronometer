@@ -109,7 +109,7 @@ describe('任務導覽篩選標籤', () => {
 });
 
 describe('任務導覽篩選工具列', () => {
-    async function mount(prefs: Record<string, unknown>, state = listed([261, 1], [214, 2])) {
+    async function mount(prefs: Record<string, unknown>, state = listed([261, 1], [214, 2]), signal = new AbortController().signal) {
         const { document, window } = parseHTML('<html><body><div id="host"></div></body></html>');
         const store = new Map([[QUEST_FLOW_PREFS_KEY, JSON.stringify(prefs)]]);
         vi.stubGlobal('document', document);
@@ -122,7 +122,7 @@ describe('任務導覽篩選工具列', () => {
             removeItem: (key: string) => { store.delete(key); },
         });
         const host = document.getElementById('host') as unknown as HTMLElement;
-        await questFlowSection.render(host, { state, rerender() {}, async reloadState() {} });
+        await questFlowSection.render(host, { state, rerender() {}, async reloadState() {}, signal });
         const saved = () => JSON.parse(store.get(QUEST_FLOW_PREFS_KEY)!);
         const chip = (group: string, value: string) =>
             host.querySelector<HTMLButtonElement>(`[data-qf-facet="${group}"][data-qf-value="${value}"]`)!;
@@ -202,6 +202,35 @@ describe('任務導覽篩選工具列', () => {
         expect(saved().filters).toEqual({});
         expect(weekly.getAttribute('aria-pressed')).toBe('false');
         expect(host.querySelector<HTMLElement>('.qf-selected')!.hidden).toBe(true);
+    });
+
+    it('搜尋輸入立即存偏好，重畫延後 150 ms 並合併連續輸入；離開分區後取消', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const leave = new AbortController();
+            const { host, saved, catalog } = await mount({}, listed([261, 1], [214, 2]), leave.signal);
+            const all = catalog();
+            expect(all.length).toBeGreaterThan(1);
+            const query = host.querySelector<HTMLInputElement>('.qf-query')!;
+            const type = (value: string) => { query.value = value; query.dispatchEvent(new window.Event('input')); };
+
+            type('あ');
+            type('あ号');
+            expect(saved().query).toBe('あ号');
+            expect(catalog()).toEqual(all);                 // 尚未重畫
+            vi.advanceTimersByTime(149);
+            expect(catalog()).toEqual(all);
+            vi.advanceTimersByTime(1);
+            expect(catalog()).toEqual([214]);               // あ号作戦只剩一筆，且只畫了一次最終輸入
+
+            type('Bw10');
+            leave.abort();
+            vi.advanceTimersByTime(500);
+            expect(saved().query).toBe('Bw10');
+            expect(catalog()).toEqual([214]);               // 離開後計時器已清，不再重畫
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('頂端的年任換期提醒點了以換期月篩選，保留其他已選條件', async () => {

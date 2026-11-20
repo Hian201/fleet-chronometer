@@ -88,6 +88,21 @@ describe('firstOwnedDropKeys', () => {
         expect([...keys]).toEqual([2]);
     });
 
+    it('多個 master ID 的紀錄交錯時，各自關聯 observation 前最近的一筆', () => {
+        const keys = firstOwnedDropKeys([
+            sortie({ eventId: 10, sortieKey: 1, dropMst: 124 }),
+            sortie({ eventId: 11, sortieKey: 2, dropMst: 125 }),
+            sortie({ eventId: 12, sortieKey: 3, dropMst: 124 }),
+            sortie({ eventId: 13, sortieKey: 4, dropMst: 125 }),
+            sortie({ eventId: 14, sortieKey: 5, dropMst: 124 }),
+        ], [
+            obtained({ id: 101, mst: 124, source: 'auto', observedEventId: 14 }),
+            obtained({ id: 102, mst: 125, source: 'auto', observedEventId: 13 }),
+        ]);
+
+        expect([...keys].sort()).toEqual([2, 3]);
+    });
+
     it.each([
         ['sortie 缺 dropMst', [sortie({ eventId: 20, sortieKey: 2, drop: '鈴谷' })], [obtained({ id: 101, mst: 124, source: 'auto', observedEventId: 21 })]],
         ['observation 缺 event ID', [sortie({ eventId: 20, sortieKey: 2, dropMst: 124 })], [obtained({ id: 101, mst: 124, source: 'auto' })]],

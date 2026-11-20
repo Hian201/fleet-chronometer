@@ -15,6 +15,7 @@
 import type { FactoryLogRow, KcDb } from './db';
 import { parseDelimitedText, parseTimestamp, rowsToCsv } from './csv';
 import { borrowEventId } from './event-id-borrow';
+import { TimeBucketIndex } from './time-bucket-index';
 
 export class BuildLogImportError extends Error {
     constructor(message: string) { super(message); this.name = 'BuildLogImportError'; }
@@ -228,9 +229,13 @@ export async function importBuildLogRows(database: KcDb, rows: ParsedBuildRow[])
     let added = 0;
     let duplicates = 0;
     await database.transaction('rw', [database.events, database.factory], async () => {
-        const existing = (await database.factory.toArray()).filter(r => r.kind === 'build' || r.kind === 'speedup');
+        const existing = new TimeBucketIndex<FactoryLogRow>(TIME_TOLERANCE_MS, r => r.kind, r => r.ts);
+        for (const r of await database.factory.toArray()) {
+            if (r.kind === 'build' || r.kind === 'speedup') existing.add(r);
+        }
+        const fresh: FactoryLogRow[] = [];
         for (const row of rows) {
-            if (existing.some(e => isDuplicateBuild(row, e))) { duplicates++; continue; }
+            if (existing.some(row.kind, row.ts, e => isDuplicateBuild(row, e))) { duplicates++; continue; }
             const id = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {
                 onOverflow: (message) => { throw new BuildLogImportError(message); },
             });
@@ -242,10 +247,12 @@ export async function importBuildLogRows(database: KcDb, rows: ParsedBuildRow[])
                 ...(row.secretaryName ? { importedSecretaryName: row.secretaryName } : {}),
                 ...(row.hqLv != null ? { hqLv: row.hqLv } : {}),
             };
-            await database.factory.put(inserted);
-            existing.push(inserted);
+            fresh.push(inserted);
+            existing.add(inserted);
             added++;
         }
+        // 去重判斷只看記憶體索引，與 DB 寫入順序無關；event ID 仍逐列借用（見 event-id-borrow.ts）。
+        if (fresh.length) await database.factory.bulkPut(fresh);
     });
     return { added, duplicates };
 }

@@ -17,6 +17,8 @@ function frame(tabId: number) {
 
 afterEach(() => vi.useRealTimers());
 
+const png = (tag: string) => `data:image/png;base64,${btoa(tag)}`;
+
 describe('編成寫真來源分頁', () => {
     it('多分頁未選來源時不發送任何擷取請求', async () => {
         const capture = new FleetPhotoCapture();
@@ -32,10 +34,10 @@ describe('編成寫真來源分頁', () => {
         const result = capture.capture(PHOTO_REGIONS.ship, 2);
         expect(a.postMessage).not.toHaveBeenCalled();
         const reqId = b.postMessage.mock.calls[0][0].reqId;
-        a.reply({ kind: 'capture-result', reqId, dataUrl: 'wrong-tab' });
-        sibling.reply({ kind: 'capture-result', reqId, dataUrl: 'wrong-frame' });
-        b.reply({ kind: 'capture-result', reqId, dataUrl: 'selected-tab' });
-        expect(await result).toEqual({ dataUrl: 'selected-tab' });
+        a.reply({ kind: 'capture-result', reqId, dataUrl: png('wrong-tab') });
+        sibling.reply({ kind: 'capture-result', reqId, dataUrl: png('wrong-frame') });
+        b.reply({ kind: 'capture-result', reqId, dataUrl: png('selected-tab') });
+        expect(await result).toEqual({ dataUrl: png('selected-tab') });
     });
     it('唯一分頁自動選取，同分頁多框仍能找到有畫布的框', async () => {
         const capture = new FleetPhotoCapture();
@@ -44,8 +46,8 @@ describe('編成寫真來源分頁', () => {
         expect(capture.tabIds()).toEqual([1]);
         const result = capture.capture(PHOTO_REGIONS.lbas);
         a.reply({ kind: 'capture-result', reqId: a.postMessage.mock.calls[0][0].reqId, error: 'no-canvas' });
-        b.reply({ kind: 'capture-result', reqId: b.postMessage.mock.calls[0][0].reqId, dataUrl: 'base' });
-        expect(await result).toEqual({ dataUrl: 'base' });
+        b.reply({ kind: 'capture-result', reqId: b.postMessage.mock.calls[0][0].reqId, dataUrl: png('base') });
+        expect(await result).toEqual({ dataUrl: png('base') });
     });
     it('所選分頁斷線後不改拍另一個分頁', async () => {
         const capture = new FleetPhotoCapture();
@@ -63,8 +65,22 @@ describe('編成寫真來源分頁', () => {
         await vi.advanceTimersByTimeAsync(4000);
         expect(await first).toEqual({ error: 'timeout' });
         const second = capture.capture(PHOTO_REGIONS.ship);
-        a.reply({ kind: 'capture-result', reqId, dataUrl: 'late' });
-        a.reply({ kind: 'capture-result', reqId: a.postMessage.mock.calls[1][0].reqId, dataUrl: 'new' });
-        expect(await second).toEqual({ dataUrl: 'new' });
+        a.reply({ kind: 'capture-result', reqId, dataUrl: png('late') });
+        a.reply({ kind: 'capture-result', reqId: a.postMessage.mock.calls[1][0].reqId, dataUrl: png('new') });
+        expect(await second).toEqual({ dataUrl: png('new') });
+    });
+    it('非 PNG data URL 的影像回應一律視為失敗', async () => {
+        const capture = new FleetPhotoCapture(), a = frame(1);
+        capture.connect(a.port);
+        const result = capture.capture(PHOTO_REGIONS.ship);
+        a.reply({ kind: 'capture-result', reqId: a.postMessage.mock.calls[0][0].reqId, dataUrl: '"><img src=x onerror=alert(1)>' });
+        expect(await result).toEqual({ error: 'failed', detail: undefined });
+    });
+    it('分頁斷線時進行中的請求立即結束，不等逾時', async () => {
+        const capture = new FleetPhotoCapture(), a = frame(1);
+        capture.connect(a.port);
+        const result = capture.capture(PHOTO_REGIONS.ship);
+        a.disconnect();
+        expect(await result).toEqual({ error: 'no-canvas', detail: undefined });
     });
 });

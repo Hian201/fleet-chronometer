@@ -48,6 +48,8 @@ import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMap
 import { depthChargeSeasonActive, fleetDepthCharges, loadDcReminderOff, onDcReminderChange, saveDcReminder } from '@/utils/depth-charge';
 import { currentSeasonRange, latestSeason, onSeasonEndChange, SAURY_ITEM, saveInferredEnd, SeasonEndDetector, type InferredEnd } from '@/utils/catch-season';
 import { catchAlertQueryFrom, catchAlertsToFire, loadCatchAlertFired, loadCatchAlertRule, saveCatchAlertFired } from '@/utils/catch-alert';
+import { replyWhenSettled } from '@/utils/runtime-reply';
+import { downloadBlob } from '@/utils/download';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
@@ -187,10 +189,10 @@ const crescentHtml = () => `<img class="s-night-moon" src="${tacticalIcon('brass
 const formationSvgHtml = (id: number) => {
     const dots = formationRects(id);
     const marks = `<g transform="translate(31 31) scale(.82) translate(-31 -31)">${dots.map(([x, y]) => `<rect x="${x}" y="${y}" width="6" height="6" rx="1" />`).join('')}</g>`;
-    return `<svg class="s-formation-icon" viewBox="0 0 62 62" role="img" aria-label="陣形" focusable="false"><circle cx="31" cy="31" r="27" fill="none" stroke="currentColor" stroke-width="3" />${marks}</svg>`;
+    return `<svg class="s-formation-icon" viewBox="0 0 62 62" role="img" aria-label="${esc(t('sortie.formationAria'))}" focusable="false"><circle cx="31" cy="31" r="27" fill="none" stroke="currentColor" stroke-width="3" />${marks}</svg>`;
 };
 const sakuraAnchorHtml = (isNew: boolean) => {
-    const label = isNew ? '新掉落櫻錨' : '已有船櫻錨';
+    const label = esc(t(isNew ? 'sortie.sakuraNew' : 'sortie.sakuraOwned'));
     const file = isNew ? 'sakura-anchor-new.png' : 'sakura-anchor-owned.png';
     return `<img class="s-sakura-anchor ${isNew ? 'new' : 'owned'}" src="${tacticalIcon(file)}" alt="${label}" draggable="false" />`;
 };
@@ -1133,8 +1135,11 @@ airBasesEl.addEventListener('click', e => {
     }
 });
 function renderAll() {
-    renderHeader(); renderTabs(); renderGeneral(); renderFleetNav(); renderFleets(); renderExped(); renderSortie(); renderFactory();
-    renderOrder();
+    // 一般／調度分頁只在顯示中才重繪；切入時 setTab 會補畫（全船排序與國籍計算不必每筆封包都跑）。
+    renderHeader(); renderTabs();
+    if (tab === 'general') renderGeneral();
+    renderFleetNav(); renderFleets(); renderExped(); renderSortie(); renderFactory();
+    if (tab === 'order') renderOrder();
     if (showLbas) renderAirBases();
     photo.refresh();
 }
@@ -1438,22 +1443,22 @@ function renderSortie() {
         const showNightEntry = true;
         const nightEntryUnavailable = !info.midnightFlag && !nightObserved && !info.nightTarget;
         const nightEntryTitle = nightEntryUnavailable
-            ? '本節點沒有夜戰；月亮與主隊／伴隨指示以暗色顯示'
+            ? t('sortie.nightEntryNone')
             : nightTargetEstimated
-                ? '依日戰結果推測夜戰目標；實際隊伍以夜戰資料為準'
+                ? t('sortie.nightEntryEstimated')
                 : !nightObserved
-                    ? '夜戰尚未由戰鬥資料確認'
+                    ? t('sortie.nightEntryUnconfirmed')
                     : !nightTargetKnown
-                        ? '夜戰已發生；敵方目標隊伍未由現有傷害事件確認'
-                        : '夜戰目標隊伍已由戰鬥事件確認';
+                        ? t('sortie.nightEntryTargetUnknown')
+                        : t('sortie.nightEntryTargetKnown');
         const nightEffectHtml = (kind: string, mst: number, short: string, label: string, active: boolean | undefined) =>
-            `<span class="s-night-effect ${kind} ${active === undefined ? 'unknown' : active ? 'on' : 'off'}" title="${esc(`${label}：${active === undefined ? '狀態未知' : active ? '發動' : '未發動'}`)}">${gearIconHtml(state.gearIconId(mst), short)}</span>`;
+            `<span class="s-night-effect ${kind} ${active === undefined ? 'unknown' : active ? 'on' : 'off'}" title="${esc(t('sortie.nightEffectTitle', { label, state: t(active === undefined ? 'sortie.nightStateUnknown' : active ? 'sortie.nightStateOn' : 'sortie.nightStateOff') }))}">${gearIconHtml(state.gearIconId(mst), short)}</span>`;
         // 夜間觸接沿用該場夜戰封包明示的我方飛機 master；未觸接或舊資料缺欄位時，
         // 才退回夜偵通用圖示。這樣不同夜偵不會被錯畫成固定 102。
         const nightReconMst = info.nightTouchPlane && info.nightTouchPlane > 0
             ? info.nightTouchPlane : 102;
         const nightEntryHtml = !showNightEntry ? '' : `<span class="s-night-entry-group${!nightTargetKnown ? ' unknown' : ''}${nightTargetEstimated ? ' estimated' : ''}${nightEntryUnavailable ? ' unavailable' : ''}"
-            title="${esc(nightEntryTitle)}" role="group" aria-label="夜戰主隊與伴隨指示">
+            title="${esc(nightEntryTitle)}" role="group" aria-label="${esc(t('sortie.nightEntryAria'))}">
             <span class="s-night-entry-moon">${crescentHtml()}</span>
             <span class="s-night-entry-cells">
               <span class="s-night-entry-cell main${nightTargetMain ? ' active' : ''}"><i></i><span>${esc(t('sortie.mainFleet'))}</span></span>
@@ -1474,11 +1479,11 @@ function renderSortie() {
             <img src="${tacticalIcon('friendly-anchor.png')}" alt="" aria-hidden="true" />
             ${friendlyFleetHover}
           </span>`;
-        const nightHtml = `<div class="s-night-effects" aria-label="夜戰裝備與夜戰目標">
+        const nightHtml = `<div class="s-night-effects" aria-label="${esc(t('sortie.nightEffectsAria'))}">
             <div class="s-night-equipment-list">
-              ${nightEffectHtml('searchlight', 74, '探', '探照燈', nightObserved ? night?.searchlight : undefined)}
-              ${nightEffectHtml('night-contact', nightReconMst, '夜偵', '夜偵', nightObserved ? night?.nightRecon : undefined)}
-              ${nightEffectHtml('star-shell', 101, '照', '照明彈', nightObserved ? night?.starShell : undefined)}
+              ${nightEffectHtml('searchlight', 74, t('sortie.nightShortSearchlight'), t('ov.slBattleNightSearchlight'), nightObserved ? night?.searchlight : undefined)}
+              ${nightEffectHtml('night-contact', nightReconMst, t('sortie.nightShortRecon'), t('ov.slBattleNightRecon'), nightObserved ? night?.nightRecon : undefined)}
+              ${nightEffectHtml('star-shell', 101, t('sortie.nightShortStarShell'), t('ov.slBattleNightStarShell'), nightObserved ? night?.starShell : undefined)}
               ${friendlyFleetHtml}
             </div>${nightEntryHtml}
           </div>`;
@@ -1494,24 +1499,24 @@ function renderSortie() {
             }) : '',
         ].filter(Boolean).join('\n');
         const lbas = info.lbas;
-        const lbasTitle = !lbas ? '基地航空隊未出擊' : t('sortie.lbasTitle', { sent: lbas.sent, lost: lbas.lost, damage: lbas.damage });
+        const lbasTitle = !lbas ? t('sortie.lbasNotSent') : t('sortie.lbasTitle', { sent: lbas.sent, lost: lbas.lost, damage: lbas.damage });
         const lbasHover = lbas
-            ? `<span>對敵傷害 <b>${esc(String(lbas.damage))}</b></span>${lbas.lost > 0 ? `<span>我方戰損 <i>-${esc(String(lbas.lost))}</i></span>` : ''}`
+            ? `<span>${esc(t('sortie.lbasHoverDamage'))} <b>${esc(String(lbas.damage))}</b></span>${lbas.lost > 0 ? `<span>${esc(t('sortie.lbasHoverLost'))} <i>-${esc(String(lbas.lost))}</i></span>` : ''}`
             : '';
         const contactFriendMst = info.touchPlane[0] > 0 ? info.touchPlane[0] : 0;
-        const contactFriendName = contactFriendMst ? state.gearName(contactFriendMst) : '我方觸接飛機';
-        const contactFriendIcon = contactFriendMst ? gearIconHtml(state.gearIconId(contactFriendMst), '偵') : '<span class="s-contact-fallback">我</span>';
-        const contactFriendHover = `我方：${contactFriendName}`;
-        const contactEnemyHover = '敵方：深海艦載機';
+        const contactFriendName = contactFriendMst ? state.gearName(contactFriendMst) : t('sortie.contactFriendPlane');
+        const contactFriendIcon = contactFriendMst ? gearIconHtml(state.gearIconId(contactFriendMst), t('sortie.contactFriendShort')) : `<span class="s-contact-fallback">${esc(t('sortie.contactFriendFallback'))}</span>`;
+        const contactFriendHover = t('sortie.contactFriendHover', { name: contactFriendName });
+        const contactEnemyHover = t('sortie.contactEnemyHover');
         const hasFriendlyContact = info.touchPlane[0] > 0;
         const hasEnemyContact = info.touchPlane[1] > 0;
         const contactState = hasFriendlyContact || hasEnemyContact ? 'on' : 'off';
         const contactGlyph = hasFriendlyContact && hasEnemyContact
-            ? `<span class="s-system-glyph contact-both" role="group" aria-label="敵我雙方觸接"><span class="contact-sub friendly" title="${esc(contactFriendHover)}">${contactFriendIcon}</span><span class="contact-sub enemy" title="${esc(contactEnemyHover)}"><img class="deepsea-aircraft-raster" src="${tacticalIcon('deepsea-carrier-aircraft.png')}" alt="深海艦載機" /></span><span class="s-contact-hover both"><span>${esc(contactFriendHover)}</span><span>${esc(contactEnemyHover)}</span></span></span>`
+            ? `<span class="s-system-glyph contact-both" role="group" aria-label="${esc(t('sortie.contactBothAria'))}"><span class="contact-sub friendly" title="${esc(contactFriendHover)}">${contactFriendIcon}</span><span class="contact-sub enemy" title="${esc(contactEnemyHover)}"><img class="deepsea-aircraft-raster" src="${tacticalIcon('deepsea-carrier-aircraft.png')}" alt="${esc(t('sortie.deepseaAircraftAlt'))}" /></span><span class="s-contact-hover both"><span>${esc(contactFriendHover)}</span><span>${esc(contactEnemyHover)}</span></span></span>`
             : hasFriendlyContact
                 ? `<span class="s-system-glyph contact-single friendly" role="img" aria-label="${esc(contactFriendHover)}" title="${esc(contactFriendHover)}">${contactFriendIcon}<span class="s-contact-hover">${esc(contactFriendHover)}</span></span>`
                 : hasEnemyContact
-                    ? `<span class="s-system-glyph contact-single enemy" role="img" aria-label="${esc(contactEnemyHover)}" title="${esc(contactEnemyHover)}"><img class="deepsea-aircraft-raster" src="${tacticalIcon('deepsea-carrier-aircraft.png')}" alt="深海艦載機" /><span class="s-contact-hover">${esc(contactEnemyHover)}</span></span>`
+                    ? `<span class="s-system-glyph contact-single enemy" role="img" aria-label="${esc(contactEnemyHover)}" title="${esc(contactEnemyHover)}"><img class="deepsea-aircraft-raster" src="${tacticalIcon('deepsea-carrier-aircraft.png')}" alt="${esc(t('sortie.deepseaAircraftAlt'))}" /><span class="s-contact-hover">${esc(contactEnemyHover)}</span></span>`
                     : '<span class="s-system-glyph contact-none" aria-hidden="true">—</span>';
         const systemSignal = (kind: string, glyph: string, label: string, value: string, stateName: 'on' | 'off' | 'warn', title: string, hover = '') => {
             // AACI 明細只保留自訂白色 tooltip；外層原生 title 會再開一個黑色提示，
@@ -1561,11 +1566,11 @@ function renderSortie() {
                 ]),
             ].join('\n')
             : t('sortie.none');
-        const systemRailHtml = `<div class="s-system-rail" aria-label="支援、陸航、索敵、觸接與對空 CI 狀態">
+        const systemRailHtml = `<div class="s-system-rail" aria-label="${esc(t('sortie.systemRailAria'))}">
             ${systemSignal('support', supportAircraftHtml(supportKind), supportRailLabel, '', support ? 'on' : 'off', supportTitle)}
             ${systemSignal('lbas', lbasAircraftHtml(), lbas ? t('sortie.lbasArrived') : t('sortie.lbas'), '', lbas ? 'on' : 'off', lbasTitle, lbasHover)}
             ${systemSignal('search', searchRadarHtml(), '', searchValue, searchState, searchTitle)}
-            ${systemSignal('contact', contactGlyph, t('sortie.contact'), '', contactState, hasFriendlyContact && hasEnemyContact ? '敵我雙方觸接' : hasFriendlyContact ? contactFriendHover : hasEnemyContact ? contactEnemyHover : '未觸接')}
+            ${systemSignal('contact', contactGlyph, t('sortie.contact'), '', contactState, hasFriendlyContact && hasEnemyContact ? t('sortie.contactBothAria') : hasFriendlyContact ? contactFriendHover : hasEnemyContact ? contactEnemyHover : t('sortie.contactNone'))}
             ${systemSignal('aaci', aaciGunHtml(), info.aaci > 0 ? '' : t('sortie.aaciRail'), aaciValue, info.aaci > 0 ? 'on' : 'off', aaciHoverTitle, aaciHoverHtml)}
           </div>`;
         html += `
@@ -1575,7 +1580,7 @@ function renderSortie() {
                 </div>
                 <div class="s-rank-row">${rankHtml}${formationHtml}</div>
                 <div class="s-air-wrap${taihaHtml && !taihaDetailsHidden ? ' covered' : ''}">
-                    <div class="s-air-loss-grid" aria-label="敵我戰鬥機與爆擊機數量及戰損">
+                    <div class="s-air-loss-grid" aria-label="${esc(t('sortie.airLossGridAria'))}">
                         <div class="s-air-loss-head"><b>${t('sortie.ourSide')}</b><span aria-hidden="true"></span><b>${t('sortie.enemySide')}</b></div>
                         <div class="s-air-loss-row"><span class="s-air-loss-cell friendly">${planeCell(p.playerFighter)}</span><span class="s-air-kind fighter" title="${esc(t('sortie.fighterAbbr'))}">${t('sortie.fighterAbbr')}</span><span class="s-air-loss-cell enemy">${planeCell(p.enemyFighter)}</span></div>
                         <div class="s-air-loss-row"><span class="s-air-loss-cell friendly">${planeCell(p.playerBomber)}</span><span class="s-air-kind bomber" title="${esc(t('sortie.bomberAbbr'))}">${t('sortie.bomberAbbr')}</span><span class="s-air-loss-cell enemy">${planeCell(p.enemyBomber)}</span></div>
@@ -1641,13 +1646,7 @@ let wantedSkipped = false;
  */
 function downloadJson(filename: string, data: unknown) {
     try {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        downloadBlob(filename, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     } catch (e) {
         console.warn('[Fleet Chronometer] 自動存檔失敗', filename, e);
     }
@@ -1701,12 +1700,19 @@ async function renderWanted() {
     wantedEl.innerHTML = (list || `<div class="empty">${t('wanted.empty')}</div>`) + skipped + foot;
 }
 /** 按鈕短暫顯示結果文字後復原（複製成功／原始事件已不在／複製失敗共用）。 */
+// 連點時原標籤只在第一次記下、計時器重設，暫態文字不會被當成原標籤存回去。
+const flashTimers = new WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>();
 function flashButton(btn: HTMLButtonElement, text: string, ok: boolean) {
-    const original = btn.textContent ?? '';
+    const original = btn.dataset.origLabel ??= btn.textContent ?? '';
     btn.textContent = text;
     btn.classList.toggle('copied', ok);
     btn.classList.toggle('failed', !ok);
-    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied', 'failed'); }, ok ? 1500 : 3000);
+    clearTimeout(flashTimers.get(btn));
+    flashTimers.set(btn, setTimeout(() => {
+        btn.textContent = original;
+        delete btn.dataset.origLabel;
+        btn.classList.remove('copied', 'failed');
+    }, ok ? 1500 : 3000));
 }
 wantedEl.addEventListener('click', async e => {
     const target = e.target as HTMLElement;
@@ -1973,7 +1979,8 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         // 不必等到真的出擊。map/start 也跑一次，涵蓋沒經過選單直接再戰的情況；一張圖只掃
         // 一次 DB，重複呼叫是免費的（見 restoreGaugeBossHp）。非同步，補到新值才重畫。
         if (path === 'api_get_member/mapinfo' || path === 'api_req_map/start') {
-            void restoreGaugeBossHp().then(changed => { if (changed) renderSortie(); });
+            void restoreGaugeBossHp().then(changed => { if (changed) renderSortie(); })
+                .catch(e => console.warn('[Fleet Chronometer] Boss HP 恢復失敗', e));
         }
         // 回到母港畫面 → 一般分頁母港「遠征中」分組。從編成等不換情境的畫面回港時，
         // 使用者若已手動選過分頁（例如點艦隊切到泊地）則不動。
@@ -2085,7 +2092,8 @@ function tickGeneralCountdowns() {
 }
 setInterval(() => {
     tickGeneralCountdowns();
-    if (tab === 'factory') renderFactory();       // 建造渠倒數；今日改修在日本時間 0 點換表
+    // 建造渠倒數每秒更新；今日改修只在日本時間 0 點換表時重算。
+    if (tab === 'factory') { renderFactoryLive(); renderFactoryTabs(true); }
     tickRepairCountdowns();                       // 泊地修理/給糧倒數＋疲勞倒數
     tickLbasCond();                               // 基地航空隊疲勞回復（無封包可觸發）
 }, 1000);
@@ -2109,6 +2117,11 @@ function stopAfterProjectionFailure(error: unknown) {
     console.error('[Fleet Chronometer] derived event projection failed; panel pump stopped', error);
     setNotice('fatal', t('panel.stopped', { reason: describeError(error) }), t('panel.stoppedHint'));
 }
+// 依值移除：await 期間 kc:live 可能把較小 id 排到 pending[0]，shift() 會丟掉那筆未處理的事件。
+function removePending(id: number) {
+    const index = pending.indexOf(id);
+    if (index >= 0) pending.splice(index, 1);
+}
 async function pump() {
     if (pumping || !ready || projectionFailed) return;
     pumping = true;
@@ -2117,7 +2130,7 @@ async function pump() {
             const id = pending[0];
             if (id <= maxId) {
                 inFlightTimings.delete(id);
-                pending.shift();
+                removePending(id);
                 continue;
             }
             const timing = inFlightTimings.get(id);
@@ -2135,7 +2148,7 @@ async function pump() {
             }
             if (!r) {
                 inFlightTimings.delete(id);
-                pending.shift();
+                removePending(id);
                 continue;
             }
             if (timing) timing.loaded = wallNow();
@@ -2145,7 +2158,7 @@ async function pump() {
                 stopAfterProjectionFailure(error);
                 return;
             }
-            pending.shift();
+            removePending(id);
         }
         // 佇列清空＝讀取已恢復，把積壓提示收掉。
         if (noticeKind === 'backlog') setNotice('none');
@@ -2180,8 +2193,8 @@ browser.runtime.onMessage.addListener((msg) => {
 // （見 background.ts action.onClicked）。return true = 稍後非同步呼叫 sendResponse。
 browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type !== 'kc:panel-ping') return;
-    browser.windows.getCurrent().then(w => sendResponse(w.id));
-    return true;
+    // 取不到視窗時也要回覆，background 才不會一直等。
+    return replyWhenSettled(browser.windows.getCurrent().then(w => w.id), sendResponse);
 });
 // 先畫殼、再讀 DB（同 overview/main.ts renderSection 的慣例）：分頁列與狀態橫幅必須在
 // 任何 await 之前就出現。否則 Dexie 版本升級被其他分頁擋住、或重播中途丟例外時，整個

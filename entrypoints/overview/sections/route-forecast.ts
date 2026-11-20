@@ -604,7 +604,11 @@ export const routeForecastSection: OverviewSection = {
             worldView.classList.toggle('rf-can-r', canR);
         };
         worldScroll.addEventListener('scroll', syncPan, { passive: true });
-        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(syncPan).observe(worldScroll);
+        if (typeof ResizeObserver !== 'undefined') {
+            const resizeObserver = new ResizeObserver(syncPan);
+            resizeObserver.observe(worldScroll);
+            ctx.signal?.addEventListener('abort', () => resizeObserver.disconnect(), { once: true });
+        }
         world.addEventListener('toggle', () => {
             if (!world.hasAttribute('open')) return;
             worldScroll.innerHTML = worldPickerHtml(prefs.map);

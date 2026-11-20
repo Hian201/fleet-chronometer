@@ -43,10 +43,21 @@ const MAT_KEYS = ['fuel', 'ammo', 'steel', 'bauxite', 'torch', 'drum', 'devmat',
 // 近期資訊；半年份足夠回答「近期在打什麼、打得怎樣」這類問題。
 const SORTIE_SCOPE_MONTHS = 6;
 
+// 單行欄位（提督名、艦隊名、掉落艦名…）是玩家／封包給的自由文字：換行與控制字元會讓它
+// 在提示或報告裡偽裝成新的一行（甚至一段指示），一律壓成單行空白。
+export function oneLine(text: string | number | undefined | null): string {
+    return String(text ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+}
+
+// 裝置端模型的提示：遊戲資料與使用者問題用明確標記分開，模型才分得出哪段是資料、哪段是要回答的問題。
+export function composeAiPrompt(context: string, question: string): string {
+    return `【遊戲資料開始】\n${context}\n【遊戲資料結束】\n\n【使用者問題】\n${question}`;
+}
+
 async function buildFullReport(state: GameState): Promise<string> {
     const lines: string[] = [
         `# ${t('ov.reportTitle')}`,
-        `${state.nickname || '???'}　Lv${state.hqLv}　(${fmtTs(Date.now())})`,
+        `${oneLine(state.nickname) || '???'}　Lv${state.hqLv}　(${fmtTs(Date.now())})`,
         '',
     ];
 
@@ -118,8 +129,10 @@ async function buildFullReport(state: GameState): Promise<string> {
     // SORTIE_SCOPE_MONTHS），避免舊活動淹沒近期趨勢並控制輸出大小。
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - SORTIE_SCOPE_MONTHS);
-    const sorties = (await db.sorties.orderBy('eventId').reverse().toArray())
-        .filter(s => s.ts >= cutoff.getTime() && !s.catchOnly);
+    // ts 索引只取時間窗內的列；索引順序是 ts，須重排回 eventId 新到舊（主鍵唯一，無並列）。
+    const sorties = (await db.sorties.where('ts').aboveOrEqual(cutoff.getTime()).toArray())
+        .filter(s => !s.catchOnly)
+        .sort((a, b) => b.eventId - a.eventId);
     lines.push(`## ${t('ov.sortieLog')}（${t('ov.sortieScopeNote', { n: SORTIE_SCOPE_MONTHS })}）`);
     if (sorties.length) {
         type MapStat = { count: number; rank: Record<string, number>; taiha: number; lastTs: number; drops: Record<string, number> };
@@ -132,7 +145,7 @@ async function buildFullReport(state: GameState): Promise<string> {
             m.count++;
             if (s.rank) m.rank[s.rank] = (m.rank[s.rank] ?? 0) + 1;
             if (s.taiha) m.taiha++;
-            if (s.drop) m.drops[s.drop] = (m.drops[s.drop] ?? 0) + 1;
+            if (s.drop) { const drop = oneLine(s.drop); m.drops[drop] = (m.drops[drop] ?? 0) + 1; }
             m.lastTs = Math.max(m.lastTs, s.ts);
         }
         const maps = [...byMap.entries()].sort((a, b) => b[1].lastTs - a[1].lastTs);   // 最近去過的海域排前面
@@ -154,7 +167,7 @@ async function buildFullReport(state: GameState): Promise<string> {
             const flag = s.enemyIds[0] ? state.shipName(s.enemyIds[0]) : '?';
             // 節點用攻略圈的字母（查表，見 utils/map-node-letters.ts）——給人／LLM 讀的報告
             // 寫「node 48」對不上任何攻略資料，寫「E」才有意義；查不到才退回原始 edge 編號。
-            lines.push(`- ${s.map} ${nodeLabel(s.map, s.node)}${s.boss ? '(boss)' : ''}　${s.rank || '?'}　vs ${flag}${s.drop ? `　掉落:${s.drop}` : ''}${s.taiha ? '　⚠大破' : ''}`);
+            lines.push(`- ${s.map} ${nodeLabel(s.map, s.node)}${s.boss ? '(boss)' : ''}　${s.rank || '?'}　vs ${flag}${s.drop ? `　掉落:${oneLine(s.drop)}` : ''}${s.taiha ? '　⚠大破' : ''}`);
         }
     } else lines.push(t('history.none'));
     lines.push('');
@@ -195,14 +208,14 @@ function coverageCsv(gaps: CoverageGaps): string {
 async function buildQuickContext(state: GameState): Promise<string> {
     const c = state.counts();
     const lines: string[] = [
-        `提督：${state.nickname || '???'}　司令部Lv ${state.hqLv}`,
+        `提督：${oneLine(state.nickname) || '???'}　司令部Lv ${state.hqLv}`,
         `艦娘 ${c.ships}/${c.maxShips}　裝備 ${c.gears}/${c.maxGears}`,
         `資源：燃${state.materials[0] ?? '?'} 弾${state.materials[1] ?? '?'} 鋼${state.materials[2] ?? '?'} 鋁${state.materials[3] ?? '?'}`,
         '', '【艦隊】',
     ];
     state.fleets().forEach((f, i) => {
         if (!f.ships.length) return;
-        lines.push(`第${i + 1}艦隊 ${f.name}${f.mission ? '（遠征中）' : ''}：` + f.ships.map(s => `${s.name}(Lv${s.lv})`).join('、'));
+        lines.push(`第${i + 1}艦隊 ${oneLine(f.name)}${f.mission ? '（遠征中）' : ''}：` + f.ships.map(s => `${oneLine(s.name)}(Lv${s.lv})`).join('、'));
     });
     const sorties = await db.sorties.orderBy('eventId').reverse().filter(s => !s.catchOnly).limit(100).toArray();
     const rankCount: Record<string, number> = {};
@@ -213,7 +226,7 @@ async function buildQuickContext(state: GameState): Promise<string> {
 }
 
 // ── A. Chrome 內建 AI 分析 UI ──────────────────────────────
-function renderAiNano(el: HTMLElement, state: GameState) {
+function renderAiNano(el: HTMLElement, state: GameState, signal?: AbortSignal) {
     // 特徵偵測：不支援的瀏覽器/裝置直接顯示提示，不嘗試呼叫（typeof 對不存在的
     // 識別字是安全的，不會拋錯——這是標準的漸進增強寫法）。
     if (typeof LanguageModel === 'undefined') {
@@ -248,6 +261,7 @@ function renderAiNano(el: HTMLElement, state: GameState) {
                 // 'downloadable'／'downloading'：首次使用需要下載模型，顯示進度
                 status.textContent = t('ov.aiNanoDownloading', { n: 0 });
                 session = await LanguageModel.create({
+                    signal,
                     monitor(m) {
                         m.addEventListener('downloadprogress', ((e: Event & { loaded?: number }) => {
                             status.textContent = t('ov.aiNanoDownloading', { n: Math.round((e.loaded ?? 0) * 100) });
@@ -255,21 +269,23 @@ function renderAiNano(el: HTMLElement, state: GameState) {
                     },
                 });
             } else {
-                session = await LanguageModel.create();
+                session = await LanguageModel.create({ signal });
             }
             status.textContent = t('ov.aiNanoRunning');
             const question = q.value.trim() || t('ov.aiNanoDefaultQuestion');
             const context = await buildQuickContext(state);
-            const stream = session.promptStreaming(`${context}\n\n${question}`);
+            const stream = session.promptStreaming(composeAiPrompt(context, question), { signal });
             // promptStreaming 的 chunk 可能是累積全文或增量文字；用「新塊是否以目前已顯示
             // 文字開頭」判斷，兩種語意都能正確顯示。
             let acc = '';
             for await (const chunk of stream) {
+                if (signal?.aborted) break;   // 已離開分區：不再寫入已卸離的節點
                 acc = chunk.startsWith(acc) ? chunk : acc + chunk;
                 result.textContent = acc;
             }
             status.textContent = '';
         } catch (err) {
+            if (signal?.aborted) return;   // 離開分區造成的中止不是錯誤；finally 仍會銷毀 session
             status.textContent = t('ov.aiNanoError', { msg: String(err) });
         } finally {
             // create 成功後無論串流成敗都銷毀，避免裝置端 session 洩漏。
@@ -328,6 +344,6 @@ export const llmSection: OverviewSection = {
             copyWithFeedback(e.currentTarget as HTMLButtonElement, coverageCsv(gaps), t('ov.copied'));
         });
 
-        renderAiNano(el.querySelector('#ai-nano-root')!, ctx.state);
+        renderAiNano(el.querySelector('#ai-nano-root')!, ctx.state, ctx.signal);
     },
 };

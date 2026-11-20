@@ -7,6 +7,8 @@ export interface FleetPhotoPort {
     onDisconnect: { addListener(listener: () => void): void };
 }
 
+const PNG_DATA_URL_RE = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/;
+
 /** 每次拍攝只送到指定分頁；未選來源時，只允許唯一的遊戲分頁。 */
 export class FleetPhotoCapture {
     private ports = new Set<FleetPhotoPort>();
@@ -21,7 +23,13 @@ export class FleetPhotoCapture {
             const request = this.pending.get(reply.reqId);
             if (request?.port === port) request.receive(reply);
         });
-        port.onDisconnect.addListener(() => { this.ports.delete(port); });
+        port.onDisconnect.addListener(() => {
+            this.ports.delete(port);
+            // 分頁關閉或重新整理時，進行中的請求立即以失敗收尾，不必等逾時。
+            for (const [reqId, request] of [...this.pending]) {
+                if (request.port === port) request.receive({ kind: 'capture-result', reqId, error: 'no-canvas' });
+            }
+        });
     }
 
     tabIds(): number[] {
@@ -53,7 +61,14 @@ export class FleetPhotoCapture {
                 // 回應必須來自收到這筆請求的 port；其他分頁不能搶先填入同一 reqId。
                 const receive = (reply: GameFrameReply) => {
                     this.pending.delete(reqId);
-                    if ('dataUrl' in reply) { finish({ dataUrl: reply.dataUrl }); return; }
+                    // 影像會進 panel 的 <img src>；只接受 canvas.toDataURL('image/png') 的格式。
+                    if ('dataUrl' in reply) {
+                        if (typeof reply.dataUrl === 'string' && PNG_DATA_URL_RE.test(reply.dataUrl)) {
+                            finish({ dataUrl: reply.dataUrl });
+                            return;
+                        }
+                        reply = { kind: 'capture-result', reqId, error: 'failed' };
+                    }
                     errors.push(reply);
                     if (errors.length < ports.length) return;
                     const best = errors.find(e => 'error' in e && e.error !== 'no-canvas') ?? errors[0];

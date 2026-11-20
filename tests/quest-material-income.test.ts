@@ -174,7 +174,7 @@ describe('資材收入摘要條', () => {
             removeItem: (key: string) => { store.delete(key); },
         });
         const host = document.getElementById('host') as unknown as HTMLElement;
-        await questFlowSection.render(host, { state, rerender() {}, async reloadState() {} });
+        await questFlowSection.render(host, { state, rerender() {}, async reloadState() {}, signal: new AbortController().signal });
         const strip = () => host.querySelector<HTMLElement>('.qf-income-strip');
         const chip = (value: string) =>
             host.querySelector<HTMLButtonElement>(`[data-qf-facet="reward"][data-qf-value="${value}"]`)!;

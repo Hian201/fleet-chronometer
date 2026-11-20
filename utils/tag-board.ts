@@ -443,7 +443,8 @@ export function mergeObservedGrants(
         for (const o of list) {
             if (Number.isSafeInteger(o.tagId) && o.tagId >= 1) have.add(o.tagId);
         }
-        if (have.size !== before || !(mapKey in next)) {
+        // 空清單不寫鍵：stored 讀入時會濾掉空陣列，寫回 [] 會讓每次比對都判定 changed、反覆寫庫。
+        if (have.size > 0 && (have.size !== before || !(mapKey in next))) {
             next[mapKey] = [...have].sort((a, b) => a - b);
             changed = true;
         }
@@ -579,13 +580,25 @@ export function applyObservedTagBindings(
     return { stages: kept, tags: nextTags, changed };
 }
 
+/**
+ * 階段有自己的名稱（使用者手動新增或改名過）才因名稱而保留。出擊觀測自動建立的階段
+ * 名稱是 `E{mapNo}#{n}`（見 bindTagToMap），標籤解除後若只剩這個系統名稱就應清掉，
+ * 否則刪標籤後會留下刪不掉的空階段。
+ */
+function hasOwnLabel(st: PlanStage): boolean {
+    const label = st.label?.trim() ?? '';
+    if (!label) return false;
+    const auto = /^E(\d+)#\d+$/.exec(label);
+    return !auto || Number(auto[1]) !== st.mapNo;
+}
+
 function dropEmptyPhases(stages: PlanStage[]): PlanStage[] {
     return stages.filter(st => {
         if (!st.phase) return true;
         if (st.grantsTag != null) return true;
         if (st.allowedTags.length > 0) return true;
         if (st.slots.some(sl => sl.shipId != null)) return true;
-        if (st.label && st.label.trim()) return true;
+        if (hasOwnLabel(st)) return true;
         return false;
     });
 }
@@ -782,7 +795,7 @@ export function setMapGrantTags(
         if (st.grantsTag != null) return true;
         if (st.allowedTags.length > 0) return true;
         if (st.slots.some(sl => sl.shipId != null)) return true;
-        if (st.label && st.label.trim()) return true;
+        if (hasOwnLabel(st)) return true;
         return false;
     });
     if (kept.length !== nextStages.length) changed = true;
@@ -883,7 +896,7 @@ export function deletePlanTag(
         if (st.grantsTag != null) return true;
         if (st.allowedTags.length > 0) return true;
         if (st.slots.some(sl => sl.shipId != null)) return true;
-        if (st.label && st.label.trim()) return true;
+        if (hasOwnLabel(st)) return true;
         changed = true;
         return false;
     });
@@ -906,7 +919,8 @@ export function assignPlanTag(
     toTag: number,
 ): Record<number, number> {
     const next = { ...planByShip };
-    if (!Number.isSafeInteger(shipId) || shipId < 1) return next;
+    // 非整數標籤（例如沒有 data-col 的格子解析出 NaN）不寫入，否則備份會序列化成 null。
+    if (!Number.isSafeInteger(shipId) || shipId < 1 || !Number.isSafeInteger(toTag)) return next;
     if (toTag <= 0) delete next[shipId];
     else next[shipId] = toTag;
     return next;

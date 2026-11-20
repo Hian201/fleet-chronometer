@@ -352,6 +352,25 @@ describe('columnGroups / knownTagIds / budget / color', () => {
         const blocked = deletePlanTag(stages, tags, {}, [{ sallyArea: 3 }], 3);
         expect(blocked.blocked).toBe(true);
     });
+    it('刪標籤後，自動建立的空階段（E{圖}#{n}）一併清掉；使用者命名的空階段保留', () => {
+        const stages = [
+            stage({ key: 'm1', mapNo: 1, grantsTag: 1, allowedTags: [1] }),
+            stage({ key: 'auto', mapNo: 1, phase: true, grantsTag: 3, allowedTags: [3], label: 'E1#1' }),
+            stage({ key: 'mine', mapNo: 1, phase: true, grantsTag: 3, allowedTags: [3], label: 'E1 階段2' }),
+        ];
+        const tags = [
+            { sallyArea: 1, name: 'a', nameSource: 'manual' as const },
+            { sallyArea: 3, name: 'c', nameSource: 'manual' as const },
+        ];
+        const result = deletePlanTag(stages, tags, {}, [], 3);
+        expect(result.stages.map(st => st.key)).toEqual(['m1', 'mine']);
+    });
+    it('mergeObservedGrants：live 的空清單不寫鍵，第二次比對不再判定變更', () => {
+        const live = new Map([[621, [] as { tagId: number }[]]]);
+        const m = mergeObservedGrants({}, live);
+        expect(m.stored).toEqual({});
+        expect(m.changed).toBe(false);
+    });
     it('mergeObservedGrants：只增不減並可餵回 applyObserved', () => {
         const live = new Map([[621, [{ tagId: 2 }]]]);
         const m = mergeObservedGrants({ 621: [1] }, live);

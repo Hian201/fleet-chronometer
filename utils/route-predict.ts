@@ -246,10 +246,12 @@ export function evalCond(c: Cond, ctx: EvalContext): RouteTri {
         const flags = kinds.flatMap((k) => ships.map((s) => carries(s, k)));
         const sure = flags.filter((f) => f === true).length;
         const maybe = flags.filter((f) => f === null).length;
-        const low = inRange(sure, c.min, c.max);
-        if (maybe === 0) return low;
-        // 不可考的艦全計／全不計兩端都一樣才有定論
-        return low === inRange(sure + maybe, c.min, c.max) ? low : null;
+        if (maybe === 0) return inRange(sure, c.min, c.max);
+        // 實際艘數落在 [sure, sure+maybe]：整段都在範圍內才成立，整段都在外才不成立。
+        // 只比兩端會漏掉「兩端都在外、中間在內」（例：1–2 艘、確定 0、不可考 3）。
+        if (inRange(sure, c.min) && inRange(sure + maybe, undefined, c.max)) return true;
+        if ((c.min !== undefined && sure + maybe < c.min) || (c.max !== undefined && sure > c.max)) return false;
+        return null;
     }
     if ('losUnknown' in c) return null;
     if ('visited' in c) return ctx.visited.has(c.visited);
@@ -291,6 +293,8 @@ interface Pick {
  */
 function pickRules(rules: readonly Rule[], ctx: EvalContext, prefix: number[] = []): { picks: Pick[]; definite: boolean } {
     const out: Pick[] = [];
+    // 前面已有不可考的規則時，後面確定成立的規則也只是可能去向之一，不能標成確定。
+    let hadUncertain = false;
     for (let i = 0; i < rules.length; i++) {
         const r = rules[i];
         const v: RouteTri = r.if ? evalCond(r.if, ctx) : true;
@@ -298,8 +302,9 @@ function pickRules(rules: readonly Rule[], ctx: EvalContext, prefix: number[] = 
         const pos = [...prefix, i];
         const inner = 'then' in r ? pickRules(r.then, ctx, pos) : { picks: [toPick(r, pos)], definite: true };
         const definite = v === true && inner.definite;
-        for (const p of inner.picks) out.push(definite ? p : { ...p, kind: 'uncertain' });
+        for (const p of inner.picks) out.push(definite && !hadUncertain ? p : { ...p, kind: 'uncertain' });
         if (definite) return { picks: out, definite: true };
+        hadUncertain = true;
     }
     return { picks: out, definite: false };
 }
@@ -371,9 +376,12 @@ export function predictRoutes(
         } else {
             picks = [{ targets: exits, kind: 'unknown', rule: [], tentative: false }];
         }
+        // 去向全都已走過（迴圈）時也要收尾成一條路徑，否則這個分支會憑空消失。
+        let stepped = false;
         for (const p of picks) {
             for (const to of p.targets) {
                 if (visited.has(to)) continue;
+                stepped = true;
                 const step: RouteStep = {
                     from: node, to, kind: p.kind,
                     rule: nodeRules ? p.rule : null, tentative: p.tentative,
@@ -381,7 +389,7 @@ export function predictRoutes(
                 walk(to, [...steps, step], new Set([...visited, to]));
             }
         }
-        if (picks.length === 0) finish();
+        if (!stepped) finish();
     };
 
     // 出擊

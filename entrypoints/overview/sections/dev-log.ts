@@ -97,8 +97,7 @@ export const devLogSection: OverviewSection = {
             pager.hidden = p.pageCount <= 1;
         };
         try {
-            const rows = (await db.factory.orderBy('eventId').reverse().toArray())
-                .filter(row => row.kind === 'develop')
+            const rows = (await db.factory.where('kind').equals('develop').reverse().toArray())
                 .flatMap(row => (row.results?.length ? row.results : [{ mst: undefined }])
                     .map(result => ({ ...row, resultMst: result.mst })));
             const options = (names: string[]) => [...new Set(names.filter(Boolean))]

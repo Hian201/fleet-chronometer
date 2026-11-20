@@ -33,30 +33,27 @@ function openIdb(): Promise<IDBDatabase> {
     });
 }
 
-function idbGet<T>(key: string): Promise<T | undefined> {
-    return openIdb().then(db => new Promise<T | undefined>((resolve, reject) => {
-        const r = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
-        r.onsuccess = () => resolve(r.result as T | undefined);
-        r.onerror = () => reject(r.error);
+// 每次操作開一條連線、交易結束就關掉；abort 也要收尾，否則 Promise 永遠不會結束。
+function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest | void): Promise<T> {
+    return openIdb().then(db => new Promise<T>((resolve, reject) => {
+        const tx = db.transaction(STORE, mode);
+        const request = run(tx.objectStore(STORE));
+        tx.oncomplete = () => { db.close(); resolve(request ? request.result as T : undefined as T); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+        tx.onabort = () => { db.close(); reject(tx.error ?? new DOMException('Transaction aborted', 'AbortError')); };
     }));
+}
+
+function idbGet<T>(key: string): Promise<T | undefined> {
+    return withStore<T | undefined>('readonly', store => store.get(key));
 }
 
 function idbSet(key: string, val: unknown): Promise<void> {
-    return openIdb().then(db => new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).put(val, key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    }));
+    return withStore<void>('readwrite', store => { store.put(val, key); });
 }
 
 function idbDel(key: string): Promise<void> {
-    return openIdb().then(db => new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).delete(key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    }));
+    return withStore<void>('readwrite', store => { store.delete(key); });
 }
 
 /** 瀏覽器是否支援 FSA 目錄選取（Chromium 系有、Firefox/Safari 目前無）。 */
@@ -113,6 +110,12 @@ export async function fileExists(dir: DirHandle, name: string): Promise<boolean>
 export async function writeFileTo(dir: DirHandle, name: string, text: string): Promise<void> {
     const fh = await dir.getFileHandle(name, { create: true });
     const w = await fh.createWritable();
-    await w.write(text);
-    await w.close();
+    try {
+        await w.write(text);
+        await w.close();
+    } catch (e) {
+        // 寫入失敗要放掉 writable，否則暫存檔與檔案鎖會留著，下次寫同名檔也會失敗。
+        await w.abort().catch(() => { });
+        throw e;
+    }
 }

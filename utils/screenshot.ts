@@ -4,6 +4,7 @@
 // 劇場模式的遊戲畫面偵測邏輯——pickGameFrame／contentArea／fallbackGameArea＋跨源畫布量測
 // 協定，不在這裡重新推算一次），這裡只負責「像素座標換算＋裁切＋下載」，兩個呼叫端共用
 // 同一份，避免各自實作一次而慢慢長出不一致的行為。
+import { downloadBlob } from './download';
 
 export interface CropRect { x: number; y: number; width: number; height: number }
 
@@ -51,12 +52,5 @@ export async function downloadCroppedScreenshot(dataUrl: string, rect: CropRect,
     const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(b => (b ? resolve(b) : reject(new Error('canvas toBlob failed'))), 'image/png');
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kanmusu-screenshot-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadBlob(`kanmusu-screenshot-${new Date().toISOString().replace(/[:.]/g, '-')}.png`, blob);
 }

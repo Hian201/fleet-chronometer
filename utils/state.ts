@@ -1212,6 +1212,8 @@ export class GameState {
         for (const deck of deckData) {
             const deckIdx = Number(deck?.api_id) - 1;
             if (!Number.isInteger(deckIdx) || deckIdx < 0 || deckIdx > 3) continue;
+            // 尚無 port 基準時只收接得上的艦隊；跳號會留下空洞，讓走訪 decks 的地方拿到 undefined。
+            if (deckIdx > merged.length) continue;
             merged[deckIdx] = deck;
             changed = true;
         }
@@ -1406,9 +1408,12 @@ export class GameState {
             return;
         }
         if (path === 'api_req_mission/result') {
-            const reward = api?.api_get_item1;
-            if (Number(reward?.api_useitem_id) > 0)
-                this.changeUseItemCount(reward.api_useitem_id, reward.api_useitem_count);
+            // 大成功的第二格道具在 api_get_item2，判讀同第一格（見 event-projector 的遠征紀錄）。
+            for (const key of ['api_get_item1', 'api_get_item2']) {
+                const reward = api?.[key];
+                if (Number(reward?.api_useitem_id) > 0)
+                    this.changeUseItemCount(reward.api_useitem_id, reward.api_useitem_count);
+            }
             return;
         }
         if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') {
@@ -1914,7 +1919,8 @@ export class GameState {
         if (dock) {
             const large = LARGE_BUILD_MIN.every((min, i) => (Number(dock[`api_item${i + 1}`]) || 0) >= min);
             const qty = large ? 10 : 1;
-            this.materials[4] = Math.max(0, (this.materials[4] ?? 0) - qty);
+            // 餘額未知時不動，不把「不可考」寫成 0（同 useBucket）。
+            if (typeof this.materials[4] === 'number') this.materials[4] = Math.max(0, this.materials[4] - qty);
             this.lastSpeedup = { kdockId: dock.api_id, shipMst: dock.api_created_ship_id, qty, secretary: this.secretaryMst() };
             dock.api_state = 3;
             dock.api_complete_time = 0;
@@ -2117,6 +2123,8 @@ export class GameState {
     }
 
     private onPortPort(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 缺艦娘或艦隊陣列的畸形封包不得先清空現有狀態。
+        if (!Array.isArray(api?.api_ship) || !Array.isArray(api?.api_deck_port)) return;
         const previousPortAt = this.portAt;
         this.portAt = ts;
         this.bucketDockAtByShip.clear();
@@ -2150,6 +2158,7 @@ export class GameState {
         this.escapedShipIds.clear();
         this.pendingEscape = null;
         this.goddessRestored.clear();
+        this.damaconUsed.clear();
         // 母港封包帶的是搭載數實數（api_onslot，上面 api_ship 已整批覆蓋），
         // 途中的估算到此校正完畢，估算標記隨之解除。
         this.planeLossEstimated.clear();
@@ -2736,6 +2745,8 @@ export class GameState {
                     .find(id => Number.isInteger(id) && id >= 1 && id <= this.decks.length && this.decks[id - 1]);
                 this.practiceFleetMasters = practiceDeck === undefined ? null
                     : this.deckMasters(practiceDeck - 1);
+                // 回應缺 api_deck_id 時，血量寫回也要跟著 req 的艦隊，不能落到第 1 艦隊。
+                if (practiceDeck !== undefined) this.currentSortieFleetId = practiceDeck - 1;
                 // 下面的 applyBattleHp 會把演習血量寫進 this.ships；先記下實際血量。
                 this.practiceRealHp = new Map();
                 for (const id of practiceDeck === undefined ? [] : this.decks[practiceDeck - 1].api_ship ?? []) {
@@ -2744,8 +2755,10 @@ export class GameState {
                 }
             }
 
-            // Get player damecons
-            const playerDamecons = this.getPlayerDamecons(api);
+            // 演習不發動損管（不會轟沈）：不把損管交給解析器，也就不會誤標女神回復或已消耗。
+            const playerDamecons = path.startsWith('api_req_practice/')
+                ? { main: [], escort: [] }
+                : this.getPlayerDamecons(api);
             // 退避艦的位置旗標（與 damecons 同序）：已退避者不列入大破警告與 rank。
             const escaped = this.getEscapedFlags(api);
             // 夜戰裝備是否發動需要出擊當下的 master id；只把目前出擊的主／隨伴
@@ -3657,9 +3670,10 @@ export class GameState {
      * 沒損耗的格子完全不動——連標記都不加。
      */
     private settlePlaneProficiency() {
+        const afterByGear = this.onslotByGear();
         for (const [gid, before] of this.sortieStartOnslot) {
             if (!(before > 0)) continue;
-            const after = this.onslotOfGear(gid);
+            const after = afterByGear.get(gid) ?? null;
             if (after === null || after >= before) continue;   // 查不到或沒少 → 不動
             if (after === 0) {
                 const it = this.slotItems.get(gid);
@@ -3672,16 +3686,24 @@ export class GameState {
         this.sortieStartOnslot.clear();
     }
 
-    /** 這顆裝備實例現在裝在哪一格、還剩幾架；找不到（已卸下／解體）回 null，不猜 0。 */
-    private onslotOfGear(gid: number): number | null {
+    /**
+     * 每顆裝備實例現在裝在哪一格、還剩幾架（一次掃完所有艦，免得逐顆裝備各掃一遍）。
+     * 找不到（已卸下／解體）的不在表內，呼叫端視為 null，不猜 0；同一顆裝備出現在多處時
+     * 以先掃到的艦、該艦最前面的格為準。
+     */
+    private onslotByGear(): Map<number, number | null> {
+        const out = new Map<number, number | null>();
         for (const s of this.ships.values()) {
-            const idx = (s.api_slot ?? []).indexOf(gid);
-            if (idx < 0) continue;
-            if (!Array.isArray(s.api_onslot) || idx >= s.api_onslot.length) return null;
-            const count = Number(s.api_onslot[idx]);
-            return Number.isSafeInteger(count) && count >= 0 ? count : null;
+            const slots = s.api_slot ?? [];
+            for (let idx = 0; idx < slots.length; idx++) {
+                const gid = slots[idx];
+                if (out.has(gid)) continue;
+                if (!Array.isArray(s.api_onslot) || idx >= s.api_onslot.length) { out.set(gid, null); continue; }
+                const count = Number(s.api_onslot[idx]);
+                out.set(gid, Number.isSafeInteger(count) && count >= 0 ? count : null);
+            }
         }
-        return null;
+        return out;
     }
 
     /** 出擊當下拍下各艦載機格的搭載數（母港封包實數，尚未被 spreadPlaneLoss 的估算動過）。 */

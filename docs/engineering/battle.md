@@ -15,6 +15,14 @@
 - **航空/基地/噴式**：`api_stage3`=對主隊、`api_stage3_combined`=對隨伴（索引+6 對映）。
   漏算隨伴會 rank 誤判（已用 6-5 封包實證：漏算→A、正確→S）。
 - **敵艦 id**：`api_ship_ke`（主）、`api_ship_ke_combined`（隨伴），0-indexed、無 -1。
+- **支援傷害陣列**：同樣 0-indexed。單艦隊固定補 0 到 7 格（`61-5-jibun-rengou-node52.json`
+  第 1 戰 4 艘敵艦為 `[3, 0.1, 90, 42, 0, 0, 0]`），6 艘敵艦時第 0 格為 0 只表示旗艦未中彈，
+  不是佔位；只有 Flash 時期的 leading -1 才位移。
+- **階段順序**：晝戰砲擊與雷擊依封包鍵序執行。連合艦隊的雷擊夾在砲擊之間且位置依艦隊型態
+  而異（`61-3.json` 第 25 戰 hougeki1→raigeki→hougeki2→hougeki3、第 53 戰
+  hougeki1→hougeki2→raigeki→hougeki3），固定順序會讓擊沉歸因與損管時點錯位。
+  夜轉日（帶 `api_n_hougeki*`）先跑夜戰支援與夜戰砲擊，再跑全部晝戰階段。
+- **演習**：不發動損管，解析時不帶損管狀態。
 - **陷阱**：`'...battleresult'.startsWith('...battle')` 為 true——戰鬥分支必須
   `!path.endsWith('result')`，否則結算封包被誤吞、battleInfo 洗空。
 

@@ -104,15 +104,25 @@ export const backupSection: OverviewSection = {
         let pendingLegacySplit: ValidatedBackupEnvelope | undefined;
 
         // ── 檔案匯出（fallback／單檔下載）──
-        el.querySelector('#backup-export')!.addEventListener('click', async () => {
-            const env = await buildFullEnvelope(db);
-            if (isEmptyBackup(env.tables, env.questFlow)) {
-                status.textContent = t('ov.backupEmptyRefuse');
-                return;
+        // 匯出期間停用按鈕：整庫讀取要一段時間，連點會重複下載。
+        const exportBtn = el.querySelector<HTMLButtonElement>('#backup-export')!;
+        exportBtn.addEventListener('click', async () => {
+            if (exportBtn.disabled) return;
+            exportBtn.disabled = true;
+            try {
+                const env = await buildFullEnvelope(db);
+                if (isEmptyBackup(env.tables, env.questFlow)) {
+                    status.textContent = t('ov.backupEmptyRefuse');
+                    return;
+                }
+                const file = backupFileName(env.exportedAt);
+                downloadText(file, JSON.stringify(env), 'application/json');
+                status.textContent = t('ov.backupExported', { n: countBackupRecords(env.tables), file });
+            } catch (e) {
+                status.textContent = t('ov.backupWriteError', { msg: String(e) });
+            } finally {
+                exportBtn.disabled = false;
             }
-            const file = backupFileName(env.exportedAt);
-            downloadText(file, JSON.stringify(env), 'application/json');
-            status.textContent = t('ov.backupExported', { n: countBackupRecords(env.tables), file });
         });
 
         // ── 資料夾備份（FSA）──
@@ -136,7 +146,14 @@ export const backupSection: OverviewSection = {
                 await forgetBackupDir();
                 await refreshFolderLabel();
             });
-            el.querySelector('#backup-folder-run')!.addEventListener('click', async () => {
+            // 寫入期間停用按鈕：連點會在同一個時間點各挑一次檔名，後寫的蓋掉先寫的。
+            const folderRunBtn = el.querySelector<HTMLButtonElement>('#backup-folder-run')!;
+            folderRunBtn.addEventListener('click', async () => {
+                if (folderRunBtn.disabled) return;
+                folderRunBtn.disabled = true;
+                try { await runFolderBackup(); } finally { folderRunBtn.disabled = false; }
+            });
+            const runFolderBackup = async () => {
                 let backup;
                 try {
                     backup = await buildFullEnvelope(db);
@@ -166,7 +183,7 @@ export const backupSection: OverviewSection = {
                 } catch (e) {
                     folderStatus.textContent = t('ov.backupWriteError', { msg: String(e) });
                 }
-            });
+            };
         }
 
         // ── 匯入（v6 full 單檔；v1 legacy-full；v2–v5 legacy split）──
@@ -237,6 +254,7 @@ export const backupSection: OverviewSection = {
             try {
                 await restoreBackup(db, env);
                 await ctx.reloadState();
+                void refreshRetention();   // 還原換掉整批 replays，統計列要跟著更新
                 status.textContent = t('ov.backupImported', { n: total });
             } catch (e) {
                 if (e instanceof BackupDestinationError) {
@@ -260,16 +278,25 @@ export const backupSection: OverviewSection = {
             else inp.value = String(cfgBag[k]);
             inp.addEventListener('change', () => {
                 cfgBag[k] = inp.type === 'checkbox' ? inp.checked : Math.max(0, Number(inp.value) || 0);
-                saveRetentionCfg(cfg);
+                try {
+                    saveRetentionCfg(cfg);
+                } catch (e) {
+                    retStatus.textContent = t('ov.backupWriteError', { msg: String(e) });
+                }
                 void refreshRetention();
             });
         });
         // 統計列用的快取：只驅動「可裁剪場數」顯示與按鈕 disabled，刪除路徑不依賴它。
         let cachedPrunableCount = 0;
+        let pruning = false;
+        // 連續變更選項會同時有多個讀取在飛；只有最新一次的結果可以寫回畫面。
+        let retentionGeneration = 0;
         const refreshRetention = async () => {
+            const generation = ++retentionGeneration;
             const [replays, sorties, shipObtained] = await Promise.all([
                 db.replays.toArray(), db.sorties.toArray(), db.shipObtained.toArray(),
             ]);
+            if (generation !== retentionGeneration) return;
             const keys = computePrunableKeys(
                 replays, sorties, shipObtained, unclearedMapsOf(ctx.state), cfg, Date.now(),
             );
@@ -281,28 +308,35 @@ export const backupSection: OverviewSection = {
                 total: replays.length, keep: replays.length - prunables.length,
                 prune: prunables.length, size: (bytes / 1048576).toFixed(2),
             });
-            el.querySelector<HTMLButtonElement>('#backup-prune')!.disabled = prunables.length === 0;
+            el.querySelector<HTMLButtonElement>('#backup-prune')!.disabled = prunables.length === 0 || pruning;
         };
         void refreshRetention();
 
-        el.querySelector('#backup-prune')!.addEventListener('click', async () => {
-            if (!cachedPrunableCount) return;
+        const pruneBtn = el.querySelector<HTMLButtonElement>('#backup-prune')!;
+        pruneBtn.addEventListener('click', async () => {
+            if (pruning || !cachedPrunableCount) return;
             if (!confirm(t('ov.retPruneConfirm', { n: cachedPrunableCount }))) return;
-            // confirm 之後、bulkDelete 之前：讀最新資料重算，絕不用過期快取。
-            const [replays, sorties, shipObtained] = await Promise.all([
-                db.replays.toArray(), db.sorties.toArray(), db.shipObtained.toArray(),
-            ]);
-            const freshKeys = computePrunableKeys(
-                replays, sorties, shipObtained, unclearedMapsOf(ctx.state), cfg, Date.now(),
-            );
-            if (!freshKeys.length) {
-                retStatus.textContent = t('ov.retPruneCancelled');
+            // 裁剪期間停用按鈕：連點會對同一批重播重複讀取、重算並刪除。
+            pruning = true;
+            pruneBtn.disabled = true;
+            try {
+                // confirm 之後、bulkDelete 之前：讀最新資料重算，絕不用過期快取。
+                const [replays, sorties, shipObtained] = await Promise.all([
+                    db.replays.toArray(), db.sorties.toArray(), db.shipObtained.toArray(),
+                ]);
+                const freshKeys = computePrunableKeys(
+                    replays, sorties, shipObtained, unclearedMapsOf(ctx.state), cfg, Date.now(),
+                );
+                if (!freshKeys.length) {
+                    retStatus.textContent = t('ov.retPruneCancelled');
+                    return;
+                }
+                await db.replays.bulkDelete(freshKeys);
+                retStatus.textContent = t('ov.retPruned', { n: freshKeys.length });
+            } finally {
+                pruning = false;
                 await refreshRetention();
-                return;
             }
-            await db.replays.bulkDelete(freshKeys);
-            retStatus.textContent = t('ov.retPruned', { n: freshKeys.length });
-            await refreshRetention();
         });
     },
 };

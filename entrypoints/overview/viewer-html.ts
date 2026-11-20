@@ -122,7 +122,7 @@ function toKc3(row) {
 }
 
 function lastRank(row) {
-  var bs = row.battles || [];
+  var bs = Array.isArray(row.battles) ? row.battles : [];
   for (var i = bs.length - 1; i >= 0; i--) if (bs[i].rank) return bs[i].rank;
   return "";
 }
@@ -156,10 +156,10 @@ function render() {
     var rc = rankClass(rankText);
     html += '<tr>'
       + '<td>' + esc(r.world) + '-' + esc(r.mapnum) + '</td>'
-      + '<td class="diff">' + esc(DIFF[r.diff] || "—") + '</td>'
+      + '<td class="diff">' + esc(Object.prototype.hasOwnProperty.call(DIFF, r.diff) ? DIFF[r.diff] : "—") + '</td>'
       + '<td>' + esc(fmtTs(r.ts)) + '</td>'
       + '<td class="rank' + (rc ? (' ' + rc) : '') + '">' + esc(rankText || "—") + '</td>'
-      + '<td>' + (r.battles ? r.battles.length : 0) + '</td>'
+      + '<td>' + (Array.isArray(r.battles) ? r.battles.length : 0) + '</td>'
       + '<td class="act">'
         + '<button data-copy="' + i + '">複製物件</button>'
         + '<button data-open="' + i + '">開啟重播頁 ↗</button>'
@@ -201,7 +201,9 @@ document.getElementById("f").addEventListener("change", function (e) {
   reader.onload = function () {
     try {
       var env = JSON.parse(reader.result);
-      replays = (env && env.tables && env.tables.replays) || env.replays || [];
+      var raw = (env && env.tables && env.tables.replays) || (env && env.replays);
+      // 外部檔不可信：只收物件列，battles 以外的欄位一律經 esc。
+      replays = Array.isArray(raw) ? raw.filter(function (r) { return r && typeof r === "object"; }) : [];
       document.getElementById("st").textContent = "已載入 " + replays.length + " 場重播（" + file.name + "）。";
       render();
     } catch (err) {

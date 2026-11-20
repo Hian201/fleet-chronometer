@@ -43,7 +43,7 @@ id 不存名稱）記錄該快照涵蓋的 id；`utils/gamedata-coverage.ts` 的
 `findUnknownGears` 拿目前封包實際載入的 `GameState.master`/`masterGears` 跟它做差集，UI
 匯出「對照表沒有」的 id+日文名 CSV，供之後重新下載 wiki 頁面、重新整理對照表時知道該補哪些。
 
-## 鎮守府全船篩選（`utils/ship-filter.ts`＋`overview/ship-picker.ts`）
+## 鎮守府全船篩選（`utils/ship-filter.ts`）
 
 活動作戰板與艦娘全覽共用。**可裝備篩選的規則已用真實完整 start2 驗證**（使用者提供備份，
 master 表已併入 `samples/start2-master.json`，該檔現有 12 張表）：

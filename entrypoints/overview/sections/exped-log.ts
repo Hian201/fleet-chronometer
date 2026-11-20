@@ -421,7 +421,8 @@ function verdictHtml(plan: ExpeditionPlan, view: PlanView): string {
     const item = keyName(line.key);
     const gain = line.expRate * plan.horizonDays;
     const amount = (value: number) => amountText(value, line.cap);
-    const text = line.have + gain < line.cap
+    // 已在上限且遠征不帶進這項時，「幾天存滿」會是 0/0；改用一般說法。
+    const text = line.have + gain < line.cap || !(line.expRate > 0)
         ? t('ov.epVerdict', {
             item, have: amount(line.have), gain: amount(gain), total: amount(line.have + gain), cap: amount(line.cap),
             span: view.deadline ? t('ov.epSpanDeadline', { date: view.deadline }) : t('ov.epSpanDays', { n: Math.round(plan.horizonDays) }),

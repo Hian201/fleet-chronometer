@@ -96,17 +96,18 @@ onPrefsChange(() => renderAll());
 // （live-state.ts，只套用 reducer、不做投影）。載入完成前 state 是空的，完成後重繪目前分區。
 // 新事件只通知本次 render 有註冊的分區；分頁在背景時累積起來，切回前景再一次送出。
 let stateListeners: ((paths: readonly string[]) => void)[] = [];
-let deferredPaths: string[] = [];
+// 去重：監聽器只在意「哪些路徑變過」，背景分頁每個即時事件都重複推入會無限增長。
+const deferredPaths = new Set<string>();
 function notifyState(paths: readonly string[]) {
-    if (document.hidden) { deferredPaths.push(...paths); return; }
+    if (document.hidden) { for (const path of paths) deferredPaths.add(path); return; }
     for (const listener of stateListeners) {
         try { listener(paths); } catch (error) { console.error('[overview] 分區即時更新失敗', error); }
     }
 }
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden || !deferredPaths.length) return;
-    const paths = deferredPaths;
-    deferredPaths = [];
+    if (document.hidden || !deferredPaths.size) return;
+    const paths = [...deferredPaths];   // Set 保留首次出現順序
+    deferredPaths.clear();
     notifyState(paths);
 });
 const live = createLiveState(() => renderSection(), notifyState);
@@ -122,18 +123,27 @@ function renderNav() {
         `<a href="#/${s.id}" class="${s.id === cur ? 'active' : ''}">${esc(t(s.titleKey))}</a>`).join('');
 }
 
-const ctx: SectionContext = {
-    rerender: () => renderSection(),
-    get state() { return live.state; },
-    reloadState: () => live.reload(),
-    onStateChange: (listener) => { stateListeners.push(listener); },
-};
-
 // 路由／語言重繪世代：過期的 sec.render 只寫進已卸離的 host，不得蓋掉目前分區。
 let renderGeneration = 0;
+// 本次 render 的生命週期；下一次 render 開頭 abort，讓上一個分區的全域監聽與計時器收尾。
+let renderAbort: AbortController | null = null;
+
+// 每次 render 一份 context：分區在 await 之後才註冊的監聽，若已換分區就丟棄，
+// 不能掛進新分區的 stateListeners（會留住舊分區閉包並持續觸發重讀）。
+function sectionContext(gen: number, signal: AbortSignal): SectionContext {
+    return {
+        rerender: () => renderSection(),
+        get state() { return live.state; },
+        reloadState: () => live.reload(),
+        signal,
+        onStateChange: (listener) => { if (gen === renderGeneration) stateListeners.push(listener); },
+    };
+}
 
 async function renderSection() {
     const gen = ++renderGeneration;
+    renderAbort?.abort();
+    const abort = renderAbort = new AbortController();
     stateListeners = [];
     const sec = sections.find(s => s.id === currentSectionId())!;
     // 分區名放前面、品牌短名放後面：瀏覽器分頁標題從尾端截斷，會變動的分區名須優先可見
@@ -146,7 +156,7 @@ async function renderSection() {
     // 分區 render 丟出例外時**不能靜默留白**——使用者只會看到「介面不見了」，
     // 卻沒有任何線索可回報。一律接住並顯示原因（完整堆疊仍進 Console）。
     try {
-        await sec.render(host, ctx);
+        await sec.render(host, sectionContext(gen, abort.signal));
         if (gen !== renderGeneration) return;
     } catch (error) {
         if (gen !== renderGeneration) return;

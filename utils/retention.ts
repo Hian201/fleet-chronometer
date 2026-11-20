@@ -77,14 +77,21 @@ export function firstOwnedDropKeys(
         firstOwnedByMst.set(row.mst, row);
     }
 
+    // 單趟掃過 sorties，依 dropMst 分組（只收有首次持有紀錄的 mst），再於組內找 observedEventId 之前
+    // eventId 最大者；組內維持原順序，eventId 相同時仍留先出現者，與逐艦重掃整份 sorties 等價。
     const keys = new Set<number>();
+    const byMst = new Map<number, SortieLogRow[]>();
+    for (const sortie of sorties) {
+        if (sortie.kind !== 'battle' || !isPositiveSafeInteger(sortie.eventId)
+            || sortie.dropMst === undefined || !firstOwnedByMst.has(sortie.dropMst)) continue;
+        const list = byMst.get(sortie.dropMst);
+        if (list) list.push(sortie); else byMst.set(sortie.dropMst, [sortie]);
+    }
     for (const [mst, firstOwned] of firstOwnedByMst) {
         if (firstOwned.source !== 'auto' || !isPositiveSafeInteger(firstOwned.observedEventId)) continue;
         let nearest: SortieLogRow | undefined;
-        for (const sortie of sorties) {
-            if (sortie.kind !== 'battle' || sortie.dropMst !== mst
-                || !isPositiveSafeInteger(sortie.eventId)
-                || sortie.eventId >= firstOwned.observedEventId) continue;
+        for (const sortie of byMst.get(mst) ?? []) {
+            if (sortie.eventId >= firstOwned.observedEventId) continue;
             if (!nearest || sortie.eventId > nearest.eventId) nearest = sortie;
         }
         if (nearest) keys.add(nearest.sortieKey);

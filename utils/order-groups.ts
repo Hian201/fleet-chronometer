@@ -49,7 +49,9 @@ export function loadOrderGroups(): OrderGroup[] {
 }
 
 export function saveOrderGroups(groups: OrderGroup[]): void {
-    localStorage.setItem(ORDER_GROUPS_KEY, JSON.stringify(groups));
+    // 儲存空間滿或被封鎖時只留紀錄，不讓呼叫端的介面操作跟著中斷。
+    try { localStorage.setItem(ORDER_GROUPS_KEY, JSON.stringify(groups)); }
+    catch (error) { console.warn('[Fleet Chronometer] 無法儲存排序分組', error); }
 }
 
 export function createGroupId(): string {

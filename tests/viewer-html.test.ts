@@ -1,4 +1,5 @@
 // 離線 viewer.html：無擴充 CSP，載入的 JSON 不可信——esc／rank class 必須擋住屬性跳出。
+import { parseHTML } from 'linkedom';
 import { describe, expect, it } from 'vitest';
 import {
     viewerEsc, viewerHtml, viewerRankCellHtml, viewerRankClass,
@@ -83,5 +84,74 @@ describe('viewerHtml 內嵌腳本與 helper 對齊', () => {
         expect(src).toContain('url.length < 30000');
         expect(src).toContain('window.open(BATTLEPLAYER, "_blank", "noopener")');
         expect(src).toContain('navigator.clipboard.writeText(JSON.stringify(obj))');
+    });
+});
+
+/**
+ * 取出內嵌腳本，在假 document 上執行並模擬「載入備份 JSON」；
+ * 回傳 #out 的 innerHTML 與 #st 的狀態文字。
+ */
+function runViewerWith(fileText: string): { outHtml: string; status: string } {
+    const html = viewerHtml();
+    const m = html.match(/<script>([\s\S]*)<\/script>/);
+    if (!m) throw new Error('找不到內嵌腳本');
+    const els: Record<string, {
+        innerHTML: string; textContent: string; handler?: (e: unknown) => void;
+        addEventListener: (t: string, h: (e: unknown) => void) => void;
+        querySelectorAll: () => unknown[];
+    }> = {};
+    const make = () => {
+        const el = {
+            innerHTML: '', textContent: '', handler: undefined as undefined | ((e: unknown) => void),
+            addEventListener(_t: string, h: (e: unknown) => void) { el.handler = h; },
+            querySelectorAll: () => [] as unknown[],
+        };
+        return el;
+    };
+    const fakeDocument = { getElementById: (id: string) => (els[id] ??= make()) };
+    class FakeReader {
+        result = '';
+        onload: (() => void) | null = null;
+        readAsText() { this.result = fileText; this.onload?.(); }
+    }
+    new Function('document', 'FileReader', 'navigator', 'window', m[1])(
+        fakeDocument, FakeReader, {}, {},
+    );
+    els.f.handler!({ target: { files: [{ name: 'backup.json' }] } });
+    return { outHtml: els.out.innerHTML, status: els.st.textContent };
+}
+
+describe('viewerHtml 內嵌腳本行為（惡意備份 JSON）', () => {
+    it('惡意 battles.length 與 diff=toString 不產生標籤，難度顯示「—」', () => {
+        const evil = JSON.stringify({
+            replays: [{
+                world: 1, mapnum: 1, ts: 1, diff: 'toString',
+                battles: { length: '<img src=x onerror=alert(1)>' },
+            }],
+        });
+        const { outHtml } = runViewerWith(evil);
+        expect(outHtml).not.toContain('<img');
+        const { document } = parseHTML(`<!doctype html><html><body>${outHtml}</body></html>`);
+        expect(document.querySelectorAll('img').length).toBe(0);
+        const cells = document.querySelectorAll('tbody tr td');
+        expect(cells[1].textContent).toBe('—');
+        // battles 非陣列時節點數視為 0
+        expect(cells[4].textContent).toBe('0');
+    });
+
+    it('replays 不是陣列時顯示空訊息', () => {
+        const { outHtml, status } = runViewerWith(JSON.stringify({ replays: { length: 3 } }));
+        expect(outHtml).toContain('此檔沒有重播紀錄');
+        expect(status).toContain('已載入 0 場');
+    });
+
+    it('合法 diff 顯示對應難度字', () => {
+        const { outHtml } = runViewerWith(JSON.stringify({
+            replays: [{ world: 1, mapnum: 1, ts: 1, diff: 3, battles: [{ rank: 'S' }] }],
+        }));
+        const { document } = parseHTML(`<body>${outHtml}</body>`);
+        const cells = document.querySelectorAll('tbody tr td');
+        expect(cells[1].textContent).toBe('丙');
+        expect(cells[3].textContent).toBe('S');
     });
 });

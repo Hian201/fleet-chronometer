@@ -88,6 +88,9 @@ const defaultPrefs = (): Prefs => ({
     evView: 'detail', evCmp: 'attack', evAvg: false,
 });
 
+// 全部關掉會變成一張空白圖；壞值（過濾後為空）與空陣列一律退回預設。
+const nonEmptyOr = <T>(list: T[], fallback: T[]): T[] => list.length ? list : fallback;
+
 function loadPrefs(): Prefs {
     const d = defaultPrefs();
     return loadJsonPrefs(PREFS_KEY, d, raw => {
@@ -96,11 +99,8 @@ function loadPrefs(): Prefs {
         return {
             range: RANGES.some(range => range.key === r.range) ? r.range as string : d.range,
             gran: r.gran === 'hour' || r.gran === 'day' || r.gran === 'raw' ? r.gran : d.gran,
-            // 全部關掉會變成一張空白圖；壞值或空陣列一律退回全開
-            series: Array.isArray(r.series) && r.series.length
-                ? ALL_COLS.filter(i => (r.series as unknown[]).includes(i)) : d.series,
-            cols: Array.isArray(r.cols) && r.cols.length
-                ? ALL_COLS.filter(i => (r.cols as unknown[]).includes(i)) : d.cols,
+            series: nonEmptyOr(Array.isArray(r.series) ? ALL_COLS.filter(i => (r.series as unknown[]).includes(i)) : [], d.series),
+            cols: nonEmptyOr(Array.isArray(r.cols) ? ALL_COLS.filter(i => (r.cols as unknown[]).includes(i)) : [], d.cols),
             showDelta: r.showDelta !== false,
             marks: r.marks !== false,
             size: parsePageSize(r.size, PAGE_SIZES, d.size),

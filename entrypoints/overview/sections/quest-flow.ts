@@ -1544,7 +1544,15 @@ export const questFlowSection: OverviewSection = {
             incomeFocus = next && incomeFocus?.key === next.key && incomeFocus.kind === next.kind ? null : next;
             draw();
         });
-        query.addEventListener('input', () => { prefs.query = query.value; savePrefs(prefs); draw(); });
+        // 搜尋框每敲一鍵都會重建整張任務圖；輸入先存、重畫延後到停手 150 ms，離開分區時取消。
+        let queryTimer: ReturnType<typeof setTimeout> | undefined;
+        ctx.signal?.addEventListener('abort', () => clearTimeout(queryTimer), { once: true });
+        query.addEventListener('input', () => {
+            prefs.query = query.value;
+            savePrefs(prefs);
+            clearTimeout(queryTimer);
+            queryTimer = setTimeout(draw, 150);
+        });
         // 頂端的年任換期提醒：改用「年任換期月」篩選出那一組，其他已選條件保留（已選列可個別移除）
         cycles.addEventListener('click', event => {
             const month = (event.target as HTMLElement).closest<HTMLElement>('[data-qf-reset-month]')?.dataset.qfResetMonth;

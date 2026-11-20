@@ -12,8 +12,8 @@ const QUESTLIST_PATH = 'api_get_member/questlist';
 
 export interface QuestSeenTables {
     questSeen: {
-        get(questNo: number): PromiseLike<QuestSeenRow | undefined>;
-        put(row: QuestSeenRow): PromiseLike<unknown>;
+        bulkGet(questNos: number[]): PromiseLike<(QuestSeenRow | undefined)[]>;
+        bulkPut(rows: QuestSeenRow[]): PromiseLike<unknown>;
     };
 }
 
@@ -91,15 +91,21 @@ export function mergeQuestSeen(
 }
 
 export async function captureQuestSeen(tables: QuestSeenTables, event: QuestListEvent): Promise<void> {
-    for (const quest of listedQuests(event.path, event.api)) {
-        const previous = await tables.questSeen.get(quest.no);
+    // 一份任務清單上百筆：整批讀、整批寫，不逐筆開交易卡住 ingestion queue。
+    const quests = listedQuests(event.path, event.api);
+    if (!quests.length) return;
+    const previousRows = await tables.questSeen.bulkGet(quests.map(quest => quest.no));
+    const changed: QuestSeenRow[] = [];
+    quests.forEach((quest, index) => {
+        const previous = previousRows[index];
         const next = mergeQuestSeen(previous, quest.no, event.id, event.ts, quest);
         if (previous
             && previous.firstTs === next.firstTs && previous.lastTs === next.lastTs
             && previous.firstEventId === next.firstEventId && previous.lastEventId === next.lastEventId
-            && previous.title === next.title && previous.detail === next.detail) continue;
-        await tables.questSeen.put(next);
-    }
+            && previous.title === next.title && previous.detail === next.detail) return;
+        changed.push(next);
+    });
+    if (changed.length) await tables.questSeen.bulkPut(changed);
 }
 
 export interface QuestSeenSink {

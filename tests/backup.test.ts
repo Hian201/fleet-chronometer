@@ -719,4 +719,24 @@ describe('備份檔名與空備份拒絕', () => {
         expect(countBackupRecords(empty.tables)).toBe(0);
         expect(isEmptyBackup(validateBackupEnvelope(v6Full()).tables)).toBe(false);
     });
+
+    it('replays.nickname 與 sorties.enemyName 為空白字串時仍接受，並丟棄該欄位', () => {
+        for (const blank of ['', '  ', ' ']) {
+            const envelope = v6Full();
+            (envelope.tables.replays[0] as Record<string, unknown>).nickname = blank;
+            (envelope.tables.sorties[0] as Record<string, unknown>).enemyName = blank;
+            const full = validateBackupEnvelope(envelope);
+            expect(full.tables.replays?.[0]).not.toHaveProperty('nickname');
+            expect(full.tables.sorties?.[0]).not.toHaveProperty('enemyName');
+        }
+    });
+
+    it('非空的 nickname／enemyName 原樣保留', () => {
+        const envelope = v6Full();
+        (envelope.tables.replays[0] as Record<string, unknown>).nickname = '提督';
+        (envelope.tables.sorties[0] as Record<string, unknown>).enemyName = '敵旗艦';
+        const full = validateBackupEnvelope(envelope);
+        expect(full.tables.replays?.[0].nickname).toBe('提督');
+        expect(full.tables.sorties?.[0].enemyName).toBe('敵旗艦');
+    });
 });

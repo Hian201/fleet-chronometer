@@ -239,7 +239,7 @@ export const improvePlanSection: OverviewSection = {
         // 持有的裝備與艦隨封包更新：只補畫結果區，不動曜日／搜尋等控制項。
         ctx.onStateChange?.(() => { if (el.isConnected) { drawWeek(); drawHelper(); } });
         try {
-            stats = improveStats((await db.factory.toArray()).filter(row => row.kind === 'improve'));
+            stats = improveStats(await db.factory.where('kind').equals('improve').toArray());
         } catch (error) {
             q('.ip-stats-body').innerHTML = `<div class="ov-empty">${esc(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }))}</div>`;
             return;

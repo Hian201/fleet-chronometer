@@ -1,6 +1,6 @@
 // utils/csv.ts：CSV／TSV 解析與序列化的最小純函式測試。
 import { describe, expect, it } from 'vitest';
-import { csvCell, parseDelimitedText, rowsToCsv } from '../utils/csv';
+import { csvCell, parseDelimitedText, parseTimestamp, rowsToCsv } from '../utils/csv';
 
 describe('csvCell／rowsToCsv', () => {
     it('不含特殊字元的欄位不加引號', () => {
@@ -42,5 +42,25 @@ describe('parseDelimitedText', () => {
     it('欄位內的逗號被引號保護，不會被錯誤切開', () => {
         const parsed = parseDelimitedText('a,b\r\n"1,000",x\r\n')!;
         expect(parsed.rows).toEqual([['1,000', 'x']]);
+    });
+});
+
+describe('parseDelimitedText 邊界', () => {
+    it('剝掉 Excel 的 UTF-8 BOM，第一個表頭仍可比對', () => {
+        expect(parseDelimitedText('\uFEFFts,map\r\n1,6-5\r\n')!.header).toEqual(['ts', 'map']);
+    });
+    it('TSV 欄位以雙引號開頭時照字面保留，不吃掉後面的欄位與換行', () => {
+        const parsed = parseDelimitedText('a\tb\r\n"x\ty\r\n1\t2\r\n')!;
+        expect(parsed.rows).toEqual([['"x', 'y'], ['1', '2']]);
+    });
+});
+
+describe('parseTimestamp', () => {
+    it('接受 ISO 與航海日誌格式', () => {
+        expect(parseTimestamp('2026-07-23T00:00:00.000Z')).toBe(Date.UTC(2026, 6, 23));
+        expect(parseTimestamp('2026-07-23 12:00:00')).toBe(new Date(2026, 6, 23, 12).getTime());
+    });
+    it('1970 年以前的時刻回 null（負 ts 會讓備份還原失敗）', () => {
+        expect(parseTimestamp('1969-01-01T00:00:00Z')).toBeNull();
     });
 });

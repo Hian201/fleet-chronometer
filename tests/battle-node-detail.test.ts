@@ -13,7 +13,8 @@
 //     `api_ship_ke` 同序，皆 0-indexed；過濾掉 id<=0 的位置後仍須對齊原始索引。
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { analyzeBattle } from '../utils/battle';
+import { analyzeBattle, predictRank } from '../utils/battle';
+import type { BattleShipView } from '../utils/battle-types';
 
 const load = (name: string) => JSON.parse(readFileSync(new URL(`../samples/${name}`, import.meta.url), 'utf8'));
 
@@ -122,10 +123,14 @@ describe('支援艦隊戰果彙總', () => {
         expect(phase.events.every(event => event.beforeHp !== null && event.afterHp !== null)).toBe(true);
     });
 
-    it('敵單艦隊支援封包的第 0 格佔位會正規化，不把第一發誤配到第二艘敵艦', () => {
+    it('敵單艦隊支援封包 0 起算：6 艘敵艦時第 0 格為 0 不是佔位', () => {
         const single = load('61-3.json').battles.find((b: any) => b.node === 25);
         const phase = analyze(single.data).timeline!.phases.find(p => p.kind === 'supportShell')!;
-        expect(phase.events.map(event => [event.defenderIndex, event.damage])).toEqual([[0, 103]]);
+        expect(phase.events.map(event => [event.defenderIndex, event.damage])).toEqual([[1, 103]]);
+        // 61-3 第 51 戰：175 打在 2 號艦（160 HP）而擊沉，旗艦不受支援傷害。
+        const node51 = load('61-3.json').battles.find((b: any) => b.node === 51);
+        const phase51 = analyze(node51.data).timeline!.phases.find(p => p.kind === 'supportShell')!;
+        expect(phase51.events.map(event => [event.defenderIndex, event.damage])).toEqual([[1, 175], [2, 11]]);
     });
 });
 
@@ -464,5 +469,76 @@ describe('敵艦詳細（等級／素質／裝備）', () => {
         expect(enemyIds).toEqual([1501, 1503]);
         // 第二艘取的是原始 index 2 那格，不是過濾後的 index 1
         expect(enemyDetail.main[1]).toEqual({ lv: 7, param: [30, 31, 32, 33], slots: [3] });
+    });
+});
+
+describe('戰鬥階段順序與評級的邊界修正', () => {
+    it('61-3 節點51：支援砲擊只打到敵 1、2 號位，絕不落在 0 號位', () => {
+        const node51 = load('61-3.json').battles.find((b: any) => b.node === 51);
+        const phase = analyze(node51.data).timeline!.phases.find(p => p.kind === 'supportShell')!;
+        const indexes = phase.events.map(event => event.defenderIndex);
+        expect(indexes).toEqual([1, 2]);
+        expect(indexes).not.toContain(0);
+        expect(phase.events.map(event => event.damage)).toEqual([175, 11]);
+    });
+
+    it('日戰砲雷階段依封包鍵序：61-3 節點25 的雷擊夾在 shelling1 與 shelling2 之間', () => {
+        const node25 = load('61-3.json').battles.find((b: any) => b.node === 25);
+        const kinds = analyze(node25.data).timeline!.phases.map(p => p.kind);
+        const shelling1 = kinds.indexOf('shelling1');
+        const torpedo = kinds.indexOf('torpedo');
+        const shelling2 = kinds.indexOf('shelling2');
+        expect(shelling1).toBeGreaterThanOrEqual(0);
+        expect(torpedo).toBeGreaterThan(shelling1);
+        expect(shelling2).toBeGreaterThan(torpedo);
+    });
+
+    it('夜轉日：nightShelling 記在日戰 shelling1 之前', () => {
+        const packet = {
+            api_f_nowhps: [50], api_f_maxhps: [50],
+            api_e_nowhps: [60], api_e_maxhps: [60], api_ship_ke: [1501],
+            // 刻意把日戰鍵放在夜戰鍵前面，確認順序不是由鍵序決定
+            api_hougeki1: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]], api_damage: [[4]],
+            },
+            api_n_hougeki1: {
+                api_at_eflag: [0], api_at_list: [0], api_df_list: [[0]], api_damage: [[5]],
+            },
+        };
+        const kinds = analyze(packet).timeline!.phases.map(p => p.kind);
+        expect(kinds).toEqual(['nightShelling', 'shelling1']);
+    });
+
+    it('api_kouku.api_stage2 沒有 air_fire 時，仍收集 api_kouku2 的對空 CI', () => {
+        const packet = {
+            api_f_nowhps: [40], api_f_maxhps: [40],
+            api_e_nowhps: [90], api_e_maxhps: [90], api_ship_ke: [1501],
+            api_kouku: {
+                api_stage1: { api_f_count: 10, api_f_lostcount: 0, api_e_count: 10, api_e_lostcount: 0, api_disp_seiku: 1 },
+                api_stage2: { api_f_count: 10, api_f_lostcount: 0, api_e_count: 10, api_e_lostcount: 0 },
+            },
+            api_kouku2: {
+                api_stage2: {
+                    api_f_count: 5, api_f_lostcount: 0, api_e_count: 5, api_e_lostcount: 0,
+                    api_air_fire: { api_idx: 0, api_kind: 5, api_use_items: [12, 34] },
+                },
+            },
+        };
+        const view = analyze(packet);
+        expect(view.aaci).toBe(5);
+        expect(view.aaciDetails).toHaveLength(1);
+        expect(view.aaciDetails[0]).toMatchObject({ type: 5, gearMst: [12, 34] });
+    });
+
+    describe('predictRank：女神回復使我方現值高於進場值', () => {
+        const ship = (over: Partial<BattleShipView>): BattleShipView => ({
+            hp: 30, maxHp: 30, beginHp: 30, damecon: 0, sunk: false, dealtDamage: 0, ...over,
+        });
+
+        it('敵方零損傷且我方 HP 超過進場值時為 D，不是 B', () => {
+            const player = [ship({ beginHp: 10, hp: 30 })];
+            const enemy = [ship({ beginHp: 50, hp: 50, maxHp: 50 }), ship({ beginHp: 50, hp: 50, maxHp: 50 })];
+            expect(predictRank(player, enemy)).toBe('D');
+        });
     });
 });

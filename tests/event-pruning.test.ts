@@ -36,7 +36,8 @@ async function setProjection(database: KcDb, throughEventId: number, version: nu
  * 只斷言「沒刪東西」看不出差別，必須看有沒有真的去載。
  */
 function watchCandidateReads(database: KcDb) {
-    const reads = { count: 0, toArray: 0 };
+    // load：讀取候選事件內容的次數（整批 toArray 或逐筆 each 都算）。
+    const reads = { count: 0, load: 0 };
     const realWhere = database.events.where.bind(database.events);
     vi.spyOn(database.events, 'where').mockImplementation(((index: never) => {
         const clause = realWhere(index);
@@ -45,8 +46,10 @@ function watchCandidateReads(database: KcDb) {
             const collection = realBelow(value);
             const realCount = collection.count.bind(collection);
             const realToArray = collection.toArray.bind(collection);
+            const realEach = collection.each.bind(collection);
             collection.count = ((...args: never[]) => { reads.count++; return (realCount as never as CallableFunction)(...args); }) as typeof collection.count;
-            collection.toArray = ((...args: never[]) => { reads.toArray++; return (realToArray as never as CallableFunction)(...args); }) as typeof collection.toArray;
+            collection.toArray = ((...args: never[]) => { reads.load++; return (realToArray as never as CallableFunction)(...args); }) as typeof collection.toArray;
+            collection.each = ((...args: never[]) => { reads.load++; return (realEach as never as CallableFunction)(...args); }) as typeof collection.each;
             return collection;
         };
         return clause;
@@ -127,7 +130,7 @@ describe('投影 cursor 安全事件裁剪', () => {
 
         expect(result).toMatchObject({ removed: 0, skippedForInvalidProjection: false });
         expect(result.plan.throughEventId).toBe(0);
-        expect(reads.toArray).toBe(0);
+        expect(reads.load).toBe(0);
         expect(await eventIds(database)).toEqual([1, 2, 3]);
     });
 
@@ -140,7 +143,7 @@ describe('投影 cursor 安全事件裁剪', () => {
         const result = await pruneRawEventsBefore(database, 12);
 
         expect(result.removed).toBe(0);
-        expect(reads.toArray).toBe(0);
+        expect(reads.load).toBe(0);
         expect(await eventIds(database)).toEqual([10, 11, 12]);
     });
 
@@ -152,7 +155,7 @@ describe('投影 cursor 安全事件裁剪', () => {
 
         const result = await pruneRawEventsBefore(database, 3);
 
-        expect(reads.toArray).toBe(1);
+        expect(reads.load).toBe(1);
         expect(result.removed).toBe(2);
         expect(await eventIds(database)).toEqual([3]);
     });

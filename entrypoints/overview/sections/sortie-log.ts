@@ -2003,8 +2003,9 @@ export const sortieLogSection: OverviewSection = {
                 const replay = repairLegacyReplayFleet(raw);
                 return [replay.sortieKey, replay] as const;
             }));
-            const nth = numberSorties(groupSorties(rows));
-            entries = groupSorties(rows).map(g => {
+            const groups = groupSorties(rows);
+            const nth = numberSorties(groups);
+            entries = groups.map(g => {
                 const first = g.rows[0];
                 const replay = replayByKey.get(g.sortieKey);
                 const parsed = parseMapCode(first.map);
@@ -2026,6 +2027,8 @@ export const sortieLogSection: OverviewSection = {
             return;
         }
 
+        // 載入期間已換分區：網址參數屬於新分區，不得清掉。
+        if (!body.isConnected) return;
         // 任務進度紀錄的深連結：#/sortie-log?ts=<戰鬥結算時間>。解除篩選、翻到該場所在頁並展開。
         const focusTs = Number(hashParams().get('ts'));
         clearHashParams();

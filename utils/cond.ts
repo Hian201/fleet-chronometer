@@ -223,7 +223,8 @@ function supplyContext(fleet: FleetView): SupplyContext | undefined {
             ships: fleet.ships.map((s, i) => i === plan.sourceIndex ? { ...s, cond: MORALE_SOURCE_MIN_COND } : s),
         });
     }
-    if (!plan.active) return undefined;
+    // supplyCapReachAt 的迴圈靠「每次給糧確實有加值、錨點是有限時刻」才會結束。
+    if (!plan.active || !(plan.perTick > 0) || !Number.isFinite(anchor)) return undefined;
     const slots = plan.slots;
     return {
         anchor, perTick: plan.perTick, targetMin: plan.targetMinCond, source: fleet.ships[plan.sourceIndex]!,

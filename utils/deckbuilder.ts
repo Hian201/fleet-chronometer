@@ -23,6 +23,7 @@
 // kc-web 另認 `s`（出擊各格敵編成）與陸航 `sp`（派遣格），出擊紀錄跳轉見
 // `buildReplayAirCalcDeck()`；標準複製 JSON 不加這兩欄，以免其他 DeckBuilder 消費端
 // 把未知欄位當錯誤。
+import { repairLegacyReplayFleet } from './replay';
 import { airBaseKey } from './state';
 import type { AirBaseView, FleetView, GameState, GearView, ShipView } from './state';
 import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip } from './db';
@@ -282,6 +283,8 @@ export function buildDeckBuilder(state: GameState, scope: DeckBuilderScope): obj
  * 網址可載入不代表複製的 JSON 可貼進 DeckBuilder。
  */
 export function buildReplayDeckBuilder(row: ReplayRow): object {
+    // 相容資料可能把第2–4艦隊獨立出擊記成連合艦隊；同 toKc3Replay／buildSortieSimulator，匯出前先修復。
+    row = repairLegacyReplayFleet(row);
     const deck: Record<string, unknown> = { version: 4 };
     if (typeof row.hqLv === 'number' && Number.isFinite(row.hqLv) && row.hqLv > 0) deck.hqlv = row.hqLv;
 
@@ -368,6 +371,7 @@ export const AIR_CALC_DIRECT_URL_LIMIT = 30_000;
  * 敵艦裝備不輸出：loadDeckBuilder 只讀 id，裝備改走他們的 master。
  */
 export function buildReplayAirCalcDeck(row: ReplayRow, options: AirCalcOptions = {}): object {
+    row = repairLegacyReplayFleet(row);
     const deck = buildReplayDeckBuilder(row) as Record<string, unknown>;
     delete deck.f3;
     delete deck.f4;

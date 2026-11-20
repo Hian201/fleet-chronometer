@@ -103,6 +103,8 @@ export interface QuestRelation {
     /** wiki 句型涵蓋全部前置時的 AND-of-OR 組合，否則為 null。 */
     clauses: number[][] | null;
     unresolvedPrerequisites: string[];
+    /** 任一來源（或人工裁決）註記「可能還有未列出的條件」且未被其他來源補上。 */
+    conditionUnknown: boolean;
     confidence: QuestEvidence;
     operator: QuestRelationOperator;
     sources: QuestSourceId[];
@@ -468,7 +470,7 @@ export function questRelation(definitionOrNo: QuestDefinition | number, nowTs = 
     if (!definition || definition.catalogMismatch) {
         return {
             prerequisites: [], edges: [], remarks: [], consensus: false, reviewed: null, phases: null,
-            clauses: null, unresolvedPrerequisites: [],
+            clauses: null, unresolvedPrerequisites: [], conditionUnknown: true,
             confidence: 'checking', operator: 'unknown', sources: [],
         };
     }
@@ -489,9 +491,12 @@ export function questRelation(definitionOrNo: QuestDefinition | number, nowTs = 
     // 只有 KC3／poi 多列的前置改為「有爭議」，不再讓整體成為 conflict。
     const wikiList = sources.find(source => source.source === 'catalog' && definition.wikiClauses)?.values ?? [];
     const zekamashiList = sources.find(source => source.source === 'zekamashi')?.values ?? [];
-    const verifiedUnion = new Set([...wikiList, ...zekamashiList]);
-    const verifiedAgree = wikiList.length > 0 && zekamashiList.length > 0
-        && (wikiList.length === verifiedUnion.size || zekamashiList.length === verifiedUnion.size);
+    // 以去重後的集合比較：清單有重複編號時，長度相等不代表涵蓋聯集。
+    const wikiSet = new Set(wikiList);
+    const zekamashiSet = new Set(zekamashiList);
+    const verifiedUnion = new Set([...wikiSet, ...zekamashiSet]);
+    const verifiedAgree = wikiSet.size > 0 && zekamashiSet.size > 0
+        && (wikiSet.size === verifiedUnion.size || zekamashiSet.size === verifiedUnion.size);
 
     // 真正衝突時改用多數共識：至少兩個來源（此時 tsukinohashi 也加入投票）列出的前置為主要前置，
     // 只有單一來源提出的列為備考。沒有任何前置達到兩個來源時維持 conflict。
@@ -611,6 +616,7 @@ export function questRelation(definitionOrNo: QuestDefinition | number, nowTs = 
         phases,
         clauses,
         unresolvedPrerequisites: [...definition.unresolvedPrerequisites],
+        conditionUnknown,
         confidence,
         operator,
         sources: [...new Set(citing.map(source => source.source))],
@@ -664,6 +670,8 @@ function onceQuestWouldAppearIfIncomplete(
 ): boolean {
     if (definition.period !== 'once' || definition.limited) return false;
     if (definition.wikiConditionUnknown || definition.structuredConditionUnknown) return false;
+    // ぜかまし／舰娘百科的「另有條件」註記與人工裁決的「前置未定」同樣不足以推論完成。
+    if (relation.conditionUnknown) return false;
     if (definition.unresolvedPrerequisites.length > 0) return false;
     // 待驗證的前置可能不是真正的前置，真正的條件就可能沒列出來，缺席不足以推論完成。
     if (relation.edges.some(edge => edge.pending)) return false;

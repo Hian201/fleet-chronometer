@@ -121,6 +121,8 @@ export function renderOrder(): void {
     if (!root || !getState) return;
     const token = t('tab.order') + t('order.modeShip');
     if (!shellReady || token !== langToken) {
+        // 選單掛在 document.body、內容是舊語言；重建殼之前先收起。
+        closeMenu();
         buildShell();
         langToken = token;
         shellReady = true;

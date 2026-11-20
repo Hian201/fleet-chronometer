@@ -37,7 +37,7 @@ beforeEach(async () => {
     state.applyEvent('api_port/port', portWithFleet(idsOfStype(2, 4)));   // 驅逐 4：1-5 固定到王
     listener = null;
     await routeForecastSection.render(host, {
-        get state() { return state; }, rerender() {}, async reloadState() {},
+        get state() { return state; }, rerender() {}, async reloadState() {}, signal: new AbortController().signal,
         onStateChange: (fn) => { listener = fn; },
     });
 });
@@ -72,5 +72,29 @@ describe('常規導航即時更新', () => {
         expect(after[1]).toBe(tabs[1]);
         expect(after[1].getAttribute('aria-pressed')).toBe('true');
         expect(after[0].getAttribute('aria-pressed')).toBe('false');
+    });
+});
+
+describe('常規導航離開分區', () => {
+    it('ResizeObserver 在 render 的 signal abort 時 disconnect', async () => {
+        const observers: { observe: number; disconnect: number }[] = [];
+        (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+            record = { observe: 0, disconnect: 0 };
+            constructor() { observers.push(this.record); }
+            observe() { this.record.observe++; }
+            disconnect() { this.record.disconnect++; }
+        };
+        try {
+            const controller = new AbortController();
+            await routeForecastSection.render(host, {
+                get state() { return state; }, rerender() {}, async reloadState() {}, signal: controller.signal,
+            });
+            expect(observers).toHaveLength(1);
+            expect(observers[0]).toEqual({ observe: 1, disconnect: 0 });
+            controller.abort();
+            expect(observers[0].disconnect).toBe(1);
+        } finally {
+            delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+        }
     });
 });

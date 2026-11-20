@@ -86,7 +86,10 @@ export function mountFactoryTabs(root: HTMLElement, state: GameState, now: () =>
     };
     const setAttr = (el: HTMLElement, name: string, value: string) => { if (el.getAttribute(name) !== value) el.setAttribute(name, value); };
 
-    function render() {
+    // 每秒計時器只為了在日本時間換日時換表；同一天內不必每秒重掃整座裝備庫。
+    let paintedWeekday: number | null = null;
+    function render(dayChangeOnly = false) {
+        if (dayChangeOnly && (sub !== 'today' || paintedWeekday === jstWeekday(now()))) return;
         paint(nav, 'nav', (['live', 'today'] as const).map(key =>
             `<button type="button" data-fsub="${key}" role="tab" aria-selected="${key === sub}">${esc(t(key === 'live' ? 'factory.todayNavLive' : 'factory.todayNavToday'))}</button>`).join(''));
         for (const key of ['live', 'today'] as const) pages[key].hidden = key !== sub;
@@ -99,7 +102,9 @@ export function mountFactoryTabs(root: HTMLElement, state: GameState, now: () =>
         setAttr(search, 'placeholder', t('factory.searchPlaceholder'));
         setAttr(search, 'aria-label', t('factory.searchLabel'));
         if (sub !== 'today') return;
-        const view = factoryTodayView(state, now(), open, search.value);
+        const at = now();
+        paintedWeekday = jstWeekday(at);
+        const view = factoryTodayView(state, at, open, search.value);
         paint(title, 'head', view.head);
         paint(list, 'list', view.list);
         paint(foot, 'foot', view.foot);
@@ -112,7 +117,7 @@ export function mountFactoryTabs(root: HTMLElement, state: GameState, now: () =>
         if (focus) (wanted ? search : searchToggle).focus();
     }
     searchToggle.addEventListener('click', () => setSearchOpen(searchRow.hidden));
-    search.addEventListener('input', render);
+    search.addEventListener('input', () => render());
     search.addEventListener('keydown', event => {
         if (event.key !== 'Escape') return;
         event.preventDefault();

@@ -28,8 +28,8 @@ import { esc } from '../lib';
 
 const EVENT_AREA_MIN = 10;
 
-// 自由池的航速／可裝備篩選：語意與選項順序一律沿用 ship-picker.ts 的同名下拉
-// （斷言在 utils/ship-filter.ts），兩處不得各自定義，否則「僅大發」之類的組合會分歧。
+// 自由池的航速／可裝備篩選：語意與選項順序一律沿用 utils/ship-filter.ts，
+// 不得在此另行定義，否則「僅大發」之類的組合會與艦娘全覽分歧。
 const SPEEDS: SpeedFilter[] = ['all', 'slow', 'fast', 'fastPlus'];
 const SPEED_KEYS: Record<SpeedFilter, string> = {
     all: 'ov.spAll', slow: 'ov.spSlow', fast: 'ov.spFast', fastPlus: 'ov.spFastPlus',
@@ -1185,7 +1185,8 @@ export const tagBoardSection: OverviewSection = {
 
         function bindBoard() {
             bindChips(boardEl);
-            boardEl.querySelectorAll<HTMLElement>('td.tb-cell').forEach(td => {
+            // 空海域佔位格沒有 data-col，不是放置目標。
+            boardEl.querySelectorAll<HTMLElement>('td.tb-cell[data-col]').forEach(td => {
                 td.addEventListener('dragover', e => {
                     e.preventDefault();
                     td.classList.add('drop');
@@ -1340,12 +1341,9 @@ export const tagBoardSection: OverviewSection = {
             });
         }
 
-        document.addEventListener('click', onDocClick);
+        // 離開分區時由 ctx.signal 移除，不必等到下一次點擊才發現色盤已卸離。
+        document.addEventListener('click', onDocClick, { signal: ctx.signal });
         function onDocClick(e: MouseEvent) {
-            if (!paletteEl.isConnected) {
-                document.removeEventListener('click', onDocClick);
-                return;
-            }
             if (paletteEl.hidden) return;
             if ((e.target as HTMLElement).closest('#tb-palette, [data-color]')) return;
             paletteEl.hidden = true;

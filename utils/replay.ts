@@ -119,7 +119,8 @@ export function startReplay(gs: GameState, sortieKey: number, ts: number, mapSta
         ...(lbas.length ? { lbas } : {}),
         battles: [],
         hqLv: gs.hqLv,
-        nickname: gs.nickname,
+        // port／basic 尚未投影時提督名仍是空字串；不寫空值，備份驗證只收非空字串。
+        ...(gs.nickname.trim() ? { nickname: gs.nickname } : {}),
     };
 }
 

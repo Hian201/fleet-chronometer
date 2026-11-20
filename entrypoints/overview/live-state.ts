@@ -77,8 +77,10 @@ export function createLiveState(onLoaded: () => void, onApplied: (paths: string[
 
     const load = async () => {
         loaded = false;
-        generation++;
+        const gen = ++generation;
         const result = await loadGameStateWithCursor();
+        // 重疊的 reload：較晚開始的那輪才算數，較早那輪晚到的結果不得蓋回去。
+        if (gen !== generation) return;
         state = result.state;
         cursor = result.lastEventId;
         loaded = true;
@@ -88,6 +90,8 @@ export function createLiveState(onLoaded: () => void, onApplied: (paths: string[
         onLoaded();
         // 載入期間若有新事件進來，現在補讀
         void pump();
+    }).catch(error => {
+        console.error('[overview] 載入遊戲狀態失敗', error);
     });
 
     return {

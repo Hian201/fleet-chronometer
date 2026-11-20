@@ -167,12 +167,16 @@ export async function captureResources(
         // seq 用「該圖已有幾筆 clear」推導，而不是 api_gauge_num——後者語意未經驗證
         // （61-5 樣本為 4，可能是第幾段也可能是總段數），拿它當主鍵會賭在猜測上。
         const existing = await tables.resourceMarks.where('mapKey').equals(gauge.mapKey).toArray();
-        const seq = existing.filter(row => row.kind === 'gauge-clear').length;
+        const clears = existing.filter(row => row.kind === 'gauge-clear');
+        // 先寫 clear 再刪 seen：中途被終止時 recovery 重跑仍看得到 seen；本事件已寫過就只補刪。
+        if (!clears.some(row => row.eventId === id)) {
+            const seq = clears.length;
+            await tables.resourceMarks.put({
+                key: `clear:${gauge.mapKey}#${seq}`,
+                kind: 'gauge-clear', mapKey: gauge.mapKey, ts, eventId: id, seq,
+                ...(gauge.gaugeNum === undefined ? {} : { gaugeNum: gauge.gaugeNum }),
+            });
+        }
         await tables.resourceMarks.delete(seenKey);
-        await tables.resourceMarks.put({
-            key: `clear:${gauge.mapKey}#${seq}`,
-            kind: 'gauge-clear', mapKey: gauge.mapKey, ts, eventId: id, seq,
-            ...(gauge.gaugeNum === undefined ? {} : { gaugeNum: gauge.gaugeNum }),
-        });
     }
 }

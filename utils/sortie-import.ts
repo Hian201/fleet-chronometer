@@ -29,7 +29,7 @@ import type {
 } from './db';
 import { analyzeBattle } from './battle';
 import { borrowEventId } from './event-id-borrow';
-import { isPlainObject } from './plain-object';
+import { containsApiToken, isPlainObject } from './plain-object';
 
 /** JSON 結構不符（缺欄位、型別錯、空 battles…）。UI 需與「已存在」分流顯示。 */
 export class SortieImportError extends Error {
@@ -87,23 +87,28 @@ function fnv1a(text: string): string {
     return hash.toString(16).padStart(8, '0');
 }
 
+// 外部 JSON 可以巢狀得任意深（JSON.parse 本身不會爆堆疊）；真實戰鬥封包不超過個位數層，
+// 超過上限就當成壞檔拒絕，避免遞迴撐爆呼叫堆疊而逃出 SortieImportError 的處理路徑。
+const MAX_SERIALIZE_DEPTH = 64;
+
 /** JSON 內容的穩定序列化：物件 key 排序，陣列順序保留。 */
 export function stableSerialize(value: unknown): string {
-    const walk = (entry: unknown): string => {
+    const walk = (entry: unknown, depth: number): string => {
+        if (depth > MAX_SERIALIZE_DEPTH) throw new SortieImportError('戰鬥資料巢狀層數過深。');
         if (entry === null) return 'null';
         if (typeof entry === 'string' || typeof entry === 'boolean') return JSON.stringify(entry);
         if (typeof entry === 'number') {
             if (!Number.isFinite(entry)) throw new SortieImportError('戰鬥資料含有非有限數值。');
             return JSON.stringify(entry);
         }
-        if (Array.isArray(entry)) return `[${entry.map(walk).join(',')}]`;
+        if (Array.isArray(entry)) return `[${entry.map(item => walk(item, depth + 1)).join(',')}]`;
         if (entry && typeof entry === 'object') {
             const object = entry as Record<string, unknown>;
-            return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${walk(object[key])}`).join(',')}}`;
+            return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${walk(object[key], depth + 1)}`).join(',')}}`;
         }
         throw new SortieImportError('戰鬥資料含有非 JSON 值。');
     };
-    return walk(value);
+    return walk(value, 0);
 }
 
 /**
@@ -344,6 +349,8 @@ function normalizeLbas(raw: unknown, areaId: number): ReplayLbas[] {
  */
 export function parseSortieImport(input: unknown, options: SortieImportOptions = {}): ParsedSortie {
     const raw = objectAt(input, 'JSON 最外層');
+    // battles[].data／yasen 等原始封包會原樣存進 db.replays；憑證不得隨匯入落地。
+    if (containsApiToken(raw)) throw new SortieImportError('出擊資料不得含有 api_token。');
     const format = detectFormat(raw);
     if (format === 'fleet-chronometer') {
         assertOnlyKeys(raw, [
@@ -478,7 +485,9 @@ export function parseSortieImport(input: unknown, options: SortieImportOptions =
             fleet3: normalizeFleet(raw.fleet3, 'fleet3', format, undefined, 0, 6) as ReplaySupportShip[],
             fleet4: normalizeFleet(raw.fleet4, 'fleet4', format, undefined, 0, 6) as ReplaySupportShip[],
         } : {}),
-        ...(raw.hq === undefined ? {} : { nickname: stringAt(raw.hq, 'hq') }),
+        // 空白提督名視同缺欄位：備份驗證只收非空字串，寫進去會擋住之後的整份還原。
+        ...(raw.hq === undefined || (typeof raw.hq === 'string' && !raw.hq.trim())
+            ? {} : { nickname: stringAt(raw.hq, 'hq') }),
         // 匯入的紀錄一律標記並釘選：它不是本機觀測，且時間戳多半很舊，
         // 不釘的話下一次重播裁剪就會把使用者剛匯入的東西掃掉（見 utils/retention.ts）。
         imported: true,

@@ -17,6 +17,7 @@ import {
     MSG_FLEET_PHOTO_CAPTURE, MSG_FLEET_PHOTO_SOURCES,
     type FleetPhotoCaptureMessage, type FleetPhotoCaptureReply, type FleetPhotoSource,
 } from '@/utils/game-page';
+import { downloadBlob } from '@/utils/download';
 
 export type PhotoTarget = { kind: 'fleet'; deck: number } | { kind: 'combined' } | { kind: 'lbas'; area: number | null };
 
@@ -194,7 +195,7 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
         const label = stale ? t('photo.stale') : shot && !isNext ? t('photo.shot') : isNext ? t('photo.next') : t('photo.empty');
         const cls = ['ph-cell', shot ? 'shot' : '', stale ? 'stale' : '', isNext ? 'next' : ''].filter(Boolean).join(' ');
         return `<button type="button" class="${cls}" data-slot="${i}" title="${esc(it.name)}">` +
-            `<span class="ph-thumb">${shot ? `<img alt="" src="${shot.dataUrl}">` : ''}</span>` +
+            `<span class="ph-thumb">${shot ? `<img alt="" src="${esc(shot.dataUrl)}">` : ''}</span>` +
             `<span class="ph-meta"><span class="ph-name">${esc(it.name)}</span>` +
             (it.sub ? `<span class="ph-sub">${esc(it.sub)}</span>` : '') +
             `<span class="ph-state">${esc(label)}</span></span></button>`;
@@ -258,16 +259,18 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
         const request: FleetPhotoCaptureMessage = { type: MSG_FLEET_PHOTO_CAPTURE, region: PHOTO_REGIONS[g.region], tabId: sourceTabId };
         const reply = await browser.runtime.sendMessage(request)
             .catch((e: unknown) => ({ error: 'failed', detail: String((e as { message?: unknown })?.message ?? e) })) as FleetPhotoCaptureReply | undefined;
-        busy = false;
         if (!reply || !('dataUrl' in reply)) {
             const code = reply && 'error' in reply ? reply.error : 'failed';
             const detail = reply && 'detail' in reply ? reply.detail ?? '' : '';
+            // 重抓來源清單期間仍算忙碌，連點不會再送出第二次拍攝。
             if (code === 'choose-source' || code === 'no-game') await loadSources();
+            busy = false;
             if (code === 'choose-source') root.querySelector<HTMLDetailsElement>('.ph-opts')!.setAttribute('open', '');
             message = { kind: 'err', text: t(`photo.err.${code}`, { msg: detail || code }) };
             refresh();
             return;
         }
+        busy = false;
         // 相同格位不代表同一艘船／同一配置；回應抵達時簽章不同就丟棄影像。
         const now = currentGroup();
         const item = now.key === g.key ? now.items[i] : undefined;
@@ -419,14 +422,7 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 message = { kind: 'toast', text: t('photo.copied') };
             } else {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `fleet-photo-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                downloadBlob(`fleet-photo-${new Date().toISOString().replace(/[:.]/g, '-')}.png`, blob);
                 message = { kind: 'toast', text: t('photo.saved') };
             }
         } catch (e) {
@@ -463,6 +459,8 @@ export function mountFleetPhoto(deps: FleetPhotoDeps) {
             const available = await browser.runtime.sendMessage({ type: MSG_FLEET_PHOTO_SOURCES }) as FleetPhotoSource[] | undefined;
             if (!Array.isArray(available)) return;
             sources = available;
+            // 所選分頁已關閉：清掉選擇，否則之後每次都拍不存在的分頁。
+            if (sourceTabId !== undefined && !sources.some(s => s.tabId === sourceTabId)) sourceTabId = undefined;
             if (sourceTabId === undefined && sources.length === 1) sourceTabId = sources[0].tabId;
             refresh();
         } catch { /* 拍攝請求會回報通道錯誤 */ }

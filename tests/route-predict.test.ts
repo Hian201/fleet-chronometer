@@ -73,6 +73,23 @@ describe('三值條件', () => {
         expect(evalCond({ carriers: 'daihatsu', min: 4 }, ctx(f))).toBeNull();
         expect(evalCond({ carriers: 'daihatsu', min: 3 }, ctx(f))).toBe(true);
     });
+    it('搭載艦數有上下限時，不可考區間跨過範圍就是不可考', () => {
+        const r35 = { mst: 576, type: 24 };
+        const f = [ship(2, { gears: [r35] }), ship(2, { gears: [r35] }), ship(2, { gears: [r35] })];
+        // 實際 0–3 艘，1–2 艘可能成立也可能不成立
+        expect(evalCond({ carriers: 'daihatsu', min: 1, max: 2 }, ctx(f))).toBeNull();
+        expect(evalCond({ carriers: 'daihatsu', min: 4 }, ctx(f))).toBe(false);
+        expect(evalCond({ carriers: 'daihatsu', max: 3 }, ctx(f))).toBe(true);
+    });
+    it('前面規則不可考時，後面的無條件出口不標成確定；回頭的去向仍收成一條路徑', () => {
+        const rulesOf = (A: Rule[]) => ({ updated: null, checked: '', goal: ['B'], nodes: { A } });
+        const { paths } = predictRoutes('1-1', rulesOf([{ if: { phase: 'x' }, go: 'C' }, { go: 'B' }]), fleet([ship(2)]));
+        expect(paths.map((p) => p.end).sort()).toEqual(['B', 'C']);
+        expect(paths.find((p) => p.end === 'B')!.steps.at(-1)!.kind).toBe('uncertain');
+        expect(goalVerdict(paths)).toBe('possible');
+        const loop = predictRoutes('1-1', rulesOf([{ go: '1' }]), fleet([ship(2)])).paths;
+        expect(loop.map((p) => p.end)).toEqual(['A']);
+    });
     it('航空戦艦不算「戦艦」，但算「戦艦級」', () => {
         expect(evalCond({ count: ['BB'], min: 1 }, ctx([ship(10)]))).toBe(false);
         expect(evalCond({ count: ['BBclass'], min: 1 }, ctx([ship(10)]))).toBe(true);

@@ -217,7 +217,7 @@ export function nextSettlementIn(
     if (anchor == null) return undefined;
     const elapsed = now - anchor;
     if (elapsed < 0) return undefined;
-    // 已超過一個週期：下次結算是「再進一次母港」，剩餘時間視為 0（隨時可結算）。
-    const remain = intervalMs - (elapsed % intervalMs);
-    return elapsed >= intervalMs ? 0 : remain + TIMER_SAFETY_MS;
+    // 週期＋安全緩衝都過了才算「隨時可結算」（0）；緩衝期間繼續倒數，不從 1:00 直接跳 0。
+    const target = intervalMs + TIMER_SAFETY_MS;
+    return elapsed >= target ? 0 : target - elapsed;
 }

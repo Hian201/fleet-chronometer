@@ -10,10 +10,10 @@
 // 滾動條與提示框交給瀏覽器；鎖定狀態直接畫在艦名旁；分頁改成使用者要的 10/20/50/100/全部。
 //
 // 篩選／排序／分頁的**邏輯**全在 utils/ship-roster.ts（純函式、可用 node 餵真封包驗證），
-// 本檔只負責 DOM 與事件——同 ship-picker.ts 與 event-ops.ts 的分工。
+// 本檔只負責 DOM 與事件。
 //
 // ── 為什麼這支不遵守「全量重繪」慣例（design-guidelines §4.2）──────────
-// 同 ship-picker.ts：篩選器含關鍵字與等級輸入框，整塊重繪會讓輸入框每打一個字就失焦。
+// 篩選器含關鍵字與等級輸入框，整塊重繪會讓輸入框每打一個字就失焦。
 // 故「工具列＋抽屜」只建一次並綁定，之後只重繪 `.rs-body`（chip 列／表格／分頁列／摘要）。
 import type { ShipObtainedRow } from '../../../utils/db';
 import type { OwnedShipView } from '../../../utils/state';
@@ -30,6 +30,7 @@ import {
 } from '../../../utils/ship-roster';
 import type { Nation } from '../../../utils/ship-nationality';
 import { copyWithFeedback, downloadText, esc, gearIconHtml, loadJsonPrefs, parsePageSize, saveJsonPrefs } from '../lib';
+import { csvCell } from '../../../utils/csv';
 
 export interface OwnedShipRow extends OwnedShipView {
     obtained?: ShipObtainedRow;
@@ -345,9 +346,8 @@ export function rosterTableHtml(rows: ShipsRow[], view: TableView, ctx: RenderCt
 /** 匯出目前**篩選後的全部**列（不是只有這一頁）為 CSV。取代參照圖的「匯出至 kanmusu_list」。 */
 export function rosterCsv(rows: ShipsRow[], view: TableView, ctx: RenderCtx): string {
     const cols = visibleColumns(view);
-    const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-    const lines = [cols.map(c => cell(t(c.labelKey))).join(',')];
-    for (const ship of rows) lines.push(cols.map(c => cell(c.text(ship, ctx))).join(','));
+    const lines = [cols.map(c => csvCell(t(c.labelKey))).join(',')];
+    for (const ship of rows) lines.push(cols.map(c => csvCell(c.text(ship, ctx))).join(','));
     return lines.join('\n');
 }
 

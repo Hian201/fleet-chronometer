@@ -189,6 +189,26 @@ describe('解析（KC3Kai 匯出）', () => {
         expect(normalizeTime('x')).toBeNull();
     });
 });
+describe('解析的安全與空白欄位', () => {
+    it('battles[0].data 任一層含 api_token 即拒絕匯入', () => {
+        const raw = sample();
+        raw.battles[0].data.nested = { deep: [{ api_token: 'secret' }] };
+        expect(() => parseSortieImport(raw)).toThrow(SortieImportError);
+    });
+
+    it('hq 為空白字串時，解析後的 replay 不帶 nickname', () => {
+        const raw = sample();
+        raw.hq = '  ';
+        expect(parseSortieImport(raw).replay).not.toHaveProperty('nickname');
+    });
+
+    it('hq 為非空字串時保留為 nickname', () => {
+        const raw = sample();
+        raw.hq = '提督';
+        expect(parseSortieImport(raw).replay.nickname).toBe('提督');
+    });
+});
+
 
 describe('格式辨識與嚴格驗證', () => {
     const ownExport = () => {

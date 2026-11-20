@@ -94,6 +94,9 @@ const MISSION_ALARM_RE = /^第(\d+)艦隊 遠征帰投$/;
 // 都會走到這裡，是重複通知的來源）。已通知記錄存 db.notified（deckId 為主鍵），SW 被殺也不遺失；
 // 比對 completeAt 才不會誤殺同艦隊之後的新遠征。
 async function scheduleMissionNotice(deckId: number, completeAt: number, notificationId?: string) {
+  // NaN 不是合法 IndexedDB key：get() 會丟 DataError，事件退回 pending 後每次 recovery 都重演，
+  // 從此擋住所有新 ingestion。缺 api_deck_id 或時刻的封包直接略過通知。
+  if (!Number.isSafeInteger(deckId) || deckId < 1 || !Number.isFinite(completeAt) || completeAt <= 0) return;
   const done = await db.notified.get(deckId);
   if (done?.completeAt === completeAt) return;
   const name = `第${deckId}艦隊 遠征帰投`;
@@ -310,9 +313,12 @@ export default defineBackground(() => {
     // 靠 URLSearchParams 解析 req 字串的單點防線——若日後某個請求體格式跳脫這個假設而
     // 讓 token 漏網，這裡是 ingestEvent()（唯一持久化入口）前最後也是唯一的第二道關卡，
     // 不管 req 從哪個 provider、以什麼路徑送進來都會被擋下，不信任上游已經處理乾淨。
-    const req = msg.req && typeof msg.req === 'object' ? { ...msg.req } : msg.req;
+    // 字串型 req（表單原文）也先解析成欄位再剝，否則 delete 對字串無效、token 會原樣落地。
+    const req = (typeof msg.req === 'string'
+      ? Object.fromEntries(new URLSearchParams(msg.req))
+      : msg.req && typeof msg.req === 'object' ? { ...msg.req } : msg.req) as Record<string, string>;
     if (req) {
-      for (const key of SENSITIVE_REQUEST_KEYS) delete (req as Record<string, unknown>)[key];
+      for (const key of SENSITIVE_REQUEST_KEYS) delete req[key];
     }
     // ingestion 完成後才回覆；訊息通道必須保持開啟，
     // 這裡刻意讓通道開到寫入結束：SW 若在寫入途中被回收，通道會以錯誤關閉，bridge 的
@@ -472,9 +478,6 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   const api = event.api as any;   // 合約保證為解析後的 api_data；此處為欄位存取放寬型別
   const timing = takeTiming(event.captureId);
   if (timing) timing.live = wallNow();
-  // 面板未開啟時沒有 runtime receiver 是正常情況，維持既有的 best-effort broadcast。
-  browser.runtime.sendMessage({ type: 'kc:live', id, ts, path, ...(timing ? { timing } : {}) }).catch(() => { });
-
   // 母港快照：獨立於 M6 裁剪，撐過完全解除安裝再重裝（見 utils/db.ts SnapshotRow）。
   if (SNAPSHOT_PATHS.has(path)) await db.snapshot.put({ path, ts, api, req, eventId: id });
   // 資源時間序列＋活動特殊時間點。與 snapshot 同層（不需 GameState、面板沒開也要累積），
@@ -482,15 +485,16 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   await captureResources(db, { id, ts, path, api });
   await captureQuestObserved(db, { id, ts, path, req });
   await captureQuestSeen(db, { id, ts, path, api });
+  if (path === 'api_port/port') await captureShipObtained(db.shipObtained, id, ts, api);
+  // 收到 kc:live 的頁面會立刻重讀上面這些表，所以寫完才廣播。
+  // 面板未開啟時沒有 runtime receiver 是正常情況，維持既有的 best-effort broadcast。
+  browser.runtime.sendMessage({ type: 'kc:live', id, ts, path, ...(timing ? { timing } : {}) }).catch(() => { });
   // M6 事件裁剪：登入封包（start2）到達 = 遊戲即將重送全量狀態，更早的事件可安全清除
   if (path === 'api_start2/getData') await pruneEvents(id);
   // 超長單一 session（不重登）保險裁剪：不等 start2，events 數量過大就主動修剪一次。
   // 只在每 200 筆檢查一次，避免每筆都查 count() 的開銷。
   if (id % 200 === 0) await pruneIfOversized();
-  if (path === 'api_port/port') {
-    await scheduleAlarms(api, id);
-    await captureShipObtained(db.shipObtained, id, ts, api);
-  }
+  if (path === 'api_port/port') await scheduleAlarms(api, id);
   // 遠征發出：提前 1 分鐘通知
   if (path === 'api_req_mission/start' && api?.api_complatetime) {
     await scheduleMissionNotice(

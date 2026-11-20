@@ -50,8 +50,9 @@ export function predictRank(player: BattleShipView[], enemy: BattleShipView[]): 
     const pNow = sum(player, s => Math.max(0, s.hp));
     const eBegin = sum(enemy, s => s.beginHp);
     const eNow = sum(enemy, s => Math.max(0, s.hp));
-    const pLoss = pBegin > 0 ? (pBegin - pNow) / pBegin : 0;   // 0..1
-    const eLoss = eBegin > 0 ? (eBegin - eNow) / eBegin : 0;   // 0..1
+    // 女神回復可讓我方現值高於進場值；損害率下限 0，否則零輸出也會落在 B。
+    const pLoss = pBegin > 0 ? Math.max(0, (pBegin - pNow) / pBegin) : 0;   // 0..1
+    const eLoss = eBegin > 0 ? Math.max(0, (eBegin - eNow) / eBegin) : 0;   // 0..1
 
     const allEnemySunk = eSunk === eCount;
     const noPlayerSunk = pSunk === 0;
@@ -82,7 +83,7 @@ export function nightRankTargets(player: BattleShipView[], enemy: BattleShipView
     const current = order.indexOf(predictRank(player, enemy));
     const sum = (arr: BattleShipView[], f: (s: BattleShipView) => number) => arr.reduce((a, s) => a + f(s), 0);
     const pBegin = sum(player, s => s.beginHp);
-    const pLoss = pBegin > 0 ? (pBegin - sum(player, s => Math.max(0, s.hp))) / pBegin : 0;
+    const pLoss = pBegin > 0 ? Math.max(0, (pBegin - sum(player, s => Math.max(0, s.hp))) / pBegin) : 0;
     const eBegin = sum(enemy, s => s.beginHp);
     const eDealt = eBegin - sum(enemy, s => Math.max(0, s.hp));
     const eSunk = enemy.filter(s => s.sunk).length;
@@ -725,15 +726,15 @@ export function analyzeBattle(
         || 0;
 
     /**
-     * 支援傷害陣列的原始索引正規化：單艦隊封包多一個第 0 格佔位，聯合艦隊則直接是
-     * 主隊 0–5／隨伴 6–11。只有長度與目前敵艦欄位吻合時才套用，其他形狀保留原索引。
+     * 支援傷害陣列一律 0 起算：單艦隊固定補 0 到 7 格（samples/61-5-jibun-rengou-node52.json
+     * 第 1 戰 4 艘敵艦為 `[3, 0.1, 90, 42, 0, 0, 0]`），聯合艦隊為主隊 0–5／隨伴 6–11。
+     * 6 艘敵艦時長度同樣是 7，第 0 格為 0 只代表旗艦沒中彈（61-3.json 第 51 戰若位移，
+     * 後續雷擊與砲擊會打到已沉的敵艦）。只有 Flash 時期的 leading -1 佔位才位移。
      */
     const supportTargetOffset = (arr: any): number => {
         if (!Array.isArray(arr)) return 0;
         const targetCount = eMain.length + eEsc.length;
-        const first = arr[0];
-        return targetCount > 0 && arr.length === targetCount + 1
-            && (first === null || first === undefined || first === 0 || first === -1) ? -1 : 0;
+        return targetCount > 0 && arr.length === targetCount + 1 && arr[0] === -1 ? -1 : 0;
     };
 
     /** 支援欄位在白天與夜戰封包只差一個 `api_n_` 前綴，傷害與編成語意相同。 */
@@ -800,6 +801,17 @@ export function analyzeBattle(
             }
         }
         const nightEnemyOffset = nightTarget === 'escort' ? 6 : 0;
+        const runNight = () => {
+            if (hasNightPayload(api)) noteNightEffects(api);
+            for (const phase of nightHougekiPhases(api))
+                recordPhase('nightShelling', packet, processHougeki(phase, nightEnemyOffset));
+        };
+        // 夜轉日（api_n_hougeki*）：夜戰支援與夜戰砲擊都在全部日戰階段之前。
+        const nightFirst = !!(api.api_n_hougeki1 || api.api_n_hougeki2 || api.api_n_hougeki3);
+        if (nightFirst) {
+            processSupport(api.api_n_support_info, api.api_n_support_flag, packet);
+            runNight();
+        }
         // 遊戲順序：基地航空隊噴式強襲 → 空母噴式強襲 → 基地航空隊一般波次 → 航空戰。
         // `api_air_base_injection` 是基地噴式強襲（KC3Kai／七四式均單獨解析），
         // `api_injection_kouku` 是空母噴式強襲；兩者不應合併成一個「未辨識航空隊」來源。
@@ -852,7 +864,7 @@ export function analyzeBattle(
         if (api.api_kouku2) recordPhase('airSecond', packet, processKouku(api.api_kouku2));
         // 支援艦隊（對敵）。彙總與套用讀同一批欄位，數字不會兩套（見 BattleSupportView）。
         processSupport(api.api_support_info, api.api_support_flag, packet);
-        processSupport(api.api_n_support_info, api.api_n_support_flag, packet);
+        if (!nightFirst) processSupport(api.api_n_support_info, api.api_n_support_flag, packet);
         // 開幕
         if (api.api_opening_taisen) {
             recordPhase('openingAntiSub', packet, processHougeki(api.api_opening_taisen));
@@ -860,12 +872,16 @@ export function analyzeBattle(
         if (api.api_opening_atack) {
             recordPhase('openingTorpedo', packet, processRaigeki(api.api_opening_atack));
         }
-        // 砲擊戰
-        if (api.api_hougeki1) recordPhase('shelling1', packet, processHougeki(api.api_hougeki1));
-        if (api.api_hougeki2) recordPhase('shelling2', packet, processHougeki(api.api_hougeki2));
-        if (api.api_hougeki3) recordPhase('shelling3', packet, processHougeki(api.api_hougeki3));
-        // 雷擊戰
-        if (api.api_raigeki) recordPhase('torpedo', packet, processRaigeki(api.api_raigeki));
+        // 砲擊戰與雷擊戰：依封包鍵序執行。連合艦隊的雷擊夾在砲擊之間，位置隨艦隊型態而異
+        // （samples/61-3.json 第 25 戰為 hougeki1→raigeki→hougeki2→hougeki3，第 53 戰為
+        // hougeki1→hougeki2→raigeki→hougeki3）；固定順序會讓擊沉歸因與損管時點錯位。
+        for (const key of Object.keys(api)) {
+            if (!api[key]) continue;
+            if (key === 'api_hougeki1') recordPhase('shelling1', packet, processHougeki(api.api_hougeki1));
+            else if (key === 'api_hougeki2') recordPhase('shelling2', packet, processHougeki(api.api_hougeki2));
+            else if (key === 'api_hougeki3') recordPhase('shelling3', packet, processHougeki(api.api_hougeki3));
+            else if (key === 'api_raigeki') recordPhase('torpedo', packet, processRaigeki(api.api_raigeki));
+        }
         // 友軍艦隊（活動海域 boss 夜戰，api_friendly_battle 在夜戰封包中）
         const fb = api.api_friendly_battle;
         if (fb) {
@@ -877,12 +893,7 @@ export function analyzeBattle(
             friendlyFleetIds = fi.api_ship_id.filter((id: number) => id > 0);
         }
         // 夜戰：一般延續與夜轉日的 api_n_hougeki* 都是同一套攻擊資料。
-        const nightPhases = nightHougekiPhases(api);
-        if (hasNightPayload(api)) noteNightEffects(api);
-        if (nightPhases.length) {
-            for (const phase of nightPhases)
-                recordPhase('nightShelling', packet, processHougeki(phase, nightEnemyOffset));
-        }
+        if (!nightFirst) runNight();
     }
 
     // 彙整（過濾 null 佔位）
@@ -1085,13 +1096,15 @@ export function analyzeBattle(
         collectAaci(s2);
     }
     // 夜戰封包可能是同一場中唯一帶有對空 CI 結果的封包；不要只看第一包。
+    // 雙航空戰兩波各自可能發動對空 CI 與觸接，兩波都要讀。
     for (const api of apiList) {
-        const stage2 = api?.api_kouku?.api_stage2 ?? api?.api_kouku2?.api_stage2;
-        collectAaci(stage2);
+        collectAaci(api?.api_kouku?.api_stage2);
+        collectAaci(api?.api_kouku2?.api_stage2);
     }
     for (const api of apiList) {
         setTouchPlane(api?.api_touch_plane);
         setTouchPlane(api?.api_kouku?.api_stage1?.api_touch_plane);
+        setTouchPlane(api?.api_kouku2?.api_stage1?.api_touch_plane);
     }
 
     const finalSupportSource = supportSource as Omit<BattleSupportView, 'damage'> | null;

@@ -332,9 +332,8 @@ Dexie 或備份；至少保留一欄，避免使用者把表格變成無內容�
 「元素從 A 移到 B 的動畫」之前，先確認這塊有沒有變（改成局部 diff）**，否則討論會
 建立在錯誤的前提上。
 
-**例外：帶有持續輸入控制項的分區**——目前是 `overview/ship-picker.ts`（鎮守府全船篩選
-清單）、`overview/sections/ships.ts`（艦娘全覽詳細清單）與 `overview/sections/equipment.ts`
-（裝備全覽）。三者的篩選器都含關鍵字輸入框（ships 還有等級範圍），若沿用全量重繪，每打一個
+**例外：帶有持續輸入控制項的分區**——目前是 `overview/sections/ships.ts`（艦娘全覽詳細清單）
+與 `overview/sections/equipment.ts`（裝備全覽）。兩者的篩選器都含關鍵字輸入框（ships 還有等級範圍），若沿用全量重繪，每打一個
 字元就重建 DOM、輸入框失焦，實際上打不了字。故它們把「控制項」與「結果」分開：控制項只在
 建立時渲染一次並綁定，之後的變更**只重繪結果區**（清單／表格、計數、分頁列）。結果區一律用
 事件委派（每次重繪都換掉子元素，逐項綁定會失效）。新元件若也有持續輸入的控制項，照這個
@@ -551,7 +550,6 @@ viewport 斷點再說**。測試：`tests/overview-two-pane-layout.test.ts`。
   另一群維持「戰艦」。低速側不加「低速」。
 - 列上用該艦自己的 `api_soku`，不得用 stype id 當航速捷徑（stype 8 有低速 Гангут 線，
   stype 9 有高速深海戰艦棲姫改）。
-- `overview/ship-picker.ts` 的 `rebuildStypeLabels` **沒有**這套消歧，新分區不要抄它。
 
 測試：`tests/ships-stype-label.test.ts`。
 
