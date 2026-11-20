@@ -32,8 +32,13 @@ export const ACCEL_FACTOR = 5 / 6;
 // 建議預測時間向上取整並多留 1 分鐘，以免玩家提早出擊中斷修理。
 export const TIMER_SAFETY_MS = 60_000;
 
+// 泊地修理以分鐘為單位判定回復（wikiwiki「明石」：回復は分単位で見ている）。修到第 d HP 需要
+// ceil(每 HP 時間 × d) 分，與 KancolleSniffer KancolleSniffer/Model/AkashiTimer.cs 的 RepairTime 同義。
+const MINUTE_MS = 60_000;
+const ceilMinute = (ms: number) => Math.ceil(ms / MINUTE_MS) * MINUTE_MS;
+
 const isAkashi = (mst: number) => AKASHI_MST.includes(mst);
-const isRepairShip = (mst: number) => isAkashi(mst) || mst === ASAHI_KAI_MST;
+export const isRepairShip = (mst: number) => isAkashi(mst) || mst === ASAHI_KAI_MST;
 const isNosaki = (mst: number) => NOSAKI_MST.includes(mst);
 
 const hpRatio = (s: ShipView) => (s.maxhp > 0 ? s.hp / s.maxhp : 1);
@@ -142,17 +147,66 @@ export function planAnchorageRepair(fleet: FleetView, elapsedMs?: number): Ancho
  *
  * 每 1HP 所需時間 t 直接取自遊戲的 `api_ndock_time / 損傷HP`——**不猜艦種係數表**
  * （wiki 只列出部分艦種倍率，且與實測有落差；遊戲自己給的數字是精確的）。
- * 結算量（使用者提供之實測規則）：τ < t 時強制回 1HP；否則 H = floor(τ / t)。
+ * 結算量（使用者提供之實測規則）：τ < t 時強制回 1HP；否則 H = floor(τ / t)，τ 以整分鐘計。
  */
 export function predictRepairHp(s: ShipView, elapsedMs: number | undefined, accelerated: boolean): number | undefined {
     const lost = s.maxhp - s.hp;
     if (lost <= 0) return 0;
     if (elapsedMs === undefined || s.ndockTime <= 0) return undefined;
-    const tau = Math.max(elapsedMs, REPAIR_INTERVAL_MS);   // 最短 20 分才結算
+    const tau = Math.floor(Math.max(elapsedMs, REPAIR_INTERVAL_MS) / MINUTE_MS) * MINUTE_MS;   // 最短 20 分才結算
     const perHp = (s.ndockTime / lost) * (accelerated ? ACCEL_FACTOR : 1);
     if (perHp <= 0) return lost;
     // τ < t 也保底回復 1HP（常見於修得極慢的戰艦/航母）。
     return Math.min(lost, Math.max(1, Math.floor(tau / perHp)));
+}
+
+export interface RepairProgress {
+    /** 已滿 20 分（含安全緩衝），現在進母港就會結算。 */
+    ready: boolean;
+    /** 現在回母港預估合計回復 HP；範圍內有艦缺入渠時間而無法推算時為 null。 */
+    gain: number | null;
+    /** 範圍內待修艦現在回母港都會修滿（或沒有待修艦），再等也不會多回復。 */
+    full: boolean;
+    /** 範圍內待修艦全員修滿的推算時刻；已滿或不可推算時為 null。 */
+    fullAt: number | null;
+    /** 顯示內容下次改變的時刻（轉為可結算、或某艦多回 1HP）；不會再變時為 null。 */
+    refreshAt: number | null;
+}
+
+/**
+ * 泊地修理的累積狀態：滿 20 分後不是「結算一次就停」，回復量依經過時間持續累積
+ * （wikiwiki「明石」：回復は分単位で見ている，22 分才進港比 20 分多回復），進母港才結算並重置。
+ * 與給糧的 moraleTimer 同樣扣掉安全緩衝，寧可少估。錨點出門中（null）或不可考時回 undefined。
+ */
+export function repairProgress(fleet: FleetView, anchor: number | null | undefined, now: number = Date.now()): RepairProgress | undefined {
+    if (anchor == null) return undefined;
+    const plan = planAnchorageRepair(fleet);
+    if (!plan.active) return undefined;
+    const start = anchor + TIMER_SAFETY_MS;
+    const elapsed = now - start;
+    if (elapsed < REPAIR_INTERVAL_MS) {
+        return { ready: false, gain: null, full: false, fullAt: null, refreshAt: start + REPAIR_INTERVAL_MS };
+    }
+    let gain: number | null = 0;
+    let fullAt: number | null = null;
+    let refreshAt: number | null = null;
+    for (const slot of plan.slots) {
+        if (!slot.willRepair) continue;
+        const s = fleet.ships[slot.index]!;
+        const lost = s.maxhp - s.hp;
+        const hp = predictRepairHp(s, elapsed, plan.accelerated);
+        if (hp === undefined) { gain = null; continue; }
+        if (gain !== null) gain += hp;
+        const perHp = (s.ndockTime / lost) * (plan.accelerated ? ACCEL_FACTOR : 1);
+        const doneAt = start + Math.max(REPAIR_INTERVAL_MS, ceilMinute(lost * perHp));
+        fullAt = Math.max(fullAt ?? doneAt, doneAt);
+        if (hp < lost) {
+            const next = start + ceilMinute((hp + 1) * perHp);
+            refreshAt = Math.min(refreshAt ?? next, next);
+        }
+    }
+    const full = gain !== null && (fullAt === null || fullAt <= now);
+    return { ready: true, gain, full, fullAt: full ? null : fullAt, refreshAt };
 }
 
 /**

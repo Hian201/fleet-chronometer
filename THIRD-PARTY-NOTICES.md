@@ -504,6 +504,23 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 泊地修理計時器
+
+- **遊戲機制**：wikiwiki.jp/kancolle「明石」泊地修理節（計時器全艦隊共用、重置條件、出擊中繼續計時、遠征重置、
+  回復以分鐘判定），５－４水上編成研究室〈明石 泊地修理バグ 応用編〉（2016-03-30，多明石共用計時與解體／改修不重置的實測），
+  TakaFlight〈「プリセット明石」の動きをログから検証してみた〉（note，2026-09 的實測日誌：20 分後以別編成進港也從該時刻重新起算），
+  核對日期 2026-11-20。
+- **交叉比對的實作**（只採用規則語意，未複製程式碼）：
+  - KancolleSniffer `KancolleSniffer/Model/AkashiTimer.cs` — https://github.com/fujieda/KancolleSniffer ，
+    Apache License 2.0，Copyright (C) 2014, 2015 Kazuhiro Fujieda（全帳號單一起算時刻、工作艦旗艦艦隊編成變更重置、
+    進港滿 20 分重置、回復偵測重置、`RepairTime` 以分鐘向上取整）
+  - ElectronicObserver `ElectronicObserver/Data/FleetManager.cs`、`ElectronicObserver/Data/FleetData.cs` —
+    https://github.com/ElectronicObserverEN/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante
+    （`AnchorageRepairingTimer` 全帳號單一、編成變更後旗艦為工作艦才重置、隨伴艦一括解除不重置、回復偵測重置）
+- **用途**：`utils/state.ts`（`repairAnchor`）與 `utils/repair.ts`（`predictRepairHp`、`repairProgress`）自行實作。
+
+---
+
 ## 月常遠征（`api_reset_type`）
 
 - **封包欄位**：`api_start2/getData` 的 `api_mst_mission[].api_reset_type`，值為 1 的遠征每月只能通關一次。

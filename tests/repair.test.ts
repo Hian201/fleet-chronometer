@@ -7,6 +7,7 @@ import {
     planAnchorageRepair,
     planMoraleSupply,
     predictRepairHp,
+    repairProgress,
 } from '../utils/repair';
 import { GameState, type FleetView, type ShipView } from '../utils/state';
 
@@ -103,6 +104,38 @@ describe('泊地修理預估', () => {
     });
 });
 
+describe('泊地修理累積狀態', () => {
+    const start = TS + TIMER_SAFETY_MS;
+    // 損傷 10HP、入渠 100 分 → 每 HP 10 分；明石自身滿血。
+    const repairFleet = () => fleet([ship({ mst: 182 }), ship({ hp: 90, ndockTime: 6_000_000 })]);
+
+    it('未滿 20 分（含緩衝）只倒數，滿了再轉可結算', () => {
+        expect(repairProgress(repairFleet(), TS, start + REPAIR_INTERVAL_MS - 1)).toMatchObject({ ready: false, refreshAt: start + REPAIR_INTERVAL_MS });
+        expect(repairProgress(repairFleet(), null, start + REPAIR_INTERVAL_MS)).toBeUndefined();
+        expect(repairProgress(repairFleet(), undefined, start + REPAIR_INTERVAL_MS)).toBeUndefined();
+    });
+
+    it('滿 20 分後回復量依經過時間持續累積到修滿，不停在第一次結算', () => {
+        expect(repairProgress(repairFleet(), TS, start + REPAIR_INTERVAL_MS)).toMatchObject({
+            ready: true, gain: 2, full: false, fullAt: start + 100 * 60_000, refreshAt: start + 30 * 60_000,
+        });
+        expect(repairProgress(repairFleet(), TS, start + 55 * 60_000)).toMatchObject({ gain: 5, full: false, refreshAt: start + 60 * 60_000 });
+        expect(repairProgress(repairFleet(), TS, start + 100 * 60_000)).toMatchObject({ gain: 10, full: true, fullAt: null, refreshAt: null });
+        expect(repairProgress(repairFleet(), TS, start + 300 * 60_000)).toMatchObject({ gain: 10, full: true });
+    });
+
+    it('回復以整分鐘判定：每 HP 10.5 分時，第 2 HP 要到 21 分整', () => {
+        const f = fleet([ship({ mst: 182 }), ship({ hp: 90, ndockTime: 6_300_000 })]);
+        expect(repairProgress(f, TS, start + 21 * 60_000 - 1)).toMatchObject({ gain: 1, refreshAt: start + 21 * 60_000 });
+        expect(repairProgress(f, TS, start + 21 * 60_000)).toMatchObject({ gain: 2, fullAt: start + 105 * 60_000 });
+    });
+
+    it('範圍內有艦缺入渠時間時回復量不可推算', () => {
+        const f = fleet([ship({ mst: 182 }), ship({ hp: 90, ndockTime: 0 })]);
+        expect(repairProgress(f, TS, start + REPAIR_INTERVAL_MS)).toMatchObject({ ready: true, gain: null, full: false });
+    });
+});
+
 describe('野埼母港給糧預估', () => {
     it('野埼不在前兩位回 bad-position，野埼／野埼改的每 tick 增量正確', () => {
         expect(planMoraleSupply(fleet([ship(), ship(), ship({ mst: 996 })])).reason).toBe('bad-position');
@@ -155,35 +188,82 @@ describe('結算倒數與 GameState 錨點', () => {
         expect(nextSettlementIn(TS, REPAIR_INTERVAL_MS, TS + 16 * 60_000)).toBe(4 * 60_000 + TIMER_SAFETY_MS);
     });
 
-    it('編成 change 以事件 ts 重設修理錨點；-2 與 preset_select 不重設；1、2 號位沒有野埼不動給糧計時', () => {
+    it('旗艦是工作艦的艦隊變更編成才重置全域修理計時；-2 與 preset_select 不重置；1、2 號位沒有野埼不動給糧計時', () => {
         const state = new GameState();
         state.applyEvent('api_port/port', portApi(), {}, TS);
+        expect(state.repairAnchor).toBeUndefined();
         state.applyEvent('api_req_hensei/change', {}, { api_id: '1', api_ship_idx: '1', api_ship_id: '-1' }, TS + 10);
-        expect(state.repairAnchorByDeck.get(0)).toBe(TS + 10);
+        expect(state.repairAnchor).toBe(TS + 10);
         expect(state.moraleAnchor).toBeUndefined();
         state.applyEvent('api_req_hensei/change', {}, { api_id: '1', api_ship_idx: '1', api_ship_id: '-2' }, TS + 20);
         state.applyEvent('api_req_hensei/preset_select', state.decks[0], { api_deck_id: '1' }, TS + 30);
-        expect(state.repairAnchorByDeck.get(0)).toBe(TS + 10);
+        expect(state.repairAnchor).toBe(TS + 10);
+        // 第 2 艦隊旗艦不是工作艦：變更不影響。
+        state.applyEvent('api_req_hensei/change', {}, { api_id: '2', api_ship_idx: '0', api_ship_id: '2' }, TS + 40);
+        expect(state.repairAnchor).toBe(TS + 10);
+        // 共用一個計時器：各隊的 repairAnchor 都是同一個值。
+        expect(state.fleets().map(f => f.repairAnchor)).toEqual([TS + 10, TS + 10]);
     });
 
-    it('出擊、聯合隨伴與遠征標成 away/null；回港用事件 ts 重啟且兩週期獨立', () => {
+    it('明石與 2 號艦互換而離開旗艦不重置；從工作艦旗艦的艦隊換走隨伴也重置', () => {
+        const api = portApi();
+        api.api_ship.push({ ...api.api_ship[1], api_id: 3 });
+        api.api_deck_port[1].api_ship = [3, -1, -1, -1, -1, -1];
+        const state = new GameState();
+        state.applyEvent('api_port/port', api, {}, TS);
+        state.repairAnchor = TS;
+        state.applyEvent('api_req_hensei/change', {}, { api_id: '1', api_ship_idx: '1', api_ship_id: '1' }, TS + 60_000);
+        expect(state.decks[0].api_ship.slice(0, 2)).toEqual([2, 1]);
+        expect(state.repairAnchor).toBe(TS);
+        state.applyEvent('api_req_hensei/change', {}, { api_id: '1', api_ship_idx: '1', api_ship_id: '2' }, TS + 2 * 60_000);
+        expect(state.repairAnchor).toBe(TS + 2 * 60_000);
+        // 第 2 艦隊把第 1 艦隊（明石旗艦）的隨伴換過去：第 1 艦隊被改動，重置。
+        state.applyEvent('api_req_hensei/change', {}, { api_id: '2', api_ship_idx: '0', api_ship_id: '2' }, TS + 3 * 60_000);
+        expect(state.repairAnchor).toBe(TS + 3 * 60_000);
+    });
+
+    it('出擊不影響修理計時；工作艦所在的艦隊出發遠征重置；20 分內進港不重置、滿 20 分重置', () => {
         const state = new GameState();
         state.applyEvent('api_port/port', portApi(), {}, TS);
-        state.repairAnchorByDeck.set(0, TS);
+        state.repairAnchor = TS;
         state.combinedFlag = 2;
         state.applyEvent('api_req_map/start', { api_maparea_id: 6, api_mapinfo_no: 5, api_no: 1 }, { api_deck_id: '1' }, TS + 1);
-        expect(state.repairAnchorByDeck.get(0)).toBeNull();
-        expect(state.repairAnchorByDeck.get(1)).toBeNull();
-        expect(state.fleets()[1].moraleAnchor).toBeNull();
+        expect(state.repairAnchor).toBe(TS);
+        expect(state.fleets()[0].repairAnchor).toBe(TS);
+        expect(state.fleets()[1].moraleAnchor).toBeNull();   // 出擊中不在母港，給糧不結算
+        // 工作艦不在的艦隊出發遠征：不重置。
         state.applyEvent('api_req_mission/start', { api_complatetime: 0 }, { api_deck_id: '2', api_mission_id: '5' }, TS + 2);
-        expect(state.repairAnchorByDeck.get(1)).toBeNull();
-        state.repairAnchorByDeck.set(0, TS);
+        expect(state.repairAnchor).toBe(TS);
+        expect(state.fleets()[1].repairAnchor).toBeNull();
+        state.applyEvent('api_port/port', portApi(), {}, TS + 10 * 60_000);
+        expect(state.repairAnchor).toBe(TS);
         state.moraleAnchor = TS;
-        state.applyEvent('api_port/port', portApi(), {}, TS + 16 * 60_000);
-        expect(state.repairAnchorByDeck.get(0)).toBe(TS);
-        expect(state.moraleAnchor).toBe(TS + 16 * 60_000);
-        expect(state.repairAnchorByDeck.get(1)).toBe(TS + 16 * 60_000);
-        expect(state.repairAnchorByDeck.get(9)).toBeUndefined();
+        state.applyEvent('api_port/port', portApi(), {}, TS + 21 * 60_000);
+        expect(state.repairAnchor).toBe(TS + 21 * 60_000);
+        expect(state.moraleAnchor).toBe(TS + 21 * 60_000);
+        // 明石所在的第 1 艦隊出發遠征：重置。
+        state.applyEvent('api_req_mission/start', { api_complatetime: 0 }, { api_deck_id: '1', api_mission_id: '2' }, TS + 25 * 60_000);
+        expect(state.repairAnchor).toBe(TS + 25 * 60_000);
+    });
+
+    it('錨點不可考時，兩次進港相隔 ≥20 分或範圍內 HP 回升即確定；推算未滿 20 分但 HP 回升時校正', () => {
+        const healed = (hp: number) => {
+            const api = portApi();
+            api.api_ship[1].api_nowhp = hp;
+            return api;
+        };
+        const state = new GameState();
+        state.applyEvent('api_port/port', healed(40), {}, TS);
+        state.applyEvent('api_port/port', healed(40), {}, TS + 19 * 60_000);
+        expect(state.repairAnchor).toBeUndefined();
+        state.applyEvent('api_port/port', healed(41), {}, TS + 25 * 60_000);
+        expect(state.repairAnchor).toBe(TS + 25 * 60_000);
+        state.applyEvent('api_port/port', healed(43), {}, TS + 30 * 60_000);
+        expect(state.repairAnchor).toBe(TS + 30 * 60_000);
+        const late = new GameState();
+        late.applyEvent('api_port/port', healed(40), {}, TS);
+        late.applyEvent('api_port/port', healed(40), {}, TS + 20 * 60_000);
+        expect(late.repairAnchor).toBe(TS + 20 * 60_000);
     });
 
     it('入渠使用 event.ts；live 未傳 ts 維持 Date.now()；高速修復不建立倒數', () => {
@@ -239,10 +319,11 @@ describe('全域給糧計時器（wikiwiki「野埼」＋NGA 野埼研究）', (
         // 第 1 艦隊 3 號位放入野埼改：不重置。
         state.applyEvent('api_req_hensei/change', {}, { api_id: '1', api_ship_idx: '2', api_ship_id: '3' }, TS + MIN);
         expect(state.moraleAnchor).toBe(TS);
-        // 解體 2 號位，野埼改遞補到 2 號位：不重置（修理錨點照舊重置）。
+        // 解體 2 號位，野埼改遞補到 2 號位：給糧與修理計時都不重置（５－４水上編成研究室：解体で旗艦が変わってもリセットなし）。
+        state.repairAnchor = TS;
         state.applyEvent('api_req_kousyou/destroyship', {}, { api_ship_id: '2', api_slot_dest_flag: '0' }, TS + 2 * MIN);
         expect(state.moraleAnchor).toBe(TS);
-        expect(state.repairAnchorByDeck.get(0)).toBe(TS + 2 * MIN);
+        expect(state.repairAnchor).toBe(TS);
         // 第 2 艦隊加入一艘後，1、2 號位有野埼改的第 1 艦隊沒動：不重置。
         // 出擊不影響全域計時。
         state.applyEvent('api_req_map/start', { api_maparea_id: 1, api_mapinfo_no: 1, api_no: 1 }, { api_deck_id: '2' }, TS + 3 * MIN);

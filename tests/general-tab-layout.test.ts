@@ -74,7 +74,9 @@ describe('一般分頁', () => {
         expect(general).toContain("OPERATIONS.filter(key => key !== 'anchor' || upkeep.length > 0)");
         expect(general).toContain("if (!upkeep.length && operation === 'anchor') operation = 'exped'");
         expect(general).toContain('rep.active || mor.active ?');
-        expect(general).toContain('data-interval="${interval}"');
+        // 修理計時全帳號共用：倒數只放欄頭一份，各隊列放累積回復量。
+        expect(general).toContain('data-interval="${REPAIR_INTERVAL_MS}"');
+        expect(general).toContain('${repairGain(fleet)}');
         expect(general).toContain("t('repair.unknownAnchor')");
         // 欄頭圖示成對：吊臂＝泊地修理、冰淇淋＝給糧。
         expect(general).toContain('<img class="upkeep-icon" src="/icons/ui/dock.svg"');

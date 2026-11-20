@@ -2035,26 +2035,31 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
 // 泊地修理／給糧倒數（一般分頁母港「泊地」分組）：只改 .rcd 的文字，不重繪分組。
 // 錨點與週期存在 data-* 上，故這裡不需要重算 GameState。
 function tickRepairCountdowns() {
+    // 泊地修理倒數到 0 後改顯示累積回復量（+N HP），回復量跨過下一個 HP 時也要重繪，都交給 renderGeneral。
+    let rerender = false;
     for (const el of document.querySelectorAll<HTMLElement>('.rcd[data-anchor]')) {
         const anchor = Number(el.dataset.anchor);
         const interval = Number(el.dataset.interval);
         if (!Number.isFinite(anchor) || !Number.isFinite(interval)) continue;
         const ms = nextSettlementIn(anchor, interval);
         if (ms === undefined) continue;
+        if (ms <= 0) { rerender = true; continue; }
         const text = countdownText(ms);
         if (el.textContent !== text) el.textContent = text;
     }
+    for (const el of document.querySelectorAll<HTMLElement>('.rgain[data-refresh-at]')) {
+        if (Date.now() >= Number(el.dataset.refreshAt)) rerender = true;
+    }
     // 全域給糧計時：倒數跨過一次結算時，次數與各隊的 +N／回港即滿都會變，重繪一般分頁。
-    let moraleTicked = false;
     for (const el of document.querySelectorAll<HTMLElement>('.mcd[data-anchor]')) {
         const anchor = Number(el.dataset.anchor);
         if (!Number.isFinite(anchor)) continue;
         const { ticks, nextIn } = moraleTimer(anchor, Date.now(), el.dataset.held === '1');
-        if (String(ticks) !== el.dataset.ticks || nextIn === null) { moraleTicked = true; continue; }
+        if (String(ticks) !== el.dataset.ticks || nextIn === null) { rerender = true; continue; }
         const text = `${t('repair.nextLabel')} ${countdownText(nextIn)}`;
         if (el.textContent !== text) el.textContent = text;
     }
-    if (moraleTicked) renderGeneral();
+    if (rerender) renderGeneral();
     for (const el of document.querySelectorAll<HTMLElement>('.ccd[data-eta]')) {
         const eta = Number(el.dataset.eta);
         if (!Number.isFinite(eta)) continue;

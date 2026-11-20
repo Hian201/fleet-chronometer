@@ -339,7 +339,7 @@ describe('編成版面', () => {
     });
 
     it('倒數 tick 仍只改 .rcd，不整塊重繪', () => {
-        expect(general).toContain('class="time rcd"');
+        expect(general).toContain('<span class="rcd" data-anchor=');
         expect(panelMain).toContain('function tickRepairCountdowns');
         expect(panelMain).toContain('.rcd[data-anchor]');
     });

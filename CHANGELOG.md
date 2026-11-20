@@ -2,6 +2,15 @@
 
 Changes for each Chrome Web Store release. While a version is in store review, its changes collect under **Unreleased** and each update is published as a pre-release tag (`v<version>-rc.N`). When the store approves it, the section is renamed to the version and the final tag `v<version>` is created on the approved commit.
 
+## [Unreleased] — 1.1.1.2
+
+### Highlights
+
+**Anchorage repair timer**
+- The anchorage repair timer is now one timer for the whole account, as in the game. Changing a fleet whose flagship is a repair ship, or sending a fleet with a repair ship on an expedition, restarts it; sorties do not. When HP turns out to have been repaired at port, the timer is corrected to that moment.
+- After 20 minutes the repair keeps going until the ships are full. Each fleet in the anchorage group shows the HP you get by returning to port now and the time until every ship in range is fully repaired; the countdown sits once in the column header.
+- Repaired HP is counted in whole minutes, as in the game.
+
 ## [1.1.1.1] - 2026-11-20
 
 ### Highlights

@@ -29,7 +29,7 @@ import {
 import { nodeLetter } from './map-node-letters';
 import { checkPrep, prepGateOpen, questPrepDef, type PrepCheck, type PrepFacts, type PrepFleet, type QuestPrepDef } from './quest-prep';
 import { COND_DOCK_FLOOR } from './cond';
-import { MORALE_INTERVAL_MS, NOSAKI_MST, REPAIR_INTERVAL_MS, planMoraleSupply } from './repair';
+import { MORALE_INTERVAL_MS, NOSAKI_MST, REPAIR_INTERVAL_MS, isRepairShip, planAnchorageRepair, planMoraleSupply } from './repair';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
     LBAS_COND_EXHAUSTED, LBAS_COND_MILD, LBAS_COND_TIRED,
@@ -485,7 +485,7 @@ export interface BuildStartView {
 export interface SpeedupView {
     kdockId: number; shipMst: number; qty: number; secretary: number;
 }
-// repairAnchor：泊地修理計時器的起算時間戳（估算，見 repairAnchorByDeck）；
+// repairAnchor：全帳號共用的泊地修理計時器（見 GameState.repairAnchor），遠征中的艦隊為 null；
 // moraleAnchor：全帳號共用的給糧計時器（見 GameState.moraleAnchor），出門中的艦隊為 null。
 // null＝出門中、undefined＝從未觀測到重置事件（不可考）——兩者都不該顯示倒數。
 export interface FleetView {
@@ -1099,14 +1099,21 @@ export class GameState {
     // boss 戰打完的血量不能污染這個問題。`null` 一律不當「沒有大破」用（未知不是安全）。
     bossEntryTaiha: boolean | null = null;
 
-    // ── 泊地修理的計時器錨點（key: deckIdx，值為該艦隊「最後一次重置計時」的時間戳）──
-    // 遊戲**不送任何泊地修理封包**，20 分是伺服器內部從「編成完了」起算的計時，
-    // 只能靠觀察會重置它的封包來推算，故一律視為估算值（UI 需標示）。
-    // 重置（依使用者提供之遊戲行為）：[變更]改動該隊成員、該隊出擊/遠征後回港。
-    // **不重置**：陣容保存/讀取（preset_select）、隨伴艦一括解除（change 的 api_ship_id=-2）、
-    // 僅更換裝備、其他艦隊的任何操作——這幾條是刻意的例外，別「順手」補進重置清單。
-    // null＝該隊出門中（出擊/遠征），回港時才重新錨定；fleets() 也據此把出門中的隊標成 null。
-    repairAnchorByDeck = new Map<number, number | null>();
+    // ── 泊地修理計時器：**全帳號共用一個**，與給糧互相獨立 ──
+    // 遊戲不送泊地修理封包，只能靠觀察會重置它的封包推算，一律視為估算值（UI 需標示）。
+    // 依據：wikiwiki「明石」（修理時間のタイマーは共通）、５－４水上編成研究室〈明石 泊地修理バグ 応用編〉
+    // 的多明石實測，並與 KancolleSniffer KancolleSniffer/Model/AkashiTimer.cs、
+    // ElectronicObserver ElectronicObserver/Data/FleetManager.cs・FleetData.cs 的實作交叉比對：
+    // ・編成變更（含換來的艦所在的別隊）後，該隊旗艦是工作艦 → 重置。明石與 2 號艦互換而離開旗艦不重置。
+    // ・工作艦所在的艦隊出發遠征 → 重置（wikiwiki）。
+    // ・進母港時距上次重置 ≥20 分即結算並重置，不論當下有沒有工作艦旗艦的艦隊。
+    // ・出擊不影響計時（wikiwiki：出撃中はカウントが継続）。
+    // **不重置**：陣容讀取（preset_select）、隨伴艦一括解除（change 的 api_ship_id=-2）、僅更換裝備、
+    // 解體／改修使工作艦遞補為旗艦（５－４水上編成研究室實測）——刻意的例外，別「順手」補進重置清單。
+    // undefined＝不可考；兩次觀測到的進港相隔 ≥20 分，或觀測到修理範圍內的艦 HP 回升時，即在該次進港確定。
+    repairAnchor: number | undefined;
+    // 出擊中的艦隊（回港時清空）：不在母港，給糧不結算（見 fleets() 的 moraleAnchor）。
+    sortieAwayDecks = new Set<number>();
     // ── 給糧（野埼）計時器：**全帳號共用一個**，與泊地修理互相獨立 ──
     // wikiwiki「野埼」：複数の艦隊でそれぞれ野埼を運用する場合でもタイマーは共通；NGA 野埼研究
     // （2025-12）：重置對象是所有艦隊含預設、沒有野埼時計時器也在跑。兩者一致：
@@ -1137,9 +1144,10 @@ export class GameState {
         ship.api_cond = Math.max(cond, COND_DOCK_FLOOR);
     }
 
-    private resetRepairAnchor(deckIdx: number, ts: number) {
-        if (deckIdx < 0) return;
-        this.repairAnchorByDeck.set(deckIdx, ts);
+    // 編成變更後該隊旗艦是工作艦才重置全域修理計時器（見 repairAnchor）。
+    private resetRepairIfRepairShipFlagship(deckIdx: number, ts: number) {
+        const flagship = this.decks[deckIdx]?.api_ship?.[0];
+        if (flagship > 0 && isRepairShip(this.ships.get(flagship)?.api_ship_id)) this.repairAnchor = ts;
     }
 
     // 編成變更後該隊 1、2 號位有野埼才重置全域給糧計時器（見 moraleAnchor）。
@@ -1169,8 +1177,8 @@ export class GameState {
 
     // 解体與近代化改修共用：移除艦娘，destroyGear 時連同一般槽與補強增設的裝備一起移出倉庫
     // （KC3Kai ShipManager.remove 亦含補強增設）。必須在刪艦前讀 api_slot，刪後就查不到。
-    // 移出編成等同改動成員，比照 api_req_hensei/change 重置受影響艦隊的泊地修理錨點；
-    // 給糧計時器不重置（wikiwiki：除籍で野埼が旗艦または2番艦になった場合はリセットされない）。
+    // 移出編成不重置泊地修理計時器（５－４水上編成研究室：解体・改修で明石が旗艦になってもリセットなし），
+    // 給糧計時器也不重置（wikiwiki：除籍で野埼が旗艦または2番艦になった場合はリセットされない）。
     private removeShips(ids: number[], destroyGear: boolean, ts: number) {
         for (const sid of ids) {
             const s = this.ships.get(sid);
@@ -1179,11 +1187,10 @@ export class GameState {
                     if (gid > 0) this.slotItems.delete(gid);
             this.ships.delete(sid);
         }
-        this.decks.forEach((d, di) => {
+        this.decks.forEach(d => {
             if (!d.api_ship.some((id: number) => ids.includes(id))) return;
             d.api_ship = d.api_ship.map((id: number) => (ids.includes(id) ? -1 : id));
             this.compactDeckShips(d);
-            this.resetRepairAnchor(di, ts);
         });
     }
 
@@ -1220,9 +1227,21 @@ export class GameState {
         if (changed) this.decks = merged;
     }
 
+    // 進港前泊地修理範圍內待修艦的 HP（key: 艦實例 id），供進港時偵測回復。入渠中的艦已由
+    // planAnchorageRepair 排除，入渠完成的回升不會被誤判為泊地修理。
+    private repairTargetHp(): Map<number, number> {
+        const hp = new Map<number, number>();
+        if (!this.ships.size) return hp;
+        for (const fleet of this.fleets()) {
+            const plan = planAnchorageRepair(fleet);
+            if (!plan.active) continue;
+            for (const slot of plan.slots) if (slot.willRepair) hp.set(fleet.ships[slot.index]!.id, fleet.ships[slot.index]!.hp);
+        }
+        return hp;
+    }
+
     private markFleetAway(deckIdx: number) {
-        if (deckIdx < 0) return;
-        this.repairAnchorByDeck.set(deckIdx, null);
+        if (deckIdx >= 0) this.sortieAwayDecks.add(deckIdx);
     }
 
     // 這則戰鬥封包是否真的帶隨伴（第2）艦隊——只有連合艦隊出擊才會有 *_combined 血量欄位。
@@ -1606,8 +1625,8 @@ export class GameState {
             const deck = this.decks[deckIdx];
             if (deck) deck.api_mission = [1, Number(req.api_mission_id), api.api_complatetime, 0];
             this.lastMissionByDeck.set(deckIdx, Number(req.api_mission_id));
-            // 遠征中：同出擊，計時器要等回港才重新起算。
-            this.markFleetAway(deckIdx);
+            // 工作艦所在的艦隊出發遠征會重置全域修理計時器（wikiwiki「明石」）。
+            if (deck?.api_ship?.some((id: number) => id > 0 && isRepairShip(this.ships.get(id)?.api_ship_id))) this.repairAnchor = ts;
         } else if (path === 'api_req_mission/return_instruction' && req) {
             const deck = this.decks[Number(req.api_deck_id) - 1];
             if (deck && api?.api_mission) deck.api_mission = api.api_mission;
@@ -2126,6 +2145,7 @@ export class GameState {
         // 缺艦娘或艦隊陣列的畸形封包不得先清空現有狀態。
         if (!Array.isArray(api?.api_ship) || !Array.isArray(api?.api_deck_port)) return;
         const previousPortAt = this.portAt;
+        const repairTargetHp = this.repairTargetHp();
         this.portAt = ts;
         this.bucketDockAtByShip.clear();
         this.ships.clear();
@@ -2165,22 +2185,17 @@ export class GameState {
         // 熟練度也在「回港這一刻」結算（全滅→歸零／部分損耗→標過時）。必須排在
         // api_ship 已寫入 this.ships 之後，比較的才是帰投時的實數。
         this.settlePlaneProficiency();
-        // 計時器在「進入母港畫面」這一刻推進，故兩件事都在這裡處理：
-        // (1) 出門中（anchor=null）的艦隊回港 → 重新起算；仍在遠征的隊維持 null。
-        // (2) 已跑滿一個週期 → 遊戲就是在此刻結算的，結算後重新起算下一輪。
-        //     未滿一個週期時進母港**不重置**（wiki 明載 20 分未到就查看母港，計數繼續）。
-        // 從未觀測過的艦隊不在此建立錨點——沒看過就是「不可考」，UI 顯示範圍但不顯示倒數，
-        // 比拿回港時間硬湊一個假倒數誠實。
-        const advance = (m: Map<number, number | null>, i: number, deck: any, intervalMs: number) => {
-            const anchor = m.get(i);
-            if (anchor === undefined) return;                       // 不可考，不硬湊
-            if (anchor === null) {                                  // 出門中
-                if (!(deck.api_mission?.[0] > 0)) m.set(i, ts);     // 已回港
-                return;
-            }
-            if (ts - anchor >= intervalMs) m.set(i, ts);            // 本次進港已結算 → 下一輪
-        };
-        this.decks.forEach((d: any, i: number) => advance(this.repairAnchorByDeck, i, d, REPAIR_INTERVAL_MS));
+        // 泊地修理計時器在「進入母港畫面」這一刻結算：已跑滿 20 分即在此刻重置；未滿不重置
+        // （wiki 明載 20 分未到就查看母港，計數繼續）。錨點不可考時，兩次進港相隔 ≥20 分即在後一次確定。
+        // 推算的錨點未滿 20 分、範圍內的艦 HP 卻回升，表示遊戲其實已結算：以此刻校正（KancolleSniffer、
+        // ElectronicObserver 同樣以回復偵測重置）。
+        this.sortieAwayDecks.clear();
+        const repaired = [...repairTargetHp].some(([id, hp]) => (this.ships.get(id)?.api_nowhp ?? 0) > hp);
+        if (this.repairAnchor === undefined) {
+            if (repaired || (previousPortAt !== undefined && ts - previousPortAt >= REPAIR_INTERVAL_MS)) this.repairAnchor = ts;
+        } else if (repaired || ts - this.repairAnchor >= REPAIR_INTERVAL_MS) {
+            this.repairAnchor = ts;
+        }
         // 給糧計時器全域共用、出門與否都在跑：滿 15 分即在此刻結算並重置。錨點不可考時，
         // 真正的錨點不晚於上次觀測到的進港，故兩次進港相隔 ≥15 分就能確定此刻重置。
         // 錨點已知時，士氣條件落空會保留錨點（見 moraleHeld）。
@@ -2233,7 +2248,7 @@ export class GameState {
 
     private onReqMapStart(path: string, api: any, req: Record<string, string>, ts: number) {
         this.currentSortieFleetId = Number(req.api_deck_id) - 1;
-        // 出擊中：計時器歸零、且要等回港才重新起算，故先標 null（見 repairAnchorByDeck）。
+        // 出擊中：不在母港，給糧不結算（見 sortieAwayDecks）；泊地修理計時照跑（見 repairAnchor）。
         this.markFleetAway(this.currentSortieFleetId);
         if (this.combinedFlag > 0 && this.currentSortieFleetId === 0) this.markFleetAway(1);
         this.battleInfo = null;
@@ -2327,7 +2342,7 @@ export class GameState {
         const newId = Number(req.api_ship_id);
         if (newId === -2) {
             // 隨伴艦一括解除：遊戲內部**不算**編成調整，泊地修理計時器不重置
-            // （使用者實測的既知 bug feature，見 repairAnchorByDeck 註解）。
+            // （使用者實測的既知 bug feature，見 repairAnchor 註解）。
             deck.api_ship = deck.api_ship.map((v: number, i: number) => (i === 0 ? v : -1));
             return;
         }
@@ -2342,7 +2357,7 @@ export class GameState {
                     // 目標格若是空的，來源格會變成 -1，必須立刻補位，否則來源艦隊也會留洞。
                     if (d !== deck) {
                         this.compactDeckShips(d);
-                        this.resetRepairAnchor(this.decks.indexOf(d), ts);
+                        this.resetRepairIfRepairShipFlagship(this.decks.indexOf(d), ts);
                         this.resetMoraleIfNosakiFront(this.decks.indexOf(d), ts);
                     }
                 }
@@ -2352,7 +2367,7 @@ export class GameState {
         // req.api_ship_idx 只是點擊格、不是最終落點（與裝備 slotset 空格補位同一類行為）。
         deck.api_ship[idx] = newId;
         this.compactDeckShips(deck);
-        this.resetRepairAnchor(deckIdx, ts);
+        this.resetRepairIfRepairShipFlagship(deckIdx, ts);
         this.resetMoraleIfNosakiFront(deckIdx, ts);
     }
 
@@ -4722,9 +4737,10 @@ export class GameState {
         return this.decks.map((d, i) => ({
             name: this.fleetName(d, i),
             mission: d.api_mission?.[0] > 0,
-            repairAnchor: this.repairAnchorByDeck.get(i),
-            // 出門中（出擊／遠征）不在母港，不會結算，與修理錨點同樣標 null。
-            moraleAnchor: this.repairAnchorByDeck.get(i) === null || d.api_mission?.[0] > 0 ? null : this.moraleAnchor,
+            // 遠征中的工作艦不修理；出擊中修理計時照跑，回港時結算。
+            repairAnchor: d.api_mission?.[0] > 0 ? null : this.repairAnchor,
+            // 出門中（出擊／遠征）不在母港，給糧不會結算。
+            moraleAnchor: this.sortieAwayDecks.has(i) || d.api_mission?.[0] > 0 ? null : this.moraleAnchor,
             moraleHeld: this.moraleHeld,
             condAsOf: this.portAt,
             ships: d.api_ship
