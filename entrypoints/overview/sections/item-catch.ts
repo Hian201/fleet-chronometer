@@ -9,8 +9,11 @@ import type { SortieLogRow } from '@/utils/db';
 import { db } from '@/utils/db';
 import { useItemDisplayName } from '@/utils/item-catalog';
 import {
-    itemCatchStats, type AreaCatchStat, type CatchCounts, type DryStreak, type MapCatchStat, type NodeCatchStat,
+    CATCH_SEASON_START, isCatchRow, itemCatchStats, type AreaCatchStat, type CatchCounts, type DryStreak, type MapCatchStat, type NodeCatchStat,
 } from '@/utils/item-catch-stats';
+import {
+    catchesInWindow, isValidAlertNumber, loadCatchAlertRule, saveCatchAlertRule, type CatchAlertRule,
+} from '@/utils/catch-alert';
 import { nodeLabel } from '@/utils/map-node-letters';
 import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
 import { isEventWorld, mapLabel, parseMapCode } from '@/utils/sortie-detail';
@@ -107,11 +110,21 @@ function areaTitle(area: number, ctx: SectionContext): string {
         : `${area} ${ctx.state.mapAreaName(area)}`;
 }
 
-function statsHtml(areas: AreaCatchStat[], ctx: SectionContext, open: ReadonlySet<string>, linkable: Linkable): string {
+/** 大海域 → 自訂提醒時窗內的捕獲條數；只放已達門檻的。 */
+type AlertHits = ReadonlyMap<number, number>;
+
+function alertBadge(area: number, hits: AlertHits, rule: CatchAlertRule | null): string {
+    const n = hits.get(area);
+    return n === undefined || !rule ? ''
+        : ` <span class="ic-alert-hit" title="${esc(t('ov.icAlertHitTip', { hours: rule.hours, n }))}">${esc(t('ov.icAlertHit'))}</span>`;
+}
+
+function statsHtml(areas: AreaCatchStat[], ctx: SectionContext, open: ReadonlySet<string>, linkable: Linkable,
+    hits: AlertHits, rule: CatchAlertRule | null): string {
     const isOpen = (key: string) => open.has(key) ? ' open' : '';
     return `<div class="ic-grid">${headHtml(t('ov.icColArea'))}${areas.map(a => `
         <details class="ic-area" data-key="a${a.area}"${isOpen(`a${a.area}`)}>
-            <summary class="ic-row"><span class="ic-name">${esc(areaTitle(a.area, ctx))}</span>${rowCells(a, linkable)}</summary>
+            <summary class="ic-row"><span class="ic-name ic-name-flex"><span class="ic-name-text">${esc(areaTitle(a.area, ctx))}</span>${alertBadge(a.area, hits, rule)}</span>${rowCells(a, linkable)}</summary>
             ${a.maps.map(m => {
                 const p = parseMapCode(m.map);
                 const label = mapLabel({ map: m.map, mapnum: p.mapnum, event: isEventWorld(p.world) });
@@ -140,6 +153,18 @@ export const itemCatchSection: OverviewSection = {
             </div>
             <div class="ic-summary" aria-live="polite"></div>
             <p class="ov-note dim ic-excluded" hidden></p>
+            <details class="ic-alert">
+                <summary>${esc(t('ov.icAlert'))}<span class="ic-alert-state"></span></summary>
+                <div class="ic-alert-body">
+                    <label class="rs-inline"><input type="checkbox" class="ic-alert-on"><span class="ic-alert-label"></span></label>
+                    <div class="ic-alert-fields">
+                        <label class="rs-inline"><span>${esc(t('ov.icAlertHours'))}</span><input type="number" class="rs-search ic-alert-num ic-alert-hours" min="1" max="168" step="1" inputmode="numeric"></label>
+                        <label class="rs-inline"><span>${esc(t('ov.icAlertCount'))}</span><input type="number" class="rs-search ic-alert-num ic-alert-count" min="1" max="999" step="1" inputmode="numeric"></label>
+                    </div>
+                    <p class="ov-note ic-alert-invalid" hidden>${esc(t('ov.icAlertInvalid'))}</p>
+                    <p class="ov-note dim">${esc(t('ov.icAlertNote'))}</p>
+                </div>
+            </details>
             <div class="ic-body"><div class="ov-empty">${esc(t('ov.loading'))}</div></div>
             <p class="ov-note dim">${esc(t('ov.icNote'))}</p>
         </div>`;
@@ -149,12 +174,49 @@ export const itemCatchSection: OverviewSection = {
         const summary = el.querySelector<HTMLElement>('.ic-summary')!;
         const excluded = el.querySelector<HTMLElement>('.ic-excluded')!;
         const body = el.querySelector<HTMLElement>('.ic-body')!;
+        const alertOn = el.querySelector<HTMLInputElement>('.ic-alert-on')!;
+        const alertHours = el.querySelector<HTMLInputElement>('.ic-alert-hours')!;
+        const alertCount = el.querySelector<HTMLInputElement>('.ic-alert-count')!;
+        const alertLabel = el.querySelector<HTMLElement>('.ic-alert-label')!;
+        const alertState = el.querySelector<HTMLElement>('.ic-alert-state')!;
+        const alertInvalid = el.querySelector<HTMLElement>('.ic-alert-invalid')!;
 
         let itemId = DEFAULT_CATCH_ITEM;
         let rows: SortieLogRow[] = [];
         let loaded = false;
         let query = 0;
         const itemName = (id: number) => useItemDisplayName(id, getLang(), ctx.state.useItemName(id));
+
+        // 自訂換海域提醒（utils/catch-alert.ts；通知由面板在結算後發）。控制項只在載入時填一次，
+        // 之後只寫回設定，不因重畫覆蓋玩家正在輸入的值。沒有預設門檻：欄位留空要玩家自己填。
+        let alertRule = loadCatchAlertRule();
+        if (alertRule) {
+            alertOn.checked = alertRule.enabled;
+            alertHours.value = String(alertRule.hours);
+            alertCount.value = String(alertRule.count);
+        }
+        const drawAlertLabel = () => {
+            const item = itemName(alertRule?.enabled ? alertRule.itemId : itemId);
+            alertLabel.textContent = t('ov.icAlertEnable', { item });
+            alertState.textContent = alertRule?.enabled
+                ? t('ov.icAlertStateOn', { hours: alertRule.hours, n: alertRule.count, item: itemName(alertRule.itemId) }) : '';
+        };
+        const saveAlert = () => {
+            const hours = Number(alertHours.value), count = Number(alertCount.value);
+            const valid = isValidAlertNumber(hours, 'hours') && isValidAlertNumber(count, 'count');
+            alertInvalid.hidden = valid || !alertOn.checked;
+            if (valid) {
+                // 改任何一項都套到目前選的道具。
+                alertRule = { enabled: alertOn.checked, itemId, hours, count };
+                saveCatchAlertRule(alertRule);
+            } else if (alertRule?.enabled) {
+                alertRule = { ...alertRule, enabled: false };
+                saveCatchAlertRule(alertRule);
+            }
+            drawAlertLabel();
+            draw();
+        };
+        [alertOn, alertHours, alertCount].forEach(input => input.addEventListener('change', saveAlert));
 
         // 開關打開時，排除海域的結算仍以 catchOnly 列寫入（見 utils/sortie-exclude.ts），提示改寫成「另外統計」。
         const drawExcluded = () => {
@@ -175,7 +237,7 @@ export const itemCatchSection: OverviewSection = {
         let itemKey = '';
         const drawItems = () => {
             const ids = new Set([DEFAULT_CATCH_ITEM, itemId]);
-            for (const row of rows) for (const id of row.useItemDrops ?? []) ids.add(id);
+            for (const row of rows) if (isCatchRow(row)) for (const id of row.useItemDrops ?? []) ids.add(id);
             const sorted = [...ids].sort((a, b) => a - b);
             if (sorted.join() === itemKey) return;
             itemKey = sorted.join();
@@ -183,14 +245,22 @@ export const itemCatchSection: OverviewSection = {
                 `<option value="${id}"${id === itemId ? ' selected' : ''}>${esc(itemName(id))}</option>`).join('');
         };
 
+        // 提醒徽章只看「現在」：歷史檢視（選了截止日）不標，避免誤以為當時達到過條件。
+        const alertHits = (): AlertHits => {
+            if (!alertRule?.enabled || alertRule.itemId !== itemId || toInput.value) return new Map();
+            const rule = alertRule;
+            return new Map([...catchesInWindow(rows, rule, Date.now())].filter(([, n]) => n >= rule.count));
+        };
+
         const draw = () => {
-            const from = dateStart(fromInput.value), to = dateEnd(toInput.value);
+            const from = Math.max(dateStart(fromInput.value) ?? -Infinity, CATCH_SEASON_START), to = dateEnd(toInput.value);
             const stats = itemCatchStats(rows, { itemId, from, to, now: Date.now() });
             const held = ctx.state.useItemCount(itemId);
             const chip = (label: string, value: string, tip?: string) =>
                 `<span class="ic-chip"${tip ? ` title="${esc(tip)}"` : ''}><span class="ic-chip-label">${esc(label)}</span>${value}</span>`;
             summary.innerHTML = [
                 chip(t('ov.icCaught'), `<b>${num(stats.caught)}</b>`, t('ov.icCaughtTip')),
+                chip(t('ov.icSince'), esc(fmtTs(from)), t('ov.icSinceTip')),
                 chip(t('ov.icHeld'), held === null ? esc(t('ov.dropUnknown')) : `<b>${num(held)}</b>`),
                 chip(t('ov.icObserved'), stats.observedFrom === null ? none
                     : `${esc(fmtTs(stats.observedFrom))} – ${esc(fmtTs(stats.observedTo!))}`),
@@ -203,7 +273,7 @@ export const itemCatchSection: OverviewSection = {
             }
             const open = new Set([...body.querySelectorAll<HTMLDetailsElement>('details[open]')].map(d => d.dataset.key!));
             body.innerHTML = (stats.caught ? '' : `<p class="ov-note dim">${esc(t('ov.icNoCatch', { item: itemName(itemId) }))}</p>`)
-                + statsHtml(stats.areas, ctx, open, new Set(rows.filter(r => !r.catchOnly).map(r => r.ts)));
+                + statsHtml(stats.areas, ctx, open, new Set(rows.filter(r => !r.catchOnly).map(r => r.ts)), alertHits(), alertRule);
         };
 
         // 期間改變才重讀 DB（ts 索引）；道具切換只重算。
@@ -226,7 +296,7 @@ export const itemCatchSection: OverviewSection = {
             }
         };
 
-        itemSel.addEventListener('change', () => { itemId = Number(itemSel.value) || DEFAULT_CATCH_ITEM; draw(); });
+        itemSel.addEventListener('change', () => { itemId = Number(itemSel.value) || DEFAULT_CATCH_ITEM; drawAlertLabel(); draw(); });
         [fromInput, toInput].forEach(input => input.addEventListener('change', () => void load()));
 
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -253,6 +323,7 @@ export const itemCatchSection: OverviewSection = {
             }, REFRESH_DELAY);
         });
 
+        drawAlertLabel();
         await load();
     },
 };

@@ -8822,6 +8822,24 @@
         .ic-excluded a { color: var(--brass); text-decoration: none; }
         .ic-excluded a:hover { color: var(--sparkle); }
         .ic-nodes { margin: 2px 10px 10px calc(10px + 2.3em); max-width: 640px; }
+        /* 自訂換海域提醒：預設收起；徽章用中性的黃銅框，不借其他功能的語意色（§4.5） */
+        .ic-alert { margin: 0 0 10px; font-size: 12px; }
+        .ic-alert > summary { cursor: pointer; color: var(--dim); width: fit-content; }
+        .ic-alert > summary:hover { color: var(--sparkle); }
+        .ic-alert-state { margin-left: 8px; color: var(--text); }
+        .ic-alert-body { display: grid; gap: 6px; margin: 6px 0 0 1.2em; }
+        .ic-alert-body .rs-inline { color: var(--text); flex-wrap: wrap; }
+        .ic-alert-fields { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+        .ic-alert-num { width: 72px; min-width: 0; }
+        .ic-alert-body .ov-note { margin: 0; }
+        /* 徽章不縮，名稱太長時只截名稱 */
+        .ic-name-flex { display: flex; align-items: baseline; min-width: 0; }
+        .ic-name-text { overflow: hidden; text-overflow: ellipsis; }
+        .ic-alert-hit {
+            flex: none;
+            margin-left: 6px; padding: 0 5px; border: 1px solid var(--brass); border-radius: 8px;
+            color: var(--brass); font-size: 10px; font-weight: 600; cursor: help;
+        }
         .ic-nodes .ic-num { text-align: right; }
 
         /* ── 改修日程（improve-plan）──

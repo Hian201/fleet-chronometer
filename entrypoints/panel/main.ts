@@ -45,6 +45,7 @@ import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 import { mountFleetPhoto } from './fleet-photo';
 import { fitHeaderScale } from './header-fit';
 import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
+import { catchAlertQueryFrom, catchAlertsToFire, loadCatchAlertFired, loadCatchAlertRule, saveCatchAlertFired } from '@/utils/catch-alert';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
     log = $('log'), fleetnavEl = $('fleetnav'), fleetsEl = $('fleets'), airBasesEl = $('air-bases'),
@@ -1853,6 +1854,31 @@ const isSortieBattlePath = (path: string) =>
     || path.endsWith('/night_to_day');
 const isNewBattlePacket = (path: string) =>
     isSortieBattlePath(path) && !path.endsWith('result') && !path.endsWith('/goback_port');
+// 道具捕撈的自訂換海域提醒（utils/catch-alert.ts）：結算投影寫完 db.sorties 後檢查一次，
+// 達到玩家自設條件的大海域發一則系統通知。只在 live 事件跑；面板沒開時沒有紀錄，也不通知。
+// 每個大海域用固定通知 id，多開面板時後發的會覆蓋而不會疊兩則。
+async function checkCatchAlert(): Promise<void> {
+    const rule = loadCatchAlertRule();
+    if (!rule?.enabled) return;
+    try {
+        const now = Date.now();
+        const fired = loadCatchAlertFired(rule);
+        const rows = await db.sorties.where('ts').aboveOrEqual(catchAlertQueryFrom(rule, now, fired)).toArray();
+        const hits = catchAlertsToFire(rows, rule, now, fired);
+        if (!hits.length) return;
+        for (const hit of hits) fired.set(hit.area, now);
+        saveCatchAlertFired(rule, fired);
+        const item = useItemDisplayName(rule.itemId, getLang(), state.useItemName(rule.itemId));
+        await Promise.all(hits.map(hit => browser.notifications.create(`kc-catch-alert-${hit.area}`, {
+            type: 'basic',
+            iconUrl: browser.runtime.getURL('/icon/128.png'),
+            title: 'Fleet Chronometer',
+            message: t('pn.catchAlert', { area: `${hit.area} ${state.mapAreaName(hit.area)}`, hours: rule.hours, n: hit.caught, item }),
+        })));
+    } catch (error) {
+        console.warn('[Fleet Chronometer] 換海域提醒失敗', error);
+    }
+}
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
     if (path === 'api_req_map/start' || path === 'api_req_map/next' || isNewBattlePacket(path))
@@ -1880,6 +1906,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
     // 情境自動切換／待驗證封包擷取／log 列表同理，只在 live 事件時才需要即時反映。
     if (ready) {
         appendLogRow(ts, path);
+        if (path === 'api_req_sortie/battleresult' || path === 'api_req_combined_battle/battleresult') void checkCatchAlert();
         // 斬殺線補撈：**mapinfo 一到就跑**（＝點開出擊海域選單的那一刻，此時量表值剛更新），
         // 不必等到真的出擊。map/start 也跑一次，涵蓋沒經過選單直接再戰的情況；一張圖只掃
         // 一次 DB，重複呼叫是免費的（見 restoreGaugeBossHp）。非同步，補到新值才重畫。

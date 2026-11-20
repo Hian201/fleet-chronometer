@@ -12,8 +12,24 @@
 // 不判定哪些節點「有資格掉魚」：所選期間內有紀錄的戰鬥節點全部列出，從未捕獲的也保留 0，
 // 分母不因首筆捕獲而改變。不推算枯竭、恢復或掉率；連續無魚場數只是紀錄事實。
 // 基地空襲（kind='raid'）沒有結算道具，不列入。
+//
+// 活動海域（world >= 10）不列入：秋刀魚祭的漁場歷來是通常海域，活動海域掉的道具（含少數年度
+// 活動也掉魚的情況）混進來會讓「大海域」與換海域判斷失真。往後營運明說活動海域也是漁場時再改。
 import type { SortieLogRow } from './db';
-import { parseMapCode } from './sortie-detail';
+import { isEventWorld, parseMapCode } from './sortie-detail';
+
+/**
+ * 本年度秋刀魚祭的統計起點：2026-11-24 20:30 JST，官方公告的維護預定結束時刻（2026-11-19 推文，
+ * 見 docs/saury-plan.md §2.4）；伺服器重開後才撈得到魚。之前的場次算進分母只會稀釋活動期間的紀錄，
+ * 所以期間的起點一律不早於它。維護若提早結束，提早開服到 20:30 之間的場次不列入；
+ * 下一季公告後更新這個值。
+ */
+export const CATCH_SEASON_START = Date.parse('2026-11-24T20:30:00+09:00');
+
+/** 道具捕撈統計收的結算：通常海域的戰鬥列（catchOnly 列照收）。 */
+export function isCatchRow(row: SortieLogRow): boolean {
+    return row.kind === 'battle' && !isEventWorld(parseMapCode(row.map).world);
+}
 
 /** 勝利等級分列：S、A 與其他（B 以下、缺 rank）。 */
 export type CatchRank = 'S' | 'A' | 'other';
@@ -177,7 +193,7 @@ const mapOrder = (a: string, b: string) => {
 /** 依所選期間彙總某一種道具的捕獲紀錄。 */
 export function itemCatchStats(sorties: readonly SortieLogRow[], q: ItemCatchQuery): ItemCatchStats {
     const rows = sorties
-        .filter(r => r.kind === 'battle'
+        .filter(r => isCatchRow(r)
             && (q.from == null || r.ts >= q.from) && (q.to == null || r.ts <= q.to))
         .sort(byTime);
     const cutoff = q.to ?? q.now;

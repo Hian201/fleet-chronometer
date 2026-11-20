@@ -5,6 +5,7 @@ import 'fake-indexeddb/auto';
 import { db, type SortieLogRow } from '../../utils/db';
 import { GameState } from '../../utils/state';
 import { setLang } from '../../utils/ui-i18n';
+import { CATCH_SEASON_START } from '../../utils/item-catch-stats';
 import { dropLogSection } from '../../entrypoints/overview/sections/drop-log';
 import type { SectionContext } from '../../entrypoints/overview/sections/types';
 import start2 from '../../samples/start2-master.json';
@@ -24,7 +25,10 @@ state.applyEvent('api_port/port', (port as { api_data: unknown }).api_data);
 if (scene === 'default') state.applyEvent('api_get_member/useitem', [{ api_id: 68, api_count: 37 }]);
 
 const H = 3_600_000;
-const NOW = Date.now();
+// 統計只算秋刀魚祭開始（CATCH_SEASON_START）之後；把預覽的「現在」固定在開始後 16 天，
+// 假資料才落在期間內。400 小時前的匯入列刻意落在起點之前，用來確認會被排除。
+const NOW = CATCH_SEASON_START + 16 * 24 * H;
+Date.now = () => NOW;
 const rows: SortieLogRow[] = [];
 let id = 1;
 const add = (map: string, node: number, rank: string, ago: number, drops: number[] | undefined, sortieKey = id, extra: Partial<SortieLogRow> = {}) => {
@@ -63,6 +67,9 @@ if (scene === 'error') {
 try {
     localStorage.setItem('kc-sortie-exclude-maps', JSON.stringify(scene === 'default' ? ['1-1', '1-5'] : []));
     localStorage.setItem('kc-sortie-exclude-catch', params.get('catch') === '1' ? '1' : '0');
+    // 自訂換海域提醒：alert=1 設好「6 小時 2 條」並展開設定；alert=bad 是勾了但沒填
+    if (params.get('alert') === '1') localStorage.setItem('kc-catch-alert', JSON.stringify({ enabled: true, itemId: 68, hours: 6, count: 2 }));
+    else localStorage.removeItem('kc-catch-alert');
 } catch { /* 預覽 */ }
 history.replaceState(null, '', `${location.pathname}${location.search}#/drop-log?sub=${params.get('sub') ?? 'item'}`);
 
@@ -81,6 +88,11 @@ if (params.get('open') === '1') {
     sel.value = '69'; sel.dispatchEvent(new Event('change'));
     sel.value = '68'; sel.dispatchEvent(new Event('change'));
 }
+if (params.get('alert')) host.querySelector<HTMLDetailsElement>('.ic-alert')?.setAttribute('open', '');
+if (params.get('alert') === 'bad') {
+    const on = host.querySelector<HTMLInputElement>('.ic-alert-on')!;
+    on.checked = true; on.dispatchEvent(new Event('change'));
+}
 const grid = host.querySelector<HTMLElement>('.ic-grid');
 document.getElementById('measure')!.textContent = JSON.stringify({
     scene, width,
@@ -91,5 +103,7 @@ document.getElementById('measure')!.textContent = JSON.stringify({
     gridOverflow: grid ? grid.scrollWidth > grid.clientWidth : null,
     summary: host.querySelector('.ic-summary')?.textContent?.replace(/\s+/g, ' ').trim(),
     excludedNote: host.querySelector('.ic-excluded')?.textContent ?? '',
+    alertHits: host.querySelectorAll('.ic-alert-hit').length,
+    alertInvalid: !host.querySelector<HTMLElement>('.ic-alert-invalid')?.hidden,
     body: host.querySelector('.ic-body > .ov-empty, .ic-body > .ov-note')?.textContent ?? '',
 });

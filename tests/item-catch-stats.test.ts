@@ -144,4 +144,13 @@ describe('itemCatchStats', () => {
             observedFrom: null, observedTo: null, unknown: 0, areas: [],
         });
     });
+
+    it('活動海域不列入', () => {
+        const stats = itemCatchStats([
+            row({ map: '62-5', useItemDrops: [SAURY] }),
+            row({ map: '1-5', useItemDrops: [SAURY] }),
+        ], query);
+        expect(stats.areas.map(a => a.area)).toEqual([1]);
+        expect(stats.caught).toBe(1);
+    });
 });

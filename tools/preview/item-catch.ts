@@ -41,6 +41,9 @@ const scenes = [
     { key: 'open-900', query: '?scene=default&open=1&w=900', hash: '' },
     { key: 'ship', query: '?scene=default&sub=ship', hash: '' },
     { key: 'catch-on', query: '?scene=default&catch=1&open=1', hash: '' },
+    { key: 'alert', query: '?scene=default&catch=1&alert=1', hash: '' },
+    { key: 'alert-bad', query: '?scene=default&alert=bad', hash: '' },
+    { key: 'alert-375', query: '?scene=default&catch=1&alert=1&w=375', hash: '' },
 ];
 const chrome = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'].find(existsSync);
 if (!chrome) console.log('找不到 Chrome／Edge，未量測；請用瀏覽器開上面的頁面（可加 ?scene=empty 等參數）。');
