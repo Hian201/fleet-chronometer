@@ -151,6 +151,13 @@ describe('importDropLogRows（落地）', () => {
         expect(await database.sorties.count()).toBe(1);
     });
 
+    it('只供道具捕撈統計的 catchOnly 列不擋匯入', async () => {
+        const database = createDb();
+        await database.sorties.put(row({ eventId: 99, sortieKey: 99, catchOnly: true }));
+        const result = await importDropLogRows(database, parseDropLogCsv(dropLogCsvText([row()])).rows);
+        expect(result).toEqual({ added: 1, duplicates: 0 });
+    });
+
     it('海域不同或超出時間容差則不視為重複', async () => {
         const database = createDb();
         await importDropLogRows(database, [{

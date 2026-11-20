@@ -5,8 +5,8 @@
 commit，再刪除本檔對應段落。內容與程式碼不一致時以程式碼為準。外部資料的查證基準日是 2026-11-19；
 2026 年度公告另見 §2.4（2026-11-20 加入）。
 
-**目前進度**：順序 1–4（§4.5）已 commit，順序 5、6 已實作待開發者驗證，現行事實寫在
-[`records.md`](engineering/records.md)；都還沒有真封包與 live 驗證，所以本檔段落暫不刪除。順序 7 押後（§2.4）。
+**目前進度**：順序 1–6（§4.5）已 commit，現行事實寫在 [`records.md`](engineering/records.md)（順序 6 爆雷提醒在
+[`fleet-status.md`](engineering/fleet-status.md)）；都還沒有真封包與 live 驗證，所以本檔段落暫不刪除。順序 7 押後（§2.4）。
 
 ## 1. 結論
 

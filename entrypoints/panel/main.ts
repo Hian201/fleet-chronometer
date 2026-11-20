@@ -46,7 +46,7 @@ import { mountFleetPhoto } from './fleet-photo';
 import { fitHeaderScale } from './header-fit';
 import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
 import { depthChargeSeasonActive, fleetDepthCharges, loadDcReminderOff, onDcReminderChange, saveDcReminder } from '@/utils/depth-charge';
-import { currentSeasonRange, latestSeason, onSeasonEndChange, SAURY_ITEM, saveInferredEnd, SeasonEndDetector } from '@/utils/catch-season';
+import { currentSeasonRange, latestSeason, onSeasonEndChange, SAURY_ITEM, saveInferredEnd, SeasonEndDetector, type InferredEnd } from '@/utils/catch-season';
 import { catchAlertQueryFrom, catchAlertsToFire, loadCatchAlertFired, loadCatchAlertRule, saveCatchAlertFired } from '@/utils/catch-alert';
 const $ = (id: string) => document.getElementById(id)!;
 const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), generalEl = $('tab-general'), activityEl = $('tab-activity'),
@@ -586,7 +586,7 @@ function depthChargeOp(f: FleetView, compact: boolean) {
     if (!hits.length) return '';
     const list = hits.map(h => `${f.ships[h.index].name}：${h.gears.join('、')}`).join('\n');
     const n = hits.length;
-    return `<button type="button" class="fs-op dc-op" title="${esc(`${list}\n${t('fleet.dcTitle')}\n${t('fleet.dcDismiss')}`)}"><span class="fs-op-label">${esc(t('fleet.dcBadge'))}</span><span class="fs-op-time">${esc(t(compact ? 'fleet.dcShort' : 'fleet.dcLong', { n }))}</span></button>`;
+    return `<button type="button" class="fs-op dc-op" title="${esc(`${list}\n${t('fleet.dcTitle')}\n${t('fleet.dcDismiss')}`)}"><span class="fs-op-label">${esc(t('fleet.dcBadge'))}</span><span class="fs-op-time">${esc(t(`fleet.dc${compact ? 'Short' : 'Long'}${n === 1 ? 'One' : ''}`, { n }))}</span></button>`;
 }
 onDcReminderChange(() => { if (ready) renderFleets(); });
 onSeasonEndChange(() => { if (ready) renderFleets(); });
@@ -1902,7 +1902,8 @@ const isNewBattlePacket = (path: string) =>
 // 每個大海域用固定通知 id，多開面板時後發的會覆蓋而不會疊兩則。
 async function checkCatchAlert(): Promise<void> {
     const rule = loadCatchAlertRule();
-    if (!rule?.enabled) return;
+    // 時窗內條數只在這場撈到該道具時增加；沒撈到就不必掃 DB。
+    if (!rule?.enabled || !state.battleInfo?.useItemDrops?.includes(rule.itemId)) return;
     try {
         const now = Date.now();
         const fired = loadCatchAlertFired(rule);
@@ -1916,7 +1917,7 @@ async function checkCatchAlert(): Promise<void> {
             type: 'basic',
             iconUrl: browser.runtime.getURL('/icon/128.png'),
             title: 'Fleet Chronometer',
-            message: t('pn.catchAlert', { area: `${hit.area} ${state.mapAreaName(hit.area)}`, hours: rule.hours, n: hit.caught, item }),
+            message: t('sortie.catchAlert', { area: `${hit.area} ${state.mapAreaName(hit.area)}`.trim(), hours: rule.hours, n: hit.caught, item }),
         })));
     } catch (error) {
         console.warn('[Fleet Chronometer] 換海域提醒失敗', error);
@@ -1924,6 +1925,18 @@ async function checkCatchAlert(): Promise<void> {
 }
 // 秋刀魚祭結束的推算（utils/catch-season.ts）：重播與 live 都餵，需要套用前的持有數。
 const seasonEndDetector = new SeasonEndDetector(latestSeason());
+// 偵測器的「最後捕獲」只來自還沒裁剪的 raw events；db.sorties 永久保留結算，取兩者較晚者，
+// 否則最後一次捕獲早於保留範圍時，下限會退回季節起點。
+async function saveSeasonEnd(end: InferredEnd): Promise<void> {
+    const season = latestSeason();
+    let after = end.after;
+    try {
+        const last = await db.sorties.where('ts').between(season.start, end.before, true, true).reverse()
+            .filter(row => !!row.useItemDrops?.includes(SAURY_ITEM)).first();
+        if (last) after = Math.max(after, last.ts);
+    } catch { /* 讀不到就用偵測器自己的下限 */ }
+    if (saveInferredEnd(season.id, { after, before: end.before }) && ready) renderFleets();
+}
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
     const sauryBefore = state.useItemCount(SAURY_ITEM);
@@ -1947,7 +1960,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
     // meta write 失敗時不會執行到這裡，記憶體去重位置與耐久游標都保留在失敗事件之前。
     maxId = id;
     const seasonEnd = seasonEndDetector.feed(path, ts, api, sauryBefore);
-    if (seasonEnd && saveInferredEnd(latestSeason().id, seasonEnd) && ready) renderFleets();
+    if (seasonEnd) void saveSeasonEnd(seasonEnd);
     // 重播歷史事件（ready=false）時完全不碰 DOM：renderAll() 是整頁 innerHTML 重建，
     // 事件數量可能達數千筆（events 只在 start2 時裁剪到約兩個登入世代），逐筆重render
     // 會讓面板開啟瞬間卡死主執行緒，使用者切換遊戲畫面時感覺「非常慢」。

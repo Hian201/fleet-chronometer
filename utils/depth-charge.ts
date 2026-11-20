@@ -10,7 +10,7 @@ const GRACE = 72 * 3_600_000;
 
 export interface SeasonSignals {
     now: number;
-    /** 季節起點（CATCH_SEASON_START）與營運公布的結束時刻（未公布為 null）。 */
+    /** 季節起點（catch-season.ts 的季別開始）與營運公布的結束時刻（未公布為 null）。 */
     start: number;
     end: number | null;
     /** 目前持有的秋刀魚；未觀測為 null。 */
@@ -80,6 +80,6 @@ export function saveDcReminder(on: boolean, season: number, from: DcReminderOff[
 }
 
 /** 其他已開頁面改了開關時通知（storage 事件只在非發動變更的頁面觸發）。 */
-export function onDcReminderChange(cb: () => void): void {
-    window.addEventListener('storage', event => { if (event.key === DC_OFF_KEY) cb(); });
+export function onDcReminderChange(cb: () => void, signal?: AbortSignal): void {
+    window.addEventListener('storage', event => { if (event.key === DC_OFF_KEY) cb(); }, { signal });
 }

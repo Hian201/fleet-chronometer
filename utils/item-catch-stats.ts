@@ -144,6 +144,8 @@ function timeline(rows: SortieLogRow[], itemId: number, cutoff: number): CatchTi
         const caught = catchOf(row, itemId);
         if (!caught) continue;
         lastCatchTs = row.ts;
+        // 時鐘偏差造成的超前時刻不算進「最近」。
+        if (row.ts > cutoff) continue;
         if (row.ts > cutoff - 6 * HOUR) recent6h += caught;
         if (row.ts > cutoff - 24 * HOUR) recent24h += caught;
     }

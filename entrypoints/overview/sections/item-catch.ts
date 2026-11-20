@@ -112,7 +112,7 @@ function nodeTableHtml(nodes: NodeCatchStat[]): string {
 function areaTitle(area: number, ctx: SectionContext): string {
     return isEventWorld(area)
         ? eventDisplayName(area, ctx.state.masterMapAreas.get(area))
-        : `${area} ${ctx.state.mapAreaName(area)}`;
+        : `${area} ${ctx.state.mapAreaName(area)}`.trim();
 }
 
 /** 大海域 → 自訂提醒時窗內的捕獲條數；只放已達門檻的。 */
@@ -141,6 +141,9 @@ function statsHtml(areas: AreaCatchStat[], ctx: SectionContext, open: ReadonlySe
         </details>`).join('')}</div>`;
 }
 
+// 跨頁 storage 監聽器：每次 render 先解除上一次的，避免已卸離的分區閉包一直留在 window 上。
+let listeners: AbortController | null = null;
+
 function mergeRows(base: SortieLogRow[], incoming: SortieLogRow[]): SortieLogRow[] {
     const seen = new Set(base.map(r => r.eventId));
     return [...base, ...incoming.filter(r => !seen.has(r.eventId))];
@@ -150,6 +153,9 @@ export const itemCatchSection: OverviewSection = {
     id: 'item-catch',
     titleKey: 'ov.dropSubItem',
     async render(el, ctx) {
+        listeners?.abort();
+        listeners = new AbortController();
+        const { signal } = listeners;
         // 先畫殼、綁事件，再讀 IndexedDB；讀取被阻塞時也不留白。
         el.innerHTML = `<div class="ic">
             <div class="ov-toolbar dl-bar ic-bar">
@@ -212,7 +218,7 @@ export const itemCatchSection: OverviewSection = {
         };
         drawDc();
         dcOn.addEventListener('change', () => { saveDcReminder(dcOn.checked, latestSeason().start, 'overview'); drawDc(); });
-        onDcReminderChange(() => { if (el.isConnected) drawDc(); });
+        onDcReminderChange(() => { if (el.isConnected) drawDc(); }, signal);
 
         let itemId = DEFAULT_CATCH_ITEM;
         let rows: SortieLogRow[] = [];
@@ -234,13 +240,14 @@ export const itemCatchSection: OverviewSection = {
             alertState.textContent = alertRule?.enabled
                 ? t('ov.icAlertStateOn', { hours: alertRule.hours, n: alertRule.count, item: itemName(alertRule.itemId) }) : '';
         };
-        const saveAlert = () => {
+        const saveAlert = (event: Event) => {
             const hours = Number(alertHours.value), count = Number(alertCount.value);
             const valid = isValidAlertNumber(hours, 'hours') && isValidAlertNumber(count, 'count');
             alertInvalid.hidden = valid || !alertOn.checked;
             if (valid) {
-                // 改任何一項都套到目前選的道具。
-                alertRule = { enabled: alertOn.checked, itemId, hours, count };
+                // 與標籤一致：已啟用時改數值沿用原本的道具；勾選開關才換成目前選的道具。
+                const target = alertRule?.enabled && event.target !== alertOn ? alertRule.itemId : itemId;
+                alertRule = { enabled: alertOn.checked, itemId: target, hours, count };
                 saveCatchAlertRule(alertRule);
             } else if (alertRule?.enabled) {
                 alertRule = { ...alertRule, enabled: false };
@@ -263,14 +270,18 @@ export const itemCatchSection: OverviewSection = {
                 ? `${esc(t(key, { maps: maps.join('、') }))} <a href="#/sortie-log">${esc(t('ov.icExcludedLink'))}</a>` : '';
         };
         drawExcluded();
-        onExcludedMapsChange(() => { if (el.isConnected) drawExcluded(); });
-        onExcludeCatchChange(() => { if (el.isConnected) drawExcluded(); });
+        onExcludedMapsChange(() => { if (el.isConnected) drawExcluded(); }, signal);
+        onExcludeCatchChange(() => { if (el.isConnected) drawExcluded(); }, signal);
 
         // 選項集合沒變就不動下拉（使用者可能正開著它）。
         let itemKey = '';
         const drawItems = () => {
+            const { from, to } = period();
             const ids = new Set([DEFAULT_CATCH_ITEM, itemId]);
-            for (const row of rows) if (isCatchRow(row)) for (const id of row.useItemDrops ?? []) ids.add(id);
+            for (const row of rows) {
+                if (!isCatchRow(row) || (from !== null && row.ts < from) || (to !== null && row.ts > to)) continue;
+                for (const id of row.useItemDrops ?? []) ids.add(id);
+            }
             const sorted = [...ids].sort((a, b) => a - b);
             if (sorted.join() === itemKey) return;
             itemKey = sorted.join();
@@ -279,10 +290,14 @@ export const itemCatchSection: OverviewSection = {
         };
 
         // 提醒徽章只看「現在」：歷史檢視（選了截止日）不標，避免誤以為當時達到過條件。
+        // 起始日晚於時窗開頭時，rows 沒載入整個時窗，算出來會偏少，也不標。
         const alertHits = (to: number | null): AlertHits => {
-            if (!alertRule?.enabled || alertRule.itemId !== itemId || (to !== null && to < Date.now())) return new Map();
+            const now = Date.now();
+            if (!alertRule?.enabled || alertRule.itemId !== itemId || (to !== null && to < now)) return new Map();
             const rule = alertRule;
-            return new Map([...catchesInWindow(rows, rule, Date.now())].filter(([, n]) => n >= rule.count));
+            const loadedFrom = dateStart(fromInput.value);
+            if (loadedFrom !== null && loadedFrom > now - rule.hours * 3_600_000) return new Map();
+            return new Map([...catchesInWindow(rows, rule, now)].filter(([, n]) => n >= rule.count));
         };
 
         // 季別（utils/catch-season.ts）：期間 = 所選季與日期篩選的交集；「全部期間」只看日期篩選。
@@ -298,6 +313,15 @@ export const itemCatchSection: OverviewSection = {
                         : esc(fmtTs(range.end));
             return { range, html: `<span>${esc(fmtTs(range.start))} – ${endText}</span>` };
         };
+        // 統計期間 = 所選季與日期篩選的交集。
+        const period = (): { from: number | null; to: number | null } => {
+            const season = selectedSeason();
+            const range = season ? currentSeasonRange(season) : null;
+            const dFrom = dateStart(fromInput.value), dTo = dateEnd(toInput.value);
+            const from = range ? Math.max(dFrom ?? -Infinity, range.start) : dFrom;
+            const toMin = Math.min(dTo ?? Infinity, range?.end ?? Infinity);
+            return { from, to: Number.isFinite(toMin) ? toMin : null };
+        };
         // 自填欄位：官方結束已內建或選「全部期間」時不顯示。正在輸入時不覆寫欄位值。
         const drawEnd = (season: CatchSeason | null) => {
             endRow.hidden = !season || season.end !== null;
@@ -312,6 +336,11 @@ export const itemCatchSection: OverviewSection = {
             const season = selectedSeason();
             const ts = jstInputToTs(endInput.value);
             if (!season || (endInput.value && ts === null)) return;
+            if (ts !== null && ts < season.start) {
+                const user = loadUserEnd(season.id);
+                endInput.value = user === null ? '' : tsToJstInput(user);
+                return;
+            }
             saveUserEnd(season.id, ts);
             draw();
         });
@@ -322,16 +351,14 @@ export const itemCatchSection: OverviewSection = {
             endInput.value = '';
             draw();
         });
-        onSeasonEndChange(() => { if (el.isConnected && loaded) draw(); });
+        onSeasonEndChange(() => { if (el.isConnected && loaded) draw(); }, signal);
 
         const draw = () => {
             const season = selectedSeason();
             const sc = season ? seasonChip(season) : null;
             drawEnd(season);
-            const dFrom = dateStart(fromInput.value), dTo = dateEnd(toInput.value);
-            const from = sc ? Math.max(dFrom ?? -Infinity, sc.range.start) : dFrom;
-            const toMin = Math.min(dTo ?? Infinity, sc?.range.end ?? Infinity);
-            const to = Number.isFinite(toMin) ? toMin : null;
+            const { from, to } = period();
+            drawItems();
             void drawClear(season, sc?.range ?? null);
             const stats = itemCatchStats(rows, { itemId, from, to, now: Date.now() });
             const held = ctx.state.useItemCount(itemId);
@@ -359,12 +386,14 @@ export const itemCatchSection: OverviewSection = {
         // 由玩家自己按、確認後才刪；與出擊紀錄刪除重播同屬使用者主動刪除，不經投影。
         let clearToken = 0;
         let clearKeys: number[] = [];
+        const catchOnlyKeys = (range: { start: number; end: number | null }) =>
+            db.sorties.where('ts').between(range.start, range.end ?? Infinity, true, true)
+                .filter(r => r.catchOnly === true).primaryKeys() as Promise<number[]>;
         const drawClear = async (season: CatchSeason | null, range: { start: number; end: number | null } | null) => {
             const token = ++clearToken;
             if (!season || !range) { clearRow.hidden = true; return; }
             try {
-                const keys = await db.sorties.where('ts').between(range.start, range.end ?? Infinity, true, true)
-                    .filter(r => r.catchOnly === true).primaryKeys() as number[];
+                const keys = await catchOnlyKeys(range);
                 if (token !== clearToken || !el.isConnected) return;
                 clearKeys = keys;
                 clearRow.hidden = !keys.length;
@@ -378,10 +407,14 @@ export const itemCatchSection: OverviewSection = {
             const season = selectedSeason();
             if (!season || clearBtn.dataset.season !== season.id || !clearKeys.length) return;
             if (!confirm(t('ov.icClearConfirm', { season: t('ov.icSeasonOpt', { year: season.id }), n: num(clearKeys.length) }))) return;
+            // 確認之後依當下期間重算，不刪畫按鈕時的快取（期間可能剛改過）。
+            clearBtn.disabled = true;
             try {
-                await db.sorties.bulkDelete(clearKeys);
+                await db.sorties.bulkDelete(await catchOnlyKeys(currentSeasonRange(season)));
             } catch (error) {
                 alert(t('ov.loadFailed', { msg: String((error as Error)?.message ?? error) }));
+            } finally {
+                clearBtn.disabled = false;
             }
             await load();
         });
@@ -399,7 +432,6 @@ export const itemCatchSection: OverviewSection = {
                 if (token !== query || !el.isConnected) return;
                 rows = next;
                 loaded = true;
-                drawItems();
                 draw();
             } catch (error) {
                 if (token !== query) return;
@@ -419,8 +451,8 @@ export const itemCatchSection: OverviewSection = {
             timer = setTimeout(async () => {
                 if (!el.isConnected) return;
                 const token = query;
-                const since = rows.reduce((max, r) => Math.max(max, r.ts), 0);
-                const to = dateEnd(toInput.value);
+                const from = dateStart(fromInput.value), to = dateEnd(toInput.value);
+                const since = rows.reduce((max, r) => Math.max(max, r.ts), from ?? 0);
                 try {
                     const incoming = await db.sorties.where('ts').aboveOrEqual(since).toArray();
                     // 期間查詢在等待中換過就交給那次查詢，不合併舊期間的結果。
@@ -429,7 +461,6 @@ export const itemCatchSection: OverviewSection = {
                 } catch {
                     return;   // 讀不到就維持舊畫面，下次通知再試
                 }
-                drawItems();
                 draw();
             }, REFRESH_DELAY);
         });

@@ -84,15 +84,15 @@ export function saveExcludeCatch(on: boolean): boolean {
 }
 
 /** 其他已開頁面改了例外開關時通知。 */
-export function onExcludeCatchChange(cb: (on: boolean) => void): void {
+export function onExcludeCatchChange(cb: (on: boolean) => void, signal?: AbortSignal): void {
     window.addEventListener('storage', event => {
         if (event.key === CATCH_KEY) cb(loadExcludeCatch());
-    });
+    }, { signal });
 }
 
 /** 其他已開頁面改了清單時通知（storage 事件只在非發動變更的頁面觸發）。 */
-export function onExcludedMapsChange(cb: (maps: string[]) => void): void {
+export function onExcludedMapsChange(cb: (maps: string[]) => void, signal?: AbortSignal): void {
     window.addEventListener('storage', event => {
         if (event.key === STORAGE_KEY) cb(loadExcludedMaps());
-    });
+    }, { signal });
 }

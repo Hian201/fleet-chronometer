@@ -204,9 +204,9 @@ async function buildQuickContext(state: GameState): Promise<string> {
         if (!f.ships.length) return;
         lines.push(`第${i + 1}艦隊 ${f.name}${f.mission ? '（遠征中）' : ''}：` + f.ships.map(s => `${s.name}(Lv${s.lv})`).join('、'));
     });
-    const sorties = await db.sorties.orderBy('eventId').reverse().limit(100).toArray();
+    const sorties = await db.sorties.orderBy('eventId').reverse().filter(s => !s.catchOnly).limit(100).toArray();
     const rankCount: Record<string, number> = {};
-    for (const s of sorties) if (s.kind === 'battle' && s.rank && !s.catchOnly) rankCount[s.rank] = (rankCount[s.rank] ?? 0) + 1;
+    for (const s of sorties) if (s.kind === 'battle' && s.rank) rankCount[s.rank] = (rankCount[s.rank] ?? 0) + 1;
     const rankStr = Object.entries(rankCount).map(([r, n]) => `${r}×${n}`).join(' ');
     if (rankStr) lines.push('', '【近期出擊 rank】', rankStr);
     return lines.join('\n');

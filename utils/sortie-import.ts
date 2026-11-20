@@ -623,7 +623,8 @@ export async function importSortie(database: KcDb, parsed: ParsedSortie): Promis
     let sortieKey = 0;
     await database.transaction('rw', [database.events, database.sorties, database.replays], async () => {
         // 1) 先比對海域＋戰鬥節點序列，命中的候選才去讀重播（重播列很大，不全載）
-        const existing = await database.sorties.toArray();
+        // catchOnly 列不在出擊紀錄，不能拿來擋玩家補匯同一場。
+        const existing = (await database.sorties.toArray()).filter(row => !row.catchOnly);
         const candidates = new Map<number, SortieSignature>();
         for (const [key, signature] of signaturesOf(existing, new Map(), new Map())) {
             if (signature.map === parsed.signature.map

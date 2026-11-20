@@ -2023,6 +2023,7 @@
         .fs-op.dc-op { cursor: pointer; padding: 0; border: 0; background: none; color: inherit; font: inherit; }
         .fs-op + .fs-op.dc-op { padding-left: 6px; border-left: 1px solid var(--line); }
         .fs-op.dc-op:hover .fs-op-time { color: var(--sparkle); }
+        .fs-op.dc-op:active { transform: scale(.97); }
         .fs-op.dc-op:focus-visible { outline: 1px solid var(--sparkle); outline-offset: 1px; }
         .fs-op.dc-op .fs-op-label { color: var(--brass); }
 
@@ -5885,7 +5886,8 @@
             }
 
             .ab-tabs button:active,
-            .s-taiha-toggle:active {
+            .s-taiha-toggle:active,
+            .fs-op.dc-op:active {
                 transform: none;
             }
 

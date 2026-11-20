@@ -10,7 +10,9 @@
 // 秋刀魚（68）整筆不在清單。所以「被回收」與「換光」在清單上一樣，都是整筆不見；
 // 改以「中間有沒有消耗」區分：重新載入（api_start2/getData）前持有 > 0、上次完整清單之後沒有
 // 消耗類請求，重新載入後的清單裡沒有秋刀魚，就推定活動已經結束。消耗類請求（兌換、任務領獎）
-// 一出現就作廢這次推定，寧可推不出來也不誤判。換光之後才結束的季推不出來。
+// 一出現就作廢這次推定，寧可推不出來也不誤判；之後再撈到秋刀魚（持有必定 ≥ 1）或看到持有 > 0 的
+// 完整清單才恢復。任務領獎無法分辨有沒有交出秋刀魚，一律當消耗，所以最後一次捕獲之後還領過任務、
+// 或換光之後才結束的季推不出來，這時靠玩家自填結束時刻。
 //
 // 回收不一定在結束那次維修：2026 年的南瓜在活動結束後沒有回收，等到下一次（秋刀魚祭開始）的
 // 維修才回收。所以推算只給範圍：不早於「最後一次撈到秋刀魚」，不晚於「看到已回收」；統計截止取
@@ -55,7 +57,8 @@ export interface SeasonRange {
 export function seasonRange(season: CatchSeason, inferred: InferredEnd | null, userEnd: number | null = null,
     seasons: readonly CatchSeason[] = CATCH_SEASONS): SeasonRange {
     if (season.end !== null) return { start: season.start, end: season.end, endKind: 'official' };
-    if (userEnd !== null) return { start: season.start, end: userEnd, endKind: 'user' };
+    // 早於開始的自填值視為無效（多半是輸入錯誤），不讓統計整段變空。
+    if (userEnd !== null && userEnd >= season.start) return { start: season.start, end: userEnd, endKind: 'user' };
     if (inferred) return { start: season.start, end: inferred.before, endKind: 'inferred' };
     const next = seasons[seasons.indexOf(season) + 1];
     return next ? { start: season.start, end: next.start, endKind: 'next' } : { start: season.start, end: null, endKind: null };
@@ -93,7 +96,9 @@ export class SeasonEndDetector {
     feed(path: string, ts: number, api: unknown, heldBefore: number | null): InferredEnd | null {
         if (this.season.end !== null || ts < this.season.start) return null;
         if (CATCH_PATHS.has(path) && (api as { api_get_useitem?: { api_useitem_id?: unknown } } | null)?.api_get_useitem?.api_useitem_id === SAURY_ITEM) {
+            // 剛撈到就確定持有 ≥ 1，之前的消耗不影響這次推定。
             this.lastCatch = ts;
+            this.consumed = false;
             return null;
         }
         if (CONSUME_PATHS.has(path)) { this.consumed = true; this.reloading = false; return null; }
@@ -169,8 +174,8 @@ export function currentSeasonRange(season: CatchSeason): SeasonRange {
 }
 
 /** 其他已開頁面改了自填或推算的結束時刻時通知。 */
-export function onSeasonEndChange(cb: () => void): void {
-    window.addEventListener('storage', event => { if (event.key === USER_END_KEY || event.key === INFERRED_KEY) cb(); });
+export function onSeasonEndChange(cb: () => void, signal?: AbortSignal): void {
+    window.addEventListener('storage', event => { if (event.key === USER_END_KEY || event.key === INFERRED_KEY) cb(); }, { signal });
 }
 
 /** 官方公告用日本時間；自填欄位也以日本時間輸入（datetime-local 字串 ↔ 時刻）。 */

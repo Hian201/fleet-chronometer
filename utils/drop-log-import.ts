@@ -216,7 +216,8 @@ export async function importDropLogRows(database: KcDb, rows: ParsedDropRow[]): 
     let added = 0;
     let duplicates = 0;
     await database.transaction('rw', [database.events, database.sorties], async () => {
-        const existing = (await database.sorties.toArray()).filter(r => r.kind === 'battle' && (r.drop || r.dropMst));
+        // catchOnly 列不在出擊紀錄與打撈頁，不能拿來擋玩家補匯同一場。
+        const existing = (await database.sorties.toArray()).filter(r => r.kind === 'battle' && !r.catchOnly && (r.drop || r.dropMst));
         for (const row of rows) {
             if (existing.some(e => isDuplicateDrop(row, e))) { duplicates++; continue; }
             const id = await borrowEventId(database.events, RESERVATION_DEBUG_PATH, {

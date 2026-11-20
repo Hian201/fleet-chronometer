@@ -317,6 +317,8 @@ export function sortieNodeOf(api: any): SortieNode {
  * `api_get_exmap_useitem_id` 語意沒有證據，不收進這裡（庫存累加另見 applyEvent 的 battleresult 分支）。
  */
 export function battleResultUseItemDrops(api: any): number[] | undefined {
+    // 不是物件就不能說「確認沒有掉落」，維持不可考。
+    if (!api || typeof api !== 'object') return undefined;
     const reward = api?.api_get_useitem;
     if (reward === undefined) return [];
     const id = reward?.api_useitem_id;

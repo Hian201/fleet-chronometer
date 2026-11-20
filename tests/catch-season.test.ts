@@ -41,6 +41,15 @@ describe('SeasonEndDetector', () => {
         }
     });
 
+    it('領獎之後又撈到秋刀魚（持有必定 ≥ 1），推定恢復', () => {
+        const d = new SeasonEndDetector(S);
+        d.feed('api_get_member/useitem', 1001 * H, list(5), null);
+        d.feed('api_req_quest/clearitemget', 1002 * H, {}, 5);
+        d.feed('api_req_sortie/battleresult', 1003 * H, { api_get_useitem: { api_useitem_id: 68 } }, 5);
+        d.feed('api_start2/getData', 1010 * H, {}, 6);
+        expect(d.feed('api_get_member/require_info', 1010 * H + 1, login(0), 6)).toEqual({ after: 1003 * H, before: 1010 * H + 1 });
+    });
+
     it('重新載入前沒有魚、季節開始前、或已有官方結束時刻都不推', () => {
         const d = new SeasonEndDetector(S);
         d.feed('api_start2/getData', 1010 * H, {}, 0);
@@ -63,6 +72,10 @@ describe('seasonRange', () => {
         expect(seasonRange(S, inferred, null, [S, next])).toEqual({ start: S.start, end: 1410 * H, endKind: 'inferred' });
         expect(seasonRange(S, null, null, [S, next])).toEqual({ start: S.start, end: next.start, endKind: 'next' });
         expect(seasonRange(next, null, null, [S, next]).endKind).toBeNull();
+    });
+
+    it('早於季節開始的自填值不採用', () => {
+        expect(seasonRange(S, null, 900 * H, [S, next])).toEqual({ start: S.start, end: next.start, endKind: 'next' });
     });
 
     it('自填欄位以日本時間輸入', () => {
