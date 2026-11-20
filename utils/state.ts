@@ -57,6 +57,13 @@ interface ExpedEntry {
     [k: string]: any;
 }
 const EXPEDITION_DATA = RAW_EXPED as ExpedEntry[];
+const EXPEDITION_STAT_FIELDS = [
+    ['asw', 'api_taisen', 'tais', 'exped.reqAsw'],
+    ['aa', 'api_taiku', 'tyku', 'exped.reqAa'],
+    ['los', 'api_sakuteki', 'saku', 'exped.reqLos'],
+    ['firepower', 'api_karyoku', 'houg', 'exped.reqFirepower'],
+] as const;
+type ExpeditionShipStat = typeof EXPEDITION_STAT_FIELDS[number][1];
 
 // count/countMax：艦載機槽的目前搭載數／滿載數（僅裝備為飛機的槽有值；滿載數需
 // start2 的 api_maxeq，未取得時 countMax 為 undefined、面板只顯示數字不判戰損）。
@@ -648,7 +655,7 @@ interface QuestTrackRecord {
     judgements: QuestJudgement[];
     server: ServerObservation[];
 }
-export interface ExpedCheckRow { label: string; ok: boolean; cur?: string }
+export interface ExpedCheckRow { label: string; ok: boolean | null; cur?: string; note?: string }
 
 // ── 基地航空隊 ──
 export interface SquadronView {
@@ -900,6 +907,8 @@ export class GameState {
     // 43、A5、B4、D2，值為 2 的是 46、A6、B5、B6、D3、E1、E2，與 wikiwiki.jp/kancolle「遠征」交戦型遠征的兩份清單逐條相符。
     masterMissions = new Map<number, { dispNo: string; name: string; maparea: number; time: number; deckNum: number; resetType: number; damageType: number; winItems: [number, number][]; use: [number, number] }>();
     ships = new Map<number, any>();
+    // 只記住仍待校正的素質所對應的裝備，不覆寫遊戲回報的艦船素質。
+    private expeditionStatSlots = new WeakMap<object, Partial<Record<ExpeditionShipStat, ReadonlySet<number>>>>();
     // locked：api_locked（1＝鎖定）；局部資料不帶時沿用既有值，新取得的裝備為未鎖定。
     slotItems = new Map<number, { mst: number; level: number; alv: number; locked?: boolean }>();
     masterUseItems = new Map<number, string>();
@@ -1484,7 +1493,26 @@ export class GameState {
             const id = GameState.positiveId(s.api_id);
             if (id != null) {
                 const previous = this.ships.get(id);
-                this.ships.set(id, previous ? { ...previous, ...s } : s);
+                const next = previous ? { ...previous, ...s } : s;
+                const pending = previous && this.expeditionStatSlots.get(previous);
+                const slotsChanged = previous && ('api_slot' in s || 'api_slot_ex' in s)
+                    && Array.isArray(previous.api_slot) && Array.isArray(next.api_slot);
+                if (pending || slotsChanged) {
+                    const priorSlots = slotsChanged ? this.expeditionGearIds(previous) : undefined;
+                    const nextSlots = slotsChanged ? this.expeditionGearIds(next) : undefined;
+                    const changed = priorSlots && nextSlots
+                        && (priorSlots.size !== nextSlots.size || [...priorSlots].some(id => !nextSlots.has(id)));
+                    const baselines: Partial<Record<ExpeditionShipStat, ReadonlySet<number>>> = {};
+                    for (const [, field] of EXPEDITION_STAT_FIELDS) {
+                        // 即使只收到個別素質，也只校正該項；未回傳的欄位繼續用原本的基準。
+                        if (!(field in s)) {
+                            const baseline = pending?.[field] ?? (changed ? priorSlots : undefined);
+                            if (baseline) baselines[field] = baseline;
+                        }
+                    }
+                    if (Object.keys(baselines).length > 0) this.expeditionStatSlots.set(next, baselines);
+                }
+                this.ships.set(id, next);
             }
         }
         return true;
@@ -1602,6 +1630,14 @@ export class GameState {
             this.onReqKaisouPowerup(path, api, req, ts);
         } else if (path === 'api_req_kaisou/slot_exchange_index' && req) {
             this.onReqKaisouSlotExchangeIndex(path, api, req, ts);
+        } else if (path === 'api_req_kaisou/slot_deprive') {
+            // KC3Kai src/library/modules/Kcsapi.js：跨艦移裝同時回傳裝入與卸下裝備的兩艘艦。
+            const setShip = api?.api_ship_data?.api_set_ship;
+            const unsetShip = api?.api_ship_data?.api_unset_ship;
+            if (Array.isArray(setShip?.api_slot) && Array.isArray(unsetShip?.api_slot)
+                && GameState.positiveId(setShip.api_id) !== GameState.positiveId(unsetShip.api_id)) {
+                this.ingestShips([setShip, unsetShip], { requireMaster: true });
+            }
         } else if (path === 'api_req_kaisou/slotset' && req) {
             this.onReqKaisouSlotset(path, api, req, ts);
         } else if (path === 'api_req_kaisou/lock' && req) {
@@ -1614,12 +1650,15 @@ export class GameState {
             // 補強增設（ex slot）：無 api_slot_idx，只有 api_id + api_item_id（-1=卸下）。
             // 已用真實封包驗證（req: api_id=215&api_item_id=71340，無 idx 欄位）。
             const s = this.ships.get(Number(req.api_id));
-            if (s) s.api_slot_ex = Number(req.api_item_id);
+            const itemId = Number(req.api_item_id);
+            if (s && (itemId === -1 || GameState.positiveId(itemId) !== null))
+                this.ingestShips({ api_id: s.api_id, api_slot_ex: itemId });
         } else if (path === 'api_req_kaisou/unsetslot_all' && req) {
             // 全裝備解除：一鍵卸下該艦所有一般裝備欄（0-3 番），面板即時反映裝備 chip 清空。
             // req 只帶 api_id（艦船 id）。補強增設（ex slot）為獨立槽位、此按鈕不影響（遊戲上需另行卸下），故保留。
             const s = this.ships.get(Number(req.api_id));
-            if (s && Array.isArray(s.api_slot)) s.api_slot = s.api_slot.map(() => -1);
+            if (s && Array.isArray(s.api_slot))
+                this.ingestShips({ api_id: s.api_id, api_slot: s.api_slot.map(() => -1) });
         } else if (path === 'api_req_mission/start' && req) {
             const deckIdx = Number(req.api_deck_id) - 1;
             const deck = this.decks[deckIdx];
@@ -2448,8 +2487,9 @@ export class GameState {
         if (s) {
             const idx = GameState.slotIndex(req.api_slot_idx);
             const itemId = Number(req.api_item_id);   // -1 = 卸下
-            if (idx != null && Number.isSafeInteger(itemId) && Array.isArray(s.api_slot)
+            if (idx != null && (itemId === -1 || GameState.positiveId(itemId) !== null) && Array.isArray(s.api_slot)
                 && idx < s.api_slot.length) {
+                const slots = [...s.api_slot];
                 // 裝備到「目前是空格」的槽位時，遊戲會自動塞進當下第一個空槽，
                 // req.api_slot_idx 只是使用者點擊當下的格位、不是最終落點——已用真封包
                 // 驗證（samples/equip_slot.json + slot_to_port.json：全空裝艦點第三格
@@ -2458,15 +2498,20 @@ export class GameState {
                 // 若 itemId 已在同一艘艦的另一格，則是同艦換位／拖曳的另一種請求形態，
                 // 必須把來源格清成目標格原值，不能只寫目標格造成同一顆裝備被重複引用。
                 const sourceIdx = itemId > 0
-                    ? s.api_slot.findIndex((v: number) => Number(v) === itemId) : -1;
+                    ? slots.findIndex(v => Number(v) === itemId) : -1;
                 if (sourceIdx >= 0 && sourceIdx !== idx) {
-                    this.swapShipSlots(s, sourceIdx, idx);
-                } else if (itemId > 0 && Number(s.api_slot[idx]) <= 0) {
-                    const emptyIdx = s.api_slot.findIndex((v: number) => Number(v) <= 0);
-                    if (emptyIdx >= 0) s.api_slot[emptyIdx] = itemId;
+                    const patch = { api_id: s.api_id, api_slot: slots,
+                        api_onslot: Array.isArray(s.api_onslot) ? [...s.api_onslot] : s.api_onslot };
+                    this.swapShipSlots(patch, sourceIdx, idx);
+                    this.ingestShips(patch);
+                    return;
+                } else if (itemId > 0 && Number(slots[idx]) <= 0) {
+                    const emptyIdx = slots.findIndex(v => Number(v) <= 0);
+                    if (emptyIdx >= 0) slots[emptyIdx] = itemId;
                 } else {
-                    s.api_slot[idx] = itemId;
+                    slots[idx] = itemId;
                 }
+                this.ingestShips({ api_id: s.api_id, api_slot: slots });
             }
         }
         // 現有真封包樣本的回應只有裸 api_result；請求投影已涵蓋已驗證的動作結果。
@@ -4220,6 +4265,33 @@ export class GameState {
         return this.lastMissionByDeck.get(deckIdx) ?? null;
     }
 
+    private expeditionGearIds(ship: any): ReadonlySet<number> {
+        return new Set([...(ship.api_slot ?? []), ship.api_slot_ex].map(Number).filter(id => id > 0));
+    }
+
+    private expeditionStatTotal(ships: any[], field: ExpeditionShipStat, gearStat: keyof GearStats) {
+        let total = 0, estimated = false;
+        for (const ship of ships) {
+            let value = ship[field]?.[0];
+            if (!Number.isFinite(value)) return null;
+            const baseline = this.expeditionStatSlots.get(ship)?.[field];
+            if (baseline) {
+                const current = this.expeditionGearIds(ship);
+                for (const id of new Set([...baseline, ...current])) {
+                    const wasEquipped = baseline.has(id);
+                    if (wasEquipped === current.has(id)) continue;
+                    const mst = this.slotItems.get(id)?.mst;
+                    const stat = mst === undefined ? undefined : this.masterGears.get(mst)?.stats[gearStat];
+                    if (stat === undefined) return null;
+                    value += wasEquipped ? -stat : stat;
+                    estimated = true;
+                }
+            }
+            total += Math.max(0, value);
+        }
+        return { total, estimated };
+    }
+
     expedCheck(deckIdx: number, expedId: number): {
         rows: ExpedCheckRow[]; gsRows: ExpedCheckRow[]; known: boolean; time: number;
         rewards: {
@@ -4334,11 +4406,17 @@ export class GameState {
         }
         const ex = data.required_extra;
         if (ex) {
-            const tot = (key: string) => ships.reduce((a: number, s: any) => a + (s[key]?.[0] ?? 0), 0);
-            if (ex.asw) rows.push({ label: t('exped.reqAsw', { n: ex.asw }), ok: tot('api_taisen') >= ex.asw, cur: `${tot('api_taisen')}` });
-            if (ex.aa) rows.push({ label: t('exped.reqAa', { n: ex.aa }), ok: tot('api_taiku') >= ex.aa, cur: `${tot('api_taiku')}` });
-            if (ex.los) rows.push({ label: t('exped.reqLos', { n: ex.los }), ok: tot('api_sakuteki') >= ex.los, cur: `${tot('api_sakuteki')}` });
-            if (ex.firepower) rows.push({ label: t('exped.reqFirepower', { n: ex.firepower }), ok: tot('api_karyoku') >= ex.firepower, cur: `${tot('api_karyoku')}` });
+            for (const [key, field, gearStat, label] of EXPEDITION_STAT_FIELDS) {
+                const need = ex[key];
+                if (!need) continue;
+                const result = this.expeditionStatTotal(ships, field, gearStat);
+                rows.push({
+                    label: t(label, { n: need }),
+                    ok: result ? result.total >= need : null,
+                    cur: result ? `${result.estimated ? '~' : ''}${result.total}` : '—',
+                    note: result?.estimated ? t('exped.statEstimated') : result === null ? t('exped.statUnknown') : undefined,
+                });
+            }
         }
 
         // itemtype 1–6 是 poi 資料（2015–2018 年凍結快照）自訂的內部編號，1–3 恰好與目前

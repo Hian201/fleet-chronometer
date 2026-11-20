@@ -41,6 +41,13 @@
 - **性質**：遊戲機制數值（裝備加成百分比、公式），屬事實性資訊非著作權標的，記錄來源供
   日後校對，非授權義務。
 
+## 1c. 跨艦移裝封包
+
+- **用途**：`utils/state.ts` 的 `api_req_kaisou/slot_deprive` 讀取 `api_ship_data.api_set_ship`
+  與 `api_ship_data.api_unset_ship`，同步裝入與卸下裝備的兩艘艦。
+- **來源**：KC3Kai [`src/library/modules/Kcsapi.js`](https://github.com/KC3Kai/KC3Kai/blob/master/src/library/modules/Kcsapi.js)
+  的 `slot_deprive` 解析。僅參考封包欄位，獨立實作。
+
 ## 2. 戰鬥預測邏輯 (Battle prediction logic)
 
 - **用途**：`utils/battle.ts` 的戰鬥階段重放與勝利判定（rank）邏輯，

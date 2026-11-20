@@ -782,10 +782,13 @@ function renderExped() {
     }
     const { rows, gsRows, known, rewards, greatSuccess } = state.expedCheck(currentExpedFleet(), expedId);
     const allOk = rows.length > 0 && rows.every(r => r.ok);
-    const successStatus = allOk
-        ? `<span class="exped-outcome-status ok" aria-label="${esc(t('exped.successMet'))}" title="${esc(t('exped.successMet'))}">✓</span>`
-        : `<span class="exped-outcome-status ng" aria-label="${esc(t('exped.successNotMet'))}" title="${esc(t('exped.successNotMet'))}">✕</span>`;
-    const greatStatus = !greatSuccess
+    const unchecked = rows.some(r => r.ok === null) && !rows.some(r => r.ok === false);
+    const successStatus = unchecked
+        ? `<span class="exped-outcome-status dim" aria-label="${esc(t('exped.statUnknown'))}" title="${esc(t('exped.statUnknown'))}">—</span>`
+        : allOk
+            ? `<span class="exped-outcome-status ok" aria-label="${esc(t('exped.successMet'))}" title="${esc(t('exped.successMet'))}">✓</span>`
+            : `<span class="exped-outcome-status ng" aria-label="${esc(t('exped.successNotMet'))}" title="${esc(t('exped.successNotMet'))}">✕</span>`;
+    const greatStatus = !greatSuccess || unchecked
         ? `<span class="exped-outcome-status dim">—</span>`
         : !allOk
             ? `<span class="exped-outcome-status dim" aria-label="${esc(t('exped.gsExcluded'))}" title="${esc(t('exped.gsExcluded'))}">—</span>`
@@ -844,15 +847,16 @@ function renderExped() {
         </div>`;
 
     const conditionRow = (row: typeof rows[number]) => `
-        <div class="check-row ${row.ok ? 'ok' : 'ng'}" role="listitem">
-            <span class="mark" aria-hidden="true">${row.ok ? '✓' : '✕'}</span>
-            <span class="sr-only">${row.ok ? t('exped.conditionMet') : t('exped.conditionNotMet')}</span>
+        <div class="check-row ${row.ok === null ? '' : row.ok ? 'ok' : 'ng'}" role="listitem">
+            <span class="mark" aria-hidden="true">${row.ok === null ? '—' : row.ok ? '✓' : '✕'}</span>
+            <span class="sr-only">${esc(row.ok === null ? row.note ?? '' : t(row.ok ? 'exped.conditionMet' : 'exped.conditionNotMet'))}</span>
             <span class="grow" title="${esc(row.label)}">${esc(row.label)}</span>
-            ${row.cur ? `<span class="num${row.ok ? '' : ' ng'}">${esc(row.cur)}</span>` : ''}
+            ${row.cur ? `<span class="num${row.ok === false ? ' ng' : ''}"${row.note ? ` title="${esc(row.note)}"` : ''}>${esc(row.cur)}</span>` : ''}
         </div>`;
     const renderTier = (label: string, tierRows: typeof rows, includeNotice = false) => {
         if (tierRows.length === 0 && !includeNotice) return '';
-        const unmet = tierRows.filter(row => !row.ok);
+        const unmet = tierRows.filter(row => row.ok === false);
+        const unknown = tierRows.filter(row => row.ok === null);
         const met = tierRows.filter(row => row.ok);
         const count = unmet.length > 0
             ? t('exped.unmetCount', { n: unmet.length })
@@ -862,7 +866,7 @@ function renderExped() {
                 <h3 class="exped-tier-heading"><span>${label}</span><span class="exped-tier-count${unmet.length ? ' has-unmet' : ''}">${count}</span></h3>
                 <div class="exped-check-group" role="list">
                     ${includeNotice && !known ? `<div class="exped-warning" role="note"><span aria-hidden="true">!</span>${t('exped.notRecorded')}</div>` : ''}
-                    ${[...unmet, ...met].map(conditionRow).join('')}
+                    ${[...unmet, ...unknown, ...met].map(conditionRow).join('')}
                 </div>
             </section>`;
     };

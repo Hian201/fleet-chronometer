@@ -58,7 +58,7 @@ describe('遠征收益與門檻版面', () => {
         expect(css).toMatch(/\.exped-tier-heading\s*\{[^}]*border:\s*0/);
         expect(panelMain).toContain("renderTier(t('exped.successThreshold'), rows, true)");
         expect(panelMain).toContain("renderTier(t('exped.gsThreshold'), gsRows)");
-        expect(panelMain).toContain('[...unmet, ...met]');
+        expect(panelMain).toContain('[...unmet, ...unknown, ...met]');
     });
 
     it('繁中最長艦種條件作為雙欄換行壓測', () => {
@@ -91,6 +91,8 @@ describe('遠征收益與門檻版面', () => {
                 expect(t('exped.rewardMatrixLabel')).toBe(expected[lang].resources);
                 expect(t('exped.metCount', { n: 2 })).toBe(expected[lang].metCount);
                 expect(t('exped.unmetCount', { n: 2 })).toBe(expected[lang].unmetCount);
+                expect(t('exped.statEstimated')).not.toBe('exped.statEstimated');
+                expect(t('exped.statUnknown')).not.toBe('exped.statUnknown');
             }
         } finally {
             setLang(original);

@@ -45,6 +45,13 @@ ex-slot）。
 
 ## 遠征資料完整性（`utils/expedition-data.ts`）
 
+**面板換裝後的成功門檻**：輸送桶數量與搭載艦數依目前槽位重算。火力、對空、對潛與索敵
+以艦船快照的顯示素質為準；單件裝卸、補強增設換裝或一般槽全卸若只更新槽位，先依該項
+素質對應的舊裝備與目前裝備算出裝備主檔素質差額。這段期間用 `~` 標記推算值，額外的
+艦與裝備搭配加成變化不在推算內；缺必要資料時顯示 `—`。收到新的艦船素質時逐項校正。
+跨艦移裝的 `slot_deprive` 直接套用同一回應中的兩艘艦資料，來源見
+`THIRD-PARTY-NOTICES.md`。此端點仍待真實封包驗證。
+
 **資料覆蓋範圍**：`EXPEDITION_DATA` 的 id 集合以真實 `api_mst_mission`
 （`samples/start2-master.json`，2026-07-21 匯出）核對。poi-plugin-expedition 的
 `assets/expedition.json` 自 2018-12-10 起未再更新，遊戲後續新增的 20 個遠征（id

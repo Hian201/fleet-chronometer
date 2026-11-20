@@ -128,7 +128,7 @@ describe('編成版面', () => {
     it('遠征成功與大成功門檻分組雙欄，12 項預覽允許換行且保留完整條件', () => {
         expect(panelMain).toContain("renderTier(t('exped.successThreshold'), rows, true)");
         expect(panelMain).toContain("renderTier(t('exped.gsThreshold'), gsRows)");
-        expect(panelMain).toContain('[...unmet, ...met]');
+        expect(panelMain).toContain('[...unmet, ...unknown, ...met]');
         expect(css).toMatch(/\.exped-check-group\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
         expect(css).toMatch(/\.check-row \.grow\s*\{[^}]*white-space:\s*normal/);
         expect(css).toMatch(/\.check-row \.grow\s*\{[^}]*overflow:\s*visible/);

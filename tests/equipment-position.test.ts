@@ -3,8 +3,10 @@
 // SC 雷達的 master、圖示分類與名稱都來自真實 start2 fixture；不在測試內手捏裝備資料，
 // 以免把「資料缺失」誤測成「面板渲染正常」。
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GameState } from '../utils/state';
+import { stateFormatters } from '../utils/state-format';
+import { t } from '../utils/ui-i18n';
 
 const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8'));
 const scRadar = master.api_mst_slotitem.find((g: any) => g.api_name.includes('SCレーダー'));
@@ -213,5 +215,80 @@ describe('裝備位置與面板視圖', () => {
         expect(state.ships.get(69).api_slot).toEqual([69693, 98825, 86404, 116473, -1]);
         // 兩筆是互為逆操作的交換，來回一趟後應完全還原成原始排列。
         expect(state.ships.get(69).api_onslot).toEqual([24, 16, 11, 8, 0]);
+    });
+});
+
+describe('遠征成功門檻即時更新', () => {
+    const mission = 133;
+    const shipId = 100;
+    const radarId = 9001;
+    const statRows = (state: GameState) => state.expedCheck(0, mission).rows.slice(-4)
+        .map(({ ok, cur }) => [ok, cur]);
+
+    function setup() {
+        const state = stateWithSlots([-1, -1, -1, -1]);
+        state.applyEvent('api_get_member/slot_item', [{ api_id: radarId, api_slotitem_id: 315 }]);
+        state.applyEvent('api_get_member/ship3', { api_ship_data: [{
+            api_id: shipId, api_ship_id: 182,
+            api_taisen: [67, 0], api_taiku: [87, 0], api_sakuteki: [87, 0], api_karyoku: [114, 0],
+        }] });
+        return state;
+    }
+
+    it('單件裝卸即時跨越四項門檻，後續艦船快照只校正送出的素質', () => {
+        const state = setup();
+        expect(statRows(state)).toEqual([[false, '67'], [false, '87'], [false, '87'], [false, '114']]);
+        const req = { api_id: String(shipId), api_slot_idx: '0', api_item_id: String(radarId) };
+        state.applyEvent('api_req_kaisou/slotset', { api_result: 1 }, req);
+        expect(statRows(state)).toEqual([[true, '~70'], [true, '~90'], [true, '~95'], [true, '~115']]);
+        expect(state.ships.get(shipId).api_karyoku).toEqual([114, 0]);
+
+        state.applyEvent('api_get_member/ship3', { api_ship_data: [{
+            api_id: shipId, api_ship_id: 182, api_slot: [radarId, -1, -1, -1], api_karyoku: [116, 0],
+        }] });
+        expect(statRows(state)).toEqual([[true, '~70'], [true, '~90'], [true, '~95'], [true, '116']]);
+        state.applyEvent('api_req_kaisou/slotset', { api_result: 1 }, { ...req, api_item_id: '-1' });
+        expect(statRows(state)).toEqual([[false, '67'], [false, '87'], [false, '87'], [true, '~115']]);
+    });
+
+    it('補強增設與一般槽各自更新，裝備資料尚未到齊時保留未知', () => {
+        const state = setup();
+        const req = { api_id: String(shipId), api_item_id: String(radarId) };
+        state.applyEvent('api_req_kaisou/slotset_ex', { api_result: 1 }, req);
+        state.applyEvent('api_req_kaisou/slotset', { api_result: 1 }, {
+            ...req, api_slot_idx: '0', api_item_id: '9002',
+        });
+        expect(statRows(state)).toEqual([[null, '—'], [null, '—'], [null, '—'], [null, '—']]);
+        state.applyEvent('api_req_kaisou/unsetslot_all', { api_result: 1 }, { api_id: req.api_id });
+        expect(statRows(state)).toEqual([[true, '~70'], [true, '~90'], [true, '~95'], [true, '~115']]);
+        state.applyEvent('api_req_kaisou/slotset_ex', { api_result: 1 }, { ...req, api_item_id: '-1' });
+        expect(statRows(state)).toEqual([[false, '67'], [false, '87'], [false, '87'], [false, '114']]);
+    });
+
+    it('跨艦移裝同時更新兩隊的輸送桶數與艦船素質', ({ onTestFinished }) => {
+        const format = vi.spyOn(stateFormatters, 't').mockImplementation(t);
+        onTestFinished(() => { format.mockRestore(); });
+        const state = stateWithSlots([9003, -1, -1, -1], [0, 0, 0, 0], [75]);
+        const first = state.ships.get(shipId);
+        const second = { ...first, api_id: 101, api_slot: [-1, -1, -1, -1] };
+        state.applyEvent('api_get_member/ship3', {
+            api_ship_data: [second],
+            api_deck_data: [{ api_id: 2, api_ship: [101, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
+        });
+        const drumCount = (deck: number) => state.expedCheck(deck, 37).rows
+            .find(row => row.label === t('exped.reqDrumCount', { n: 4 }))?.cur;
+        expect([drumCount(0), drumCount(1)]).toEqual([t('unit.drums', { n: 1 }), t('unit.drums', { n: 0 })]);
+        expect(state.fleets().map(fleet => fleet.ships[0].gears[0]?.mst)).toEqual([75, undefined]);
+
+        const packet = { api_ship_data: {
+            api_set_ship: { ...second, api_slot: [9003, -1, -1, -1], api_karyoku: [115, 0] },
+            api_unset_ship: { ...first, api_slot: [-1, -1, -1, -1] },
+        } };
+        state.applyEvent('api_req_kaisou/slot_deprive', { api_ship_data: { api_set_ship: packet.api_ship_data.api_set_ship } });
+        expect(state.fleets().map(fleet => fleet.ships[0].gears[0]?.mst)).toEqual([75, undefined]);
+        state.applyEvent('api_req_kaisou/slot_deprive', packet);
+        expect(state.fleets().map(fleet => fleet.ships[0].gears[0]?.mst)).toEqual([undefined, 75]);
+        expect([drumCount(0), drumCount(1)]).toEqual([t('unit.drums', { n: 0 }), t('unit.drums', { n: 1 })]);
+        expect(state.expedCheck(1, mission).rows.at(-1)).toMatchObject({ ok: true, cur: '115' });
     });
 });
