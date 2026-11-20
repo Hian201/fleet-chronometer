@@ -2,7 +2,7 @@
 
 Changes for each Chrome Web Store release. While a version is in store review, its changes collect under **Unreleased** and each update is published as a pre-release tag (`v<version>-rc.N`). When the store approves it, the section is renamed to the version and the final tag `v<version>` is created on the approved commit.
 
-## [Unreleased] — 1.1.1.1
+## [1.1.1.1] - 2026-11-20
 
 ### Highlights
 
@@ -33,10 +33,45 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 **Wording**
 - Explanations, tooltips and import errors now refer to what the extension reads as "game data" or "responses".
 
+**Item drops and the Saury Festival**
+- Sortie results now record dropped items. The panel's drop box lists them with your current count, next to any dropped ship, and the Sortie Log shows them per node, per sortie and in the battle log. Sorties recorded before this version have no item data.
+- The Drop Log has new **Ship Drops** and **Item Drops** sub-tabs. Item Drops counts catches by area, map and node during each Saury Festival season, keeping battles with unknown results apart, and shows recent counts and the streak since the last catch.
+- Maps set not to be recorded can still count towards item statistics with the new **Still count item drops** option. Those battles feed only Item Drops; they get no replay, sortie log entry or sortie cost.
+- You can set your own reminder: when one area yields N items within the last X hours, the panel sends one notification. There are no default thresholds.
+- During the Saury Festival, the fleet summary reminds you when a fleet carries depth charges. Click the reminder to turn it off for the season.
+
+**Factory and improvements**
+- The panel's Factory tab has a new **Today** improvement page: what you can improve today and which ship to use as the second ship. The list changes at 00:00 Japan time.
+- In HQ Overview, Construction, Development and Improvement are merged into one **Factory** section with three sub-tabs. Old bookmarks still open the right page.
+- Equipment search matches Traditional Chinese, Japanese and English names.
+
+**Goals and stockpile**
+- Remodel goals now estimate when each missing material will be ready, from the last four weeks of income, as a range between the slowest and fastest week.
+- New **Stockpile** goal: every resource to its cap, with an optional deadline. It shows how many days each resource needs to reach the cap and what you will have by the deadline, and marks resources that will cap early.
+- The Ship roster has a goal column that links to Goals for that ship.
+
+**Expeditions**
+- The Expeditions section is split into Log, Plan and Unlocks sub-tabs.
+- Plan suggests three expeditions to run together so that the scarcest of the resources you select is as high as possible by your deadline, or so that everything fills fastest if there is no deadline. You can say how long you will be away, and only expeditions currently available to you are suggested.
+- Monthly expeditions are listed separately with this cycle's deadline and whether you have completed them this cycle. Unlocks shows the monthly unlock path and which regular expeditions are open.
+- Records of monthly and combat expeditions keep each ship's equipment. Expeditions are shown by their in-game number, and reward items use icons with counts.
+
+**Resource log**
+- Fuel, ammo, steel and bauxite get the same kind of ledger as the discrete materials: opening + natural regeneration + income + en-route change − spending + unattributed = closing. Natural regeneration and sortie spending are estimates.
+- Warnings appear when a resource is above the natural regeneration cap or at the stockpile cap.
+
+**Other**
+- The Ship roster can show how much modernization each stat has left, and has a night battle power column.
+- Quest Navigator can filter quests by release year and sort them from oldest to newest, and tells you which page of the in-game quest list to look at.
+- The Nozaki ration timer is now one timer for the whole account, as in the game, and the anchorage group shows how many rations have built up.
+- The theater mode toolbar follows language changes without reloading the game.
+- Practice night battles now update HP in the panel.
+- Fixes from a full code review covering data integrity, battle display and UI.
+
 ### Data compatibility
 
 - IndexedDB schema goes from v15 to v17: one new table for docking and remodel material use, one for sortie costs. Existing data is untouched and nothing is backfilled.
-- The backup format goes from v9 to v11 to carry both tables. Backups made by earlier versions still import. A v11 backup cannot be imported by an earlier version of the extension.
+- The backup format goes from v9 to v12 to carry both tables, item drops and the stockpile goal. Backups made by earlier versions still import. A v12 backup cannot be imported by an earlier version of the extension.
 - No permission changes.
 
 ## [1.1.1.0] - 2026-11-11
