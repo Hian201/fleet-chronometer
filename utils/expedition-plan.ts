@@ -15,6 +15,10 @@
 //     睡前遠征比離開時間長時，回來後要等到下一個收取點才收得到，那一隊在線的時間跟著變短。
 //     有作息離開時在線趟數取整數（最後一趟睡前收不回來就不能派）。兩組合一起比同一個目標，求精確解：先以交替搜尋得到近似解，
 //     再以它為下限做分枝定界（planExpeditionSteps 分段執行，畫面先顯示近似解）。
+//   · 多階段（時間分配）：玩家願意輪流跑幾套組合時，列生成解「各套組合各跑幾天」的線性規劃（utils/expedition-phases.ts），
+//     精簡成最多三階段、排成不撞頂的先後。改善沒達到門檻就退回單組（換隊要換編成、刷閃，小幅改善不值得）。
+//     記住路線：呼叫端把上次採用的路線（各階段各隊的遠征）傳回來時，只要仍可重建、且不比現行結果差過黏著門檻就照它走
+//     （走完的階段天數為 0 而被略過），所以存量推進後顯示的是接下來的階段，不會每次重開都換一條新路線。
 //   · 候選＝所有非月常、有收益、目前能派的遠征（最近一次遠征畫面的清單裡有的；從沒收到清單時全部照列）。不檢查編成。
 //   · 月常（resetType === 1）每月只能通關一次，當定額收入，不進排序，另列最後成功時間。
 //   · 每趟收益：玩家自己的紀錄夠多（MIN_RUNS）就用紀錄平均（含失敗、大成功與大發加成，是玩家實際的跑法）；
@@ -24,6 +28,7 @@ import EXPEDITION_DATA from './expedition-data';
 import { DAY_MS } from './date-format';
 import type { ObservedFlow } from './goal-arrival';
 import { STOCKPILE_KEYS, stockpileCap, type StockpileKey } from './stockpile';
+import { coverWithColumns, simulateSchedule, solveColumns, type CoverColumn } from './expedition-phases';
 
 /** 可勾選的資材，同備蓄的八種，顯示順序同遊戲的資材列。 */
 export const PLAN_KEYS = STOCKPILE_KEYS;
@@ -176,6 +181,40 @@ export interface ExpeditionPlan {
     profile: PlayerProfile;
     /** 推算時點距今的天數；沒設期限時是建議組合全部存滿的天數（最多 UNTIL_FULL_MAX_DAYS），存不滿時為呼叫端的預設。 */
     horizonDays: number;
+    /** 多階段（輪流跑幾套組合）的建議；null＝用單組（改善沒達門檻、算不出或候選太少）。採用時 top／sleep／roles 是第一段的組合，outlook 依排程模擬重算。 */
+    phases: PhasePlan | null;
+    /** 沿用玩家目前正在跑的遠征（單組或多階段的第一段含它們）。 */
+    sticky: boolean;
+}
+
+/** 多階段裡的一段：這段時間每隊派什麼、跑幾天、存量如何變化，以及何時換下一段。 */
+export interface PlanSegment {
+    /** 每隊的派遣；deck 為艦隊編號（1..3＝第二～第四艦隊），不知道是哪一隊為 null；沒派遣的隊 day、night 皆為 null。各段同一索引是同一隊。 */
+    fleets: { deck: number | null; day: PlanRow | null; night: PlanRow | null }[];
+    days: number;
+    start: Partial<Record<PlanKey, number>>;
+    end: Partial<Record<PlanKey, number>>;
+    /** 這段的每日淨增減（含基本淨增減）。 */
+    rate: Partial<Record<PlanKey, number>>;
+    /** 何時換下一段：cap＝該項快撞上限、fall＝該項快見底、rise／fall（預定天數用完）＝該項升（降）到 at；最後一段或沒有明顯轉折為 null。 */
+    trigger: { kind: 'cap' | 'rise' | 'fall'; key: PlanKey; at: number } | null;
+    /** 與前一段不同的 fleets 索引；第一段為空。 */
+    changed: number[];
+}
+
+export interface PhasePlan {
+    segments: PlanSegment[];
+    /** 全程天數：沒設期限（或期限前就存滿）為存滿所需，否則為期限。 */
+    days: number;
+    /** 單組對照：untilFull 給存滿天數（存不滿為 null），期限給最低的存量比例。 */
+    single: { days: number | null; fill: number | null };
+    untilFull: boolean;
+    /** 採用了上次記住的路線（輸入的 route）；此時天數是「從現在起」的剩餘天數。 */
+    routeKept: boolean;
+    /** 各 segment 對應路線的階段序號（從 1 起）；沒沿用路線時，新路線的不同組合依出現順序編號。 */
+    stage: number[];
+    /** 路線的總階段數；沿用時為輸入 route 的長度。 */
+    stageCount: number;
 }
 
 const average = (values: number[]) => values.reduce((sum, v) => sum + v, 0) / values.length;
@@ -444,6 +483,64 @@ const compareScores = (a: ComboScore, b: ComboScore) =>
 /** 沒設期限時，推算時點最多推到幾天後（再遠的「存滿」已沒有參考價值）。 */
 export const UNTIL_FULL_MAX_DAYS = 365;
 
+// 多階段的採用門檻：換階段要換編成、刷閃，改善太小不值得，退回單組。
+/** 存滿天數至少縮短這麼多天且達這個比例才採用。 */
+const PHASE_MIN_DAYS = 5;
+const PHASE_MIN_RATIO = 0.03;
+/** 期限模式：最低存量比例至少多這麼多才採用。 */
+const PHASE_MIN_FILL = 0.015;
+/** 黏著（沿用目前遠征）：沒比最佳差到「至少這麼多天且達這個比例」（期限模式為這個比例差）就沿用。 */
+const STICKY_MAX_DAYS = 3;
+const STICKY_MAX_RATIO = 0.02;
+const STICKY_MAX_FILL = 0.01;
+/** 沿用路線：短於這麼多天的階段不留（LP 為已滿資材留的缺口下限會留下零頭），現行結果不到這麼多天就全部存滿時也不沿用。 */
+const ROUTE_MIN_DAYS = 1;
+/** 精簡成最多三階段時，值在最佳的這個比例內的子集再用換隊數、與目前遠征的重疊、編號挑。 */
+const PHASE_TOLERANCE = 0.005;
+const MAX_PHASES = 3;
+/** 排程模擬最多試幾個候選（偏好順序）。 */
+const MAX_REALIZE = 6;
+/** 每多一個階段段落相當於多花這個比例的天數（要多換一次編成）；期限模式相當於少這麼多存量比例。 */
+const SEGMENT_COST = 0.01;
+const SEGMENT_FILL_COST = 0.005;
+/** 補平單組的權重調整輪數。 */
+const BALANCE_ROUNDS = 12;
+/** 三階段放不下 LP 支撐時，基數受限的列生成最多再補幾輪、每輪問前幾名子集。 */
+const LOCAL_ROUNDS = 4;
+const LOCAL_TOP = 4;
+const EPS = 1e-9;
+
+/** 多階段內部用：一隊一天的派遣（在線＋睡前）與每日淨收入。 */
+interface Pair { day?: PlanRow; night?: PlanRow; daily: Record<PlanKey, number> }
+/** 最多三隊同時的一套組合；sum 是三隊每日收入合計，r 是持有可考的各資材含基本淨增減的每日淨增減。 */
+interface Combo { pairs: Pair[]; sum: Record<PlanKey, number>; r: number[] }
+const pairKey = (pair: Pair | null) => (pair ? `${pair.day?.missionId ?? 0}/${pair.night?.missionId ?? 0}` : '-');
+const comboKey = (combo: Combo) => combo.pairs.map(pairKey).sort().join(',');
+const compareLists = (a: readonly number[], b: readonly number[]) => {
+    for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i];
+    return a.length - b.length;
+};
+/** 兩個配對是否能同時（不同隊）：在線、睡前各自不重複，且某隊睡前那條不是別隊的在線。 */
+const compatible = (a: Pair, b: Pair) => !(a.day && b.day && a.day.missionId === b.day.missionId)
+    && !(a.night && b.night && a.night.missionId === b.night.missionId)
+    && !(a.night && b.day && a.night.missionId === b.day.missionId)
+    && !(b.night && a.day && b.night.missionId === a.day.missionId);
+/**
+ * 把一組配對排到前一段的各隊位置（3! 排列試完）：換掉的遠征（在線、睡前分開數）最少，同數時換到的隊最少。
+ * 先比遠征數：同一隊只換睡前那條時，在線那條留在原隊，不會被排到別隊而變成三隊都要換。prev 的長度須不小於 pairs。
+ */
+function matchSlots(prev: readonly (Pair | null)[], pairs: readonly Pair[]): { slots: (Pair | null)[]; changed: number[] } {
+    const padded: (Pair | null)[] = [...pairs, ...Array<null>(prev.length - pairs.length).fill(null)];
+    const id = (row: PlanRow | undefined) => row?.missionId ?? 0;
+    let best: { slots: (Pair | null)[]; changed: number[]; moves: number } | null = null;
+    for (const order of permutations(padded)) {
+        const changed = order.flatMap((pair, i) => (pairKey(pair) === pairKey(prev[i]) ? [] : [i]));
+        const moves = order.reduce((sum, pair, i) => sum + Number(id(pair?.day) !== id(prev[i]?.day)) + Number(id(pair?.night) !== id(prev[i]?.night)), 0);
+        if (!best || moves < best.moves || (moves === best.moves && changed.length < best.changed.length)) best = { slots: order, changed, moves };
+    }
+    return best!;
+}
+
 /**
  * 組合裡每條遠征主要補哪一項，給畫面一眼看出「這條為什麼在這裡」。
  * 候選：勾選、持有可考、還沒滿、這條有正收入的資材；推算時點仍未滿的優先（會滿的多拿也不改善目標）。
@@ -493,7 +590,15 @@ export interface PlanInput {
     now?: number;
     /** 最近一次遠征畫面的清單；沒有（從沒收到）為 null 或省略，候選照列。 */
     missionList?: MissionListView | null;
+    /** 玩家目前正在跑的遠征（呼叫端已去重）；deck 1..3 是第二～第四艦隊，null＝來自偏好備援、沒有艦隊編號。
+     *  不在候選裡的略過；有 deck 的都無效時才用 deck 為 null 的。建議盡量沿用它們（改善不大時不換），見 planPhases 的黏著規則。 */
+    running?: readonly { deck: number | null; missionId: number }[];
+    /** 上次採用的路線（各階段依序，每階段是各隊的 [在線, 睡前] 遠征 id，沒有為 null）。條件沒變時沿用它，改善不到黏著門檻不換路線。 */
+    route?: readonly (readonly PlanRouteFleet[])[];
 }
+
+/** 路線裡一隊的派遣：在線與睡前遠征 id，沒有為 null。 */
+export interface PlanRouteFleet { day: number | null; night: number | null }
 
 /** 一次算完，回傳精確解（測試與不需要分段的呼叫端用）。 */
 export function planExpeditions(input: PlanInput): ExpeditionPlan {
@@ -735,8 +840,437 @@ export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan
         return yield* search();
     }
 
-    const build = (best: Pick): ExpeditionPlan => {
+    // ---- 多階段（時間分配）----
+    // 玩家輪流跑幾套組合，可能比整段固定一套更快存滿。一隊一個「配對」（在線＋睡前），一套組合是最多三個相容的配對。
+    // 每套組合對勾選且持有可考的資材有一組每日淨增減 r。沒設期限時最小化總天數、有期限時最大化期限時的最低存量比例，
+    // 兩者都寫成覆蓋型 LP（欄＝組合、列＝資材，見 expedition-phases.ts），欄太多不能列舉，用列生成：
+    // 以對偶 u 當權重向 bestCombo 要最有利的組合。
+    // 艦隊實際在跑的（有 deck）優先；它們都不是候選（月常、支援或沒派）時，才用偏好記住的上次建議（deck 為 null）。
+    const lockFrom = (items: readonly { deck: number | null; missionId: number }[]) => {
+        const out: { deck: number | null; missionId: number }[] = [];
+        for (const item of items) {
+            if (out.length < PLAN_FLEETS && candidates.some(row => row.missionId === item.missionId)
+                && !out.some(lock => lock.missionId === item.missionId)) out.push(item);
+        }
+        return out;
+    };
+    const fromDecks = lockFrom((input.running ?? []).filter(item => item.deck !== null));
+    const locks = fromDecks.length ? fromDecks : lockFrom((input.running ?? []).filter(item => item.deck === null));
+    const pairOf = (day?: PlanRow, night?: PlanRow): Pair => ({ day, night, daily: fleetDaily(day, night) });
+    let pairGroups: Pair[][] | null = null;
+    // 全部配對，依睡前遠征分組：配對枚舉用全部候選（不是剪枝後的池），所以被鎖定的遠征不受剪枝影響。
+    const allGroups = () => {
+        if (!pairGroups) {
+            pairGroups = [undefined, ...nightCandidates].map(night => [undefined, ...candidates]
+                .filter(day => day || night).map(day => pairOf(day, night)));
+        }
+        return pairGroups;
+    };
+    const allPairs = () => allGroups().flat();
+    const comboOf = (pairs: Pair[]): Combo => {
+        const sum = zero();
+        for (const pair of pairs) for (const key of PLAN_KEYS) sum[key] += pair.daily[key];
+        return { pairs, sum, r: known.map(need => (need.base ?? 0) + sum[need.key]) };
+    };
+    const comboOfPick = (pick: Pick) => comboOf(Array.from({ length: Math.max(pick.day.length, pick.night.length) },
+        (_, i) => pairOf(pick.day[i], pick.night[i])).filter(pair => pair.day || pair.night));
+    // 組合轉回 Pick（建議畫面用）：有在線的隊在前，只有睡前的隊在後。
+    const pickOfCombo = (combo: Combo): Pick => {
+        const ordered = [...combo.pairs.filter(pair => pair.day), ...combo.pairs.filter(pair => !pair.day)];
+        return pickOf(ordered.flatMap(pair => (pair.day ? [pair.day] : [])), ordered.map(pair => pair.night));
+    };
+    const comboIds = (combo: Combo) => combo.pairs.map(pair => [pair.day?.missionId ?? 0, pair.night?.missionId ?? 0]).sort(compareLists).flat();
+
+    /**
+     * 定價（最佳回應）：給每種資材的權重 w（依 PLAN_KEYS），求配對收入加權和最大的合法組合（最多三隊、兩兩相容）。
+     * 只留正分的配對由大到小排，DFS 挑配對，用「剩餘名額 × 目前分數」上界剪枝。
+     * lockList：每個鎖定的遠征必須由某一隊在線或睡前跑（2^k 種角色，睡前只有佔用不超過一天的遠征能當），其餘隊自由。
+     */
+    const bestCombo = (w: readonly number[], lockList: readonly { missionId: number }[] = []): Pair[] | null => {
+        const scoreOfPair = (pair: Pair) => PLAN_KEYS.reduce((acc, key, k) => acc + w[k] * pair.daily[key], 0);
+        // 自由的隊只需要每個睡前遠征下得分最高的前 5 個在線：最佳組合裡的某一隊若不在前 5 名，另外兩隊最多佔掉
+        // 兩條在線與兩條睡前，前 5 名一定還有一條可換進來而不衝突、得分不會變差。
+        const positive = allGroups().flatMap(group => {
+            const items = group.map(pair => ({ pair, s: scoreOfPair(pair) })).filter(item => item.s > 0);
+            return [...items.filter(item => item.pair.day).sort((a, b) => b.s - a.s).slice(0, 2 * (PLAN_FLEETS - 1) + 1), ...items.filter(item => !item.pair.day)];
+        }).sort((a, b) => b.s - a.s);
+        const scored = lockList.length ? allPairs().map(pair => ({ pair, s: scoreOfPair(pair) })) : [];
+        let best = { sum: lockList.length ? -Infinity : 0, picked: [] as Pair[] };
+        for (let mask = 0; mask < 1 << lockList.length; mask++) {
+            const lists = lockList.map(({ missionId }, j) => scored
+                .filter(item => (mask >> j & 1 ? item.pair.night : item.pair.day)?.missionId === missionId).sort((a, b) => b.s - a.s));
+            if (lists.some(items => !items.length)) continue;
+            const topLeft = lists.map((_, j) => lists.slice(j).reduce((sum, items) => sum + items[0].s, 0));
+            const dfs = (slot: number, start: number, picked: Pair[], sum: number) => {
+                if (slot < lists.length) {
+                    if (sum + topLeft[slot] + (PLAN_FLEETS - lists.length) * (positive[0]?.s ?? 0) <= best.sum) return;
+                    for (const item of lists[slot]) if (picked.every(pair => compatible(pair, item.pair))) dfs(slot + 1, 0, [...picked, item.pair], sum + item.s);
+                    return;
+                }
+                if (sum > best.sum) best = { sum, picked };
+                if (picked.length === PLAN_FLEETS) return;
+                for (let i = start; i < positive.length; i++) {
+                    if (sum + positive[i].s * (PLAN_FLEETS - picked.length) <= best.sum) return;
+                    if (picked.every(pair => compatible(pair, positive[i].pair))) dfs(slot, i + 1, [...picked, positive[i].pair], sum + positive[i].s);
+                }
+            };
+            dfs(0, 0, [], 0);
+        }
+        return best.sum === -Infinity ? null : best.picked;
+    };
+
+    interface Attempt {
+        c0: Combo | null;
+        /** 精簡成最多三階段後的候選，偏好的在前（最多 MAX_REALIZE 個）；各自的組合與預定天數，sticky＝含黏著組合並從它開始。 */
+        ranked: { combos: Combo[]; days: number[]; sticky: boolean }[];
+        /** 期限模式 LP 的最佳最低存量比例（≥ 1＝期限前全部存得滿）。 */
+        v: number | null;
+    }
+    /**
+     * 組合轉成 LP 的欄（full：總天數、否則期限時的最低比例，見 solveAttempt 的說明）；限制版 LP 與路線候選共用。
+     * full：P[k][c] = 組合 c 對資材 k 的每日淨增減 ÷ 缺口（缺口至少上限的千分之一：已滿的資材要求淨增減不為負的近似）。
+     *       Σy 就是總天數。
+     * 期限：矩陣賽局 P[k][c] = (持有 + H × 淨增減) ÷ 上限 + shift，shift 讓所有元素為正（對任何可能的欄都成立：
+     *       最差的欄是基本淨增減加三隊各自最差的一項）；v = 1 ÷ Σy − shift，各組合天數 = H × y ÷ Σy。
+     *       捷徑：只最大化最低比例，非瓶頸資材不另拉高；要連第二低也比，得改成逐層解 LP。
+     */
+    const columnSpace = (full: boolean, H: number) => {
+        const gaps = known.map(need => Math.max(need.cap - need.have!, need.cap * 1e-3));
+        const floors = PLAN_KEYS.map(key => Math.min(0, ...allPairs().map(pair => pair.daily[key])));
+        const shift = full ? 0 : 1 + Math.max(0, -Math.min(...known.map(need =>
+            (need.have! + H * ((need.base ?? 0) + PLAN_FLEETS * floors[PLAN_KEYS.indexOf(need.key)])) / need.cap)));
+        const slope = known.map((need, k) => (full ? 1 / gaps[k] : H / need.cap));
+        const offset = known.map((need, k) => (full ? (need.base ?? 0) / gaps[k] : (need.have! + H * (need.base ?? 0)) / need.cap + shift));
+        const columnOf = (combo: Combo): CoverColumn<Combo> => ({ tag: combo, p: known.map((need, k) => offset[k] + slope[k] * combo.sum[need.key]) });
+        const weightsOf = (u: readonly number[]) => PLAN_KEYS.map(key => { const k = known.findIndex(need => need.key === key); return k < 0 ? 0 : u[k] * slope[k]; });
+        return { shift, columnOf, weightsOf };
+    };
+    const solveAttempt = (full: boolean, H: number, exact: Pick): Attempt => {
+        const m = known.length;
+        const { shift, columnOf, weightsOf } = columnSpace(full, H);
+        const comboFor = (u: readonly number[], lockList?: readonly { missionId: number }[]) => {
+            const pairs = bestCombo(weightsOf(u), lockList);
+            return pairs && comboOf(pairs);
+        };
+        const initial = [comboOfPick(exact), ...known.map((_, k) => comboOf(bestCombo(weightsOf(known.map((__, j) => (j === k ? 1 : 0)))) ?? []))];
+        const lp = coverWithColumns(m, initial.map(columnOf), u => columnOf(comboFor(u) ?? comboOf([])));
+        if (lp.status !== 'optimal') return { c0: null, ranked: [], v: null };
+        // 單組是「各資材同時到上限」，對偶 u 只告訴我們各資材的相對價值，價值同分的組合可能完全偏向一項；所以以 u 為起點，
+        // 反覆把權重往推算比例最低的資材移，得到一串逐步補平的組合（可含必須由某隊跑的遠征）。
+        const balancedCombos = (lockList?: readonly { missionId: number }[]) => {
+            const top = Math.max(...lp.u);
+            let w = lp.u.map(x => x + 0.05 * top);
+            const found: Combo[] = [];
+            for (let round = 0; round < BALANCE_ROUNDS; round++) {
+                const combo = comboFor(w, lockList);
+                if (!combo) break;
+                found.push(combo);
+                w = w.map((x, k) => x * Math.exp(1 - Math.min(1, (known[k].have! + combo.r[k] * horizon) / known[k].cap)));
+            }
+            return found;
+        };
+        // 黏著組合 c0：含全部鎖定遠征、單組評分最好的一個。
+        const c0 = locks.length ? balancedCombos(locks).reduce<{ combo: Combo; score: ComboScore } | null>((best, combo) => {
+            const score = pickOfCombo(combo).score;
+            return !best || compareScores(score, best.score) > 0 ? { combo, score } : best;
+        }, null)?.combo ?? null : null;
+        const c0Key = c0 && comboKey(c0);
+
+        // 精簡：LP 最佳解的支撐（加上黏著組合 c0）中大小 1～3 的子集，各解限制版 LP。
+        const cands: Combo[] = [];
+        lp.columns.forEach((column, i) => { if (lp.y[i] > EPS && !cands.some(combo => comboKey(combo) === comboKey(column.tag))) cands.push(column.tag); });
+        // 補平的單組也進候選：三階段放不下支撐裡的四、五套組合時，它們常是更好的折衷。
+        for (const combo of [...balancedCombos(), ...(c0 ? [c0] : [])]) if (!cands.some(item => comboKey(item) === comboKey(combo))) cands.push(combo);
+        interface Subset { combos: Combo[]; y: number[]; u: number[]; value: number; withC0: boolean }
+        const subsets: Subset[] = [];
+        // 加入 combo 後，新增所有含它、大小 1～3 的子集（各解限制版 LP）。
+        const addSubsets = (pool: Combo[], fresh: Combo) => {
+            const others = pool.filter(combo => combo !== fresh);
+            for (let size = 0; size < MAX_PHASES; size++) {
+                for (const rest of combinations(others, Math.min(size, others.length))) {
+                    const set = [...rest, fresh];
+                    const solved = solveColumns(m, set.map(columnOf));
+                    if (solved.status !== 'optimal') continue;
+                    const used = set.map((combo, i) => ({ combo, y: solved.y[i] })).filter(item => item.y > EPS);
+                    subsets.push({ combos: used.map(item => item.combo), y: used.map(item => item.y), u: solved.u, value: solved.value,
+                        withC0: c0Key !== null && used.some(item => comboKey(item.combo) === c0Key) });
+                }
+                if (size >= others.length) break;
+            }
+        };
+        const pool: Combo[] = [];
+        for (const combo of cands) { pool.push(combo); addSubsets(pool, combo); }
+        // 最佳解的支撐常有四、五套組合，三階段放不下：以目前最佳三階段的對偶向定價要「再加進來會更好」的組合，
+        // 加進池子重新比較，直到沒有更好的（基數受限的列生成，是啟發式，不保證全域最佳）。
+        for (let round = 0; round < LOCAL_ROUNDS && subsets.length; round++) {
+            // 單看最佳三階段的對偶常只會要回池子裡已有的組合，所以對前幾名的子集各問一次，湊出新的組合。
+            const fresh: Combo[] = [];
+            for (const top of [...subsets].sort((a, b) => a.value - b.value).slice(0, LOCAL_TOP)) {
+                const combo = comboFor(top.u);
+                if (combo && columnOf(combo).p.reduce((sum, v, k) => sum + top.u[k] * v, 0) > 1 + 1e-7
+                    && ![...pool, ...fresh].some(item => comboKey(item) === comboKey(combo))) fresh.push(combo);
+            }
+            if (!fresh.length) break;
+            for (const combo of fresh) { pool.push(combo); addSubsets(pool, combo); }
+        }
+        // 越小越好的度量：full 為總天數，期限為最低比例的負值。
+        const metric = (sumY: number) => (full ? sumY : shift - 1 / sumY);
+        const star = metric(lp.value);
+        const lockIds = locks.map(lock => lock.missionId);
+        // 值在最佳 0.5% 內者依序偏好：階段之間換隊數總和最少、與目前遠征重疊多、遠征編號字典序小（固定順序，結果才穩定）；
+        // 其餘依值排在後面。
+        const rank = (list: Subset[]): Subset[] => {
+            if (!list.length) return [];
+            const top = Math.min(...list.map(subset => metric(subset.value)));
+            const limit = top + (full ? top * PHASE_TOLERANCE : PHASE_TOLERANCE);
+            const near = list.filter(subset => metric(subset.value) <= limit).map(subset => ({
+                subset,
+                changes: subset.combos.reduce((sum, a, i) => sum + subset.combos.slice(i + 1).reduce((acc, b) => acc + distance(a, b), 0), 0),
+                overlap: lockIds.filter(id => subset.combos.some(combo => combo.pairs.some(pair => pair.day?.missionId === id || pair.night?.missionId === id))).length,
+                ids: subset.combos.map(comboIds).sort(compareLists).flatMap(ids => [...ids, -1]),
+            })).sort((a, b) => a.changes - b.changes || b.overlap - a.overlap || compareLists(a.ids, b.ids)).map(item => item.subset);
+            return [...near, ...list.filter(subset => metric(subset.value) > limit).sort((a, b) => a.value - b.value).slice(0, MAX_REALIZE)];
+        };
+        const stickyOk = (subset: Subset) => {
+            const diff = metric(subset.value) - star;
+            return full ? !(diff >= STICKY_MAX_DAYS && diff >= star * STICKY_MAX_RATIO) : diff < STICKY_MAX_FILL;
+        };
+        const stickyPool = subsets.filter(subset => subset.withC0 && stickyOk(subset));
+        const chosenOf = (subset: Subset, sticky: boolean) => {
+            const total = subset.y.reduce((a, b) => a + b, 0);
+            return { combos: subset.combos, days: subset.y.map(y => (full ? y : H * y / total)), sticky };
+        };
+        return {
+            c0, v: full ? null : 1 / lp.value - shift,
+            ranked: [...rank(stickyPool).map(subset => chosenOf(subset, true)),
+                ...rank(subsets).filter(subset => !stickyPool.includes(subset)).map(subset => chosenOf(subset, false))].slice(0, MAX_REALIZE),
+        };
+    };
+    /** 兩套組合之間換隊數（3! 排列下不同的隊數）。 */
+    const distance = (a: Combo, b: Combo) => {
+        const prev = [...a.pairs, ...Array<null>(Math.max(0, b.pairs.length - a.pairs.length)).fill(null)];
+        return matchSlots(prev, b.pairs).changed.length;
+    };
+
+    /** stages：沿用路線時各組合對應的路線階段序號（從 1 起），stageCount 是路線的總階段數。 */
+    interface Realized { full: boolean; combos: Combo[]; sim: ReturnType<typeof simulateSchedule>; days: number; fill: number; stages?: number[]; stageCount?: number }
+    /**
+     * 排成不撞頂的先後並模擬。排法有兩種：防撞頂排程（撞頂就換階段，可能來回切換出很多段）與固定先後（各階段連續跑完，最多三段、
+     * 撞頂的溢出就浪費）；每多一段要多換一次編成，所以以「階段數」折成天數比較（SEGMENT_COST）。
+     * 沒設期限時，模擬末了還有資材沒滿（溢出的浪費，或先滿的資材被後面的階段耗掉）就把各階段天數等比拉長一點再試；
+     * 第一個可行的比例之後再多看幾個比例（拉長 2% 換掉幾段細碎階段是划算的），全部不可行就放棄這個候選。
+     * fixedOrder：沿用路線時只照路線原本的先後連續跑完，不另排。
+     */
+    const realizeOne = (chosen: Attempt['ranked'][number], full: boolean, c0: Combo | null, fixedOrder?: readonly number[]): Realized | null => {
+        const first = chosen.sticky && c0 ? chosen.combos.findIndex(combo => comboKey(combo) === comboKey(c0)) : -1;
+        const orders = fixedOrder ? [fixedOrder] : [...permutations(chosen.combos.map((_, i) => i))].filter(order => first < 0 || order[0] === first);
+        const start = known.map(need => need.have!), caps = known.map(need => need.cap);
+        let best: { found: Realized; cost: number } | null = null;
+        let hits = 0;
+        for (let scale = 1, tries = 0; tries < 20 && hits < 4; scale *= 1.02, tries++) {
+            const phases = chosen.combos.map((combo, i) => ({ rate: combo.r, days: chosen.days[i] * scale }));
+            const sims = [...(fixedOrder ? [] : [simulateSchedule(phases, start, caps, first >= 0 ? { first } : {})]),
+                ...orders.map(order => simulateSchedule(phases, start, caps, { order }))];
+            let hit = false;
+            for (const sim of sims) {
+                const fills = sim.end.map((v, k) => Math.min(1, v / known[k].cap));
+                if (full && fills.some(v => v < 1 - 1e-6)) continue;
+                const found = { full, combos: chosen.combos, sim, days: sim.segments.reduce((sum, seg) => sum + seg.days, 0), fill: Math.min(...fills) };
+                const cost = full ? found.days * (1 + SEGMENT_COST * sim.segments.length) : -found.fill + SEGMENT_FILL_COST * sim.segments.length;
+                if (!best || cost < best.cost) best = { found, cost };
+                hit = true;
+            }
+            if (hit || hits) hits++;
+            if (!full) break;
+        }
+        return best && best.found;
+    };
+    // 候選依偏好順序模擬；後面的候選要明顯更好（0.5%）才取代前面的。
+    // 沿用目前遠征的候選只在好過黏著門檻時才被不沿用的取代，否則黏著在實際模擬這一步就失效了。
+    const realize = (result: Attempt, full: boolean): Realized | null => {
+        let best: { found: Realized; sticky: boolean } | null = null;
+        for (const chosen of result.ranked) {
+            const found = realizeOne(chosen, full, result.c0);
+            if (!found) continue;
+            const gain = best && (full ? best.found.days - found.days : found.fill - best.found.fill);
+            const better = !best || (best.sticky && !chosen.sticky
+                ? (full ? gain! >= STICKY_MAX_DAYS && gain! >= best.found.days * STICKY_MAX_RATIO : gain! >= STICKY_MAX_FILL)
+                : (full ? found.days < best.found.days * (1 - PHASE_TOLERANCE) : found.fill > best.found.fill + PHASE_TOLERANCE));
+            if (better) best = { found, sticky: chosen.sticky };
+        }
+        return best && best.found;
+    };
+    const daysWorthIt = (single: number, multi: number) => (single === Infinity
+        ? multi <= UNTIL_FULL_MAX_DAYS : single - multi >= PHASE_MIN_DAYS && (single - multi) / single >= PHASE_MIN_RATIO);
+
+    // 把第一段的組合排到各隊：含鎖定遠征的配對對到該 deck，其餘依序填剩下的 deck（有任何 deck 資訊時 deck 集合為 1..3）。
+    const layoutFirst = (combo: Combo, size: number) => {
+        const hasDeck = locks.some(lock => lock.deck !== null);
+        const rest = [...combo.pairs].sort((a, b) => pairKey(a).localeCompare(pairKey(b)));
+        const entries: { deck: number | null; pair: Pair | null }[] = [];
+        for (const lock of locks) {
+            if (lock.deck === null) continue;
+            const pair = rest.find(item => item.day?.missionId === lock.missionId || item.night?.missionId === lock.missionId);
+            if (!pair) continue;
+            rest.splice(rest.indexOf(pair), 1);
+            entries.push({ deck: lock.deck, pair });
+        }
+        const free = Array.from({ length: PLAN_FLEETS }, (_, i) => i + 1).filter(deck => !entries.some(entry => entry.deck === deck));
+        for (const pair of [...rest, ...Array<null>(size - combo.pairs.length).fill(null)]) entries.push({ deck: hasDeck ? free.shift() ?? null : null, pair });
+        return hasDeck ? entries.sort((a, b) => (a.deck ?? 9) - (b.deck ?? 9)) : entries;
+    };
+
+    interface PhaseOutcome { pick: Pick; multi: { phases: PhasePlan; outlook: ResourceOutlook[]; days: number } | null }
+
+    /** 把偏好記住的路線重建成各階段的組合；任何一個配對對不上（不在候選、睡前不合、同階段內衝突）就整條失效。 */
+    const rebuildRoute = (): Combo[] | null => {
+        const route = input.route;
+        if (!route?.length || route.length > MAX_PHASES) return null;
+        const combos: Combo[] = [];
+        for (const stage of route) {
+            const pairs: Pair[] = [];
+            for (const { day, night } of stage) {
+                if (day === null && night === null) continue;
+                const dayRow = day === null ? undefined : candidates.find(row => row.missionId === day);
+                // 沒設睡前時 nightCandidates 是空的，記著睡前遠征的路線就此失效。
+                const nightRow = night === null ? undefined : nightCandidates.find(row => row.missionId === night);
+                if ((day !== null && !dayRow) || (night !== null && !nightRow)) return null;
+                const pair = pairOf(dayRow, nightRow);
+                if (!pairs.every(other => compatible(other, pair))) return null;
+                pairs.push(pair);
+            }
+            if (!pairs.length || pairs.length > PLAN_FLEETS) return null;
+            combos.push(comboOf(pairs));
+        }
+        return combos;
+    };
+    /**
+     * 路線候選：路線的各階段當固定的欄解限制版 LP，天數≈0 的階段丟掉，其餘照路線原本的先後模擬（比照 realizeOne）。
+     * 存量已推進時，走完的階段天數為 0 而被丟掉，所以顯示的是接下來的階段。
+     */
+    const routeRealized = (combos: Combo[], full: boolean): Realized | null => {
+        const solved = solveColumns(known.length, combos.map(columnSpace(full, baseHorizon).columnOf));
+        if (solved.status !== 'optimal') return null;
+        const daysOf = (items: { y: number }[]) => {
+            const total = items.reduce((sum, item) => sum + item.y, 0);
+            return items.map(item => (full ? item.y : baseHorizon * item.y / total));
+        };
+        const solvedItems = combos.map((combo, i) => ({ combo, y: solved.y[i], stage: i + 1 })).filter(item => item.y > EPS);
+        const solvedDays = daysOf(solvedItems);
+        const used = solvedItems.filter((_, i) => solvedDays[i] >= ROUTE_MIN_DAYS);
+        if (!used.length) return null;
+        const found = realizeOne({ combos: used.map(item => item.combo), days: daysOf(used), sticky: false }, full, null, used.map((_, i) => i));
+        return found && { ...found, stages: used.map(item => item.stage), stageCount: combos.length };
+    };
+
+    /** 排程結果轉成輸出：每隊的派遣沿用上一段的位置，換隊最少。 */
+    const describePhases = (found: Realized, single: PhasePlan['single']): PhaseOutcome => {
+        const size = Math.max(...found.combos.map(combo => combo.pairs.length));
+        let slots: (Pair | null)[] = [];
+        let decks: (number | null)[] = [];
+        const segments: PlanSegment[] = found.sim.segments.map((seg, index) => {
+            const combo = found.combos[seg.phase];
+            let changed: number[] = [];
+            if (index === 0) {
+                const entries = layoutFirst(combo, size);
+                slots = entries.map(entry => entry.pair);
+                decks = entries.map(entry => entry.deck);
+            } else ({ slots, changed } = matchSlots(slots, combo.pairs));
+            const keyed = (values: readonly number[]) => Object.fromEntries(known.map((need, k) => [need.key, values[k]])) as Partial<Record<PlanKey, number>>;
+            return {
+                fleets: slots.map((pair, i) => ({ deck: decks[i], day: pair?.day ?? null, night: pair?.night ?? null })),
+                days: seg.days, start: keyed(seg.start), end: keyed(seg.end),
+                rate: Object.fromEntries(input.needs.map(need => [need.key, rateWith(need, [combo.sum])])) as Partial<Record<PlanKey, number>>,
+                trigger: seg.trigger && { kind: seg.trigger.kind, key: known[seg.trigger.index].key, at: seg.trigger.at },
+                changed,
+            };
+        });
+        const days = found.days;
         const outlook: ResourceOutlook[] = input.needs.map(need => {
+            const planRate = found.sim.segments.reduce((sum, seg) => sum + seg.days * rateWith(need, [found.combos[seg.phase].sum]), 0) / days;
+            const expRate = planRate - (need.base ?? 0);
+            const k = known.indexOf(need);
+            if (k < 0) return { key: need.key, have: null, cap: need.cap, nowAt: null, planAt: null, planRate, expRate, planDays: null };
+            return {
+                key: need.key, have: need.have, cap: need.cap, nowAt: need.current === null ? null : need.have! + need.current * days,
+                // 模擬到過上限的資材，浮點誤差可能留在上限下一點點（採用門檻容許 1e-6），視為存滿，免得被標成瓶頸。
+                planAt: found.sim.reached[k] != null && found.sim.end[k] >= need.cap * (1 - 1e-6) ? Math.max(need.cap, found.sim.end[k]) : found.sim.end[k],
+                planRate, expRate, planDays: found.sim.reached[k] ?? Infinity,
+            };
+        });
+        // 沒沿用路線時，新路線的階段序號是不同組合依出現順序的編號。
+        const seen: number[] = [];
+        const stage = found.sim.segments.map(seg => {
+            if (!seen.includes(seg.phase)) seen.push(seg.phase);
+            return found.stages ? found.stages[seg.phase] : seen.indexOf(seg.phase) + 1;
+        });
+        const phases: PhasePlan = {
+            segments, days, untilFull: found.full, single,
+            routeKept: found.stages !== undefined, stage, stageCount: found.stageCount ?? seen.length,
+        };
+        return { pick: pickOfCombo(found.combos[found.sim.segments[0].phase]), multi: { phases, outlook, days } };
+    };
+
+    /**
+     * 多階段與黏著。優先序：
+     *   1. 上次記住的路線（input.route）：能重建、且不比現行流程最後會輸出的結果（多階段的實現，沒採用多階段時為精確單組）
+     *      差過黏著門檻，就沿用，不論它剩一段或多段；
+     *   2. 多階段只在改善夠大時採用（門檻見常數）；
+     *   3. 沒採用多階段時，玩家目前正在跑的遠征（running）若不比精確單組差太多就沿用，避免為小幅改善叫玩家換掉正在跑的隊伍。
+     */
+    const planPhases = (exact: Pick): PhaseOutcome => {
+        const none: PhaseOutcome = { pick: exact, multi: null };
+        if (!known.length || !candidates.length || (!input.untilFull && baseHorizon <= 0)) return none;
+        const S = exact.score.days[0] <= UNTIL_FULL_MAX_DAYS ? exact.score.days[0] : Infinity;
+        const fill1 = exact.score.fill[0];
+        let c0 = null as Combo | null;
+        const attempt = (full: boolean) => { const result = solveAttempt(full, baseHorizon, exact); c0 = result.c0; return result; };
+        let found: Realized | null = null;
+        // 期限前全部存得滿：改比最快幾天存滿。
+        let deadlineFull = false;
+        if (input.untilFull) {
+            found = realize(attempt(true), true);
+            // 單組一年內存不滿、多階段也存不滿：退回比期限時的比例。
+            if (!found && S === Infinity && baseHorizon > 0) found = realize(attempt(false), false);
+        } else {
+            const result = attempt(false);
+            deadlineFull = result.v !== null && result.v >= 1 - 1e-9;
+            found = deadlineFull ? realize(attempt(true), true) : realize(result, false);
+        }
+        const worth = found && (found.full
+            ? (input.untilFull || fill1 >= 1 - 1e-9 ? daysWorthIt(S, found.days) : 1 - fill1 >= PHASE_MIN_FILL)
+            : found.fill - fill1 >= PHASE_MIN_FILL);
+        const adopted = found && worth ? found : null;
+
+        // 沿用路線：模式與現行流程一致（採用多階段時照它的模式），比較對象是現行流程最後會輸出的結果。
+        const routeCombos = rebuildRoute();
+        if (routeCombos) {
+            const modes = adopted ? [adopted.full] : input.untilFull ? [true, ...(S === Infinity && baseHorizon > 0 ? [false] : [])] : [deadlineFull];
+            for (const full of modes) {
+                const kept = routeRealized(routeCombos, full);
+                if (!kept) continue;
+                const ref = full ? (adopted ? adopted.days : S) : (adopted ? adopted.fill : fill1);
+                const diff = full ? kept.days - ref : ref - kept.fill;
+                // 現行結果已經（幾乎）全滿時沒有路線可言，不留著只剩零頭的階段。
+                if (full && ref < ROUTE_MIN_DAYS) continue;
+                if (full ? diff >= STICKY_MAX_DAYS && diff >= ref * STICKY_MAX_RATIO : diff >= STICKY_MAX_FILL) continue;
+                return describePhases(kept, full ? { days: S === Infinity ? null : S, fill: null } : { days: null, fill: fill1 });
+            }
+        }
+        if (!found || !worth) {
+            // 黏著：沿用 c0（含全部鎖定遠征的最佳組合）。
+            if (!c0) return none;
+            const stuck = pickOfCombo(c0);
+            const fc = stuck.score.fill[0];
+            const [de, dc] = [exact.score.days[0], stuck.score.days[0]];
+            const ok = fill1 >= 1 - 1e-9 ? dc !== Infinity && !(dc - de >= STICKY_MAX_DAYS && dc - de >= de * STICKY_MAX_RATIO) : fc >= fill1 - STICKY_MAX_FILL;
+            return ok ? { pick: stuck, multi: null } : none;
+        }
+        return describePhases(found, found.full ? { days: S === Infinity ? null : S, fill: null } : { days: null, fill: fill1 });
+    };
+
+    const build = (best: Pick, multi: PhaseOutcome['multi'] = null, sticky = false): ExpeditionPlan => {
+        const outlook: ResourceOutlook[] = multi ? multi.outlook : input.needs.map(need => {
             const planRate = rateWith(need, [best.sum]);
             const expRate = planRate - (need.base ?? 0);
             if (need.have === null) return { key: need.key, have: null, cap: need.cap, nowAt: null, planAt: null, planRate, expRate, planDays: null };
@@ -777,11 +1311,21 @@ export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan
             top, sleep: night, sleepMinutes: sleep, roles: { top: roles.slice(0, top.length), sleep: roles.slice(top.length) },
             outlook, bottleneck, focus, monthly, monthlyCycle, lockedCount, listKnown: list !== null,
             candidateCount: candidates.length, candidates: byFocus(candidates), profile, horizonDays: horizon,
+            phases: multi?.phases ?? null, sticky,
         };
     };
+    // 精確解定案後才算多階段（近似解那次不算）；採用多階段時推算時點改為全程天數。
+    const finalize = (best: Pick) => {
+        const out = planPhases(best);
+        if (out.multi) horizon = out.multi.days;
+        // 黏著：單組或第一段含玩家正在跑的全部遠征（不論是刻意沿用或本來就最佳）。
+        const sticky = locks.length > 0 && locks.every(lock => [...out.pick.day, ...out.pick.night].some(row => row?.missionId === lock.missionId));
+        return build(out.pick, out.multi, sticky);
+    };
 
-    const quick = build(finish(decide(function* () { return approxSearch(); })));
-    if (!sleep) return quick;
-    yield quick;
-    return build(yield* decide(exactSearch));
+    const quickPick = finish(decide(function* () { return approxSearch(); }));
+    // 沒有作息離開時近似解就是精確解。
+    if (!sleep) return finalize(quickPick);
+    yield build(quickPick);
+    return finalize(yield* decide(exactSearch));
 }

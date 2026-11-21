@@ -108,9 +108,11 @@ describe('與社群推薦不同、但依同一目標不比社群差', () => {
     ];
     it.each(MIXED)('%s', (_name, chosen, interval, community) => {
         const plan = run(chosen, interval);
-        const ours = plan.top.map(row => codeOf(row.missionId));
         const lowest = (codes: string[]) => Math.min(...chosen.map(key => perDayOf(plan.candidates, codes, key) / stockpileCap(key)));
-        expect(lowest(ours)).toBeGreaterThanOrEqual(lowest(community));
+        // 輪流跑幾套組合（多階段）更好時 top 只是第一段，所以比整個建議：從 0 起算、沒有其他增減，期限（30 天）時的存量比例 ÷ 30
+        // 就是每日比例，單組時與 top 的每日收入相同。
+        const planned = Math.min(...plan.outlook.map(line => line.planAt! / line.cap)) / 30;
+        expect(planned).toBeGreaterThanOrEqual(lowest(community) - 1e-12);
     });
 });
 

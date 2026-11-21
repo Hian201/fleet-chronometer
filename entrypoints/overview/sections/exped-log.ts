@@ -20,7 +20,7 @@ import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
 import { DAY_MS, formatDate, formatDateTime } from '@/utils/date-format';
-import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_KEYS, SPEND_BASES, UNTIL_FULL_MAX_DAYS, lightestWeek, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type SpendBasis } from '@/utils/expedition-plan';
+import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_FLEETS, PLAN_KEYS, SPEND_BASES, UNTIL_FULL_MAX_DAYS, lightestWeek, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type PlanSegment, type PlanRouteFleet, type SpendBasis } from '@/utils/expedition-plan';
 import { stockpileFromRows, type StockpileGoal } from '@/utils/stockpile';
 import { goalsFromRows, remodelStockOf, type RemodelGoal } from '@/utils/remodel-goals';
 import { FLOW_BLOCK_DAYS, FLOW_MAX_BLOCKS, type ObservedFlow } from '@/utils/goal-arrival';
@@ -303,8 +303,12 @@ const PLAN_DEFAULT_HOURS = 3;
 /** 沒設備蓄期限時的推算時點：與流量的觀測窗同長（FLOW_MAX_BLOCKS 週）。 */
 const PLAN_DEFAULT_HORIZON_DAYS = FLOW_MAX_BLOCKS * FLOW_BLOCK_DAYS;
 
-/** hours：在線時多久回來收一次遠征；sleep：每天一次較長離開的小時數（0＝不另排睡前組合）；basis：支出照哪一段算。 */
-export interface PlanPrefs { hours: number; sleep: number; basis: SpendBasis; chosen: PlanKey[] }
+/**
+ * hours：在線時多久回來收一次遠征；sleep：每天一次較長離開的小時數（0＝不另排睡前組合）；basis：支出照哪一段算；
+ * last：上次顯示的建議中各隊的遠征 id（每隊取在線那條，沒有在線取睡前；最多三個），沒有艦隊資訊時當作正在跑的遠征（黏著的備援）；
+ * route／routeKey：上次採用的路線（各階段各隊的遠征）與它對應的條件（routeKeyOf），條件沒變才傳給引擎沿用。
+ */
+export interface PlanPrefs { hours: number; sleep: number; basis: SpendBasis; chosen: PlanKey[]; last: number[]; route: PlanRouteFleet[][]; routeKey: string }
 
 /** 睡前離開的上限（小時）：再長就幾乎沒有在線時間，在線組合失去意義。 */
 const PLAN_MAX_SLEEP = 20;
@@ -313,9 +317,19 @@ const PLAN_SYNC_MS = 100;
 /** 之後在背景每段算多久（毫秒）。 */
 const PLAN_SLICE_MS = 30;
 
-export const defaultPlanPrefs = (): PlanPrefs => ({ hours: PLAN_DEFAULT_HOURS, sleep: 0, basis: 'recent', chosen: [...DEFAULT_CHOSEN] });
+export const defaultPlanPrefs = (): PlanPrefs => ({ hours: PLAN_DEFAULT_HOURS, sleep: 0, basis: 'recent', chosen: [...DEFAULT_CHOSEN], last: [], route: [], routeKey: '' });
 
-function loadPlanPrefs(): PlanPrefs {
+/** 路線最多三階段、每階段最多三隊（引擎只收這個範圍），遠征 id 為正整數或 null。 */
+const isRouteId = (id: unknown) => id === null || (Number.isInteger(id) && (id as number) > 0);
+const validRoute = (value: unknown): value is PlanRouteFleet[][] => Array.isArray(value) && value.length <= 3
+    && value.every(stage => Array.isArray(stage) && stage.length <= PLAN_FLEETS
+        && stage.every(fleet => typeof fleet === 'object' && fleet !== null && isRouteId(fleet.day) && isRouteId(fleet.night)));
+
+/** 路線對應的條件：這些任一改變，原路線就不再適用（引擎看不到的設定，所以由這裡把關）。 */
+export const routeKeyOf = (prefs: Pick<PlanPrefs, 'hours' | 'sleep' | 'basis' | 'chosen'>, deadline: string | null) =>
+    JSON.stringify({ hours: prefs.hours, sleep: prefs.sleep, basis: prefs.basis, chosen: prefs.chosen, deadline });
+
+export function loadPlanPrefs(): PlanPrefs {
     const d = defaultPlanPrefs();
     return loadJsonPrefs(PLAN_PREFS_KEY, d, raw => {
         const r = raw as Partial<Record<keyof PlanPrefs, unknown>> | null;
@@ -324,6 +338,10 @@ function loadPlanPrefs(): PlanPrefs {
             sleep: typeof r?.sleep === 'number' && r.sleep >= 0 && r.sleep <= PLAN_MAX_SLEEP ? r.sleep : d.sleep,
             basis: SPEND_BASES.includes(r?.basis as SpendBasis) ? r!.basis as SpendBasis : d.basis,
             chosen: Array.isArray(r?.chosen) ? PLAN_KEYS.filter(key => (r!.chosen as unknown[]).includes(key)) : d.chosen,
+            last: Array.isArray(r?.last) && r.last.length <= PLAN_FLEETS && r.last.every(id => Number.isInteger(id) && id > 0) ? [...r.last as number[]] : d.last,
+            // 路線壞掉時連同它的條件一起退回空值。
+            route: validRoute(r?.route) ? r.route.map(stage => stage.map(({ day, night }) => ({ day, night }))) : d.route,
+            routeKey: validRoute(r?.route) && typeof r?.routeKey === 'string' ? r.routeKey : d.routeKey,
         };
     });
 }
@@ -346,6 +364,58 @@ export interface PlanView {
     deadline: string | null;
 }
 
+/**
+ * 玩家正在跑的遠征（建議的黏著依據）：第二～第四艦隊（decks 的索引 1..3）進行中的遠征（含回港待收）優先，
+ * 其次是各艦隊上次執行的遠征；同一遠征只留第一個。最後附上偏好記住的上次建議（沒有艦隊編號，引擎只在前面都無效時才用）。
+ */
+export function runningOf(state: Pick<GameState, 'decks' | 'lastMissionForDeck'>, last: readonly number[]): { deck: number | null; missionId: number }[] {
+    const fleets = [1, 2, 3].map(deck => {
+        const mission = state.decks[deck]?.api_mission;
+        const active = mission?.[0] > 0 && mission?.[1] > 0;
+        return { deck, missionId: (active ? mission[1] : state.lastMissionForDeck(deck)) as number | null, active };
+    }).filter((item): item is { deck: number; missionId: number; active: boolean } => item.missionId !== null && item.missionId > 0);
+    const ordered = [...fleets.filter(item => item.active), ...fleets.filter(item => !item.active)];
+    return [...ordered.filter((item, i) => ordered.findIndex(other => other.missionId === item.missionId) === i)
+        .map(({ deck, missionId }) => ({ deck, missionId })), ...last.map(missionId => ({ deck: null, missionId }))];
+}
+
+/** 這份建議各隊的遠征 id（每隊在線優先、沒有在線取睡前），存進偏好當下次的備援。 */
+export function lastOf(plan: ExpeditionPlan): number[] {
+    const ids = plan.phases
+        ? plan.phases.segments[0].fleets.map(fleet => (fleet.day ?? fleet.night)?.missionId)
+        // 單組：在線每隊一條；睡前比在線多出來的是只有睡前的隊（排在最後）。
+        : [...plan.top.map(row => row.missionId), ...plan.sleep.slice(plan.top.length).map(row => row.missionId)];
+    return ids.filter((id): id is number => id !== undefined).filter((id, i, all) => all.indexOf(id) === i).slice(0, PLAN_FLEETS);
+}
+
+/**
+ * 這份建議的路線：各階段各隊的 [在線, 睡前] 遠征 id（沒派的隊略過）。多階段依階段序號去重（同一組合出現兩次只算一階段），
+ * 單組是一階段，同索引的在線與睡前當作同一隊（睡前比在線多出來的是只有睡前的隊，同 lastOf）。
+ */
+export function routeOf(plan: ExpeditionPlan): PlanRouteFleet[][] {
+    if (!plan.phases) {
+        const fleets = Array.from({ length: Math.max(plan.top.length, plan.sleep.length) }, (_, i) =>
+            ({ day: plan.top[i]?.missionId ?? null, night: plan.sleep[i]?.missionId ?? null })).slice(0, PLAN_FLEETS);
+        return fleets.length ? [fleets] : [];
+    }
+    const { segments, stage } = plan.phases;
+    return segments.flatMap((segment, i) => (stage.indexOf(stage[i]) === i
+        ? [segment.fleets.filter(fleet => fleet.day || fleet.night).map(fleet => ({ day: fleet.day?.missionId ?? null, night: fleet.night?.missionId ?? null }))] : []));
+}
+
+/**
+ * 精確結果畫上去後更新偏好裡的路線；有變才回傳 true（呼叫端存檔）。沿用原路線時不動它（階段編號才會延續）；
+ * 建議是空的不覆蓋；條件（key）與路線都沒變就不寫。
+ */
+export function updateRoute(prefs: PlanPrefs, plan: ExpeditionPlan, key: string): boolean {
+    if (plan.phases?.routeKept) return false;
+    const route = routeOf(plan);
+    if (!route.length || (key === prefs.routeKey && JSON.stringify(route) === JSON.stringify(prefs.route))) return false;
+    prefs.route = route;
+    prefs.routeKey = key;
+    return true;
+}
+
 const keyName = (key: PlanKey) => t(`mat.${key}.full`);
 const hourMinute = (minutes: number) => `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
 // 平均值不是整數：數百以上取整，離散資材（個位數）留一位小數。
@@ -361,8 +431,8 @@ function atHtml(value: number | null, cap: number): string {
     return `<span title="${esc(fmtNum(amount))}">${esc(percentText(value, cap))}</span>`;
 }
 
-/** 遠征列表：每趟淨收益（燃彈已扣補給）或每日淨收入；推算值與沒跑過的遠征加標記；roles 有值時標「補哪一項」。 */
-function missionTableHtml(rows: PlanRow[], keys: PlanKey[], perDay: boolean, roles: readonly (PlanKey | null)[] = [], listKnown = false): string {
+/** 遠征列表：每趟淨收益（燃彈已扣補給）或每日淨收入；推算值與沒跑過的遠征加標記；roles 有值時標「補哪一項」；fleets 有值時在遠征名前標艦隊。 */
+function missionTableHtml(rows: PlanRow[], keys: PlanKey[], perDay: boolean, roles: readonly (PlanKey | null)[] = [], listKnown = false, fleets: readonly (string | null)[] = []): string {
     const flagged = keys.some(key => key === 'drum' || key === 'torch' || key === 'devmat');
     return `<div class="el-table-wrap"><table class="el-table el-plan-table"><thead><tr>
         <th>${esc(t('ov.expedColMission'))}</th><th>${esc(t('ov.epColTime'))}</th>
@@ -379,7 +449,8 @@ function missionTableHtml(rows: PlanRow[], keys: PlanKey[], perDay: boolean, rol
         const tip = row.runs && flagged ? ` class="el-plan-n" title="${esc(t('ov.epItemRunsTip', { n: row.itemRuns }))}"` : row.runs ? '' : ` class="el-none" title="${esc(t(listKnown ? 'ov.epUnrunOpenTip' : 'ov.epUnrunTip'))}"`;
         const role = roles[i];
         const roleHtml = role ? ` <span class="el-plan-role" title="${esc(t('ov.epRoleTip'))}">${matIconHtml(role, keyName(role))}${esc(t('ov.epRole', { item: keyName(role) }))}</span>` : '';
-        return `<tr><td><div class="el-type"><b title="${esc(name)}">${esc(name)}</b><span>${esc(row.dispNo)}${roleHtml}</span></div></td>
+        const fleetHtml = fleets[i] ? `<span class="el-plan-fleet">${esc(fleets[i]!)}</span>` : '';
+        return `<tr><td><div class="el-type"><b title="${esc(name)}">${fleetHtml}${esc(name)}</b><span>${esc(row.dispNo)}${roleHtml}</span></div></td>
             <td class="el-plan-time">${esc(hourMinute(row.time))}</td>
             <td><div class="el-sum-chips">${chips}</div></td>
             <td class="el-plan-time"><span${tip}>${esc(runs)}</span></td></tr>`;
@@ -411,7 +482,17 @@ function amountText(value: number, cap: number): string {
 }
 
 /**
- * 結果頂端的一句結論：最需要補的資材（focus）現有多少、這組遠征到推算時點帶進多少、合計多少。
+ * 沒設期限、而組合能讓勾選資材全部存滿時，講全部存滿的天數（這時的推算時點就是那一天）。
+ * 超過 UNTIL_FULL_MAX_DAYS 時規劃已退回預設時點，不講天數，免得與推算表矛盾。
+ */
+function allFullHtml(plan: ExpeditionPlan, view: PlanView): string {
+    const days = plan.outlook.map(item => item.planDays);
+    return !view.deadline && days.every(day => day !== null && day <= UNTIL_FULL_MAX_DAYS)
+        ? `<p class="el-plan-verdict">${esc(t('ov.epAllFull', { n: Math.ceil(Math.max(...(days as number[]))) }))}</p>` : '';
+}
+
+/**
+ * 一句結論：最需要補的資材（focus）現有多少、這組遠征到推算時點帶進多少、合計多少。
  * 只用遠征本身的淨收入，玩家才能直接對上「跑這三條能存幾萬」；出擊等消耗只用來判斷哪項最需要補，另附一行說明。
  * 合計會超過上限時改說幾天存滿。
  */
@@ -428,12 +509,69 @@ function verdictHtml(plan: ExpeditionPlan, view: PlanView): string {
             span: view.deadline ? t('ov.epSpanDeadline', { date: view.deadline }) : t('ov.epSpanDays', { n: Math.round(plan.horizonDays) }),
         })
         : t('ov.epVerdictFull', { item, have: amount(line.have), cap: amount(line.cap), n: Math.ceil((line.cap - line.have) / line.expRate) });
-    // 沒設期限、而組合能讓勾選資材全部存滿時，先講全部存滿的天數（這時的推算時點就是那一天）。
-    // 超過 UNTIL_FULL_MAX_DAYS 時規劃已退回預設時點，不講天數，免得與推算表矛盾。
-    const days = plan.outlook.map(item => item.planDays);
-    const allFull = !view.deadline && days.every(day => day !== null && day <= UNTIL_FULL_MAX_DAYS)
-        ? `<p class="el-plan-verdict">${esc(t('ov.epAllFull', { n: Math.ceil(Math.max(...(days as number[]))) }))}</p>` : '';
-    return `${allFull}<p class="el-plan-verdict">${matIconHtml(line.key, item)} ${esc(text)}</p><p class="ov-note dim el-plan-note">${esc(t('ov.epVerdictNote'))}</p>`;
+    return `<p class="el-plan-verdict">${matIconHtml(line.key, item)} ${esc(text)}</p><p class="ov-note dim el-plan-note">${esc(t('ov.epVerdictNote'))}</p>`;
+}
+
+// ── 多階段（輪流跑幾套組合）──────────────────────────────────────────────
+// 採用多階段（或沿用路線）時 plan.top／sleep／roles 是目前階段的組合、outlook 已依全程模擬重算；
+// 畫面最上面先給「現在派這三隊」（目前階段），多於一段時再接「整體規劃」。
+
+/** 「約 N 天」的天數：四捨五入，至少 1（排程步長 0.25 天，太短的階段不寫成 0）。 */
+const phaseDays = (days: number) => Math.max(1, Math.round(days));
+
+/** 整體規劃的總結：幾個階段輪流跑、全程（沿用路線時是還要）幾天存滿（或期限時最低存量），並對照固定一套。 */
+function phaseSummaryHtml(plan: ExpeditionPlan): string {
+    const phases = plan.phases!;
+    const n = phases.stageCount;
+    let text: string;
+    if (phases.untilFull) {
+        const single = phases.single.days === null ? t('ov.epPhaseSingleNever') : t('ov.epPhaseSingleDays', { n: Math.ceil(phases.single.days) });
+        text = t(phases.routeKept ? 'ov.epPhaseFullLeft' : 'ov.epPhaseFull', { n, days: Math.ceil(phases.days), single });
+    } else {
+        const fills = plan.outlook.filter(line => line.planAt !== null).map(line => line.planAt! / line.cap);
+        if (!fills.length) return '';
+        text = t('ov.epPhaseFill', { n, fill: percentText(Math.min(...fills), 1), single: percentText(phases.single.fill ?? 0, 1) });
+    }
+    return `<p class="el-plan-verdict">${esc(text)}</p>`;
+}
+
+/** 第 index 段結束時換下一段的條件；最後一段為 null。天數是從現在起算。 */
+function phaseTriggerText(plan: ExpeditionPlan, index: number): string | null {
+    const { segments } = plan.phases!;
+    if (index >= segments.length - 1) return null;
+    const d = phaseDays(segments.slice(0, index + 1).reduce((sum, seg) => sum + seg.days, 0));
+    const trigger = segments[index].trigger;
+    if (!trigger) return t('ov.epTrigTime', { d });
+    const item = keyName(trigger.key);
+    const cap = plan.outlook.find(line => line.key === trigger.key)!.cap;
+    if (trigger.kind === 'cap') return t('ov.epTrigCap', { item, d });
+    const amount = amountText(trigger.at, cap);
+    if (trigger.kind === 'fall') return t('ov.epTrigFall', { item, amount, d });
+    return trigger.at >= cap * (1 - 1e-9) ? t('ov.epTrigRiseFull', { item, d }) : t('ov.epTrigRise', { item, amount, d });
+}
+
+/** 遠征只寫遊戲內編號，名稱放提示。 */
+const missionNoHtml = (row: PlanRow) => `<span title="${esc(expedDisplayName(row.missionId, row.name))}">${esc(row.dispNo)}</span>`;
+
+/** 整體規劃表：每列一段，各隊派什麼（與前一列不同的加粗）、跑幾天、何時換下一段。第一列是目前階段，內容在上方，不重複寫。 */
+function overallTableHtml(plan: ExpeditionPlan): string {
+    const { segments, stage, untilFull } = plan.phases!;
+    const deckOf = segments[0].fleets.map((fleet, i) => (fleet.deck !== null ? t('ov.expedDeck', { n: fleet.deck + 1 }) : t('ov.epFleetN', { n: i + 1 })));
+    const night = plan.sleepMinutes > 0;
+    const cell = (fleet: PlanSegment['fleets'][number]) => {
+        if (!fleet.day && !fleet.night) return esc(t('ov.epSendNone'));
+        const part = (row: PlanRow | null) => (row ? missionNoHtml(row) : '—');
+        return night ? `${part(fleet.day)}・${part(fleet.night)}` : part(fleet.day);
+    };
+    return `<div class="el-table-wrap"><table class="el-table el-plan-table el-plan-phases"><thead><tr>
+        <th class="el-pp-stage">${esc(t('ov.epColStage'))}</th>${deckOf.map(name => `<th>${esc(name)}</th>`).join('')}
+        <th class="el-pp-days">${esc(t('ov.epColStageDays'))}</th><th class="el-pp-switch">${esc(t('ov.epColSwitch'))}</th></tr></thead><tbody>${segments.map((segment, index) => {
+        const trigger = phaseTriggerText(plan, index);
+        return `<tr><td>${esc(t('ov.epStageN', { n: stage[index] }))}${index ? '' : ` <span class="el-plan-cur">${esc(t('ov.epStageNow'))}</span>`}</td>
+            ${segment.fleets.map((fleet, i) => `<td>${index ? (segment.changed.includes(i) ? `<b>${cell(fleet)}</b>` : cell(fleet)) : esc(t('ov.epSeeAbove'))}</td>`).join('')}
+            <td class="el-plan-time">${esc(t('ov.epStageDays', { n: phaseDays(segment.days) }))}</td>
+            <td>${esc(index === 0 ? t('ov.epSeeAbove') : trigger ?? (untilFull ? t('ov.epStageFull') : '—'))}</td></tr>`;
+    }).join('')}</tbody></table></div>${night ? `<p class="ov-note dim el-plan-note">${esc(t('ov.epCellNote'))}</p>` : ''}`;
 }
 
 /** 建議區外殼（控制項與說明）；body 是結果區的初始內容，離線預覽與正式分區共用。 */
@@ -477,14 +615,38 @@ export function planResultHtml(view: PlanView): string {
             t('ov.epProfile', { gs: Math.round(plan.profile.great * 100), bonus: plan.profile.bonus.toFixed(2), n: MIN_RUNS }),
         ].filter(Boolean).map(note => `<p class="ov-note dim el-plan-note">${esc(note)}</p>`).join('')
             + (plan.lockedCount ? `<p class="ov-note dim el-plan-note">${esc(t('ov.epLocked', { n: plan.lockedCount }))} <a href="#/exped-log?sub=unlock">${esc(t('ov.euSeeUnlock'))}</a></p>` : '');
-        const night = plan.sleep.length
-            ? `<h4 class="el-h">${esc(t('ov.epOnline'))}</h4>${missionTableHtml(plan.top, view.chosen, false, plan.roles.top, plan.listKnown)}
-                <h4 class="el-h" title="${esc(t('ov.epNightTip'))}">${esc(t('ov.epNight', { h: plan.sleepMinutes / 60 }))}</h4>${missionTableHtml(plan.sleep, view.chosen, false, plan.roles.sleep, plan.listKnown)}`
-            : missionTableHtml(plan.top, view.chosen, false, plan.roles.top, plan.listKnown);
+        // 現在派這三隊：目前階段的組合；有艦隊編號時在遠征名前標艦隊（同一遠征只會在一隊的在線或睡前出現）。
+        const phases = plan.phases;
+        const multi = !!phases && phases.segments.length > 1;
+        // 有艦隊編號時兩張表都依編號排（第二→第四艦隊），與整體規劃表的欄順序一致；各自排序後同一隊仍在同一列。
+        const byDeck = (rows: PlanRow[], roles: readonly (PlanKey | null)[], pick: (fleet: PlanSegment['fleets'][number]) => PlanRow | null) => {
+            const decks = rows.map(row => phases?.segments[0].fleets.find(fleet => pick(fleet)?.missionId === row.missionId)?.deck ?? null);
+            const order = rows.map((_, i) => i);
+            if (decks.every(deck => deck !== null)) order.sort((a, b) => decks[a]! - decks[b]!);
+            return {
+                rows: order.map(i => rows[i]), roles: order.map(i => roles[i] ?? null),
+                labels: order.map(i => (decks[i] === null ? null : t('ov.expedDeck', { n: decks[i]! + 1 }))),
+            };
+        };
+        const day = byDeck(plan.top, plan.roles.top, fleet => fleet.day), night = byDeck(plan.sleep, plan.roles.sleep, fleet => fleet.night);
+        const stageTag = phases && phases.stageCount > 1
+            ? `<span class="el-plan-stage">${esc(t('ov.epPhaseOf', { k: phases.stage[0], n: phases.stageCount }))}</span>` : '';
+        const tables = plan.sleep.length
+            ? `<h4 class="el-h el-plan-sub">${esc(t('ov.epOnline'))}</h4>${missionTableHtml(day.rows, view.chosen, false, day.roles, plan.listKnown, day.labels)}
+                <h4 class="el-h el-plan-sub" title="${esc(t('ov.epNightTip'))}">${esc(t('ov.epNight', { h: plan.sleepMinutes / 60 }))}</h4>${missionTableHtml(night.rows, view.chosen, false, night.roles, plan.listKnown, night.labels)}`
+            : missionTableHtml(day.rows, view.chosen, false, day.roles, plan.listKnown, day.labels);
+        const trigger = multi ? phaseTriggerText(plan, 0) : null;
+        const falling = multi ? PLAN_KEYS.filter(key => view.chosen.includes(key) && (phases!.segments[0].rate[key] ?? 0) < -1e-6) : [];
+        const follow = (multi ? (trigger ? `<p class="ov-note el-plan-note">${esc(trigger)}</p>` : '') : allFullHtml(plan, view))
+            + (falling.length ? `<p class="ov-note dim el-plan-note">${esc(t('ov.epPhaseDip', { items: new Intl.ListFormat(getLang(), { type: 'conjunction' }).format(falling.map(keyName)) }))}</p>` : '')
+            + (phases?.routeKept ? `<p class="ov-note dim el-plan-note">${esc(t('ov.epRouteKept'))}</p>`
+                : plan.sticky ? `<p class="ov-note dim el-plan-note">${esc(t('ov.epSticky'))}</p>` : '');
+        // 整體規劃只在還有後續階段時才有；它的全程平均數字容易被誤讀，所以此時不顯示結論句。
+        const overall = multi ? `<h4 class="el-h">${esc(t('ov.epOverall'))}</h4>${phaseSummaryHtml(plan)}${overallTableHtml(plan)}` : '';
         // 推算表與全部候選是細節，預設收合；展開狀態由分區在重繪時保留（data-part）。
         const refining = view.refining
             ? `<p class="el-plan-refining" role="status"><span class="el-plan-spin" aria-hidden="true"></span>${esc(t('ov.epRefining'))}</p>` : '';
-        main = `${refining}${verdictHtml(plan, view)}${night}${notes}
+        main = `${refining}<h4 class="el-h">${esc(t('ov.epNowTitle'))}${stageTag}</h4>${tables}${follow}${overall}${multi ? '' : verdictHtml(plan, view)}${notes}
             <details class="el-plan-all" data-part="outlook"><summary class="el-h">${esc(t('ov.epOutlook', { when }))}</summary>${outlookTableHtml(plan, when)}</details>
             <details class="el-plan-all" data-part="all"><summary class="el-h">${esc(t('ov.epAll', { n: plan.candidates.length }))}</summary>
             ${plan.focus ? `<p class="ov-note dim">${esc(t('ov.epAllNote', { item: keyName(plan.focus) }))}</p>` : ''}${missionTableHtml(plan.candidates, view.chosen, true, [], plan.listKnown)}</details>`;
@@ -653,7 +815,12 @@ export const expedLogSection: OverviewSection = {
                 // 期限從當天 0 時起算，與目標規劃的備蓄卡片一致（活動開始日當天就要用）。
                 const end = deadline ? dateStart(deadline) : null;
                 const horizonDays = end !== null ? Math.max(0, (end - now) / DAY_MS) : PLAN_DEFAULT_HORIZON_DAYS;
-                const steps = planExpeditionSteps({ missions, records: all, intervalMinutes: planPrefs.hours * 60, sleepMinutes: planPrefs.sleep * 60, needs, horizonDays, untilFull: !deadline, shipMax, missionList: ctx.state.missionList });
+                // 條件沒變才沿用上次的路線；改了設定就直接重排。
+                const routeKey = routeKeyOf(planPrefs, deadline);
+                const steps = planExpeditionSteps({
+                    missions, records: all, intervalMinutes: planPrefs.hours * 60, sleepMinutes: planPrefs.sleep * 60, needs, horizonDays, untilFull: !deadline, shipMax,
+                    missionList: ctx.state.missionList, running: runningOf(ctx.state, planPrefs.last), route: routeKey === planPrefs.routeKey ? planPrefs.route : undefined,
+                });
                 const render = (plan: ExpeditionPlan, refining: boolean) => {
                     // 重繪不收合玩家展開的細節（design-guidelines §4.2）。
                     const opened = new Set([...planBody.querySelectorAll<HTMLDetailsElement>('details[data-part]')].filter(d => d.open).map(d => d.dataset.part));
@@ -662,6 +829,13 @@ export const expedLogSection: OverviewSection = {
                         noFlow: needs.every(need => need.base === null), deadline, basis: planPrefs.basis, week, refining,
                     });
                     for (const box of planBody.querySelectorAll<HTMLDetailsElement>('details[data-part]')) box.open = opened.has(box.dataset.part);
+                    // 精確結果才記（近似解之後還會換）；建議是空的不覆蓋；沒變就不寫。
+                    const last = refining ? [] : lastOf(plan);
+                    if (last.length && (last.length !== planPrefs.last.length || last.some((id, i) => id !== planPrefs.last[i]))) {
+                        planPrefs.last = last;
+                        saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
+                    }
+                    if (!refining && updateRoute(planPrefs, plan, routeKey)) saveJsonPrefs(PLAN_PREFS_KEY, planPrefs);
                 };
                 // 先拿近似解；精確搜尋在短時間內算得完就直接顯示精確解，否則先顯示近似解，其餘分段在背景算完再換上。
                 // 每段不超過數十毫秒，輸入與捲動不會卡；條件改變（重算）時放棄舊的計算。
@@ -727,7 +901,9 @@ export const expedLogSection: OverviewSection = {
         ctx.onStateChange?.(paths => {
             if (!el.isConnected) return;
             if (unlockDrawn) drawUnlock();
-            if (planDrawn && paths.some(path => path === 'api_get_member/mission' || path === 'api_start2/getData')) drawPlan();
+            // 發遠征（api_req_mission/start）會改變正在跑的遠征（黏著依據），所以也重算；不含 api_port/port：
+            // 每次回母港都會來，組合搜尋最多數秒，不值得為它每次重跑。
+            if (planDrawn && paths.some(path => path === 'api_get_member/mission' || path === 'api_start2/getData' || path === 'api_req_mission/start')) drawPlan();
         });
 
         /**

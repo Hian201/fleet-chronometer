@@ -11,6 +11,11 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - After 20 minutes the repair keeps going until the ships are full. Each fleet in the anchorage group shows the HP you get by returning to port now and the time until every ship in range is fully repaired; the countdown sits once in the column header.
 - Repaired HP is counted in whole minutes, as in the game.
 
+**Expedition planning in phases**
+- The expedition planner can now suggest rotating two or three sets of expeditions instead of one fixed set, when that fills every chosen resource noticeably sooner (or leaves more by the stockpile deadline). With daily spending across four or five resources, this often saves weeks, or makes a goal reachable that a single set never reaches. When the gain is small, it keeps suggesting one set so you don't swap fleets for little.
+- The plan page now starts with **Send these now**: the expeditions for your 2nd–4th fleets, the current phase, and the condition for moving to the next one (for example, when steel reaches 166K). Below it, **Overall plan** lists every phase by fleet, with changes from the previous phase in bold.
+- The plan remembers its route: after you reach a phase's target, reopening the page continues with the next phase. It only reroutes when a new route is clearly better, or when you change the settings. It also prefers to keep the expeditions your fleets are already running.
+
 ## [1.1.1.1] - 2026-11-20
 
 ### Highlights

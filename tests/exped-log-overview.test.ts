@@ -3,8 +3,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { ExpeditionRow } from '../utils/db';
 import { groupByMission, summarize } from '../utils/expedition-stats';
-import { MIN_RUNS, planExpeditions, type ResourceNeed } from '../utils/expedition-plan';
-import { COLUMNS, defaultPrefs, planResultHtml, statsHtml, summaryHtml } from '../entrypoints/overview/sections/exped-log';
+import { MIN_RUNS, planExpeditions, type PlanRow, type PlanSegment, type ResourceNeed } from '../utils/expedition-plan';
+import { COLUMNS, defaultPlanPrefs, defaultPrefs, lastOf, loadPlanPrefs, planResultHtml, routeKeyOf, routeOf, runningOf, statsHtml, summaryHtml, updateRoute } from '../entrypoints/overview/sections/exped-log';
 import { getLang, setLang, t } from '../utils/ui-i18n';
 import { formatDate, formatDateTime } from '../utils/date-format';
 import { parseHTML } from 'linkedom';
@@ -306,5 +306,274 @@ describe('遠征組合建議', () => {
         expect(planResultHtml({ ...filling, deadline: '2026-12-31' })).not.toContain(t('ov.epAllFull', { n: 5 }));
         expect(planResultHtml(view(tenRuns, [need('fuel', 340000, null, 350000)])))
             .toContain(t('ov.epVerdictFull', { item: t('mat.fuel.full'), have: amount(340000), cap: amount(350000), n: 5 }));
+    });
+});
+
+describe('遠征組合建議：多階段與黏著', () => {
+    const mission = { id: 905, dispNo: '905', name: '海上護衛任務', time: 90, resetType: 0, winItems: [[0, 0], [1, 1]] as [number, number][], use: [0, 0] as [number, number] };
+    const records = Array.from({ length: MIN_RUNS }, (_, i) => exped({ ts: 1000 + i, missionId: 905, result: 1, resources: [300, 0, 0, 0] }));
+    const base = planExpeditions({
+        missions: [mission], records, intervalMinutes: 180, horizonDays: 10,
+        needs: [{ key: 'fuel', have: 175000, cap: 350000, base: 100, current: 100 }],
+    });
+    const row = (id: number, dispNo: string): PlanRow => ({ ...base.top[0], missionId: id, dispNo, name: `遠征${dispNo}` });
+    const fleet = (deck: number | null, day: number | null, night: number | null = null) =>
+        ({ deck, day: day === null ? null : row(day, String(day).padStart(2, '0')), night: night === null ? null : row(night, String(night)) });
+    const seg = (days: number, fleets: PlanSegment['fleets'], trigger: PlanSegment['trigger'], changed: number[] = [], rate: PlanSegment['rate'] = { fuel: 1000 }): PlanSegment =>
+        ({ fleets, days, start: {}, end: {}, rate, trigger, changed });
+    // 三段、兩套組合（第三段回到第一套）：段數 3、組合數（階段數）2。
+    const segments = [
+        seg(10.6, [fleet(1, 2), fleet(2, 13)], { kind: 'rise', key: 'fuel', at: 166000 }),
+        seg(20, [fleet(1, 2), fleet(2, null)], { kind: 'cap', key: 'fuel', at: 349000 }, [1]),
+        seg(5, [fleet(1, 2), fleet(2, 13)], null, [1]),
+    ];
+    const phaseOf = (over: Partial<NonNullable<typeof base.phases>> = {}): NonNullable<typeof base.phases> =>
+        ({ segments, days: 35.6, untilFull: true, single: { days: 50.2, fill: null }, routeKept: false, stage: [1, 2, 1], stageCount: 2, ...over });
+    const phasePlan = (over: Partial<typeof base> = {}, phases = phaseOf()) => ({ ...base, top: [row(2, '02'), row(13, '13')], ...over, phases });
+    const view = (plan: typeof base, deadline: string | null = null) => ({ plan, chosen: ['fuel' as const], hasMaster: true, noFlow: false, deadline });
+    const summaryOf = (n: number) => t('ov.epPhaseFull', { n, days: 36, single: t('ov.epPhaseSingleDays', { n: 51 }) });
+
+    it('最上面是「現在派這三隊」，多階段時標題後附「第 k／n 階段」', () => {
+        const html = planResultHtml(view(phasePlan()));
+        expect(html).toContain(t('ov.epNowTitle'));
+        expect(html).toContain(t('ov.epPhaseOf', { k: 1, n: 2 }));
+        // 現在派的在最前面，整體規劃在後面。
+        expect(html.indexOf(t('ov.epNowTitle'))).toBeLessThan(html.indexOf(t('ov.epOverall')));
+        expect(html.indexOf(t('ov.epNowTitle'))).toBeLessThan(html.indexOf('el-plan-table'));
+        // 只有一個階段（單組）時不寫「第 1／1 階段」。
+        const one = planResultHtml(view(phasePlan({}, phaseOf({ segments: [segments[0]], stage: [1], stageCount: 1 }))));
+        expect(one).not.toContain(t('ov.epPhaseOf', { k: 1, n: 1 }));
+        expect(one).toContain(t('ov.epNowTitle'));
+    });
+
+    it('表格第一欄的遠征名前標艦隊；對不到艦隊或沒有艦隊編號時不加，不猜', () => {
+        const html = planResultHtml(view(phasePlan()));
+        expect(html).toContain(`<span class="el-plan-fleet">${t('ov.expedDeck', { n: 2 })}</span>`);
+        expect(html).toContain(`<span class="el-plan-fleet">${t('ov.expedDeck', { n: 3 })}</span>`);
+        // top 的列順序與 fleets 不同也照遠征對應（13 仍是第 3 艦隊），並依艦隊編號排列，與整體規劃表的欄順序一致。
+        const swapped = planResultHtml(view(phasePlan({ top: [row(13, '13'), row(2, '02')] })));
+        expect(swapped.indexOf(`>${t('ov.expedDeck', { n: 3 })}</span>遠征13`)).toBeGreaterThan(-1);
+        expect(swapped.indexOf(`>${t('ov.expedDeck', { n: 2 })}</span>遠征02`)).toBeLessThan(swapped.indexOf(`>${t('ov.expedDeck', { n: 3 })}</span>遠征13`));
+        // fleets 裡找不到的遠征、deck 為 null 的隊都不標。
+        const unmatched = planResultHtml(view(phasePlan({ top: [row(77, '77')] })));
+        expect(unmatched).not.toContain('class="el-plan-fleet"');
+        const noDeck = phaseOf({ segments: [seg(10, [fleet(null, 2), fleet(null, 13)], null), segments[1]] });
+        expect(planResultHtml(view(phasePlan({}, noDeck)))).not.toContain('class="el-plan-fleet"');
+        // 單組（沒有 phases）不標艦隊。
+        expect(planResultHtml(view(base))).not.toContain('class="el-plan-fleet"');
+        // 有睡前遠征時睡前那張表也標，與同一隊對應。
+        const night = phaseOf({ segments: [seg(10, [fleet(1, 2, 36), fleet(2, 13, 35)], null), segments[1]] });
+        const nightHtml = planResultHtml(view(phasePlan({ sleepMinutes: 450, sleep: [row(35, '35'), row(36, '36')], roles: { top: [null, null], sleep: [null, null] } }, night)));
+        expect(nightHtml.indexOf(`>${t('ov.expedDeck', { n: 3 })}</span>遠征35`)).toBeGreaterThan(-1);
+        expect(nightHtml.indexOf(`>${t('ov.expedDeck', { n: 2 })}</span>遠征36`)).toBeGreaterThan(-1);
+    });
+
+    it('整體規劃：總結句寫階段數（不是段數）與全程天數，對照固定一套；不顯示結論句與「全部存滿」那句', () => {
+        const html = planResultHtml(view(phasePlan()));
+        expect(html).toContain(t('ov.epOverall'));
+        expect(html).toContain(summaryOf(2));
+        expect(html).not.toContain(t('ov.epAllFull', { n: 36 }));
+        expect(html).not.toContain(t('ov.epVerdictNote'));
+        // 固定一套存不滿：寫一年內存不滿。
+        expect(planResultHtml(view(phasePlan({}, phaseOf({ single: { days: null, fill: null } }))))).toContain(t('ov.epPhaseSingleNever'));
+    });
+
+    it('期限：寫期限時最低存量比例與固定一套的比例', () => {
+        const plan = phasePlan({ outlook: [{ ...base.outlook[0], planAt: 245000 }] }, phaseOf({ untilFull: false, single: { days: null, fill: 0.4 } }));
+        const html = planResultHtml(view(plan, '2026-12-31'));
+        expect(html).toContain(t('ov.epPhaseFill', { n: 2, fill: '70%', single: '40%' }));
+        // 最後一段沒有切換條件，期限模式寫破折號（不是「全部存滿」）。
+        expect(html).not.toContain(t('ov.epStageFull'));
+        expect(html).toMatch(/<td>—<\/td><\/tr>/);
+    });
+
+    it('整體規劃表：目前列寫「見上方」，其他列各隊派什麼、與前一列不同的加粗，天數與切換條件，最後一列寫全部存滿', () => {
+        const html = planResultHtml(view(phasePlan())).replace(/>\s+</g, '><');
+        // 欄名：各艦隊一欄。
+        expect(html).toContain(`<th>${t('ov.expedDeck', { n: 2 })}</th><th>${t('ov.expedDeck', { n: 3 })}</th>`);
+        // 目前列：階段序號與「目前」標記；艦隊格與切換條件都寫見上方，不重複遠征。
+        expect(html).toContain(`${t('ov.epStageN', { n: 1 })} <span class="el-plan-cur">${t('ov.epStageNow')}</span>`);
+        expect(html).toContain(`<td>${t('ov.epSeeAbove')}</td><td>${t('ov.epSeeAbove')}</td><td class="el-plan-time">${t('ov.epStageDays', { n: 11 })}</td><td>${t('ov.epSeeAbove')}</td>`);
+        // 第二列：只有第三艦隊（索引 1）換，改不派；其餘不加粗。
+        expect(html).toContain(`<td><span title="遠征02">02</span></td><td><b>${t('ov.epSendNone')}</b></td>`);
+        expect(html).toContain(t('ov.epStageDays', { n: 20 }));
+        expect(html).toContain(t('ov.epTrigCap', { item: t('mat.fuel.full'), d: 31 }));
+        // 第三列回到第一套：階段序號 1（不是 3）；換回 13 加粗；最後一列寫全部存滿。
+        expect(html).toContain(`<td><b><span title="遠征13">13</span></b></td>`);
+        expect(html).toContain(`<td>${t('ov.epStageFull')}</td></tr>`);
+        // 目前階段的切換條件只在上方寫一次。
+        expect(html.split(t('ov.epTrigRise', { item: t('mat.fuel.full'), amount: '16.6萬', d: 11 })).length).toBe(2);
+        // 艦隊編號不明時欄名寫「第 n 隊」。
+        const noDeck = phaseOf({ segments: [seg(10, [fleet(null, 2), fleet(null, 13)], null), segments[1]] });
+        expect(planResultHtml(view(phasePlan({}, noDeck)))).toContain(`<th>${t('ov.epFleetN', { n: 1 })}</th><th>${t('ov.epFleetN', { n: 2 })}</th>`);
+    });
+
+    it('整體規劃表：有睡前遠征時格內寫「在線・睡前」，缺的一半寫破折號，並附一行說明', () => {
+        const night = phaseOf({ segments: [segments[0], seg(20, [fleet(1, 2, 36), fleet(2, null, 35)], null, [0, 1])], stage: [1, 2] });
+        const html = planResultHtml(view(phasePlan({ sleepMinutes: 450 }, night))).replace(/>\s+</g, '><');
+        expect(html).toContain(`<td><b><span title="遠征02">02</span>・<span title="遠征36">36</span></b></td>`);
+        expect(html).toContain(`<td><b>—・<span title="遠征35">35</span></b></td>`);
+        expect(html).toContain(t('ov.epCellNote'));
+        expect(planResultHtml(view(phasePlan()))).not.toContain(t('ov.epCellNote'));
+    });
+
+    it('目前階段下面：切換條件、會減少的資材與沿用說明', () => {
+        const html = planResultHtml(view(phasePlan({ sticky: true })));
+        expect(html).toContain(t('ov.epTrigRise', { item: t('mat.fuel.full'), amount: '16.6萬', d: 11 }));
+        expect(html).not.toContain(t('ov.epPhaseDip', { items: t('mat.fuel.full') }));
+        expect(html).toContain(t('ov.epSticky'));
+        // 第一段有勾選資材的淨增減為負時說明後面會補回。
+        const dip = planResultHtml(view(phasePlan({}, phaseOf({ segments: [{ ...segments[0], rate: { fuel: -5 } }, ...segments.slice(1)] }))));
+        expect(dip).toContain(t('ov.epPhaseDip', { items: t('mat.fuel.full') }));
+        expect(planResultHtml(view(phasePlan()))).not.toContain(t('ov.epSticky'));
+    });
+
+    it('沿用上次的路線：標題寫第 k／n 階段、總結句說還要幾天、說明照上次的規劃繼續（不再寫沿用目前遠征）', () => {
+        const kept = phasePlan({ sticky: true }, phaseOf({ routeKept: true, stage: [2, 3, 2], stageCount: 3 }));
+        const html = planResultHtml(view(kept));
+        expect(html).toContain(t('ov.epPhaseOf', { k: 2, n: 3 }));
+        expect(html).toContain(t('ov.epPhaseFullLeft', { n: 3, days: 36, single: t('ov.epPhaseSingleDays', { n: 51 }) }));
+        expect(html).not.toContain(summaryOf(3));
+        expect(html).toContain(t('ov.epRouteKept'));
+        expect(html).not.toContain(t('ov.epSticky'));
+        expect(html).toContain(t('ov.epStageN', { n: 2 }));
+        // 沒沿用路線時不寫。
+        expect(planResultHtml(view(phasePlan()))).not.toContain(t('ov.epRouteKept'));
+    });
+
+    it('切換條件：存滿、快到上限、降到、沒有明確轉折；只剩一段時沒有切換條件也沒有整體規劃與結論句以外的階段內容', () => {
+        const withFirst = (trigger: PlanSegment['trigger']) => planResultHtml(view(phasePlan({}, phaseOf({ segments: [{ ...segments[0], trigger }, ...segments.slice(1)] }))));
+        expect(withFirst({ kind: 'rise', key: 'fuel', at: 350000 })).toContain(t('ov.epTrigRiseFull', { item: t('mat.fuel.full'), d: 11 }));
+        expect(withFirst({ kind: 'cap', key: 'fuel', at: 349000 })).toContain(t('ov.epTrigCap', { item: t('mat.fuel.full'), d: 11 }));
+        expect(withFirst({ kind: 'fall', key: 'fuel', at: 50000 })).toContain(t('ov.epTrigFall', { item: t('mat.fuel.full'), amount: '5萬', d: 11 }));
+        expect(withFirst(null)).toContain(t('ov.epTrigTime', { d: 11 }));
+        const single = planResultHtml(view(phasePlan({}, phaseOf({ segments: [segments[0]], stage: [2], stageCount: 3, routeKept: true }))));
+        expect(single).not.toContain(t('ov.epTrigRise', { item: t('mat.fuel.full'), amount: '16.6萬', d: 11 }));
+        expect(single).not.toContain('el-plan-phases');
+        expect(single).not.toContain(t('ov.epOverall'));
+        // 還在最後階段：標題仍寫第 k／n 階段，並有結論句。
+        expect(single).toContain(t('ov.epPhaseOf', { k: 2, n: 3 }));
+        expect(single).toContain(t('ov.epVerdictNote'));
+    });
+
+    it('單組沒有整體規劃：現在派這三隊之後是全部存滿那句與結論句', () => {
+        const filling = planExpeditions({
+            missions: [mission], records, intervalMinutes: 180, horizonDays: 10, untilFull: true,
+            needs: [{ key: 'fuel', have: 340000, cap: 350000, base: null, current: null }],
+        });
+        expect(filling.phases).toBeNull();
+        const html = planResultHtml(view(filling));
+        expect(html).toContain(t('ov.epNowTitle'));
+        expect(html).toContain(t('ov.epAllFull', { n: 5 }));
+        expect(html).toContain(t('ov.epVerdictNote'));
+        expect(html.indexOf(t('ov.epNowTitle'))).toBeLessThan(html.indexOf(t('ov.epAllFull', { n: 5 })));
+        expect(html.indexOf(t('ov.epAllFull', { n: 5 }))).toBeLessThan(html.indexOf(t('ov.epVerdictNote')));
+        for (const key of ['ov.epOverall', 'ov.epRouteKept', 'ov.epSticky']) expect(html).not.toContain(t(key));
+        expect(html).not.toContain('class="el-plan-stage"');
+        expect(html).not.toContain('el-plan-phases');
+    });
+
+    it('running：進行中的優先、同一遠征只留一次、最後附上偏好備援', () => {
+        const state = {
+            decks: [{ api_mission: [0, 0] }, { api_mission: [1, 13] }, { api_mission: [0, 0] }, { api_mission: [2, 38] }],
+            lastMissionForDeck: (deck: number) => ({ 1: 13, 2: 21, 3: 5 } as Record<number, number>)[deck] ?? null,
+        };
+        // 第二艦隊進行中 13、第四艦隊回港待收 38（兩者都排在前面）、第三艦隊上次跑 21；備援沒有艦隊編號，附在最後。
+        expect(runningOf(state, [13, 7])).toEqual([
+            { deck: 1, missionId: 13 }, { deck: 3, missionId: 38 }, { deck: 2, missionId: 21 },
+            { deck: null, missionId: 13 }, { deck: null, missionId: 7 },
+        ]);
+        // 上次執行也是 13 的第三艦隊不重複；進行中的 38 仍在。
+        expect(runningOf({ ...state, lastMissionForDeck: () => 13 }, []).map(item => item.deck)).toEqual([1, 3]);
+        expect(runningOf({ decks: [], lastMissionForDeck: () => null }, [])).toEqual([]);
+    });
+
+    it('last：多階段取第一段各隊（在線優先、沒有在線取睡前），單組取在線再補只有睡前的隊', () => {
+        expect(lastOf(phasePlan({ top: [] }))).toEqual([2, 13]);
+        const first = { ...segments[0], fleets: [fleet(1, null, 36), fleet(2, 13, 35), fleet(3, 2, 2)] };
+        expect(lastOf({ ...phasePlan(), phases: { ...phasePlan().phases, segments: [first] } })).toEqual([36, 13, 2]);
+        const rows = [row(1, '1'), row(2, '2')];
+        expect(lastOf({ ...base, top: rows, sleep: [row(3, '3'), row(4, '4'), row(5, '5')] })).toEqual([1, 2, 5]);
+        expect(lastOf({ ...base, top: [], sleep: [] })).toEqual([]);
+    });
+
+    const withStore = (run: (store: Map<string, string>) => void) => {
+        const store = new Map<string, string>();
+        Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) }, configurable: true });
+        try { run(store); } finally { delete (globalThis as { localStorage?: unknown }).localStorage; }
+    };
+
+    it('偏好的 last 只收三個以內的正整數，壞資料退回空陣列', () => {
+        withStore(store => {
+            const load = (last: unknown) => { store.set('kc-exped-plan', JSON.stringify({ hours: 2, last })); return loadPlanPrefs().last; };
+            expect(load([13, 38, 2])).toEqual([13, 38, 2]);
+            for (const bad of [[1, 2, 3, 4], [0], [-1], [1.5], ['13'], 'x', null, undefined]) expect(load(bad)).toEqual([]);
+            store.clear();
+            expect(loadPlanPrefs()).toEqual(defaultPlanPrefs());
+        });
+    });
+
+    it('偏好的路線：最多三階段、每階段最多三隊、id 為正整數或 null，壞資料連同條件一起退回空值', () => {
+        withStore(store => {
+            const load = (route: unknown, routeKey: unknown = 'k') => { store.set('kc-exped-plan', JSON.stringify({ hours: 2, route, routeKey })); const prefs = loadPlanPrefs(); return [prefs.route, prefs.routeKey]; };
+            const good = [[{ day: 2, night: 36 }, { day: 13, night: null }], [{ day: null, night: 35 }]];
+            expect(load(good)).toEqual([good, 'k']);
+            expect(load([])).toEqual([[], 'k']);
+            const f = { day: 1, night: null };
+            for (const bad of [[[f], [f], [f], [f]], [[f, f, f, f]], [[{ day: 0, night: null }]], [[{ day: 1.5, night: null }]], [[{ day: '2', night: null }]],
+                [[{ day: 1 }]], [[null]], [[1]], [f], 'x', null, undefined]) expect(load(bad)).toEqual([[], '']);
+            // 條件不是字串時只退回條件（路線沒有條件就不會被沿用）。
+            expect(load(good, 5)).toEqual([good, '']);
+            store.clear();
+            expect(loadPlanPrefs().route).toEqual([]);
+            expect(loadPlanPrefs().routeKey).toBe('');
+        });
+    });
+
+    it('routeKeyOf：回收間隔、睡多久、支出基準、勾選與期限任一改變，條件就不同', () => {
+        const prefs = { ...defaultPlanPrefs(), chosen: ['fuel' as const, 'steel' as const] };
+        const key = routeKeyOf(prefs, null);
+        expect(routeKeyOf({ ...prefs }, null)).toBe(key);
+        const running = { ...prefs, last: [1, 2] };
+        expect(routeKeyOf(running, null)).toBe(key);   // 正在跑什麼不算條件
+        for (const changed of [{ hours: 2 }, { sleep: 7 }, { basis: 'none' as const }, { chosen: ['fuel' as const] }]) expect(routeKeyOf({ ...prefs, ...changed }, null)).not.toBe(key);
+        expect(routeKeyOf(prefs, '2026-12-31')).not.toBe(key);
+    });
+
+    it('routeOf：多階段依階段序號去重（同一組合出現兩次只算一階段），單組是一階段；沒派的隊略過', () => {
+        const plan = phasePlan({}, phaseOf({ segments: [segments[0], seg(20, [fleet(1, 2), fleet(2, null)], null, [1]), seg(5, [fleet(1, 2), fleet(2, 13)], null, [1])], stage: [1, 2, 1] }));
+        expect(routeOf(plan)).toEqual([
+            [{ day: 2, night: null }, { day: 13, night: null }],
+            [{ day: 2, night: null }],
+        ]);
+        // 單組：同索引的在線與睡前是同一隊，睡前比在線多的隊只有睡前。
+        expect(routeOf({ ...base, top: [row(2, '02'), row(13, '13')], sleep: [row(35, '35'), row(36, '36'), row(37, '37')] })).toEqual([
+            [{ day: 2, night: 35 }, { day: 13, night: 36 }, { day: null, night: 37 }],
+        ]);
+        expect(routeOf({ ...base, top: [row(2, '02')], sleep: [] })).toEqual([[{ day: 2, night: null }]]);
+        expect(routeOf({ ...base, top: [], sleep: [] })).toEqual([]);
+    });
+
+    it('updateRoute：新路線寫入偏好並記條件；沿用原路線不改（編號才延續）；空建議不覆蓋；沒變不寫', () => {
+        const prefs = defaultPlanPrefs();
+        const plan = phasePlan();
+        expect(updateRoute(prefs, plan, 'k1')).toBe(true);
+        expect(prefs.routeKey).toBe('k1');
+        expect(prefs.route).toEqual(routeOf(plan));
+        expect(updateRoute(prefs, plan, 'k1')).toBe(false);
+        // 條件變了（同一路線）要換掉條件。
+        expect(updateRoute(prefs, plan, 'k2')).toBe(true);
+        expect(prefs.routeKey).toBe('k2');
+        // 沿用原路線：偏好裡的路線完整保留，不被「剩下的階段」覆蓋。
+        const before = JSON.stringify(prefs.route);
+        const kept = phasePlan({}, phaseOf({ routeKept: true, stage: [2, 2, 2], stageCount: 2, segments: [segments[1]] }));
+        expect(updateRoute(prefs, kept, 'k2')).toBe(false);
+        expect(JSON.stringify(prefs.route)).toBe(before);
+        // 單組（phases 為 null）存一階段路線。
+        expect(updateRoute(prefs, { ...base, top: [row(2, '02')], sleep: [] }, 'k2')).toBe(true);
+        expect(prefs.route).toEqual([[{ day: 2, night: null }]]);
+        // 空建議不覆蓋。
+        expect(updateRoute(prefs, { ...base, top: [], sleep: [] }, 'k3')).toBe(false);
+        expect(prefs.routeKey).toBe('k2');
     });
 });

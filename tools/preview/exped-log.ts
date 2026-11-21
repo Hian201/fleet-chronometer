@@ -3,9 +3,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { COLUMNS, defaultPlanPrefs, planResultHtml, planShellHtml, summaryHtml, tableHtml } from '../../entrypoints/overview/sections/exped-log';
+import { COLUMNS, defaultPlanPrefs, planResultHtml, planShellHtml, routeOf, summaryHtml, tableHtml } from '../../entrypoints/overview/sections/exped-log';
 import { summarize } from '../../utils/expedition-stats';
-import { DEFAULT_CHOSEN, planExpeditions, resourceNeeds, type PlanKey, type PlanMission } from '../../utils/expedition-plan';
+import { DEFAULT_CHOSEN, planExpeditions, resourceNeeds, type PlanKey, type PlanMission, type ResourceNeed } from '../../utils/expedition-plan';
 import { STOCKPILE_KEYS, stockpileCap } from '../../utils/stockpile';
 import type { ExpeditionRow } from '../../utils/db';
 import { setLang } from '../../utils/ui-i18n';
@@ -71,13 +71,50 @@ const planHtml = (withFlow: boolean) => {
         planResultHtml({ plan, chosen: needs.map(need => need.key), hasMaster: true, noFlow: !withFlow, deadline: withFlow ? '2026-12-31' : null }))
         .replaceAll('<details class="el-plan-all" data-part', '<details class="el-plan-all" open data-part');
 };
+
+// 多階段情境：真實主檔、收 2 小時、睡 8 小時、五項資材 15 萬／2000、輕支出、大成功 30%＋大發 1.2，
+// 第二～第四艦隊正在跑 D1／13／38。計算約數秒，只算一次，三語共用。
+const master = JSON.parse(readFileSync(resolve(root, 'samples/start2-master.json'), 'utf8'));
+const masterMissions: PlanMission[] = ((master.api_data ?? master).api_mst_mission as Record<string, number | string>[]).map(m => ({
+    id: m.api_id as number, dispNo: m.api_disp_no as string, name: m.api_name as string, time: m.api_time as number, resetType: m.api_reset_type as number,
+    winItems: [m.api_win_item1, m.api_win_item2] as unknown as [number, number][], use: [m.api_use_fuel, m.api_use_bull] as unknown as [number, number],
+}));
+const phaseRecords: ExpeditionRow[] = Array.from({ length: 10 }, (_, i) => ({
+    eventId: i + 1, ts: 1_700_000_000_000 + i, deckId: 2, missionId: 1, name: 'x', result: i < 3 ? 2 : 1,
+    resources: [0, Math.round(30 * (i < 3 ? 1.5 : 1) * 1.2), 0, 0], items: [], fleet: [{ name: 'DD', level: 80 }, { name: 'DD', level: 80 }],
+}));
+const phaseKeys: PlanKey[] = ['fuel', 'ammo', 'steel', 'bauxite', 'drum'];
+const phaseSpend = { fuel: -1500, ammo: -1200, steel: -600, bauxite: -400, drum: -5 };
+const phaseNeeds: ResourceNeed[] = phaseKeys.map(key => ({ key, have: key === 'drum' ? 2000 : 150000, cap: stockpileCap(key), base: phaseSpend[key as keyof typeof phaseSpend], current: null }));
+const idOf = (dispNo: string) => masterMissions.find(m => m.dispNo === dispNo)!.id;
+const phasePlan = planExpeditions({
+    missions: masterMissions, records: phaseRecords, shipMax: new Map([['DD', [15, 20] as const]]), intervalMinutes: 120, sleepMinutes: 480,
+    needs: phaseNeeds, horizonDays: 28, untilFull: true,
+    running: [{ deck: 1, missionId: idOf('D1') }, { deck: 2, missionId: idOf('13') }, { deck: 3, missionId: idOf('38') }],
+});
+// 沿用路線情境：玩家照第一段跑完（存量推進到第一段結束、第一段的三隊還在跑），帶上次的路線重開，目前在第 2 階段。
+const firstSegment = phasePlan.phases!.segments[0];
+const keptPlan = planExpeditions({
+    missions: masterMissions, records: phaseRecords, shipMax: new Map([['DD', [15, 20] as const]]), intervalMinutes: 120, sleepMinutes: 480,
+    needs: phaseNeeds.map(need => ({ ...need, have: firstSegment.end[need.key] ?? need.have })), horizonDays: 28, untilFull: true,
+    running: firstSegment.fleets.flatMap((fleet, i) => (fleet.day ?? fleet.night ? [{ deck: fleet.deck ?? i + 1, missionId: (fleet.day ?? fleet.night)!.missionId }] : [])),
+    route: routeOf(phasePlan),
+});
+const planPage = (plan: typeof phasePlan) => planShellHtml({ ...defaultPlanPrefs(), chosen: phaseKeys, hours: 2, sleep: 8 },
+    planResultHtml({ plan, chosen: phaseKeys, hasMaster: true, noFlow: false, deadline: null }))
+    .replaceAll('<details class="el-plan-all" data-part', '<details class="el-plan-all" open data-part');
+const phaseHtml = () => planPage(phasePlan) + planPage(keptPlan);
+const describePhase = (plan: typeof phasePlan) => (plan.phases
+    ? `${plan.phases.segments.length} 段、階段 ${plan.phases.stage.join(',')}／${plan.phases.stageCount}、沿用路線 ${plan.phases.routeKept}、${plan.phases.days.toFixed(1)} 天` : '沒有採用多階段');
+console.log(`多階段情境：${describePhase(phasePlan)}\n沿用路線情境：${describePhase(keptPlan)}`);
+
 mkdirSync(resolve(root, '.preview'), { recursive: true });
 for (const lang of ['zh-TW', 'en', 'ja'] as const) {
     setLang(lang);
     for (const theme of ['dark', 'light']) {
         const page = `<!doctype html><html lang="${lang}" data-theme="${theme}"><meta charset="utf-8">
 <title>遠征紀錄預覽</title><style>${css}</style><body style="display:block"><div style="padding:20px;min-width:0">
-${planHtml(true)}${planHtml(false)}
+${phaseHtml()}${planHtml(true)}${planHtml(false)}
 ${summaryHtml(summarize(rows), null, null, rows)}${tableHtml(rows, COLUMNS.filter(c => c.on))}
 </div></body></html>`.replaceAll('src="/icons/', 'src="/public/icons/');
         writeFileSync(resolve(root, `.preview/exped-log-${lang}-${theme}.html`), page);

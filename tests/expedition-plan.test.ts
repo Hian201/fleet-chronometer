@@ -152,11 +152,13 @@ describe('planExpeditions：組合', () => {
 
     it('淨增減為負也照比例比較：基本淨增減為負的資材優先補', () => {
         const result = plan({ missions, records, needs: [need('ammo', 175000, -12000), need('bauxite', 175000, 0)] });
-        // 三隊都給彈藥：彈藥 175,000 + (−12,000 + 15,000) × 10 = 205,000（59%），比例最低的變成鋁土（50%）；
+        // 單組：三隊都給彈藥，彈藥 175,000 + (−12,000 + 15,000) × 10 = 205,000（59%），比例最低的變成鋁土（50%）；
         // 少一隊彈藥則彈藥掉到 47% 以下，更差。
         expect(ids(result.top)).toEqual([901, 902, 904]);
-        expect(result.outlook.find(line => line.key === 'ammo')!.planAt).toBeCloseTo(205000);
-        expect(result.bottleneck).toBe('bauxite');
+        // 輪流跑更好：一半時間三隊彈藥、一半時間 901／902／903，兩項都是 185,000（52.9%），多 2.9 個百分點，達到採用門檻。
+        expect(result.phases).not.toBeNull();
+        expect(result.phases!.single.fill).toBeCloseTo(0.5);
+        for (const line of result.outlook) expect(line.planAt).toBeCloseTo(185000);
     });
 
     it('期限前都會滿時不隨便挑：比誰最快滿，不給該資材的遠征不入選', () => {
@@ -483,5 +485,237 @@ describe('planExpeditions：沒設期限時比全部存滿的天數', () => {
         for (const intervalMinutes of [60, 180, 1440]) {
             expect(plan({ ...data, needs: flowNeeds, horizonDays: 28, intervalMinutes }).focus).toBe('bauxite');
         }
+    });
+});
+
+describe('planExpeditions：多階段（時間分配）', () => {
+    // 燃料專精（901–903）與鋼材專精（911–913）各三條，每趟 5,000；每天收一次，沒有作息離開。
+    const fuelMissions = [901, 902, 903], steelMissions = [911, 912, 913];
+    const specialists = {
+        missions: [...fuelMissions, ...steelMissions].map(id => mission(id, 60)),
+        records: [
+            ...fuelMissions.flatMap(id => runs(MIN_RUNS, id, { resources: [5000, 0, 0, 0] })),
+            ...steelMissions.flatMap(id => runs(MIN_RUNS, id, { resources: [0, 0, 5000, 0] })),
+        ],
+    };
+    const cap = stockpileCap('fuel');
+    const two = (fuelHave: number, steelHave: number) => [need('fuel', fuelHave, 0), need('steel', steelHave, 0)];
+    const input = { ...specialists, untilFull: true, horizonDays: 28 };
+    /** 單組對照：把三隊固定成 k 隊燃料、3−k 隊鋼材的最快存滿天數。 */
+    const singleDays = (fuelGap: number, steelGap: number) =>
+        Math.min(...[1, 2].map(k => Math.max(fuelGap / (5000 * k), steelGap / (5000 * (3 - k)))));
+
+    it('三隊只能折衷時，輪流專攻比固定一組更快存滿', () => {
+        const result = plan({ ...input, needs: two(0, 0) });
+        const single = singleDays(cap, cap);                              // 70 天
+        expect(result.phases).not.toBeNull();
+        expect(result.phases!.untilFull).toBe(true);
+        expect(result.phases!.single.days).toBeCloseTo(single);
+        // 三隊半數時間專攻燃料、半數專攻鋼材：每項每日 7,500。
+        expect(result.phases!.days).toBeCloseTo(cap / 7500, 0);
+        expect(result.phases!.days).toBeLessThan(single * 0.97);
+        expect(result.horizonDays).toBeCloseTo(result.phases!.days);
+        // 同樣好的階段組合有很多，偏好換隊最少的：每隊都有派遣，第一段 changed 為空，換階段不必三隊全換。
+        const [first, second] = result.phases!.segments;
+        expect(first.fleets.every(fleet => fleet.day !== null)).toBe(true);
+        expect(first.changed).toEqual([]);
+        expect(second.changed.length).toBeGreaterThan(0);
+        expect(second.changed.length).toBeLessThan(3);
+        expect(result.outlook.every(line => line.planAt! >= line.cap - 1e-6)).toBe(true);
+        expect(result.sticky).toBe(false);
+    });
+
+    it('改善沒達門檻時 phases 為 null（缺口剛好讓固定一組就最快）', () => {
+        // 燃料缺口 17.5 萬由一隊（5,000／天）補要 35 天，鋼材缺口 35 萬由兩隊補也是 35 天。
+        const result = plan({ ...input, needs: two(cap - 175000, 0) });
+        expect(result.phases).toBeNull();
+        expect(ids(result.top)).toHaveLength(3);
+    });
+
+    it('期限前就全部存得滿時改比最快幾天存滿；採用時推算時點為全程天數', () => {
+        const result = plan({ ...specialists, needs: two(0, 0), horizonDays: 100 });
+        expect(result.phases).not.toBeNull();
+        expect(result.phases!.untilFull).toBe(true);
+        expect(result.phases!.days).toBeLessThan(70);
+        expect(result.phases!.single.fill).toBeNull();
+        expect(result.horizonDays).toBeCloseTo(result.phases!.days);
+    });
+
+    it('期限存不滿時比最低的存量比例，多階段至少多 1.5 個百分點才採用', () => {
+        // 期限 30 天：單組最低 30 × 5,000 ÷ 35 萬＝42.9%（一隊燃料、兩隊鋼材時燃料 42.9%），輪流專攻是 30 × 7,500 ÷ 35 萬＝64.3%。
+        const result = plan({ ...specialists, needs: two(0, 0), horizonDays: 30 });
+        expect(result.phases).not.toBeNull();
+        expect(result.phases!.untilFull).toBe(false);
+        expect(result.phases!.days).toBe(30);
+        expect(result.phases!.single.fill).toBeCloseTo(30 * 5000 / cap, 3);
+        const lowest = Math.min(...result.outlook.map(line => line.planAt! / line.cap));
+        expect(lowest).toBeCloseTo(30 * 7500 / cap, 2);
+        // 短到兩種方法都差不多：期限 1 天，每項 5,000 與 7,500 的差不到門檻之外。
+        expect(plan({ ...specialists, needs: two(cap - 1000, cap - 1000), horizonDays: 1 }).phases).toBeNull();
+    });
+
+    it('黏著：正在跑的遠征在門檻內就沿用（單組與多階段第一段都含它），差太多就不黏', () => {
+        // 單組沒有改善時：905 與 901 等效（每趟同樣 5,000 燃料），玩家正在第三艦隊跑 903。
+        const tied = { ...input, needs: two(cap - 175000, 0) };
+        const stuck = plan({ ...tied, running: [{ deck: 3, missionId: 903 }] });
+        expect(stuck.phases).toBeNull();
+        expect(ids(stuck.top)).toContain(903);
+        expect(stuck.sticky).toBe(true);
+        // 多階段時第一段從含該遠征的組合開始，並對到該艦隊。
+        const multi = plan({ ...input, needs: two(0, 0), running: [{ deck: 2, missionId: 913 }, { deck: 1, missionId: 902 }] });
+        expect(multi.phases).not.toBeNull();
+        expect(multi.sticky).toBe(true);
+        const fleets = multi.phases!.segments[0].fleets;
+        expect(fleets.find(fleet => fleet.deck === 2)?.day?.missionId).toBe(913);
+        expect(fleets.find(fleet => fleet.deck === 1)?.day?.missionId).toBe(902);
+        // 玩家正在跑每趟只有 100 燃料的遠征：強迫沿用要多花好幾天，不黏。
+        const weak = { missions: [...specialists.missions, mission(921, 60)], records: [...specialists.records, ...runs(MIN_RUNS, 921, { resources: [100, 0, 0, 0] })] };
+        const dropped = plan({ ...tied, ...weak, running: [{ deck: null, missionId: 921 }] });
+        expect(dropped.sticky).toBe(false);
+        expect(ids(dropped.top)).not.toContain(921);
+        // 不在候選裡的略過。
+        expect(plan({ ...tied, running: [{ deck: 1, missionId: 999 }] }).sticky).toBe(false);
+    });
+
+    it('排程不撞頂：任何一段的存量都在 0～上限之間；轉折條件依規則（rise、null）', () => {
+        // 基本淨增減為負、兩項都從 10 萬起：先鋼材專攻（燃料掉到 7 萬），再燃料專攻補滿。固定先後的兩段就能不撞頂，
+        // 不必為撞頂來回切換（那會多出好幾段細碎階段）。
+        const result = plan({ ...input, needs: [need('fuel', 100000, -3000), need('steel', 100000, -2000)] });
+        const { segments } = result.phases!;
+        for (const segment of segments) {
+            for (const key of ['fuel', 'steel'] as const) {
+                expect(segment.start[key]!).toBeGreaterThanOrEqual(0);
+                expect(segment.end[key]!).toBeGreaterThanOrEqual(0);
+                expect(segment.start[key]!).toBeLessThanOrEqual(cap + 1e-6);
+                expect(segment.end[key]!).toBeLessThanOrEqual(cap + 1e-6);
+            }
+        }
+        expect(segments.map(segment => segment.trigger?.kind ?? null)).toEqual(['rise', null]);
+        expect(segments[0].trigger).toMatchObject({ kind: 'rise', key: 'steel' });
+        expect(segments[0].trigger!.at).toBeCloseTo(segments[0].end.steel!);
+        expect(segments[0].rate.fuel).toBe(-3000);                                    // 三隊全鋼材：燃料只有基本淨增減
+        // 每段起點接上一段的終點，全程天數是各段加總。
+        segments.slice(1).forEach((segment, i) => expect(segment.start).toEqual(segments[i].end));
+        expect(result.phases!.days).toBeCloseTo(segments.reduce((sum, segment) => sum + segment.days, 0));
+        // 起點接近上限：燃料 34 萬時第一段不派燃料遠征（會溢出），全派鋼材。
+        const near = plan({ ...input, needs: two(340000, 0) });
+        expect(near.phases!.segments[0].fleets.map(fleet => fleet.day!.missionId).sort()).toEqual(steelMissions);
+        expect(near.phases!.segments[0].end.fuel).toBe(340000);
+        // outlook 依模擬重算：全程結束的存量與首次到上限的天數。
+        const last = near.phases!.segments[near.phases!.segments.length - 1];
+        expect(near.outlook.map(line => line.planAt)).toEqual([last.end.fuel, last.end.steel]);
+        expect(near.outlook[0].planDays!).toBeCloseTo(near.phases!.days, 0);
+    });
+
+    it('有作息離開時多階段照樣成立：每段每隊有在線與睡前，top／sleep 是第一段', () => {
+        // 每小時收：每趟 5,000 一天 8 萬多，上限放大十倍才有幾十天可輪流。
+        const result = plan({ ...input, needs: [need('fuel', 0, 0, cap * 10), need('steel', 0, 0, cap * 10)], intervalMinutes: 60, sleepMinutes: 480 });
+        expect(result.phases).not.toBeNull();
+        const first = result.phases!.segments[0];
+        expect(first.fleets.map(fleet => fleet.day?.missionId).filter(Boolean).sort()).toEqual(ids(result.top));
+        expect(first.fleets.map(fleet => fleet.night?.missionId).filter(Boolean).sort()).toEqual(ids(result.sleep));
+        expect(result.sleepMinutes).toBe(480);
+    });
+});
+
+describe('planExpeditions：沿用上次的路線', () => {
+    // 同多階段：燃料專精（901–903）與鋼材專精（911–913）各三條，每趟 5,000；每天收一次，沒有作息離開。
+    const fuelMissions = [901, 902, 903], steelMissions = [911, 912, 913];
+    const specialists = {
+        missions: [...fuelMissions, ...steelMissions].map(id => mission(id, 60)),
+        records: [
+            ...fuelMissions.flatMap(id => runs(MIN_RUNS, id, { resources: [5000, 0, 0, 0] })),
+            ...steelMissions.flatMap(id => runs(MIN_RUNS, id, { resources: [0, 0, 5000, 0] })),
+        ],
+    };
+    const cap = stockpileCap('fuel');
+    const two = (fuelHave: number, steelHave: number) => [need('fuel', fuelHave, 0), need('steel', steelHave, 0)];
+    const input = { ...specialists, untilFull: true, horizonDays: 28 };
+    type Result = ReturnType<typeof plan>;
+    /** 現行算出的路線：依階段序號去重，每階段是各隊的 [在線, 睡前] 遠征 id。 */
+    const routeOf = (result: Result) => {
+        const { segments, stage } = result.phases!;
+        return segments.flatMap((segment, i) => (stage.indexOf(stage[i]) === i
+            ? [segment.fleets.filter(fleet => fleet.day || fleet.night).map(fleet => ({ day: fleet.day?.missionId ?? null, night: fleet.night?.missionId ?? null }))] : []));
+    };
+    const first = plan({ ...input, needs: two(0, 0) });
+
+    it('輪流專攻的路線：存量推進到第一段結束後重算，沿用原路線並顯示第 2 階段（不重排成新路線）', () => {
+        expect(first.phases!.stageCount).toBe(2);
+        expect(first.phases!.routeKept).toBe(false);
+        expect(first.phases!.stage).toEqual([1, 2]);
+        const route = routeOf(first);
+        const end = first.phases!.segments[0].end;
+        const next = plan({ ...input, needs: two(end.fuel!, end.steel!), route });
+        expect(next.phases).not.toBeNull();
+        expect(next.phases!.routeKept).toBe(true);
+        expect(next.phases!.stage[0]).toBe(2);
+        expect(next.phases!.stageCount).toBe(2);
+        // 第一階段已走完：現在派的是原路線的第二階段（鋼材專攻三隊）。
+        expect(ids(next.top)).toEqual(steelMissions);
+        expect(next.phases!.segments[0].fleets.map(fleet => fleet.day!.missionId).sort()).toEqual(steelMissions);
+        // 天數是從現在起的剩餘天數，加上已過的天數與原預估接近。
+        expect(next.phases!.days).toBeLessThan(first.phases!.days);
+        expect(first.phases!.segments[0].days + next.phases!.days).toBeCloseTo(first.phases!.days, 0);
+        expect(next.horizonDays).toBeCloseTo(next.phases!.days);
+        // 沒帶路線時從現有存量重新排（不保證是第 2 階段，也不是沿用）。
+        expect(plan({ ...input, needs: two(end.fuel!, end.steel!) }).phases?.routeKept ?? false).toBe(false);
+    });
+
+    it('存量還沒推進時沿用的路線就是原本的第一階段（編號 1／2）', () => {
+        const again = plan({ ...input, needs: two(0, 0), route: routeOf(first) });
+        expect(again.phases!.routeKept).toBe(true);
+        expect(again.phases!.stage).toEqual([1, 2]);
+        expect(again.phases!.stageCount).toBe(2);
+        expect(again.phases!.days).toBeCloseTo(first.phases!.days, 0);
+    });
+
+    it('路線裡有已不在候選的遠征、睡前遠征而沒設睡前、同階段內衝突或階段太多：整條忽略', () => {
+        const good = routeOf(first);
+        const ignored = (route: Parameters<typeof plan>[0]['route']) => plan({ ...input, needs: two(0, 0), route }).phases?.routeKept ?? false;
+        expect(ignored(good)).toBe(true);
+        expect(ignored([[{ day: 999, night: null }]])).toBe(false);                                    // 不在候選
+        expect(ignored([good[0], [{ day: 999, night: null }]])).toBe(false);                           // 任何一階段不行就整條失效
+        expect(ignored([[{ day: 901, night: 901 }, { day: 911, night: null }, { day: 912, night: null }], good[1]])).toBe(false);  // 沒設睡前
+        expect(ignored([[{ day: 901, night: null }, { day: 901, night: null }], good[1]])).toBe(false);   // 同階段內同一條遠征
+        expect(ignored([[{ day: 901, night: null }, { day: 902, night: null }, { day: 903, night: null }, { day: 911, night: null }]])).toBe(false);  // 一階段四隊
+        expect(ignored([good[0], good[1], good[0], good[1]])).toBe(false);                             // 四階段
+        expect(ignored([])).toBe(false);
+        expect(ignored([[]])).toBe(false);
+    });
+
+    it('路線比現行最佳差過黏著門檻就不沿用（重排）；改善不到門檻才沿用', () => {
+        // 固定一套（一隊燃料、兩隊鋼材）要 70 天，輪流專攻約 46.7 天：差很多，路線失效後採用新的多階段。
+        const poor = plan({ ...input, needs: two(0, 0), route: [[{ day: 901, night: null }, { day: 911, night: null }, { day: 912, night: null }]] });
+        expect(poor.phases!.routeKept).toBe(false);
+        expect(poor.phases!.stageCount).toBe(2);
+        expect(poor.phases!.days).toBeCloseTo(first.phases!.days, 0);
+        // 大幅改支出：燃料每天多花 9,000、鋼材照舊，原本的輪流路線整個失靈（燃料專攻也補不上），新排的路線不同。
+        const worse = plan({ ...input, needs: [need('fuel', 0, -9000), need('steel', 0, 0)], route: routeOf(first) });
+        expect(worse.phases?.routeKept ?? false).toBe(false);
+    });
+
+    it('單段路線：一階段的路線也沿用，phases 照樣給（一段、編號 1／1）', () => {
+        // 燃料缺口 17.5 萬由一隊補、鋼材 35 萬由兩隊補都是 35 天，單組最佳；沒有多階段。
+        const needs = two(cap - 175000, 0);
+        const single = plan({ ...input, needs });
+        expect(single.phases).toBeNull();
+        const route = [[{ day: 903, night: null }, { day: 911, night: null }, { day: 913, night: null }]];
+        const kept = plan({ ...input, needs, route });
+        expect(kept.phases).not.toBeNull();
+        expect(kept.phases!.routeKept).toBe(true);
+        expect(kept.phases!.segments).toHaveLength(1);
+        expect(kept.phases!.stage).toEqual([1]);
+        expect(kept.phases!.stageCount).toBe(1);
+        expect(ids(kept.top)).toEqual([903, 911, 913]);                      // 與最佳等效但不同的遠征：照路線走，不為小差異換
+        expect(kept.phases!.days).toBeCloseTo(35, 0);
+        // 單組補不齊鋼材的路線（三條都是燃料）無法重建出可行解：忽略。
+        expect(plan({ ...input, needs, route: [[{ day: 901, night: null }, { day: 902, night: null }, { day: 903, night: null }]] }).phases).toBeNull();
+    });
+
+    it('已經（幾乎）全滿時不沿用路線：不留只剩零頭的階段', () => {
+        const route = routeOf(first);
+        const full = plan({ ...input, needs: two(cap, cap), route });
+        expect(full.phases?.routeKept ?? false).toBe(false);
     });
 });

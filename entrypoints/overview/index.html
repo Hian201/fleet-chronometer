@@ -4092,13 +4092,25 @@
         .el-plan-table th:nth-child(2) { width: 104px; }
         .el-plan-table th:nth-child(4) { width: 76px; }
         .el-plan-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+        /* 整體規劃表：階段與天數固定窄欄、各艦隊欄等寬、切換條件欄較寬；格子可換行（切換條件句較長）。 */
+        .el-plan-phases th:nth-child(n) { width: auto; }
+        .el-plan-phases th.el-pp-stage { width: 112px; }
+        .el-plan-phases th.el-pp-days { width: 88px; }
+        .el-plan-phases th.el-pp-switch { width: 34%; }
+        .el-plan-phases td { white-space: normal; vertical-align: top; }
+        .el-plan-phases td.el-plan-time { white-space: nowrap; }
+        /* 現在派這三隊：標題旁的階段、遠征名前的艦隊標籤；子標題（在線時／睡前派出）比大標輕。 */
+        .el-plan-stage { margin-left: 8px; color: var(--text); font-weight: 600; }
+        .el-type .el-plan-fleet { margin-right: 6px; color: var(--text); font-size: inherit; font-weight: 600; }
+        .el-plan-sub { margin-top: 8px; font-weight: 400; }
         .el-plan-n { border-bottom: 1px dashed currentColor; cursor: help; }
         .el-plan-outlook { width: auto; min-width: 360px; margin-top: 8px; }
         .el-plan-outlook td:not(:first-child), .el-plan-outlook th:not(:first-child) { text-align: right; }
         .el-plan-neck-row td { font-weight: 700; }
         .el-plan-est b { font-style: italic; font-weight: 400; }
         .el-plan-all { margin-top: 8px; }
-        .el-plan-neck { font-size: 11px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font-weight: 400; }
+        .el-plan-neck, .el-plan-cur { font-size: 11px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font-weight: 400; }
+        .el-plan-cur { white-space: nowrap; }
         .el-plan .el-table-wrap { max-height: none; }
         .el-plan > .el-h { display: flex; align-items: center; gap: 6px; margin-top: 0; }
 
