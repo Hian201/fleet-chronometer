@@ -177,7 +177,7 @@ describe('出擊記錄 simulator JSON', () => {
         expect(deck.f2.s1.id).toBe(102);
         expect(deck.f3.s1.id).toBe(103);
         expect(deck.f4.s1.id).toBe(104);
-        expect(deck.a1.items.i1).toEqual({ id: 301, rf: 3, mas: 7, count: 17 });
+        expect(deck.a1.items.i1).toEqual({ id: 301, rf: 3, mas: 7, ac: 17 });
     });
 
     it('舊快照缺 exstars／exace 時補強增設改修退回 0，不拿一般槽 stars 湊數', () => {

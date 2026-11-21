@@ -1897,7 +1897,10 @@ export const sortieLogSection: OverviewSection = {
                 if (entry?.replay) {
                     await copyWithFeedback(
                         deckbuilderCopy,
-                        JSON.stringify(buildReplayDeckBuilder(entry.replay), null, 2),
+                        JSON.stringify(buildReplayDeckBuilder(entry.replay, {
+                            masterShips: ctx.state.master,
+                            masterGears: ctx.state.masterGears,
+                        }), null, 2),
                         t('ov.deckbuilderCopied'),
                     );
                 }
@@ -1910,8 +1913,11 @@ export const sortieLogSection: OverviewSection = {
                 if (!entry?.replay?.battles.length) return;
                 const detail = buildSortieDetail(entry.rows, entry.replay);
                 const deck = buildReplayAirCalcDeck(entry.replay, {
+                    masterShips: ctx.state.master,
+                    masterGears: ctx.state.masterGears,
                     routeNodes: detail.nodes.map(node => ({
                         node: node.node,
+                        kind: node.kind,
                         enemyIds: node.enemyIds,
                         enemyIdsEscort: node.enemyIdsEscort,
                     })),

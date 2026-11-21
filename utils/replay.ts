@@ -23,7 +23,21 @@ export const KC3_REPLAY_DIRECT_URL_LIMIT = 30_000;
 type RawShip = {
     api_ship_id: number; api_lv: number; api_nowhp: number; api_maxhp: number;
     api_cond: number; api_slot: number[]; api_slot_ex: number; api_kyouka?: number[];
+    api_lucky?: number[]; api_taisen?: number[]; api_onslot?: number[];
+    // 特殊補強道具：KC3Kai src/library/objects/Ship.js 與 noro6/kc-web src/classes/convert.ts
+    // 皆讀取 api_sp_effect_items[].api_kind（1＝海色リボン、2＝白たすき）。
+    api_sp_effect_items?: { api_kind?: number }[];
 };
+
+function spEffectKind(items: RawShip['api_sp_effect_items']): 1 | 2 | undefined {
+    if (!Array.isArray(items)) return undefined;
+    let found: 1 | 2 | undefined;
+    for (const item of items) {
+        if (item?.api_kind === 2) return 2;
+        if (item?.api_kind === 1) found = 1;
+    }
+    return found;
+}
 
 // 從 GameState 快照某艦隊（deckId 0-based）成 ReplayShip[]。空位（艦 id ≤0）略過。
 export function snapshotDeck(gs: GameState, deckId: number): ReplayShip[] {
@@ -43,6 +57,16 @@ export function snapshotDeck(gs: GameState, deckId: number): ReplayShip[] {
             ace.push(it ? it.alv : 0);
         }
         const exIt = s.api_slot_ex > 0 ? gs.slotItems.get(s.api_slot_ex) : undefined;
+        const luck = Array.isArray(s.api_lucky) && Number.isSafeInteger(s.api_lucky[0]) && s.api_lucky[0] > 0
+            ? s.api_lucky[0] : undefined;
+        const asw = Array.isArray(s.api_taisen) && Number.isSafeInteger(s.api_taisen[0]) && s.api_taisen[0] >= 0
+            ? s.api_taisen[0] : undefined;
+        const onslot = Array.isArray(s.api_onslot) && s.api_onslot.length >= slots.length
+            && s.api_onslot.slice(0, slots.length).every(v => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0)
+            ? s.api_onslot.slice(0, slots.length) : undefined;
+        const exOpen = typeof s.api_slot_ex === 'number' && Number.isSafeInteger(s.api_slot_ex)
+            ? s.api_slot_ex !== 0 : undefined;
+        const spEffect = spEffectKind(s.api_sp_effect_items);
         out.push({
             mst_id: s.api_ship_id, lv: s.api_lv,
             equip, stars, ace,
@@ -51,6 +75,11 @@ export function snapshotDeck(gs: GameState, deckId: number): ReplayShip[] {
             ...(exIt ? { exstars: exIt.level, exace: exIt.alv } : {}),
             nowhp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
             kyouka: s.api_kyouka,
+            ...(luck === undefined ? {} : { luck }),
+            ...(asw === undefined ? {} : { asw }),
+            ...(onslot === undefined ? {} : { onslot }),
+            ...(exOpen === undefined ? {} : { exOpen }),
+            ...(spEffect === undefined ? {} : { spEffect }),
         });
     }
     return out;

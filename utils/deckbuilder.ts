@@ -33,12 +33,33 @@ import type { ReplayLbas, ReplayNode, ReplayRow, ReplayShip, ReplaySupportShip }
 // （各海域都有自己的第一/第二/第三基地航空隊，會撞號）。
 export interface DeckBuilderScope { fleets: boolean[]; lbas: Record<string, boolean> }
 
-interface DeckBuilderItem { id: number; rf: number; mas?: number; count?: number }
+interface DeckBuilderItem { id: number; rf: number; mas?: number; ac?: number }
 type DeckBuilderItems = Record<string, DeckBuilderItem>;
 
 // 補強增設槽位的 key：kc-web 的 convert.ts 認得 'ix' 這個固定字串（另一種
 // `i${槽數+1}` 寫法對可變槽數艦娘不好算，'ix' 兩邊都吃得下，故固定用它）。
 const EX_ITEM_KEY = 'ix';
+
+// 制空権シミュレータ（noro6/kc-web src/classes/constants/items.ts PLANE_TYPES）認定的航空機類別
+// （api_type[2]）。只對航空機輸出搭載數 ac，避免覆寫非航空裝備槽的預設搭載數。
+const AIR_CALC_PLANE_CATS = new Set([6, 7, 8, 9, 10, 11, 25, 26, 41, 45, 47, 48, 49, 53, 56, 57]);
+
+export interface ReplayDeckBuilderMasterShip {
+    slotNum?: number;
+    luck0?: number;
+    luckMax?: number;
+}
+
+export interface ReplayDeckBuilderMasterGear {
+    cat?: number;
+}
+
+export interface ReplayDeckBuilderOptions {
+    /** 由 start2 提供的艦娘主檔：用來以 kyouka 還原舊紀錄的運，以及辨識 KC3Kai 匯入的補強増設槽。 */
+    masterShips?: ReadonlyMap<number, ReplayDeckBuilderMasterShip>;
+    /** 由 start2 提供的裝備主檔：只對航空機輸出搭載數 ac。 */
+    masterGears?: ReadonlyMap<number, ReplayDeckBuilderMasterGear>;
+}
 
 type FleetCodeState = Pick<GameState, 'hqLv' | 'fleets'> & Partial<Pick<GameState, 'airBases_'>>;
 type OwnedEquipmentCodeState = Pick<GameState, 'ownedGears'>;
@@ -282,7 +303,7 @@ export function buildDeckBuilder(state: GameState, scope: DeckBuilderScope): obj
  * KC3Kai 的「從文字載入」只認得 `f1`～`f4`／`a1`～`a3`。兩種格式不可混用：
  * 網址可載入不代表複製的 JSON 可貼進 DeckBuilder。
  */
-export function buildReplayDeckBuilder(row: ReplayRow): object {
+export function buildReplayDeckBuilder(row: ReplayRow, options: ReplayDeckBuilderOptions = {}): object {
     // 相容資料可能把第2–4艦隊獨立出擊記成連合艦隊；同 toKc3Replay／buildSortieSimulator，匯出前先修復。
     row = repairLegacyReplayFleet(row);
     const deck: Record<string, unknown> = { version: 4 };
@@ -290,13 +311,15 @@ export function buildReplayDeckBuilder(row: ReplayRow): object {
 
     const fleet = (ships: readonly (ReplayShip | ReplaySupportShip)[]) => {
         const out: Record<string, unknown> = {};
-        ships.slice(0, 7).forEach((ship, index) => { out[`s${index + 1}`] = replayShip(ship); });
+        ships.slice(0, 7).forEach((ship, index) => { out[`s${index + 1}`] = replayShip(ship, options); });
         return out;
     };
     if (row.fleet1.length) deck.f1 = fleet(row.fleet1);
-    if (row.fleet2.length) deck.f2 = fleet(row.fleet2);
-    if (row.fleet3?.length) deck.f3 = fleet(row.fleet3);
-    if (row.fleet4?.length) deck.f4 = fleet(row.fleet4);
+    if (row.combined > 0 && row.fleet2.length) deck.f2 = fleet(row.fleet2);
+    // 單艦隊由第 3／4 艦隊出擊時（含遊撃部隊），startReplay 會把同一隊同時存進 fleet1 與 fleet3/4；
+    // 跳過與本隊重疊的快照，避免同一支艦隊重複出現在 f1 與 f3/f4。
+    if (row.fleet3?.length && !(row.combined === 0 && row.fleetnum === 3)) deck.f3 = fleet(row.fleet3);
+    if (row.fleet4?.length && !(row.combined === 0 && row.fleetnum === 4)) deck.f4 = fleet(row.fleet4);
 
     // 一場出擊的快照只會保存該海域的基地，rid 正好對應標準格式 a1～a3。
     for (const base of row.lbas ?? []) {
@@ -307,50 +330,111 @@ export function buildReplayDeckBuilder(row: ReplayRow): object {
     return deck;
 }
 
-function replayShip(ship: ReplayShip | ReplaySupportShip): object {
+function clampInt(value: unknown, min: number, max: number): number {
+    const n = integer(value);
+    if (n === undefined) return min;
+    return Math.min(max, Math.max(min, n));
+}
+
+function replayShipLuck(ship: ReplayShip | ReplaySupportShip, master?: ReplayDeckBuilderMasterShip): number | undefined {
+    const direct = integer(ship.luck);
+    if (direct !== undefined && direct > 0) return direct;
+    const base = integer(master?.luck0);
+    const mod = Array.isArray(ship.kyouka) ? integer(ship.kyouka[4]) : undefined;
+    if (base !== undefined && base > 0 && mod !== undefined && mod >= 0) {
+        const total = base + mod;
+        const cap = integer(master?.luckMax);
+        return cap !== undefined && cap >= base ? Math.min(cap, total) : total;
+    }
+    return undefined;
+}
+
+function replayShip(ship: ReplayShip | ReplaySupportShip, options: ReplayDeckBuilderOptions): object {
+    const master = options.masterShips?.get(ship.mst_id);
+    const slotNum = master?.slotNum !== undefined && Number.isSafeInteger(master.slotNum) && master.slotNum > 0
+        ? master.slotNum : undefined;
     const items: DeckBuilderItems = {};
+    let hasExEquip = false;
     ship.equip.forEach((id, index) => {
-        if (id > 0) items[`i${index + 1}`] = {
+        if (id <= 0) return;
+        // KC3Kai logger 匯入沒有獨立 exequip，3～5 槽艦的補強増設會落在 equip[slotNum] 之後
+        // （例：3 槽驅逐艦在 index 4、index 3 補 0）。轉成標準 ix，否則 kc-web 對 3 槽艦只查 i4 會整格漏掉。
+        if (ship.exequip <= 0 && slotNum !== undefined && index >= slotNum) {
+            items[EX_ITEM_KEY] = {
+                id,
+                rf: clampInt(ship.stars[index], 0, 10),
+                mas: clampInt(ship.ace[index], 0, 7),
+            };
+            hasExEquip = true;
+            return;
+        }
+        const item: DeckBuilderItem = {
             id,
-            rf: Math.max(0, ship.stars[index] ?? 0),
-            mas: Math.max(0, ship.ace[index] ?? 0),
+            rf: clampInt(ship.stars[index], 0, 10),
+            mas: clampInt(ship.ace[index], 0, 7),
         };
+        const slotCount = Array.isArray(ship.onslot) ? integer(ship.onslot[index]) : undefined;
+        const gearCat = options.masterGears?.get(id)?.cat;
+        if (slotCount !== undefined && slotCount >= 0 && gearCat !== undefined && AIR_CALC_PLANE_CATS.has(gearCat)) {
+            item.ac = slotCount;
+        }
+        items[`i${index + 1}`] = item;
     });
     if (ship.exequip > 0) {
         items[EX_ITEM_KEY] = {
             id: ship.exequip,
-            rf: Math.max(0, ship.exstars ?? 0),
-            mas: Math.max(0, ship.exace ?? 0),
+            rf: clampInt(ship.exstars, 0, 10),
+            mas: clampInt(ship.exace, 0, 7),
         };
+        hasExEquip = true;
     }
     const out: Record<string, unknown> = { id: ship.mst_id, lv: ship.lv, items };
+    const luck = replayShipLuck(ship, master);
+    if (luck !== undefined) out.luck = luck;
+    if (hasExEquip) out.exa = true;
+    else if (typeof ship.exOpen === 'boolean') out.exa = ship.exOpen;
     // 支援艦隊快照沒有 HP；欄位缺席比以不明值補寫更符合 DeckBuilder 契約。
     if ('maxhp' in ship && typeof ship.maxhp === 'number' && ship.maxhp > 0) out.hp = ship.maxhp;
+    // kc-web 讀 asw 時會減去它自算的 displayStatus.asw 來反推對潛改修量。只在確實有對潛改修
+    // （kyouka[6] > 0）且快照保存了遊戲顯示值時輸出，避免雙方裝備加成表差異對未改修艦造出假加值。
+    const aswMod = Array.isArray(ship.kyouka) ? integer(ship.kyouka[6]) : undefined;
+    const asw = integer(ship.asw);
+    if (asw !== undefined && asw > 0 && aswMod !== undefined && aswMod > 0) out.asw = asw;
+    if (ship.spEffect === 1) {
+        out.spi = [{ kind: 1, fp: 0, tp: 1, ar: 1, ev: 0 }];
+    } else if (ship.spEffect === 2) {
+        out.spi = [{ kind: 2, fp: 2, tp: 1, ar: 1, ev: 2 }];
+    }
     return out;
 }
 
-function replayLbas(base: ReplayLbas): object | undefined {
+function replayLbas(base: ReplayLbas): { mode: number; items: DeckBuilderItems } | undefined {
     const items: DeckBuilderItems = {};
     base.squadrons.forEach((squadron, index) => {
-        if (squadron.mst <= 0) return;
+        // state !== 1（未配置／配置轉換中）的機體不參與出擊與防空，避免誤計入制空。
+        if (squadron.state !== 1 || squadron.mst <= 0) return;
+        const count = integer(squadron.count);
         items[`i${index + 1}`] = {
             id: squadron.mst,
-            rf: Math.max(0, squadron.stars),
-            mas: Math.max(0, squadron.ace),
-            count: Math.max(0, squadron.count),
+            rf: clampInt(squadron.stars, 0, 10),
+            mas: clampInt(squadron.ace, 0, 7),
+            // kc-web 的 DeckBuilderItem 讀 `ac`（不是 `count`），缺席會退回滿載 18／9／4。
+            ...(count !== undefined && count >= 0 ? { ac: count } : {}),
         };
     });
     return Object.keys(items).length ? { mode: base.action, items } : undefined;
 }
 
-/** 摘要列中的節點，供沒有原始戰鬥封包的空襲／未結算節點補敵艦 id。 */
+/** 摘要列中的節點，供沒有原始戰鬥封包的未結算戰鬥節點補敵艦 id。 */
 export interface AirCalcRouteNode {
     node: number;
+    /** 基地空襲（raid）不是本隊交戰點，不得混入 s.c。 */
+    kind?: 'battle' | 'raid';
     enemyIds?: readonly number[];
     enemyIdsEscort?: readonly number[];
 }
 
-export interface AirCalcOptions {
+export interface AirCalcOptions extends ReplayDeckBuilderOptions {
     routeNodes?: readonly AirCalcRouteNode[];
 }
 
@@ -360,30 +444,42 @@ export const AIR_CALC_PAGE_URL = 'https://noro6.github.io/kc-web/';
 export const AIR_CALC_DIRECT_URL_LIMIT = 30_000;
 
 /**
- * 出擊紀錄 → kc-web 可讀的 DeckBuilder（含各節點敵艦隊）。
+ * 出擊紀錄 → kc-web（制空権シミュレータ 2.54.0+）可讀的 DeckBuilder（含支援艦隊、陸航與各節點敵艦隊）。
  *
  * 標準複製用的 `buildReplayDeckBuilder()` 只給 f1～f4／a1～a3；kc-web 另認
- * `s`（海域＋逐格敵編成）與陸航 `sp`（派遣格）。`f1.t` 必須帶連合旗標，否則
- * convert.ts 會把 f1／f2 當兩支單艦隊。支援艦隊不進 f3／f4——kc-web 會把它們
- * 算進我方制空。`s.c[].c` 與 `sp` 用的是出擊 edge id（`api_no`）；對得上
- * kc-web 的 MasterCell.i 才會補節點名／半徑並讓 `sp` 對到該格，對不上時敵艦隊
- * 仍會匯入、陸航改打最後一格。敵艦 id 用封包原值，不加 KC3Kai 的 +1000。
- * 敵艦裝備不輸出：loadDeckBuilder 只讀 id，裝備改走他們的 master。
+ * `s`（海域＋逐格敵編成）與陸航 `sp`（派遣格）。`f1.t` 必須帶連合旗標（1～3），否則
+ * convert.ts 會把 f1／f2 當兩支單艦隊。f3／f4 支援艦隊保留匯入：kc-web 只以 f1（或連合
+ * f1＋f2）作主隊計算制空，f3／f4 獨立算支援火力與航空／對潛支援制空，不併入本隊。
+ * 陸航行動為出擊但該場未觸發任何波次（例如道中撤退）時改輸出待機（mode 0），以免 kc-web
+ * 沒有 sp 時預設轟炸第 1 戰造成數值錯誤。`s.c[].c` 與 `sp` 用出擊 edge id（`api_no`）；
+ * 基地空襲（raid）不進 `s.c`。敵艦 id 用封包原值，不加 KC3Kai 的 +1000；敵艦裝備由 kc-web
+ * 自帶 master 補齊。
  */
 export function buildReplayAirCalcDeck(row: ReplayRow, options: AirCalcOptions = {}): object {
     row = repairLegacyReplayFleet(row);
-    const deck = buildReplayDeckBuilder(row) as Record<string, unknown>;
-    delete deck.f3;
-    delete deck.f4;
-    if (row.combined > 0 && isPlainObject(deck.f1)) {
+    const deck = buildReplayDeckBuilder(row, options) as Record<string, unknown>;
+    if ((row.combined === 1 || row.combined === 2 || row.combined === 3) && isPlainObject(deck.f1)) {
         deck.f1 = { t: row.combined, ...deck.f1 };
     }
     const cells = airCalcCells(row, options);
     if (cells.length) deck.s = { a: row.world, i: row.mapnum, c: cells };
-    for (const [rid, nodes] of lbasStrikeCells(row)) {
+    const strikes = lbasStrikeCells(row);
+    for (const rid of [1, 2, 3]) {
         const key = `a${rid}`;
         const airbase = deck[key];
-        if (isPlainObject(airbase) && nodes.length) deck[key] = { ...airbase, sp: nodes };
+        if (!isPlainObject(airbase)) continue;
+        const rawMode = integer(airbase.mode) ?? 0;
+        const nodes = strikes.get(rid) ?? [];
+        if (nodes.length) {
+            deck[key] = { ...airbase, mode: 1, sp: nodes.slice(0, 2) };
+        } else if (rawMode === 1 && cells.length) {
+            // 封包未觀測到任何出動波次（例如道中撤退，或目標格缺少原始封包而無從確認）：
+            // 保守改為待機並保留中隊編成，避免 kc-web 缺 sp 時把兩波誤算到第 1 戰。
+            deck[key] = { ...airbase, mode: 0 };
+        } else if (rawMode !== 0 && rawMode !== 1 && rawMode !== 2) {
+            // 退避(3)／休息(4) 在 kc-web 沒有對應札，明確轉為待機(0)。
+            deck[key] = { ...airbase, mode: 0 };
+        }
     }
     return deck;
 }
@@ -429,8 +525,8 @@ function cellFromPacket(entry: ReplayNode): Record<string, unknown> | undefined 
     const ef = integer(formation[1]);
     return {
         c: entry.node,
-        ...(pf === undefined ? {} : { pf }),
-        ...(ef === undefined ? {} : { ef }),
+        ...(pf !== undefined && pf > 0 ? { pf } : {}),
+        ...(ef !== undefined && ef > 0 ? { ef } : {}),
         f1,
         ...(f2 ? { f2 } : {}),
     };
@@ -449,14 +545,16 @@ function airCalcCells(row: ReplayRow, options: AirCalcOptions): Record<string, u
         const cell = cellFromPacket(battle);
         if (cell) byNode.set(battle.node, cell);
     }
-    for (const route of options.routeNodes ?? []) {
+    const battleRoutes = (options.routeNodes ?? []).filter(route => route.kind !== 'raid');
+    for (const route of battleRoutes) {
         if (byNode.has(route.node)) continue;
         const cell = cellFromSummary(route);
         if (cell) byNode.set(route.node, cell);
     }
     const order: number[] = [];
     const seen = new Set<number>();
-    for (const node of options.routeNodes?.map(route => route.node) ?? row.battles.map(battle => battle.node)) {
+    const nodeSeq = options.routeNodes ? battleRoutes.map(route => route.node) : row.battles.map(battle => battle.node);
+    for (const node of nodeSeq) {
         if (seen.has(node) || !byNode.has(node)) continue;
         seen.add(node);
         order.push(node);

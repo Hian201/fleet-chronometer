@@ -157,6 +157,17 @@ export interface ReplayShip {
     // 必須保留「來源未提供」，不可用 0 假裝成赤疲勞。
     cond?: number;
     kyouka?: number[];       // 近代化改修加值（api_kyouka，可選）
+    // 以下為出擊開始快照補齊的艦娘狀態（皆為 optional、非索引，舊紀錄／KC3Kai 匯入缺席）。
+    /** 出擊當下的運（api_lucky[0]，已含近代化改修）。 */
+    luck?: number;
+    /** 出擊當下的顯示對潛（api_taisen[0]，含裝備與裝備加成）；僅在對潛有改修時給外部工具反推。 */
+    asw?: number;
+    /** 出擊當下各一般裝備槽的實際搭載數（api_onslot）。 */
+    onslot?: number[];
+    /** 補強増設孔是否已開放（api_slot_ex !== 0）。 */
+    exOpen?: boolean;
+    /** 特殊補強道具種別（api_sp_effect_items[].api_kind：1＝海色リボン、2＝白たすき）。 */
+    spEffect?: 1 | 2;
 }
 // KC3Kai logger 的第 3／4 艦隊快照有艦種、等級、裝備與士氣，但沒有 HP。
 // 這不是格式錯誤；支援艦隊 HP 在來源中本來就不可考。用獨立型別表達缺席，避免把

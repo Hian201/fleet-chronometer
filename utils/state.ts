@@ -834,8 +834,8 @@ export class GameState {
         afterAmmo: number; afterSteel: number;
         // 基礎耐久 api_taik[0]。配裝參考的戰艦 A/B 群分界用它，不能用實例 maxhp（結婚會加）。
         taik0: number;
-        // 運的改修總量（api_luck 最大值−初期值）與耐久上限 api_taik[1]，供改修餘量用（見 modernCap）。
-        luckMod: number; taikMax: number;
+        // 運的初期／上限／改修總量（api_luck[0]／api_luck[1]／差值）與耐久上限 api_taik[1]。
+        luck0: number; luckMax: number; luckMod: number; taikMax: number;
     }>();
     // 改造形態 → 基礎形態的反解來源（皆由 api_start2/getData 建立，見 baseShipId()）：
     //   upgradeOriginal：api_mst_shipupgrade 的 api_id → api_original_ship_id，**主要解法**
@@ -1771,6 +1771,8 @@ export class GameState {
                 // api_lucky[0]＝api_luck[0]＋api_kyouka[4]、api_lucky[1]＝api_luck[1]，
                 // 故運的改修總量＝api_luck[1]−api_luck[0]（同 ElectronicObserver
                 // ElectronicObserver/Data/ShipData.cs LuckRemain）。
+                luck0: Number(s.api_luck?.[0]) || 0,
+                luckMax: Number(s.api_luck?.[1]) || 0,
                 luckMod: (Number(s.api_luck?.[1]) || 0) - (Number(s.api_luck?.[0]) || 0),
                 taikMax: Number(s.api_taik?.[1]) || 0,
             });

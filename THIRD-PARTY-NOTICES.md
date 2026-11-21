@@ -647,6 +647,19 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 特殊補強道具（`api_sp_effect_items`）與制空権シミュレータ匯入格式
+
+- **封包欄位**：`api_ship.api_sp_effect_items[].api_kind`（1＝海色リボン、2＝白たすき）；本專案無含該欄位的
+  真實封包樣本，依下列兩個專案交叉比對：
+  - KC3Kai `src/library/objects/Ship.js` — https://github.com/KC3Kai/KC3Kai （MIT License）
+  - 制空権シミュレータ（noro6/kc-web）`src/classes/convert.ts` — https://github.com/noro6/kc-web （MIT License）
+- **匯入格式對照**：`utils/deckbuilder.ts` 的 `buildReplayAirCalcDeck()` 與 `AIR_CALC_PLANE_CATS` 對照
+  noro6/kc-web v2.54.0 的 `src/classes/convert.ts`、`src/classes/constants/items.ts`、`src/classes/calcManager.ts`
+  與 `src/classes/fleet/fleetInfo.ts` 核對欄位語意（`f1`–`f4`、`f1.t`、`ac`、`exa`、`asw`、`spi`、`s`、`sp`）。
+  只採用公開交換欄位與類別對照，獨立撰寫，未複製第三方程式碼。
+
+---
+
 ## 12. 改修日程資料 (Akashi workshop schedule)
 
 - **用途**：`utils/akashi-schedule-data.ts`（由 `tools/akashi-schedule/generate.py` 產生）的「裝備 × 曜日 × 第一艦隊

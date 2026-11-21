@@ -58,14 +58,23 @@ tinyurl 上傳。出擊紀錄「下載出擊記錄」把複製 JSON、下載 JSO
 標記，不能靠填猜測素質消除。契約鎖在 `tests/sortie-simulator.test.ts`。
 
 **制空権シミュレータ跳轉走 `#import:{predeck}`**：`?predeck=` 會整段送給 GitHub Pages，
-出擊資料超過 request URI 上限就 414；hash 不上伺服器。noro6/kc-web 的
+出擊資料超過 request URI 上限就 414；hash 不上伺服器。noro6/kc-web（v2.54.0 核對）的
 `Convert.loadDeckBuilder()` 除
 f1～f4／a1～a3 外，另讀 `s`（`a`＝world、`i`＝mapnum、`c[]`＝各格 `c`／`pf`／`ef`／
 `f1`／`f2`）與陸航 `sp`（派遣格，對 `c[].c`）。出擊紀錄因此另組
-`buildReplayAirCalcDeck()`，不把這兩欄寫進複製用的標準 DeckBuilder JSON。`f1.t` 帶
-`api_combined_flag`，否則 kc-web 把 f1／f2 當兩支單艦隊；支援艦隊不進 f3／f4，以免被
-算進我方制空。`c`／`sp` 用出擊 edge id；對得上 kc-web MasterCell 才補節點名並讓陸航對到
-該格，對不上時敵艦隊仍匯入。契約鎖在 `tests/air-calc-deck.test.ts`。
+`buildReplayAirCalcDeck()`，不把 `f1.t`／`s`／`sp` 寫進複製用的標準 DeckBuilder JSON。`f1.t` 帶
+`api_combined_flag`（1–3），否則 kc-web 把 f1／f2 當兩支單艦隊。f3／f4 支援艦隊保留匯入
+（依 kc-web 2.54.0 原始碼核對，並經開發者於 2.54.0 確認 f3／f4 支援戰鬥機不會併入本隊制空：kc-web 只以
+f1 或連合 f1＋f2 計主隊制空，f3／f4 獨立算支援火力與航空／對潛支援制空）。`buildReplayDeckBuilder()`
+負責編成輸出，「複製 DeckBuilder JSON」與跳轉共用同一套規則：`f2` 只在連合時輸出；
+單艦隊由第 3／4 艦隊出擊時（含遊撃部隊）略過與 `f1` 重疊的對應艦隊；艦娘補齊 `luck`（快照 `api_lucky[0]`
+或由 `start2` 基礎運＋`kyouka[4]` 還原）、`exa`、有對潛改修（`kyouka[6] > 0`）時的 `asw`（`api_taisen[0]`）、
+航空機槽位的 `ac`（`api_onslot`）與 `spi`（海色リボン／白たすき）；KC3Kai 匯入 3 槽艦落在 `equip[slotNum]`
+之後的補強増設正規化到 `ix`；陸航只輸已配置（`state === 1`）中隊並以 `ac` 帶實際機數。跳轉時，原為出擊但
+封包未觀測到任何波次者（例道中撤退，或目標格缺原始封包而無法確認）保守改輸出待機（`mode: 0`），避免
+kc-web 缺 `sp` 時預設轟炸第 1 戰。基地空襲（`kind: 'raid'`）由 `airCalcCells()` 排除、不進 `s.c`。
+`c`／`sp` 用出擊 edge id；對得上 kc-web MasterCell 才補節點名並讓陸航對到該格，對不上時敵艦隊
+仍匯入。契約鎖在 `tests/air-calc-deck.test.ts`。
 
 **摺疊列（banner）只放「哪一隊、誰帶隊」**：
 `#第幾次・關卡代號・**旗艦**・艦隊編制・時間・展開箭頭`＋第二行的節點軌跡與結果標記。

@@ -406,6 +406,17 @@ function validateReplayShip(value: unknown, where: string, support = false): Rep
         // Fleet Chronometer 的 toKc3Replay() 沒有 cond；缺席保持缺席，不用 0 假裝赤疲勞。
         ...(ship.cond === undefined ? {} : { cond: finiteNumber(ship.cond, `${where}.cond`, 0) }),
         ...(ship.kyouka === undefined ? {} : { kyouka: numberArray(ship.kyouka, `${where}.kyouka`, 0) }),
+        ...(ship.luck === undefined ? {} : { luck: integer(ship.luck, `${where}.luck`, 1) }),
+        ...(ship.asw === undefined ? {} : { asw: integer(ship.asw, `${where}.asw`, 0) }),
+        ...(ship.onslot === undefined ? {} : { onslot: numberArray(ship.onslot, `${where}.onslot`, 0) }),
+        ...(ship.exOpen === undefined ? {} : { exOpen: booleanValue(ship.exOpen, `${where}.exOpen`) }),
+        ...(ship.spEffect === undefined ? {} : {
+            spEffect: (() => {
+                const kind = integer(ship.spEffect, `${where}.spEffect`, 1);
+                if (kind !== 1 && kind !== 2) invalid(`${where}.spEffect 必須是 1 或 2。`);
+                return kind as 1 | 2;
+            })(),
+        }),
     };
 }
 
