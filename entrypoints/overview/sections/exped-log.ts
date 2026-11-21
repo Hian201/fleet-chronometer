@@ -816,6 +816,14 @@ export const expedLogSection: OverviewSection = {
 
         // ── 遠征組合建議（控制項只建一次，只重繪 .el-plan-body）──────────────
         const planBody = el.querySelector<HTMLElement>('.el-plan-body')!;
+        // 結果區會整塊重畫（先近似解、背景算完再換精確解）。Edge 的擴充頁偶爾出現資材圖示破圖、重畫後仍破，
+        // 像是同一網址的失敗被沿用（原因未確認）；所以失敗時換一個查詢字串重載一次（error 不冒泡，用捕獲）。
+        planBody.addEventListener('error', event => {
+            const img = event.target;
+            if (!(img instanceof HTMLImageElement) || img.dataset.retry) return;
+            img.dataset.retry = '1';
+            img.src = `${img.src.split('?')[0]}?r=${Date.now()}`;
+        }, true);
         const planPick = el.querySelector<HTMLElement>('.el-plan-pick')!;
         const hoursInput = el.querySelector<HTMLInputElement>('.el-plan-hours:not(.el-plan-sleep)')!;
         const sleepInput = el.querySelector<HTMLInputElement>('.el-plan-sleep')!;
