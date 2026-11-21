@@ -27,10 +27,10 @@ function event(captureId?: string, overrides: Partial<ApiEventRow> = {}): ApiEve
     };
 }
 
+// fake-indexeddb 每個請求都要等事件迴圈一輪；整套測試平行跑、CPU 吃緊時每輪可能超過 1 毫秒，
+// 固定等幾次 setTimeout 不夠寫入＋claim 跑完。改成以時間為上限等到副作用被呼叫。
 async function waitForCall(spy: ReturnType<typeof vi.fn>) {
-    for (let index = 0; index < 20 && spy.mock.calls.length === 0; index++) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-    }
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled(), { timeout: 5000 });
     expect(spy).toHaveBeenCalledTimes(1);
 }
 
