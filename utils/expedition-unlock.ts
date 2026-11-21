@@ -1,13 +1,15 @@
-// 遠征開放檢查：首次開放條件、月常每期的前置，以及依最近一次遠征清單推出每條遠征的狀態（純函式）。
+// 遠征開放檢查：依最近一次遠征清單與本期成功紀錄判斷狀態（純函式）。
 //
 // 首次開放條件：wikiwiki.jp/kancolle/遠征「各遠征の開放要件」（2026-11-18 讀原始 HTML；該表注明參照英 wiki，
 // 2023-05-16 閱覽）。遊戲不送這份資料，所以只寫成「需先完成 X」的提示，不據以改變能不能派的判斷——能不能派
-// 一律看遠征清單（不在清單＝目前不能派，見 docs/engineering/expeditions.md「遠征清單」）。
+// 以遠征清單為準（見 docs/engineering/expeditions.md「遠征清單」）。
 // 同頁留言有兩筆尚未寫回表格的回報：B2 可能另需 B1、東京急行(37) 可能不需 1-5；表格未改前照表。
 //
 // 月常每期的前置：同表標「(毎月)」者。與 KC3Kai src/library/helpers/KanColleHelpers.js 的 monthlyUnlockTable
 // 九條逐一相符，也與 samples/mission-list.json（缺 43、44、A5、A6、B3–B6、D3）及 mission-list-a4-done.json
 // （A4 本期完成後 44 出現）一致。
+import type { ExpeditionRow } from './db';
+import { monthlyExpeditionCycle } from './expedition-plan';
 
 export interface FirstUnlock {
     /** 需先達成的遠征 id */
@@ -70,11 +72,14 @@ export interface UnlockView {
     missing(id: number): { missions: number[]; maps: readonly string[]; quest: boolean };
 }
 
-/** 依最近一次遠征清單（GameState.missionList）推出各遠征的狀態；清單從沒收到時回 null。 */
+export type ExpeditionResult = Pick<ExpeditionRow, 'missionId' | 'ts' | 'result'>;
+
+/** 以本期成功紀錄補上清單尚未更新的月常完成狀態；清單從沒收到時回 null。 */
 export function unlockView(
     missions: ReadonlyMap<number, UnlockMission>,
     list: { states: ReadonlyMap<number, number>; resetAt: number | null } | null,
     now: number,
+    results: readonly ExpeditionResult[] = [],
 ): UnlockView | null {
     if (!list) return null;
     const stale = list.resetAt !== null && list.resetAt <= now;
@@ -85,6 +90,12 @@ export function unlockView(
             if (m.resetType !== 1 || !states.has(id)) continue;
             if (MONTHLY_UNLOCK[id]) states.delete(id);
             else states.set(id, 1);
+        }
+    }
+    const cycle = monthlyExpeditionCycle(now, list.resetAt);
+    for (const { missionId, ts, result } of results) {
+        if (missions.get(missionId)?.resetType === 1 && result >= 1 && ts >= cycle.start && ts < cycle.end && ts <= now) {
+            states.set(missionId, 2);
         }
     }
     const cleared = (id: number) => states.get(id) === 2;

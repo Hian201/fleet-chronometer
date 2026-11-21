@@ -143,7 +143,11 @@ const HOUR_MS = 60 * 60 * 1000;
  * 依 wikiwiki.jp/kancolle「遠征」マンスリー遠征：「開始月15日の昼12:00 ～ 翌月15日の昼12:00まで」、
  * 換期時不必重新登入。日本時間 12:00＝UTC 03:00。
  */
-export function monthlyExpeditionCycle(ts: number): { start: number; end: number } {
+export function monthlyExpeditionCycle(ts: number, resetAt: number | null = null): { start: number; end: number } {
+    // 本期清單的截止以伺服器為準。維修延後時，往回 1 毫秒會落在截止當月的週期。
+    if (resetAt !== null && resetAt > ts) {
+        return { start: monthlyExpeditionCycle(resetAt - 15 * DAY_MS).start, end: resetAt };
+    }
     const jst = new Date(ts + 9 * HOUR_MS);
     const year = jst.getUTCFullYear(), month = jst.getUTCMonth();
     const at = (m: number) => Date.UTC(year, m, 15, 3);
@@ -637,11 +641,8 @@ export function* planExpeditionSteps(input: PlanInput): Generator<ExpeditionPlan
     const now = input.now ?? Date.now();
     const list = input.missionList ?? null;
     // 清單的換期時間還沒到＝本期的清單：本期截止用伺服器給的時間，月常開放與否才可信。
-    // 本期起點從換期時間往回半個月取：維修把換期延到 15 日 12:00 之後時，往回 1 毫秒會落在當月 15 日的週期裡。
     const listThisCycle = list !== null && list.resetAt !== null && list.resetAt > now;
-    const monthlyCycle = listThisCycle
-        ? { start: monthlyExpeditionCycle(list.resetAt! - 15 * DAY_MS).start, end: list.resetAt! }
-        : monthlyExpeditionCycle(now);
+    const monthlyCycle = monthlyExpeditionCycle(now, list?.resetAt);
     const candidates: PlanRow[] = [];
     let lockedCount = 0;
     for (const mission of input.missions) {

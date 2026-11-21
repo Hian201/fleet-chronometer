@@ -1,9 +1,9 @@
 // 遠征分區的「開放」子頁：月常解鎖路徑（每期前置、消耗、成功收入），以及一般遠征的開放狀況。
-// 狀態一律由最近一次遠征清單推出（utils/expedition-unlock.ts）；開放條件表只用來寫「還缺什麼」。
+// 依最近一次遠征清單與本期成功紀錄判斷狀態；開放條件表只用來寫「還缺什麼」。
 // 一般遠征全開時收成一行放在最後，沒開完才展開並放在路徑前面，只列還有未開放遠征的海域。
 import type { GameState } from '@/utils/state';
 import EXPEDITION_DATA from '@/utils/expedition-data';
-import { MONTHLY_PATHS, unlockView, type UnlockKind, type UnlockView } from '@/utils/expedition-unlock';
+import { MONTHLY_PATHS, unlockView, type ExpeditionResult, type UnlockKind, type UnlockView } from '@/utils/expedition-unlock';
 import { areaName } from '@/utils/map-names';
 import { formatDateTime } from '@/utils/date-format';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
@@ -112,8 +112,8 @@ function generalHtml(view: UnlockView, state: GameState, open: boolean | undefin
  * 開放子頁的內容。generalOpen：一般遠征區塊目前的展開狀態（重繪時保留玩家的選擇）；undefined 表示第一次畫，
  * 依「沒開完才展開」決定。
  */
-export function unlockPageHtml(state: GameState, now: number, generalOpen?: boolean): string {
-    const view = unlockView(state.masterMissions, state.missionList, now);
+export function unlockPageHtml(state: GameState, now: number, generalOpen?: boolean, results?: readonly ExpeditionResult[]): string {
+    const view = unlockView(state.masterMissions, state.missionList, now, results);
     if (!view || !state.masterMissions.size) return `<div class="ov-empty">${esc(t('ov.euNone'))}</div>`;
     const list = state.missionList!;
     const monthly = [...state.masterMissions].filter(([, m]) => m.resetType === 1).map(([id]) => id);

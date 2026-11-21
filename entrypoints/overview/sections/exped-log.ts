@@ -13,6 +13,7 @@
 // ── 版面慣例 ────────────────────────────────────────────────────────────
 // 控制項只建一次、只重繪 `.el-body`（design-guidelines §4.2 的第二種例外）：這裡有
 // 關鍵字與日期輸入框，整塊重繪會讓輸入框每打一個字就失焦。
+import { liveQuery, type Subscription } from 'dexie';
 import type { ExpeditionGear, ExpeditionRow, ExpeditionShip, ResourceMarkRow } from '@/utils/db';
 import type { GameState } from '@/utils/state';
 import type { OverviewSection, SectionContext } from './types';
@@ -20,7 +21,8 @@ import { db } from '@/utils/db';
 import { expedDisplayName, getLang, t } from '@/utils/ui-i18n';
 import { buildEventPeriods, type EventPeriod } from '@/utils/resource-log';
 import { DAY_MS, formatDate, formatDateTime } from '@/utils/date-format';
-import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_FLEETS, PLAN_KEYS, SPEND_BASES, UNTIL_FULL_MAX_DAYS, lightestWeek, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type PlanSegment, type PlanRouteFleet, type SpendBasis } from '@/utils/expedition-plan';
+import { DEFAULT_CHOSEN, MIN_RUNS, PLAN_FLEETS, PLAN_KEYS, SPEND_BASES, UNTIL_FULL_MAX_DAYS, lightestWeek, monthlyExpeditionCycle, planExpeditionSteps, resourceNeeds, type ExpeditionPlan, type PlanKey, type PlanRow, type PlanSegment, type PlanRouteFleet, type SpendBasis } from '@/utils/expedition-plan';
+import type { ExpeditionResult } from '@/utils/expedition-unlock';
 import { stockpileFromRows, type StockpileGoal } from '@/utils/stockpile';
 import { goalsFromRows, remodelStockOf, type RemodelGoal } from '@/utils/remodel-goals';
 import { FLOW_BLOCK_DAYS, FLOW_MAX_BLOCKS, type ObservedFlow } from '@/utils/goal-arrival';
@@ -733,17 +735,51 @@ export const expedLogSection: OverviewSection = {
         // ── 子分頁 ────────────────────────────────────────────────────
         const unlockPage = el.querySelector<HTMLElement>('#el-page-unlock')!;
         let unlockDrawn = false;
+        let unlockResults: ExpeditionResult[] = [];
+        let unlockStart: number | undefined;
+        let unlockQuery: Subscription | undefined;
+        let unlockStatus = '';
+        ctx.signal?.addEventListener('abort', () => unlockQuery?.unsubscribe(), { once: true });
         // 開放頁只有一般遠征的 <details>，重繪時保留玩家的展開選擇。
         const drawUnlock = () => {
+            const now = Date.now();
             const box = unlockPage.querySelector<HTMLDetailsElement>('.eu-general');
-            unlockPage.innerHTML = unlockPageHtml(ctx.state, Date.now(), unlockDrawn ? box?.open : undefined);
+            unlockPage.innerHTML = unlockPageHtml(ctx.state, now, box?.open, unlockResults)
+                + (unlockStatus ? `<div class="ov-note">${esc(unlockStatus)}</div>` : '');
             unlockDrawn = true;
+        };
+        const refreshUnlock = () => {
+            const list = ctx.state.missionList;
+            const start = list ? monthlyExpeditionCycle(Date.now(), list.resetAt).start : undefined;
+            if (start !== unlockStart) {
+                unlockQuery?.unsubscribe();
+                unlockStart = start;
+                unlockResults = [];
+                unlockStatus = start === undefined ? '' : t('ov.loading');
+                if (start !== undefined) {
+                    // 即時封包通知與面板投影的先後不固定，直接等 IndexedDB 的遠征紀錄寫入。
+                    unlockQuery = liveQuery(() => db.expeditions.where('ts').aboveOrEqual(start)
+                        .filter(row => row.result >= 1).toArray()).subscribe({
+                        next(rows) {
+                            unlockResults = rows;
+                            unlockStatus = '';
+                            drawUnlock();
+                        },
+                        error(error: unknown) {
+                            unlockStart = undefined;   // 下次切回子頁或收到新事件時可重試
+                            unlockStatus = t('ov.loadFailed', { msg: String(error) });
+                            drawUnlock();
+                        },
+                    });
+                }
+            }
+            drawUnlock();
         };
         const show = (key: ExpedSub) => {
             active = key;
             for (const button of el.querySelectorAll<HTMLButtonElement>('.el > .fa-nav .fa-tab')) button.setAttribute('aria-selected', String(button.dataset.sub === key));
             for (const sub of EXPED_SUBS) el.querySelector<HTMLElement>(`#el-page-${sub.key}`)!.hidden = sub.key !== key;
-            if (key === 'unlock' && !unlockDrawn) drawUnlock();
+            if (key === 'unlock') refreshUnlock();
             // 規劃頁要跑組合搜尋，第一次切過去才算（預設進來看的是紀錄）。
             if (key === 'plan' && !planDrawn) drawPlan();
         };
@@ -896,11 +932,11 @@ export const expedLogSection: OverviewSection = {
         });
 
         show(active);
-        // 進遠征畫面（新的遠征清單）時更新開放頁；規劃頁只在遠征清單或主檔變了才重算（組合搜尋較重）。
+        // 進遠征畫面時更新開放狀態；規劃頁只在遠征清單或主檔變了才重算（組合搜尋較重）。
         // 還沒打開過的子頁等第一次切過去再畫。
         ctx.onStateChange?.(paths => {
             if (!el.isConnected) return;
-            if (unlockDrawn) drawUnlock();
+            if (unlockDrawn) refreshUnlock();
             // 發遠征（api_req_mission/start）會改變正在跑的遠征（黏著依據），所以也重算；不含 api_port/port：
             // 每次回母港都會來，組合搜尋最多數秒，不值得為它每次重跑。
             if (planDrawn && paths.some(path => path === 'api_get_member/mission' || path === 'api_start2/getData' || path === 'api_req_mission/start')) drawPlan();

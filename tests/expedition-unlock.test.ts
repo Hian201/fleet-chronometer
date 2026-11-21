@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { parseHTML } from 'linkedom';
+import { db } from '../utils/db';
 import { GameState } from '../utils/state';
 import { FIRST_UNLOCK, MONTHLY_PATHS, MONTHLY_UNLOCK, unlockView } from '../utils/expedition-unlock';
+import { expedLogSection } from '../entrypoints/overview/sections/exped-log';
 import { unlockPageHtml } from '../entrypoints/overview/sections/exped-unlock';
-import { setLang } from '../utils/ui-i18n';
+import { setLang, t } from '../utils/ui-i18n';
 
 const read = (name: string) => JSON.parse(readFileSync(new URL(`../samples/${name}`, import.meta.url), 'utf8'));
 const master = read('start2-master.json');
@@ -58,6 +61,26 @@ describe('遠征開放檢查', () => {
         expect(view.missing(104).missions).toEqual([112]);
     });
 
+    it('成功紀錄補上本期完成，失敗、上期與未來紀錄不計，後續遠征仍等清單確認', () => {
+        const state = stateWith(read('mission-list.json'));
+        const view = unlockView(state.masterMissions, state.missionList, NOW, [
+            { missionId: 103, ts: NOW, result: 1 }, // A4 成功
+            { missionId: 112, ts: NOW, result: 2 }, // B3 大成功，舊清單尚未列出
+            { missionId: 111, ts: NOW, result: 0 },
+            { missionId: 42, ts: Date.parse('2026-11-15T02:59:59Z'), result: 1 },
+            { missionId: 132, ts: NOW + 1, result: 2 },
+        ])!;
+        expect(view.kind(103)).toBe('done');
+        expect(view.kind(112)).toBe('done');
+        expect(view.kind(111)).toBe('open');
+        expect(view.kind(42)).toBe('open');
+        expect(view.kind(132)).toBe('open');
+        expect(view.kind(44)).toBe('absent');
+        expect(view.missing(104).missions).toEqual([]);
+        expect(view.kind(104)).toBe('absent');
+        expect(state.missionList?.states.get(103)).toBe(1);
+    });
+
     it('清單是上一期的：月常完成清空、有每期前置的月常不出現', () => {
         const view = viewOf(stateWith(read('mission-list-a4-done.json')), Date.parse('2026-12-16T00:00:00Z'));
         expect(view.stale).toBe(true);
@@ -65,6 +88,17 @@ describe('遠征開放檢查', () => {
         expect(view.kind(44)).toBe('absent');
         expect(view.missing(44).missions).toEqual([103]);
         expect(view.kind(1)).toBe('done');   // 一般遠征不受換期影響
+    });
+
+    it('換期後舊紀錄立即失效，新一期成功紀錄可補上仍是上一期的清單', () => {
+        const state = stateWith(read('mission-list-a4-done.json'));
+        const reset = state.missionList!.resetAt!;
+        const view = unlockView(state.masterMissions, state.missionList, reset, [
+            { missionId: 103, ts: reset - 1, result: 1 },
+            { missionId: 111, ts: reset, result: 2 },
+        ])!;
+        expect(view.kind(103)).toBe('open');
+        expect(view.kind(111)).toBe('done');
     });
 
     it('一般遠征未開放：缺首次條件；海域與任務照列', () => {
@@ -91,5 +125,33 @@ describe('遠征開放檢查', () => {
         expect(html).toContain('<details class="eu-general">');
         expect(html.indexOf('eu-general')).toBeGreaterThan(html.indexOf('eu-table'));
         expect(unlockPageHtml(stateWith(null), NOW)).toContain('還沒收到遠征清單');
+    });
+
+    it('開放頁已掛載時，遠征紀錄寫入即更新完成數，無須收到另一份清單', async () => {
+        setLang('zh-TW');
+        const { document } = parseHTML('<html><body><div id="host"></div></body></html>');
+        const host = document.getElementById('host') as unknown as HTMLElement;
+        const state = stateWith(read('mission-list.json'));
+        const controller = new AbortController();
+        vi.stubGlobal('location', { hash: '#/exped-log?sub=unlock' });
+        vi.spyOn(Date, 'now').mockReturnValue(NOW);
+        try {
+            await expedLogSection.render(host, { state, signal: controller.signal, rerender() {}, async reloadState() {} });
+            const page = host.querySelector('#el-page-unlock')!;
+            await vi.waitFor(() => expect(page.textContent).not.toContain(t('ov.loading')));
+            expect(page.textContent).toContain(t('ov.euMonthly', { a: 0, b: 16 }));
+            await db.expeditions.put({
+                eventId: 1, ts: NOW, deckId: 2, missionId: 103, name: '',
+                result: 1, resources: [], items: [],
+            });
+            await vi.waitFor(() => expect(page.textContent).toContain(t('ov.euMonthly', { a: 1, b: 16 })));
+            expect(page.querySelector('.eu-tr.is-done')?.textContent).toContain('A4');
+            expect(state.missionList?.states.get(103)).toBe(1);
+        } finally {
+            controller.abort();
+            await db.expeditions.clear();
+            vi.restoreAllMocks();
+            vi.unstubAllGlobals();
+        }
     });
 });
