@@ -16,7 +16,7 @@
 | [records.md](records.md) | 出擊重播（KC3Kai 相容）、出擊紀錄展開、出擊帳單估算、單場 JSON 匯入、不記錄的海域、打撈／建造 CSV、改修日程、工廠紀錄 | `utils/replay.ts`、`sortie-detail.ts`、`sortie-bill.ts`、`sortie-import.ts`、`sortie-exclude.ts`、`drop-log-import.ts`、`build-log-import.ts`、`deckbuilder.ts`、`akashi-schedule.ts`、`tools/akashi-schedule/` |
 | [backup.md](backup.md) | 母港快照、備份格式 v1–v8 與還原規則、FSA 資料夾備份、`viewer.html`、重播保留規則 | `utils/backup.ts`、`utils/retention.ts`、`entrypoints/overview/fsa.ts`、`tests/backup*` |
 | [quests.md](quests.md) | 任務動作計數（退路）、條件表與可信度、伺服器對照、重用編號防護、任務導覽的前置推論與介面 | `utils/quest-progress.ts`、`quest-tracking.ts`、`quest-goals.ts`、`quest-flow.ts`、`quest-identity.ts`、`quest-seen.ts`、`tools/quest-graph/`、`tools/quest-goal/` |
-| [event-ops.md](event-ops.md) | 活動作戰板：出擊標籤機制、三層結構、燈號、實際貼標觀測、master 海域對應 | `utils/event-plan.ts`、`entrypoints/overview/sections/event-ops.ts`、`tests/event-plan.test.ts` |
+| [event-ops.md](event-ops.md) | 活動作戰板（介面「活動配船板」）：出擊標籤機制、三層結構、planByShip 計畫、自由池 × 標籤欄網格、出擊檢查、實際貼標觀測、master 海域對應 | `utils/event-plan.ts`、`utils/tag-board.ts`、`entrypoints/overview/sections/tag-board.ts`、`tests/event-plan.test.ts`、`tests/tag-board.test.ts` |
 | [roster.md](roster.md) | 艦名／裝備名譯名表、全船篩選、艦娘全覽、先制對潛、國籍、裝備全覽、配裝參考、收藏日誌兩個日期 | `utils/ship-filter.ts`、`ship-roster.ts`、`opening-asw.ts`、`ship-nationality.ts`、`gear-inventory.ts`、`equip-ref.ts`、`stype-label.ts`、`gamedata-i18n.ts` |
 | [resources.md](resources.md) | 資源序列擷取、量表里程碑、趨勢圖、活動資源消耗切分 | `utils/resource-capture.ts`、`resource-log.ts`、`line-chart.ts`、`event-calendar.ts` |
 | [expeditions.md](expeditions.md) | 遠征大發加成公式、遠征資料完整性與 EO 條件轉寫、期間彙總、組合建議、開放檢查 | `utils/expedition-bonus.ts`、`expedition-data.ts`、`expedition-stats.ts`、`expedition-plan.ts`、`expedition-unlock.ts` |
