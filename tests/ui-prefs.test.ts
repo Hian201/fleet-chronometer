@@ -3,7 +3,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLang, setLang } from '../utils/ui-i18n';
 import { MSG_UI_LANG_SET } from '../utils/game-page';
-import { applyTheme, getTheme, initLang, onPrefsChange, persistLang, persistTheme } from '../utils/ui-prefs';
+import {
+    SENKA_HEADER_KEY, applyTheme, getSenkaHeaderPinned, getTheme, initLang, onPrefsChange, persistLang,
+    persistSenkaHeaderPinned, persistTheme,
+} from '../utils/ui-prefs';
 
 class MemoryStorage {
     private map = new Map<string, string>();
@@ -153,5 +156,26 @@ describe('onPrefsChange（跨頁面同步）', () => {
         onPrefsChange(cb);
         fire('other', 'x');
         expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('其他頁面切換頁首本月戰果釘選：通知 senkaHeader', () => {
+        const cb = vi.fn();
+        onPrefsChange(cb);
+        storage.setItem(SENKA_HEADER_KEY, 'true');
+        fire(SENKA_HEADER_KEY, 'true');
+        expect(cb).toHaveBeenCalledExactlyOnceWith('senkaHeader');
+        expect(getSenkaHeaderPinned()).toBe(true);
+    });
+});
+
+describe('頁首本月戰果釘選偏好', () => {
+    it('預設為 false；persistSenkaHeaderPinned 可讀寫為 true／false', () => {
+        expect(getSenkaHeaderPinned()).toBe(false);
+        persistSenkaHeaderPinned(true);
+        expect(storage.getItem(SENKA_HEADER_KEY)).toBe('true');
+        expect(getSenkaHeaderPinned()).toBe(true);
+        persistSenkaHeaderPinned(false);
+        expect(storage.getItem(SENKA_HEADER_KEY)).toBe('false');
+        expect(getSenkaHeaderPinned()).toBe(false);
     });
 });

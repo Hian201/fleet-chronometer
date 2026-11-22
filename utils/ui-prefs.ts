@@ -17,6 +17,7 @@ import type { Lang } from './gamedata-i18n';
 // key 沿用面板既有值，既有使用者的語言設定無痛保留
 const LANG_KEY = 'kc-panel-lang';
 const THEME_KEY = 'kc-theme';
+export const SENKA_HEADER_KEY = 'kc-panel-senka';
 
 export type Theme = 'dark' | 'light';
 
@@ -62,13 +63,28 @@ export function persistTheme(t: Theme) {
     applyTheme(t);
 }
 
+// ── 面板頁首本月戰果（只在情報總括寫入，面板只讀不寫）────────────────────
+export function getSenkaHeaderPinned(): boolean {
+    try {
+        return localStorage.getItem(SENKA_HEADER_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+export function persistSenkaHeaderPinned(pinned: boolean): void {
+    try {
+        localStorage.setItem(SENKA_HEADER_KEY, pinned ? 'true' : 'false');
+    } catch { /* 隱私模式或禁用儲存時靜默 */ }
+}
+
 // ── 跨頁面即時同步（#1/#2 全域切換）────────────────────────
 // 同一擴充 origin 的所有頁面（panel 彈窗、overview 分頁）共用 localStorage；瀏覽器的
 // `storage` 事件只在「非發動變更的那個」頁面觸發——正好用來把某頁的語言/主題變更
 // 廣播給其他已開頁面。發動變更的頁面自己已同步重繪，不需再收自己的事件。
 // 不需要任何權限（storage 事件是 DOM 標準，非 chrome.storage）。
 // cb 在偏好已套用（setLang/applyTheme 已呼叫）後被呼叫，呼叫端只需重繪。
-export function onPrefsChange(cb: (kind: 'lang' | 'theme') => void) {
+export function onPrefsChange(cb: (kind: 'lang' | 'theme' | 'senkaHeader') => void) {
     window.addEventListener('storage', e => {
         if (e.key === LANG_KEY) {
             const valid = LANGS.find(l => l.code === e.newValue);
@@ -76,6 +92,8 @@ export function onPrefsChange(cb: (kind: 'lang' | 'theme') => void) {
         } else if (e.key === THEME_KEY) {
             applyTheme();   // 讀新值（getTheme 直接讀 localStorage，已是最新）
             cb('theme');
+        } else if (e.key === SENKA_HEADER_KEY) {
+            cb('senkaHeader');
         }
     });
 }

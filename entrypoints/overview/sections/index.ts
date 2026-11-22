@@ -12,6 +12,7 @@ import { dropLogSection } from './drop-log';
 import { expedLogSection } from './exped-log';
 import { factorySection } from './factory';
 import { resourceLogSection } from './resource-log';
+import { senkaSection } from './senka';
 import { questFlowSection } from './quest-flow';
 import { llmSection } from './llm';
 import { backupSection } from './backup';
@@ -29,6 +30,7 @@ export const sections: OverviewSection[] = [
     expedLogSection,        // 遠征（子分頁：紀錄／規劃／開放；hash 仍為 exped-log）
     factorySection,         // 工廠（子分頁：建造紀錄／開發紀錄／改修日程；舊 #/build-log 等網址轉進來）
     resourceLogSection,     // 資源紀錄（趨勢圖＋詳細清單＋活動區段消耗）
+    senkaSection,           // 戰果（本月普通戰果與截止倒數）
     questFlowSection,       // 任務導覽（目錄＋關聯路線＋本機狀態）
     llmSection,             // LLM 分析
     backupSection,          // 資料備份與還原（＋FSA 資料夾備份、重播層裁剪）

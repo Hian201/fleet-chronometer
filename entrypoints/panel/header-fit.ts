@@ -7,7 +7,9 @@ export function fitHeaderScale(header: HTMLElement, minScale = HEADER_MIN_SCALE)
     const nick = header.querySelector<HTMLElement>('.nick');
     let scale = 1;
     header.style.setProperty('--hs', '1');
-    const tight = () => !!nick && (nick.scrollWidth > nick.clientWidth + 0.5 || header.scrollWidth > header.clientWidth + 0.5);
+    const tight = () =>
+        (!!nick && nick.clientWidth > 0 && nick.scrollWidth > nick.clientWidth + 0.5)
+        || header.scrollWidth > header.clientWidth + 0.5;
     while (tight() && scale > minScale) {
         scale = Math.round((scale - 0.01) * 100) / 100;
         header.style.setProperty('--hs', String(scale));

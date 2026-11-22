@@ -28,3 +28,9 @@ export function formatTime(ts: number, seconds = true): string {
     const d = new Date(ts);
     return `${pad(d.getHours())}:${pad(d.getMinutes())}${seconds ? `:${pad(d.getSeconds())}` : ''}`;
 }
+
+/** `9/28 21:32`（省略年份與補零的本機時區簡短日期時間，見 design-guidelines §2.6）。 */
+export function formatShortDateTime(ts: number): string {
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}/${d.getDate()} ${formatTime(ts, false)}`;
+}

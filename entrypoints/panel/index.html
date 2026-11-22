@@ -5892,8 +5892,13 @@
             }
 
             .s-taiha-toggle,
-            .taiha-flip {
+            .taiha-flip,
+            #header #points {
                 transition: none;
+            }
+
+            #header #points:active {
+                transform: none;
             }
         }
 
@@ -5933,6 +5938,10 @@
             .taiha-alert,
             .s-taiha.open {
                 background: color-mix(in srgb, var(--dmg-major) 18%, var(--panel));
+            }
+
+            #header #points[aria-expanded="true"] {
+                background: color-mix(in srgb, var(--brass) 14%, var(--panel));
             }
         }
 
@@ -5983,6 +5992,14 @@
 
             .s-gauge.zansatsu .s-gauge-final {
                 color: var(--text);
+            }
+
+            #header #points {
+                border-color: var(--dim);
+            }
+
+            #header #points[aria-expanded="true"] {
+                border-color: var(--sparkle);
             }
         }
 
@@ -6154,10 +6171,29 @@
         #header .h-cam:hover { color: var(--text); border-color: var(--brass); }
         #header .h-cam[aria-pressed="true"] { color: var(--sparkle); border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
         #header .h-cam svg { width: calc(15px * var(--hs)); height: calc(15px * var(--hs)); fill: none; stroke: currentColor; stroke-width: 1.4; }
+        #header #points { flex: none; display: inline-flex; align-items: baseline; gap: calc(4px * var(--hs)); padding: 1px 3px; margin-left: -3px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--text); font: inherit; font-size: calc(13px * var(--hs)); white-space: nowrap; cursor: pointer; transition: border-color 100ms ease-out, color 100ms ease-out, transform 100ms ease-out; }
+        #header #points:hover { border-color: var(--brass); }
+        #header #points[aria-expanded="true"] { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+        #header #points:active { border-color: var(--sparkle); transform: scale(.97); }
+        #header #points:focus-visible { outline: 2px solid var(--sparkle); outline-offset: 1px; }
+        #header #points b { color: var(--sparkle); font-size: calc(14px * var(--hs)); font-variant-numeric: tabular-nums; }
 
-        /* ── 編成寫真托盤：開啟時取代 #tabpanel，同樣固定 270px，不推動下方編成 ── */
+        /* ── 編成寫真托盤／本月戰果托盤：開啟時取代 #tabpanel，同樣固定 270px，不推動下方編成 ── */
         #photo-tray { display: flex; flex-direction: column; gap: 5px; height: 270px; padding: 6px 8px; min-height: 0; overflow: hidden; }
-        #photo-tray[hidden], #tabpanel[hidden] { display: none; }
+        #senka-tray { display: flex; flex-direction: column; gap: 4px; height: 270px; padding: 6px 8px; min-height: 0; overflow: hidden; font-size: 12px; line-height: 1.3; }
+        #photo-tray[hidden], #senka-tray[hidden], #tabpanel[hidden] { display: none; }
+        #senka-tray .ph-close { margin-left: auto; }
+        #senka-tray .ph-close:focus-visible { outline: 2px solid var(--sparkle); outline-offset: 1px; }
+        #senka-tray .ph-title { font-weight: 600; }
+        .sn-body { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+        .sn-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .sn-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+        .sn-total { font-size: 14px; color: var(--sparkle); font-weight: 700; }
+        .sn-total b { font-weight: 700; }
+        .sn-comp { color: var(--dim); font-size: 11px; }
+        .sn-comp.sn-err { color: var(--dmg-major); }
+        .sn-foot { margin-top: auto; display: flex; flex-direction: column; gap: 1px; font-size: 11px; }
+        .sn-foot .sn-note { color: var(--dim); font-size: 10px; }
         .ph-head { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 20px; font-size: 12px; line-height: 1.2; }
         .ph-title { color: var(--text); white-space: nowrap; }
         .ph-target { min-width: 0; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -6291,6 +6327,7 @@
         </div>
     </div>
     <div id="photo-tray" hidden></div>
+    <section id="senka-tray" role="region" aria-labelledby="senka-title" hidden></section>
     <div id="fleetnav"></div>
     <div id="fleets"></div>
     <div id="air-bases" style="display:none"></div>

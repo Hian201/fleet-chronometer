@@ -8901,6 +8901,23 @@
         .ip-stats td:last-child, .ip-stats th:last-child { padding-left: 16px; }
         .ip-stats .ip-gear-name { max-width: 170px; }
 
+        /* ── 戰果（senka）── */
+        .sk .ov-toolbar { align-items: center; }
+        .sk-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; align-items: start; }
+        .sk[data-stage="0"] .sk-cols, .sk[data-stage="1"] .sk-cols { display: flex; flex-direction: column; align-items: stretch; max-width: 560px; }
+        .sk-card { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+        .sk-card h3 { margin: 0 0 8px; font-size: 14px; color: var(--sparkle); }
+        .sk-total { display: flex; flex-direction: column; gap: 2px; }
+        .sk-tl { color: var(--dim); font-size: 12px; }
+        .sk-tv { font-size: 24px; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--sparkle); }
+        .sk-sep { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+        .sk-kv { display: grid; grid-template-columns: auto auto 1fr; column-gap: 16px; row-gap: 3px; margin-bottom: 0; margin-left: 0; margin-right: 0; align-items: baseline; font-size: 13px; }
+        .sk-kv dt { margin: 0; color: var(--dim); }
+        .sk-kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+        .sk-kv dd.n { text-align: left; color: var(--dim); font-size: 11px; font-variant-numeric: normal; }
+        .sk-closes { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--dim); }
+        .sk-hint { margin: 8px 0 0; font-size: 11px; color: var(--dim); }
+
         @media (max-width: 620px) {
             .rs-row { grid-template-columns: minmax(0, 1fr); }
             .rl-tip-chips { grid-template-columns: minmax(0, 1fr); }
@@ -9158,6 +9175,8 @@
                 border-top: 1px solid var(--sparkle);
                 border-bottom: 1px solid var(--sparkle);
             }
+
+            .sk-card { border-color: var(--dim); }
         }
     </style>
 </head>

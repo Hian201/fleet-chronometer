@@ -89,8 +89,9 @@ window.addEventListener('resize', () => {
 
 initLang();
 applyTheme();
-// 其他頁面（面板／另一個總括分頁）切換語言或主題時，本頁即時跟著套用並重繪。
-onPrefsChange(() => renderAll());
+// 其他頁面（面板／另一個總括分頁）切換語言或主題時，本頁即時跟著套用並重繪；
+// senkaHeader 由戰果分區自行透過 storage 事件原地同步 checkbox，避免整頁重繪洗掉狀態。
+onPrefsChange(kind => { if (kind !== 'senkaHeader') renderAll(); });
 
 // 共用狀態：載入時重播 db.events 重建一次，之後接收 background 廣播持續套用新事件
 // （live-state.ts，只套用 reducer、不做投影）。載入完成前 state 是空的，完成後重繪目前分區。

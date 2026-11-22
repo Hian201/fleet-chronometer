@@ -11,7 +11,7 @@ import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { applyArchivedQuestSeen } from '@/utils/quest-seen';
 import { getLang, t } from '@/utils/ui-i18n';
 import { itemCatalog } from '@/utils/item-catalog';
-import { formatDateTime } from '@/utils/date-format';
+import { formatDateTime, formatShortDateTime } from '@/utils/date-format';
 import { downloadBlob } from '@/utils/download';
 
 export { esc, gearIconHtml, matIconHtml };
@@ -224,10 +224,7 @@ export async function copyWithFeedback(btn: HTMLButtonElement, text: string, don
 
 /** 介面日期一律年/月/日（見 utils/date-format.ts）。 */
 export const fmtTs = (ts: number) => formatDateTime(ts);
-export const fmtShortTs = (ts: number) => {
-    const d = new Date(ts);
-    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+export const fmtShortTs = (ts: number) => formatShortDateTime(ts);
 
 // 四艦隊＋基地航空隊的 Markdown 片段（fleet-overview 匯出用）；外層標題層級由 h 參數控制。
 export const AIR_ACTION_KEYS = ['lbas.standby', 'lbas.sortie', 'lbas.airDefense', 'lbas.retreat', 'lbas.rest'];

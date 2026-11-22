@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, formatTime } from '../utils/date-format';
+import { formatDate, formatDateTime, formatShortDateTime, formatTime } from '../utils/date-format';
 
 describe('日期格式', () => {
     const ts = new Date(2026, 8, 8, 7, 5, 3).getTime();
@@ -11,6 +11,7 @@ describe('日期格式', () => {
         expect(formatDate(ts)).toBe('2026/09/08');
         expect(formatDateTime(ts)).toBe('2026/09/08 07:05:03');
         expect(formatDateTime(ts, false)).toBe('2026/09/08 07:05');
+        expect(formatShortDateTime(ts)).toBe('9/8 07:05');
         expect(formatTime(new Date(2026, 0, 1, 21, 0, 9).getTime())).toBe('21:00:09');
     });
 

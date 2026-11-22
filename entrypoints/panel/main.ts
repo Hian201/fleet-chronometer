@@ -29,7 +29,10 @@ import {
     formatTimingReport, parseCaptureTiming, toTimingRecord, wallNow,
     type CaptureTiming, type CaptureTimingRecord,
 } from '@/utils/capture-timing';
-import { initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
+import { getSenkaHeaderPinned, initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
+import { senkaMonthOf, type ExpReading } from '@/utils/senka';
+import { loadSenkaExpReadings } from '@/utils/senka-readings';
+import { buildRegularSenkaSummary, type SenkaRegularSummary } from '@/utils/senka-view';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { practiceBattleHeadHtml, practiceListHtml, practiceNightHtml, type PracticeRow } from './practice';
 import { sortieDropSlotHtml } from './sortie-drop';
@@ -44,6 +47,7 @@ import { openingAswBadge } from './opening-asw';
 import { expeditionSelectionForDeck } from '../../utils/expedition-selection';
 import { mountFleetPhoto } from './fleet-photo';
 import { fitHeaderScale } from './header-fit';
+import { mountSenkaTray, senkaHeaderButtonHtml } from './senka-tray';
 import { loadExcludeCatch, loadExcludedMaps, onExcludeCatchChange, onExcludedMapsChange } from '@/utils/sortie-exclude';
 import { depthChargeSeasonActive, fleetDepthCharges, loadDcReminderOff, onDcReminderChange, saveDcReminder } from '@/utils/depth-charge';
 import { currentSeasonRange, latestSeason, onSeasonEndChange, SAURY_ITEM, saveInferredEnd, SeasonEndDetector, type InferredEnd } from '@/utils/catch-season';
@@ -57,7 +61,8 @@ const headerEl = $('header'), noticeEl = $('notice'), tabsEl = $('tabs'), genera
     facLiveEl = $('factory-live'),
     orderEl = $('tab-order'),
     tabpanelEl = $('tabpanel'),
-    photoTrayEl = $('photo-tray');
+    photoTrayEl = $('photo-tray'),
+    senkaTrayEl = $('senka-tray');
 const state = new GameState();
 // 不記錄的海域可能在總括頁被改動；用 storage 事件同步，下一場出擊開始時生效。
 let excludedSortieMaps = new Set(loadExcludedMaps());
@@ -92,10 +97,27 @@ mountOrder(orderEl, () => state);
 // 語言／主題變更（其他擴充頁面改的，經 storage 事件送來）：靜態文字、動態渲染，以及
 // 兩個「不在 renderAll 裡」的區塊都要跟著換——遠征下拉的選項在 renderExped 內只建一次
 // （靠 expedSelLang 偵測語言），待驗證封包清單則要重讀 DB 才能換掉按鈕與說明文字。
-onPrefsChange(() => {
+onPrefsChange(kind => {
+    if (kind === 'senkaHeader') {
+        senkaPinned = getSenkaHeaderPinned();
+        if (!senkaPinned) {
+            senkaLoadGen++;
+            senkaReadings = null;
+            senkaMonthKey = '';
+            senkaSummary = null;
+            if (senkaTray.isOpen()) senkaTray.setOpen(false);
+            senkaTray.setState({ summary: null, loading: false, error: null });
+        } else if (senkaReadings === null) {
+            void refreshSenka();
+        }
+        renderHeader();
+        renderTabs();
+        return;
+    }
     applyStaticI18n();
     if (noticeKind === 'capture') setNotice('none');
     photo.relabel();
+    senkaTray.relabel();
     renderAll();
     if (isDebugUiEnabled()) void renderWanted().catch(() => { });
     relabelTiming();
@@ -132,6 +154,29 @@ let selectedLbasArea: number | null = null;
 let taihaDetailsHidden = false;
 // 編成寫真托盤：拍攝對象跟著下方艦隊切換（單隊／連合／基地航空隊）。開啟時取代 #tabpanel；
 // 自動切換分頁（autoSwitch）仍在背後照常運作，關閉托盤即回到當下應顯示的分頁。
+// 本月戰果托盤與寫真托盤互斥，同一時間最多開一個。
+let senkaPinned = getSenkaHeaderPinned();
+let senkaReadings: ExpReading[] | null = null;
+let senkaMonthKey = '';
+let senkaSummary: SenkaRegularSummary | null = null;
+let senkaLoadGen = 0;
+let senkaLastTickMin = -1;
+
+function syncTrayVisibility() {
+    tabpanelEl.hidden = photo.isOpen() || senkaTray.isOpen();
+}
+
+const senkaTray = mountSenkaTray({
+    root: senkaTrayEl,
+    onOpenChange: (isOpen, focus) => {
+        if (isOpen && photo.isOpen()) photo.setOpen(false);
+        syncTrayVisibility();
+        renderHeader();
+        renderTabs();
+        if (!isOpen && focus === 'points') document.getElementById('points')?.focus();
+    },
+});
+
 const photo = mountFleetPhoto({
     root: photoTrayEl,
     state,
@@ -139,11 +184,54 @@ const photo = mountFleetPhoto({
         : isCombinedView() ? { kind: 'combined' } : { kind: 'fleet', deck: view[0] ?? 0 },
     cn: () => cn,
     onOpenChange: (isOpen) => {
-        tabpanelEl.hidden = isOpen;
+        if (isOpen && senkaTray.isOpen()) senkaTray.setOpen(false);
+        syncTrayVisibility();
         renderHeader();
         renderTabs();
     },
 });
+
+async function refreshSenka() {
+    if (!senkaPinned) return;
+    const gen = ++senkaLoadGen;
+    const now = Date.now();
+    const month = senkaMonthOf(now);
+    if (!senkaSummary) senkaTray.setState({ loading: true, error: null });
+    try {
+        const readings = await loadSenkaExpReadings(db.resources, month);
+        if (gen !== senkaLoadGen || !senkaPinned) return;
+        const freshNow = Date.now();
+        senkaReadings = readings;
+        senkaMonthKey = `${month.year}-${month.month}`;
+        senkaSummary = buildRegularSenkaSummary(readings, freshNow);
+        senkaLastTickMin = Math.floor(freshNow / 60_000);
+        senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
+        if (ready) renderHeader();
+    } catch (err) {
+        if (gen !== senkaLoadGen || !senkaPinned) return;
+        senkaTray.setState({ loading: false, error: describeError(err) });
+        if (ready) renderHeader();
+    }
+}
+
+function tickSenka() {
+    if (!ready || !senkaPinned) return;
+    const now = Date.now();
+    const min = Math.floor(now / 60_000);
+    if (min === senkaLastTickMin) return;
+    senkaLastTickMin = min;
+    const month = senkaMonthOf(now);
+    const key = `${month.year}-${month.month}`;
+    if (key !== senkaMonthKey) {
+        void refreshSenka();
+        return;
+    }
+    if (senkaReadings !== null) {
+        senkaSummary = buildRegularSenkaSummary(senkaReadings, now);
+        senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
+        renderHeader();
+    }
+}
 // 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
 // 熟練度以符號表示（對映遊戲內熟練度徽章階層：1-3 直線、4-6 斜線、7 為 ace 雙箭）。
 // 不吐數字（數字寬度隨值變動、破壞對齊），確切等級留在 chip 的 title 提示。'>' 需轉義。
@@ -268,6 +356,7 @@ const expedCheckEl = document.getElementById('exped-check')!;
 const currentExpedFleet = () => view[0] ?? 0;   // 永遠跟隨艦隊分頁目前選的第一支
 let expedFleetShown: number | null = null;   // 遠征分頁上次渲染的艦隊，用來偵測切換以帶出該隊上次遠征
 let expedSelLang: ReturnType<typeof getLang> | null = null;   // 遠征下拉建立當下的語言，換語言要重建選項
+let lastHeaderHtml = '';
 function renderHeader() {
     const c = state.counts();
     // 標籤改用圖示（艦＝軍艦側影／裝＝金銀齒輪，與遊戲原圖同語彙）；
@@ -280,22 +369,34 @@ function renderHeader() {
     // 放不下時由 fitHeader() 整排等比縮小，名稱維持完整，不靠省略號。
     const nick = state.nickname || '???';
     const photoOpen = photo.isOpen();
-    headerEl.innerHTML =
-        `<span class="idbox" title="${esc(nick)}　Lv${state.hqLv}">` +
-        `<span class="nick">${esc(nick)}</span>` +
-        `<span class="num">Lv${state.hqLv}</span>` +
-        `</span>` +
+    const leftHtml = senkaPinned
+        ? senkaHeaderButtonHtml(senkaSummary, senkaTray.isOpen(), getLang())
+        : `<span class="idbox" title="${esc(nick)}　Lv${state.hqLv}">`
+            + `<span class="nick">${esc(nick)}</span>`
+            + `<span class="num">Lv${state.hqLv}</span>`
+            + `</span>`;
+    const html =
+        leftHtml +
         stat('ship', t('header.ships'), c.ships, c.maxShips, 4, true) +
         stat('equip', t('header.equip'), c.gears, c.maxGears, 20) +
         `<button type="button" class="h-cam" data-photo="1" aria-pressed="${photoOpen}" title="${esc(t('photo.open'))}" aria-label="${esc(t('photo.title'))}">` +
         `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.2h2.6L5.8 3.4h4.4l1.2 1.8H14v7.4H2z"/><circle cx="8" cy="8.6" r="2.4"/></svg></button>`;
+    if (html !== lastHeaderHtml) {
+        const active = document.activeElement as HTMLElement | null;
+        const focusSel = active && headerEl.contains(active)
+            ? (active.id === 'points' ? '#points' : active.dataset.photo ? '[data-photo]' : null)
+            : null;
+        lastHeaderHtml = html;
+        headerEl.innerHTML = html;
+        if (focusSel) headerEl.querySelector<HTMLElement>(focusSel)?.focus();
+    }
     fitHeader();
 }
 // 縮放結果依文字內容快取：renderHeader 隨事件頻繁重繪，內容沒變就不再反覆量測。
 let headerFitKey = '';
 let headerFitScale = 1;
 function fitHeader(force = false) {
-    const key = `${headerEl.textContent}|${getLang()}`;
+    const key = `${senkaPinned ? 'p' : 'n'}|${headerEl.textContent}|${getLang()}`;
     if (!force && key === headerFitKey) {
         headerEl.style.setProperty('--hs', String(headerFitScale));
         return;
@@ -306,7 +407,9 @@ function fitHeader(force = false) {
 // 字型晚於第一次量測載入時字寬會變，載入完成後重量一次
 void document.fonts?.ready.then(() => fitHeader(true));
 headerEl.addEventListener('click', e => {
-    if ((e.target as HTMLElement).closest('[data-photo]')) photo.toggle();
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-photo]')) photo.toggle();
+    else if (target.closest('[data-senka]')) senkaTray.toggle();
 });
 // 語言/主題切換只在「鎮守府情報總括」進行（單一控制中心，見 utils/ui-prefs.ts）；
 // 面板不再放語言選單，改由 onPrefsChange() 監聽 storage 事件被動同步套用＋重繪。
@@ -316,11 +419,12 @@ function renderTabs() {
     // renderFactoryLive）——歷史清單移出不代表即時資訊要跟著消失。
     // 紀錄的擷取/歸檔仍在 consume() 進行（與是否顯示無關），總括頁讀 db 呈現歷史。
     // 「動態」分頁僅開發用 UI（見 utils/debug-ui.ts），正式建置不顯示。
+    const trayOpen = photo.isOpen() || senkaTray.isOpen();
     const activityBtn = isDebugUiEnabled()
-        ? `<button data-t="activity" class="${tab === 'activity' && !photo.isOpen() ? 'on' : ''}">${t('tab.activity')}</button>`
+        ? `<button data-t="activity" class="${tab === 'activity' && !trayOpen ? 'on' : ''}">${t('tab.activity')}</button>`
         : '';
-    // 編成寫真開著時資訊區被托盤取代，分頁列不標示選取（點任一分頁即關閉托盤）
-    const on = (name: typeof tab) => (tab === name && !photo.isOpen() ? 'on' : '');
+    // 托盤開著時資訊區被托盤取代，分頁列不標示選取（點任一分頁即關閉托盤）
+    const on = (name: typeof tab) => (tab === name && !trayOpen ? 'on' : '');
     // 演習從遊戲的出擊選單進入，本輪剩餘場數的閒置圓點掛在出擊分頁（不可考時不標）。
     const practiceLeft = idleMarks(state, Date.now()).practice;
     tabsEl.innerHTML = `
@@ -372,6 +476,7 @@ tabsEl.addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest('button');
     if (!b || !b.dataset.t) return;
     photo.setOpen(false);
+    senkaTray.setOpen(false);
     setTab(b.dataset.t as typeof tab, true);
 });
 document.getElementById('battle-content')!.addEventListener('click', e => {
@@ -1951,8 +2056,10 @@ async function saveSeasonEnd(end: InferredEnd): Promise<void> {
 async function consume(id: number, ts: number, path: string, api: any, req?: Record<string, string>): Promise<void> {
     if (id <= maxId) return;
     const sauryBefore = state.useItemCount(SAURY_ITEM);
-    if (path === 'api_req_map/start' || path === 'api_req_map/next' || isNewBattlePacket(path))
+    if (path === 'api_req_map/start' || path === 'api_req_map/next' || isNewBattlePacket(path)) {
         taihaDetailsHidden = false;
+        if (ready && senkaTray.isOpen()) senkaTray.setOpen(false);
+    }
     // [debug] 效能量測：live 事件才量（重播期間量測沒意義，且會洗版）。
     // 超過 15ms 才印，用來排查「切換到某介面很慢」是卡在 state 處理還是 renderAll()。
     const t0 = ready ? performance.now() : 0;
@@ -1990,6 +2097,7 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
         // 使用者若已手動選過分頁（例如點艦隊切到泊地）則不動。
         if (path === 'api_port/port') {
             if (autoSwitch('general', 'port') || !manualOverride) renderGeneral.showHarborExped();
+            if (senkaPinned) void refreshSenka();
         }
         else if (path === 'api_req_map/start') { autoSwitch('sortie', 'sortie'); switchFleetViewToSortie(); }
         else if (isSortieBattlePath(path)) autoSwitch('sortie', 'sortie');
@@ -2105,6 +2213,7 @@ setInterval(() => {
     if (tab === 'factory') { renderFactoryLive(); renderFactoryTabs(true); }
     tickRepairCountdowns();                       // 泊地修理/給糧倒數＋疲勞倒數
     tickLbasCond();                               // 基地航空隊疲勞回復（無封包可觸發）
+    tickSenka();                                  // 戰果截止倒數（跨分鐘才更新）
 }, 1000);
 // 事件消費採「單一有序佇列」：所有 live 事件 id 進 pending，由 pump() 逐一 await
 // db.get 後 consume。這樣「啟動重播」與「即時訊息」不會交錯——否則即時訊息的
@@ -2335,6 +2444,7 @@ async function restoreGaugeBossHp(): Promise<boolean> {
         // 斬殺線一次補齊——面板一開（不論在母港或出擊中）就該看得到，不必等下一則封包。
         await restoreGaugeBossHp();
         await refreshSauryCatch();
+        if (senkaPinned) await refreshSenka();
         ready = true;
         setNotice('none');
         // 重播期間累積的 log 一次性補上（陣列已依時間順序，逐筆 prepend 使最新的在最上面）
