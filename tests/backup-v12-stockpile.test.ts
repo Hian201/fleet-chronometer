@@ -2,7 +2,7 @@
 // v11 以前的檔案不可能有備蓄目標，夾帶時拒絕。
 import { beforeEach, describe, expect, it } from 'vitest';
 import { KcDb, type GoalRow } from '../utils/db';
-import { BackupValidationError, buildFullEnvelope, restoreBackup, validateBackupEnvelope } from '../utils/backup';
+import { BACKUP_SCHEMA_VERSION, BackupValidationError, buildFullEnvelope, restoreBackup, validateBackupEnvelope } from '../utils/backup';
 import { goalsFromRows, goalsToRows } from '../utils/remodel-goals';
 import { stockpileFromRows, stockpileToRow } from '../utils/stockpile';
 
@@ -46,7 +46,7 @@ describe('匯出與還原往返', () => {
     it('改造目標與備蓄目標都原樣還原', async () => {
         await database.goals.bulkPut(ROWS);
         const envelope = await buildFullEnvelope(database);
-        expect(envelope.schemaVersion).toBe(12);
+        expect(envelope.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
         const fresh = new KcDb(`backup-v12-stockpile-fresh-${dbIndex++}`);
         await fresh.open();
         await restoreBackup(fresh, JSON.parse(JSON.stringify(envelope)));

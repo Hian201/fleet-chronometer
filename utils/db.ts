@@ -399,6 +399,11 @@ export interface ResourceRow {
      * （與 FactoryLogRow.used、panel 的 MAT_KEYS 同一組索引。）
      */
     m: number[];
+    /**
+     * 提督累計經驗值（`api_port/port` 的 `api_basic.api_experience`，供戰果換算）。
+     * 僅 `api_port/port` 寫入，`api_get_member/material` 與舊資料列不帶此欄；不建索引、不回填。
+     */
+    exp?: number;
 }
 
 // 資源紀錄的「特殊時間點」標記：活動海域的開打與量表歸零，用來把資源序列切成

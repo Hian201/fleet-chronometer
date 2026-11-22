@@ -45,7 +45,11 @@ import { loadExcludeCatch, loadExcludedMaps, normalizeExcludedMap, saveExcludeCa
 // v12 的 goals 多了備蓄目標（kind 'stockpile'，唯一一列）。表組合與 v11 相同；升版是為了讓舊版擴充
 // 讀到新檔時明確回報「不支援較新的備份版本」，而不是在目標種類上報欄位錯誤。v11 以前的檔案不會有
 // 備蓄目標，夾帶時拒絕。
-export const BACKUP_SCHEMA_VERSION = 12 as const;
+//
+// v13 的 resources 多了選填的 exp（api_port/port 的提督累計經驗值，供戰果換算）。表組合與 v11／v12 相同；
+// 升版是為了讓舊版擴充讀到新檔時明確拒絕，而不是在 validateResource() 重建資料列時默默丟掉 exp。
+// v12 以前的檔案不會有 exp，夾帶時拒絕；沒有 exp 的舊備份照常匯入。
+export const BACKUP_SCHEMA_VERSION = 13 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -671,15 +675,22 @@ function validateEventPlan(value: unknown, index: number): EventPlanRow {
 
 // 資源時間序列。八項餘額必須完整（缺一項就無從計算消長），且不接受負值——
 // 那不是遊戲會送出的狀態，放行只會讓趨勢圖畫出不存在的谷底。
-function validateResource(value: unknown, index: number): ResourceRow {
+// exp（v13 起）只在 api_port/port 寫入；v12 以前的檔案夾帶時拒絕，缺席則維持缺席。
+function validateResource(value: unknown, index: number, schemaVersion: number): ResourceRow {
     const where = `tables.resources[${index}]`;
     const row = objectAt(value, where);
     const materials = numberArray(row.m, `${where}.m`);
     if (materials.length !== 8) invalid(`${where}.m 必須是八項資材餘額。`);
+    let exp: number | undefined;
+    if (row.exp !== undefined) {
+        if (schemaVersion < 13) invalid(`${where}.exp 只支援 schemaVersion 13 以上。`);
+        exp = integer(row.exp, `${where}.exp`, 0);
+    }
     return {
         eventId: integer(row.eventId, `${where}.eventId`, 1),
         ts: timestamp(row.ts, `${where}.ts`),
         m: materials,
+        ...(exp === undefined ? {} : { exp }),
     };
 }
 
@@ -894,7 +905,7 @@ function validateTables(value: unknown, schemaVersion: number): BackupTables {
     const eventPlans = tables.eventPlans === undefined ? undefined
         : unique((tables.eventPlans as unknown[]).map(validateEventPlan), row => row.areaId, 'tables.eventPlans');
     const resources = tables.resources === undefined ? undefined
-        : unique((tables.resources as unknown[]).map(validateResource), row => row.eventId, 'tables.resources');
+        : unique((tables.resources as unknown[]).map((row, index) => validateResource(row, index, schemaVersion)), row => row.eventId, 'tables.resources');
     const resourceMarks = tables.resourceMarks === undefined ? undefined
         : unique((tables.resourceMarks as unknown[]).map(validateResourceMark), row => row.key, 'tables.resourceMarks');
     const questObserved = tables.questObserved === undefined ? undefined

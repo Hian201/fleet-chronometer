@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-    captureResources, readEventGauges, readEventSortieMapKey, readMaterials,
+    captureResources, readEventGauges, readEventSortieMapKey, readMaterials, readPortExp,
     type ResourceCaptureTables, type ResourceMarkLike,
 } from '../utils/resource-capture';
 
@@ -29,7 +29,7 @@ const mapinfo = (entries: { id: number; eventmap?: unknown; cleared?: number }[]
 
 // ── 記憶體 table adapter（同 event-projector 測試的作法）─────────────────
 function memoryTables() {
-    const resources: { eventId: number; ts: number; m: number[] }[] = [];
+    const resources: { eventId: number; ts: number; m: number[]; exp?: number }[] = [];
     const marks = new Map<string, ResourceMarkLike>();
     const tables: ResourceCaptureTables = {
         resources: {
@@ -75,6 +75,28 @@ describe('readMaterials', () => {
 
     it('只認帶完整八項的 path（charge 等只帶前四項的不算一列快照）', () => {
         expect(readMaterials('api_req_hokyu/charge', objects)).toBeNull();
+    });
+});
+
+describe('readPortExp', () => {
+    const PORT_SAMPLE = sample('slot_to_port.json').api_data;
+
+    it('從真實 api_port/port 樣本讀出 api_basic.api_experience', () => {
+        expect(readPortExp('api_port/port', PORT_SAMPLE)).toBe(28486455);
+    });
+
+    it('允許 0，拒絕負數、小數與非數字', () => {
+        expect(readPortExp('api_port/port', { api_basic: { api_experience: 0 } })).toBe(0);
+        expect(readPortExp('api_port/port', { api_basic: { api_experience: -1 } })).toBeNull();
+        expect(readPortExp('api_port/port', { api_basic: { api_experience: 12.5 } })).toBeNull();
+        expect(readPortExp('api_port/port', { api_basic: { api_experience: '100' } })).toBeNull();
+        expect(readPortExp('api_port/port', {})).toBeNull();
+    });
+
+    it('只在 api_port/port 讀取，material／basic／record 一律回 null', () => {
+        expect(readPortExp('api_get_member/material', PORT_SAMPLE)).toBeNull();
+        expect(readPortExp('api_get_member/basic', { api_basic: { api_experience: 100 } })).toBeNull();
+        expect(readPortExp('api_get_member/record', { api_basic: { api_experience: 100 } })).toBeNull();
     });
 });
 
@@ -126,6 +148,21 @@ describe('captureResources', () => {
         await captureResources(tables, event);
         await captureResources(tables, event);
         expect(resources).toEqual([{ eventId: 10, ts: 1_000, m: [1, 2, 3, 4, 5, 6, 7, 8] }]);
+    });
+
+    it('api_port/port 寫入 exp；api_get_member/material 不寫 exp', async () => {
+        const { tables, resources } = memoryTables();
+        const portData = sample('slot_to_port.json').api_data;
+        await captureResources(tables, { id: 10, ts: 1_000, path: 'api_port/port', api: portData });
+        await captureResources(tables, {
+            id: 11, ts: 2_000, path: 'api_get_member/material',
+            api: { api_material: [1, 2, 3, 4, 5, 6, 7, 8], api_basic: { api_experience: 99_999 } },
+        });
+        expect(resources).toHaveLength(2);
+        expect(resources[0].exp).toBe(28486455);
+        expect(resources[0].m).toHaveLength(8);
+        expect(resources[1]).toEqual({ eventId: 11, ts: 2_000, m: [1, 2, 3, 4, 5, 6, 7, 8] });
+        expect('exp' in resources[1]).toBe(false);
     });
 
     it('第一次進活動海域記 stage-open，之後再出擊不會把時間往後推', async () => {

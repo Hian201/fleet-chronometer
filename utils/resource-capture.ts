@@ -29,7 +29,7 @@ export interface CaptureEvent {
 }
 
 export interface ResourceCaptureTables {
-    resources: { put(row: { eventId: number; ts: number; m: number[] }): PromiseLike<unknown> };
+    resources: { put(row: { eventId: number; ts: number; m: number[]; exp?: number }): PromiseLike<unknown> };
     resourceMarks: {
         get(key: string): PromiseLike<ResourceMarkLike | undefined>;
         put(row: ResourceMarkLike): PromiseLike<unknown>;
@@ -65,6 +65,16 @@ export function readMaterials(path: string, api: unknown): number[] | null {
         out.push(value);
     }
     return out;
+}
+
+/**
+ * 取出回港當下的提督累計經驗值（`api_basic.api_experience`，已用 samples/slot_to_port.json 驗證）。
+ * 只在 `api_port/port` 讀取：普通戰果正是在回港時加算，不混入 material／basic／record，避免時序歧義。
+ */
+export function readPortExp(path: string, api: unknown): number | null {
+    if (path !== 'api_port/port') return null;
+    const value = (api as { api_basic?: { api_experience?: unknown } | null } | null | undefined)?.api_basic?.api_experience;
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 /** 出擊起點所屬的活動海域鍵（`api_req_map/start`）；非活動海域回 null。 */
@@ -139,7 +149,10 @@ export async function captureResources(
     const { id, ts, path, api } = event;
 
     const materials = readMaterials(path, api);
-    if (materials) await tables.resources.put({ eventId: id, ts, m: materials });
+    if (materials) {
+        const exp = readPortExp(path, api);
+        await tables.resources.put({ eventId: id, ts, m: materials, ...(exp === null ? {} : { exp }) });
+    }
 
     const sortieMapKey = readEventSortieMapKey(path, api);
     if (sortieMapKey !== null) {
