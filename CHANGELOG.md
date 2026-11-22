@@ -16,6 +16,12 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - The plan page now starts with **Send these now**: the expeditions for your 2nd–4th fleets, the current phase, and the condition for moving to the next one (for example, when steel reaches 166K). Below it, **Overall plan** lists every phase by fleet, with changes from the previous phase in bold.
 - The plan remembers its route: after you reach a phase's target, reopening the page continues with the next phase. It only reroutes when a new route is clearly better, or when you change the settings. It also prefers to keep the expeditions your fleets are already running.
 
+### Data compatibility
+
+- The backup format goes from v12 to v13 to carry your HQ experience recorded at each return to port. Backups made by earlier versions still import. A v13 backup cannot be imported by an earlier version of the extension.
+- IndexedDB schema is unchanged and nothing is backfilled.
+- No permission changes.
+
 ## [1.1.1.1] - 2026-11-20
 
 ### Highlights

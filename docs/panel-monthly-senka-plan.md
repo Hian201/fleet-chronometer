@@ -186,16 +186,16 @@ EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 
 
 ### 任務表
 
-「主」＝主 session 自己做；「派」＝寫好規格後交給子代理，主 session 驗收。
+「主」＝主 session 自己做；「派」＝寫好規格後交給子代理，主 session 驗收。✅ 表示已驗收並 commit，後面是 commit。
 
 | 代號 | 內容 | 誰做 | 規格出處 | 主 session 驗收重點 |
 |---|---|---|---|---|
-| **1a-1** | 純函式：月界換算（日本時間月末 22:00）、經驗值 × 7 / 10000、E_before／E_after 四種判斷、今日新增（日本時間 05:00 換日）、截止倒數。無 `chrome.*`／DOM，附 Vitest | 派 | 「戰果的組成與時間窗」「1a：普通戰果與跨月邊界」 | 測試涵蓋「原型驗收」資料案例的前三項與長休；用 UTC 毫秒換算日本時間，不依賴本機時區 |
-| **1a-2** | `ResourceRow.exp`（只在 `api_port/port` 寫入）、`validateResource()` 接受 `exp` 並帶入檔案版本、`BACKUP_SCHEMA_VERSION` 升 13、`docs/structure.html` 錨點、`docs/engineering/backup.md`、往返測試 | 主 | 「持久化與備份」 | 動資料格式，依 `docs/task-template.md` 分流表先向開發者說明再動手；`npm run check` |
-| **1a-3** | 面板：頁首戰果、270 px 托盤、出擊自動收起、`header-fit.ts` 不再依賴 `.nick` | 主 | 「頁首與偏好」「托盤的開關」、面板預覽 | 面板預覽同情境三語截圖對照；寫真托盤與戰果托盤不會同時開啟；自動收起沿用重設大破卡的同一組條件 |
-| **1a-4** | 三語文案寫進 `utils/ui-i18n.ts`（沿用預覽產生器 `copy` 的字串） | 派 | 預覽產生器的 `copy`／`overviewCopy` | 三語鍵齊全；沒有資料來源字樣（設計規範 §2.5） |
-| **1a-5** | 情報總括「戰果」分區（1a 內容）、在 `sections/index.ts` 排在資源紀錄之後、偏好寫入 `utils/ui-prefs.ts` 並經 storage 事件同步 | 派 | 「情報總括的戰果分區」、總括預覽 | 先畫外殼再讀資料庫（設計規範 §4.2.1）；面板只讀不寫偏好 |
-| **1a-6** | 離線預覽改用正式函式與正式 markup，`tests/panel-monthly-senka-preview.test.ts` 跟著改 | 派 | 現有 `tools/preview/panel-monthly-senka.ts` | 重新產生預覽，在瀏覽器看三語、深淺色 |
+| **1a-1**<br>✅ e356c9a | 純函式：月界換算（日本時間月末 22:00）、經驗值 × 7 / 10000、E_before／E_after 四種判斷、今日新增（日本時間 05:00 換日）、截止倒數。無 `chrome.*`／DOM，附 Vitest | 派 | 「戰果的組成與時間窗」「1a：普通戰果與跨月邊界」 | 測試涵蓋「原型驗收」資料案例的前三項與長休；用 UTC 毫秒換算日本時間，不依賴本機時區 |
+| **1a-2**<br>✅ 644e8fc | `ResourceRow.exp`（只在 `api_port/port` 寫入）、`validateResource()` 接受 `exp` 並帶入檔案版本、`BACKUP_SCHEMA_VERSION` 升 13、`docs/structure.html` 錨點、`docs/engineering/backup.md`、往返測試 | 主 | 「持久化與備份」 | 動資料格式，依 `docs/task-template.md` 分流表先向開發者說明再動手；`npm run check` |
+| **1a-3**<br>✅ f4e2da6 | 面板：頁首戰果、270 px 托盤、出擊自動收起、`header-fit.ts` 不再依賴 `.nick` | 主 | 「頁首與偏好」「托盤的開關」、面板預覽 | 面板預覽同情境三語截圖對照；寫真托盤與戰果托盤不會同時開啟；自動收起沿用重設大破卡的同一組條件 |
+| **1a-4**<br>✅ e356c9a | 三語文案寫進 `utils/ui-i18n.ts`（沿用預覽產生器 `copy` 的字串） | 派 | 預覽產生器的 `copy`／`overviewCopy` | 三語鍵齊全；沒有資料來源字樣（設計規範 §2.5） |
+| **1a-5**<br>✅ f4e2da6 | 情報總括「戰果」分區（1a 內容）、在 `sections/index.ts` 排在資源紀錄之後、偏好寫入 `utils/ui-prefs.ts` 並經 storage 事件同步 | 派 | 「情報總括的戰果分區」、總括預覽 | 先畫外殼再讀資料庫（設計規範 §4.2.1）；面板只讀不寫偏好 |
+| **1a-6**<br>✅ f4e2da6 | 離線預覽改用正式函式與正式 markup，`tests/panel-monthly-senka-preview.test.ts` 跟著改 | 派 | 現有 `tools/preview/panel-monthly-senka.ts` | 重新產生預覽，在瀏覽器看三語、深淺色 |
 | **1b-1** | 任務目錄的戰果值：產生器把 `otherJa` 的「戦果+N」轉成結構化欄位（選擇報酬另標），附抽樣測試 | 派 | 「1b：任務戰果」 | 抽樣：854 +350、949 選擇報酬 +800、284 +80；產生物不手改 |
 | **1b-2** | 純函式：任務戰果（`questObserved`＋目錄＋期間限定任務的有效期間，949 算區間）與 EO 戰果（`db.sorties` 的 `cleared`＋固定表＋時間窗） | 派 | 「1b：任務戰果」「1b：EO 戰果」 | 月末 14:00～22:00 先領任務再打 EO 的案例；22:00～23:59 擊破不計入 |
 | **1b-3** | 面板托盤與總括分區加入 EO 與任務（依預覽的 1b 階段） | 派 | 總括預覽「1b」、面板預覽 | 三語版面；未收錄任務的註記 |
@@ -208,25 +208,39 @@ EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 
 
 依相依關係與所需強度排好，每個 session 的模型與 effort 從頭到尾不變，不會做到一半才發現要換更強的模型。表中「派」的任務一律交給子代理（Sonnet 5.5）。
 
-| 順序 | 模型與 effort | 任務 | 開始前提 | 結束狀態 |
-|---|---|---|---|---|
-| 1 | Opus 5.5 中 | 1a-1（派）、1a-4（派），兩個可以同時派出 | 這份提案與預覽已 commit | 純函式、測試與三語文案可 commit（依 wikiwiki 規則、測試與 build 全過） |
-| 2 | Opus 5.5 **高** | 1a-2（主） | 1 已 commit；動手前向開發者說明備份相容做法並取得同意 | `npm run check` 通過後 commit |
-| 3 | Opus 5.5 中 | 1a-3（主）、1a-5（派）、1a-6（派）。1a-6 等 1a-3、1a-5 的正式 markup 完成後再派；另處理下方「順序 3 接線時要處理的文案」 | 2 已 commit | 給開發者看預覽並提供 live 手動檢查步驟；確認後 commit。1a 上線 |
-| 4 | Opus 5.5 中 | 1b-1（派）→ 1b-2（派）→ 1b-3（派），依序 | 3 已 commit | 預覽經開發者確認後 commit。1b 上線 |
-| 5 | Opus 5.5 中 | 2-1（派）、2-3（派），兩個可以同時派出 | 4 已 commit | 純函式與測試可 commit；`THIRD-PARTY-NOTICES.md` 已登錄 |
-| 6 | **Fable 5.2 高**，先進 plan mode（不能用時改 Opus 5.5 高＋plan mode） | 2-2（主） | 5 已 commit；資料表設計先給開發者看並取得同意 | 遷移與備份往返測試通過後 commit |
-| 7 | Opus 5.5 中 | 2-4（派）；面板托盤的榜線區接線（主） | 6 已 commit | 預覽經開發者確認、live 手動檢查後 commit。第二期上線 |
+| 順序 | 模型與 effort | 任務 | 開始前提 | 結束狀態 | 開發者實機檢查 |
+|---|---|---|---|---|---|
+| 1 ✅ | Opus 5.5 中 | 1a-1（派）、1a-4（派），兩個可以同時派出。2026-11-22 驗收完成（e356c9a） | 這份提案與預覽已 commit | 純函式、測試與三語文案可 commit（依 wikiwiki 規則、測試與 build 全過） | 不需要：沒有接介面，測試即可驗證 |
+| 2 ✅ | Opus 5.5 **高** | 1a-2（主）。2026-11-22 驗收完成（644e8fc） | 1 已 commit；動手前向開發者說明備份相容做法並取得同意 | `npm run check` 通過後 commit | 建議一次（不擋順序 3）：見下方「順序 2 的實機檢查」 |
+| 3 ✅ | Opus 5.5 中 | 1a-3（主）、1a-5（派）、1a-6（派）。1a-6 等 1a-3、1a-5 的正式 markup 完成後再派；2026-11-22 開發者 live 檢查通過（f4e2da6） | 2 已 commit | 給開發者看預覽並提供 live 手動檢查步驟；確認後 commit。1a 上線 | **需要**：預覽三語與深淺色、live 頁首與托盤、出擊自動收起 |
+| 4 | Opus 5.5 中 | 1b-1（派）→ 1b-2（派）→ 1b-3（派），依序；1b-3 另處理下方「後續接線時要處理的項目」 | 3 已 commit | 預覽經開發者確認後 commit。1b 上線 | **需要**：預覽確認；live 各遇到一次 EO 擊破與任務戰果領取 |
+| 5 | Opus 5.5 中 | 2-1（派）、2-3（派），兩個可以同時派出 | 4 已 commit | 純函式與測試可 commit；`THIRD-PARTY-NOTICES.md` 已登錄 | 不需要：以 `samples/ranking-page-*.json` 測試驗證 |
+| 6 | **Fable 5.2 高**，先進 plan mode（不能用時改 Opus 5.5 高＋plan mode） | 2-2（主） | 5 已 commit；資料表設計先給開發者看並取得同意 | 遷移與備份往返測試通過後 commit | 建議一次：以真實備份在新版還原，並在遊戲翻一次排行榜，確認有記下 |
+| 7 | Opus 5.5 中 | 2-4（派）；面板托盤的榜線區接線（主）；另處理下方「後續接線時要處理的項目」 | 6 已 commit | 預覽經開發者確認、live 手動檢查後 commit。第二期上線 | **需要**：預覽確認、live 手動檢查 |
 
 - 每個 session 只做表中列出的任務。做到一半發現要動 `utils/db.ts`、備份格式或投影，而表上沒寫的，就停下來，把發現寫進這份提案，另開對應強度的 session，不在中度 session 裡硬做。
 - 上一個 session 的結束狀態沒有達成（例如預覽還沒經開發者確認），下一個 session 就不開始。
+- 「開發者實機檢查」為**需要**的 session，主 session 在 commit 前停下來，提供 `npm run build` 後的手動檢查步驟，等開發者回報結果；agent 不操作 live 遊戲（`AGENTS.md`「Live 遊戲安全」）。「建議一次」不擋下一個 session，但要在結束回報中附上步驟。
 
-### 順序 3 接線時要處理的文案
+#### 順序 2 的實機檢查
 
-`utils/ui-i18n.ts` 的下列英文鍵和預覽產生器的寫法不同，接上面板托盤與總括分區時要決定做法，並在三語預覽中量測：
+1. `npm run build`，在擴充管理頁重新整理擴充，遊戲分頁按 F5。
+2. 在遊戲回母港一次。
+3. 開情報總括，DevTools → Application → IndexedDB → `resources`：最新一列有 `exp`，數值與提督經驗值一致。
+4. 在遊戲開「資材」畫面：`api_get_member/material` 產生的那一列沒有 `exp`。
 
-- **`senka.month1`～`senka.month12`**：英文是「November operation」這種完整寫法，預覽托盤標題列（`柱島 · 11 月作戰 · 三群` 那一行）的英文只寫「November」。直接套用時，英文標題列會變成 `Hashirajima · November operation · Top 500`。要在 270 px 托盤內量最長的「September operation」，放不下就為托盤另設短月名鍵，或讓標題列改用短寫法（設計規範 §2.4：先縮文案，再縮字型）。總括分區的月份標題可以沿用完整寫法。
-- **`senka.rankN`**：英文是 `{rank}`，沒有序數；預覽寫的是「500th」。接線時二選一：由呼叫端傳入已加序數的字串（1st／2nd／3rd／11th～13th 都要處理），或改成不需要序數的寫法（例如 `Rank {rank}`）。`ov.skCutoffCell`（`{n} {v}`）和 `ov.skCutoffName`（`{n}-place cutoff`）也有同樣的問題，要一起決定。
+### 後續接線時要處理的項目
+
+**順序 4（1b-3）**
+
+- 任務截止行：`senkaDeadlineLines()`（`utils/senka-view.ts`）預設只回「普通戰果・EO 截止」一行，因為 1a 沒有計入任務戰果。計入任務戰果後，面板托盤（`entrypoints/panel/senka-tray.ts` 的 `senkaTrayInnerHtml()`）與總括分區（`entrypoints/overview/sections/senka.ts` 的 `renderSenkaSectionBodyHtml()`）都要改傳 `{ includeQuest: true }`，月底最後一天才會出現任務截止或已截止的提示。
+- 未收錄註記：托盤加回 `senka.unlisted`（「未收錄的任務戰果不計入」），見「1b：任務戰果」。
+- 頁首標籤：`senkaHeaderButtonHtml()` 目前固定用 `senka.shortRegular`（「普通戰果」）。加入 EO 與任務後，依「頁首與偏好」改用 `senka.short`；繼承分仍未計入，所以托盤與總括的總額照樣不稱「本月戰果推算」，總括用 `ov.skObserved`（「已觀測戰果」）並註明 `ov.skExclCarry`。
+- 總括說明：分區頂端的 `ov.skNoteRegular` 換成 `ov.skNoteObserved`。
+
+**順序 7（第二期）**
+
+- 英文名次：`senka.rankN`、`ov.skCutoffCell`、`ov.skCutoffName` 的英文 `{rank}`／`{n}` 沒有序數，呼叫端一律傳 `formatSenkaRank(rank, lang)`（`utils/senka-view.ts`，英文會加 st／nd／rd／th，繁中與日文回傳純數字）。
 
 ### 分派規格要寫什麼
 
