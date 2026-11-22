@@ -11,6 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { esc, gearIconHtml, matIconHtml } from '../../utils/html-escape';
+import { writeMonthlySenkaPreview, writeOverviewSenkaPreview } from './panel-monthly-senka';
 import { formationRects } from '../../utils/formation-geometry';
 import { setLang, t } from '../../utils/ui-i18n';
 import { GameState, type ShipView } from '../../utils/state';
@@ -3724,5 +3725,14 @@ for (const lang of ['zh-TW', 'en', 'ja'] as const) {
       html,body{height:auto;overflow:auto}body{display:block;padding:16px;background:var(--bg);color:var(--text)}
       .asw-previews{display:flex;gap:20px;flex-wrap:wrap}.asw-panel{width:370px;background:var(--bg);padding:0}.asw-panel .fleet{display:block}
       </style>${body.replaceAll('src="/icons/', 'src="../public/icons/')}<script>document.getElementById('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'dark':'light'}</script></html>`);
+}
+setLang('zh-TW');
+
+// 戰果試排與出擊共用同一場大破及七艘編成，便於比較頁首切換前後。
+for (const lang of ['zh-TW', 'en', 'ja'] as const) {
+    setLang(lang);
+    const sortie = SCENES.find(scene => scene.id === 'fcf-none')!.current;
+    writeMonthlySenkaPreview(root, lang, css, sortie, NO_RETREAT_SIDE_HTML, sevenFleetHtml(SEVEN_TAIHA_SHIPS));
+    writeOverviewSenkaPreview(root, lang);
 }
 setLang('zh-TW');
