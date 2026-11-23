@@ -13,6 +13,8 @@
 import { questCycleWindow } from './quest-cycle';
 
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const JST_OFFSET_MS = 9 * HOUR_MS;
 const MONTH_SHIFT_MS = 11 * HOUR_MS;
 const QUEST_CLOSE_BEFORE_END_MS = 8 * HOUR_MS;
 const LAST_DAY_SPAN_MS = 22 * HOUR_MS;
@@ -20,6 +22,92 @@ const HALF_DAY_MS = 12 * HOUR_MS;
 const RANKING_PHASE_MS = 6 * HOUR_MS;
 const SENKA_EXP_NUMERATOR = 7;
 const SENKA_EXP_DENOMINATOR = 10_000;
+
+/** EO（擴張作戰）海域固定戰果表（依顯示順序）。 */
+export const EO_SENKA_MAPS = [
+    { map: '1-5', points: 75 },
+    { map: '1-6', points: 75 },
+    { map: '2-5', points: 100 },
+    { map: '3-5', points: 150 },
+    { map: '7-5', points: 170 },
+    { map: '4-5', points: 180 },
+    { map: '5-5', points: 200 },
+    { map: '5-6', points: 225 },
+    { map: '6-5', points: 250 },
+] as const;
+
+export type EoMapId = (typeof EO_SENKA_MAPS)[number]['map'];
+const EO_MAP_POINTS = new Map<string, number>(EO_SENKA_MAPS.map(entry => [entry.map, entry.points]));
+
+/** 通用 UTC 毫秒時間窗（`[start, end)`）。 */
+export interface SenkaTimeRange {
+    start: number;
+    end: number;
+}
+
+/** EO 戰果計算所需的出擊摘要輸入。 */
+export interface EoSortieInput {
+    ts: number;
+    map: string;
+    cleared?: boolean;
+    catchOnly?: boolean;
+}
+
+/** `api_get_member/mapinfo` 快照輸入（用於補齊非本會話內轉變的當月 EO 擊破）。 */
+export interface MapinfoSnapshotInput {
+    ts: number;
+    api: unknown;
+}
+
+/** 單張 EO 海域於指定作戰月的擊破狀態與戰果。 */
+export interface EoSenkaItem {
+    map: EoMapId;
+    points: number;
+    cleared: boolean;
+    clearedAt: number | null;
+}
+
+/** 指定作戰月的 EO 戰果彙總結果。 */
+export interface EoSenkaResult {
+    total: number;
+    clearedCount: number;
+    mapCount: number;
+    items: EoSenkaItem[];
+}
+
+/** 任務戰果計算所需的領獎紀錄輸入。 */
+export interface QuestClaimInput {
+    eventId?: number;
+    questNo: number;
+    ts: number;
+}
+
+/** 任務目錄戰果查表項（純函式邊界，不綁定特定資料檔）。 */
+export interface QuestSenkaLookupEntry {
+    reward: { fixed: number; choice: number };
+    limited: boolean;
+    limitedWindow?: { start: string; end: string | null };
+}
+
+export type QuestSenkaLookup = (questNo: number) => QuestSenkaLookupEntry | null;
+
+/** 單筆計入當月戰果的任務領獎項目。 */
+export interface QuestSenkaItem {
+    eventId?: number;
+    questNo: number;
+    ts: number;
+    fixed: number;
+    choice: number;
+}
+
+/** 指定作戰月的任務戰果彙總結果。 */
+export interface QuestSenkaResult {
+    fixed: number;
+    choiceMax: number;
+    min: number;
+    max: number;
+    items: QuestSenkaItem[];
+}
 
 /** 作戰月識別（`month` 為 `1..12`）。 */
 export interface SenkaMonth {
@@ -109,6 +197,26 @@ export function senkaMonthWindow(m: SenkaMonth): SenkaMonthWindow {
     const end = Date.UTC(m.year, m.month, 1) - MONTH_SHIFT_MS;
     const questCloseAt = end - QUEST_CLOSE_BEFORE_END_MS;
     return { year: m.year, month: m.month, start, end, questCloseAt };
+}
+
+/**
+ * 計算指定作戰月的 EO 戰果有效時間窗（`[start, end)`）：
+ * 當月 1 日 00:00 JST 至當月末 22:00 JST（月末 22:00～23:59 JST 擊破不計入當月亦不計入下月）。
+ */
+export function eoMonthWindow(m: SenkaMonth): SenkaTimeRange {
+    const start = Date.UTC(m.year, m.month - 1, 1) - JST_OFFSET_MS;
+    const end = senkaMonthWindow(m).end;
+    return { start, end };
+}
+
+/**
+ * 計算指定作戰月的任務戰果有效時間窗（`[start, end)`）：
+ * 前月末 14:00 JST 至當月末 14:00 JST。
+ */
+export function questSenkaMonthWindow(m: SenkaMonth): SenkaTimeRange {
+    const start = senkaMonthWindow(prevSenkaMonth(m)).questCloseAt;
+    const end = senkaMonthWindow(m).questCloseAt;
+    return { start, end };
 }
 
 /** 從提督經驗值讀數計算指定作戰月的普通戰果與不確定狀態。 */
@@ -229,4 +337,127 @@ export function formatSenkaRemaining(ms: number): string {
     if (!Number.isFinite(ms) || ms <= 0) return '0:00';
     const mins = Math.ceil(ms / 60_000);
     return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
+}
+
+/**
+ * 計算指定作戰月的 EO 擊破戰果：
+ * 僅計入 `[eoMonthWindow.start, eoMonthWindow.end)` 內 `cleared === true` 且非 `catchOnly` 的紀錄；
+ * 同一海域同一作戰月最多計入一次（重複列取最新擊破時刻）。
+ */
+export function eoSenkaForMonth(sorties: readonly EoSortieInput[], month: SenkaMonth): EoSenkaResult {
+    const win = eoMonthWindow(month);
+    const clearedMapAt = new Map<string, number>();
+
+    for (const row of sorties) {
+        if (row.cleared !== true || row.catchOnly) continue;
+        if (!Number.isFinite(row.ts) || row.ts < win.start || row.ts >= win.end) continue;
+        if (!EO_MAP_POINTS.has(row.map)) continue;
+        const prev = clearedMapAt.get(row.map);
+        if (prev === undefined || row.ts > prev) clearedMapAt.set(row.map, row.ts);
+    }
+
+    let total = 0;
+    let clearedCount = 0;
+    const items: EoSenkaItem[] = EO_SENKA_MAPS.map(({ map, points }) => {
+        const clearedAt = clearedMapAt.get(map) ?? null;
+        const cleared = clearedAt !== null;
+        if (cleared) {
+            total += points;
+            clearedCount += 1;
+        }
+        return { map, points, cleared, clearedAt };
+    });
+
+    return { total, clearedCount, mapCount: EO_SENKA_MAPS.length, items };
+}
+
+/**
+ * 從單筆 `api_get_member/mapinfo` 快照擷取 `api_cleared === 1` 的 EO 海域紀錄，
+ * 供 `eoSenkaForMonth()` 依時間窗篩選與去重，補齊跨會話、裁剪前或無 Boss 戰（如 1-6）之當月已擊破海域。
+ */
+export function eoClearsFromMapinfoSnapshot(snapshot: MapinfoSnapshotInput | null | undefined): EoSortieInput[] {
+    if (!snapshot || !Number.isFinite(snapshot.ts)) return [];
+    const mapInfo = (snapshot.api as { api_map_info?: unknown } | null | undefined)?.api_map_info;
+    if (!Array.isArray(mapInfo)) return [];
+
+    const out: EoSortieInput[] = [];
+    for (const raw of mapInfo) {
+        const m = raw as { api_id?: unknown; api_cleared?: unknown } | null;
+        if (!m) continue;
+        const apiId = m.api_id;
+        if (typeof apiId !== 'number' || !Number.isSafeInteger(apiId) || apiId < 10) continue;
+        const map = `${Math.floor(apiId / 10)}-${apiId % 10}`;
+        if (!EO_MAP_POINTS.has(map)) continue;
+        if (m.api_cleared === 1 || m.api_cleared === '1') {
+            out.push({ ts: snapshot.ts, map, cleared: true });
+        }
+    }
+    return out;
+}
+
+/** 檢查時間戳是否落在期間限定任務的日本時間實裝期間 `[start 00:00, end 翌日 00:00)` 內。 */
+export function isWithinLimitedQuestWindow(
+    ts: number,
+    window: { start: string; end: string | null } | undefined,
+): boolean {
+    if (!window || !Number.isFinite(ts)) return false;
+    const startMs = Date.parse(`${window.start}T00:00:00+09:00`);
+    if (!Number.isFinite(startMs) || ts < startMs) return false;
+    if (window.end !== null) {
+        const endMs = Date.parse(`${window.end}T00:00:00+09:00`) + DAY_MS;
+        if (!Number.isFinite(endMs) || ts >= endMs) return false;
+    }
+    return true;
+}
+
+/**
+ * 計算指定作戰月的任務戰果：
+ * 依 `[questSenkaMonthWindow.start, questSenkaMonthWindow.end)` 篩選領獎紀錄並排除逾期的期間限定編號；
+ * 僅以 `eventId` 去重，同一任務編號於換季月不同 `eventId` 可多次計入。
+ */
+export function questSenkaForMonth(
+    claims: readonly QuestClaimInput[],
+    month: SenkaMonth,
+    lookup: QuestSenkaLookup,
+): QuestSenkaResult {
+    const win = questSenkaMonthWindow(month);
+    const seenEventIds = new Set<number>();
+    const items: QuestSenkaItem[] = [];
+
+    for (const claim of claims) {
+        if (!Number.isFinite(claim.ts) || claim.ts < win.start || claim.ts >= win.end) continue;
+        if (claim.eventId !== undefined) {
+            if (seenEventIds.has(claim.eventId)) continue;
+            seenEventIds.add(claim.eventId);
+        }
+        const entry = lookup(claim.questNo);
+        if (!entry) continue;
+        if (entry.limited && !isWithinLimitedQuestWindow(claim.ts, entry.limitedWindow)) continue;
+        const { fixed, choice } = entry.reward;
+        if (fixed <= 0 && choice <= 0) continue;
+        items.push({
+            ...(claim.eventId !== undefined ? { eventId: claim.eventId } : {}),
+            questNo: claim.questNo,
+            ts: claim.ts,
+            fixed,
+            choice,
+        });
+    }
+
+    items.sort((a, b) => a.ts - b.ts || a.questNo - b.questNo);
+
+    let fixed = 0;
+    let choiceMax = 0;
+    for (const item of items) {
+        fixed += item.fixed;
+        choiceMax += item.choice;
+    }
+
+    return {
+        fixed,
+        choiceMax,
+        min: fixed,
+        max: fixed + choiceMax,
+        items,
+    };
 }

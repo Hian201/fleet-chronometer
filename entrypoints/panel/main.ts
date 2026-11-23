@@ -30,9 +30,9 @@ import {
     type CaptureTiming, type CaptureTimingRecord,
 } from '@/utils/capture-timing';
 import { getSenkaHeaderPinned, initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
-import { senkaMonthOf, type ExpReading } from '@/utils/senka';
-import { loadSenkaExpReadings } from '@/utils/senka-readings';
-import { buildRegularSenkaSummary, type SenkaRegularSummary } from '@/utils/senka-view';
+import { senkaMonthOf } from '@/utils/senka';
+import { loadSenkaMonthData, type SenkaMonthData } from '@/utils/senka-readings';
+import { buildObservedSenkaSummary, type SenkaObservedSummary } from '@/utils/senka-view';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { practiceBattleHeadHtml, practiceListHtml, practiceNightHtml, type PracticeRow } from './practice';
 import { sortieDropSlotHtml } from './sortie-drop';
@@ -102,12 +102,12 @@ onPrefsChange(kind => {
         senkaPinned = getSenkaHeaderPinned();
         if (!senkaPinned) {
             senkaLoadGen++;
-            senkaReadings = null;
+            senkaData = null;
             senkaMonthKey = '';
             senkaSummary = null;
             if (senkaTray.isOpen()) senkaTray.setOpen(false);
             senkaTray.setState({ summary: null, loading: false, error: null });
-        } else if (senkaReadings === null) {
+        } else if (senkaData === null) {
             void refreshSenka();
         }
         renderHeader();
@@ -156,9 +156,9 @@ let taihaDetailsHidden = false;
 // 自動切換分頁（autoSwitch）仍在背後照常運作，關閉托盤即回到當下應顯示的分頁。
 // 本月戰果托盤與寫真托盤互斥，同一時間最多開一個。
 let senkaPinned = getSenkaHeaderPinned();
-let senkaReadings: ExpReading[] | null = null;
+let senkaData: SenkaMonthData | null = null;
 let senkaMonthKey = '';
-let senkaSummary: SenkaRegularSummary | null = null;
+let senkaSummary: SenkaObservedSummary | null = null;
 let senkaLoadGen = 0;
 let senkaLastTickMin = -1;
 
@@ -198,12 +198,12 @@ async function refreshSenka() {
     const month = senkaMonthOf(now);
     if (!senkaSummary) senkaTray.setState({ loading: true, error: null });
     try {
-        const readings = await loadSenkaExpReadings(db.resources, month);
+        const data = await loadSenkaMonthData(db, month);
         if (gen !== senkaLoadGen || !senkaPinned) return;
         const freshNow = Date.now();
-        senkaReadings = readings;
+        senkaData = data;
         senkaMonthKey = `${month.year}-${month.month}`;
-        senkaSummary = buildRegularSenkaSummary(readings, freshNow);
+        senkaSummary = buildObservedSenkaSummary(data, freshNow);
         senkaLastTickMin = Math.floor(freshNow / 60_000);
         senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
         if (ready) renderHeader();
@@ -226,8 +226,8 @@ function tickSenka() {
         void refreshSenka();
         return;
     }
-    if (senkaReadings !== null) {
-        senkaSummary = buildRegularSenkaSummary(senkaReadings, now);
+    if (senkaData !== null) {
+        senkaSummary = buildObservedSenkaSummary(senkaData, now);
         senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
         renderHeader();
     }
@@ -2093,11 +2093,13 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
             void restoreGaugeBossHp().then(changed => { if (changed) renderSortie(); })
                 .catch(e => console.warn('[Fleet Chronometer] Boss HP 恢復失敗', e));
         }
+        if (senkaPinned && (path === 'api_port/port' || path === 'api_get_member/mapinfo' || path === 'api_req_quest/clearitemget')) {
+            void refreshSenka();
+        }
         // 回到母港畫面 → 一般分頁母港「遠征中」分組。從編成等不換情境的畫面回港時，
         // 使用者若已手動選過分頁（例如點艦隊切到泊地）則不動。
         if (path === 'api_port/port') {
             if (autoSwitch('general', 'port') || !manualOverride) renderGeneral.showHarborExped();
-            if (senkaPinned) void refreshSenka();
         }
         else if (path === 'api_req_map/start') { autoSwitch('sortie', 'sortie'); switchFleetViewToSortie(); }
         else if (isSortieBattlePath(path)) autoSwitch('sortie', 'sortie');

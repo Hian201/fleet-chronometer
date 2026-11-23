@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseHTML } from 'linkedom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { sections } from '../entrypoints/overview/sections';
 import { renderSenkaSectionBodyHtml } from '../entrypoints/overview/sections/senka';
 import { senkaHeaderButtonHtml, senkaTrayInnerHtml } from '../entrypoints/panel/senka-tray';
@@ -10,8 +10,9 @@ import {
     readSenkaExample, writeMonthlySenkaPreview, writeOverviewSenkaPreview,
 } from '../tools/preview/panel-monthly-senka';
 import type { Lang } from '../utils/gamedata-i18n';
-import { senkaMonthWindow, type ExpReading } from '../utils/senka';
-import { buildRegularSenkaSummary, formatSenkaRank } from '../utils/senka-view';
+import { loadQuestCatalogLocale } from '../utils/quest-catalog-localization';
+import { EO_SENKA_MAPS, senkaMonthWindow, type EoSortieInput, type ExpReading, type QuestClaimInput } from '../utils/senka';
+import { buildObservedSenkaSummary, formatSenkaRank } from '../utils/senka-view';
 import { LANGS, setLang, tFor } from '../utils/ui-i18n';
 
 const REPO_ROOT = resolve(__dirname, '..');
@@ -45,13 +46,19 @@ function buildExpectedSummaries() {
         { ts: NOW_AT - 20 * 3_600_000, exp: baseExp + beforeTodayDelta },
         { ts: NOW_AT - 60_000, exp: baseExp + totalDelta },
     ];
+    const sorties: EoSortieInput[] = EO_SENKA_MAPS
+        .filter(entry => entry.map !== '5-6')
+        .map(entry => ({ ts: NOW_AT - 10 * 3_600_000, map: entry.map, cleared: true }));
+    const questClaims: QuestClaimInput[] = [
+        { eventId: 1, questNo: 893, ts: NOW_AT - 15 * 3_600_000 },
+    ];
     const noStartReadings: ExpReading[] = [
         { ts: win.start + 60_000, exp: baseExp },
         { ts: NOW_AT - 60_000, exp: baseExp + observedExp },
     ];
     return {
-        regularSummary: buildRegularSenkaSummary(regularReadings, NOW_AT),
-        noStartSummary: buildRegularSenkaSummary(noStartReadings, NOW_AT),
+        observedSummary: buildObservedSenkaSummary({ readings: regularReadings, sorties, questClaims }, NOW_AT),
+        noStartSummary: buildObservedSenkaSummary({ readings: noStartReadings, sorties: [], questClaims: [] }, NOW_AT),
     };
 }
 
@@ -68,6 +75,7 @@ function collectVisibleAndAccessibleText(html: string): string {
     return parts.join('\n');
 }
 
+beforeAll(() => loadQuestCatalogLocale('zh-TW'));
 afterEach(() => setLang('zh-TW'));
 
 describe('戰果預覽與提案共用試排數值', () => {
@@ -99,7 +107,7 @@ describe('離線戰果預覽使用正式函式與正式 markup（三語）', () 
     const sortieStub = '<div class="s-eside"></div><div class="s-action-rail"><div class="s-system-rail"></div></div><div class="taiha-head"></div><div class="taiha-hint"></div>';
     const sideStub = '<div class="s-side-stub"></div>';
     const fleetStub = '<section class="fleet"></section>';
-    const { regularSummary, noStartSummary } = buildExpectedSummaries();
+    const { observedSummary, noStartSummary } = buildExpectedSummaries();
 
     it('產生器原始碼已移除與 ui-i18n 重複的 copy／overviewCopy 定義', () => {
         const src = readFileSync(resolve(REPO_ROOT, 'tools/preview/panel-monthly-senka.ts'), 'utf8');
@@ -124,36 +132,36 @@ describe('離線戰果預覽使用正式函式與正式 markup（三語）', () 
                 const panelIds = [...panelDoc.querySelectorAll('[id]')].map(e => e.id);
                 expect(new Set(panelIds).size).toBe(panelIds.length);
 
-                const regularBtnDoc = parseHTML(senkaHeaderButtonHtml(regularSummary, false, code)).document;
+                const observedBtnDoc = parseHTML(senkaHeaderButtonHtml(observedSummary, false, code)).document;
                 const noStartBtnDoc = parseHTML(senkaHeaderButtonHtml(noStartSummary, false, code)).document;
-                expect(panelOut).toContain(regularBtnDoc.querySelector('.lbl')!.textContent!);
+                expect(panelOut).toContain(observedBtnDoc.querySelector('.lbl')!.textContent!);
                 expect(panelOut).toContain(noStartBtnDoc.querySelector('.lbl')!.textContent!);
                 expect(panelOut).toContain(tFor(code, 'senka.short'));
                 expect(panelOut).toContain(tFor(code, 'senka.full'));
 
-                const expectedRegularTrayDoc = parseHTML(senkaTrayInnerHtml(regularSummary, code)).document;
+                const expectedObservedTrayDoc = parseHTML(senkaTrayInnerHtml(observedSummary, code)).document;
                 const expectedNoStartTrayDoc = parseHTML(senkaTrayInnerHtml(noStartSummary, code)).document;
                 expect(panelDoc.querySelector('#senka-title')!.textContent).toBe(tFor(code, 'senka.trayTitle'));
                 expect(panelDoc.querySelector('#senka-close')!.getAttribute('aria-label')).toBe(tFor(code, 'senka.close'));
 
                 const case2 = panelDoc.querySelector('[data-case="2"]')!;
                 const case3 = panelDoc.querySelector('[data-case="3"]')!;
-                expect(case2.querySelector('.sn-body')!.innerHTML).toBe(expectedRegularTrayDoc.querySelector('.sn-body')!.innerHTML);
-                expect(case2.querySelector('.sn-foot')!.innerHTML).toBe(expectedRegularTrayDoc.querySelector('.sn-foot')!.innerHTML);
+                expect(case2.querySelector('.sn-body')!.innerHTML).toBe(expectedObservedTrayDoc.querySelector('.sn-body')!.innerHTML);
+                expect(case2.querySelector('.sn-foot')!.innerHTML).toBe(expectedObservedTrayDoc.querySelector('.sn-foot')!.innerHTML);
                 expect(case3.querySelector('.sn-body')!.innerHTML).toBe(expectedNoStartTrayDoc.querySelector('.sn-body')!.innerHTML);
                 expect(case3.querySelector('.sn-foot')!.innerHTML).toBe(expectedNoStartTrayDoc.querySelector('.sn-foot')!.innerHTML);
-                expect(case2.textContent).toContain(tFor(code, 'senka.regularOnly'));
+                expect(case2.textContent).toContain(tFor(code, 'ov.skObserved'));
+                expect(case2.textContent).toContain(tFor(code, 'ov.skExclCarry'));
+                expect(case2.textContent).toContain(tFor(code, 'senka.unlisted'));
                 expect(case3.textContent).toContain(tFor(code, 'senka.noStart'));
 
                 if (code === 'en') {
                     expect(panelDoc.querySelector('#senka-tray .ph-target')!.textContent).toContain('November');
                     expect(panelDoc.querySelector('#senka-tray .ph-target')!.textContent).not.toContain('November operation');
-                    expect(panelOut).toContain('"Reg. pts"');
                     expect(panelOut).toContain('"Pts"');
                     expect(panelOut).not.toContain('November operation');
                 }
                 if (code === 'zh-TW') {
-                    expect(panelOut).toContain('"普通戰果"');
                     expect(panelOut).toContain('"戰果"');
                 }
 
@@ -162,10 +170,12 @@ describe('離線戰果預覽使用正式函式與正式 markup（三語）', () 
                 const ovIds = [...ovDoc.querySelectorAll('[id]')].map(e => e.id);
                 expect(new Set(ovIds).size).toBe(ovIds.length);
                 expect(ovDoc.querySelectorAll('#sk-month')).toHaveLength(1);
+                expect(ovDoc.querySelectorAll('#sk-eo')).toHaveLength(1);
 
-                const stage0Wrap = ovDoc.querySelector('.sk-cols > [data-only="0"]')!;
-                expect(stage0Wrap.innerHTML).toBe(renderSenkaSectionBodyHtml(regularSummary, code));
+                const stage1Wrap = ovDoc.querySelector('.sk-cols > [data-only="1"]')!;
+                expect(stage1Wrap.innerHTML).toBe(renderSenkaSectionBodyHtml(observedSummary, code));
                 expect(ovDoc.querySelector('#sk-month h3')!.textContent).toBe(tFor(code, 'senka.month11'));
+                expect(ovDoc.querySelector('#sk-eo h3')!.textContent).toBe(tFor(code, 'ov.skEoQuestTitle'));
 
                 const navItems = [...ovDoc.querySelectorAll('#nav a')];
                 expect(navItems.map(a => a.textContent)).toEqual(sections.map(s => tFor(code, s.titleKey)));

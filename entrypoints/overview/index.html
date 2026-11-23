@@ -8917,6 +8917,16 @@
         .sk-kv dd.n { text-align: left; color: var(--dim); font-size: 11px; font-variant-numeric: normal; }
         .sk-closes { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--dim); }
         .sk-hint { margin: 8px 0 0; font-size: 11px; color: var(--dim); }
+        .sk-tv small { font-size: 12px; color: var(--dim); }
+        .sk-card h3 + .sk-fold { margin-top: 0; padding-top: 0; border-top: 0; }
+        .sk-fold { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+        .sk-fold summary { cursor: pointer; font-size: 13px; }
+        .sk-list { width: max-content; max-width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 12px; }
+        .sk-list td { padding: 2px 0; white-space: nowrap; }
+        .sk-list td + td { padding-left: 16px; }
+        .sk-list td:nth-child(2):not(.n) { white-space: normal; }
+        .sk-list td.n { text-align: right; font-variant-numeric: tabular-nums; }
+        .sk-off, .sk-off td { color: var(--dim); }
 
         @media (max-width: 620px) {
             .rs-row { grid-template-columns: minmax(0, 1fr); }

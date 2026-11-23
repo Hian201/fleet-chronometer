@@ -1,17 +1,33 @@
 // utils/senka-view.ts 與 utils/senka-readings.ts 單元測試。
 import { afterEach, describe, expect, it } from 'vitest';
-import { db, type ResourceRow } from '../utils/db';
-import { loadSenkaExpReadings } from '../utils/senka-readings';
+import { db, type QuestObservedRow, type ResourceRow, type SortieLogRow } from '../utils/db';
+import { loadSenkaExpReadings, loadSenkaMonthData } from '../utils/senka-readings';
 import {
-    buildRegularSenkaSummary, formatRegularSenkaValue, formatSenkaInt, formatSenkaRank,
-    formatSenkaTimestamp, formatSignedSenka, senkaDeadlineLines,
+    buildObservedSenkaSummary,
+    buildRegularSenkaSummary,
+    formatObservedGainValue,
+    formatObservedSenkaValue,
+    formatQuestItemPoints,
+    formatQuestSenkaValue,
+    formatRegularPartValue,
+    formatRegularSenkaValue,
+    formatSenkaInt,
+    formatSenkaRank,
+    formatSenkaTimestamp,
+    formatSignedSenka,
+    senkaDeadlineLines,
 } from '../utils/senka-view';
-import { senkaDeadlines, senkaMonthWindow } from '../utils/senka';
+import { eoMonthWindow, questSenkaMonthWindow, senkaDeadlines, senkaMonthWindow } from '../utils/senka';
 import { formatTime } from '../utils/date-format';
 import { tFor } from '../utils/ui-i18n';
 
 afterEach(async () => {
-    await db.resources.clear();
+    await Promise.all([
+        db.resources.clear(),
+        db.sorties.clear(),
+        db.questObserved.clear(),
+        db.snapshot.clear(),
+    ]);
 });
 
 describe('formatSenkaRank', () => {
@@ -68,6 +84,68 @@ describe('formatRegularSenkaValue / formatSignedSenka / formatSenkaInt', () => {
     });
 });
 
+describe('1b 已觀測戰果格式化', () => {
+    const eo = (total: number) => ({ total, clearedCount: 0, mapCount: 9, items: [] });
+
+    it('formatObservedSenkaValue 處理 exact、range、選擇報酬區間與缺起點', () => {
+        expect(formatObservedSenkaValue({
+            regular: { status: 'exact', points: 2450.2, observed: 2450.2 },
+            eo: eo(1200),
+            quest: { fixed: 300, choiceMax: 0, min: 300, max: 300, items: [] },
+        }, 'zh-TW')).toBe('≈3,950');
+
+        expect(formatObservedSenkaValue({
+            regular: { status: 'exact', points: 2450, observed: 2450 },
+            eo: eo(0),
+            quest: { fixed: 300, choiceMax: 800, min: 300, max: 1100, items: [] },
+        }, 'en')).toBe('≈2,750–3,550');
+
+        expect(formatObservedSenkaValue({
+            regular: { status: 'exact', points: 0, observed: 0 },
+            eo: eo(0),
+            quest: { fixed: 0, choiceMax: 0, min: 0, max: 0, items: [] },
+        }, 'ja')).toBe('0');
+
+        expect(formatObservedSenkaValue({
+            regular: { status: 'range', min: 100.2, max: 110.4, observed: 100.2 },
+            eo: eo(75),
+            quest: { fixed: 0, choiceMax: 800, min: 0, max: 800, items: [] },
+        }, 'zh-TW')).toBe('≈175～986');
+
+        expect(formatObservedSenkaValue({
+            regular: { status: 'no-start', observed: 100 },
+            eo: eo(250),
+            quest: { fixed: 300, choiceMax: 0, min: 300, max: 300, items: [] },
+        }, 'en')).toBe('—');
+    });
+
+    it('formatObservedGainValue / formatRegularPartValue / formatQuestSenkaValue / formatQuestItemPoints', () => {
+        expect(formatObservedGainValue({
+            regular: { status: 'no-start', observed: 80 },
+            eo: eo(250),
+            quest: { fixed: 300, choiceMax: 0, min: 300, max: 300, items: [] },
+        }, 'zh-TW')).toBe('≈+630');
+
+        expect(formatObservedGainValue({
+            regular: { status: 'no-start', observed: 80 },
+            eo: eo(0),
+            quest: { fixed: 0, choiceMax: 800, min: 0, max: 800, items: [] },
+        }, 'en')).toBe('≈+80–+880');
+
+        expect(formatRegularPartValue({ status: 'exact', points: 2450.2, observed: 2450.2 }, 'en')).toBe('2,450');
+        expect(formatRegularPartValue({ status: 'range', min: 10.1, max: 15.8, observed: 10.1 }, 'zh-TW')).toBe('10～16');
+        expect(formatRegularPartValue({ status: 'no-start', observed: 10 }, 'ja')).toBe('—');
+
+        expect(formatQuestSenkaValue({ min: 300, max: 300 }, 'zh-TW')).toBe('300');
+        expect(formatQuestSenkaValue({ min: 300, max: 1100 }, 'en')).toBe('300–1,100');
+
+        expect(formatQuestItemPoints({ fixed: 300, choice: 0 }, 'zh-TW')).toBe('+300');
+        expect(formatQuestItemPoints({ fixed: 0, choice: 800 }, 'zh-TW')).toBe('0～+800');
+        expect(formatQuestItemPoints({ fixed: 0, choice: 800 }, 'en')).toBe('0–+800');
+        expect(formatQuestItemPoints({ fixed: 100, choice: 800 }, 'ja')).toBe('+100～+900');
+    });
+});
+
 describe('senkaDeadlineLines', () => {
     it('平日只顯示下次榜單更新一行（includeQuest 不影響平日）', () => {
         // 2026/11/15 10:00 JST = 01:00 UTC → 下次更新 15:00 JST = 06:00 UTC（剩 5:00）
@@ -111,12 +189,30 @@ describe('senkaDeadlineLines', () => {
     });
 });
 
-describe('buildRegularSenkaSummary & loadSenkaExpReadings', () => {
+describe('buildRegularSenkaSummary & loadSenkaExpReadings & loadSenkaMonthData', () => {
     const row = (eventId: number, ts: number, exp?: number): ResourceRow => ({
         eventId,
         ts,
         m: [1000, 1000, 1000, 1000, 10, 10, 10, 10],
         ...(exp === undefined ? {} : { exp }),
+    });
+
+    const sortieRow = (eventId: number, ts: number, map: string, cleared: boolean, catchOnly = false): SortieLogRow => ({
+        eventId,
+        sortieKey: eventId - 1,
+        ts,
+        map,
+        node: 1,
+        boss: true,
+        kind: 'battle',
+        rank: 'S',
+        seiku: null,
+        enemyIds: [],
+        enemyIdsEscort: [],
+        drop: null,
+        taiha: false,
+        cleared,
+        ...(catchOnly ? { catchOnly: true } : {}),
     });
 
     it('從 db.resources 取出月界前最後一筆有效 exp（跨長休）與本月讀數，忽略無 exp 列與下月列', async () => {
@@ -142,5 +238,78 @@ describe('buildRegularSenkaSummary & loadSenkaExpReadings', () => {
         expect(summary.month).toEqual(month);
         expect(summary.regular).toEqual({ status: 'exact', points: 70, observed: 70 });
         expect(summary.today).toBe(70);
+    });
+
+    it('loadSenkaMonthData 依各組成時間窗查詢 resources、sorties 與 questObserved 並組裝 1b 摘要', async () => {
+        const month = { year: 2026, month: 11 };
+        const win = senkaMonthWindow(month);
+        const eoWin = eoMonthWindow(month);
+        const questWin = questSenkaMonthWindow(month);
+
+        await db.resources.bulkPut([
+            row(1, win.start - 10_000, 1_000_000),
+            row(2, win.start, 1_000_000),
+            row(3, win.start + 3_600_000, 1_100_000), // +70 普通戰果
+        ]);
+        await db.sorties.bulkPut([
+            sortieRow(10, eoWin.start - 1000, '1-5', true),       // 10/31 23:59 JST → 不屬 11 月
+            sortieRow(11, eoWin.start, '6-5', true),              // 11/1 00:00 JST → +250
+            sortieRow(12, eoWin.start + 1000, '5-5', false),      // 未擊破 → 忽略
+            sortieRow(13, eoWin.start + 2000, '4-5', true, true), // catchOnly → 忽略
+            sortieRow(14, eoWin.end, '1-5', true),                // 11/30 22:00 JST → 排除
+        ]);
+        const claims: QuestObservedRow[] = [
+            { eventId: 20, questNo: 854, ts: questWin.start - 1 }, // 上月
+            { eventId: 21, questNo: 893, ts: questWin.start },     // +300
+            { eventId: 22, questNo: 949, ts: questWin.end - 1 },   // 0..+800
+            { eventId: 23, questNo: 888, ts: questWin.end },       // 下月
+        ];
+        await db.questObserved.bulkPut(claims);
+
+        const data = await loadSenkaMonthData(db, month);
+        expect(data.readings).toHaveLength(3);
+        expect(data.sorties).toHaveLength(1);
+        expect(data.questClaims).toHaveLength(2);
+
+        const summary = buildObservedSenkaSummary(data, win.start + 7_200_000);
+        expect(summary.regular).toEqual({ status: 'exact', points: 70, observed: 70 });
+        expect(summary.eo.total).toBe(250);
+        expect(summary.eo.clearedCount).toBe(1);
+        expect(summary.quest.min).toBe(300);
+        expect(summary.quest.max).toBe(1100);
+        expect(formatObservedSenkaValue(summary, 'zh-TW')).toBe('≈620～1,420');
+    });
+
+    it('db.sorties 為空時可從當月 mapinfo 快照讀出已擊破的 3-5／4-5／5-5（+530），忽略上月與月末 22:00 後快照', async () => {
+        const month = { year: 2026, month: 11 };
+        const eoWin = eoMonthWindow(month);
+
+        await db.snapshot.put({
+            path: 'api_get_member/mapinfo',
+            ts: Date.UTC(2026, 10, 20, 8, 0),
+            api: {
+                api_map_info: [
+                    { api_id: 35, api_cleared: 1 },
+                    { api_id: 45, api_cleared: 1 },
+                    { api_id: 55, api_cleared: 1 },
+                    { api_id: 65, api_cleared: 0, api_defeat_count: 3, api_required_defeat_count: 6 },
+                ],
+            },
+        });
+        const fromCurrentSnap = await loadSenkaMonthData(db, month);
+        const currentSummary = buildObservedSenkaSummary(fromCurrentSnap, Date.UTC(2026, 10, 20, 9, 0));
+        expect(currentSummary.eo.total).toBe(530);
+        expect(currentSummary.eo.clearedCount).toBe(3);
+
+        // 上月（10/31 23:00 JST）與月末 22:00 後（11/30 22:30 JST）快照不得計入本月
+        for (const outOfWindowTs of [eoWin.start - 3_600_000, eoWin.end + 1_800_000]) {
+            await db.snapshot.put({
+                path: 'api_get_member/mapinfo',
+                ts: outOfWindowTs,
+                api: { api_map_info: [{ api_id: 35, api_cleared: 1 }] },
+            });
+            const outData = await loadSenkaMonthData(db, month);
+            expect(outData.sorties).toEqual([]);
+        }
     });
 });

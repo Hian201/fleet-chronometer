@@ -1,18 +1,20 @@
-// 面板本月戰果（1a 普通戰果）：頁首戰果按鈕與 270 px 托盤。
+// 面板本月戰果（1b 已觀測戰果＝普通＋EO＋任務，不含繼承分）：頁首戰果按鈕與 270 px 托盤。
 // 開啟時取代 #tabpanel，出擊進點／新戰鬥封包／切分頁／Esc 時收起；面板不寫入偏好。
 
 import type { Lang } from '@/utils/gamedata-i18n';
 import { esc } from '@/utils/html-escape';
 import { senkaDeadlines } from '@/utils/senka';
 import {
-    formatRegularSenkaValue, formatSignedSenka, senkaDeadlineLines, type SenkaRegularSummary,
+    formatObservedGainValue, formatObservedSenkaValue, formatQuestSenkaValue,
+    formatRegularPartValue, formatSenkaInt, formatSignedSenka, senkaDeadlineLines,
+    type SenkaObservedSummary,
 } from '@/utils/senka-view';
 import { getLang, tFor } from '@/utils/ui-i18n';
 
 export type SenkaTrayFocusTarget = 'points' | 'close';
 
 export interface SenkaTrayState {
-    summary?: SenkaRegularSummary | null;
+    summary?: SenkaObservedSummary | null;
     loading?: boolean;
     error?: string | null;
 }
@@ -30,15 +32,15 @@ export interface SenkaTrayController {
     relabel(): void;
 }
 
-/** 頁首戰果按鈕（1a 固定顯示「普通戰果」短標籤，避免誤當總分）。 */
+/** 頁首戰果按鈕（1b 已納入 EO 與任務，顯示「戰果」短標籤；完整標題與無障礙標籤為「本月戰果」）。 */
 export function senkaHeaderButtonHtml(
-    summary: SenkaRegularSummary | null,
+    summary: SenkaObservedSummary | null,
     open: boolean,
     lang: Lang = getLang(),
 ): string {
-    const shortLabel = tFor(lang, 'senka.shortRegular');
-    const value = summary ? formatRegularSenkaValue(summary.regular, lang) : '—';
-    const full = `${tFor(lang, 'senka.regular')} ${value}`;
+    const shortLabel = tFor(lang, 'senka.short');
+    const value = summary ? formatObservedSenkaValue(summary, lang) : '—';
+    const full = `${tFor(lang, 'senka.full')} ${value}`;
     return `<button type="button" id="points" data-senka="1" aria-controls="senka-tray" aria-expanded="${open}" `
         + `title="${esc(full)}" aria-label="${esc(full)}">`
         + `<span class="lbl">${esc(shortLabel)}</span> <b>${esc(value)}</b></button>`;
@@ -46,7 +48,7 @@ export function senkaHeaderButtonHtml(
 
 /** 戰果托盤內部 HTML（正式面板與離線預覽共用）。 */
 export function senkaTrayInnerHtml(
-    summary: SenkaRegularSummary | null,
+    summary: SenkaObservedSummary | null,
     lang: Lang = getLang(),
     opts?: { loading?: boolean; error?: string | null },
 ): string {
@@ -60,34 +62,52 @@ export function senkaTrayInnerHtml(
     const row = (label: string, value: string, cls = '') =>
         `<div class="sn-row${cls ? ` ${cls}` : ''}"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
 
+    const compLine = summary
+        ? `${tFor(lang, 'senka.partRegular')} ${formatRegularPartValue(summary.regular, lang)}`
+            + ` · ${tFor(lang, 'senka.partEo')} ${formatSenkaInt(summary.eo.total, lang)}`
+            + ` · ${tFor(lang, 'senka.partQuest')} ${formatQuestSenkaValue(summary.quest, lang)}`
+        : '';
+
     let body: string;
     if (opts?.loading && !summary) {
         body = `<div class="sn-comp">${esc(tFor(lang, 'ov.loading'))}</div>`;
     } else if (opts?.error) {
         body = `<div class="sn-comp sn-err">${esc(tFor(lang, 'ov.loadFailed', { msg: opts.error }))}</div>`;
     } else if (!summary || summary.regular.status === 'no-data') {
-        body = row(tFor(lang, 'senka.regular'), '—', 'sn-total')
+        const extra = summary && (summary.eo.total > 0 || summary.quest.max > 0)
+            ? `<div class="sn-comp">${esc(compLine)}</div>`
+            : '';
+        body = row(tFor(lang, 'ov.skObserved'), '—', 'sn-total')
+            + extra
             + `<div class="sn-comp">${esc(tFor(lang, 'senka.noData'))}</div>`;
     } else if (summary.regular.status === 'anomaly') {
-        body = row(tFor(lang, 'senka.regular'), '—', 'sn-total')
+        const extra = summary.eo.total > 0 || summary.quest.max > 0
+            ? `<div class="sn-comp">${esc(compLine)}</div>`
+            : '';
+        body = row(tFor(lang, 'ov.skObserved'), '—', 'sn-total')
+            + extra
             + `<div class="sn-comp">${esc(tFor(lang, 'senka.anomaly'))}</div>`;
     } else if (summary.regular.status === 'no-start') {
         const todayRow = summary.today === null ? '' : row(tFor(lang, 'senka.today'), formatSignedSenka(summary.today, lang));
-        body = row(tFor(lang, 'senka.regular'), '—', 'sn-total')
-            + `<div class="sn-comp">${esc(tFor(lang, 'senka.noStart'))}</div>`
-            + row(tFor(lang, 'senka.observed'), formatSignedSenka(summary.regular.observed, lang))
-            + todayRow
-            + `<div class="sn-comp">${esc(tFor(lang, 'senka.regularOnly'))}</div>`;
+        body = row(tFor(lang, 'ov.skObserved'), '—', 'sn-total')
+            + `<div class="sn-comp">${esc(compLine)}</div>`
+            + `<div class="sn-comp">${esc(`${tFor(lang, 'senka.noStart')} · ${tFor(lang, 'ov.skExclCarry')}`)}</div>`
+            + row(tFor(lang, 'senka.observed'), formatObservedGainValue(summary, lang))
+            + todayRow;
     } else {
-        const value = formatRegularSenkaValue(summary.regular, lang);
+        const value = formatObservedSenkaValue(summary, lang);
         const todayText = summary.today === null ? '—' : formatSignedSenka(summary.today, lang);
-        body = row(tFor(lang, 'senka.regular'), value, 'sn-total')
-            + `<div class="sn-comp">${esc(tFor(lang, 'senka.regularOnly'))}</div>`
+        body = row(tFor(lang, 'ov.skObserved'), value, 'sn-total')
+            + `<div class="sn-comp">${esc(compLine)}</div>`
+            + `<div class="sn-comp">${esc(tFor(lang, 'ov.skExclCarry'))}</div>`
             + row(tFor(lang, 'senka.today'), todayText);
     }
 
     const deadlines = summary?.deadlines ?? senkaDeadlines(Date.now());
-    const foot = senkaDeadlineLines(deadlines, lang).map(line => `<span>${esc(line)}</span>`).join('');
+    const foot = senkaDeadlineLines(deadlines, lang, { includeQuest: true })
+        .map(line => `<span>${esc(line)}</span>`)
+        .join('')
+        + `<span class="sn-note">${esc(tFor(lang, 'senka.unlisted'))}</span>`;
     return `${head}<div class="sn-body">${body}</div><div class="sn-foot">${foot}</div>`;
 }
 
@@ -95,7 +115,7 @@ export function senkaTrayInnerHtml(
 export function mountSenkaTray(deps: SenkaTrayDeps): SenkaTrayController {
     const { root } = deps;
     let open = false;
-    let summary: SenkaRegularSummary | null = null;
+    let summary: SenkaObservedSummary | null = null;
     let loading = false;
     let error: string | null = null;
 

@@ -14,6 +14,7 @@ import { esc, gearIconHtml, matIconHtml } from '../../utils/html-escape';
 import { writeMonthlySenkaPreview, writeOverviewSenkaPreview } from './panel-monthly-senka';
 import { formationRects } from '../../utils/formation-geometry';
 import { setLang, t } from '../../utils/ui-i18n';
+import { loadQuestCatalogLocale } from '../../utils/quest-catalog-localization';
 import { GameState, type ShipView } from '../../utils/state';
 import { condTier, fleetCondRecoveryEta } from '../../utils/cond';
 import { openingAswBadge } from '../../entrypoints/panel/opening-asw';
@@ -3728,6 +3729,7 @@ for (const lang of ['zh-TW', 'en', 'ja'] as const) {
 }
 setLang('zh-TW');
 
+await loadQuestCatalogLocale('zh-TW');
 // 戰果試排與出擊共用同一場大破及七艘編成，便於比較頁首切換前後。
 for (const lang of ['zh-TW', 'en', 'ja'] as const) {
     setLang(lang);
