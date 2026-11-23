@@ -443,7 +443,9 @@ function setTab(next: typeof tab, manual: boolean) {
     tab = next === 'activity' && !isDebugUiEnabled() ? 'general' : next;
     if (manual) manualOverride = true;
     // 切回一般分頁時入渠分組先顯示渠位；自動切換會重複呼叫，同分頁內不重設使用者選的檢視。
-    if (tab === 'general' && previous !== 'general') renderGeneral.showDockSlots();
+    // renderAll() 只在一般分頁顯示中才重繪它，所以在別的分頁期間到的事件（例如發出遠征）
+    // 要在切入時補畫，否則會一直顯示切走前的內容。
+    if (tab === 'general' && previous !== 'general') { renderGeneral.showDockSlots(); renderGeneral(); }
     generalEl.style.display = tab === 'general' ? '' : 'none';
     document.getElementById('tab-exped')!.style.display = tab === 'exped' ? '' : 'none';
     document.getElementById('tab-sortie')!.style.display = tab === 'sortie' ? '' : 'none';

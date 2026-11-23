@@ -23,7 +23,8 @@ describe('一般分頁', () => {
         expect(general).toContain("let dockView: DockView = 'slots';");
         expect(general).toContain("if (button.dataset.operation === 'dock') showDockSlots();");
         expect(general).toContain("if (button.dataset.page === 'harbor') showDockSlots();");
-        expect(panelMain).toContain("if (tab === 'general' && previous !== 'general') renderGeneral.showDockSlots();");
+        // 切入一般分頁時同時補畫：在其他分頁期間到的事件（例如發出遠征）不會留在舊畫面。
+        expect(panelMain).toContain("if (tab === 'general' && previous !== 'general') { renderGeneral.showDockSlots(); renderGeneral(); }");
         // 遊戲進入入渠畫面時自動切到入渠分組的渠位。
         expect(panelMain).toMatch(/path === 'api_get_member\/ndock'[\s\S]{0,160}if \(autoSwitch\('general', 'dock'\)\) renderGeneral\.showDock\(\);/);
         expect(general).toMatch(/function showDock\(\) \{\s*page = 'harbor';\s*operation = 'dock';\s*dockView = 'slots';/);
