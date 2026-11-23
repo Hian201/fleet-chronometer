@@ -211,8 +211,8 @@ def relations(page: str) -> list[dict]:
             'heading': _text(heading[-1]) if heading else '',
             'pre': pre,
             'post': post,
-            # 「(他不明)」「前提任務不明」：可能還有沒列出的前提
-            'pre_unknown': bool(re.search(r'不明|他にも', pre_tail)),
+            # 「(他不明)」「他不詳」「前提任務不明」：可能還有沒列出的前提
+            'pre_unknown': bool(re.search(r'不明|不詳|他にも', pre_tail)),
             'pre_uncertain': bool(_UNCERTAIN.search(pre_tail)),
             'post_uncertain': bool(_UNCERTAIN.search(post_tail)),
             'pre_text': pre_text.strip()[:160],

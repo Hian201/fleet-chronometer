@@ -63,6 +63,40 @@ describe('任務導覽資料目錄', () => {
         expect(QUEST_CATALOG_BY_NO.get(385)?.limited).toBe(true);
     });
 
+    it('收錄 2026-11-11 秋刀魚準備演習與同期任務的前置（wikiwiki＋ぜかまし）', () => {
+        // 386（2611C2）秋刀魚祭り準備演習！：wikiwiki「【検証中】(Bd5) 及び ()」、ぜかまし「敵補給艦を3隻撃沈せよ！」
+        expect(QUEST_CATALOG_BY_NO.get(386)?.wikiIds).toContain('2611C2');
+        const sauryPrep = questRelation(386);
+        expect(sauryPrep.prerequisites).toEqual([218]);
+        expect(sauryPrep.edges.find(edge => edge.no === 218)).toMatchObject({
+            pending: false,
+            evidence: 'confirmed',
+            sources: ['catalog', 'zekamashi'],
+        });
+        expect(sauryPrep.operator).toBe('unknown');
+        expect(sauryPrep.confidence).toBe('checking');
+
+        // 381（2611C1）秋月型演習任務2026：wikiwiki「【検証中】(Cd1) 及び ()」、ぜかまし「「演習」で練度向上！」
+        expect(QUEST_CATALOG_BY_NO.get(381)?.wikiIds).toContain('2611C1');
+        const akizuki = questRelation(381);
+        expect(akizuki.prerequisites).toEqual([303]);
+        expect(akizuki.edges.find(edge => edge.no === 303)).toMatchObject({
+            pending: false,
+            evidence: 'confirmed',
+            sources: ['catalog', 'zekamashi'],
+        });
+        expect(akizuki.operator).toBe('unknown');
+        expect(akizuki.confidence).toBe('checking');
+
+        // 1172（F144）夜戦突撃装備の強化【I】：Fd5＋F97，ぜかまし另註記「他不詳」
+        expect(QUEST_CATALOG_BY_NO.get(1172)?.wikiIds).toContain('F144');
+        const torpedo = questRelation(1172);
+        expect(torpedo.prerequisites).toEqual([609, 1102]);
+        expect(torpedo.edges.every(edge => !edge.pending && edge.evidence === 'confirmed')).toBe(true);
+        expect(torpedo.operator).toBe('unknown');
+        expect(torpedo.confidence).toBe('checking');
+    });
+
     it('只存在多個前置但無法判定組合時，不自行指定 all 或 any', () => {
         const relation = questRelation({
             apiNo: 999999,

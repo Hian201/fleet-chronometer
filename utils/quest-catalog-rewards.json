@@ -2590,7 +2590,7 @@
     "otherJa": "選択報酬1\n・給糧艦「間宮」x1\n・熟練見張員 x2\n・改修資材 x3\n\n選択報酬2\n・給糧艦「伊良湖」x1\n・開発資材 x6\n・新型兵装資材 x1"
   },
   "381": {
-    "sourceWikiId": "",
+    "sourceWikiId": "2611C1",
     "resources": {
       "fuel": 100,
       "ammo": 200,
@@ -2640,7 +2640,7 @@
     "otherJa": "選択報酬1\n・開発資材x12\n・改修資材x3\n\n選択報酬2\n・高速建造材x22\n・装備運用枠\n+3装備分\n・戦闘詳報x1"
   },
   "386": {
-    "sourceWikiId": "",
+    "sourceWikiId": "2611C2",
     "resources": {
       "fuel": 0,
       "ammo": 280,
@@ -6670,7 +6670,7 @@
     "otherJa": "選択報酬1\n・開発資材 x45\n・南瓜 x4\n・三式水中探信儀 x10\n\n選択報酬2\n・装備運用枠\n +15装備分\n・Type124 ASDIC★+3 x1\n・海外艦最新技術 x3"
   },
   "1172": {
-    "sourceWikiId": "",
+    "sourceWikiId": "F144",
     "resources": {
       "fuel": 0,
       "ammo": 0,

@@ -39,7 +39,7 @@ export const QUEST_GOAL_LOCAL: Readonly<Record<number, LocalQuestGoal>> = {
         written: '2026-11-11',
         goal: { resetInterval: 1, practice_win_a: { escortshipId: [[[421, 422, 423, 532, 533, 1041, 132, 625, 445], 3]], required: 3, init: 0 } },
     },
-    // 2026 秋刀魚祭準備演習（11/11 實裝，週任；381 與 218 完成後開放），來源條件表尚未收錄。結束後刪除這筆。
+    // 2026 秋刀魚祭準備演習（11/11 實裝，週任；218 完成後開放，可能另有未確認條件），來源條件表尚未收錄。結束後刪除這筆。
     // 「旗艦を含む計4隻」寫成旗艦在名單內＋名單計 4 艘（含旗艦）。
     386: {
         title: '【期間限定任務】秋刀魚祭り準備演習！',
