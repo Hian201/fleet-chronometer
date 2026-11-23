@@ -1,4 +1,5 @@
 // EO 戰果與任務戰果純函式測試（utils/senka.ts、utils/quest-senka.ts）。
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     EO_SENKA_MAPS,
@@ -96,6 +97,13 @@ describe('EO 戰果時間窗與計算', () => {
             cleared: false,
             clearedAt: null,
         });
+    });
+
+    it('真封包：6-5 擊破前後的 mapinfo 快照只差 6-5 一張', () => {
+        const load = (name: string) => JSON.parse(readFileSync(new URL(`../samples/${name}`, import.meta.url), 'utf8')).api_data;
+        const maps = (name: string) => eoClearsFromMapinfoSnapshot({ ts: 1, api: load(name) }).map(row => row.map);
+        expect(maps('6-5-mapinfo-before-clear.json')).toEqual(['1-5', '3-5', '4-5', '5-5']);
+        expect(maps('6-5-mapinfo-after-clear.json')).toEqual(['1-5', '3-5', '4-5', '5-5', '6-5']);
     });
 
     it('eoClearsFromMapinfoSnapshot 擷取 EO 的 api_cleared: 1/"1"，忽略未通關與一般／活動圖', () => {

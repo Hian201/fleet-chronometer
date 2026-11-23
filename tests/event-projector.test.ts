@@ -764,6 +764,45 @@ describe('EventProjector 寫入失敗傳播', () => {
 //      故 sortie-detail 的 lbasWaves() 只認陣列是對的，不可為了「相容」而放寬。
 // 節點類型 api_event_id=4／api_event_kind=6 亦與 map-node-kind 的 airRaid 對得上，
 // 且 `api_destruction_battle` 提供了獨立的封包佐證。
+// ── EO 擊破前後的真封包（samples/6-5-*-clear.json，2026-11-23 開發者實機擷取） ──
+// 擊破後回港只送 api_port/port；要等再進出擊的海域選擇畫面，遊戲才送出反映擊破的 mapinfo。
+describe('EO 擊破前後的真封包', () => {
+    const before = fixture<{ api_data: any }>('6-5-mapinfo-before-clear.json').api_data;
+    const after = fixture<{ api_data: any }>('6-5-mapinfo-after-clear.json').api_data;
+
+    it('6-5 由擊破數 5/6 轉為已擊破，擊破後不再帶擊破數欄位', () => {
+        const pick = (api: any) => api.api_map_info.find((m: any) => m.api_id === 65);
+        expect(pick(before)).toMatchObject({ api_cleared: 0, api_defeat_count: 5, api_required_defeat_count: 6 });
+        expect(pick(after).api_cleared).toBe(1);
+        expect(pick(after)).not.toHaveProperty('api_defeat_count');
+        expect(pick(after)).not.toHaveProperty('api_required_defeat_count');
+    });
+
+    it('擊破場的 battleresult 帶 api_first_clear=1 與 6-5 的 EO 戰果值', () => {
+        const result = fixture<{ api_data: any }>('6-5-battleresult-clear.json').api_data;
+        expect(result.api_first_clear).toBe(1);
+        expect(result.api_get_exmap_rate).toBe('250');
+    });
+
+    it('前後兩筆 mapinfo 依序投影時，把 6-5 最近一場 Boss 戰標為擊破', async () => {
+        const tables = mockTables();
+        const boss: SortieLogRow = {
+            eventId: 9, sortieKey: 1, ts: 9, map: '6-5', node: 42, boss: true,
+            kind: 'battle', rank: 'S', seiku: 1, enemyIds: [], enemyIdsEscort: [], drop: null, taiha: false,
+        };
+        tables.sorties.filter.mockImplementation((predicate: (sortie: SortieLogRow) => boolean) => ({
+            toArray: async () => [boss].filter(predicate),
+        }));
+        const projector = new EventProjector({ state: new GameState(), tables });
+        await projector.project(row(1, 'api_get_member/mapinfo', before));
+        expect(tables.sorties.update).not.toHaveBeenCalled();
+
+        await projector.project(row(2, 'api_get_member/mapinfo', after));
+        expect(tables.sorties.update).toHaveBeenCalledTimes(1);
+        expect(tables.sorties.update).toHaveBeenCalledWith(9, { cleared: true });
+    });
+});
+
 describe('基地空襲的真封包歸檔', () => {
     it('projector 讀得出 seiku／lost_kind／節點類型，且標記為 raid', async () => {
         const raid = fixture<{ api: any }>('base-air-raid.json').api;

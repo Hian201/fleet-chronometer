@@ -19,9 +19,13 @@
   `samples/61-5-jibun-rengou-node52.json` eventmap＝`{now_maphp:809, cleared:0}`→False；
   已通關端 `samples/61-4.json` eventmap＝`{now_maphp:0, cleared:1, gauge_num:4}`→True。
   **另定案 `api_first_clear` 不可當斬殺旗標**：它在「未通關」時存在(=1)、「已通關」後反而消失
-  （61-5 有、61-4 無），語意與「剛通關」相反。**仍未觀測到的只剩「即時性」**——擊破當下
-  遊戲是否立刻推一筆 `now_maphp=0` 的 mapinfo（或要等玩家再開圖才送），這只影響 detectClear
-  的觸發延遲、不影響判定正確性。即時 mapinfo 仍待 live 觀測；`wantedTag` 不再為此抓樣本。
+  （61-5 有、61-4 無），語意與「剛通關」相反；擊破那一場的 battleresult 也帶 `api_first_clear:1`
+  （`samples/6-5-battleresult-clear.json`），因為開戰時仍未通關。
+- **擊破後的 mapinfo 時序（已實測，`samples/6-5-mapinfo-{before,after}-clear.json`）**：打倒 Boss
+  回港只送 `api_port/port`，不送 mapinfo；要等玩家再進出擊、開海域選擇畫面，遊戲才送出反映擊破的
+  mapinfo。所以 detectClear 在「下次開海域選擇」才觸發；被標記的仍是該圖最近一場 Boss 戰，時刻取
+  戰鬥本身，不受觸發延遲影響。擊破數制（gaugeType 1）擊破後 `api_cleared` 變 1，
+  `api_defeat_count`／`api_required_defeat_count` 兩欄整個消失（6-5：5/6 → 無欄位）。
 - 剩餘次數：gaugeType 2 = `ceil(殘HP/boss旗艦HP)`（boss HP 實戰擷取；此為「最少場數」下界，
   假設每場都 S 沉 boss——`ceil(8400/1200)=7`＝使用者說的「最少 7 次」、`ceil(809/1200)=1`＝剩 1 次）；
   gaugeType 3（TP輸送）的量表欄位與剩餘場數尚未以真實封包驗證；目前 UI 不以
@@ -86,7 +90,7 @@ letter  A    E    I    Q    Y    Z   ZZ
 
 ## 斬殺偵測
 
-判定欄位已實測，只有「擊破當下緊接的 mapinfo」尚未以真封包觀測（只影響觸發延遲）。
+判定欄位與擊破後 mapinfo 的時序都已實測：回港不送 mapinfo，要再開海域選擇畫面才觸發（見本檔第一節）。
 `panel/main.ts detectClear()` 在 mapinfo 更新後比對量表，觀測到某海域「未擊破→擊破」
 （`api_cleared` 0→1／HP量表 `api_now_maphp` 歸 0／擊破數達標，欄位皆已實測）就把該圖最近一場
 boss 出擊標 `cleared`。只在「本次事件流曾看過該圖未擊破」時才判定轉變（避免面板啟動重播時把
