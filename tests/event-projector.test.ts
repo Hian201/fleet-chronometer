@@ -778,10 +778,15 @@ describe('EO 擊破前後的真封包', () => {
         expect(pick(after)).not.toHaveProperty('api_required_defeat_count');
     });
 
-    it('擊破場的 battleresult 帶 api_first_clear=1 與 6-5 的 EO 戰果值', () => {
+    it('battleresult 的 api_first_clear／api_get_exmap_rate：未擊破場為 0，擊破場為 1 與 "250"', () => {
         const result = fixture<{ api_data: any }>('6-5-battleresult-clear.json').api_data;
         expect(result.api_first_clear).toBe(1);
         expect(result.api_get_exmap_rate).toBe('250');
+        const earlier = fixture<{ api_data: any }>('6-5-battleresult-before-clear.json').api_data;
+        expect(earlier.api_member_exp).toBeLessThan(result.api_member_exp);
+        expect(earlier.api_first_clear).toBe(0);
+        expect(earlier.api_get_exmap_rate).toBe(0);
+        expect(earlier.api_get_exmap_useitem_id).toBe(0);
     });
 
     it('前後兩筆 mapinfo 依序投影時，把 6-5 最近一場 Boss 戰標為擊破', async () => {

@@ -154,7 +154,7 @@ EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 
 1. `db.sorties` 中 `cleared === true`（排除 `catchOnly`）的資料列：由 `EventProjector.markLatestBossCleared()` 在同一會話觀測到海域由未擊破轉為已擊破時標記。
 2. `db.snapshot` 中當月有效時間窗內的 `api_get_member/mapinfo` 快照：擷取上表 EO 海域中 `api_cleared === 1` 的項目，補齊開面板前已擊破、事件已裁剪、跨裝置與 1-6（無 Boss 戰）等無法從 `db.sorties` 取得擊破列的月份進度。
 
-擊破那一場的 battleresult 帶 `api_get_exmap_rate:"250"`（字串，與 6-5 的固定戰果相同；`samples/6-5-battleresult-clear.json`），但目前只有這一筆擊破場樣本，未擊破場的值也沒看過，所以不拿它判定擊破，仍以上面兩個來源為準。
+battleresult 的 `api_get_exmap_rate` 在擊破那一場是字串 `"250"`（與 6-5 的固定戰果相同），未擊破的 Boss 戰是數字 `0`（`samples/6-5-battleresult-{clear,before-clear}.json`）。目前只有 6-5 一對樣本，其他 EO 海域沒看過，所以不拿它判定擊破，仍以上面兩個來源為準。
 
 ### 第二期：排行榜解碼
 

@@ -19,8 +19,9 @@
   `samples/61-5-jibun-rengou-node52.json` eventmap＝`{now_maphp:809, cleared:0}`→False；
   已通關端 `samples/61-4.json` eventmap＝`{now_maphp:0, cleared:1, gauge_num:4}`→True。
   **另定案 `api_first_clear` 不可當斬殺旗標**：它在「未通關」時存在(=1)、「已通關」後反而消失
-  （61-5 有、61-4 無），語意與「剛通關」相反；擊破那一場的 battleresult 也帶 `api_first_clear:1`
-  （`samples/6-5-battleresult-clear.json`），因為開戰時仍未通關。
+  （61-5 有、61-4 無），語意與「剛通關」相反。這條只針對 `api_eventmap` 物件；battleresult 頂層的
+  同名欄位是另一回事：6-5 未擊破時的 Boss 戰為 `0`、擊破那一場為 `1`
+  （`samples/6-5-battleresult-{before-clear,clear}.json`），目前只有這一對樣本，尚未拿來判定擊破。
 - **擊破後的 mapinfo 時序（已實測，`samples/6-5-mapinfo-{before,after}-clear.json`）**：打倒 Boss
   回港只送 `api_port/port`，不送 mapinfo；要等玩家再進出擊、開海域選擇畫面，遊戲才送出反映擊破的
   mapinfo。所以 detectClear 在「下次開海域選擇」才觸發；被標記的仍是該圖最近一場 Boss 戰，時刻取
