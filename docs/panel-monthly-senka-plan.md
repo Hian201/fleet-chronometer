@@ -239,6 +239,7 @@ battleresult 的 `api_get_exmap_rate` 在擊破那一場是字串 `"250"`（與 
 **順序 7（第二期）**
 
 - 英文名次：`senka.rankN`、`ov.skCutoffCell`、`ov.skCutoffName` 的英文 `{rank}`／`{n}` 沒有序數，呼叫端一律傳 `formatSenkaRank(rank, lang)`（`utils/senka-view.ts`，英文會加 st／nd／rd／th，繁中與日文回傳純數字）。
+- 小數區間與取整顯示：`calibrateMonthlySenka()`（`utils/senka-calibration.ts`）回傳的繼承分、統計後新增與推算總額皆為小數區間，`±1` 容差僅用於一致判定與夾限，不會自動放寬區間；接介面時由呼叫端決定取整方式，並一併定案第 1 點那種近似／誤差情境的顯示寫法。
 
 ### 分派規格要寫什麼
 

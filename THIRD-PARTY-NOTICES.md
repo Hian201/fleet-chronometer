@@ -694,7 +694,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 - **用途**：`utils/senka-ranking.ts` 的 `decodeRankingPage()` 將 `api_req_ranking/mxltvkpyuklh` 回應中的混淆戰果欄位 `api_wuhnhojjxmke` 還原為實際戰果分數。
 - **性質**：演算法依 clean-room 獨立以 TypeScript 重寫，未複製第三方程式碼。
-- **參照來源**：poi 外掛 `poi-plugin-senka-calc` 的 `lib/magic.js` —— https://github.com/poooi/plugin-senka-calc （MIT License，全文見文末）。
+- **參照來源**：poi 外掛 `poi-plugin-senka-calc` 的 `lib/magic.js` —— https://github.com/poooi/plugin-senka-calc ，MIT License，Copyright (c) 2015 Rui（授權全文見文末）。
 - **本專案樣本**：`samples/ranking-page-1.json`、`samples/ranking-page-51.json`、`samples/ranking-page-147.json`（三頁共 30 列，經檢驗與遊戲畫面截圖逐列一致，玩家係數皆為 44）。
 - **限制**：`api_itslcqtmrxtf`、`api_pbgkfylkbjuy`、`api_pcumlrymlujh` 語意未證實、不使用；無法整除、全頁同分退化或負數結果一律回傳 `null` 不記錄。
 
