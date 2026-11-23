@@ -22,9 +22,9 @@ raw events 存在時，僅採用 `eventId` 嚴格小於第一筆 retained raw ev
 baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，避免較新的 snapshot
 污染較舊事件的 state context。
 
-**現行備份契約（`BACKUP_SCHEMA_VERSION = 14`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
+**現行備份契約（`BACKUP_SCHEMA_VERSION = 15`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
 `expeditions`、`factory`、`wanted`、`shipObtained`、`eventPlans`、`resources`、`resourceMarks`、
-`questObserved`、`questSeen`、`goals`、`materialUse`、`sortieBills` 與 `replays`。不含 raw `events`、`notified`、projection metadata，也不含
+`questObserved`、`questSeen`、`goals`、`materialUse`、`sortieBills`、`senkaRankings`、`senkaMonths` 與 `replays`。不含 raw `events`、`notified`、projection metadata，也不含
 語言／主題／各分區篩選等顯示偏好。
 
 - 選填欄位 `questFlow`：任務導覽的釘選與人工完成（`api_no` 名單），還原後覆寫本機這兩項；舊檔
@@ -49,6 +49,15 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
   缺席維持缺席，不補預設值。下限：`flagshipDamage`、`gaugeAtStart.type`、`gaugeAtStart.now`、
   `landing.now`、`landing.sub` 皆允許 `0`；`gaugeAtStart.max`、`gaugeAtStart.gaugeNum`、`exmapRate`、
   `landing.max` 下限 `1`；`firstClear` 嚴格 `0 | 1`；`clearedBy` 嚴格 `'battle' | 'mapinfo'`。
+- `senkaRankings`（v15 起）：主鍵必須與內容一致（`self:${publishedAt}` 或 `cutoff:${publishedAt}:${rank}`），
+  `publishedAt` 必須精確對齊每日 03:00／15:00 JST 公布時刻；`self` 與 `mode: 'auto'` 必帶正安全整數
+  `eventId` 並納入 `highestReferencedEventId()`，`mode: 'manual'` 不得夾帶 `eventId`。
+- `senkaMonths`（v15 起）：純玩家手輸、不參照 `eventId`；主鍵 `month` 嚴格為 `YYYY-MM`，`finalTier`
+  嚴格為 `'top5' | 'top20' | 'top100' | 'top500' | 'out'`。
+- 選填欄位 `senkaTarget`（v15 起，戰果目標設定，存本機 localStorage，見 `utils/senka-prefs.ts`）：
+  三態：`undefined`＝舊檔缺席、還原時不動本機設定；`null`＝明確不設目標、還原時清除本機目標；
+  物件＝`{ type: 'rank', rank: 5 | 20 | 100 | 500 }` 或 `{ type: 'custom', score }`（非負安全整數）。
+  v14 以前的檔案夾帶即拒絕；還原在 IndexedDB 提交後套用；只有這項設定、資料表全空時仍視為空備份。
 - 出擊紀錄的 optional 欄位（`SortieLogRow.getExp`／`mvp`／`mvpEscort`／`enemyName`、
   `ReplayRow.fleet3`／`fleet4`／`lbas`）缺席即維持缺席，舊備份不會被拒，也不補預設值。
   `SortieLogRow.useItemDrops` 的三態都要原樣往返：缺席維持缺席，`[]` 不得被丟掉或當成缺席，
@@ -74,6 +83,7 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 | v12 | full | 表組合同 v11；`goals` 新增備蓄目標（`kind: 'stockpile'`）。升版讓舊版擴充明確回報「不支援較新的備份版本」 |
 | v13 | full | 表組合同 v11；`resources` 新增選填 `exp`（`api_port/port` 提督累計經驗值）。升版讓舊版擴充明確拒絕，而不是默默丟掉 `exp` |
 | v14 | full | 表組合同 v11；`sorties` 新增戰鬥當下量表與斬殺原始事實欄位（`flagshipSunk`、`flagshipDamage`、`gaugeAtStart`、`exmapRate`、`firstClear`、`landing`、`clearedBy`）。升版讓舊版擴充明確拒絕，避免重建列時默默遺失欄位 |
+| v15 | full | 新增 `senkaRankings`、`senkaMonths` 與選填 `senkaTarget`（三態：`undefined`／`null`／目標物件） |
 
 v1 與 v6 以後可單檔匯入；v2–v5 的拆檔可同次選取，或分兩次選取後由介面在記憶體暫存湊成一對，
 再正規化成現行完整版本以一個 transaction 還原。

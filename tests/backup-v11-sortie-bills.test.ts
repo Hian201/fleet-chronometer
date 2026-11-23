@@ -256,7 +256,7 @@ describe('v16 → v17 升級', () => {
 
         const current = new KcDb(name);
         await current.open();
-        expect(current.verno).toBe(17);
+        expect(current.verno).toBe(18);
         expect(await current.sortieBills.count()).toBe(0);
         expect(await current.materialUse.toArray()).toEqual([{ eventId: 11, ts: TS, kind: 'bucket', via: 'start' }]);
         expect(await current.goals.count()).toBe(1);

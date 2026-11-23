@@ -1,16 +1,26 @@
-// 從 db.resources、db.sorties、db.questObserved 與 db.snapshot 查詢指定作戰月計算戰果所需的資料。
+// 從 db.resources、db.sorties、db.questObserved、db.snapshot 與 db.senkaRankings
+// 查詢指定作戰月計算戰果所需的資料。
 
 import type { db } from './db';
 import {
     eoClearsFromMapinfoSnapshot, eoMonthWindow, questSenkaMonthWindow, senkaMonthWindow,
     type EoSortieInput, type ExpReading, type QuestClaimInput, type SenkaMonth,
 } from './senka';
+import type { CutoffObservation, SelfRankingObservation } from './senka-calibration';
+import type { SenkaRankingRow } from './senka-store';
 
 /** 指定作戰月計算已觀測戰果（普通＋EO＋任務）所需的查詢結果。 */
 export interface SenkaMonthData {
     readings: ExpReading[];
     sorties: EoSortieInput[];
     questClaims: QuestClaimInput[];
+}
+
+/** 指定作戰月的排行榜本人紀錄與榜線紀錄查詢結果。 */
+export interface SenkaMonthRankings {
+    selfRankings: SelfRankingObservation[];
+    cutoffs: CutoffObservation[];
+    rows: SenkaRankingRow[];
 }
 
 const hasValidExp = (exp: unknown): exp is number =>
@@ -80,4 +90,29 @@ export async function loadSenkaMonthData(
         sorties: [...clearedSorties, ...snapshotClears],
         questClaims,
     };
+}
+
+/**
+ * 查詢指定作戰月的所有排行榜本人紀錄與榜線紀錄。
+ * 作戰月 `[win.start, win.end)`（前月末 22:00 JST～當月末 22:00 JST）精確涵蓋該月
+ * 第一次公開榜（1 日 03:00 JST）至最後一次公開榜（月末 15:00 JST）。
+ */
+export async function loadSenkaRankingsForMonth(
+    table: typeof db.senkaRankings,
+    month: SenkaMonth,
+): Promise<SenkaMonthRankings> {
+    const win = senkaMonthWindow(month);
+    const rows = await table
+        .where('publishedAt')
+        .between(win.start, win.end, true, false)
+        .toArray();
+    rows.sort((a, b) => a.publishedAt - b.publishedAt || a.key.localeCompare(b.key));
+
+    const selfRankings: SelfRankingObservation[] = [];
+    const cutoffs: CutoffObservation[] = [];
+    for (const row of rows) {
+        if (row.kind === 'self') selfRankings.push(row);
+        else cutoffs.push(row);
+    }
+    return { selfRankings, cutoffs, rows };
 }

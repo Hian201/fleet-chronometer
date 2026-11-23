@@ -23,6 +23,7 @@ import { KcsapiResultError, parseKcsapiResponse, SENSITIVE_REQUEST_KEYS } from '
 import { captureResources } from '@/utils/resource-capture';
 import { captureQuestObserved } from '@/utils/quest-observed';
 import { captureQuestSeen } from '@/utils/quest-seen';
+import { captureSenkaRanking } from '@/utils/senka-store';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
 import { parseCaptureTiming, wallNow, type CaptureTiming } from '@/utils/capture-timing';
@@ -485,6 +486,7 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
   await captureResources(db, { id, ts, path, api });
   await captureQuestObserved(db, { id, ts, path, req });
   await captureQuestSeen(db, { id, ts, path, api });
+  await captureSenkaRanking(db, { id, ts, path, api });
   if (path === 'api_port/port') await captureShipObtained(db.shipObtained, id, ts, api);
   // 收到 kc:live 的頁面會立刻重讀上面這些表，所以寫完才廣播。
   // 面板未開啟時沒有 runtime receiver 是正常情況，維持既有的 best-effort broadcast。

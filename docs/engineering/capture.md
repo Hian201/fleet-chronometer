@@ -70,12 +70,16 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 | `resources`／`resourceMarks` | `eventId, ts`／`key, mapKey, ts` | background（`resource-capture.ts`） |
 | `questObserved`（v13）／`questSeen`（v14） | `eventId, questNo, ts`／`questNo, lastTs` | background |
 | `goals`（v15） | `key` | 情報總括「目標規劃」分區（使用者手輸） |
+| `senkaRankings`（v18） | `key, publishedAt` | background（自動解碼）＋ 情報總括「戰果」分區（手動登錄） |
+| `senkaMonths`（v18） | `month` | 情報總括「戰果」分區（玩家自填最終結果） |
 | `shipObtained`、`eventPlans`、`notified`、`meta` | 見 db.ts | 各功能 |
 
 版本升級不回填歷史 `captureId`、`postProcessState` 或 projection metadata，所以歷史 events 不是
 可恢復的 post-processing 工作；projection metadata 缺／未知／損壞時從 retained raw events 的 0
-重投影。v11 起的新表（`eventPlans`、`resources`、`resourceMarks`、`goals`、`materialUse`、`sortieBills`）都不回填；v13／v14 只從升級當下
-仍保留的 raw events 回填 `questObserved`／`questSeen`。
+重投影。v11 起的新表（`eventPlans`、`resources`、`resourceMarks`、`goals`、`materialUse`、`sortieBills`、`senkaRankings`、`senkaMonths`）都不回填；v13／v14 只從升級當下
+仍保留的 raw events 回填 `questObserved`／`questSeen`。v18 不回填 `senkaRankings` 的理由：校準只需
+當月任一榜次的本人紀錄，升版後翻一次排行榜即得；回填只能救回「已看過且 raw event 尚未被裁剪」的
+極少數榜次，收益小，卻須在升級交易內解碼封包並讀取母港暱稱。
 
 **Ingestion lifecycle**：新 event 先存 `pending`；同 captureId 只允許相同 path 與 timestamp，否則拒絕
 collision。取得 transactional claim 才轉 `processing` 並執行廣播、snapshot、通知、pruning 等副作用；
@@ -85,8 +89,10 @@ notification ID，snapshot 與 derived rows 冪等寫入。
 
 **Projection boundary**：`EventProjector` 是 `sorties`／`factory`／`replays`／`expeditions`／`materialUse`／`sortieBills` 的入口，
 保存 `dropMst`、replay difficulty 與 replay／sortie 關聯；新船判定結合 `dropMst` 與 `shipObtained`，
-不由名稱反推。資源序列與任務觀測不需要 GameState 上下文，而且價值在連續性（面板沒開的日子也要
-記），所以由 background 在 post-processing 落地，主鍵用來源 raw event id 以保持冪等。
+不由名稱反推。資源序列、任務觀測與排行榜紀錄（`senkaRankings`）不需要 GameState 上下文，而且價值在連續性（面板沒開的日子也要
+記），所以由 background 在 post-processing 落地。`senkaRankings` 同時接受 background 自動解碼與
+情報總括手動登錄兩個寫入者，兩邊的讀、比、寫與刪除一律包在 `db.transaction('rw', db.senkaRankings, ...)`
+內序列化，避免並發時較舊自動事件覆蓋較新的手動更正。
 
 **Cursor 與裁剪**：cursor 前的事件只重建 state context，cursor 後的事件才寫 derived rows；每筆投影
 成功才推進 cursor。raw event 只會在已投影且通過保護規則時裁剪；投影 metadata 無效時停止裁剪。

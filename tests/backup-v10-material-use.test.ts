@@ -113,7 +113,7 @@ describe('v15 → v16 升級', () => {
 
         const current = new KcDb(name);
         await current.open();
-        expect(current.verno).toBe(17);
+        expect(current.verno).toBe(18);
         expect(await current.materialUse.count()).toBe(0);
         expect(await current.goals.count()).toBe(1);
         expect(await current.resources.count()).toBe(1);

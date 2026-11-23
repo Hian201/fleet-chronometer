@@ -8,6 +8,12 @@ import type {
 } from './db';
 import { borrowEventId } from './event-id-borrow';
 import { containsApiToken, isPlainObject } from './plain-object';
+import type { SenkaTarget } from './senka-calibration';
+import { isSenkaTargetRank, loadSenkaTarget, saveSenkaTarget } from './senka-prefs';
+import {
+    isAlignedRankingPublishedAt, isSenkaFinalTier, isSenkaMonthKey, senkaCutoffKey, senkaSelfKey,
+    type SenkaMonthRow, type SenkaRankingRow,
+} from './senka-store';
 import { STOCKPILE_GOAL_KEY, isStockpileDate } from './stockpile';
 import {
     applyQuestFlowBackupPrefs, hasQuestFlowBackupPrefs, readQuestFlowBackupPrefs,
@@ -54,7 +60,12 @@ import { loadExcludeCatch, loadExcludedMaps, normalizeExcludedMap, saveExcludeCa
 // gaugeAtStart、exmapRate、firstClear、landing、clearedBy）。表組合與 v11–v13 相同；
 // 升版是為了讓舊版擴充明確拒絕，而不是在 validateSortie() 逐欄重建時默默丟掉這批欄位。
 // v13 以前的檔案夾帶任一新欄位時拒絕；缺席的舊備份照常匯入。
-export const BACKUP_SCHEMA_VERSION = 14 as const;
+//
+// v15 在 full envelope 新增 senkaRankings（排行榜本人戰果與榜線紀錄）、senkaMonths（逐月對帳
+// 玩家自填最終結果），以及選填的 senkaTarget（戰果目標設定：undefined＝舊檔不動本機、null＝明確不設、
+// 物件＝群別或自訂分數）。排行榜歷史與玩家自填結果均無法從 snapshot 重建；v14 以前的檔案不含
+// 兩張新表亦不得夾帶 senkaTarget，照常匯入並維持空表、不動本機目標設定。
+export const BACKUP_SCHEMA_VERSION = 15 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -75,6 +86,8 @@ export interface BackupTables {
     goals?: GoalRow[];
     materialUse?: MaterialUseRow[];
     sortieBills?: SortieBillRow[];
+    senkaRankings?: SenkaRankingRow[];
+    senkaMonths?: SenkaMonthRow[];
 }
 
 export interface BackupEnvelope {
@@ -89,6 +102,8 @@ export interface BackupEnvelope {
     sortieExclude?: string[];
     // 不記錄的海域「仍統計道具掉落」開關。舊檔缺席＝還原時不碰本機設定。
     sortieExcludeCatch?: boolean;
+    // 戰果目標設定（v15 起）。undefined＝舊檔不動本機；null＝明確不設目標；物件＝群別或自訂分數。
+    senkaTarget?: SenkaTarget | null;
 }
 
 export interface ValidatedBackupEnvelope extends Omit<BackupEnvelope, 'kind'> {
@@ -140,9 +155,14 @@ const TABLE_NAMES_V10 = [
     ...TABLE_NAMES_V9,
     'materialUse',
 ] as const;
-const TABLE_NAMES = [
+const TABLE_NAMES_V11 = [
     ...TABLE_NAMES_V10,
     'sortieBills',
+] as const;
+const TABLE_NAMES = [
+    ...TABLE_NAMES_V11,
+    'senkaRankings',
+    'senkaMonths',
 ] as const;
 
 function invalid(message: string): never {
@@ -249,6 +269,23 @@ function validateSortieExclude(value: unknown): string[] | undefined {
     });
     if (new Set(maps).size !== maps.length) invalid('sortieExclude 不得重複。');
     return maps;
+}
+
+// 戰果目標（v15 起）：undefined＝舊檔缺席；null＝明確不設目標；物件＝標準群別（5/20/100/500）或自訂分數。
+function validateSenkaTarget(value: unknown, schemaVersion: number): SenkaTarget | null | undefined {
+    if (value === undefined) return undefined;
+    if (schemaVersion < 15) invalid('senkaTarget 只支援 schemaVersion 15 以上。');
+    if (value === null) return null;
+    const obj = objectAt(value, 'senkaTarget');
+    if (obj.type === 'rank') {
+        if (!isSenkaTargetRank(obj.rank)) invalid('senkaTarget.rank 必須是 5、20、100 或 500。');
+        return { type: 'rank', rank: obj.rank };
+    }
+    if (obj.type === 'custom') {
+        const score = integer(obj.score, 'senkaTarget.score', 0);
+        return { type: 'custom', score: score === 0 ? 0 : score };
+    }
+    invalid('senkaTarget.type 必須是 rank 或 custom。');
 }
 
 function optionalPositiveInteger(row: UnknownRecord, key: string, where: string): number | undefined {
@@ -887,6 +924,53 @@ function validateSortieBill(value: unknown, index: number): SortieBillRow {
     };
 }
 
+// 戰果排行榜紀錄（v15 起）：主鍵必須與內容一致（self:${publishedAt} 或 cutoff:${publishedAt}:${rank}），
+// publishedAt 必須對齊每日 03:00／15:00 JST 公布時刻；manual 列不得帶 eventId，auto／self 必帶正整數 eventId。
+function validateSenkaRanking(value: unknown, index: number): SenkaRankingRow {
+    const where = `tables.senkaRankings[${index}]`;
+    const row = objectAt(value, where);
+    const publishedAt = timestamp(row.publishedAt, `${where}.publishedAt`);
+    if (!isAlignedRankingPublishedAt(publishedAt)) {
+        invalid(`${where}.publishedAt 必須對齊榜單公布時刻（每日 03:00／15:00 JST）。`);
+    }
+    const ts = timestamp(row.ts, `${where}.ts`);
+    const rank = integer(row.rank, `${where}.rank`, 1);
+    const score = integer(row.score, `${where}.score`, 0);
+    if (row.kind === 'self') {
+        const expectedKey = senkaSelfKey(publishedAt);
+        if (row.key !== expectedKey) invalid(`${where}.key 必須是 ${expectedKey}。`);
+        const eventId = integer(row.eventId, `${where}.eventId`, 1);
+        return { key: expectedKey, kind: 'self', publishedAt, score, rank, ts, eventId };
+    }
+    if (row.kind === 'cutoff') {
+        const expectedKey = senkaCutoffKey(publishedAt, rank);
+        if (row.key !== expectedKey) invalid(`${where}.key 必須是 ${expectedKey}。`);
+        if (row.mode !== 'auto' && row.mode !== 'manual') invalid(`${where}.mode 必須是 auto 或 manual。`);
+        if (row.mode === 'auto') {
+            const eventId = integer(row.eventId, `${where}.eventId`, 1);
+            return { key: expectedKey, kind: 'cutoff', publishedAt, rank, score, mode: 'auto', ts, eventId };
+        }
+        if (row.eventId !== undefined) invalid(`${where}.eventId 在 manual 模式不得存在。`);
+        return { key: expectedKey, kind: 'cutoff', publishedAt, rank, score, mode: 'manual', ts };
+    }
+    invalid(`${where}.kind 必須是 self 或 cutoff。`);
+}
+
+// 逐月對帳玩家自填最終結果（v15 起）：純使用者輸入，不參照 event id。
+function validateSenkaMonth(value: unknown, index: number): SenkaMonthRow {
+    const where = `tables.senkaMonths[${index}]`;
+    const row = objectAt(value, where);
+    if (!isSenkaMonthKey(row.month)) invalid(`${where}.month 必須是 YYYY-MM 格式的作戰月。`);
+    if (!isSenkaFinalTier(row.finalTier)) {
+        invalid(`${where}.finalTier 必須是 top5、top20、top100、top500 或 out。`);
+    }
+    return {
+        month: row.month,
+        finalTier: row.finalTier,
+        updatedAt: timestamp(row.updatedAt, `${where}.updatedAt`),
+    };
+}
+
 function determineKind(schemaVersion: number, kind: unknown, tables: UnknownRecord): BackupKind {
     const names = Object.keys(tables);
     const expected = (allowed: readonly string[]) => names.every(name => allowed.includes(name));
@@ -906,7 +990,8 @@ function determineKind(schemaVersion: number, kind: unknown, tables: UnknownReco
     // 造成出擊詳情無從重建；若真的要縮小檔案，應由保留規則或壓縮處理，不能犧牲還原語意。
     if (schemaVersion >= 6) {
         if (kind !== 'full') invalid(`schemaVersion ${schemaVersion} 的 kind 必須是 full。`);
-        const required = schemaVersion >= 11 ? TABLE_NAMES
+        const required = schemaVersion >= 15 ? TABLE_NAMES
+            : schemaVersion >= 11 ? TABLE_NAMES_V11
             : schemaVersion === 10 ? TABLE_NAMES_V10
             : schemaVersion === 9 ? TABLE_NAMES_V9
             : schemaVersion === 8 ? TABLE_NAMES_V8
@@ -978,6 +1063,10 @@ function validateTables(value: unknown, schemaVersion: number): BackupTables {
         : unique((tables.materialUse as unknown[]).map(validateMaterialUse), row => row.eventId, 'tables.materialUse');
     const sortieBills = tables.sortieBills === undefined ? undefined
         : unique((tables.sortieBills as unknown[]).map(validateSortieBill), row => row.sortieKey, 'tables.sortieBills');
+    const senkaRankings = tables.senkaRankings === undefined ? undefined
+        : unique((tables.senkaRankings as unknown[]).map(validateSenkaRanking), row => row.key, 'tables.senkaRankings');
+    const senkaMonths = tables.senkaMonths === undefined ? undefined
+        : unique((tables.senkaMonths as unknown[]).map(validateSenkaMonth), row => row.month, 'tables.senkaMonths');
     return {
         ...(snapshot === undefined ? {} : { snapshot }),
         ...(sorties === undefined ? {} : { sorties }),
@@ -994,6 +1083,8 @@ function validateTables(value: unknown, schemaVersion: number): BackupTables {
         ...(goals === undefined ? {} : { goals }),
         ...(materialUse === undefined ? {} : { materialUse }),
         ...(sortieBills === undefined ? {} : { sortieBills }),
+        ...(senkaRankings === undefined ? {} : { senkaRankings }),
+        ...(senkaMonths === undefined ? {} : { senkaMonths }),
     };
 }
 
@@ -1061,6 +1152,7 @@ export function highestReferencedEventId(tables: BackupTables): number {
     });
     tables.materialUse?.forEach((row, index) => include(row.eventId, `tables.materialUse[${index}].eventId`));
     tables.sortieBills?.forEach((row, index) => include(row.sortieKey, `tables.sortieBills[${index}].sortieKey`));
+    tables.senkaRankings?.forEach((row, index) => include(row.eventId, `tables.senkaRankings[${index}].eventId`));
     return highest;
 }
 
@@ -1094,6 +1186,7 @@ export function validateBackupEnvelope(value: unknown): ValidatedBackupEnvelope 
         sortieExclude: validateSortieExclude(envelope.sortieExclude),
         sortieExcludeCatch: envelope.sortieExcludeCatch === undefined
             ? undefined : booleanValue(envelope.sortieExcludeCatch, 'sortieExcludeCatch'),
+        senkaTarget: validateSenkaTarget(envelope.senkaTarget, schemaVersion),
     };
     validatedEnvelopes.add(validated);
     return validated;
@@ -1116,25 +1209,29 @@ export function parseBackupJson(text: string): ValidatedBackupEnvelope {
 export async function buildFullEnvelope(
     database: Pick<KcDb, 'snapshot' | 'sorties' | 'expeditions' | 'factory' | 'replays' | 'wanted'
         | 'shipObtained' | 'eventPlans' | 'resources' | 'resourceMarks' | 'questObserved' | 'questSeen'
-        | 'goals' | 'materialUse' | 'sortieBills'>,
+        | 'goals' | 'materialUse' | 'sortieBills' | 'senkaRankings' | 'senkaMonths'>,
 ): Promise<BackupEnvelope> {
     const [snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-        resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills, replays] = await Promise.all([
+        resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills,
+        senkaRankings, senkaMonths, replays] = await Promise.all([
         database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
         database.factory.toArray(), database.wanted.toArray(), database.shipObtained.toArray(),
         database.eventPlans.toArray(), database.resources.toArray(), database.resourceMarks.toArray(),
         database.questObserved.toArray(), database.questSeen.toArray(), database.goals.toArray(),
-        database.materialUse.toArray(), database.sortieBills.toArray(), database.replays.toArray(),
+        database.materialUse.toArray(), database.sortieBills.toArray(),
+        database.senkaRankings.toArray(), database.senkaMonths.toArray(), database.replays.toArray(),
     ]);
     return {
         schemaVersion: BACKUP_SCHEMA_VERSION, kind: 'full', exportedAt: Date.now(),
         tables: {
             snapshot, sorties, expeditions, factory, wanted, shipObtained, eventPlans,
-            resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills, replays,
+            resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills,
+            senkaRankings, senkaMonths, replays,
         },
         questFlow: readQuestFlowBackupPrefs(),
         sortieExclude: loadExcludedMaps(),
         sortieExcludeCatch: loadExcludeCatch(),
+        senkaTarget: loadSenkaTarget(),
     };
 }
 
@@ -1177,6 +1274,8 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         goals: restore.tables.goals ?? [],
         materialUse: restore.tables.materialUse ?? [],
         sortieBills: restore.tables.sortieBills ?? [],
+        senkaRankings: restore.tables.senkaRankings ?? [],
+        senkaMonths: restore.tables.senkaMonths ?? [],
         replays: replays.tables.replays ?? [],
     };
     return {
@@ -1187,6 +1286,7 @@ export function combineBackupEnvelopes(inputs: readonly unknown[]): ValidatedBac
         questFlow: restore.questFlow,
         sortieExclude: restore.sortieExclude,
         sortieExcludeCatch: restore.sortieExcludeCatch,
+        senkaTarget: restore.senkaTarget,
     };
 }
 
@@ -1239,7 +1339,9 @@ function hasRestoreRows(tables: BackupTables): boolean {
         || tables.questSeen?.length
         || tables.goals?.length
         || tables.materialUse?.length
-        || tables.sortieBills?.length,
+        || tables.sortieBills?.length
+        || tables.senkaRankings?.length
+        || tables.senkaMonths?.length,
     );
 }
 
@@ -1297,10 +1399,13 @@ function existingTables(
     goals: GoalRow[],
     materialUse: MaterialUseRow[],
     sortieBills: SortieBillRow[],
+    senkaRankings: SenkaRankingRow[],
+    senkaMonths: SenkaMonthRow[],
 ): BackupTables {
     return {
         snapshot, sorties, expeditions, factory, replays, wanted, shipObtained, eventPlans,
         resources, resourceMarks, questObserved, questSeen, goals, materialUse, sortieBills,
+        senkaRankings, senkaMonths,
     };
 }
 
@@ -1319,6 +1424,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         database.replays, database.wanted, database.shipObtained, database.eventPlans,
         database.resources, database.resourceMarks, database.questObserved, database.questSeen,
         database.goals, database.materialUse, database.sortieBills,
+        database.senkaRankings, database.senkaMonths,
     ], async () => {
         const [
             eventCount, notifiedCount, metaRows,
@@ -1326,6 +1432,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
             currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen,
             currentGoals, currentMaterialUse, currentSortieBills,
+            currentSenkaRankings, currentSenkaMonths,
         ] = await Promise.all([
             database.events.count(), database.notified.count(), database.meta.toArray(),
             database.snapshot.toArray(), database.sorties.toArray(), database.expeditions.toArray(),
@@ -1334,6 +1441,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             database.resources.toArray(), database.resourceMarks.toArray(),
             database.questObserved.toArray(), database.questSeen.toArray(), database.goals.toArray(),
             database.materialUse.toArray(), database.sortieBills.toArray(),
+            database.senkaRankings.toArray(), database.senkaMonths.toArray(),
         ]);
 
         if (eventCount > 0) destinationInvalid('還原環境已有 raw events。');
@@ -1344,7 +1452,7 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
             currentSnapshot, currentSorties, currentExpeditions, currentFactory,
             currentReplays, currentWanted, currentShipObtained, currentEventPlans,
             currentResources, currentResourceMarks, currentQuestObserved, currentQuestSeen, currentGoals,
-            currentMaterialUse, currentSortieBills,
+            currentMaterialUse, currentSortieBills, currentSenkaRankings, currentSenkaMonths,
         );
         const restoreRowsExist = hasRestoreRows(currentTables);
         const replayRowsExist = hasReplayRows(currentTables);
@@ -1407,6 +1515,8 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         if (tables.goals?.length) await database.goals.bulkPut(tables.goals);
         if (tables.materialUse?.length) await database.materialUse.bulkPut(tables.materialUse);
         if (tables.sortieBills?.length) await database.sortieBills.bulkPut(tables.sortieBills);
+        if (tables.senkaRankings?.length) await database.senkaRankings.bulkPut(tables.senkaRankings);
+        if (tables.senkaMonths?.length) await database.senkaMonths.bulkPut(tables.senkaMonths);
         if (tables.wanted?.length) {
             await database.wanted.bulkAdd(tables.wanted.map(({ id: _id, ...row }) => row));
         }
@@ -1428,10 +1538,11 @@ export async function restoreBackup(database: KcDb, input: unknown): Promise<voi
         });
     });
 
-    // IndexedDB 已提交後才寫 localStorage。舊檔沒有 questFlow／sortieExclude 不得清空本機設定；
+    // IndexedDB 已提交後才寫 localStorage。舊檔沒有 questFlow／sortieExclude／senkaTarget 不得清空本機設定；
     // 只含 replays 的 complementary 匯入也不該覆寫這些偏好。
     const carriesPrefs = envelope.kind === 'full' || envelope.kind === 'legacy-full' || envelope.kind === 'restore';
     if (carriesPrefs && envelope.questFlow !== undefined) applyQuestFlowBackupPrefs(envelope.questFlow);
     if (carriesPrefs && envelope.sortieExclude !== undefined) saveExcludedMaps(envelope.sortieExclude);
     if (carriesPrefs && envelope.sortieExcludeCatch !== undefined) saveExcludeCatch(envelope.sortieExcludeCatch);
+    if (carriesPrefs && envelope.senkaTarget !== undefined) saveSenkaTarget(envelope.senkaTarget);
 }

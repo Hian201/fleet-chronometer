@@ -38,7 +38,7 @@ const v7Full = (extra?: Record<string, unknown[]>) => ({
 });
 
 describe('版本協商', () => {
-    it('目前版本為 14', () => expect(BACKUP_SCHEMA_VERSION).toBe(14));
+    it('目前版本為 15', () => expect(BACKUP_SCHEMA_VERSION).toBe(15));
 
     it('v7 full 必須含 questObserved', () => {
         const tables = emptyTables();

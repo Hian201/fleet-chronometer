@@ -4,6 +4,7 @@ import type { ClearSource, GaugeAtStart, LandingHp } from './gauge-clear';
 import type { SortieBill } from './sortie-bill';
 import type { RemodelGoalRow } from './remodel-goals';
 import type { StockpileGoalRow } from './stockpile';
+import type { SenkaMonthRow, SenkaRankingRow } from './senka-store';
 import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 
 // 事件日誌一筆 = provider 合約的載體。所有封包來源（目前 MAIN world interceptor；
@@ -528,6 +529,8 @@ export class KcDb extends Dexie {
     goals!: Table<GoalRow, string>;
     materialUse!: Table<MaterialUseRow, number>;
     sortieBills!: Table<SortieBillRow, number>;
+    senkaRankings!: Table<SenkaRankingRow, string>;
+    senkaMonths!: Table<SenkaMonthRow, string>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -763,6 +766,31 @@ export class KcDb extends Dexie {
             goals: 'key',
             materialUse: 'eventId, ts, kind',
             sortieBills: 'sortieKey, ts, map',
+            meta: 'key',
+        });
+        // v18：戰果排行榜觀測／榜線紀錄（senkaRankings）與逐月最終結果（senkaMonths，定義見 utils/senka-store.ts）。
+        // 純新增表，不回填既有 raw events：校準只需當月任一榜次的本人紀錄，升版後翻一次榜即得；
+        // 回填僅能救回已看過且尚未被裁剪的極少數榜次，收益小，卻須在升級交易內解碼封包並讀取母港暱稱。
+        this.version(18).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            questSeen: 'questNo, lastTs',
+            goals: 'key',
+            materialUse: 'eventId, ts, kind',
+            sortieBills: 'sortieKey, ts, map',
+            senkaRankings: 'key, publishedAt',
+            senkaMonths: 'month',
             meta: 'key',
         });
     }

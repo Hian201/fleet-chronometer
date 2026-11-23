@@ -91,8 +91,8 @@ const full = (schemaVersion: number, sorties: unknown[] = ROWS) => ({
 });
 
 describe('v14 版本協商與欄位驗證', () => {
-    it('目前版本為 14，v14 接受含與不含新欄位的 sorties 列並原樣保留', () => {
-        expect(BACKUP_SCHEMA_VERSION).toBe(14);
+    it('目前版本不低於 14，v14 接受含與不含新欄位的 sorties 列並原樣保留', () => {
+        expect(BACKUP_SCHEMA_VERSION).toBeGreaterThanOrEqual(14);
         const validated = validateBackupEnvelope(full(14)).tables.sorties!;
         expect(validated).toEqual(ROWS);
         for (const key of ['flagshipSunk', 'flagshipDamage', 'gaugeAtStart', 'exmapRate', 'firstClear', 'landing', 'clearedBy']) {
@@ -143,7 +143,7 @@ describe('v14 匯出與還原往返', () => {
     it('缺席、flagshipDamage: 0、landing 與 gaugeAtStart（有無 gaugeNum）皆原樣往返', async () => {
         await database.sorties.bulkPut(ROWS);
         const envelope = await buildFullEnvelope(database);
-        expect(envelope.schemaVersion).toBe(14);
+        expect(envelope.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
 
         const fresh = new KcDb(`backup-v14-gauge-clear-fresh-${dbIndex++}`);
         await fresh.open();
