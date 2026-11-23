@@ -125,7 +125,7 @@ npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts
 |---|---|---|---|
 | **1a 普通戰果** | `api_port/port` 的 `api_data.api_basic.api_experience`（`samples/slot_to_port.json` 有此欄位） | 普通戰果、今日新增、月底截止倒數。頁首與托盤都標「普通戰果」，托盤註明「EO、任務與繼承分未計入」。 | 有公式、有樣本，可以先做 |
 | **1b 任務戰果** | 既有的 `questObserved`（`clearitemget` 請求的 `api_quest_id`、`ts`）＋任務目錄的戰果值 | 任務戰果、待領任務的規劃項目 | 戰果值是公開的固定值，不需要新樣本。目錄的戰果數值目前只寫在 `otherJa` 文字中，要先解析成結構化欄位並以測試鎖住 |
-| **1b EO 戰果** | 既有的量表擊破判斷（`EventProjector.isGaugeBroken()`：`api_cleared`、擊破數達標；`samples/6-5-mapinfo.json` 有 EO 海域的擊破數樣本）＋海域固定戰果表 | EO 戰果、未擊破海域與可得戰果 | 可以做。擊破前要先看過該海域未擊破的狀態；月末 22:00～23:59 擊破的不計入 |
+| **1b EO 戰果** | 既有的 `db.sorties.cleared` 轉變偵測＋當月 `db.snapshot` 的 `api_get_member/mapinfo`（`api_cleared === 1`；`samples/6-5-mapinfo.json` 有樣本）＋海域固定戰果表 | EO 戰果、未擊破海域與可得戰果 | 可以做。合併同月 `sorties` 與 `mapinfo` 快照（涵蓋先前已擊破、跨裝置與 1-6 無 Boss 戰）；月末 22:00～23:59 擊破的不計入 |
 | **2 榜單校準與總括紀錄** | 排行榜封包；情報總括的目標群別、榜線紀錄與逐月對帳 | 本月戰果推算、當次榜差、距該榜線；首月補上繼承分 | 可以做。解碼已以 `samples/ranking-page-*.json` 三頁真實樣本驗證（見下節）。被動觀察不主動查榜：玩家翻到哪一頁，就記下哪一頁；沒看過的名次由玩家手動登錄 |
 
 1a、1b 只有部分組成時，總額不稱「本月戰果」。等四項組成都有依據（或取得榜分校準）時，才顯示「本月戰果推算」。
@@ -149,7 +149,12 @@ npx vite-node --config vitest.config.ts tools/preview/panel-sortie.ts
 
 ### 1b：EO 戰果
 
-EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 +150、7-5 +170、4-5 +180、5-5 +200、5-6 +225、6-5 +250（[wikiwiki「称号・戦果」](https://wikiwiki.jp/kancolle/称号・戦果)）。擊破的判定沿用專案既有的量表判斷：先看到某海域未擊破，之後看到已擊破，`EventProjector.markLatestBossCleared()` 就會在 `db.sorties` 該次 Boss 戰的資料列標上 `cleared: true`。所以本月 EO 戰果＝`db.sorties` 中 `cleared` 為真、海域在上表內、時刻落在當月 1 日 00:00～月末 21:59（日本時間）的資料列，查表加總即可，不需要新增資料表。戰鬥結果裡的 EO 戰果欄位沒有樣本，不使用。
+EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 +150、7-5 +170、4-5 +180、5-5 +200、5-6 +225、6-5 +250（[wikiwiki「称号・戦果」](https://wikiwiki.jp/kancolle/称号・戦果)）。擊破來源同時合併兩處，依海域去重後查表加總（時刻皆須落在當月 1 日 00:00～月末 21:59 日本時間），不需要新增資料表：
+
+1. `db.sorties` 中 `cleared === true`（排除 `catchOnly`）的資料列：由 `EventProjector.markLatestBossCleared()` 在同一會話觀測到海域由未擊破轉為已擊破時標記。
+2. `db.snapshot` 中當月有效時間窗內的 `api_get_member/mapinfo` 快照：擷取上表 EO 海域中 `api_cleared === 1` 的項目，補齊開面板前已擊破、事件已裁剪、跨裝置與 1-6（無 Boss 戰）等無法從 `db.sorties` 取得擊破列的月份進度。
+
+戰鬥結果裡的 EO 戰果欄位沒有樣本，不使用。
 
 ### 第二期：排行榜解碼
 
@@ -196,9 +201,9 @@ EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 
 | **1a-4**<br>✅ e356c9a | 三語文案寫進 `utils/ui-i18n.ts`（沿用預覽產生器 `copy` 的字串） | 派 | 預覽產生器的 `copy`／`overviewCopy` | 三語鍵齊全；沒有資料來源字樣（設計規範 §2.5） |
 | **1a-5**<br>✅ f4e2da6 | 情報總括「戰果」分區（1a 內容）、在 `sections/index.ts` 排在資源紀錄之後、偏好寫入 `utils/ui-prefs.ts` 並經 storage 事件同步 | 派 | 「情報總括的戰果分區」、總括預覽 | 先畫外殼再讀資料庫（設計規範 §4.2.1）；面板只讀不寫偏好 |
 | **1a-6**<br>✅ f4e2da6 | 離線預覽改用正式函式與正式 markup，`tests/panel-monthly-senka-preview.test.ts` 跟著改 | 派 | 現有 `tools/preview/panel-monthly-senka.ts` | 重新產生預覽，在瀏覽器看三語、深淺色 |
-| **1b-1** | 任務目錄的戰果值：產生器把 `otherJa` 的「戦果+N」轉成結構化欄位（選擇報酬另標），附抽樣測試 | 派 | 「1b：任務戰果」 | 抽樣：854 +350、949 選擇報酬 +800、284 +80；產生物不手改 |
-| **1b-2** | 純函式：任務戰果（`questObserved`＋目錄＋期間限定任務的有效期間，949 算區間）與 EO 戰果（`db.sorties` 的 `cleared`＋固定表＋時間窗） | 派 | 「1b：任務戰果」「1b：EO 戰果」 | 月末 14:00～22:00 先領任務再打 EO 的案例；22:00～23:59 擊破不計入 |
-| **1b-3** | 面板托盤與總括分區加入 EO 與任務（依預覽的 1b 階段） | 派 | 總括預覽「1b」、面板預覽 | 三語版面；未收錄任務的註記 |
+| **1b-1**<br>✅ d82d36d | 任務目錄的戰果值：將 `otherJa` 的「戦果+N」解析為結構化查詢（選擇報酬另標），附抽樣與全量測試 | 派 | 「1b：任務戰果」 | 抽樣：854 +350、949 選擇報酬 +800、284 +80；單一來源不重複維護 |
+| **1b-2**<br>✅ d82d36d | 純函式：任務戰果（`questObserved`＋目錄＋期間限定任務的有效期間，949 算區間）與 EO 戰果（合併 `db.sorties` 與當月 `mapinfo` 快照＋固定表＋時間窗） | 派 | 「1b：任務戰果」「1b：EO 戰果」 | 月末 14:00～22:00 先領任務再打 EO 的案例；22:00～23:59 擊破不計入 |
+| **1b-3**<br>✅ d82d36d | 面板托盤與總括分區加入 EO 與任務（依預覽的 1b 階段） | 派 | 總括預覽「1b」、面板預覽 | 三語版面；未收錄任務的註記 |
 | **2-1** | 純函式：排行榜解碼，以 `samples/ranking-page-*.json` 測試 30 列預期值；`THIRD-PARTY-NOTICES.md` 登錄 poi 外掛 | 派 | 「第二期：排行榜解碼」、`samples/README.md` | 無法整除時回 `null`，不記錄；clean-room 重寫，沒有複製程式碼 |
 | **2-2** | 資料：排行榜紀錄（本人戰果、看過頁面的榜線、手動登錄）與逐月最終結果的持久化；DB 升版與備份 | 主（最強模型、高 effort，先進 plan mode） | 「第二期」各節 | 動 DB 與備份格式，先向開發者說明相容做法 |
 | **2-3** | 純函式：校準基線（繼承分）與目標差額 | 派 | 「校準基線」 | ±1 容差；有特別戰果空窗時標為推算 |
@@ -213,7 +218,7 @@ EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 
 | 1 ✅ | Opus 5.5 中 | 1a-1（派）、1a-4（派），兩個可以同時派出。2026-11-22 驗收完成（e356c9a） | 這份提案與預覽已 commit | 純函式、測試與三語文案可 commit（依 wikiwiki 規則、測試與 build 全過） | 不需要：沒有接介面，測試即可驗證 |
 | 2 ✅ | Opus 5.5 **高** | 1a-2（主）。2026-11-22 驗收完成（644e8fc） | 1 已 commit；動手前向開發者說明備份相容做法並取得同意 | `npm run check` 通過後 commit | 建議一次（不擋順序 3）：見下方「順序 2 的實機檢查」 |
 | 3 ✅ | Opus 5.5 中 | 1a-3（主）、1a-5（派）、1a-6（派）。1a-6 等 1a-3、1a-5 的正式 markup 完成後再派；2026-11-22 開發者 live 檢查通過（f4e2da6） | 2 已 commit | 給開發者看預覽並提供 live 手動檢查步驟；確認後 commit。1a 上線 | **需要**：預覽三語與深淺色、live 頁首與托盤、出擊自動收起 |
-| 4 | Opus 5.5 中 | 1b-1（派）→ 1b-2（派）→ 1b-3（派），依序；1b-3 另處理下方「後續接線時要處理的項目」 | 3 已 commit | 預覽經開發者確認後 commit。1b 上線 | **需要**：預覽確認；live 各遇到一次 EO 擊破與任務戰果領取 |
+| 4 ✅ | Opus 5.5 中 | 1b-1（派）→ 1b-2（派）→ 1b-3（派），依序；1b-3 另處理下方「後續接線時要處理的項目」。2026-11-23 開發者實機檢查通過（d82d36d） | 3 已 commit | 預覽經開發者確認後 commit。1b 上線 | **需要**：預覽確認；live 各遇到一次 EO 擊破與任務戰果領取 |
 | 5 | Opus 5.5 中 | 2-1（派）、2-3（派），兩個可以同時派出 | 4 已 commit | 純函式與測試可 commit；`THIRD-PARTY-NOTICES.md` 已登錄 | 不需要：以 `samples/ranking-page-*.json` 測試驗證 |
 | 6 | **Fable 5.2 高**，先進 plan mode（不能用時改 Opus 5.5 高＋plan mode） | 2-2（主） | 5 已 commit；資料表設計先給開發者看並取得同意 | 遷移與備份往返測試通過後 commit | 建議一次：以真實備份在新版還原，並在遊戲翻一次排行榜，確認有記下 |
 | 7 | Opus 5.5 中 | 2-4（派）；面板托盤的榜線區接線（主）；另處理下方「後續接線時要處理的項目」 | 6 已 commit | 預覽經開發者確認、live 手動檢查後 commit。第二期上線 | **需要**：預覽確認、live 手動檢查 |
@@ -230,13 +235,6 @@ EO 擊破的戰果是各海域的固定值：1-5 +75、1-6 +75、2-5 +100、3-5 
 4. 在遊戲開「資材」畫面：`api_get_member/material` 產生的那一列沒有 `exp`。
 
 ### 後續接線時要處理的項目
-
-**順序 4（1b-3）**
-
-- 任務截止行：`senkaDeadlineLines()`（`utils/senka-view.ts`）預設只回「普通戰果・EO 截止」一行，因為 1a 沒有計入任務戰果。計入任務戰果後，面板托盤（`entrypoints/panel/senka-tray.ts` 的 `senkaTrayInnerHtml()`）與總括分區（`entrypoints/overview/sections/senka.ts` 的 `renderSenkaSectionBodyHtml()`）都要改傳 `{ includeQuest: true }`，月底最後一天才會出現任務截止或已截止的提示。
-- 未收錄註記：托盤加回 `senka.unlisted`（「未收錄的任務戰果不計入」），見「1b：任務戰果」。
-- 頁首標籤：`senkaHeaderButtonHtml()` 目前固定用 `senka.shortRegular`（「普通戰果」）。加入 EO 與任務後，依「頁首與偏好」改用 `senka.short`；繼承分仍未計入，所以托盤與總括的總額照樣不稱「本月戰果推算」，總括用 `ov.skObserved`（「已觀測戰果」）並註明 `ov.skExclCarry`。
-- 總括說明：分區頂端的 `ov.skNoteRegular` 換成 `ov.skNoteObserved`。
 
 **順序 7（第二期）**
 

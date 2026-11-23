@@ -16,9 +16,10 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - The plan page now starts with **Send these now**: the expeditions for your 2nd–4th fleets, the current phase, and the condition for moving to the next one (for example, when steel reaches 166K). Below it, **Overall plan** lists every phase by fleet, with changes from the previous phase in bold.
 - The plan remembers its route: after you reach a phase's target, reopening the page continues with the next phase. It only reroutes when a new route is clearly better, or when you change the settings. It also prefers to keep the expeditions your fleets are already running.
 
-**Monthly ranking points (regular points)**
-- HQ Overview has a new **Ranking points** section showing this month's regular points, today's gain, and a countdown to the next ranking update (on the last day of the month, to the 22:00 JST close). Regular points are converted from your HQ experience each time you return to port; EO, quest and carry-over points are not counted yet.
-- Tick **Show monthly points in panel header** in that section to replace the admiral name in the panel header with your regular points. Clicking the number opens the details in place of the info area, so your fleet and heavy-damage warnings stay visible; it closes by itself when a sortie starts, at each node and at each battle.
+**Monthly ranking points (regular, EO and quests)**
+- HQ Overview has a new **Ranking points** section showing your observed points this month (regular points from HQ experience, cleared EO maps, and quest rewards recorded in the quest catalog), today's gain, and a countdown to the next ranking update (on the last day of the month, separate close countdowns for regular/EO points at 22:00 JST and quest points at 14:00 JST). Carry-over points are not counted yet, and quests with choice rewards (such as B170) show a range.
+- The section also lists all 9 EO maps with their cleared status for the month and the quest points counted so far.
+- Tick **Show monthly points in panel header** in that section to replace the admiral name in the panel header with your short **Pts** total. Clicking the number opens the details in place of the info area, so your fleet and heavy-damage warnings stay visible; it closes by itself when a sortie starts, at each node and at each battle.
 - Experience is only recorded from this version on. For the month you install it, the monthly start is unknown, so the section shows the points earned since recording began instead of a monthly total.
 
 ### Data compatibility
