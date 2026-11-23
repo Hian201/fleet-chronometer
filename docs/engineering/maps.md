@@ -18,15 +18,15 @@
 - **斬殺偵測的兩個端點皆已用真封包驗證**（`isGaugeBroken` 逐一核對）：未通關端
   `samples/61-5-jibun-rengou-node52.json` eventmap＝`{now_maphp:809, cleared:0}`→False；
   已通關端 `samples/61-4.json` eventmap＝`{now_maphp:0, cleared:1, gauge_num:4}`→True。
-  **另定案 `api_first_clear` 不可當斬殺旗標**：它在「未通關」時存在(=1)、「已通關」後反而消失
+- **另定案 `api_eventmap.api_first_clear` 不可當斬殺旗標**：它在「未通關」時存在(=1)、「已通關」後反而消失
   （61-5 有、61-4 無），語意與「剛通關」相反。這條只針對 `api_eventmap` 物件；battleresult 頂層的
   同名欄位是另一回事：6-5 未擊破時的 Boss 戰為 `0`、擊破那一場為 `1`
-  （`samples/6-5-battleresult-{before-clear,clear}.json`），目前只有這一對樣本，尚未拿來判定擊破。
+  （`samples/6-5-battleresult-{before-clear,clear}.json`），本專案只將它保存為原始事實並於測試中交叉核對，不參與判定。
 - **擊破後的 mapinfo 時序（已實測，`samples/6-5-mapinfo-{before,after}-clear.json`）**：打倒 Boss
   回港只送 `api_port/port`，不送 mapinfo；要等玩家再進出擊、開海域選擇畫面，遊戲才送出反映擊破的
-  mapinfo。所以 detectClear 在「下次開海域選擇」才觸發；被標記的仍是該圖最近一場 Boss 戰，時刻取
-  戰鬥本身，不受觸發延遲影響。擊破數制（gaugeType 1）擊破後 `api_cleared` 變 1，
-  `api_defeat_count`／`api_required_defeat_count` 兩欄整個消失（6-5：5/6 → 無欄位）。
+  mapinfo。擊破數制（gaugeType 1）擊破後 `api_cleared` 變 1，`api_defeat_count`／
+  `api_required_defeat_count` 兩欄整個消失（6-5：5/6 → 無欄位）；已通關的多段一般圖仍可能保留
+  `api_defeat_count`（樣本中已通關的 7-2 為 `api_cleared=1` 且 `3/4`）。
 - 剩餘次數：gaugeType 2 = `ceil(殘HP/boss旗艦HP)`（boss HP 實戰擷取；此為「最少場數」下界，
   假設每場都 S 沉 boss——`ceil(8400/1200)=7`＝使用者說的「最少 7 次」、`ceil(809/1200)=1`＝剩 1 次）；
   gaugeType 3（TP輸送）的量表欄位與剩餘場數尚未以真實封包驗證；目前 UI 不以
@@ -89,14 +89,24 @@ letter  A    E    I    Q    Y    Z   ZZ
 不以 ASCII 或其他推算法補出字母。不同海域的 edge 編號並不共用同一字母順序，直接推算會產生
 看似合理但錯誤的節點標籤。
 
-## 斬殺偵測
+## 斬殺偵測與戰後量表推算
 
-判定欄位與擊破後 mapinfo 的時序都已實測：回港不送 mapinfo，要再開海域選擇畫面才觸發（見本檔第一節）。
-`panel/main.ts detectClear()` 在 mapinfo 更新後比對量表，觀測到某海域「未擊破→擊破」
-（`api_cleared` 0→1／HP量表 `api_now_maphp` 歸 0／擊破數達標，欄位皆已實測）就把該圖最近一場
-boss 出擊標 `cleared`。只在「本次事件流曾看過該圖未擊破」時才判定轉變（避免面板啟動重播時把
-「一開始就已通關」誤標到近期某場）；consume 於 replay/live 皆呼叫，歷史斬殺自動回填。
-`wantedTag` 不為此抓樣本。
-已用真實 `61-5-jibun-rengou-node52.json` 的 eventmap（`now_maphp=809, cleared=0`）確認
-`isGaugeBroken` 對「未斬殺場」不誤觸。**已知邊角**：若斬殺後、下一次 mapinfo 到達
-前又在同圖 farming，轉變會標到 farming 場而非斬殺場（罕見，且新船掉落＋手動釘選可補）。
+### 兩種 `cleared` 的語意區分
+
+- **`SortieLogRow.cleared`**：代表「**這一場打掉了一段量表**」（含活動多段圖各段、EO 整圖，以及 7-5／5-6／首次 7-2、7-3 的中間段）。搭配 `clearedBy: 'battle' | 'mapinfo'` 記錄判定依據（舊列缺席代表既有的 mapinfo 後備規則）。
+- **`MapGaugeView.cleared`**：代表「**整張海域已通關**」（來自 `mapinfo` 的 `api_cleared`，或戰鬥結算 `api_get_exmap_rate > 0` 確定 EO 整圖通關）。活動圖與多段圖的 HP／TP／擊破數歸零時，不將 `MapGaugeView.cleared` 設為 `true`，以保留整圖通關語意給 `onReqMapStart()`、`mapCleared()` 與重播保護；面板標題列改依 `isGaugeZeroed()` 在量表歸零時立即顯示 `✓`。
+
+### 戰鬥當下判定（`utils/gauge-clear.ts`、`GameState.onReqSortieBattleresult()`）
+
+判定只在 `GameState.onReqSortieBattleresult()` 執行一次，**必須在更新 `mapGauges` 之前、用戰前量表與出擊起點記錄的 `sortieInfo.gaugeAtStart` 計算**，將原始事實（`flagshipSunk`、`flagshipDamage`、`gaugeAtStart`、`exmapRate`、`firstClear`、`landing`）與判定結果（`cleared`／`clearedBy: 'battle'`）寫入 `battleInfo`，`EventProjector.archiveSortie()` 只照抄不重算。
+
+- **EO 整圖通關**：`api_get_exmap_rate` 解析為正整數（`exmapRate > 0`，見 `samples/6-5-battleresult-clear.json` 的 `"250"`，並對照 KancolleSniffer `ExMapInfo.cs`），不依賴本機量表狀態；同步將 `MapGaugeView.cleared` 設為 `true`（`source: 'server'`）。
+- **擊破數式（gaugeType 1）**：`!gauge.cleared`、`requiredDefeatCount > 0`、`defeatCount === requiredDefeatCount - 1` 且目標量表 Boss 旗艦擊沉（`isGaugeBossNode()`＋戰後敵主隊旗艦 HP ≤ 0）。未歸零但旗艦擊沉時遞增 `defeatCount` 並標 `source: 'estimate'`。
+- **HP 式（gaugeType 2）**：`!gauge.cleared`、`gaugeAtStart.type === 2`、`gaugeAtStart.now > 0`、`flagshipDamage !== undefined`、`gaugeAtStart.now − flagshipDamage ≤ 0` 且目標量表 Boss 旗艦擊沉。非歸零時推算 `nowHp = max(now − damage, flagshipSunk ? 0 : 1)` 並標 `source: 'estimate'`；`gaugeAtStart.type === 0` 不做 HP 扣量推算，孤立夜戰接續包（缺少晝戰起點）不寫 `flagshipDamage`。
+- **TP 式（gaugeType 3）**：`!gauge.cleared`、`api_landing_hp` 帶 `sub > 0` 且 `now − sub ≤ 0`（語意依 KC3Kai `Node.js`：`now` 為戰前剩餘量、`sub` 為本場登陸量；欄位形狀依 kcsapi.ts 由真實樣本產生的型別，數值可能是字串。本專案樣本 `samples/5-6-1-battleresult-landing.json`（通常艦隊，`280/280/79`，皆為數字）與登陸後的 `samples/5-6-mapinfo-after-landing.json`（`api_defeat_count` 79／`api_required_defeat_count` 280）證實 `now` 為戰前值。一般海域的 TP（如 5-6 第一段）在 mapinfo 不帶 `api_eventmap`，以 `api_defeat_count` 表示已登陸量、`api_required_defeat_count` 表示上限，戰後也以同樣欄位更新（`defeatCount = max − max(0, now − sub)`），面板顯示剩餘＝上限－已登陸；活動海域的 TP 仍用 `api_eventmap` 的 now/max）；活動海域戰後以 `max(0, now − sub)` 更新 `nowHp`（`source: 'server'`）。終點節點（`api_req_map/next` 且 `api_next == 0` 帶 `api_eventmap`）直接以伺服器值更新記憶體 `mapGauges`、不寫出擊列，同時涵蓋運輸終點與 Boss 戰終點帶戰前量表的情況（後者見 `samples/base-air-raid-3.json`：`api_event_id=5`、`api_next=0`、`api_eventmap` 840/4840）。
+- **介面推算標示與伺服器優先**：`MapGaugeView.source === 'estimate'` 時，面板在量表數值前顯示 `≈`，三語完整推算說明放 `title` 與 `aria-label`；下一筆 `mapinfo`、`select_eventmap_rank` 或 `api_req_map/start` 到達時一律以伺服器值取代並改回 `source: 'server'`。開發版在同段（`gaugeNum` 與 `gaugeType` 相同且未通關）收到與推算不同的伺服器值時，於 console 印出差異供核對。
+- **EO 戰果防護（`utils/senka.ts`）**：`clearedBy === 'battle'` 的列只有 `exmapRate > 0` 才計入 EO 戰果（不退回查固定表，避免 7-5／5-6 中間段斬殺誤算）；表內外海域皆以封包 `exmapRate` 優先於固定表與較晚到達的 mapinfo 快照。1-6（無 Boss 戰）維持由 mapinfo 快照補記。
+
+### mapinfo 轉變後備（`EventProjector.detectClear()`）
+
+開面板前打掉、跨裝置通關、孤立夜戰缺起點或欄位缺席時，仍由 `detectClear()` 觀測 `api_get_member/mapinfo` 的「未擊破 → 擊破」轉變補標 `cleared: true, clearedBy: 'mapinfo'`。`gaugeSeenUncleared` 改為 `Map<number, number>`（記錄該圖最近一次觀測到未擊破的 `ts`）：若該圖已有 `row.ts >= seenTs` 且 `clearedBy === 'battle'` 的列則跳過；走後備時同樣只篩選 `row.ts >= seenTs` 的 Boss 戰，避免跨裝置通關或換段後誤標更早的舊戰。不記錄的海域不寫斬殺旗標。`wantedTag` 不為此抓樣本。

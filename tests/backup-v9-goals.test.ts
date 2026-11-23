@@ -31,7 +31,7 @@ const v9Full = (goals: unknown[] = GOALS) => ({
 });
 
 describe('版本協商', () => {
-    it('目前版本為 13', () => expect(BACKUP_SCHEMA_VERSION).toBe(13));
+    it('目前版本為 14', () => expect(BACKUP_SCHEMA_VERSION).toBe(14));
 
     it('v9 full 必須含 goals', () => {
         expect(() => validateBackupEnvelope({ schemaVersion: 9, kind: 'full', exportedAt: TS, tables: v8Tables() }))

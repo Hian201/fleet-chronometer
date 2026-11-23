@@ -176,6 +176,54 @@ describe('EO 戰果時間窗與計算', () => {
         });
         expect(eoSenkaForMonth([...octClears, ...lateNovGap], nov).total).toBe(0);
     });
+
+    it('clearedBy: battle 只有帶正整數 exmapRate 才計入 EO（7-5／5-6 中間段不誤算）；舊列與 mapinfo 仍退回查表', () => {
+        const ts = Date.UTC(2026, 10, 12, 8, 0);
+        const res = eoSenkaForMonth([
+            // 7-5 P1、5-6 P1 中間段斬殺：無 exmapRate（或 0），不應計入 EO
+            { ts, map: '7-5', cleared: true, clearedBy: 'battle' },
+            { ts: ts + 1000, map: '5-6', cleared: true, clearedBy: 'battle', exmapRate: 0 },
+            // 舊列（無 clearedBy）與 mapinfo 後備仍查固定表
+            { ts: ts + 2000, map: '1-5', cleared: true },
+            { ts: ts + 3000, map: '2-5', cleared: true, clearedBy: 'mapinfo' },
+        ], nov);
+
+        expect(res.total).toBe(175); // 1-5 (+75) + 2-5 (+100)
+        expect(res.clearedCount).toBe(2);
+        expect(res.mapCount).toBe(9);
+        expect(res.items.find(i => i.map === '7-5')).toMatchObject({ cleared: false, points: 170, clearedAt: null });
+        expect(res.items.find(i => i.map === '5-6')).toMatchObject({ cleared: false, points: 225, clearedAt: null });
+    });
+
+    it('封包 exmapRate 優先於固定表與較晚的 mapinfo 快照（含表內調分與表外新 EO）', () => {
+        const battleTs = Date.UTC(2026, 10, 15, 10, 0);
+        const laterSnapTs = Date.UTC(2026, 10, 16, 12, 0);
+        const extraTs = Date.UTC(2026, 10, 17, 9, 0);
+
+        const snapClears = eoClearsFromMapinfoSnapshot({
+            ts: laterSnapTs,
+            api: { api_map_info: [{ api_id: 65, api_cleared: 1 }] },
+        });
+        const res = eoSenkaForMonth([
+            // 表內調分：6-5 封包送 300，即使後面還有較晚的 mapinfo 快照（固定表 250），仍保留封包值與戰鬥時刻
+            { ts: battleTs, map: '6-5', cleared: true, clearedBy: 'battle', exmapRate: 300 },
+            ...snapClears,
+            // 表外新 EO：8-5 帶封包戰果 210，附於 items 尾端並推升 mapCount 9→10
+            { ts: extraTs, map: '8-5', cleared: true, clearedBy: 'battle', exmapRate: 210 },
+            // 表外圖但無 exmapRate（例如活動圖段落斬殺）不計入 EO
+            { ts: extraTs + 1000, map: '62-1', cleared: true, clearedBy: 'battle' },
+        ], nov);
+
+        expect(res.total).toBe(510); // 300 + 210
+        expect(res.clearedCount).toBe(2);
+        expect(res.mapCount).toBe(10);
+        expect(res.items.find(i => i.map === '6-5')).toEqual({
+            map: '6-5', points: 300, cleared: true, clearedAt: battleTs,
+        });
+        expect(res.items[res.items.length - 1]).toEqual({
+            map: '8-5', points: 210, cleared: true, clearedAt: extraTs,
+        });
+    });
 });
 
 describe('任務戰果時間窗與計算', () => {

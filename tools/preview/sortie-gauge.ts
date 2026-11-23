@@ -49,20 +49,33 @@ function variantBarHtml(variant: GaugeVariant, now: number, max: number): string
 }
 
 /** 一列對照：左邊標題列（含海域代號＋節點，重現真實寬度壓力），右邊量表本身 */
-function row(label: string, now: number, max: number, finalPhase: boolean): string {
+function row(label: string, now: number, max: number, finalPhase: boolean, estimated = false, transport = false): string {
     const hint = finalPhase ? t('sortie.hintEstRuns', { n: 1, kind: t('sortie.kindDefeat') }) : '';
-    const bar = finalPhase
-        ? variantBarHtml('focus', now, max)
-        : sortieGaugeBarHtml({
-            now, max, finalPhase,
-            title: t('sortie.gaugeTitle', { now, max, hint }),
-            finalLabel: 'Final',
-        });
+    const title = [
+        transport ? t('sortie.tpGaugeTitle', { now, max }) : t('sortie.gaugeTitle', { now, max, hint }),
+        finalPhase ? t('sortie.zansatsuLabel') : '',
+        estimated ? t('sortie.gaugeEstimatedHint') : '',
+    ].filter(Boolean).join('\n');
+    const bar = sortieGaugeBarHtml({
+        now, max, finalPhase, title, finalLabel: 'Final', estimated, transport,
+    });
     return `<div class="pv-row">
         <div class="pv-label">${label}</div>
         <div class="sortie-container"><div class="s-header">
             <div class="s-map-id">E2<i>甲</i></div>
             ${bar}
+            <div class="s-nodes">${nodeHtml()}</div>
+            <div class="s-phase active">${esc(t('sortie.boss'))}</div>
+        </div></div>
+    </div>`;
+}
+
+function clearedRow(label: string, title: string): string {
+    return `<div class="pv-row">
+        <div class="pv-label">${label}</div>
+        <div class="sortie-container"><div class="s-header">
+            <div class="s-map-id">E2<i>甲</i></div>
+            <div class="s-gauge cleared" title="${esc(title)}">✓</div>
             <div class="s-nodes">${nodeHtml()}</div>
             <div class="s-phase active">${esc(t('sortie.boss'))}</div>
         </div></div>
@@ -87,8 +100,13 @@ for (const lang of langs) {
     setLang(lang);
     body += `<h2>${lang}</h2>`;
     body += row('一般', 2760, 4600, false);
+    body += row('一般（推算）', 2260, 4600, false, true);
     body += row('Final', 840, 4840, true);
-    body += row('Final（殘值 1）', 1, 4840, true);
+    body += row('Final（推算）', 840, 4840, true, true);
+    body += row('Final（殘值 1 推算）', 1, 4840, true, true);
+    body += row('一般海域 TP（5-6 登陸後）', 201, 280, false, false, true);
+    body += row('活動 TP', 412, 1260, false, false, true);
+    body += clearedRow('已擊破（歸零）', t('sortie.gaugeCleared'));
     body += `<h3>Final pill 方案</h3>`;
     body += variantRow('split', 'A｜分段警示', 840, 4840);
     body += variantRow('focus', 'B｜殘值主位', 840, 4840);
@@ -100,6 +118,8 @@ for (const lang of langs) {
 
 const out = `<!doctype html><html><head><meta charset="utf-8">
 <title>關卡量表版面預覽</title><style>${css}
+/* 面板本身 html, body 不捲動（側欄固定高度）；預覽頁很長，要恢復一般頁面的捲動。 */
+html, body { overflow: auto; height: auto; }
 body { padding: 16px; background: var(--bg, #1a1f2e); }
 h2 { color: var(--dim); font-size: 12px; margin: 18px 0 6px; }
 h3 { color: var(--text); font-size: 11px; font-weight: 600; margin: 14px 0 6px; }
@@ -132,7 +152,7 @@ h3 { color: var(--text); font-size: 11px; font-weight: 600; margin: 14px 0 6px; 
 .s-gauge-num { color: #c7dfec; }
 .s-gauge-final { color: #e0bd70; }
 /* 面板實際寬度，用來重現換行壓力 */
-.sortie-container { width: 420px; }
+.sortie-container { width: 420px; height: auto; max-height: none; } /* 面板的出擊區固定 258px 高；預覽只看標題列，不需要撐滿 */
 </style></head><body>
 <p style="color:var(--dim);font-size:11px">虛線框＝每列的實際佔用高度。斬殺態與一般態的框高必須相同，
 且標題列不得換行。</p>

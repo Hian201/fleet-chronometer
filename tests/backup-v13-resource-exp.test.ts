@@ -36,8 +36,8 @@ const v5Restore = (resources: unknown[]) => ({
 });
 
 describe('版本協商與欄位驗證', () => {
-    it('目前版本為 13，v13 接受含或不含 exp 的資源列', () => {
-        expect(BACKUP_SCHEMA_VERSION).toBe(13);
+    it('v13 以上接受含或不含 exp 的資源列', () => {
+        expect(BACKUP_SCHEMA_VERSION).toBeGreaterThanOrEqual(13);
         const validated = validateBackupEnvelope(full(13)).tables.resources!;
         expect(validated).toEqual(ROWS);
         expect('exp' in validated[1]).toBe(false);

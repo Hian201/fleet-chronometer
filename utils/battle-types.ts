@@ -1,4 +1,5 @@
 // 戰鬥檢視的型別定義，純型別、無執行期依賴；供 battle.ts 與 state.ts 共用，避免兩者互相 import。
+import type { ClearSource, GaugeAtStart, LandingHp } from './gauge-clear';
 
 export interface BattleShipView {
     hp: number; maxHp: number;
@@ -145,6 +146,16 @@ export interface BattleInfoView {
     // 結算掉落的道具 useitem id（見 state.ts battleResultUseItemDrops）。結算前、或格式無法識別
     // 時為 undefined；[] 表示已確認沒有道具掉落。
     useItemDrops?: number[];
+    // 以下為結算當下由 GameState.onReqSortieBattleresult() 依戰前量表寫入的原始事實與斬殺判定，
+    // 供 EventProjector.archiveSortie() 直接照抄寫入 SortieLogRow，避免與戰後 mapGauges 順序錯亂。
+    flagshipSunk?: boolean;
+    flagshipDamage?: number;
+    gaugeAtStart?: GaugeAtStart;
+    exmapRate?: number;
+    firstClear?: 0 | 1;
+    landing?: LandingHp;
+    cleared?: boolean;
+    clearedBy?: ClearSource;
     supportFlag: number;
     aaci: number; // 0 if none, else AACI kind ID
     /** 對空 CI 發動艦、Type 與實際使用的裝備組合；沒有發動時為空陣列。 */

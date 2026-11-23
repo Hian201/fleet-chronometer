@@ -869,7 +869,9 @@ body { display: block; }
 `tools/preview/panel-sortie.ts`，再一併更新 `tests/panel-sortie-layout.test.ts` 的契約。
 
 1. 標頭的 Gauge 不得保留固定 122px 寬度；以 10 個 node（含 Boss）為容量下限，Gauge
-   數字在條外、`Final` 在條內，node 維持遊戲原始圓形與 Boss 樣式。
+   數字在條外、`Final` 在條內，node 維持遊戲原始圓形與 Boss 樣式。輸送（TP）量表在條內標
+   `TP`，殘量條改用 `--gauge-tp`（`#4e9301`，取自遊戲內輸送ゲージ）的綠色漸層；此色只給 TP 量表，
+   不隨主題變化、不挪作其他語意。
 2. 左側依序為制空／航向、Result Rank／敵陣形、敵我飛機戰損、夜戰裝備與友軍；敵艦為右側
    chip 區。敵艦 chip 只呈現名稱、擊沉狀態與 HP 血條，**不重複寫目前 HP 數字**；每格固定
    25px 高，敵艦較少時保留列內留白，不得拉高單格填滿整列。

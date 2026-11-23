@@ -66,6 +66,7 @@ function fullEventStream(): ProjectableEvent[] {
             api_slot_item: [{ api_id: 201, api_slotitem_id: 301, api_level: 6, api_alv: 7 }],
         }),
         row(2, 'api_port/port', portApi()),
+        row(2.2, 'api_get_member/mapinfo', mapInfo(65, false)),
         row(3, 'api_req_map/start', { api_maparea_id: 6, api_mapinfo_no: 5, api_no: 42, api_color_no: 5 }, { api_deck_id: '1' }),
         row(4, 'api_req_combined_battle/ec_battle', battle),
         row(5, 'api_req_battle_midnight/battle', { ...battle, marker: 'night' }),
@@ -81,7 +82,6 @@ function fullEventStream(): ProjectableEvent[] {
             api_get_material: [100, 200, 300, 400],
             api_get_item1: { api_useitem_id: 1, api_useitem_count: 2 },
         }, { api_deck_id: '1' }),
-        row(30, 'api_get_member/mapinfo', mapInfo(65, false)),
         row(31, 'api_get_member/mapinfo', mapInfo(65, true)),
     ];
 }
@@ -276,7 +276,7 @@ describe('EventProjector persist 模式', () => {
         await projectAll(projector, fullEventStream());
 
         // 斬殺旗標不標到不記錄的海域（見 detectClear），其餘欄位與一般列相同。
-        const { cleared: _cleared, ...expected } = normal;
+        const { cleared: _cleared, clearedBy: _clearedBy, ...expected } = normal;
         const rows = await database.sorties.toArray();
         expect(rows).toEqual([{ ...expected, catchOnly: true }]);
         expect(await database.replays.count()).toBe(0);
@@ -724,7 +724,7 @@ describe('EventProjector 寫入失敗傳播', () => {
     it('sorties clear update 失敗時 reject', async () => {
         const tables = mockTables();
         const boss: SortieLogRow = {
-            eventId: 9, sortieKey: 1, ts: 9, map: '6-5', node: 42, boss: true,
+            eventId: 9, sortieKey: 1, ts: 1_726_000_000_002, map: '6-5', node: 42, boss: true,
             kind: 'battle', rank: 'S', seiku: 1, enemyIds: [], enemyIdsEscort: [], drop: null, taiha: false,
         };
         tables.sorties.filter.mockImplementation((predicate: (sortie: SortieLogRow) => boolean) => ({
@@ -735,7 +735,7 @@ describe('EventProjector 寫入失敗傳播', () => {
         const projector = new EventProjector({ state: new GameState(), tables });
         await projector.project(row(1, 'api_get_member/mapinfo', mapInfo(65, false)));
 
-        await expect(projector.project(row(2, 'api_get_member/mapinfo', mapInfo(65, true)))).rejects.toBe(failure);
+        await expect(projector.project(row(3, 'api_get_member/mapinfo', mapInfo(65, true)))).rejects.toBe(failure);
     });
 
     it('projector reject 時 panel 使用的 maxId 指派模式不會前進', async () => {
@@ -792,7 +792,7 @@ describe('EO 擊破前後的真封包', () => {
     it('前後兩筆 mapinfo 依序投影時，把 6-5 最近一場 Boss 戰標為擊破', async () => {
         const tables = mockTables();
         const boss: SortieLogRow = {
-            eventId: 9, sortieKey: 1, ts: 9, map: '6-5', node: 42, boss: true,
+            eventId: 9, sortieKey: 1, ts: 1_726_000_000_002, map: '6-5', node: 42, boss: true,
             kind: 'battle', rank: 'S', seiku: 1, enemyIds: [], enemyIdsEscort: [], drop: null, taiha: false,
         };
         tables.sorties.filter.mockImplementation((predicate: (sortie: SortieLogRow) => boolean) => ({
@@ -802,9 +802,9 @@ describe('EO 擊破前後的真封包', () => {
         await projector.project(row(1, 'api_get_member/mapinfo', before));
         expect(tables.sorties.update).not.toHaveBeenCalled();
 
-        await projector.project(row(2, 'api_get_member/mapinfo', after));
+        await projector.project(row(3, 'api_get_member/mapinfo', after));
         expect(tables.sorties.update).toHaveBeenCalledTimes(1);
-        expect(tables.sorties.update).toHaveBeenCalledWith(9, { cleared: true });
+        expect(tables.sorties.update).toHaveBeenCalledWith(9, { cleared: true, clearedBy: 'mapinfo' });
     });
 });
 

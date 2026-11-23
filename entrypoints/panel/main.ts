@@ -34,6 +34,7 @@ import { senkaMonthOf } from '@/utils/senka';
 import { loadSenkaMonthData, type SenkaMonthData } from '@/utils/senka-readings';
 import { buildObservedSenkaSummary, type SenkaObservedSummary } from '@/utils/senka-view';
 import { sortieGaugeBarHtml } from './sortie-gauge';
+import { isDefeatCountTpGauge, isGaugeZeroed } from '@/utils/gauge-clear';
 import { practiceBattleHeadHtml, practiceListHtml, practiceNightHtml, type PracticeRow } from './practice';
 import { sortieDropSlotHtml } from './sortie-drop';
 import { useItemDisplayName } from '@/utils/item-catalog';
@@ -1323,23 +1324,39 @@ function sortieHeaderHtml(sortie: SortieInfoView): string {
     // 量表本體：一顆圓矩 pill，殘量條當背景、**剩餘實數直接寫在條子裡**。
     // 使用者要求（活動海域）一眼看到 2760/4600 這種攻略血量，而不是由 HP 推估的
     // 「剩 N 次」——推估值不是封包事實，改留在 tooltip 裡當補充說明。
-    const gaugeBar = (now: number, max: number, zansatsu: boolean, title: string) => sortieGaugeBarHtml({
-        now, max, finalPhase: zansatsu, title,
+    const gaugeBar = (now: number, max: number, zansatsu: boolean, title: string, estimated = false, transport = false) => sortieGaugeBarHtml({
+        now, max, finalPhase: zansatsu, title, estimated, transport,
     });
-    if (gauge?.cleared) {
-        // 已攻略關卡回應不再帶量表欄位，一律顯示已攻略勾號
-        gaugeHtml = `<div class="s-gauge cleared" title="${esc(t('sortie.cleared'))}">✓</div>`;
+    const estimated = gauge?.source === 'estimate';
+    const estLine = estimated ? t('sortie.gaugeEstimatedHint') : '';
+    if (isGaugeZeroed(gauge)) {
+        // 已攻略或本段量表已歸零時顯示 ✓（不猜下一段）。
+        const clearLabel = gauge?.cleared ? t('sortie.cleared') : t('sortie.gaugeCleared');
+        gaugeHtml = `<div class="s-gauge cleared" title="${esc(clearLabel)}">✓</div>`;
     } else if (gauge?.gaugeType === 1 && gauge.requiredDefeatCount > 0) {
         // 擊破數式（一般圖5番/EO）：量表隨擊破遞減，條子裡寫「剩餘擊破次數／需求次數」
         // （與 gaugeType 2 一致採剩餘語意，避免把已擊破數誤讀為剩餘數）
         const remain = Math.max(0, gauge.requiredDefeatCount - gauge.defeatCount);
+        const title = [
+            t('sortie.remainingHits', { n: remain, done: gauge.defeatCount, total: gauge.requiredDefeatCount }),
+            estLine,
+        ].filter(Boolean).join('\n');
         // 擊破數式沒有可驗證的 boss HP 斬殺線，剩最後一次也不能冒充「Final」。
         gaugeHtml = gaugeBar(
             remain,
             gauge.requiredDefeatCount,
             false,
-            t('sortie.remainingHits', { n: remain, done: gauge.defeatCount, total: gauge.requiredDefeatCount }),
+            title,
+            estimated,
         );
+    } else if (gauge && isDefeatCountTpGauge(gauge)) {
+        // 一般海域 TP（如 5-6 第一段）：mapinfo 以已登陸量／上限表示，條子寫剩餘 TP。
+        const remain = Math.max(0, gauge.requiredDefeatCount - gauge.defeatCount);
+        const title = [
+            t('sortie.tpGaugeTitle', { now: remain, max: gauge.requiredDefeatCount }),
+            estLine,
+        ].filter(Boolean).join('\n');
+        gaugeHtml = gaugeBar(remain, gauge.requiredDefeatCount, false, title, estimated, true);
     } else if ((gauge?.gaugeType === 2 || gauge?.gaugeType === 3) && gauge.maxHp > 0 && gauge.maxHp !== 9999) {
         // HP量表式(gaugeType 2, boss撃破)／TP輸送型(gaugeType 3)：條子裡一律寫封包實數
         // 「剩餘/最大」。剩餘次數是由 boss 旗艦 HP 推估的衍生值，改放 tooltip。
@@ -1352,10 +1369,13 @@ function sortieHeaderHtml(sortie: SortieInfoView): string {
         // 不用 `r === 1`：這裡直接沿用 mapInFinalPhase 的血條／Boss 證據判定。
         const zansatsu = !isTpGauge && state.mapInFinalPhase();
         const title = [
-            t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint }),
+            isTpGauge
+                ? t('sortie.tpGaugeTitle', { now: gauge.nowHp, max: gauge.maxHp })
+                : t('sortie.gaugeTitle', { now: gauge.nowHp, max: gauge.maxHp, hint }),
             zansatsu ? t('sortie.zansatsuLabel') : '',
+            estLine,
         ].filter(Boolean).join('\n');
-        gaugeHtml = gaugeBar(gauge.nowHp, gauge.maxHp, zansatsu, title);
+        gaugeHtml = gaugeBar(gauge.nowHp, gauge.maxHp, zansatsu, title, estimated, isTpGauge);
     } else if (gauge?.gaugeType === 2 && gauge.maxHp === 9999) {
         // maxHp=9999：尚未選擇難度的佔位值，非真實 100%。
         gaugeHtml = `<div class="s-gauge locked" title="${esc(t('sortie.notChosenDifficulty'))}">🔒</div>`;

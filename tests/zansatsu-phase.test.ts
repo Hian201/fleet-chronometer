@@ -345,6 +345,38 @@ describe('斬殺期量表 HTML', () => {
         expect(html).toContain('role="meter"');
     });
 
+    it('推算值在數值前加 ≈，title 與 aria-label 保留完整推算說明，aria-valuenow 維持純數字', () => {
+        const html = sortieGaugeBarHtml({
+            now: 840,
+            max: MAX_HP,
+            finalPhase: true,
+            estimated: true,
+            title: '關卡量表 840/4840\n斬殺期\n戰後推算值，下次讀取海域資訊時以伺服器為準',
+        });
+
+        expect(html).toContain('estimated');
+        expect(html).toContain('<strong>≈840</strong><small>/4840</small>');
+        expect(html).toContain('aria-valuenow="840"');
+        expect(html).toContain('aria-label="關卡量表 840/4840');
+        expect(html).toContain('戰後推算值');
+    });
+
+    it('輸送量表在條子內標 TP，數值位置不變；斬殺期仍只標 Final', () => {
+        const tp = sortieGaugeBarHtml({
+            now: 201, max: 280, finalPhase: false, transport: true, title: '輸送量表（TP）201/280',
+        });
+        expect(tp).toContain('<b class="s-gauge-kind">TP</b>');
+        expect(tp).toContain('s-gauge bar transport');
+        expect(tp).toContain('<strong>201</strong><small>/280</small>');
+
+        const plain = sortieGaugeBarHtml({ now: 201, max: 280, finalPhase: false, title: '關卡量表 201/280' });
+        expect(plain).not.toContain('s-gauge-kind');
+
+        const final = sortieGaugeBarHtml({ now: 840, max: MAX_HP, finalPhase: true, transport: true, title: 'x' });
+        expect(final).toContain('s-gauge-final');
+        expect(final).not.toContain('s-gauge-kind');
+    });
+
     it('斬殺期標籤不再是純白粗體大字', () => {
         const rule = panelHtml.match(/\.s-gauge-final\s*\{([^}]+)\}/)?.[1] ?? '';
         expect(rule).toContain('font-size: 9px');

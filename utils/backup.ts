@@ -49,7 +49,12 @@ import { loadExcludeCatch, loadExcludedMaps, normalizeExcludedMap, saveExcludeCa
 // v13 的 resources 多了選填的 exp（api_port/port 的提督累計經驗值，供戰果換算）。表組合與 v11／v12 相同；
 // 升版是為了讓舊版擴充讀到新檔時明確拒絕，而不是在 validateResource() 重建資料列時默默丟掉 exp。
 // v12 以前的檔案不會有 exp，夾帶時拒絕；沒有 exp 的舊備份照常匯入。
-export const BACKUP_SCHEMA_VERSION = 13 as const;
+//
+// v14 的 sorties 多了戰鬥當下量表與斬殺相關的選填原始事實欄位（flagshipSunk、flagshipDamage、
+// gaugeAtStart、exmapRate、firstClear、landing、clearedBy）。表組合與 v11–v13 相同；
+// 升版是為了讓舊版擴充明確拒絕，而不是在 validateSortie() 逐欄重建時默默丟掉這批欄位。
+// v13 以前的檔案夾帶任一新欄位時拒絕；缺席的舊備份照常匯入。
+export const BACKUP_SCHEMA_VERSION = 14 as const;
 
 export type BackupKind = 'restore' | 'replays' | 'full' | 'legacy-full';
 type ExportedKind = Exclude<BackupKind, 'legacy-full'>;
@@ -289,12 +294,60 @@ function validateSnapshot(value: unknown, index: number): SnapshotRow {
     };
 }
 
-function validateSortie(value: unknown, index: number): SortieLogRow {
+function validateSortie(value: unknown, index: number, schemaVersion: number): SortieLogRow {
     const where = `tables.sorties[${index}]`;
     const row = objectAt(value, where);
     const seiku = row.seiku === null ? null : integer(row.seiku, `${where}.seiku`);
     const drop = row.drop === null ? null : nonEmptyString(row.drop, `${where}.drop`);
     if (row.kind !== 'battle' && row.kind !== 'raid') invalid(`${where}.kind 必須是 battle 或 raid。`);
+
+    // v14 新增的量表與斬殺相關選填欄位：v13 以前夾帶即拒絕，避免降版還原時靜默遺失。
+    const v14Fields = ['flagshipSunk', 'flagshipDamage', 'gaugeAtStart', 'exmapRate', 'firstClear', 'landing', 'clearedBy'] as const;
+    if (schemaVersion < 14) {
+        for (const field of v14Fields) {
+            if (row[field] !== undefined) invalid(`${where}.${field} 只支援 schemaVersion 14 以上。`);
+        }
+    }
+    const flagshipSunk = row.flagshipSunk === undefined ? undefined
+        : booleanValue(row.flagshipSunk, `${where}.flagshipSunk`);
+    const flagshipDamage = row.flagshipDamage === undefined ? undefined
+        : integer(row.flagshipDamage, `${where}.flagshipDamage`, 0);
+    let gaugeAtStart: SortieLogRow['gaugeAtStart'];
+    if (row.gaugeAtStart !== undefined) {
+        const g = objectAt(row.gaugeAtStart, `${where}.gaugeAtStart`);
+        const gaugeNum = g.gaugeNum === undefined ? undefined
+            : integer(g.gaugeNum, `${where}.gaugeAtStart.gaugeNum`, 1);
+        gaugeAtStart = {
+            type: integer(g.type, `${where}.gaugeAtStart.type`, 0),
+            now: integer(g.now, `${where}.gaugeAtStart.now`, 0),
+            max: integer(g.max, `${where}.gaugeAtStart.max`, 1),
+            ...(gaugeNum === undefined ? {} : { gaugeNum }),
+        };
+    }
+    const exmapRate = row.exmapRate === undefined ? undefined
+        : integer(row.exmapRate, `${where}.exmapRate`, 1);
+    let firstClear: SortieLogRow['firstClear'];
+    if (row.firstClear !== undefined) {
+        if (row.firstClear !== 0 && row.firstClear !== 1) invalid(`${where}.firstClear 必須是 0 或 1。`);
+        firstClear = row.firstClear;
+    }
+    let landing: SortieLogRow['landing'];
+    if (row.landing !== undefined) {
+        const l = objectAt(row.landing, `${where}.landing`);
+        landing = {
+            now: integer(l.now, `${where}.landing.now`, 0),
+            max: integer(l.max, `${where}.landing.max`, 1),
+            sub: integer(l.sub, `${where}.landing.sub`, 0),
+        };
+    }
+    let clearedBy: SortieLogRow['clearedBy'];
+    if (row.clearedBy !== undefined) {
+        if (row.clearedBy !== 'battle' && row.clearedBy !== 'mapinfo') {
+            invalid(`${where}.clearedBy 必須是 battle 或 mapinfo。`);
+        }
+        clearedBy = row.clearedBy;
+    }
+
     return {
         eventId: integer(row.eventId, `${where}.eventId`, 1),
         sortieKey: integer(row.sortieKey, `${where}.sortieKey`, 1),
@@ -324,6 +377,13 @@ function validateSortie(value: unknown, index: number): SortieLogRow {
         }),
         ...(row.raidLostKind === undefined ? {} : { raidLostKind: integer(row.raidLostKind, `${where}.raidLostKind`) }),
         ...(row.cleared === undefined ? {} : { cleared: booleanValue(row.cleared, `${where}.cleared`) }),
+        ...(flagshipSunk === undefined ? {} : { flagshipSunk }),
+        ...(flagshipDamage === undefined ? {} : { flagshipDamage }),
+        ...(gaugeAtStart === undefined ? {} : { gaugeAtStart }),
+        ...(exmapRate === undefined ? {} : { exmapRate }),
+        ...(firstClear === undefined ? {} : { firstClear }),
+        ...(landing === undefined ? {} : { landing }),
+        ...(clearedBy === undefined ? {} : { clearedBy }),
         // battleresult 追加欄位（2026-07-22）：舊備份沒有這些鍵，缺席即維持缺席，不補預設值。
         ...(row.getExp === undefined ? {} : { getExp: integer(row.getExp, `${where}.getExp`, 0) }),
         ...(row.mvp === undefined ? {} : { mvp: integer(row.mvp, `${where}.mvp`, 1) }),
@@ -892,7 +952,7 @@ function validateTables(value: unknown, schemaVersion: number): BackupTables {
     const snapshot = tables.snapshot === undefined ? undefined
         : unique((tables.snapshot as unknown[]).map(validateSnapshot), row => row.path, 'tables.snapshot');
     const sorties = tables.sorties === undefined ? undefined
-        : unique((tables.sorties as unknown[]).map(validateSortie), row => row.eventId, 'tables.sorties');
+        : unique((tables.sorties as unknown[]).map((row, index) => validateSortie(row, index, schemaVersion)), row => row.eventId, 'tables.sorties');
     const expeditions = tables.expeditions === undefined ? undefined
         : unique((tables.expeditions as unknown[]).map(validateExpedition), row => row.eventId, 'tables.expeditions');
     const factory = tables.factory === undefined ? undefined

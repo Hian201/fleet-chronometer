@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { PlanStage, PlanTag } from './event-plan';
+import type { ClearSource, GaugeAtStart, LandingHp } from './gauge-clear';
 import type { SortieBill } from './sortie-bill';
 import type { RemodelGoalRow } from './remodel-goals';
 import type { StockpileGoalRow } from './stockpile';
@@ -59,7 +60,7 @@ export interface SortieLogRow {
     dropMst?: number;
     // 結算掉落的道具（`api_get_useitem` 的原始 useitem id，例如秋刀魚 68）。三態：
     // 欄位缺席＝不可考（舊紀錄、匯入列、格式無法識別）；[]＝已確認沒有道具掉落；非空＝有掉落。
-    // 舊紀錄不回填。`api_get_exmap_useitem_id` 語意未證實，不收進來。
+    // 舊紀錄不回填。EO 通關附帶的 `api_get_exmap_useitem_id`（勳章等）另外累加道具庫存，不收進掉落統計。
     useItemDrops?: number[];
     // 不記錄的海域在「仍統計道具掉落」開啟時寫的列（見 utils/sortie-exclude.ts）。只給道具捕撈
     // 統計讀；出擊紀錄、艦娘打撈與其他讀取端一律跳過，沒有重播也沒有出擊帳單。一般列不帶此欄位。
@@ -68,11 +69,26 @@ export interface SortieLogRow {
     newShipOverride?: 'old';
     taiha: boolean;
     raidLostKind?: number;     // 基地空襲損失種別（api_lost_kind；1–4 見 air-raid-lost-kind.ts）
-    // 斬殺旗標：這場 boss 出擊擊破了該海域量表（api_cleared 由 0→1／HP量表歸 0／擊破數達標）。
-    // 由 EventProjector 的轉變偵測寫入（見 event-projector.ts）。用於重播保留規則「斬殺永久保留」。
-    // ⚠️ 判定用的 api_cleared/api_now_maphp 欄位已實測，但「擊破當下緊接的 mapinfo」轉變本身
-    //    尚未用真封包觀測（見待辦），屬防禦性實作。
+    // 斬殺旗標：這一場打掉了一段量表（區別於 MapGaugeView.cleared 的「整張海域已通關」）。
+    // 戰鬥結算當下由 GameState 依戰前量表判定並由 EventProjector 照抄（clearedBy: 'battle'）；
+    // 面板中途開啟、跨裝置或欄位缺席時由 mapinfo 轉變後備補標（clearedBy: 'mapinfo'）。
+    // 用於重播保留規則「斬殺永久保留」與 EO 戰果計算。
     cleared?: boolean;
+    // ── 量表與斬殺相關的封包原始事實（皆為選填、非索引；缺席＝不可考，舊列不回填）──
+    /** 目標量表 Boss 戰敵主隊旗艦戰後 HP ≤ 0（敵連合時只看主隊）。 */
+    flagshipSunk?: boolean;
+    /** 目標量表 Boss 戰敵主隊旗艦受傷量（0 為合法值；孤立夜戰接續包缺晝戰起點時不寫）。 */
+    flagshipDamage?: number;
+    /** 出擊起點 `api_req_map/start` 帶 `api_eventmap` 時的量表快照（僅寫於目標量表 Boss 戰）。 */
+    gaugeAtStart?: GaugeAtStart;
+    /** battleresult `api_get_exmap_rate` 解析為正整數時的 EO 戰果值。 */
+    exmapRate?: number;
+    /** battleresult `api_first_clear` 原始值（0 或 1），供輔助核對。 */
+    firstClear?: 0 | 1;
+    /** 運輸作戰 battleresult `api_landing_hp` 原始值（`api_now_hp`／`api_max_hp`／`api_sub_value`）。 */
+    landing?: LandingHp;
+    /** 寫入 `cleared` 的規則來源；舊列缺席代表既有 mapinfo 後備規則。 */
+    clearedBy?: ClearSource;
     // ── 以下皆取自 battleresult 封包（已用 samples/6-5-ec_result.json 逐欄驗證）。
     //    歷史資料可能缺少這些欄位，UI 一律當「不可考」處理，不得回填猜測值。
     /** 提督經驗值（`api_get_exp`）。※「基礎經驗值」不在封包裡（KC3Kai 靠自帶的海域資料庫），故不顯示。 */

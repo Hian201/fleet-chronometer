@@ -48,6 +48,9 @@
             /* 關卡量表 pill 的軌道色。獨立變數而非沿用 --line：條子裡是白字的剩餘實數，
                軌道必須在兩個主題下都夠深才讀得到（亮色主題只調深、不轉淺，見 .s-gauge-bar）。 */
             --gauge-track: #2a3548;
+            /* 輸送（TP）量表的填色，取自遊戲內輸送ゲージ的綠。只用於 TP 量表的殘量條，
+               不隨主題變化、不挪作其他語意（例如「足夠」「完成」）。 */
+            --gauge-tp: #4e9301;
             /* 調度分頁下拉浮層底色（掛 body，需獨立於 --panel 以免與表格底混成一塊）。 */
             --menu: #1c2738;
             /* 編成摘要的速力階層：不靠粗體，改用既有中性／黃銅色的明度順序。 */
@@ -3783,6 +3786,11 @@
             background: linear-gradient(90deg, var(--dmg-major), var(--sparkle));
         }
 
+        /* 輸送（TP）量表：殘量條改用遊戲內輸送ゲージ的綠色漸層，與擊破／HP 量表一眼分開。 */
+        .s-gauge.transport .s-gauge-bar > i {
+            background: linear-gradient(90deg, var(--gauge-tp), color-mix(in srgb, var(--gauge-tp) 70%, #fff));
+        }
+
         .s-gauge-num {
             position: relative;
             display: inline-flex;
@@ -3827,6 +3835,19 @@
             letter-spacing: 0;
             white-space: nowrap;
             color: color-mix(in srgb, var(--sparkle) 72%, #fff);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+        }
+
+        /* 輸送（TP）量表的種類標籤：與 Final 同樣放在條子裡、不佔版面；用白字而非語意色，
+           只標示量表種類，不表示狀態。軌道在兩個主題都是深色（見 --gauge-track），故固定白字。 */
+        .s-gauge-kind {
+            position: relative;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: 0;
+            white-space: nowrap;
+            color: #fff;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
         }
 

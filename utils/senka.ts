@@ -51,6 +51,10 @@ export interface EoSortieInput {
     map: string;
     cleared?: boolean;
     catchOnly?: boolean;
+    /** battleresult `api_get_exmap_rate` 解析為正整數時的封包戰果值。 */
+    exmapRate?: number;
+    /** 寫入 `cleared` 的規則來源；`'battle'` 且無 `exmapRate` 時為中間段斬殺，不計入整圖 EO 戰果。 */
+    clearedBy?: 'battle' | 'mapinfo';
 }
 
 /** `api_get_member/mapinfo` 快照輸入（用於補齊非本會話內轉變的當月 EO 擊破）。 */
@@ -61,7 +65,7 @@ export interface MapinfoSnapshotInput {
 
 /** 單張 EO 海域於指定作戰月的擊破狀態與戰果。 */
 export interface EoSenkaItem {
-    map: EoMapId;
+    map: string;
     points: number;
     cleared: boolean;
     clearedAt: number | null;
@@ -341,34 +345,65 @@ export function formatSenkaRemaining(ms: number): string {
 
 /**
  * 計算指定作戰月的 EO 擊破戰果：
- * 僅計入 `[eoMonthWindow.start, eoMonthWindow.end)` 內 `cleared === true` 且非 `catchOnly` 的紀錄；
- * 同一海域同一作戰月最多計入一次（重複列取最新擊破時刻）。
+ * - 僅計入 `[eoMonthWindow.start, eoMonthWindow.end)` 內 `cleared === true` 且非 `catchOnly` 的紀錄。
+ * - `clearedBy === 'battle'` 的列只有帶正整數 `exmapRate` 才計入（不退回查表，避免 7-5／5-6 中間段斬殺誤算整圖戰果）；
+ *   舊列（`clearedBy === undefined`）、`clearedBy === 'mapinfo'` 與 mapinfo 快照才退回查 `EO_SENKA_MAPS`。
+ * - 同一海域同一作戰月只計一次：帶 `exmapRate` 的戰鬥列優先於查表列／較晚的 mapinfo 快照，同等級取最新 `ts`。
+ * - 封包 `exmapRate` 優先於固定表分數（表內調分與表外新 EO 皆以封包值為準；表外 EO 附於 `items` 尾端）。
  */
 export function eoSenkaForMonth(sorties: readonly EoSortieInput[], month: SenkaMonth): EoSenkaResult {
     const win = eoMonthWindow(month);
-    const clearedMapAt = new Map<string, number>();
+    const winners = new Map<string, { ts: number; points: number; fromPacket: boolean }>();
 
     for (const row of sorties) {
         if (row.cleared !== true || row.catchOnly) continue;
         if (!Number.isFinite(row.ts) || row.ts < win.start || row.ts >= win.end) continue;
-        if (!EO_MAP_POINTS.has(row.map)) continue;
-        const prev = clearedMapAt.get(row.map);
-        if (prev === undefined || row.ts > prev) clearedMapAt.set(row.map, row.ts);
+
+        const hasPacketRate = typeof row.exmapRate === 'number'
+            && Number.isSafeInteger(row.exmapRate) && row.exmapRate > 0;
+        let points: number;
+        if (hasPacketRate) {
+            points = row.exmapRate!;
+        } else {
+            // 中間段防護：戰鬥當下判定的段落斬殺沒有 exmapRate，不得退回查固定表。
+            if (row.clearedBy === 'battle') continue;
+            const tablePoints = EO_MAP_POINTS.get(row.map);
+            if (tablePoints === undefined) continue;
+            points = tablePoints;
+        }
+
+        const prev = winners.get(row.map);
+        const supersedes = !prev
+            || (hasPacketRate && !prev.fromPacket)
+            || (hasPacketRate === prev.fromPacket && row.ts > prev.ts);
+        if (supersedes) {
+            winners.set(row.map, { ts: row.ts, points, fromPacket: hasPacketRate });
+        }
     }
 
     let total = 0;
     let clearedCount = 0;
-    const items: EoSenkaItem[] = EO_SENKA_MAPS.map(({ map, points }) => {
-        const clearedAt = clearedMapAt.get(map) ?? null;
-        const cleared = clearedAt !== null;
+    const items: EoSenkaItem[] = EO_SENKA_MAPS.map(({ map, points: tablePoints }) => {
+        const winEntry = winners.get(map);
+        const cleared = winEntry !== undefined;
+        const points = winEntry ? winEntry.points : tablePoints;
         if (cleared) {
             total += points;
             clearedCount += 1;
         }
-        return { map, points, cleared, clearedAt };
+        return { map, points, cleared, clearedAt: winEntry?.ts ?? null };
     });
 
-    return { total, clearedCount, mapCount: EO_SENKA_MAPS.length, items };
+    const extraMaps = [...winners.entries()]
+        .filter(([map]) => !EO_MAP_POINTS.has(map))
+        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+    for (const [map, entry] of extraMaps) {
+        total += entry.points;
+        clearedCount += 1;
+        items.push({ map, points: entry.points, cleared: true, clearedAt: entry.ts });
+    }
+
+    return { total, clearedCount, mapCount: items.length, items };
 }
 
 /**

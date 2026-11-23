@@ -103,7 +103,7 @@ export class EventProjector {
     // state.materials 是否與遊戲一致：母港封包設 true，之後出現 keepsMaterialsTracked() 不認得的封包就設
     // false。起始為 false——baseline snapshot 之後到第一筆母港之間發生過什麼無從得知。
     materialsTracked = false;
-    readonly gaugeSeenUncleared = new Set<number>();
+    readonly gaugeSeenUncleared = new Map<number, number>();
     readonly gaugeBroken = new Set<number>();
     // 在 map/start 決定整場是否不記錄；出擊途中改設定不會讓同一場只記一半。
     skipCurrentSortie = false;
@@ -168,7 +168,7 @@ export class EventProjector {
             await this.archiveExpedition(id, ts, path, api, req);
             await this.archiveMaterialUse(id, ts, path, api, req, before);
             await this.archiveSortieBill(id, ts, path, api);
-            await this.detectClear(path);
+            await this.detectClear(path, ts);
             // 放在所有歸檔步驟之後：各步驟看到的是「這筆封包之前」的可信度。
             this.materialsTracked = path === 'api_port/port' || (this.materialsTracked && keepsMaterialsTracked(path));
         } finally {
@@ -205,6 +205,18 @@ export class EventProjector {
             if (Number.isSafeInteger(dropMst) && dropMst > 0) row.dropMst = dropMst;
             // 道具掉落：reducer 剛處理完同一筆結算，三態照抄（見 db.ts SortieLogRow.useItemDrops）。
             if (info.useItemDrops) row.useItemDrops = [...info.useItemDrops];
+            // 量表與斬殺相關事實：reducer 已於更新 mapGauges 前依戰前量表計算完成，此處只照抄。
+            if (info.flagshipSunk !== undefined) row.flagshipSunk = info.flagshipSunk;
+            if (info.flagshipDamage !== undefined) row.flagshipDamage = info.flagshipDamage;
+            if (info.gaugeAtStart) row.gaugeAtStart = { ...info.gaugeAtStart };
+            if (info.exmapRate !== undefined) row.exmapRate = info.exmapRate;
+            if (info.firstClear !== undefined) row.firstClear = info.firstClear;
+            if (info.landing) row.landing = { ...info.landing };
+            // 不記錄的海域（catchOnly）不寫斬殺旗標，與 mapinfo 後備的排除規則一致。
+            if (!this.skipCurrentSortie && info.cleared) {
+                row.cleared = true;
+                if (info.clearedBy) row.clearedBy = info.clearedBy;
+            }
             // 結算封包的其餘欄位（皆已用 samples/6-5-ec_result.json 逐欄驗證）：
             // api_get_exp＝提督經驗值、api_mvp/api_mvp_combined＝MVP 位置（1-based，
             // 已與 analyzeBattle 的傷害推算在同一場真封包上比對一致）、
@@ -219,10 +231,13 @@ export class EventProjector {
             if (typeof enemyName === 'string' && enemyName.trim()) row.enemyName = enemyName;
             if (this.skipCurrentSortie) row.catchOnly = true;
             if (this.shouldPersist) {
-                // projection version bump 會重寫相同主鍵；cleared 是後續 mapinfo 轉變補上的旗標，
-                // 不能因重投影 battle-result 而洗掉。dropMst 等 raw-derived 欄位仍以本次 row 為準。
+                // 重投影會重寫相同主鍵；若本次戰鬥當下已判定為 clearedBy: 'battle'，優先使用新結果，
+                // 否則保留既有列（例如後續 mapinfo 轉變補上的 cleared／clearedBy），避免被洗掉。
                 const existing = await this.tables.sorties.get(id);
-                if (existing?.cleared) row.cleared = true;
+                if (!row.cleared && existing?.cleared) {
+                    row.cleared = true;
+                    if (existing.clearedBy) row.clearedBy = existing.clearedBy;
+                }
                 await this.tables.sorties.put(row);
             }
         } else if (path === 'api_req_map/next' && api?.api_destruction_battle && !this.skipCurrentSortie) {
@@ -555,30 +570,35 @@ export class EventProjector {
         return false;
     }
 
-    private async markLatestBossCleared(map: string): Promise<void> {
-        const bosses = (await this.tables.sorties
-            .filter(row => row.map === map && row.boss && row.kind === 'battle' && !row.catchOnly)
-            .toArray())
+    private async markLatestBossCleared(map: string, seenTs: number): Promise<void> {
+        const candidates = await this.tables.sorties
+            .filter(row => row.map === map && row.kind === 'battle' && !row.catchOnly && row.ts >= seenTs)
+            .toArray();
+        // 該圖自最近一次觀測未擊破起，若戰鬥當下已判定斬殺，不再走 mapinfo 後備覆標其他場次。
+        if (candidates.some(row => row.cleared && row.clearedBy === 'battle')) return;
+        const bosses = candidates
+            .filter(row => row.boss)
             .sort((left, right) => right.ts - left.ts);
         const target = bosses.find(row => !row.cleared) ?? bosses[0];
         if (target && !target.cleared) {
-            await this.tables.sorties.update(target.eventId, { cleared: true });
+            await this.tables.sorties.update(target.eventId, { cleared: true, clearedBy: 'mapinfo' });
         }
     }
 
-    private async detectClear(path: string): Promise<void> {
+    private async detectClear(path: string, ts: number): Promise<void> {
         if (path !== 'api_get_member/mapinfo') return;
         for (const [id, gauge] of this.state.mapGauges) {
             if (this.isGaugeBroken(gauge)) {
                 const map = `${Math.floor(id / 10)}-${id % 10}`;
+                const seenTs = this.gaugeSeenUncleared.get(id);
                 // 不記錄的海域沒有這場的 Boss 列，標到舊紀錄上會誤指斬殺場次。
-                if (!this.gaugeBroken.has(id) && this.gaugeSeenUncleared.has(id) && this.shouldPersist
+                if (!this.gaugeBroken.has(id) && seenTs !== undefined && this.shouldPersist
                     && !this.skipSortieMap(map)) {
-                    await this.markLatestBossCleared(map);
+                    await this.markLatestBossCleared(map, seenTs);
                 }
                 this.gaugeBroken.add(id);
             } else {
-                this.gaugeSeenUncleared.add(id);
+                this.gaugeSeenUncleared.set(id, ts);
                 // 量表重生（活動下一段）時允許再次偵測斬殺。
                 this.gaugeBroken.delete(id);
             }

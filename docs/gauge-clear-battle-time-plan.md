@@ -1,6 +1,6 @@
 # 量表與斬殺的戰鬥當下判斷：資料設計提案
 
-狀態：**設計已定案，待開發者確認啟動後開始實作**。本檔動到出擊紀錄的資料格式與備份版本，依 `AGENTS.md` 硬約束 2 與 [`docs/task-template.md`](task-template.md) 分流表，先討論相容做法再動手。
+狀態：**已實作，待實機驗證**。本檔動到出擊紀錄的資料格式與備份版本，依 `AGENTS.md` 硬約束 2 與 [`docs/task-template.md`](task-template.md) 分流表，先討論相容做法再動手。
 
 ## 1. 目標
 
@@ -39,8 +39,8 @@
 | battleresult `api_get_exmap_useitem_id` | 同上 | 樣本：擊破場 `"57"`、未擊破場 `0`。poi `views/redux/info/useitems.ts` 以非 0 累加道具庫存；`state.ts` 已採同樣做法 | 可用（只改註解，不改行為） |
 | battleresult `api_first_clear` | 同上 | 樣本：擊破場 `1`、未擊破場 `0`。KC3Kai `src/library/objects/Node.js` 以 `clear \|= api_first_clear` 記錄通關 | 可用，但只當輔助（見 §5.3） |
 | battleresult `api_destsf` | 同上 | 樣本：6-5 三場 Boss 皆擊沉，值皆為 `1`。KC3Kai `Node.js` 以它判斷敵主隊旗艦是否擊沉 | 不作為判定依據，只在測試中與戰鬥分析的結果交叉核對（§5.2） |
-| battleresult `api_landing_hp` | 同上（運輸作戰） | KC3Kai `Node.js` 讀 `api_now_hp`、`api_max_hp`、`api_sub_value`，三者可能是字串 | 可用，無本專案樣本 |
-| `api_req_map/next` 的 `api_eventmap`（運輸終點） | 終點不是戰鬥點時 | KC3Kai `Node.js`：`api_next == 0` 且帶 `api_eventmap` 時，以 `api_now_maphp` 更新剩餘 TP | 可用，無本專案樣本；僅更新記憶體 `GameState.mapGauges`（§5.3） |
+| battleresult `api_landing_hp` | 同上（運輸作戰，含 5-6 第一段） | KC3Kai `Node.js` gauge-tp：`api_now_hp` 為戰前剩餘量、`api_sub_value` 為本場登陸量；kcsapi.ts 由真實樣本產生的型別確認三個欄位名稱，數值可能是字串 | 已驗證：`samples/5-6-1-battleresult-landing.json` 與 `samples/5-6-mapinfo-after-landing.json`（280 − 79 = 已登陸 79/280）；聯合艦隊字串形式無樣本 |
+| `api_req_map/next` 的 `api_eventmap`（終點節點） | `api_next == 0` 的終點，含運輸點與 Boss 戰點 | KC3Kai `Node.js`：運輸點終點以 `api_now_maphp`（登陸後的值）更新剩餘 TP；Boss 戰終點帶戰前量表見本專案樣本 `samples/base-air-raid-3.json`（`api_event_id=5`、840/4840） | 可用；運輸點終點無本專案樣本；僅更新記憶體 `GameState.mapGauges`（§5.3） |
 | `api_req_map/next` 的 `api_get_eo_rate` | 1-6 終點（無 Boss 戰） | KancolleSniffer `ExMapInfo.cs` `InspectMapNext()` 以非 0 判定 EO 擊破並取其值 | **不採用**（見 §5.4） |
 | HP 量表扣量＝Boss 旗艦受傷量，最終段未擊沉停在 1 | 機制 | [maps.md](engineering/maps.md) 第一節，已用 61-5、61-4 真封包驗證 | 已驗證 |
 
@@ -117,9 +117,9 @@ HP 量表的扣量規則（[maps.md](engineering/maps.md) 第一節已驗證）�
   - HP 式未歸零：更新 `nowHp = max(nowHp − flagshipDamage, flagshipSunk ? 0 : 1)` 並設 `source: 'estimate'`。
   - HP 式歸零：設 `nowHp = 0`（**不設 `cleared: true`**，保留整圖通關語意給 `onReqMapStart()`、`mapCleared()` 與重播保護）。
   - 擊破數式未歸零但 `flagshipSunk`：遞增 `defeatCount` 並設 `source: 'estimate'`；達標時設 `defeatCount = requiredDefeatCount`（不設 `cleared: true`，除非同時 `exmapRate > 0`）。
-  - TP 式帶 `api_landing_hp`：更新 `nowHp = max(0, landing.now − landing.sub)`（`source: 'server'`，封包事實；不設 `cleared: true`）。
+  - TP 式帶 `api_landing_hp`：活動海域更新 `nowHp = max(0, landing.now − landing.sub)`；一般海域（mapinfo 以 `api_defeat_count`／`api_required_defeat_count` 表示，如 5-6 第一段）更新 `defeatCount = landing.max − max(0, landing.now − landing.sub)`，不寫 `nowHp`／`maxHp`。皆為 `source: 'server'`（封包事實），不設 `cleared: true`。
   - `exmapRate > 0`：確定整圖通關，設 `cleared: true`（`source: 'server'`）。
-- **運輸終點（`api_req_map/next` 且 `api_next == 0` 帶 `api_eventmap`）**：直接以 `api_eventmap` 的伺服器值更新 `GameState.mapGauges`（`source: 'server'`），不寫 `SortieLogRow`。
+- **終點節點（`api_req_map/next` 且 `api_next == 0` 帶 `api_eventmap`）**：直接以 `api_eventmap` 的伺服器值更新 `GameState.mapGauges`（`source: 'server'`），不寫 `SortieLogRow`。同時涵蓋運輸點終點（登陸後的值）與 Boss 戰終點（戰前量表）；後者之後的斬殺判定不受影響。
 - `mapinfo`、`select_eventmap_rank`、`api_req_map/start` 到達時一律以伺服器值取代並改回 `source: 'server'`。
 - **面板顯示**（`entrypoints/panel/sortie-gauge.ts`、`entrypoints/panel/main.ts` `sortieHeaderHtml()`）：
   - `gauge.cleared` 或量表已歸零（`gaugeType === 1` 達標，或 `gaugeType === 2/3` 且 `maxHp > 0 && maxHp !== 9999 && nowHp === 0`）時，顯示已擊破 `✓`，不猜下一段。
