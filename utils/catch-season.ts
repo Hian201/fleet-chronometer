@@ -19,18 +19,32 @@
 // 後者，寧可多算幾場無魚的場次，也不漏掉活動中的場次。玩家可以自己填結束時刻（多半來自官方公告），
 // 優先於推算：官方（本表）→ 玩家自填 → 推算 → 下一季開始。
 
+import type { CatchGrounds } from './item-catch-stats';
+
 export interface CatchSeason {
     /** 顯示用年度，也是 localStorage 的鍵。 */
     id: string;
     start: number;
     /** 官方公告的結束時刻；未公告為 null。 */
     end: number | null;
+    /** 可能的漁場（推測）：換了季節曲的海域。看秋刀魚時，撈魚場次只算這些戰鬥（見 item-catch-stats.ts）。 */
+    likelyGrounds?: CatchGrounds;
 }
 
 /** 由舊到新。新一季公告後新增一列；官方結束時刻公告後補上 end。 */
 export const CATCH_SEASONS: readonly CatchSeason[] = [
     // 2026-11-19 官方推文：11/24 11:00～20:30 維護，完成後開始（docs/saury-plan.md S13）。
-    { id: '2026', start: Date.parse('2026-11-24T20:30:00+09:00'), end: null },
+    // likelyGrounds：2026-11-24 更新公告說漁場會播應景的曲子；依同次維護 api_mst_mapbgm 有換曲的海域
+    // （維護前後兩份備份的 start2 比對）。一般戰鬥曲有換的圖全部戰鬥都算；2-2 只換 Boss 曲，只算 Boss 戰；
+    // 2-3、2-4 只換移動中曲子，開發者決定整張圖的戰鬥都算。不是撈得到魚的證明。
+    {
+        id: '2026', start: Date.parse('2026-11-24T20:30:00+09:00'), end: null,
+        likelyGrounds: {
+            '1-1': 'all', '1-2': 'all', '1-3': 'all', '1-4': 'all', '1-5': 'all', '1-6': 'all',
+            '2-1': 'all', '2-2': 'boss', '2-3': 'all', '2-4': 'all',
+            '3-1': 'all', '3-2': 'all', '3-3': 'all', '3-4': 'all', '3-5': 'all', '6-1': 'all', '6-5': 'all',
+        },
+    },
 ];
 
 export const SAURY_ITEM = 68;

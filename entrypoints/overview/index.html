@@ -8862,6 +8862,13 @@
             color: var(--brass); font-size: 10px; font-weight: 600; cursor: help;
         }
         .ic-nodes .ic-num { text-align: right; }
+        .ic-nowrap { white-space: nowrap; }
+        /* 換曲範圍外照算的場次：中性外框，不借語意色 */
+        .ic-outside {
+            flex: none;
+            margin-left: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 8px;
+            color: var(--dim); font-size: 10px; cursor: help; white-space: nowrap;
+        }
 
         /* ── 改修日程（improve-plan）──
            一週總表沿用 .vl-table：裝備欄與曜日欄之間、各曜日欄之間都畫 1px 分隔線（§4.1.2，

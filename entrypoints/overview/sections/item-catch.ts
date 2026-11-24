@@ -16,7 +16,7 @@ import {
 } from '@/utils/catch-alert';
 import {
     CATCH_SEASONS, currentSeasonRange, jstInputToTs, latestSeason, loadInferredEnd, loadUserEnd, onSeasonEndChange, saveUserEnd,
-    tsToJstInput, type CatchSeason,
+    SAURY_ITEM, tsToJstInput, type CatchSeason,
 } from '@/utils/catch-season';
 import { loadDcReminderOff, onDcReminderChange, saveDcReminder } from '@/utils/depth-charge';
 import { nodeLabel } from '@/utils/map-node-letters';
@@ -100,13 +100,18 @@ function nodeTableHtml(nodes: NodeCatchStat[]): string {
     </tr></thead><tbody>${nodes.map(n => {
         const label = nodeLabel(n.map, n.node);
         return `<tr>
-            <td><span class="dl-node" title="${esc(label === String(n.node) ? label : `edge ${n.node}`)}">${esc(label)}</span></td>
+            <td><span class="dl-node" title="${esc(label === String(n.node) ? label : `edge ${n.node}`)}">${esc(label)}</span>${outsideBadge(n.outside)}</td>
             <td class="ic-num">${n.total.caught ? `<b>${num(n.total.caught)}</b>` : '0'}</td>
             ${rank(n.byRank.S)}${rank(n.byRank.A)}${rank(n.byRank.other)}
             <td class="ic-num">${unknownHtml(n.total.u)}</td>
             <td class="ic-num">${num(n.sorties)}</td>
         </tr>`;
     }).join('')}</tbody></table></div>`;
+}
+
+/** 換曲範圍外、但撈到魚而照算的場數標記。 */
+function outsideBadge(outside: number): string {
+    return outside ? ` <span class="ic-outside" title="${esc(t('ov.icOutsideTip', { n: outside }))}">${esc(t('ov.icOutside'))}</span>` : '';
 }
 
 function areaTitle(area: number, ctx: SectionContext): string {
@@ -129,12 +134,12 @@ function statsHtml(areas: AreaCatchStat[], ctx: SectionContext, open: ReadonlySe
     const isOpen = (key: string) => open.has(key) ? ' open' : '';
     return `<div class="ic-grid">${headHtml(t('ov.icColArea'))}${areas.map(a => `
         <details class="ic-area" data-key="a${a.area}"${isOpen(`a${a.area}`)}>
-            <summary class="ic-row"><span class="ic-name ic-name-flex"><span class="ic-name-text">${esc(areaTitle(a.area, ctx))}</span>${alertBadge(a.area, hits, rule)}</span>${rowCells(a, linkable)}</summary>
+            <summary class="ic-row"><span class="ic-name ic-name-flex"><span class="ic-name-text">${esc(areaTitle(a.area, ctx))}</span>${outsideBadge(a.outside)}${alertBadge(a.area, hits, rule)}</span>${rowCells(a, linkable)}</summary>
             ${a.maps.map(m => {
                 const p = parseMapCode(m.map);
                 const label = mapLabel({ map: m.map, mapnum: p.mapnum, event: isEventWorld(p.world) });
                 return `<details class="ic-map" data-key="m${esc(m.map)}"${isOpen(`m${m.map}`)}>
-                    <summary class="ic-row"><span class="ic-name" title="${esc(m.map)}">${esc(label)}</span>${rowCells(m, linkable)}</summary>
+                    <summary class="ic-row"><span class="ic-name ic-name-flex" title="${esc(m.map)}"><span class="ic-name-text">${esc(label)}</span>${outsideBadge(m.outside)}</span>${rowCells(m, linkable)}</summary>
                     ${nodeTableHtml(m.nodes)}
                 </details>`;
             }).join('')}
@@ -171,6 +176,7 @@ export const itemCatchSection: OverviewSection = {
                 <span class="ic-end-note"></span>
             </p>
             <p class="ic-clear-row" hidden><button type="button" class="ov-btn ic-clear" title="${esc(t('ov.icClearTip'))}"></button></p>
+            <p class="ov-note dim ic-grounds" hidden></p>
             <p class="ov-note dim ic-excluded" hidden></p>
             <p class="ic-dc"><label class="rs-inline" title="${esc(t('ov.icDcTip'))}"><input type="checkbox" class="ic-dc-on"><span>${esc(t('ov.icDc'))}</span></label><span class="ic-dc-state"></span></p>
             <details class="ic-alert">
@@ -193,6 +199,7 @@ export const itemCatchSection: OverviewSection = {
         const toInput = el.querySelector<HTMLInputElement>('.ic-to')!;
         const summary = el.querySelector<HTMLElement>('.ic-summary')!;
         const excluded = el.querySelector<HTMLElement>('.ic-excluded')!;
+        const grounds = el.querySelector<HTMLElement>('.ic-grounds')!;
         const body = el.querySelector<HTMLElement>('.ic-body')!;
         const alertOn = el.querySelector<HTMLInputElement>('.ic-alert-on')!;
         const alertHours = el.querySelector<HTMLInputElement>('.ic-alert-hours')!;
@@ -357,10 +364,19 @@ export const itemCatchSection: OverviewSection = {
             const season = selectedSeason();
             const sc = season ? seasonChip(season) : null;
             drawEnd(season);
+            // 換曲範圍只套在所選季的秋刀魚；其他道具或「全部期間」不限。
+            const likely = itemId === SAURY_ITEM ? season?.likelyGrounds : undefined;
+            const likelyMaps = Object.entries(likely ?? {})
+                .map(([map, scope]) => scope === 'boss' ? t('ov.icGroundBoss', { map }) : map);
+            grounds.hidden = !likelyMaps.length;
+            // 地圖代號不在連字號處折行。
+            grounds.innerHTML = likelyMaps.length
+                ? esc(t('ov.icLikelyGrounds', { maps: '\u0000' })).replace('\u0000', likelyMaps.map(m => `<span class="ic-nowrap">${esc(m)}</span>`).join('、'))
+                : '';
             const { from, to } = period();
             drawItems();
             void drawClear(season, sc?.range ?? null);
-            const stats = itemCatchStats(rows, { itemId, from, to, now: Date.now() });
+            const stats = itemCatchStats(rows, { itemId, from, to, now: Date.now(), grounds: likely });
             const held = ctx.state.useItemCount(itemId);
             const chip = (label: string, value: string, tip?: string) =>
                 `<span class="ic-chip"${tip ? ` title="${esc(tip)}"` : ''}><span class="ic-chip-label">${esc(label)}</span>${value}</span>`;

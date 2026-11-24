@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SortieLogRow } from '../utils/db';
 import { itemCatchStats } from '../utils/item-catch-stats';
+import { CATCH_SEASONS } from '../utils/catch-season';
 
 const SAURY = 68;
 const H = 3_600_000;
@@ -152,5 +153,55 @@ describe('itemCatchStats', () => {
         ], query);
         expect(stats.areas.map(a => a.area)).toEqual([1]);
         expect(stats.caught).toBe(1);
+    });
+
+    describe('換曲範圍（grounds）', () => {
+        const grounds = { '1-1': 'all', '2-2': 'boss' } as const;
+        const q = { ...query, grounds };
+
+        it('全部戰鬥的圖都算；只算 Boss 的圖略過非 Boss 的無魚戰；範圍外的圖無魚不列入', () => {
+            const stats = itemCatchStats([
+                row({ map: '1-1', node: 1 }),
+                row({ map: '1-1', node: 2, boss: true }),
+                row({ map: '2-2', node: 3 }),
+                row({ map: '2-2', node: 3, useItemDrops: undefined }),
+                row({ map: '2-2', node: 9, boss: true }),
+                row({ map: '7-1', node: 1 }),
+            ], q);
+            expect(stats.areas.map(a => a.maps.map(m => [m.map, m.nodes.map(n => n.node)]))).toEqual([
+                [['1-1', [1, 2]]], [['2-2', [9]]],
+            ]);
+            expect(stats.unknown).toBe(0);
+            expect(stats.areas.every(a => a.outside === 0)).toBe(true);
+        });
+
+        it('範圍外撈到的照算並標 outside；同節點的範圍外無魚戰不列入', () => {
+            const stats = itemCatchStats([
+                row({ map: '2-2', node: 3, useItemDrops: [SAURY] }),
+                row({ map: '2-2', node: 3 }),
+                row({ map: '2-2', node: 9, boss: true }),
+                row({ map: '7-1', node: 1, useItemDrops: [SAURY, SAURY] }),
+            ], q);
+            const map22 = stats.areas[0].maps[0];
+            expect(map22.outside).toBe(1);
+            expect(map22.nodes.find(n => n.node === 3)).toMatchObject({ outside: 1, total: { n: 1, k: 1, u: 0, caught: 1 } });
+            expect(map22.nodes.find(n => n.node === 9)?.outside).toBe(0);
+            expect(stats.areas[1]).toMatchObject({ area: 7, outside: 1 });
+            expect(stats.caught).toBe(3);
+        });
+
+        it('沒有 grounds 時全部列出、outside 為 0', () => {
+            const stats = itemCatchStats([row({ map: '7-1', node: 1 }), row({ map: '2-2', node: 3 })], query);
+            expect(stats.areas.length).toBe(2);
+            expect(stats.areas.every(a => a.outside === 0)).toBe(true);
+        });
+
+        it('2026 季：2-2 只算 Boss，其餘換曲海域全部戰鬥都算', () => {
+            const g = CATCH_SEASONS.find(sn => sn.id === '2026')?.likelyGrounds ?? {};
+            expect(g['2-2']).toBe('boss');
+            expect(Object.entries(g).filter(([, v]) => v === 'boss').map(([m]) => m)).toEqual(['2-2']);
+            expect(Object.keys(g).sort()).toEqual(['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '2-1', '2-2', '2-3', '2-4',
+                '3-1', '3-2', '3-3', '3-4', '3-5', '6-1', '6-5']);
+        });
     });
 });

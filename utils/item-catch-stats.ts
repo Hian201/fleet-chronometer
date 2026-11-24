@@ -8,9 +8,12 @@
 //   · caught＝捕獲條數，按 id 在陣列中出現的次數加總；與命中場數 k 分開。
 //   · sorties＝出擊趟數（相異 sortieKey）。n 是節點結算場數，一趟多個漁點會貢獻多場。
 //
-// ── 不做的判斷 ──────────────────────────────────────────────────────────
-// 不判定哪些節點「有資格掉魚」：所選期間內有紀錄的戰鬥節點全部列出，從未捕獲的也保留 0，
-// 分母不因首筆捕獲而改變。不推算枯竭、恢復或掉率；連續無魚場數只是紀錄事實。
+// ── 撈魚場次的範圍 ──────────────────────────────────────────────────────
+// 季別有 `grounds`（換了季節曲的海域，見 utils/catch-season.ts）時，只有換曲的戰鬥算場次：
+// 'all' 的圖全部戰鬥都算，'boss' 的圖只算 Boss 戰。範圍外的戰鬥只要撈到該道具就照算，並以
+// `outside` 標出，避免換曲假設錯了時把真正的漁點藏起來；範圍外沒撈到的戰鬥不列入。
+// 沒有 `grounds`（其他道具、全部期間）時，所選期間內有紀錄的戰鬥節點全部列出。
+// 從未捕獲的節點保留 0，分母不因首筆捕獲而改變。不推算枯竭、恢復或掉率；連續無魚場數只是紀錄事實。
 // 基地空襲（kind='raid'）沒有結算道具，不列入。
 //
 // 活動海域（world >= 10）不列入：秋刀魚祭的漁場歷來是通常海域，活動海域掉的道具（含少數年度
@@ -50,6 +53,8 @@ interface CatchGroup {
     byRank: Record<CatchRank, CatchCounts>;
     /** 出擊趟數（相異 sortieKey）。 */
     sorties: number;
+    /** 換曲範圍外、但撈到該道具而照算的場數。 */
+    outside: number;
 }
 
 export interface NodeCatchStat extends CatchGroup {
@@ -102,6 +107,17 @@ export interface ItemCatchQuery {
     to: number | null;
     /** 近 6／24 小時時窗的基準：`to` 有值時以它為準（歷史檢視），否則用這個時刻。 */
     now: number;
+    /** 撈魚場次的範圍（地圖代號 → 全部戰鬥／只算 Boss 戰）；省略＝不限。 */
+    grounds?: CatchGrounds;
+}
+
+/** 'all'＝該圖全部戰鬥都算撈魚場次；'boss'＝只算 Boss 戰。 */
+export type CatchGrounds = Readonly<Record<string, 'all' | 'boss'>>;
+
+/** 這場戰鬥是否在換曲範圍內；沒有範圍時一律算。 */
+export function inGrounds(row: SortieLogRow, grounds: CatchGrounds | undefined): boolean {
+    const scope = grounds?.[row.map];
+    return !grounds || scope === 'all' || (scope === 'boss' && row.boss);
 }
 
 const HOUR = 3_600_000;
@@ -126,7 +142,7 @@ function addTo(counts: CatchCounts, caught: number | null): void {
     if (caught > 0) { counts.k++; counts.caught += caught; }
 }
 
-function group(rows: SortieLogRow[], itemId: number): CatchGroup {
+function group(rows: SortieLogRow[], itemId: number, grounds: CatchGrounds | undefined): CatchGroup {
     const total = emptyCounts();
     const byRank: Record<CatchRank, CatchCounts> = { S: emptyCounts(), A: emptyCounts(), other: emptyCounts() };
     for (const row of rows) {
@@ -134,11 +150,14 @@ function group(rows: SortieLogRow[], itemId: number): CatchGroup {
         addTo(total, caught);
         addTo(byRank[catchRank(row.rank)], caught);
     }
-    return { total, byRank, sorties: new Set(rows.map(r => r.sortieKey)).size };
+    return {
+        total, byRank, sorties: new Set(rows.map(r => r.sortieKey)).size,
+        outside: rows.filter(r => !inGrounds(r, grounds)).length,
+    };
 }
 
 /** rows 必須已依 byTime 排序。 */
-function timeline(rows: SortieLogRow[], itemId: number, cutoff: number): CatchTimeline {
+function timeline(rows: SortieLogRow[], itemId: number, cutoff: number, grounds: CatchGrounds | undefined): CatchTimeline {
     let recent6h = 0, recent24h = 0, lastCatchTs: number | null = null;
     for (const row of rows) {
         const caught = catchOf(row, itemId);
@@ -163,7 +182,7 @@ function timeline(rows: SortieLogRow[], itemId: number, cutoff: number): CatchTi
         }
     }
     return {
-        ...group(rows, itemId),
+        ...group(rows, itemId, grounds),
         recent6h, recent24h, lastCatchTs,
         lastBattleTs: rows.length ? rows[rows.length - 1].ts : null,
         dryStreak,
@@ -188,7 +207,8 @@ const mapOrder = (a: string, b: string) => {
 export function itemCatchStats(sorties: readonly SortieLogRow[], q: ItemCatchQuery): ItemCatchStats {
     const rows = sorties
         .filter(r => isCatchRow(r)
-            && (q.from == null || r.ts >= q.from) && (q.to == null || r.ts <= q.to))
+            && (q.from == null || r.ts >= q.from) && (q.to == null || r.ts <= q.to)
+            && (inGrounds(r, q.grounds) || !!catchOf(r, q.itemId)))
         .sort(byTime);
     const cutoff = q.to ?? q.now;
 
@@ -196,15 +216,15 @@ export function itemCatchStats(sorties: readonly SortieLogRow[], q: ItemCatchQue
         .sort(([a], [b]) => a - b)
         .map(([area, areaRows]): AreaCatchStat => ({
             area,
-            ...timeline(areaRows, q.itemId, cutoff),
+            ...timeline(areaRows, q.itemId, cutoff, q.grounds),
             maps: [...groupBy(areaRows, r => r.map)]
                 .sort(([a], [b]) => mapOrder(a, b))
                 .map(([map, mapRows]): MapCatchStat => ({
                     map,
-                    ...timeline(mapRows, q.itemId, cutoff),
+                    ...timeline(mapRows, q.itemId, cutoff, q.grounds),
                     nodes: [...groupBy(mapRows, r => r.node)]
                         .sort(([a], [b]) => a - b)
-                        .map(([node, nodeRows]) => ({ map, node, ...group(nodeRows, q.itemId) })),
+                        .map(([node, nodeRows]) => ({ map, node, ...group(nodeRows, q.itemId, q.grounds) })),
                 })),
         }));
 

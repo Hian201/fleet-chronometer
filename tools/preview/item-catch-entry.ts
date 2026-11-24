@@ -52,6 +52,8 @@ if (scene === 'default') {
     for (let i = 0; i < 5; i++) add('3-3', 3, 'S', 200 + i, undefined);
     add('3-3', 3, 'S', 5, undefined);
     for (let i = 0; i < 4; i++) add('5-4', 2, 'S', 10 + i, []);
+    // 換曲範圍外（2026 季不含 5-4）撈到一條：預覽「範圍外」標記。
+    add('5-4', 2, 'S', 9, [68]);
     for (let i = 0; i < 3; i++) add('62-3', 7, 'A', 50 + i, [68]);
     add('1-4', 6, 'S', 400, undefined, 999, { imported: true });
     add('1-4', 10, 'S', 3, [68], 2000, { drop: '雪風', dropMst: 20 });
