@@ -7,11 +7,16 @@ import type { Lang } from './gamedata-i18n';
 import { questSenkaCatalogEntry } from './quest-senka';
 import {
     eoSenkaForMonth, formatSenkaRemaining, questSenkaForMonth, regularSenkaForMonth,
-    senkaDeadlines, senkaMonthOf, todayRegularSenka,
+    senkaDeadlines, senkaMonthOf, senkaMonthWindow, todayRegularSenka,
     type EoSenkaResult, type ExpReading, type QuestSenkaItem, type QuestSenkaLookup,
     type QuestSenkaResult, type RegularSenkaResult, type SenkaDeadlineInfo, type SenkaMonth,
 } from './senka';
-import type { SenkaMonthData } from './senka-readings';
+import {
+    calibrateMonthlySenka, evaluateSenkaTarget,
+    type SenkaBounds, type SenkaCalibrationResult, type SenkaTarget, type SenkaTargetResult,
+} from './senka-calibration';
+import type { SenkaMonthData, SenkaMonthRankings } from './senka-readings';
+import { senkaMonthKey, type SenkaFinalTier } from './senka-store';
 import { tFor } from './ui-i18n';
 
 /** 1a 階段普通戰果摘要（含本月累積、今日新增與截止倒數）。 */
@@ -27,6 +32,30 @@ export interface SenkaRegularSummary {
 export interface SenkaObservedSummary extends SenkaRegularSummary {
     eo: EoSenkaResult;
     quest: QuestSenkaResult;
+}
+
+/** 第二期：已觀測戰果加上榜分校準與目標差額（面板托盤與情報總括共用）。 */
+export interface SenkaMonthView extends SenkaObservedSummary {
+    calibration: SenkaCalibrationResult;
+    target: SenkaTarget | null;
+    /** 未設目標時為 null。 */
+    targetResult: SenkaTargetResult | null;
+}
+
+/** 逐月對帳單列（組成、推算總額、最後觀測名次與玩家自填的最終結果）。 */
+export interface SenkaReconRow {
+    month: SenkaMonth;
+    key: string;
+    inProgress: boolean;
+    /** 未校準或校準只得到基線時為 null。 */
+    carry: SenkaBounds | null;
+    regular: RegularSenkaResult;
+    eo: number;
+    quest: { min: number; max: number };
+    /** 只有取得當月榜分校準時才有推算總額。 */
+    total: SenkaBounds | null;
+    lastRank: number | null;
+    finalTier: SenkaFinalTier | null;
 }
 
 const intFormatters = new Map<Lang, Intl.NumberFormat>();
@@ -65,6 +94,85 @@ export function buildObservedSenkaSummary(
     };
 }
 
+/** 組裝第二期月檢視：已觀測摘要＋榜分校準＋目標差額（目標只比對同月榜線）。 */
+export function buildSenkaMonthView(
+    data: SenkaMonthData,
+    rankings: SenkaMonthRankings | null,
+    target: SenkaTarget | null,
+    now: number,
+    questLookup: QuestSenkaLookup = questSenkaCatalogEntry,
+): SenkaMonthView {
+    const observed = buildObservedSenkaSummary(data, now, questLookup);
+    const selfRankings = rankings?.selfRankings ?? [];
+    const calibration = calibrateMonthlySenka({
+        month: observed.month,
+        now,
+        readings: data.readings,
+        sorties: data.sorties,
+        questClaims: data.questClaims,
+        questLookup,
+        selfRankings,
+    });
+    const targetResult = target
+        ? evaluateSenkaTarget({
+            month: observed.month,
+            target,
+            estimate: calibration.status === 'calibrated' ? calibration.estimate : null,
+            cutoffs: rankings?.cutoffs ?? [],
+            selfRankings,
+            now,
+        })
+        : null;
+    return { ...observed, calibration, target, targetResult };
+}
+
+/**
+ * 組裝逐月對帳的一列。進行中的月份以 `now` 計算，已結束的月份以月末最後一刻計算。
+ */
+export function buildSenkaReconRow(
+    month: SenkaMonth,
+    data: SenkaMonthData,
+    rankings: SenkaMonthRankings | null,
+    finalTier: SenkaFinalTier | null,
+    now: number,
+    questLookup: QuestSenkaLookup = questSenkaCatalogEntry,
+): SenkaReconRow {
+    const end = senkaMonthWindow(month).end;
+    const inProgress = now < end;
+    const at = inProgress ? now : end - 1;
+    const selfRankings = rankings?.selfRankings ?? [];
+    const cal = calibrateMonthlySenka({
+        month,
+        now: at,
+        readings: data.readings,
+        sorties: data.sorties,
+        questClaims: data.questClaims,
+        questLookup,
+        selfRankings,
+    });
+    let lastRank: number | null = null;
+    let lastAt = -Infinity;
+    for (const r of selfRankings) {
+        if (r.publishedAt > at || r.publishedAt < lastAt) continue;
+        if (typeof r.rank === 'number' && Number.isSafeInteger(r.rank) && r.rank >= 1) {
+            lastRank = r.rank;
+            lastAt = r.publishedAt;
+        }
+    }
+    return {
+        month,
+        key: senkaMonthKey(month),
+        inProgress,
+        carry: cal.status === 'calibrated' ? cal.carry : null,
+        regular: cal.regular,
+        eo: cal.eo.total,
+        quest: { min: cal.quest.min, max: cal.quest.max },
+        total: cal.status === 'calibrated' ? cal.estimate : null,
+        lastRank,
+        finalTier,
+    };
+}
+
 /** 依顯示語言格式化名次（英文帶序數後綴，繁中與日文回傳純數字字串）。 */
 export function formatSenkaRank(rank: number, lang: Lang): string {
     if (lang !== 'en') return String(rank);
@@ -94,6 +202,48 @@ function formatApproxSenkaBounds(min: number, max: number, exactPoints: boolean,
     const hi = Math.ceil(max) || 0;
     if (lo === hi) return lo === 0 ? '0' : `≈${formatSenkaInt(lo, lang)}`;
     return `≈${formatSenkaInt(lo, lang)}${tFor(lang, 'senka.rangeDash')}${formatSenkaInt(hi, lang)}`;
+}
+
+/**
+ * 格式化校準後的小數區間（推算總額、繼承分等）：上下界相等時四捨五入為單值，
+ * 否則下界無條件捨去、上界無條件進位，確保顯示的區間涵蓋真值；一律加 ≈。
+ */
+export function formatSenkaBounds(b: SenkaBounds, lang: Lang): string {
+    return formatApproxSenkaBounds(b.min, b.max, b.min === b.max, lang);
+}
+
+/** 格式化組成欄的小數區間（不加 ≈；取整規則同 formatSenkaBounds）。 */
+export function formatSenkaPartBounds(b: SenkaBounds, lang: Lang): string {
+    if (b.min === b.max) return formatSenkaInt(b.min, lang);
+    const lo = Math.floor(b.min) || 0;
+    const hi = Math.ceil(b.max) || 0;
+    if (lo === hi) return formatSenkaInt(lo, lang);
+    return `${formatSenkaInt(lo, lang)}${tFor(lang, 'senka.rangeDash')}${formatSenkaInt(hi, lang)}`;
+}
+
+/** 格式化帶正負號的小數區間（統計後新增、距榜線等；取整規則同 formatSenkaBounds）。 */
+export function formatSignedSenkaBounds(b: SenkaBounds, lang: Lang): string {
+    if (b.min === b.max) return formatSignedSenka(b.min, lang);
+    const lo = Math.floor(b.min) || 0;
+    const hi = Math.ceil(b.max) || 0;
+    if (lo === hi) return formatSignedSenka(lo, lang);
+    const fmtBound = (v: number) => (v >= 0 ? `+${formatSenkaInt(v, lang)}` : `−${formatSenkaInt(-v, lang)}`);
+    return `≈${fmtBound(lo)}${tFor(lang, 'senka.rangeDash')}${fmtBound(hi)}`;
+}
+
+/** 格式化整數差額（當次榜差：同榜次兩個整數相減，不加 ≈）。 */
+export function formatSenkaIntGap(n: number, lang: Lang): string {
+    const v = Math.round(n) || 0;
+    if (v === 0) return '0';
+    return v > 0 ? `+${formatSenkaInt(v, lang)}` : `−${formatSenkaInt(-v, lang)}`;
+}
+
+/** 頁首與托盤主數值：已校準時顯示本月戰果推算，否則顯示已觀測戰果（不含繼承分）。 */
+export function formatSenkaHeadline(view: SenkaObservedSummary | SenkaMonthView, lang: Lang): string {
+    if ('calibration' in view && view.calibration.status === 'calibrated') {
+        return formatSenkaBounds(view.calibration.estimate, lang);
+    }
+    return formatObservedSenkaValue(view, lang);
 }
 
 /** 格式化本月普通戰果主數值（exact / range / 缺資料回傳 '—'）。 */
@@ -148,25 +298,13 @@ export function formatObservedGainValue(
 ): string {
     const { regular, eo, quest } = summary;
     const base = 'observed' in regular ? regular.observed : 0;
-    const min = base + eo.total + quest.min;
-    const max = base + eo.total + quest.max;
-    if (min === max) return formatSignedSenka(min, lang);
-    const lo = Math.floor(min) || 0;
-    const hi = Math.ceil(max) || 0;
-    if (lo === hi) return formatSignedSenka(lo, lang);
-    const fmtBound = (v: number) => (v >= 0 ? `+${formatSenkaInt(v, lang)}` : `−${formatSenkaInt(-v, lang)}`);
-    return `≈${fmtBound(lo)}${tFor(lang, 'senka.rangeDash')}${fmtBound(hi)}`;
+    return formatSignedSenkaBounds({ min: base + eo.total + quest.min, max: base + eo.total + quest.max }, lang);
 }
 
 /** 格式化組成列中的普通戰果部分（不含 `≈`；缺起點／無資料／異常回傳 `'—'`）。 */
 export function formatRegularPartValue(regular: RegularSenkaResult, lang: Lang): string {
     if (regular.status === 'exact') return formatSenkaInt(regular.points, lang);
-    if (regular.status === 'range') {
-        const lo = Math.floor(regular.min) || 0;
-        const hi = Math.ceil(regular.max) || 0;
-        if (lo === hi) return formatSenkaInt(lo, lang);
-        return `${formatSenkaInt(lo, lang)}${tFor(lang, 'senka.rangeDash')}${formatSenkaInt(hi, lang)}`;
-    }
+    if (regular.status === 'range') return formatSenkaPartBounds({ min: regular.min, max: regular.max }, lang);
     return '—';
 }
 

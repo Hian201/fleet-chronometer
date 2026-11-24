@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { buildSync } from 'esbuild';
 import { parseHTML } from 'linkedom';
 import { sections } from '../../entrypoints/overview/sections';
-import { renderSenkaSectionBodyHtml } from '../../entrypoints/overview/sections/senka';
+import {
+    renderSenkaLogRowsHtml, renderSenkaMonthCardHtml, renderSenkaSectionBodyHtml,
+} from '../../entrypoints/overview/sections/senka';
 import { senkaHeaderButtonHtml, senkaTrayInnerHtml } from '../../entrypoints/panel/senka-tray';
 import { sortieDropSlotHtml } from '../../entrypoints/panel/sortie-drop';
 import type { Lang } from '../../utils/gamedata-i18n';
@@ -18,8 +20,11 @@ import { questSenkaCatalogEntry } from '../../utils/quest-senka';
 import {
     EO_SENKA_MAPS, senkaMonthWindow, type EoSortieInput, type ExpReading, type QuestClaimInput,
 } from '../../utils/senka';
+import type { SenkaTarget } from '../../utils/senka-calibration';
+import type { SenkaMonthRankings } from '../../utils/senka-readings';
+import type { SenkaRankingRow } from '../../utils/senka-store';
 import {
-    buildObservedSenkaSummary, formatSenkaInt, formatSenkaRank, formatSignedSenka, senkaDeadlineLines,
+    buildObservedSenkaSummary, buildSenkaMonthView, formatSenkaInt, formatSignedSenka, senkaDeadlineLines,
 } from '../../utils/senka-view';
 import { tFor } from '../../utils/ui-i18n';
 
@@ -34,7 +39,6 @@ const dateFormatScript = bundle('../../utils/date-format.ts', 'dateFormat');
 // 固定基準時刻：2026/11/30 18:00 JST（09:00 UTC），任務戰果已於 05:00Z 截止、月界 13:00Z 剩 4:00。
 const NOW_AT = Date.UTC(2026, 10, 30, 9, 0);
 const PUBLISHED_AT = Date.UTC(2026, 10, 30, 6);
-const timeTag = (ts: number) => `<time data-ts="${ts}"></time>`;
 
 // 僅保留預覽頁控制列、切換文案與第二期離線假資料專屬字串；正式文案一律走 utils/ui-i18n.ts。
 interface PreviewCopy {
@@ -54,7 +58,6 @@ interface PreviewCopy {
     pinHeader: string;
     stage: string;
     stages: [string, string, string];
-    server: string;
 }
 
 const previewCopy: Record<Lang, PreviewCopy> = {
@@ -75,7 +78,6 @@ const previewCopy: Record<Lang, PreviewCopy> = {
         pinHeader: '面板顯示戰果',
         stage: '內容階段',
         stages: ['1a 普通戰果', '1b 加 EO／任務', '第二期 目標與榜線'],
-        server: '柱島',
     },
     en: {
         longName: '12-character name',
@@ -94,7 +96,6 @@ const previewCopy: Record<Lang, PreviewCopy> = {
         pinHeader: 'Panel points',
         stage: 'Stage',
         stages: ['1a Regular', '1b + EO / quests', 'Phase 2 Targets & cutoffs'],
-        server: 'Hashirajima',
     },
     ja: {
         longName: '12文字の提督名',
@@ -113,7 +114,6 @@ const previewCopy: Record<Lang, PreviewCopy> = {
         pinHeader: 'パネルに戦果',
         stage: '段階',
         stages: ['1a 通常戦果', '1b EO・任務を追加', '第二期 目標とボーダー'],
-        server: '柱島',
     },
 };
 
@@ -163,6 +163,42 @@ function buildPreviewSummaries(sample: SenkaExample) {
     };
 }
 
+// 第二期榜線紀錄：最近一榜（本人＋自動 500 名）、前一榜只有手動登錄的 500 名（前一榜的本人分數若與假讀數不符會觸發校準偏差提示）。
+function previewRankings(sample: SenkaExample): SenkaMonthRankings {
+    const prev = Date.UTC(2026, 10, 29, 18);
+    const rows: SenkaRankingRow[] = [
+        { key: `cutoff:${prev}:500`, kind: 'cutoff', publishedAt: prev, rank: 500, score: 4010, mode: 'manual', ts: prev + 900_000 },
+        { key: `self:${PUBLISHED_AT}`, kind: 'self', publishedAt: PUBLISHED_AT, score: sample.published, rank: 512, ts: PUBLISHED_AT + 600_000, eventId: 2 },
+        { key: `cutoff:${PUBLISHED_AT}:500`, kind: 'cutoff', publishedAt: PUBLISHED_AT, rank: 500, score: sample.border, mode: 'auto', ts: PUBLISHED_AT + 600_000, eventId: 2 },
+    ];
+    return {
+        selfRankings: rows.flatMap(r => (r.kind === 'self' ? [r] : [])),
+        cutoffs: rows.flatMap(r => (r.kind === 'cutoff' ? [r] : [])),
+        rows,
+    };
+}
+
+// 第二期：以正式校準函式重現試排數值。EO 與任務落在結算（PUBLISHED_AT − 1h）之前，
+// 結算前普通戰果＝榜分 − 繼承 − EO − 任務，結算後的普通戰果即「統計後新增」。
+export function buildPreviewMonthView(sample: SenkaExample, target: SenkaTarget | null = { type: 'rank', rank: 500 }) {
+    const win = senkaMonthWindow({ year: 2026, month: 11 });
+    const baseExp = 1_000_000;
+    const exp = (regular: number) => baseExp + Math.round((regular * 10_000) / 7);
+    const beforeTally = sample.published - sample.inherit - sample.eo - sample.quest;
+    const readings: ExpReading[] = [
+        { ts: win.start - 10_000, exp: baseExp },
+        { ts: win.start + 60_000, exp: baseExp },
+        { ts: NOW_AT - 14 * 3_600_000, exp: exp(sample.normal - sample.today) },
+        { ts: PUBLISHED_AT - 2 * 3_600_000, exp: exp(beforeTally) },
+        { ts: NOW_AT - 60_000, exp: exp(sample.normal) },
+    ];
+    const sorties: EoSortieInput[] = EO_SENKA_MAPS
+        .filter(entry => entry.map !== '5-6')
+        .map(entry => ({ ts: NOW_AT - 10 * 3_600_000, map: entry.map, cleared: true }));
+    const questClaims: QuestClaimInput[] = [{ eventId: 1, questNo: 893, ts: NOW_AT - 15 * 3_600_000 }];
+    return buildSenkaMonthView({ readings, sorties, questClaims }, previewRankings(sample), target, NOW_AT);
+}
+
 function parseHeaderButtonView(buttonHtml: string) {
     const { document } = parseHTML(`<!doctype html><html><body>${buttonHtml}</body></html>`);
     const btn = document.querySelector('#points')!;
@@ -188,7 +224,6 @@ export function writeMonthlySenkaPreview(root: string, lang: Lang, css: string, 
     const p = previewCopy[lang];
     const plan = 'docs/panel-monthly-senka-plan.md';
     const sample = readSenkaExample(readFileSync(resolve(root, plan), 'utf8'));
-    const signed = new Intl.NumberFormat(lang, { signDisplay: 'always' });
     const { observedSummary, noStartSummary } = buildPreviewSummaries(sample);
 
     const tabs = ['general', 'sortie', 'exped', 'factory', 'order'].map(key =>
@@ -202,60 +237,16 @@ export function writeMonthlySenkaPreview(root: string, lang: Lang, css: string, 
     document.querySelector('.taiha-hint')!.textContent = tFor(lang, 'sortie.taihaRetreatNoEscort');
 
     const observedBtnHtml = senkaHeaderButtonHtml(observedSummary, false, lang);
-    const noStartBtnHtml = senkaHeaderButtonHtml(noStartSummary, false, lang);
-    const phase2View = (s: SenkaExample) => {
-        const value = `≈${formatSenkaInt(totalOf(s), lang)}`;
-        return {
-            label: tFor(lang, 'senka.short'),
-            value,
-            title: `${tFor(lang, 'senka.full')} ${value}`,
-        };
-    };
-    // 情境 1 與 0 只差五位數；2、3 直接由正式 senkaHeaderButtonHtml 取得標籤、數值與無障礙標題。
+    // 情境 1 與 0 只差五位數；四個情境的頁首與托盤都由正式 senkaHeaderButtonHtml／senkaTrayInnerHtml 產生。
     const wide = { ...sample, normal: sample.normal + 10000, published: sample.published + 10000, border: sample.border + 10000 };
-    const views = [
-        phase2View(sample),
-        phase2View(wide),
-        parseHeaderButtonView(observedBtnHtml),
-        parseHeaderButtonView(noStartBtnHtml),
-    ];
-
-    const observedTray = parseTrayParts(senkaTrayInnerHtml(observedSummary, lang));
-    const noStartTray = parseTrayParts(senkaTrayInnerHtml(noStartSummary, lang));
-    const phase2Target = `${p.server} · ${tFor(lang, 'senka.monthShort11')} · ${tFor(lang, 'ov.skFinal500')}`;
-    const caseTargets = [phase2Target, phase2Target, observedTray.target, noStartTray.target];
-
-    const row = (label: string, value: string, cls = '') =>
-        `<div class="sn-row${cls ? ` ${cls}` : ''}"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
-    const parts = [
-        [tFor(lang, 'senka.partCarry'), 'inherit'],
-        [tFor(lang, 'senka.partRegular'), 'normal'],
-        [tFor(lang, 'senka.partEo'), 'eo'],
-        [tFor(lang, 'senka.partQuest'), 'quest'],
-    ] as const;
-    const rank500 = tFor(lang, 'senka.rankN', { rank: formatSenkaRank(500, lang) });
-    const phase2Body = (s: SenkaExample) => `<div class="sn-body">`
-        + row(tFor(lang, 'senka.estimate'), `≈${formatSenkaInt(totalOf(s), lang)}`, 'sn-total')
-        + `<div class="sn-comp">${parts.map(([label, key]) => `${esc(label)} ${esc(formatSenkaInt(s[key], lang))}`).join(' · ')}</div>`
-        + row(tFor(lang, 'senka.today'), formatSignedSenka(s.today, lang))
-        + `<div class="sn-board"><div class="sn-sub">${esc(tFor(lang, 'senka.lastPublished'))} ${timeTag(PUBLISHED_AT)}</div>`
-        + `<div class="sn-line">${esc(tFor(lang, 'senka.you'))} ${esc(formatSenkaInt(s.published, lang))} · ${esc(rank500)} ${esc(formatSenkaInt(s.border, lang))}</div>`
-        + `<dl>${[
-            [tFor(lang, 'senka.gap'), signed.format(s.published - s.border)],
-            [tFor(lang, 'senka.since'), formatSignedSenka(gainOf(s), lang)],
-            [tFor(lang, 'senka.toCutoff'), formatSignedSenka(totalOf(s) - s.border, lang)],
-        ].map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`
-        + `</div>`;
-    const phase2FootLines = senkaDeadlineLines(observedSummary.deadlines, lang, { includeQuest: true })
-        .map(line => `<span>${esc(line)}</span>`).join('');
-    const phase2Foot = `<div class="sn-foot">${phase2FootLines}<span class="sn-note">${esc(tFor(lang, 'senka.unlisted'))}</span></div>`;
-
-    const casesHtml = [
-        `${phase2Body(sample)}${phase2Foot}`,
-        `${phase2Body(wide)}${phase2Foot}`,
-        `${observedTray.bodyHtml}${observedTray.footHtml}`,
-        `${noStartTray.bodyHtml}${noStartTray.footHtml}`,
-    ].map((inner, i) => `<div class="sn-case" data-case="${i}"${i ? ' hidden' : ''}>${inner}</div>`).join('');
+    const caseSummaries = [buildPreviewMonthView(sample), buildPreviewMonthView(wide), observedSummary, noStartSummary];
+    const views = caseSummaries.map(summary => parseHeaderButtonView(senkaHeaderButtonHtml(summary, false, lang)));
+    const trays = caseSummaries.map(summary => parseTrayParts(senkaTrayInnerHtml(summary, lang)));
+    const caseTargets = trays.map(tray => tray.target);
+    const casesHtml = trays
+        .map((tray, i) => `<div class="sn-case" data-case="${i}"${i ? ' hidden' : ''}>${tray.bodyHtml}${tray.footHtml}</div>`)
+        .join('');
+    const observedTray = trays[0];
 
     const stat = (icon: string, label: string, value: string, first = '') =>
         `<span class="stat warn ${first}"><img class="h-icon" src="../public/icons/ui/${icon}.svg" alt="${esc(label)}"><b>${value}</b></span>`;
@@ -270,11 +261,6 @@ a{color:var(--sparkle)}.pv-app{position:relative;width:370px;height:850px;overfl
 [hidden]{display:none!important}.pv-app :focus-visible{outline:2px solid var(--sparkle);outline-offset:1px}
 .sn-case{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0}.sn-case[hidden]{display:none}
 .sn-body[hidden]{display:none}
-.sn-sub{color:var(--dim);font-size:11px}
-.sn-board{display:flex;flex-direction:column;gap:2px;margin-top:2px;padding-top:4px;border-top:1px solid var(--line)}
-.sn-line{font-variant-numeric:tabular-nums}
-.sn-board dl{display:grid;grid-template-columns:1fr auto;gap:1px 10px;margin:0}.sn-board dt{color:var(--dim);font-size:11px}
-.sn-board dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 </style><main><h1>${esc(fullTitle)} · A</h1><small>${esc(p.fixture)}</small>
 <div class="controls"><label>${esc(p.scenario)}<select id="scenario">${p.scenarios.map(s => `<option>${esc(s)}</option>`).join('')}</select></label>
 <label><input id="overview-pin" type="checkbox" checked>${esc(p.overview)}</label>
@@ -287,7 +273,7 @@ ${stat('ship', tFor(lang, 'header.ships'), '439/440', 'first')}${stat('equip', t
 <button class="h-cam" tabindex="-1" aria-label="${esc(tFor(lang, 'photo.title'))}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.2h2.6L5.8 3.4h4.4l1.2 1.8H14v7.4H2z"/><circle cx="8" cy="8.6" r="2.4"/></svg></button></div>
 <div id="tabs">${tabs}</div><div id="tabpanel" inert><div id="tab-sortie">${document.body.innerHTML}</div></div>
 <section id="senka-tray" role="region" aria-labelledby="senka-title" hidden>
-<div class="ph-head"><span class="ph-title" id="senka-title">${esc(observedTray.title)}</span><span class="ph-target">${esc(phase2Target)}</span><button type="button" class="ph-close" id="senka-close" aria-label="${esc(observedTray.closeLabel)}">✕</button></div>
+<div class="ph-head"><span class="ph-title" id="senka-title">${esc(observedTray.title)}</span><span class="ph-target">${esc(caseTargets[0])}</span><button type="button" class="ph-close" id="senka-close" aria-label="${esc(observedTray.closeLabel)}">✕</button></div>
 ${casesHtml}
 </section>
 <div id="fleetnav" inert>${[1, 2, 3, 4, tFor(lang, 'fleet.combined'), tFor(lang, 'lbas.button')].map(n => `<button class="${n === 3 ? 'on' : ''}">${esc(String(n))}</button>`).join('')}</div>
@@ -388,14 +374,6 @@ export function writeOverviewSenkaPreview(root: string, lang: Lang) {
 
     const total = totalOf(sample);
     const cell = (label: string, value: string, note = '') => `<dt>${esc(label)}</dt><dd>${value}</dd><dd class="n">${note}</dd>`;
-    const calibratedHtml = esc(tFor(lang, 'ov.skCalibrated', { t: '__TIME__' }))
-        .replace('__TIME__', timeTag(Date.UTC(2026, 9, 31, 18)));
-    const comp = [
-        cell(tFor(lang, 'ov.skPartCarry'), esc(formatSenkaInt(sample.inherit, lang)), calibratedHtml),
-        cell(tFor(lang, 'senka.partRegular'), esc(formatSenkaInt(sample.normal, lang))),
-        cell(tFor(lang, 'senka.partEo'), esc(formatSenkaInt(sample.eo, lang))),
-        cell(tFor(lang, 'senka.partQuest'), esc(formatSenkaInt(sample.quest, lang))),
-    ].join('');
 
     const EO: [string, number, boolean][] = [['1-5', 75, true], ['1-6', 75, true], ['2-5', 100, true], ['3-5', 150, true],
         ['7-5', 170, true], ['4-5', 180, true], ['5-5', 200, true], ['6-5', 250, true], ['5-6', 225, false]];
@@ -420,19 +398,22 @@ export function writeOverviewSenkaPreview(root: string, lang: Lang) {
 
     const stage1Wrap = `<div data-only="1" style="display:contents">${renderSenkaSectionBodyHtml(observedSummary, lang)}</div>`;
 
-    const stage2Card = `<section class="sk-card" data-only="2"><h3>${esc(tFor(lang, 'senka.month11'))}</h3>
-<div class="sk-total"><span class="sk-tl">${esc(tFor(lang, 'senka.estimate'))}</span><span class="sk-tv">≈${esc(formatSenkaInt(total, lang))}</span></div>
-<dl class="sk-kv sk-sep">${comp}</dl>
-<dl class="sk-kv sk-sep">${cell(tFor(lang, 'senka.today'), esc(formatSignedSenka(sample.today, lang)))}</dl>
-<dl class="sk-kv sk-sep" id="sk-target"></dl>
-<div class="sk-sep sk-closes">${senkaDeadlineLines(observedSummary.deadlines, lang, { includeQuest: true }).map(line => `<span>${esc(line)}</span>`).join('')}</div>
-</section>`;
+    // 第二期主卡片由正式 renderSenkaMonthCardHtml 產生；預先算好各目標的版本，頁內切換目標時替換。
+    // 階段 1 的對照卡已用 #sk-month，這裡拿掉 id 避免同頁重複。
+    const monthCard = (target: SenkaTarget | null) =>
+        renderSenkaMonthCardHtml(buildPreviewMonthView(sample, target), lang).replace(' id="sk-month"', '');
+    const monthCards: Record<string, string> = {
+        '': monthCard(null),
+        ...Object.fromEntries([5, 20, 100, 500].map(rank => [String(rank), monthCard({ type: 'rank', rank })])),
+        custom: monthCard({ type: 'custom', score: 4500 }),
+    };
+    const stage2Card = `<div data-only="2" id="sk-month-slot">${monthCards['500']}</div>`;
 
     const eoCard = `<section class="sk-card"><h3>${esc(tFor(lang, 'ov.skEoQuestTitle'))}</h3>${eoList}${questList}</section>`;
     const logCols = ['ov.skLogColPublished', 'ov.skLogColYou', 'ov.skLogColRank', 'ov.skLogColCutoff', 'ov.skLogColMode'];
     const addAria = ['ov.skAddRound', 'ov.skAddRank', 'ov.skAddScore'].map(k => tFor(lang, k));
     const logCard = `<section class="sk-card" id="sk-log"><h3>${esc(tFor(lang, 'ov.skLogTitle'))}</h3>
-<div class="rl-table-wrap"><table class="rl-table sk-table"><thead><tr>${logCols.map((key, i) => `<th${i === 0 || i === 4 ? '' : ' class="n"'}>${esc(tFor(lang, key))}</th>`).join('')}</tr></thead><tbody id="sk-log-body"></tbody></table></div>
+<div class="rl-table-wrap"><table class="rl-table sk-table"><thead><tr>${logCols.map((key, i) => `<th${i === 0 || i === 4 ? '' : ' class="n"'}>${esc(tFor(lang, key))}</th>`).join('')}</tr></thead><tbody id="sk-log-body">${renderSenkaLogRowsHtml(previewRankings(sample).rows, lang)}</tbody></table></div>
 <p class="sk-hint">${esc(tFor(lang, 'ov.skLogHint'))}</p>
 <form class="sk-form" id="sk-add"><select id="sk-add-round" aria-label="${esc(addAria[0])}" required></select>
 <input id="sk-add-rank" type="number" min="1" step="1" value="500" required aria-label="${esc(addAria[1])}" placeholder="${esc(addAria[1])}">
@@ -442,7 +423,7 @@ export function writeOverviewSenkaPreview(root: string, lang: Lang) {
     const range = (a: number, b: number) => `${formatSenkaInt(a, lang)}${dashRange}${formatSenkaInt(b, lang)}`;
     const finals = ['ov.skFinalNone', 'ov.skFinal5', 'ov.skFinal20', 'ov.skFinal100', 'ov.skFinal500', 'ov.skFinalOut'].map(k => tFor(lang, k));
     const finalColLabel = tFor(lang, 'ov.skReconColFinal');
-    const finalSelect = (month: string, picked: number) => `<select aria-label="${esc(month + ' ' + finalColLabel)}">${finals.map((f, i) => `<option${i === picked ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>`;
+    const finalSelect = (month: string, picked: number, inProgress = false) => `<select${inProgress ? ` disabled title="${esc(tFor(lang, 'ov.skFinalAfterClose'))}"` : ''} aria-label="${esc(month + ' ' + finalColLabel)}">${finals.map((f, i) => `<option${i === picked ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>`;
     const m11 = tFor(lang, 'senka.monthShort11');
     const m10 = tFor(lang, 'senka.monthShort10');
     const m9 = tFor(lang, 'senka.monthShort9');
@@ -452,7 +433,7 @@ export function writeOverviewSenkaPreview(root: string, lang: Lang) {
         tFor(lang, 'ov.skReconColLastRank'), finalColLabel,
     ];
     const reconRows = [
-        [`${esc(m11)} <small>${esc(tFor(lang, 'ov.skInProgress'))}</small>`, esc(formatSenkaInt(sample.inherit, lang)), esc(formatSenkaInt(sample.normal, lang)), esc(formatSenkaInt(sample.eo, lang)), esc(formatSenkaInt(sample.quest, lang)), `≈${esc(formatSenkaInt(total, lang))}`, '512', finalSelect(m11, 0)],
+        [`${esc(m11)} <small>${esc(tFor(lang, 'ov.skInProgress'))}</small>`, esc(formatSenkaInt(sample.inherit, lang)), esc(formatSenkaInt(sample.normal, lang)), esc(formatSenkaInt(sample.eo, lang)), esc(formatSenkaInt(sample.quest, lang)), `≈${esc(formatSenkaInt(total, lang))}`, '512', finalSelect(m11, 0, true)],
         [esc(m10), '295', esc(range(2318, 2331)), esc(formatSenkaInt(1425, lang)), '650', `≈${esc(range(4688, 4701))}`, '467', finalSelect(m10, 4)],
         [esc(m9), '—', `<small>${esc(tFor(lang, 'ov.skStartUnknown'))}</small>`, esc(formatSenkaInt(1200, lang)), '350', '—', '—', finalSelect(m9, 0)],
     ];
@@ -461,27 +442,9 @@ export function writeOverviewSenkaPreview(root: string, lang: Lang) {
 <tbody>${reconRows.map(r => `<tr>${r.map((v, i) => `<td${i && i < 7 ? ' class="n"' : ''}>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
 <p class="sk-hint">${esc(tFor(lang, 'ov.skReconNote'))}</p></section>`;
 
-    // 第二期頁面內要用的字串與初始榜線紀錄（時刻為 UTC 毫秒，頁面內轉本機時區）；名次序數由 formatSenkaRank 算好。
     const data = {
-        lang,
-        total,
-        ranks: Object.fromEntries([5, 20, 100, 500].map(n => [n, formatSenkaRank(n, lang)])),
-        s: {
-            cutoffName: tFor(lang, 'ov.skCutoffName'),
-            cutoffCell: tFor(lang, 'ov.skCutoffCell'),
-            published: tFor(lang, 'ov.skPublished'),
-            toCutoff: tFor(lang, 'ov.skToCutoff'),
-            toCustom: tFor(lang, 'ov.skToCustom'),
-            noCutoff: tFor(lang, 'ov.skNoCutoff'),
-            auto: tFor(lang, 'ov.skAuto'),
-            manual: tFor(lang, 'ov.skManual'),
-        },
-        rounds: [PUBLISHED_AT, Date.UTC(2026, 10, 29, 18), Date.UTC(2026, 10, 29, 6), Date.UTC(2026, 9, 31, 18)],
-        entries: [
-            { ts: PUBLISHED_AT, you: sample.published, rank: 512, cutRank: 500, cutVal: sample.border, mode: 'auto' },
-            { ts: Date.UTC(2026, 10, 29, 18), you: 4050, rank: 498, cutRank: 500, cutVal: 4010, mode: 'manual' },
-            { ts: Date.UTC(2026, 9, 31, 18), you: 318, rank: null, cutRank: null, cutVal: null, mode: 'auto' },
-        ],
+        rounds: [PUBLISHED_AT, Date.UTC(2026, 10, 29, 18), Date.UTC(2026, 10, 29, 6), Date.UTC(2026, 10, 28, 18)],
+        monthCards,
     };
     const notes = ['ov.skNoteRegular', 'ov.skNoteObserved', 'ov.skNoteCalibrated'];
     const targetItems: [number, string][] = [
@@ -521,16 +484,16 @@ body{grid-template-rows:40px 48px 1fr;grid-template-areas:"pv pv" "header header
 <nav id="nav">${nav}</nav>
 <main id="content"><div class="sk" id="sk">${notes.map((k, i) => `<p class="ov-note" data-only="${i}">${esc(tFor(lang, k))}</p>`).join('')}
 <div class="ov-toolbar" id="sk-toolbar"><label class="rs-inline" id="pin-section-label"><input type="checkbox" class="pin" checked><span>${esc(tFor(lang, 'ov.skPinPanel'))}</span></label>
-<label data-min="2">${esc(tFor(lang, 'ov.skTarget'))}<select id="sk-target-select">${targetItems.map(([n, k]) => `<option value="${n}"${n === 500 ? ' selected' : ''}>${esc(tFor(lang, k))}</option>`).join('')}<option value="custom">${esc(tFor(lang, 'ov.skTargetCustom'))}</option></select></label>
+<label data-min="2">${esc(tFor(lang, 'ov.skTarget'))}<select id="sk-target-select"><option value="">${esc(tFor(lang, 'ov.skTargetNone'))}</option>${targetItems.map(([n, k]) => `<option value="${n}"${n === 500 ? ' selected' : ''}>${esc(tFor(lang, k))}</option>`).join('')}<option value="custom">${esc(tFor(lang, 'ov.skTargetCustom'))}</option></select></label>
 <input id="sk-custom" data-min="2" type="number" min="0" step="1" value="4500" aria-label="${esc(tFor(lang, 'ov.skTargetCustom'))}">
-<span class="grow" data-min="2"></span><span class="dim" data-min="2">${esc(p.server)}</span></div>
+</div>
 <div class="sk-cols">${stage0Card}${stage1Wrap}${stage2Card}<div class="sk-side" data-only="2">${logCard}${eoCard}</div></div>${reconCard}</div></main>
 <script>${dateFormatScript}</script>
 <script>
 const $ = s => document.querySelector(s);
 const D = ${JSON.stringify(data)};
 const pins = [...document.querySelectorAll('.pin')], place = $('#place'), stageSel = $('#stage'), toolbar = $('#sk-toolbar');
-const targetSel = $('#sk-target-select'), customIn = $('#sk-custom'), targetEl = $('#sk-target'), logBody = $('#sk-log-body');
+const targetSel = $('#sk-target-select'), monthSlot = $('#sk-month-slot');
 const pinKey = 'preview:monthly-senka:overview-pin', placeKey = 'preview:monthly-senka:overview-placement', stageKey = 'preview:monthly-senka:overview-stage';
 stageSel.value = '2';
 try {
@@ -539,38 +502,12 @@ try {
     const saved = localStorage.getItem(stageKey);
     if (saved === '0' || saved === '1' || saved === '2') stageSel.value = saved;
 } catch { /* 儲存不可用時沿用預設。 */ }
-const nf = new Intl.NumberFormat(D.lang), sg = new Intl.NumberFormat(D.lang, { signDisplay: 'always' });
 // 本機時區的「月/日 時:分」，省略年份（見 design-guidelines §2.6）。
 const fmtTs = ts => dateFormat.formatShortDateTime(ts);
-const tm = ts => '<time data-ts="' + ts + '">' + fmtTs(ts) + '</time>';
-// 已知目標名次直接使用預先算好的 formatSenkaRank；僅手動輸入新名次時使用最小序數 helper。
-const ord = n => D.ranks[n] ?? (D.lang === 'en' ? (() => {
-    const abs = Math.abs(n), r = abs % 100;
-    return n + (r >= 11 && r <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][abs % 10] || 'th');
-})() : String(n));
-const dash = v => v == null ? '—' : nf.format(v);
-const entries = D.entries.slice();
-function renderLog() {
-    logBody.innerHTML = entries.map(e => '<tr><td>' + tm(e.ts) + '</td><td class="n">' + dash(e.you) + '</td><td class="n">' + dash(e.rank) + '</td><td class="n">'
-        + (e.cutRank == null ? '—' : D.s.cutoffCell.replace('{n}', ord(e.cutRank)).replace('{v}', nf.format(e.cutVal))) + '</td><td>' + (e.mode === 'auto' ? D.s.auto : D.s.manual) + '</td></tr>').join('');
-}
-// 只改目標區文字；工具列的下拉與輸入框不重繪。
+// 只替換主卡片；工具列的下拉與輸入框不重繪。自訂分數固定以 4,500 示意。
 function renderTarget() {
-    const row = (k, v, note = '') => '<dt>' + k + '</dt><dd>' + v + '</dd><dd class="n">' + note + '</dd>';
-    const gap = (k, n) => row(k, '≈' + sg.format(D.total - n));
     toolbar.dataset.custom = String(targetSel.value === 'custom');
-    if (targetSel.value === 'custom') {
-        const n = Number(customIn.value);
-        targetEl.innerHTML = customIn.value !== '' && Number.isFinite(n) ? gap(D.s.toCustom, n) : row(D.s.toCustom, '—');
-        return;
-    }
-    const rank = Number(targetSel.value), name = D.s.cutoffName.replace('{n}', ord(rank));
-    // 同名次取最新公布；同時刻時先登錄的沿用。
-    let hit = null;
-    for (const e of [...entries].reverse()) if (e.cutRank === rank && (!hit || e.ts > hit.ts)) hit = e;
-    targetEl.innerHTML = hit
-        ? row(name, nf.format(hit.cutVal), D.s.published.replace('{t}', tm(hit.ts))) + gap(D.s.toCutoff, hit.cutVal)
-        : row(name, '—', D.s.noCutoff);
+    monthSlot.innerHTML = D.monthCards[targetSel.value];
 }
 function layout() {
     const inHeader = place.value === 'header', stage = Number(stageSel.value);
@@ -597,20 +534,16 @@ $('#theme-toggle').onclick = e => {
     e.currentTarget.textContent = themeLabels[next];
 };
 for (const a of document.querySelectorAll('#nav a')) a.onclick = e => e.preventDefault();
-targetSel.onchange = customIn.oninput = renderTarget;
-// 登錄榜線：原生驗證擋下空值、負數與小數；通過後插到表格最上方（僅預覽，不存檔）。
+targetSel.onchange = renderTarget;
+// 登錄榜線：原生驗證擋下空值、負數與小數（僅預覽，不存檔）。
 const addForm = $('#sk-add'), addRound = $('#sk-add-round');
 addRound.innerHTML = D.rounds.map(ts => '<option value="' + ts + '">' + fmtTs(ts) + '</option>').join('');
 addForm.addEventListener('invalid', () => addForm.classList.add('tried'), true);
 addForm.onsubmit = e => {
     e.preventDefault();
     addForm.classList.remove('tried');
-    entries.unshift({ ts: Number(addRound.value), you: null, rank: null, cutRank: Number($('#sk-add-rank').value), cutVal: Number($('#sk-add-score').value), mode: 'manual' });
-    renderLog();
-    renderTarget();
 };
 for (const el of document.querySelectorAll('time[data-ts]')) el.textContent = fmtTs(Number(el.dataset.ts));
-renderLog();
 renderTarget();
 layout();
 </script></body></html>`;

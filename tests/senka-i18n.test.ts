@@ -10,17 +10,17 @@ const placeholders = (text: string) => [...text.matchAll(/\{([^}]+)\}/g)].map(m 
 describe('戰果三語文案', () => {
     const baseKeys = senkaKeys(LANGS[0].code).sort();
 
-    it('三語鍵集合一致且共 107 個鍵', () => {
-        expect(baseKeys).toHaveLength(107);
+    it('三語鍵集合一致且共 113 個鍵', () => {
+        expect(baseKeys).toHaveLength(113);
         for (const { code } of LANGS) {
             expect(senkaKeys(code).sort(), code).toEqual(baseKeys);
         }
     });
 
     for (const { code } of LANGS) {
-        it(`${code}：107 個鍵皆為非空字串且不會退回原鍵名`, () => {
+        it(`${code}：113 個鍵皆為非空字串且不會退回原鍵名`, () => {
             const keys = senkaKeys(code);
-            expect(keys).toHaveLength(107);
+            expect(keys).toHaveLength(113);
             for (const key of keys) {
                 const text = tFor(code, key);
                 expect(text.trim(), `${code} ${key}`).not.toBe('');

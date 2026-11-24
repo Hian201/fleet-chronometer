@@ -2,13 +2,20 @@
 import { parseHTML } from 'linkedom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sections } from '../entrypoints/overview/sections';
-import { renderSenkaSectionBodyHtml, senkaSection } from '../entrypoints/overview/sections/senka';
+import {
+    renderSenkaLogRowsHtml, renderSenkaMonthCardHtml, renderSenkaSectionBodyHtml, senkaSection,
+} from '../entrypoints/overview/sections/senka';
 import type { SectionContext } from '../entrypoints/overview/sections/types';
 import { db, type ResourceRow, type SortieLogRow } from '../utils/db';
 import type { Lang } from '../utils/gamedata-i18n';
 import { loadQuestCatalogLocale } from '../utils/quest-catalog-localization';
 import { EO_SENKA_MAPS, eoSenkaForMonth, questSenkaForMonth, senkaDeadlines, senkaMonthWindow } from '../utils/senka';
-import { type SenkaObservedSummary } from '../utils/senka-view';
+import { senkaCutoffKey, senkaSelfKey, type SenkaRankingRow } from '../utils/senka-store';
+import { SENKA_TARGET_KEY } from '../utils/senka-prefs';
+import {
+    buildSenkaMonthView, formatSenkaTimestamp, type SenkaObservedSummary,
+} from '../utils/senka-view';
+import { loadSenkaReconMonths } from '../utils/senka-readings';
 import { LANGS, setLang, t, tFor } from '../utils/ui-i18n';
 import { SENKA_HEADER_KEY } from '../utils/ui-prefs';
 import { GameState } from '../utils/state';
@@ -69,6 +76,8 @@ beforeEach(async () => {
         db.sorties.clear(),
         db.questObserved.clear(),
         db.snapshot.clear(),
+        db.senkaRankings.clear(),
+        db.senkaMonths.clear(),
     ]);
 });
 
@@ -82,6 +91,8 @@ afterEach(async () => {
         db.sorties.clear(),
         db.questObserved.clear(),
         db.snapshot.clear(),
+        db.senkaRankings.clear(),
+        db.senkaMonths.clear(),
     ]);
 });
 
@@ -292,12 +303,12 @@ describe('senkaSection 外殼、checkbox 與 storage 同步', () => {
 
         // DB 尚未 resolve 前，殼與 checkbox 與載入中提示皆已存在
         const root = host.querySelector('#sk');
-        expect(root?.getAttribute('data-stage')).toBe('1');
+        expect(root?.getAttribute('data-stage')).toBe('2');
         expect(host.querySelector('.ov-note')!.textContent).toBe(t('ov.skNoteObserved'));
         const checkbox = host.querySelector<HTMLInputElement>('#sk-pin-header')!;
         expect(checkbox).not.toBeNull();
         expect(checkbox.checked).toBe(false);
-        expect(host.querySelector('#sk-body .ov-empty')!.textContent).toBe(t('ov.loading'));
+        expect(host.querySelector('#sk-month .ov-empty')!.textContent).toBe(t('ov.loading'));
 
         resolveQuery([]);
         await renderPromise;
@@ -423,7 +434,7 @@ describe('senkaSection DB 查詢、錯誤處理、即時更新與動態譯文', 
         const controller = new AbortController();
         await senkaSection.render(host, createContext({ signal: controller.signal }));
 
-        const empty = host.querySelector('#sk-body .ov-empty');
+        const empty = host.querySelector('#sk-month .ov-empty');
         expect(empty).not.toBeNull();
         expect(empty!.textContent).toBe(t('ov.loadFailed', { msg: 'indexeddb failure' }));
         expect(empty!.textContent).toContain('indexeddb failure');
@@ -532,16 +543,22 @@ describe('每分鐘倒數、折疊狀態保留與 abort 生命週期收尾', () 
         await vi.advanceTimersByTimeAsync(60_000);
         expect(whereSpy.mock.calls.length).toBe(callsAfterInit);
         expect(host.querySelector('.sk-closes span')!.textContent).toContain('0:04');
-        expect(host.querySelector('details[data-fold="eo"]')!.hasAttribute('open')).toBe(false);
-        expect(host.querySelector('details[data-fold="quest"]')!.hasAttribute('open')).toBe(true);
+        // 每分鐘倒數不碰 EO／任務卡片：同一個 <details> 節點、展開狀態不變
+        expect(host.querySelector('details[data-fold="eo"]')).toBe(eoFold);
+        expect(eoFold.open).toBe(false);
+        expect(host.querySelector('details[data-fold="quest"]')).toBe(questFold);
+        expect(questFold.open).toBe(true);
 
         // 跨到 12 月作戰月（13:00Z 之後）：觸發重讀 DB 並更新月份標題與戰果
         vi.setSystemTime(Date.UTC(2026, 10, 30, 13, 0)); // 2026/11/30 22:00 JST，再進 60 秒即 22:01 JST
         await vi.advanceTimersByTimeAsync(60_000);
         await vi.waitFor(() => expect(host.querySelector('#sk-month h3')!.textContent).toBe(t('senka.month12')));
+        // 重讀後重畫 EO 卡片仍保留收合狀態
+        expect(host.querySelector('details[data-fold="eo"]')!.hasAttribute('open')).toBe(false);
+        expect(host.querySelector('details[data-fold="quest"]')!.hasAttribute('open')).toBe(true);
         expect(whereSpy.mock.calls.length).toBeGreaterThan(callsAfterInit);
         const callsBeforeAbort = whereSpy.mock.calls.length;
-        const bodyBeforeAbort = host.querySelector('#sk-body')!.innerHTML;
+        const bodyBeforeAbort = host.querySelector('#sk-body-cols')!.innerHTML;
 
         // abort 後清除計時器，就算再經過 1 分鐘或跨月也不重讀、不改 DOM
         controller.abort();
@@ -550,7 +567,7 @@ describe('每分鐘倒數、折疊狀態保留與 abort 生命週期收尾', () 
         vi.setSystemTime(Date.UTC(2026, 11, 31, 13, 0)); // 再跨一個月
         await vi.advanceTimersByTimeAsync(60_000);
         expect(whereSpy.mock.calls.length).toBe(callsBeforeAbort);
-        expect(host.querySelector('#sk-body')!.innerHTML).toBe(bodyBeforeAbort);
+        expect(host.querySelector('#sk-body-cols')!.innerHTML).toBe(bodyBeforeAbort);
     });
 
     it('DB 查詢尚未返回時觸發 abort，resolve 後不覆蓋畫面', async () => {
@@ -565,14 +582,14 @@ describe('每分鐘倒數、折疊狀態保留與 abort 生命週期收尾', () 
         const controller = new AbortController();
         const renderPromise = senkaSection.render(host, createContext({ signal: controller.signal }));
 
-        expect(host.querySelector('#sk-body .ov-empty')!.textContent).toBe(t('ov.loading'));
+        expect(host.querySelector('#sk-month .ov-empty')!.textContent).toBe(t('ov.loading'));
         controller.abort();
         resolveQuery([resourceRow(1, Date.now(), 1_000_000)]);
         await renderPromise;
 
         // 保持在 abort 前的載入中狀態，未寫入過期的卡片內容
-        expect(host.querySelector('#sk-month')).toBeNull();
-        expect(host.querySelector('#sk-body .ov-empty')!.textContent).toBe(t('ov.loading'));
+        expect(host.querySelector('#sk-month .sk-total')).toBeNull();
+        expect(host.querySelector('#sk-month .ov-empty')!.textContent).toBe(t('ov.loading'));
     });
 
     it('並行載入時較早的過期請求不覆蓋較新的結果', async () => {
@@ -628,6 +645,277 @@ describe('每分鐘倒數、折疊狀態保留與 abort 生命週期收尾', () 
         await renderPromise;
         expect(host.querySelector('.sk-tv')!.textContent).toBe(`≈700 ${t('ov.skExclCarry')}`);
 
+        controller.abort();
+    });
+});
+
+// ── 第二期：目標、榜線紀錄、登錄表單、逐月對帳 ──
+const NOV_NOW = Date.UTC(2026, 10, 29, 12, 0); // 2026/11/29 21:00 JST
+const NOV_ROUND = Date.UTC(2026, 10, 29, 6, 0); // 11/29 15:00 JST 公布，結算 14:00 JST
+/** 1 戰果 ＝ 10,000 / 7 經驗值。 */
+const expForPts = (pts: number) => Math.round((pts * 10_000) / 7);
+
+const selfRow = (publishedAt: number, score: number, rank: number): SenkaRankingRow => ({
+    key: senkaSelfKey(publishedAt), kind: 'self', publishedAt, score, rank, ts: publishedAt + 60_000, eventId: 100,
+});
+const cutoffRow = (
+    publishedAt: number, rank: number, score: number, mode: 'auto' | 'manual' = 'auto',
+): SenkaRankingRow => ({
+    key: senkaCutoffKey(publishedAt, rank), kind: 'cutoff', publishedAt, rank, score, mode,
+    ts: publishedAt + 60_000, ...(mode === 'auto' ? { eventId: 101 } : {}),
+});
+
+/** 讓 linkedom 與瀏覽器一致地改選 select 值（linkedom 的 select.value 只有 getter）。 */
+function pick(select: HTMLSelectElement, value: string) {
+    const hit = Array.from(select.options).find(opt => opt.value === value)!;
+    hit.selected = true;
+    select.dispatchEvent(new domWindow.Event('change', { bubbles: true }));
+}
+
+async function seedNovReadings(extraPts = 1100) {
+    const win = senkaMonthWindow({ year: 2026, month: 11 });
+    const base = 5_000_000;
+    await db.resources.bulkPut([
+        resourceRow(1, win.start - 3_600_000, base),
+        resourceRow(2, win.start + 60_000, base),
+        resourceRow(3, NOV_ROUND - 3_600_000 - 600_000, base + expForPts(1000)),
+        resourceRow(4, NOV_NOW - 60_000, base + expForPts(extraPts)),
+    ]);
+}
+
+async function renderSection(overrides: Partial<SectionContext> = {}) {
+    vi.spyOn(Date, 'now').mockReturnValue(NOV_NOW);
+    const controller = new AbortController();
+    await senkaSection.render(host, createContext({ signal: controller.signal, ...overrides }));
+    return controller;
+}
+
+describe('戰果分區第二期：目標設定', () => {
+    it('目標 select 有不設目標、4 個名次與自訂；改選寫入 localStorage 且不重建 select 與輸入框', async () => {
+        const controller = await renderSection();
+        const select = host.querySelector<HTMLSelectElement>('#sk-target-select')!;
+        const custom = host.querySelector<HTMLInputElement>('#sk-custom')!;
+        expect(Array.from(select.options).map(o => o.value)).toEqual(['', '5', '20', '100', '500', 'custom']);
+        expect(Array.from(select.options).map(o => o.textContent)).toEqual([
+            t('ov.skTargetNone'), t('ov.skTarget5'), t('ov.skTarget20'), t('ov.skTarget100'), t('ov.skTarget500'),
+            t('ov.skTargetCustom'),
+        ]);
+        expect(select.value).toBe('');
+        expect(custom.hidden).toBe(true);
+        // 未設目標：主卡片沒有目標差額區塊
+        expect(host.querySelector('#sk-month')!.textContent).not.toContain(t('ov.skToCustom'));
+
+        pick(select, '100');
+        expect(store.get(SENKA_TARGET_KEY)).toBe(JSON.stringify({ type: 'rank', rank: 100 }));
+        expect(host.querySelector('#sk-month')!.textContent).toContain(t('ov.skNoCutoff'));
+
+        pick(select, 'custom');
+        expect(custom.hidden).toBe(false);
+        // 分數未定：不寫入偏好，主卡片先顯示自訂目標列
+        expect(store.get(SENKA_TARGET_KEY)).toBe(JSON.stringify({ type: 'rank', rank: 100 }));
+        expect(host.querySelector('#sk-month')!.textContent).toContain(t('ov.skToCustom'));
+        custom.value = '4500';
+        custom.dispatchEvent(new domWindow.Event('input', { bubbles: true }));
+        expect(store.get(SENKA_TARGET_KEY)).toBe(JSON.stringify({ type: 'custom', score: 4500 }));
+        expect(host.querySelector('#sk-month')!.textContent).toContain('4,500');
+
+        pick(select, '');
+        expect(store.has(SENKA_TARGET_KEY)).toBe(false);
+        expect(custom.hidden).toBe(true);
+
+        expect(host.querySelector('#sk-target-select')).toBe(select);
+        expect(host.querySelector('#sk-custom')).toBe(custom);
+        controller.abort();
+    });
+
+    it('初值取自偏好；其他頁改了目標時原地更新 select', async () => {
+        store.set(SENKA_TARGET_KEY, JSON.stringify({ type: 'custom', score: 3000 }));
+        const controller = await renderSection();
+        const select = host.querySelector<HTMLSelectElement>('#sk-target-select')!;
+        const custom = host.querySelector<HTMLInputElement>('#sk-custom')!;
+        expect(select.value).toBe('custom');
+        expect(custom.value).toBe('3000');
+        expect(custom.hidden).toBe(false);
+
+        store.set(SENKA_TARGET_KEY, JSON.stringify({ type: 'rank', rank: 20 }));
+        domWindow.dispatchEvent(Object.assign(new domWindow.Event('storage'), { key: SENKA_TARGET_KEY }));
+        expect(select.value).toBe('20');
+        expect(custom.hidden).toBe(true);
+        expect(host.querySelector('#sk-target-select')).toBe(select);
+        controller.abort();
+    });
+});
+
+describe('戰果分區第二期：主卡片', () => {
+    it('有當月本人榜分與經驗值讀數時，主數值為本月戰果推算、繼承欄附校準時刻', async () => {
+        await seedNovReadings();
+        await db.senkaRankings.put(selfRow(NOV_ROUND, 1310, 300));
+        const controller = await renderSection();
+
+        expect(host.querySelector('#sk-month .sk-tl')!.textContent).toBe(t('senka.estimate'));
+        expect(host.querySelector('#sk-month .sk-tv small')).toBeNull();
+        expect(host.querySelector('#sk-month .sk-tv')!.textContent).toMatch(/^≈1,4\d\d/);
+        const carryNote = host.querySelectorAll('#sk-month dl.sk-kv')[0].querySelector('dd.n')!.textContent;
+        expect(carryNote).toBe(t('ov.skCalibrated', { t: formatSenkaTimestamp(NOV_ROUND) }));
+        expect(host.querySelector('#sk-note')!.textContent).toBe(t('ov.skNoteCalibrated'));
+        expect(host.querySelector('#sk-month')!.textContent).toContain(t('senka.since'));
+        controller.abort();
+    });
+
+    it('目標第 500 名但當月沒有 500 名榜線：顯示尚未登錄，不出現差額列也不借別月榜線', async () => {
+        await seedNovReadings();
+        await db.senkaRankings.bulkPut([
+            selfRow(NOV_ROUND, 1310, 300),
+            cutoffRow(Date.UTC(2026, 9, 31, 6, 0), 500, 9999), // 上個作戰月的榜線不得拿來代替
+            cutoffRow(NOV_ROUND, 100, 4000),
+        ]);
+        store.set(SENKA_TARGET_KEY, JSON.stringify({ type: 'rank', rank: 500 }));
+        const controller = await renderSection();
+
+        const month = host.querySelector('#sk-month')!;
+        expect(month.textContent).toContain(t('ov.skNoCutoff'));
+        expect(month.textContent).not.toContain(t('ov.skToCutoff'));
+        expect(month.textContent).not.toContain('9,999');
+        controller.abort();
+    });
+
+    it('有 500 名榜線時列出榜線、公布時刻與距榜線差額', async () => {
+        await seedNovReadings();
+        await db.senkaRankings.bulkPut([selfRow(NOV_ROUND, 1310, 300), cutoffRow(NOV_ROUND, 500, 1300)]);
+        store.set(SENKA_TARGET_KEY, JSON.stringify({ type: 'rank', rank: 500 }));
+        const controller = await renderSection();
+
+        const month = host.querySelector('#sk-month')!;
+        expect(month.textContent).toContain(t('ov.skToCutoff'));
+        expect(month.textContent).toContain(t('ov.skPublished', { t: formatSenkaTimestamp(NOV_ROUND) }));
+        expect(month.textContent).toContain(t('senka.gap'));
+        controller.abort();
+    });
+
+    it('英文介面的榜線名稱帶序數後綴', async () => {
+        setLang('en');
+        store.set(SENKA_TARGET_KEY, JSON.stringify({ type: 'rank', rank: 500 }));
+        const controller = await renderSection();
+        const names = [...host.querySelectorAll('#sk-month dt')].map(e => e.textContent);
+        expect(names).toContain(tFor('en', 'ov.skCutoffName', { n: '500th' }));
+        expect(names.join('|')).toContain('500th');
+        controller.abort();
+    });
+
+    it('renderSenkaMonthCardHtml：未校準時沿用 1b 主數值，繼承欄為 —', async () => {
+        await seedNovReadings();
+        const rows = await loadSenkaReconMonths(db, NOV_NOW);
+        const view = buildSenkaMonthView(rows[0].data, rows[0].rankings, null, NOV_NOW);
+        const doc = parseHTML(renderSenkaMonthCardHtml(view, 'zh-TW')).document;
+        expect(doc.querySelector('.sk-tl')!.textContent).toBe(t('ov.skObserved'));
+        expect(doc.querySelector('.sk-tv small')!.textContent).toBe(t('ov.skExclCarry'));
+        expect(doc.querySelector('dl.sk-kv dd')!.textContent).toBe('—');
+    });
+});
+
+describe('戰果分區第二期：榜線紀錄與登錄表單', () => {
+    it('renderSenkaLogRowsHtml 依公布時刻新到舊分組，本人欄只在組內第一列，手動榜線才有刪除鈕', () => {
+        const older = Date.UTC(2026, 10, 29, 6, 0);
+        const newer = older + 12 * 3_600_000;
+        const html = renderSenkaLogRowsHtml([
+            selfRow(older, 1310, 300),
+            cutoffRow(older, 5, 8000),
+            cutoffRow(older, 500, 1300, 'manual'),
+            selfRow(newer, 1400, 280),
+        ], 'zh-TW');
+        const doc = parseHTML(`<table><tbody>${html}</tbody></table>`).document;
+        const trs = [...doc.querySelectorAll('tr')];
+        expect(trs).toHaveLength(3);
+        // 新的榜次在前：只有本人、沒有榜線 → 榜線欄 —、方式 自動
+        expect(trs[0].querySelectorAll('td')[1].textContent).toBe('1,400');
+        expect(trs[0].querySelectorAll('td')[3].textContent).toBe('—');
+        expect(trs[0].querySelectorAll('td')[4].textContent).toBe(t('ov.skAuto'));
+        // 舊榜次兩筆榜線，名次升冪；第二列本人欄空白
+        expect(trs[1].querySelectorAll('td')[3].textContent).toBe(t('ov.skCutoffCell', { n: '5', v: '8,000' }));
+        expect(trs[1].querySelector('button')).toBeNull();
+        expect(trs[2].querySelectorAll('td')[1].textContent).toBe('');
+        expect(trs[2].querySelectorAll('td')[4].textContent).toBe(t('ov.skManual'));
+        expect(trs[2].querySelector('button')!.getAttribute('data-del')).toBe(`${older}:500`);
+        expect(renderSenkaLogRowsHtml([], 'zh-TW')).toContain('—');
+    });
+
+    it('登錄表單送出後寫入 manual 榜線並出現刪除鈕；按刪除後該列消失，表單控制項不被重建', async () => {
+        const controller = await renderSection();
+        const form = host.querySelector('#sk-add')!;
+        const roundSel = host.querySelector<HTMLSelectElement>('#sk-add-round')!;
+        const rankIn = host.querySelector<HTMLInputElement>('#sk-add-rank')!;
+        const scoreIn = host.querySelector<HTMLInputElement>('#sk-add-score')!;
+        expect(roundSel.options[0].value).toBe(String(NOV_ROUND)); // 最新已公布榜次在前
+        expect(rankIn.value).toBe('500');
+        expect(host.querySelector('#sk-log-body')!.textContent).toBe('—');
+
+        scoreIn.value = '1234';
+        form.dispatchEvent(new domWindow.Event('submit', { cancelable: true }));
+        await vi.waitFor(async () => {
+            const row = await db.senkaRankings.get(senkaCutoffKey(NOV_ROUND, 500));
+            expect(row).toMatchObject({ kind: 'cutoff', mode: 'manual', score: 1234, rank: 500 });
+        });
+        await vi.waitFor(() => expect(host.querySelector('#sk-log-body button[data-del]')).not.toBeNull());
+        expect(scoreIn.value).toBe('');
+        expect(host.querySelector('#sk-add-round')).toBe(roundSel);
+        expect(host.querySelector('#sk-add-score')).toBe(scoreIn);
+        expect(host.querySelector('#sk-add-err')!.hasAttribute('hidden')).toBe(true);
+
+        host.querySelector('#sk-log-body button[data-del]')!
+            .dispatchEvent(new domWindow.Event('click', { bubbles: true }));
+        await vi.waitFor(() => expect(host.querySelector('#sk-log-body button[data-del]')).toBeNull());
+        expect(await db.senkaRankings.get(senkaCutoffKey(NOV_ROUND, 500))).toBeUndefined();
+        controller.abort();
+    });
+
+    it('登錄失敗時在表單下方顯示錯誤', async () => {
+        const controller = await renderSection();
+        // 名次為空 → saveManualCutoff 拒絕
+        host.querySelector<HTMLInputElement>('#sk-add-score')!.value = '10';
+        host.querySelector<HTMLInputElement>('#sk-add-rank')!.value = '';
+        host.querySelector('#sk-add')!.dispatchEvent(new domWindow.Event('submit', { cancelable: true }));
+        await vi.waitFor(() => expect(host.querySelector('#sk-add-err')!.hasAttribute('hidden')).toBe(false));
+        expect(host.querySelector('#sk-add-err')!.textContent).toContain('榜線名次必須是正整數');
+        expect(await db.senkaRankings.count()).toBe(0);
+        controller.abort();
+    });
+});
+
+describe('戰果分區第二期：逐月對帳', () => {
+    it('進行中的本月停用最終結果並提示；已結束月份改值寫入 db.senkaMonths，重讀後仍是同一個 DOM 節點', async () => {
+        await seedNovReadings();
+        await db.senkaMonths.put({ month: '2026-10', finalTier: 'top500', updatedAt: 1 });
+        let stateListener: ((paths: readonly string[]) => void) | null = null;
+        const controller = await renderSection({ onStateChange: fn => { stateListener = fn; } });
+
+        const nov = host.querySelector('#sk-recon-body tr[data-month="2026-11"]')!;
+        expect(nov.querySelector('td')!.textContent).toBe(`${t('senka.monthShort11')} ${t('ov.skInProgress')}`);
+        const novSelect = nov.querySelector<HTMLSelectElement>('select')!;
+        expect(novSelect.disabled).toBe(true);
+        expect(novSelect.getAttribute('title')).toBe(t('ov.skFinalAfterClose'));
+
+        const row = host.querySelector('#sk-recon-body tr[data-month="2026-10"]')!;
+        expect(row).not.toBeNull();
+        const select = row.querySelector<HTMLSelectElement>('select')!;
+        expect(select.disabled).toBe(false);
+        expect(select.hasAttribute('title')).toBe(false);
+        expect(select.getAttribute('aria-label')).toBe(`${t('senka.monthShort10')} ${t('ov.skReconColFinal')}`);
+        expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'top5', 'top20', 'top100', 'top500', 'out']);
+        expect(select.value).toBe('top500');
+
+        pick(select, 'out');
+        await vi.waitFor(async () => {
+            expect((await db.senkaMonths.get('2026-10'))?.finalTier).toBe('out');
+        });
+
+        const readSpy = vi.spyOn(db.senkaMonths, 'toArray');
+        stateListener!(['api_req_ranking/mxltvkpyuklh']);
+        await vi.waitFor(() => expect(readSpy).toHaveBeenCalled());
+        await vi.waitFor(() => expect(host.querySelector('#sk-recon-body tr[data-month="2026-10"] select')).toBe(select));
+        expect(select.value).toBe('out');
+
+        pick(select, '');
+        await vi.waitFor(async () => expect(await db.senkaMonths.get('2026-10')).toBeUndefined());
         controller.abort();
     });
 });

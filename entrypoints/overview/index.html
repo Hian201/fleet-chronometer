@@ -8927,6 +8927,20 @@
         .sk-list td:nth-child(2):not(.n) { white-space: normal; }
         .sk-list td.n { text-align: right; font-variant-numeric: tabular-nums; }
         .sk-off, .sk-off td { color: var(--dim); }
+        .sk select, .sk input[type=number], .sk button { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; font-size: 12px; }
+        .sk button { cursor: pointer; }
+        .sk button:active { border-color: var(--sparkle); transform: scale(.97); }
+        .sk input[type=number] { width: 96px; font-variant-numeric: tabular-nums; }
+        .sk #sk-custom[hidden] { display: none; }
+        .sk .ov-toolbar label { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+        .sk-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .sk-wide { margin-top: 16px; }
+        .sk-table td, .sk-table th { padding: 6px 12px; }
+        .sk-table th { text-align: left; }
+        .sk-table th.n, .sk-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
+        .sk-table small { color: var(--dim); font-size: 11px; }
+        .sk-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+        .sk-form.tried input:invalid, .sk-form.tried select:invalid { outline: 2px solid var(--sparkle); }
 
         @media (max-width: 620px) {
             .rs-row { grid-template-columns: minmax(0, 1fr); }

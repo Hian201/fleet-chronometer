@@ -3,11 +3,11 @@
 
 import type { db } from './db';
 import {
-    eoClearsFromMapinfoSnapshot, eoMonthWindow, questSenkaMonthWindow, senkaMonthWindow,
+    eoClearsFromMapinfoSnapshot, eoMonthWindow, prevSenkaMonth, questSenkaMonthWindow, senkaMonthOf, senkaMonthWindow,
     type EoSortieInput, type ExpReading, type QuestClaimInput, type SenkaMonth,
 } from './senka';
 import type { CutoffObservation, SelfRankingObservation } from './senka-calibration';
-import type { SenkaRankingRow } from './senka-store';
+import { isSenkaFinalTier, senkaMonthKey, type SenkaFinalTier, type SenkaRankingRow } from './senka-store';
 
 /** 指定作戰月計算已觀測戰果（普通＋EO＋任務）所需的查詢結果。 */
 export interface SenkaMonthData {
@@ -115,4 +115,52 @@ export async function loadSenkaRankingsForMonth(
         else cutoffs.push(row);
     }
     return { selfRankings, cutoffs, rows };
+}
+
+/** 逐月對帳單月的查詢結果。 */
+export interface SenkaReconMonthData {
+    month: SenkaMonth;
+    data: SenkaMonthData;
+    rankings: SenkaMonthRankings;
+    finalTier: SenkaFinalTier | null;
+}
+
+// 捷徑：逐月對帳只往回查 12 個作戰月（每月 5 次查詢）；需要更長的歷史時改成依資料最早月份分頁載入。
+export const SENKA_RECON_MAX_MONTHS = 12;
+
+/**
+ * 讀取逐月對帳所需資料：由 `now` 所在作戰月往回最多 {@link SENKA_RECON_MAX_MONTHS} 個月，新到舊排列。
+ * 當月一律列出；過去月份在月內沒有任何經驗值讀數、排行榜紀錄、EO 擊破、任務領取與最終結果時略過。
+ */
+export async function loadSenkaReconMonths(
+    tables: Pick<typeof db, 'resources' | 'sorties' | 'questObserved' | 'snapshot' | 'senkaRankings' | 'senkaMonths'>,
+    now: number,
+    maxMonths: number = SENKA_RECON_MAX_MONTHS,
+): Promise<SenkaReconMonthData[]> {
+    const finals = new Map<string, SenkaFinalTier>();
+    for (const row of await tables.senkaMonths.toArray()) {
+        if (isSenkaFinalTier(row.finalTier)) finals.set(row.month, row.finalTier);
+    }
+    const months: SenkaMonth[] = [];
+    let m = senkaMonthOf(now);
+    for (let i = 0; i < maxMonths; i++) {
+        months.push(m);
+        m = prevSenkaMonth(m);
+    }
+    const loaded = await Promise.all(months.map(async month => {
+        const [data, rankings] = await Promise.all([
+            loadSenkaMonthData(tables, month),
+            loadSenkaRankingsForMonth(tables.senkaRankings, month),
+        ]);
+        return { month, data, rankings, finalTier: finals.get(senkaMonthKey(month)) ?? null };
+    }));
+    return loaded.filter((row, index) => {
+        if (index === 0) return true;
+        const start = senkaMonthWindow(row.month).start;
+        return row.finalTier !== null
+            || row.rankings.rows.length > 0
+            || row.data.sorties.length > 0
+            || row.data.questClaims.length > 0
+            || row.data.readings.some(r => r.ts >= start);
+    });
 }

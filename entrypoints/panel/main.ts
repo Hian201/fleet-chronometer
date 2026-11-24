@@ -31,8 +31,12 @@ import {
 } from '@/utils/capture-timing';
 import { getSenkaHeaderPinned, initLang, applyTheme, onPrefsChange } from '@/utils/ui-prefs';
 import { senkaMonthOf } from '@/utils/senka';
-import { loadSenkaMonthData, type SenkaMonthData } from '@/utils/senka-readings';
-import { buildObservedSenkaSummary, type SenkaObservedSummary } from '@/utils/senka-view';
+import { loadSenkaTarget, onSenkaTargetChange } from '@/utils/senka-prefs';
+import {
+    loadSenkaMonthData, loadSenkaRankingsForMonth, type SenkaMonthData, type SenkaMonthRankings,
+} from '@/utils/senka-readings';
+import { RANKING_API_PATH } from '@/utils/senka-store';
+import { buildSenkaMonthView, type SenkaMonthView } from '@/utils/senka-view';
 import { sortieGaugeBarHtml } from './sortie-gauge';
 import { isDefeatCountTpGauge, isGaugeZeroed } from '@/utils/gauge-clear';
 import { practiceBattleHeadHtml, practiceListHtml, practiceNightHtml, type PracticeRow } from './practice';
@@ -104,6 +108,7 @@ onPrefsChange(kind => {
         if (!senkaPinned) {
             senkaLoadGen++;
             senkaData = null;
+            senkaRankings = null;
             senkaMonthKey = '';
             senkaSummary = null;
             if (senkaTray.isOpen()) senkaTray.setOpen(false);
@@ -158,8 +163,9 @@ let taihaDetailsHidden = false;
 // 本月戰果托盤與寫真托盤互斥，同一時間最多開一個。
 let senkaPinned = getSenkaHeaderPinned();
 let senkaData: SenkaMonthData | null = null;
+let senkaRankings: SenkaMonthRankings | null = null;
 let senkaMonthKey = '';
-let senkaSummary: SenkaObservedSummary | null = null;
+let senkaSummary: SenkaMonthView | null = null;
 let senkaLoadGen = 0;
 let senkaLastTickMin = -1;
 
@@ -199,12 +205,16 @@ async function refreshSenka() {
     const month = senkaMonthOf(now);
     if (!senkaSummary) senkaTray.setState({ loading: true, error: null });
     try {
-        const data = await loadSenkaMonthData(db, month);
+        const [data, rankings] = await Promise.all([
+            loadSenkaMonthData(db, month),
+            loadSenkaRankingsForMonth(db.senkaRankings, month),
+        ]);
         if (gen !== senkaLoadGen || !senkaPinned) return;
         const freshNow = Date.now();
         senkaData = data;
+        senkaRankings = rankings;
         senkaMonthKey = `${month.year}-${month.month}`;
-        senkaSummary = buildObservedSenkaSummary(data, freshNow);
+        senkaSummary = buildSenkaMonthView(data, rankings, loadSenkaTarget(), freshNow);
         senkaLastTickMin = Math.floor(freshNow / 60_000);
         senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
         if (ready) renderHeader();
@@ -227,12 +237,18 @@ function tickSenka() {
         void refreshSenka();
         return;
     }
-    if (senkaData !== null) {
-        senkaSummary = buildObservedSenkaSummary(senkaData, now);
-        senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
-        renderHeader();
-    }
+    rebuildSenkaView(now);
 }
+
+/** 以快取的當月資料重算檢視（每分鐘倒數、目標設定變更時用，不重讀 DB）。 */
+function rebuildSenkaView(now: number) {
+    if (senkaData === null) return;
+    senkaSummary = buildSenkaMonthView(senkaData, senkaRankings, loadSenkaTarget(), now);
+    senkaTray.setState({ summary: senkaSummary, loading: false, error: null });
+    renderHeader();
+}
+// 目標只在情報總括設定；面板只讀，收到 storage 事件就以快取資料重算差額。
+onSenkaTargetChange(() => { if (ready && senkaPinned) rebuildSenkaView(Date.now()); });
 // 裝備／資源／HTML 跳脫：與 overview 共用 utils/html-escape.ts（零 chrome.*）。
 // 熟練度以符號表示（對映遊戲內熟練度徽章階層：1-3 直線、4-6 斜線、7 為 ace 雙箭）。
 // 不吐數字（數字寬度隨值變動、破壞對齊），確切等級留在 chip 的 title 提示。'>' 需轉義。
@@ -2115,7 +2131,8 @@ async function consume(id: number, ts: number, path: string, api: any, req?: Rec
             void restoreGaugeBossHp().then(changed => { if (changed) renderSortie(); })
                 .catch(e => console.warn('[Fleet Chronometer] Boss HP 恢復失敗', e));
         }
-        if (senkaPinned && (path === 'api_port/port' || path === 'api_get_member/mapinfo' || path === 'api_req_quest/clearitemget')) {
+        if (senkaPinned && (path === 'api_port/port' || path === 'api_get_member/mapinfo'
+            || path === 'api_req_quest/clearitemget' || path === RANKING_API_PATH)) {
             void refreshSenka();
         }
         // 回到母港畫面 → 一般分頁母港「遠征中」分組。從編成等不換情境的畫面回港時，
