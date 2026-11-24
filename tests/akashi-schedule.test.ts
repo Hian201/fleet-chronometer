@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { AKASHI_HELPER_BASE, AKASHI_KC3_ONLY, AKASHI_SCHEDULE, AKASHI_SOLO, AKASHI_UNCONFIRMED } from '../utils/akashi-schedule-data';
-import { akashiByHelper, akashiToday, akashiUncovered, akashiUnconfirmed, akashiWeek, helperBase, improveStats, jstWeekday } from '../utils/akashi-schedule';
+import { akashiByHelper, akashiToday, akashiUncovered, akashiWeek, helperBase, improveStats, jstWeekday } from '../utils/akashi-schedule';
 
 const text = readFileSync(new URL('../samples/start2-master.json', import.meta.url), 'utf8');
 const master = JSON.parse(text.slice(text.indexOf('{')));
@@ -117,12 +117,28 @@ describe('akashiUncovered', () => {
 });
 
 describe('akashiUnconfirmed', () => {
-    it('表內有、曜日未確認的裝備：只回傳玩家持有的', () => {
-        // 305 Ju87C改二(KMX搭載機)、466 流星改(熟練)、579 13.8cm単装砲 Modèle 1927、580 55cm三連装魚雷 Modèle 1924
-        expect(AKASHI_UNCONFIRMED).toEqual([305, 466, 579, 580]);
-        expect(akashiUnconfirmed(new Map([[466, 2], [8, 1], [579, 0], [305, 1]]))).toEqual([305, 466]);
-        // 這幾件不在週表內，所以 akashiUncovered 仍會列出（總表用）
-        expect(akashiUncovered(new Map([[466, 1]]))).toEqual([466]);
+    it('產生物的未確認裝備都是真實裝備，且不在週表內', () => {
+        // 清單隨 wiki 補齊而變動（可能為空），這裡只驗不變式。
+        for (const mst of AKASHI_UNCONFIRMED) {
+            expect(gearIds.has(mst), `裝備 ${mst}`).toBe(true);
+            expect(AKASHI_SCHEDULE.some(([gear]) => gear === mst), `裝備 ${mst}`).toBe(false);
+        }
+    });
+
+    it('表內有、曜日未確認的裝備：只回傳玩家持有的', async () => {
+        // 固定一份未確認清單，不依賴當下 wiki 的填寫狀況。
+        vi.resetModules();
+        vi.doMock('../utils/akashi-schedule-data', async (importOriginal) => ({
+            ...await importOriginal<typeof import('../utils/akashi-schedule-data')>(),
+            AKASHI_UNCONFIRMED: [305, 466, 579, 580],
+        }));
+        try {
+            const { akashiUnconfirmed: unconfirmed } = await import('../utils/akashi-schedule');
+            expect(unconfirmed(new Map([[466, 2], [8, 1], [579, 0], [305, 1]]))).toEqual([305, 466]);
+        } finally {
+            vi.doUnmock('../utils/akashi-schedule-data');
+            vi.resetModules();
+        }
     });
 });
 

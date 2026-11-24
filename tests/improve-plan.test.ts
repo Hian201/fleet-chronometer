@@ -1,7 +1,7 @@
 // 改修日程的介面層：情報總括「改修日程」分區與面板工廠「今日改修」的 HTML 純函式。
 // master 與艦隊取自 samples（真實封包）；裝備庫在 sample 的 port 裡沒有，下面補一份測試用的。
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameState } from '../utils/state';
 import { LANGS, setLang, t, tFor, uiStringKeys } from '../utils/ui-i18n';
 import type { Lang } from '../utils/gamedata-i18n';
@@ -16,6 +16,18 @@ import { TODAY_HELPER_LIMIT, factoryTodayView } from '../entrypoints/panel/facto
 // 本測試斷言的是顯示名稱：匯入 state-display 安裝真正的實作（見 utils/state-format.ts），
 // 否則 t() 會回傳 key、艦名與艦種名會回退成封包原名或數字。
 import '../utils/state-display';
+
+// 「資料待確認」區塊的測試需要未確認裝備；產生物的清單會隨 wiki 補齊而清空，這裡固定兩件
+// （305 Ju87C改二(KMX搭載機)、466 流星改(熟練)），並從週表移除，模擬「表內有、曜日未確認」。
+vi.mock('../utils/akashi-schedule-data', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../utils/akashi-schedule-data')>();
+    const unconfirmed = [305, 466];
+    return {
+        ...actual,
+        AKASHI_UNCONFIRMED: unconfirmed,
+        AKASHI_SCHEDULE: actual.AKASHI_SCHEDULE.filter(([mst]) => !unconfirmed.includes(mst)),
+    };
+});
 
 const readJson = (rel: string) => JSON.parse(readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'));
 const scheduled = new Set(AKASHI_SCHEDULE.map(([mst]) => mst));
