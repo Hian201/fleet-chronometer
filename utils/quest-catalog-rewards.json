@@ -4759,6 +4759,16 @@
     },
     "otherJa": "選択報酬1\n・TBFx1\n・新型航空兵装資材x1\n・夜間作戦航空要員＋熟練甲板員x1\n\n選択報酬2\n・補強増設x1\n・新型航空兵装資材x1\n・熟練搭乗員x1"
   },
+  "866": {
+    "sourceWikiId": "",
+    "resources": {
+      "fuel": 880,
+      "ammo": 0,
+      "steel": 880,
+      "bauxite": 0
+    },
+    "otherJa": "選択報酬1\n・補強増設\n・「昭南」\n・戦闘糧食x3\n\n選択報酬2\n・給糧艦「間宮」x2\n・「明石」\n・工廠資源x4"
+  },
   "869": {
     "sourceWikiId": "B107",
     "resources": {

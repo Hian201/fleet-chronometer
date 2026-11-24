@@ -1057,7 +1057,7 @@
   },
   "386": {
     "name": "Weekly [Time-limited] Saury Festival Preparation Exercises!",
-    "detail": "Secure 3 S-Rank victories in Exercises within the same day with a fleet of at least 4 ships from Akebono, Amagiri, Murasame, Ooshio, Kumanomaru, Yamashiomaru, Kaibokan No.4, Ranger and Heywood L.E., one of them as flagship."
+    "detail": "Secure 3 S-Rank victories in Exercises within the same day with a fleet of at least 4 ships from Shimanemaru, Kumanomaru, Yamashiomaru, Béarn, Sagiri, Amagiri, Murasame, Yuudachi Kai Ni, Shikinami, Ooshio and Akebono, one of them as flagship."
   },
   "401": {
     "name": "The First Expedition!",
@@ -1902,6 +1902,10 @@
   "865": {
     "name": "Night Operations Carrier, Sortie to the Frontlines!",
     "detail": "Sortie Saratoga Mk.II (NOT Mod.2) as Fleet 1 flagship to [W6-5]. S-Rank the boss node."
+  },
+  "866": {
+    "name": "Saury Fishing: Naval District Saury Festival, CarDiv 2 Sets Out!",
+    "detail": "Obtain 8 fresh Saury within the short festival period."
   },
   "869": {
     "name": "Secure the Safety of the Supply Lines!",
