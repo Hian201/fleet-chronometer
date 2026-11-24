@@ -144,9 +144,11 @@
 23,45,0,23,由良,ゆら,軽巡洋艦,Nagara #4,CL,Yura,由良
 23,45,1,220,由良改,ゆら,軽巡洋艦,Nagara #4,CL,Yura Kai,由良改
 23,45,2,488,由良改二,ゆら,軽巡洋艦,Nagara #4,CL,Yura Kai Ni,由良改二
+23,45,3,750,由良改二偵,ゆら,軽巡洋艦,Nagara #4,CL,Yura Kai Ni Tei,由良改二偵
 54,46,0,54,川内,せんだい,軽巡洋艦,Sendai #1,CL,Sendai,川內
 54,46,1,222,川内改,せんだい,軽巡洋艦,Sendai #1,CL,Sendai Kai,川内改
 54,46,2,158,川内改二,せんだい,軽巡洋艦,Sendai #1,CL,Sendai Kai Ni,川内改二
+54,46,3,751,川内改二偵,せんだい,軽巡洋艦,Sendai #1,CL,Sendai Kai Ni Tei,川内改二偵
 55,47,0,55,神通,じんつう,軽巡洋艦,Sendai #2,CL,Jintsuu,神通
 55,47,1,223,神通改,じんつう,軽巡洋艦,Sendai #2,CL,Jintsuu Kai,神通改
 55,47,2,159,神通改二,じんつう,軽巡洋艦,Sendai #2,CL,Jintsuu Kai Ni,神通改二
@@ -177,6 +179,7 @@
 60,53,2,417,加古改二,かこ,重巡洋艦,Furutaka #2,CA,Kako Kai Ni,加古改二
 61,54,0,61,青葉,あおば,重巡洋艦,Aoba #1,CA,Aoba,青葉
 61,54,1,264,青葉改,あおば,重巡洋艦,Aoba #1,CA,Aoba Kai,青葉改
+61,54,2,753,青葉改偵,あおば,重巡洋艦,Aoba #1,CA,Aoba Kai Tei,青葉改偵
 62,55,0,62,妙高,みょうこう,重巡洋艦,Myoukou #1,CA,Myoukou,妙高
 62,55,1,265,妙高改,みょうこう,重巡洋艦,Myoukou #1,CA,Myoukou Kai,妙高改
 62,55,2,319,妙高改二,みょうこう,重巡洋艦,Myoukou #1,CA,Myoukou Kai Ni,妙高改二
@@ -457,6 +460,7 @@
 424,224,0,424,高波,たかなみ,駆逐艦,Yuugumo #6,DD,Takanami,高波
 424,224,1,345,高波改,たかなみ,駆逐艦,Yuugumo #6,DD,Takanami Kai,高波改
 424,224,2,649,高波改二,たかなみ,駆逐艦,Yuugumo #6,DD,Takanami Kai Ni,高波改二
+424,224,3,752,高波改二偵,たかなみ,駆逐艦,Yuugumo #6,DD,Takanami Kai Ni Tei,高波改二偵
 425,225,0,425,朝霜,あさしも,駆逐艦,Yuugumo #16,DD,Asashimo,朝霜
 425,225,1,344,朝霜改,あさしも,駆逐艦,Yuugumo #16,DD,Asashimo Kai,朝霜改
 425,225,2,578,朝霜改二,あさしも,駆逐艦,Yuugumo #16,DD,Asashimo Kai Ni,朝霜改二
