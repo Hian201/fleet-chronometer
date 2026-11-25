@@ -40,6 +40,7 @@ const scenes = [
     { key: 'unknown', query: '?scene=unknown&open=1', hash: '' },
     { key: 'error', query: '?scene=error', hash: '' },
     { key: 'chain-55', query: '?scene=default&chain=55', hash: '' },
+    { key: 'tips', query: '?scene=default&tips=1', hash: '' },
     { key: 'chain-done', query: '?scene=default&chain=done', hash: '' },
     { key: 'open-900', query: '?scene=default&open=1&w=900', hash: '' },
     { key: 'ship', query: '?scene=default&sub=ship', hash: '' },

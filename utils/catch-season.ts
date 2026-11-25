@@ -38,7 +38,8 @@ export const CATCH_SEASONS: readonly CatchSeason[] = [
     // （docs/saury-plan.md S18，2024–2025 基準、亦沿用於 2026sannma-kihon）交叉收斂重疊的 13 張海域
     // （1-1～1-6、3-1～3-5、6-1、6-5）至參考撈魚點（1-3／3-1 往年只掉 Boss，1-6 無 Boss）。
     // 僅換曲而未列於 2025 表的 2-1～2-4 維持換曲範圍（2-2 只換 Boss 曲，2-3／2-4 只換移動中曲子但整張圖都算）；
-    // 7-4 雖為往年漁場但本季未換曲，暫不列入（若實際撈到魚仍會照算並標「範圍外」）。不是本季掉落證明。
+    // 7-4 本季未換曲，但往年是漁場（2025 表：Boss・H・J），2026-11-25 開發者確認已有玩家撈到，依往年點位列入。
+    // 其餘仍是參考範圍，不是本季掉落證明。
     {
         id: '2026', start: Date.parse('2026-11-24T20:30:00+09:00'), end: null,
         likelyGrounds: {
@@ -59,6 +60,7 @@ export const CATCH_SEASONS: readonly CatchSeason[] = [
             '3-5': { boss: true, nodes: ['G'] },
             '6-1': { boss: true, nodes: ['I', 'J'] },
             '6-5': { boss: true, nodes: ['D', 'F', 'I', 'J'] },
+            '7-4': { boss: true, nodes: ['H', 'J'] },
         },
     },
 ];

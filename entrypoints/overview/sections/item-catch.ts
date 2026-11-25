@@ -404,6 +404,11 @@ export const itemCatchSection: OverviewSection = {
                         <summary>${esc(t('ov.icChainRuleBtn'))}</summary>
                         <p class="ov-note dim ic-chain-note"></p>
                     </details>
+                    <details class="ic-chain-rule ic-tips">
+                        <summary>${esc(t('ov.icTipsBtn'))}</summary>
+                        ${(['ov.icTipsGear', 'ov.icTipsDepth', 'ov.icTipsShips', 'ov.icTipsKabayaki'] as const)
+                            .map(k => `<p class="ov-note dim ic-chain-note">${esc(t(k))}</p>`).join('')}
+                    </details>
                 </aside>
             </div>
         </div>`;

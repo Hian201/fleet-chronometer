@@ -218,10 +218,10 @@ describe('itemCatchStats', () => {
             expect(stats.areas.every(a => a.outside === 0)).toBe(true);
         });
 
-        it('2026 季：重疊的 13 張海域依 2025 掉落表收斂至參考點，僅換曲的 2-1～2-4 維持原範圍', () => {
+        it('2026 季：重疊的 13 張海域依 2025 掉落表收斂至參考點，僅換曲的 2-1～2-4 維持原範圍，未換曲的 7-4 依往年點位列入', () => {
             const g = CATCH_SEASONS.find(sn => sn.id === '2026')?.likelyGrounds ?? {};
             expect(Object.keys(g).sort()).toEqual(['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '2-1', '2-2', '2-3', '2-4',
-                '3-1', '3-2', '3-3', '3-4', '3-5', '6-1', '6-5']);
+                '3-1', '3-2', '3-3', '3-4', '3-5', '6-1', '6-5', '7-4']);
             expect(g['1-3']).toBe('boss');
             expect(g['2-2']).toBe('boss');
             expect(g['3-1']).toBe('boss');
@@ -231,7 +231,7 @@ describe('itemCatchStats', () => {
             expect(g['1-4']).toEqual({ boss: true, nodes: ['H', 'I', 'J'] });
             expect(g['1-6']).toEqual({ nodes: ['D', 'I', 'J'] });
             expect(g['6-5']).toEqual({ boss: true, nodes: ['D', 'F', 'I', 'J'] });
-            expect(g['7-4']).toBeUndefined();
+            expect(g['7-4']).toEqual({ boss: true, nodes: ['H', 'J'] });
         });
     });
 

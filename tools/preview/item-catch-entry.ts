@@ -109,6 +109,7 @@ void (async () => {
     document.getElementById('frame')!.append(host);
     await dropLogSection.render(host, ctx);
     await new Promise(resolve => setTimeout(resolve, 300));
+    if (params.get('tips') === '1') host.querySelector<HTMLDetailsElement>('.ic-tips')?.setAttribute('open', '');
     if (params.get('open') === '1') {
         host.querySelector<HTMLDetailsElement>('.ic-area')?.setAttribute('open', '');
         host.querySelector<HTMLDetailsElement>('.ic-map')?.setAttribute('open', '');
