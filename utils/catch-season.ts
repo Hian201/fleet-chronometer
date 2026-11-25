@@ -34,15 +34,31 @@ export interface CatchSeason {
 /** 由舊到新。新一季公告後新增一列；官方結束時刻公告後補上 end。 */
 export const CATCH_SEASONS: readonly CatchSeason[] = [
     // 2026-11-19 官方推文：11/24 11:00～20:30 維護，完成後開始（docs/saury-plan.md S13）。
-    // likelyGrounds：2026-11-24 更新公告說漁場會播應景的曲子；依同次維護 api_mst_mapbgm 有換曲的海域
-    // （維護前後兩份備份的 start2 比對）。一般戰鬥曲有換的圖全部戰鬥都算；2-2 只換 Boss 曲，只算 Boss 戰；
-    // 2-3、2-4 只換移動中曲子，開發者決定整張圖的戰鬥都算。不是撈得到魚的證明。
+    // likelyGrounds：以 2026-11-24 維護 api_mst_mapbgm 換曲的 17 張海域為底，與ぜかまし 2025 掉落點表
+    // （docs/saury-plan.md S18，2024–2025 基準、亦沿用於 2026sannma-kihon）交叉收斂重疊的 13 張海域
+    // （1-1～1-6、3-1～3-5、6-1、6-5）至參考撈魚點（1-3／3-1 往年只掉 Boss，1-6 無 Boss）。
+    // 僅換曲而未列於 2025 表的 2-1～2-4 維持換曲範圍（2-2 只換 Boss 曲，2-3／2-4 只換移動中曲子但整張圖都算）；
+    // 7-4 雖為往年漁場但本季未換曲，暫不列入（若實際撈到魚仍會照算並標「範圍外」）。不是本季掉落證明。
     {
         id: '2026', start: Date.parse('2026-11-24T20:30:00+09:00'), end: null,
         likelyGrounds: {
-            '1-1': 'all', '1-2': 'all', '1-3': 'all', '1-4': 'all', '1-5': 'all', '1-6': 'all',
-            '2-1': 'all', '2-2': 'boss', '2-3': 'all', '2-4': 'all',
-            '3-1': 'all', '3-2': 'all', '3-3': 'all', '3-4': 'all', '3-5': 'all', '6-1': 'all', '6-5': 'all',
+            '1-1': { boss: true, nodes: ['B'] },
+            '1-2': { boss: true, nodes: ['C'] },
+            '1-3': 'boss',
+            '1-4': { boss: true, nodes: ['H', 'I', 'J'] },
+            '1-5': { boss: true, nodes: ['H', 'I'] },
+            '1-6': { nodes: ['D', 'I', 'J'] },
+            '2-1': 'all',
+            '2-2': 'boss',
+            '2-3': 'all',
+            '2-4': 'all',
+            '3-1': 'boss',
+            '3-2': { boss: true, nodes: ['J', 'K'] },
+            '3-3': { boss: true, nodes: ['G', 'K'] },
+            '3-4': { boss: true, nodes: ['M', 'N'] },
+            '3-5': { boss: true, nodes: ['G'] },
+            '6-1': { boss: true, nodes: ['I', 'J'] },
+            '6-5': { boss: true, nodes: ['D', 'F', 'I', 'J'] },
         },
     },
 ];

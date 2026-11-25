@@ -97,6 +97,29 @@ describe('任務導覽資料目錄', () => {
         expect(torpedo.confidence).toBe('checking');
     });
 
+    it('收錄 2026-11-24 秋刀魚任務全鏈（866 → 369 → 867 → 868／1110 → 1144）且不沿用往年舊邊', () => {
+        expect(QUEST_CATALOG_BY_NO.get(866)?.wikiIds).toEqual(['2611B1']);
+        expect(QUEST_CATALOG_BY_NO.get(369)?.wikiIds).toEqual(['2611C3']);
+        expect(QUEST_CATALOG_BY_NO.get(867)?.wikiIds).toEqual(['2611B2']);
+        expect(QUEST_CATALOG_BY_NO.get(868)?.wikiIds).toEqual(['2611B3']);
+        expect(QUEST_CATALOG_BY_NO.get(1110)?.wikiIds).toEqual(['2611F1']);
+        expect(QUEST_CATALOG_BY_NO.get(1144)?.wikiIds).toEqual(['2611F2']);
+        const expected: [number, number[]][] = [
+            [866, []],
+            [369, [866]],
+            [867, [369]],
+            [868, [867]],
+            [1110, [867]],
+            [1144, [1110]],
+        ];
+        for (const [no, pre] of expected) {
+            const relation = questRelation(no);
+            expect(relation.prerequisites, `任務 ${no}`).toEqual(pre);
+            expect(relation.conditionUnknown, `任務 ${no}`).toBe(false);
+            expect(relation.sources, `任務 ${no}`).toEqual(['zekamashi']);
+        }
+    });
+
     it('只存在多個前置但無法判定組合時，不自行指定 all 或 any', () => {
         const relation = questRelation({
             apiNo: 999999,

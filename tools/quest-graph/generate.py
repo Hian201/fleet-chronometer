@@ -164,7 +164,7 @@ def other_prerequisites() -> dict[int, set[int]]:
     return result
 
 
-KC3_TRANSLATIONS_COMMIT = '6fed2aac44a1ca95f2892bb1af93a6bc0e60b667'
+KC3_TRANSLATIONS_COMMIT = '041c0653119a2b2c734092625317f231de40edfe'
 KC3_QUESTS = Path(__file__).with_name('.cache') / f'kc3-quests-jp-{KC3_TRANSLATIONS_COMMIT[:12]}.json'
 
 
@@ -343,9 +343,11 @@ WINDOWS: dict[int, tuple[str, str | None]] = {}
 # 營運公告的期間：wiki 在任務結束後才改寫或拿掉「実装」欄，結束日先依營運公告補上；wiki 有結束日時以 wiki 為準。
 # 2026 第三十一戦隊（2606A1／C1）：06/26 更新實裝，11/11 維護開始時結束。
 # 2026 南瓜任務（2610B1～B8、C1、F1、F2）：10/14 更新實裝，11/11 維護開始時結束。
-OFFICIAL_WINDOWS: dict[int, tuple[str, str]] = {
+# 2026 秋刀魚任務（2611B1～B3、C3、F1、F2）：11/24 更新實裝，結束日未公告（待 wikiwiki「実装」欄補上）。
+OFFICIAL_WINDOWS: dict[int, tuple[str, str | None]] = {
     **{no: ('2026-06-26', '2026-11-11') for no in (199, 382)},
     **{no: ('2026-10-14', '2026-11-11') for no in (359, 984, 985, 986, 987, 1002, 1038, 1039, 1040, 1119, 1171)},
+    **{no: ('2026-11-24', None) for no in (369, 866, 867, 868, 1110, 1144)},
 }
 IMPL_DATE = re.compile(r'(20\d\d)\s*(\d{1,2})/(\d{1,2})')
 
@@ -358,6 +360,7 @@ VERIFIED_RELEASE_DATE_OVERRIDES: dict[int, str] = {
     326: '2018-08-01',
     363: '2026-04-24',
     367: '2026-05-29',
+    369: '2026-11-24',
     448: '2026-04-24',
     449: '2026-04-24',
     450: '2026-03-13',
@@ -367,6 +370,9 @@ VERIFIED_RELEASE_DATE_OVERRIDES: dict[int, str] = {
     802: '2026-01-01',
     803: '2026-01-01',
     804: '2026-01-01',
+    866: '2026-11-24',
+    867: '2026-11-24',
+    868: '2026-11-24',
     953: '2026-05-29',
     954: '2026-05-29',
     955: '2026-05-29',
@@ -378,8 +384,10 @@ VERIFIED_RELEASE_DATE_OVERRIDES: dict[int, str] = {
     1032: '2026-05-29',
     1043: '2026-03-13',
     1046: '2026-05-01',
+    1110: '2026-11-24',
     1126: '2026-04-24',
     1136: '2026-04-24',
+    1144: '2026-11-24',
     1165: '2026-04-07',
     1168: '2026-05-01',
     1169: '2026-05-01',
@@ -642,11 +650,14 @@ def parse_zekamashi(articles: dict[str, dict], index: NameIndex, known: dict[int
                 no = linked
         return no
 
-    # 每年重辦的期間限定任務以「年份＋系列」命名文章（2025pumpkin-1、2026pumpkin-1…）。營運沿用編號、
-    # 標題也常相同或只差年份，舊年度的文章會被對到今年的任務，把已失效的前置混進來；有較新年度時不採用。
+    # 每年重辦的期間限定任務以「年份＋系列」或「系列＋年份」命名文章（2025pumpkin-1、2026pumpkin-1、
+    # sanmaryou2025-ninmu1、sanmaryou2026-ninmu1…）。營運沿用編號、標題也常相同或只差年份，
+    # 舊年度的文章會被對到今年的任務，把已失效的前置混進來；有較新年度時不採用。
     def series(url: str) -> tuple[str, int] | None:
         m = YEAR_SERIES.search(url)
-        return (m.group(2), int(m.group(1))) if m else None
+        if not m:
+            return None
+        return (m.group(2), int(m.group(1))) if m.group(1) else (m.group(3), int(m.group(4)))
     latest: dict[str, int] = {}
     for url in articles:
         if (key := series(url)):
@@ -717,7 +728,7 @@ def parse_zekamashi(articles: dict[str, dict], index: NameIndex, known: dict[int
 
 
 REPORT = Path(__file__).with_name('.cache') / 'zekamashi-unmapped.json'
-YEAR_SERIES = re.compile(r'/(20\d\d)([a-z]+)-[0-9a-z]+/?$')
+YEAR_SERIES = re.compile(r'/(?:(20\d\d)([a-z]+)|([a-z]+)(20\d\d))-[0-9a-z]+/?$')
 
 # poi-plugin-quest-planner：kcQuests（kcwikizh）前置的較新整理版，和目錄的 poi 前置同一條資料線，
 # 所以取代舊版而不另計來源。固定 commit；更新時改這裡並重跑。

@@ -337,6 +337,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
     https://zekamashi.net/kancolle-kouryaku/2026tuyu-boueisen/
     https://zekamashi.net/kancolle-kouryaku/2026tuyu-kaizyougoei/
     https://zekamashi.net/kancolle-kouryaku/kantai13syuunen-kankansikizyunbi/
+    https://zekamashi.net/kancolle-kouryaku/sanmaryou2026-ninmu1/
   - 年任換期月 `YEARLY_QUEST_RESET_MONTH_RAW`（同檔）：同一產生器解析 wikiwiki 任務總表年任表的「N月スタート」分組與「開放条件/備考」欄的「イヤーリー(N月)」，兩者一致才收錄月份。遊戲 `api_label_type` 101–112＝100＋換期月的解讀，與季任 3／6／9／12 月換期的劃分，以本專案 `samples/Quest.json` 為準，並對照 ElectronicObserver `ElectronicObserver/Data/QuestData.cs`（LabelType 註解）與 KC3Kai `src/library/objects/Quest.js`、`src/library/managers/QuestManager.js`；`utils/quest-cycle.ts` 為 clean-room 重寫，未複製程式碼。
   - 前提／後續 `ZEKAMASHI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析ぜかまし各任務攻略「前提に…あり。後続に…あり。」敘述，只保留任務 `api_no` 關係與「要確認」「他不明」等註記旗標，不收錄文章內容。頁面快取於 `tools/quest-graph/.cache/`（不進 git），之後只重抓 sitemap lastmod 有變動或新發表的文章，請求間隔至少 2 秒。
     https://zekamashi.net/
@@ -348,7 +349,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - 前置 `KCWIKI_QUEST_GRAPH_RAW`（同檔）：同一產生器解析舰娘百科任務總表的「前置」欄（只抓總表一頁並快取；該站 robots.txt 為 Crawl-delay 100），只保留任務 `api_no` 關係與「待验证」等旗標，不收錄頁面文字。poi／kcQuests 的前置由此站抽出，兩者計票時合為一票。
     https://zh.kcwiki.cn/wiki/%E4%BB%BB%E5%8A%A1
     網站內容授權：知识共享署名-非商业性使用-相同方式共享（CC BY-NC-SA）；本專案只取任務關係事實。
-  - 代號與名稱補齊 `QUEST_CATALOG_SUPPLEMENT_RAW`（同檔）：目錄有 `api_no` 卻缺 wiki 代號或名稱的任務（例：1020＝2409B1），由 kc3-translations commit `6fed2aac44a1ca95f2892bb1af93a6bc0e60b667` 的 `data/jp/quests.json` 補上；同一份資料也提供新任務的 `api_no` 與日文任務說明原文（2026 年南瓜任務、B218）。
+  - 代號與名稱補齊 `QUEST_CATALOG_SUPPLEMENT_RAW`（同檔）：目錄有 `api_no` 卻缺 wiki 代號或名稱的任務（例：1020＝2409B1），由 kc3-translations commit `041c0653119a2b2c734092625317f231de40edfe` 的 `data/jp/quests.json` 補上；同一份資料也提供新任務的 `api_no` 與日文任務說明原文（2026 年南瓜任務、B218、2026-11-11 與 2026-11-24 秋刀魚任務群）。
 - **攻略事實核對**：任務條件以遊戲日文任務原文為基礎，優先查對 wikiwiki 任務表及 Zekamashi 對應攻略；必要時參考 wikiwiki 或 Zekamashi 的海域攻略。英文任務資料只供輔助比對，不得推翻日文任務表或上述攻略。僅整理艦種、艦名、編成位置、數量、海域、節點與勝利條件等事實，文案由本專案自行撰寫。
   - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99
   - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E5%87%BA%E6%92%83%E4%BB%BB%E5%8B%99
@@ -407,6 +408,15 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   - https://zekamashi.net/kancolle-kouryaku/yuudati-harusame/
   - https://zekamashi.net/kancolle-kouryaku/daikyuusentai-zensen/
   - https://zekamashi.net/kancolle-kouryaku/tamokutekitousaibokan-kitakamikaisan/
+  - https://zekamashi.net/kancolle-kouryaku/sanma-junbi-ensyuu-2026/
+  - https://zekamashi.net/kancolle-kouryaku/sanmaryou2026-ninmu1/
+  - https://zekamashi.net/kancolle-kouryaku/2026sannma-ensyuu/
+  - https://zekamashi.net/kancolle-kouryaku/sanmaryou2026-ninmu2/
+  - https://zekamashi.net/kancolle-kouryaku/sanmaryou2026-ninmu3/
+  - https://zekamashi.net/kancolle-kouryaku/sanmaryou2026-ryouri/
+  - https://zekamashi.net/kancolle-kouryaku/sanmaryou2026-kakutyou/
+  - https://zekamashi.net/kancolle-kouryaku/2026sannma-kihon/
+  - https://zekamashi.net/kancolle-kouryaku/sannma2025-drop-hensei/
   - https://wikiwiki.jp/kancolle/%E4%BB%BB%E5%8B%99/%E6%9C%9F%E9%96%93%E9%99%90%E5%AE%9A2
   - https://wikiwiki.jp/kancolle/%E9%8E%AE%E5%AE%88%E5%BA%9C%E6%B5%B7%E5%9F%9F/1-1
   - https://wikiwiki.jp/kancolle/%E4%B8%AD%E9%83%A8%E6%B5%B7%E5%9F%9F/6-4

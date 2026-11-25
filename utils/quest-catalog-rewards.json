@@ -2519,6 +2519,16 @@
     },
     "otherJa": "選択報酬1\n・給糧艦「伊良湖」x1\n・高速修復剤x3\n・開発資材x3\n\n選択報酬2\n・12.7cm連装砲C型改二x1\n・新型兵装資材x2\n・強化型艦本式缶x3"
   },
+  "369": {
+    "sourceWikiId": "2611C3",
+    "resources": {
+      "fuel": 680,
+      "ammo": 680,
+      "steel": 0,
+      "bauxite": 680
+    },
+    "otherJa": "選択報酬1\n・高速建造材x8\n・高速修復材x6\n・給糧艦「間宮」x1\n\n選択報酬2\n・勲章x1\n・戦闘糧食x2\n・格納庫増設x1"
+  },
   "371": {
     "sourceWikiId": "Cy12",
     "resources": {
@@ -4760,7 +4770,7 @@
     "otherJa": "選択報酬1\n・TBFx1\n・新型航空兵装資材x1\n・夜間作戦航空要員＋熟練甲板員x1\n\n選択報酬2\n・補強増設x1\n・新型航空兵装資材x1\n・熟練搭乗員x1"
   },
   "866": {
-    "sourceWikiId": "",
+    "sourceWikiId": "2611B1",
     "resources": {
       "fuel": 880,
       "ammo": 0,
@@ -4768,6 +4778,26 @@
       "bauxite": 0
     },
     "otherJa": "選択報酬1\n・補強増設\n・「昭南」\n・戦闘糧食x3\n\n選択報酬2\n・給糧艦「間宮」x2\n・「明石」\n・工廠資源x4"
+  },
+  "867": {
+    "sourceWikiId": "2611B2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 1440,
+      "steel": 0,
+      "bauxite": 1440
+    },
+    "otherJa": "選択報酬1\n・戦闘詳報x1\n・「Vautour」x1\n・海外艦最新技術x4\n\n選択報酬2\n・熟練見張員★+5x2\n・新型航空兵装資材x4\n・改装設計図x1"
+  },
+  "868": {
+    "sourceWikiId": "2611B3",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 2550,
+      "bauxite": 2550
+    },
+    "otherJa": "選択報酬1\n・格納庫増設x5\n・改装設計図x2\n・試製甲板カタパルトx1\n\n選択報酬2\n・家具『二五式大漁旗』\n・家具『二六式大漁旗』"
   },
   "869": {
     "sourceWikiId": "B107",
@@ -6229,6 +6259,16 @@
     },
     "otherJa": "確定報酬\n・装甲艇(AB艇) x1"
   },
+  "1110": {
+    "sourceWikiId": "2611F1",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 400,
+      "bauxite": 400
+    },
+    "otherJa": "選択報酬1\n・戦闘糧食(特別なおにぎり)★+3x1\n・高速建造材x30\n\n選択報酬2\n・新型兵装資材x3\n・高速建造材x48\n・熟練見張員★+9x1"
+  },
   "1111": {
     "sourceWikiId": "F105",
     "resources": {
@@ -6488,6 +6528,16 @@
       "bauxite": 0
     },
     "otherJa": "選択報酬\n・燃料x3200\n・ボーキサイトx1600\n・開発資材x10\n\n確定報酬\n・35.6cm連装砲改三丙 x1"
+  },
+  "1144": {
+    "sourceWikiId": "2611F2",
+    "resources": {
+      "fuel": 0,
+      "ammo": 0,
+      "steel": 0,
+      "bauxite": 1000
+    },
+    "otherJa": "確定報酬\n・震電改二(艦戦型改二)x1\n\n選択報酬\n・ボーキサイトx8800\n・ネ式エンジンx1\n・高速建造材x88"
   },
   "1145": {
     "sourceWikiId": "F129",

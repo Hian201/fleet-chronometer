@@ -41,26 +41,26 @@ const add = (map: string, node: number, rank: string, ago: number, drops: number
     rows.push(row);
 };
 if (scene === 'default') {
-    // 1-4：一趟兩個漁點；3-3／3-5 同大海域；5-4 從未捕獲；其他道具 69；舊紀錄不可考
+    // 1-4：一趟兩個漁點（8=H、10=J）；3-3（7=G）／3-5（7=G）同大海域；5-4 從未捕獲；其他道具 69；舊紀錄不可考
     for (let i = 0; i < 18; i++) {
         const key = 1000 + i;
-        add('1-4', 6, i % 3 ? 'S' : 'A', 40 - i * 2, i % 4 === 0 ? [68] : [], key);
+        add('1-4', 8, i % 3 ? 'S' : 'A', 40 - i * 2, i % 4 === 0 ? [68] : [], key);
         add('1-4', 10, 'S', 40 - i * 2 - 0.1, i % 5 === 0 ? [68, 68] : [], key);
     }
-    for (let i = 0; i < 9; i++) add('3-3', 3, 'S', 30 - i * 3, i === 2 || i === 4 ? [68] : []);
-    for (let i = 0; i < 6; i++) add('3-5', 5, i % 2 ? 'B' : 'S', 20 - i, i === 5 ? [69] : []);
-    for (let i = 0; i < 5; i++) add('3-3', 3, 'S', 200 + i, undefined);
-    add('3-3', 3, 'S', 5, undefined);
+    for (let i = 0; i < 9; i++) add('3-3', 7, 'S', 30 - i * 3, i === 2 || i === 4 ? [68] : []);
+    for (let i = 0; i < 6; i++) add('3-5', 7, i % 2 ? 'B' : 'S', 20 - i, i === 5 ? [69] : []);
+    for (let i = 0; i < 5; i++) add('3-3', 7, 'S', 200 + i, undefined);
+    add('3-3', 7, 'S', 5, undefined);
     for (let i = 0; i < 4; i++) add('5-4', 2, 'S', 10 + i, []);
-    // 換曲範圍外（2026 季不含 5-4）撈到一條：預覽「範圍外」標記。
+    // 參考範圍外（2026 季不含 5-4）撈到一條：預覽「範圍外」標記。
     add('5-4', 2, 'S', 9, [68]);
     for (let i = 0; i < 3; i++) add('62-3', 7, 'A', 50 + i, [68]);
-    add('1-4', 6, 'S', 400, undefined, 999, { imported: true });
+    add('1-4', 8, 'S', 400, undefined, 999, { imported: true });
     add('1-4', 10, 'S', 3, [68], 2000, { drop: '雪風', dropMst: 20 });
-    // 不記錄的 1-1 在「仍統計道具掉落」開啟時寫的列：道具捕撈要算，艦娘打撈不得出現
-    for (let i = 0; i < 8; i++) add('1-1', 1, 'S', 4 + i, i % 3 ? [] : [68], 3000 + i, { catchOnly: true, ...(i === 0 ? { drop: '睦月', dropMst: 1 } : {}) });
+    // 不記錄的 1-1（2=B）在「仍統計道具掉落」開啟時寫的列：道具捕撈要算，艦娘打撈不得出現
+    for (let i = 0; i < 8; i++) add('1-1', 2, 'S', 4 + i, i % 3 ? [] : [68], 3000 + i, { catchOnly: true, ...(i === 0 ? { drop: '睦月', dropMst: 1 } : {}) });
 } else if (scene === 'unknown') {
-    for (let i = 0; i < 6; i++) add('1-4', 6, 'S', 10 + i, undefined);
+    for (let i = 0; i < 6; i++) add('1-4', 8, 'S', 10 + i, undefined);
 }
 await db.sorties.clear();
 await db.sorties.bulkPut(rows);

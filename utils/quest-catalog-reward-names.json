@@ -487,6 +487,10 @@
     "zh-TW": "Type124 ASDIC",
     "en": "Type124 ASDIC"
   },
+  "Vautour": {
+    "zh-TW": "Vautour",
+    "en": "Vautour"
+  },
   "Z1": {
     "zh-TW": "Z1",
     "en": "Z1"
@@ -666,6 +670,14 @@
   "九四式爆雷投射機": {
     "zh-TW": "九四式爆雷投射機",
     "en": "Type 94 Depth Charge Projector"
+  },
+  "二五式大漁旗": {
+    "zh-TW": "二五式大漁旗",
+    "en": "Type 25 Big Catch Banner"
+  },
+  "二六式大漁旗": {
+    "zh-TW": "二六式大漁旗",
+    "en": "Type 26 Big Catch Banner"
   },
   "二式12cm迫撃砲改": {
     "zh-TW": "二式12cm迫擊砲改",

@@ -15,14 +15,7 @@ const DURING_HALLOWEEN_2026 = Date.parse('2026-11-01T12:00:00+09:00');
 
 describe('questCatalogIdentity', () => {
     it('所有目錄任務與固定版本 KC3Kai 日文標題相符', () => {
-        // 固定版本 KC3 尚未收錄的 2026-11-11／11-24 新任務：標題依營運公告與遊戲任務清單（381、866 為重用編號）
-        const titles = new Map([
-            ...japaneseTitles.titles as [number, string][],
-            [381, '【期間限定任務】秋月型演習任務2026'],
-            [386, '【期間限定任務】秋刀魚祭り準備演習！'],
-            [866, '秋刀魚漁：鎮守府秋刀魚祭り、二航戦出ます！'],
-            [1172, '【雷装強化工廠任務】夜戦突撃装備の強化【I】'],
-        ]);
+        const titles = new Map(japaneseTitles.titles as [number, string][]);
         for (const [no] of QUEST_CATALOG_RAW) {
             const title = titles.get(no);
             expect(title, `任務 ${no} 的來源日文標題`).toBeTruthy();

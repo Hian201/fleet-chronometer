@@ -218,6 +218,25 @@ def relations(page: str) -> list[dict]:
             'pre_text': pre_text.strip()[:160],
             'post_tail': post_tail[:80],
         })
+    # 系列起始任務沒有「前提に」段落，只寫獨立的「後続に <ul>…</ul> あり。」區塊；
+    # 僅採用區塊清單＋「あり」，避免把內文偶爾提到「後続」的句子當成關係。
+    if not groups:
+        found_post = re.search(_BLOCK.format(kw='後続'), body, re.S)
+        if found_post and re.search(r'あり', _text(found_post.group(2))):
+            post = _items(found_post.group(1))
+            if post:
+                post_tail = _text(found_post.group(2))
+                heading = re.findall(r'<h[23][^>]*>(.*?)</h[23]>', body[:found_post.start()], re.S)
+                groups.append({
+                    'heading': _text(heading[-1]) if heading else '',
+                    'pre': [],
+                    'post': post,
+                    'pre_unknown': False,
+                    'pre_uncertain': False,
+                    'post_uncertain': bool(_UNCERTAIN.search(post_tail)),
+                    'pre_text': '',
+                    'post_tail': post_tail[:80],
+                })
     return groups
 
 

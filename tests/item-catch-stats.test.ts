@@ -190,18 +190,48 @@ describe('itemCatchStats', () => {
             expect(stats.caught).toBe(3);
         });
 
+        it('指定節點字母與 Boss：命中指定點或 Boss 才算，同圖非參考點無魚略過、有魚標 outside', () => {
+            // 1-4：edge 8／15 均為 H、edge 6 為 F、edge 12 為 L（Boss）
+            const g = { '1-4': { boss: true, nodes: ['H', 'I', 'J'] }, '1-6': { nodes: ['D', 'I', 'J'] } } as const;
+            const stats = itemCatchStats([
+                row({ map: '1-4', node: 6 }),                              // F，無魚 → 略過
+                row({ map: '1-4', node: 6, useItemDrops: [SAURY] }),       // F，有魚 → 照算且標 outside
+                row({ map: '1-4', node: 8 }),                              // H，算
+                row({ map: '1-4', node: 15, useItemDrops: [SAURY] }),      // H（另一條 edge），算
+                row({ map: '1-4', node: 12, boss: true }),                 // Boss L，算
+                row({ map: '1-6', node: 11 }),                             // 1-6 edge 11＝D，算（無 Boss）
+                row({ map: '1-6', node: 1 }),                              // 1-6 edge 1＝A，無魚 → 略過
+            ], { ...query, grounds: g });
+            const map14 = stats.areas[0].maps.find(m => m.map === '1-4')!;
+            expect(map14.outside).toBe(1);
+            expect(map14.nodes.map(n => [n.node, n.total.n, n.outside])).toEqual([
+                [6, 1, 1], [8, 1, 0], [12, 1, 0], [15, 1, 0],
+            ]);
+            const map16 = stats.areas[0].maps.find(m => m.map === '1-6')!;
+            expect(map16.nodes.map(n => n.node)).toEqual([11]);
+            expect(map16.outside).toBe(0);
+        });
+
         it('沒有 grounds 時全部列出、outside 為 0', () => {
             const stats = itemCatchStats([row({ map: '7-1', node: 1 }), row({ map: '2-2', node: 3 })], query);
             expect(stats.areas.length).toBe(2);
             expect(stats.areas.every(a => a.outside === 0)).toBe(true);
         });
 
-        it('2026 季：2-2 只算 Boss，其餘換曲海域全部戰鬥都算', () => {
+        it('2026 季：重疊的 13 張海域依 2025 掉落表收斂至參考點，僅換曲的 2-1～2-4 維持原範圍', () => {
             const g = CATCH_SEASONS.find(sn => sn.id === '2026')?.likelyGrounds ?? {};
-            expect(g['2-2']).toBe('boss');
-            expect(Object.entries(g).filter(([, v]) => v === 'boss').map(([m]) => m)).toEqual(['2-2']);
             expect(Object.keys(g).sort()).toEqual(['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '2-1', '2-2', '2-3', '2-4',
                 '3-1', '3-2', '3-3', '3-4', '3-5', '6-1', '6-5']);
+            expect(g['1-3']).toBe('boss');
+            expect(g['2-2']).toBe('boss');
+            expect(g['3-1']).toBe('boss');
+            expect(g['2-1']).toBe('all');
+            expect(g['2-3']).toBe('all');
+            expect(g['2-4']).toBe('all');
+            expect(g['1-4']).toEqual({ boss: true, nodes: ['H', 'I', 'J'] });
+            expect(g['1-6']).toEqual({ nodes: ['D', 'I', 'J'] });
+            expect(g['6-5']).toEqual({ boss: true, nodes: ['D', 'F', 'I', 'J'] });
+            expect(g['7-4']).toBeUndefined();
         });
     });
 });

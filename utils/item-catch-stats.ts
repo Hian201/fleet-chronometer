@@ -9,9 +9,10 @@
 //   · sorties＝出擊趟數（相異 sortieKey）。n 是節點結算場數，一趟多個漁點會貢獻多場。
 //
 // ── 撈魚場次的範圍 ──────────────────────────────────────────────────────
-// 季別有 `grounds`（換了季節曲的海域，見 utils/catch-season.ts）時，只有換曲的戰鬥算場次：
-// 'all' 的圖全部戰鬥都算，'boss' 的圖只算 Boss 戰。範圍外的戰鬥只要撈到該道具就照算，並以
-// `outside` 標出，避免換曲假設錯了時把真正的漁點藏起來；範圍外沒撈到的戰鬥不列入。
+// 季別有 `grounds`（換曲海域＋往年掉落點參考，見 utils/catch-season.ts）時，只有範圍內的戰鬥算場次：
+// 'all' 算整張圖、'boss' 只算 Boss 戰、`{ boss?, nodes }` 算 Boss 與指定節點字母（nodeLetter）。
+// 範圍外的戰鬥只要撈到該道具就照算，並以 `outside` 標出，避免推測範圍錯了時把真正的漁點藏起來；
+// 範圍外沒撈到的戰鬥不列入。
 // 沒有 `grounds`（其他道具、全部期間）時，所選期間內有紀錄的戰鬥節點全部列出。
 // 從未捕獲的節點保留 0，分母不因首筆捕獲而改變。不推算枯竭、恢復或掉率；連續無魚場數只是紀錄事實。
 // 基地空襲（kind='raid'）沒有結算道具，不列入。
@@ -19,6 +20,7 @@
 // 活動海域（world >= 10）不列入：秋刀魚祭的漁場歷來是通常海域，活動海域掉的道具（含少數年度
 // 活動也掉魚的情況）混進來會讓「大海域」與換海域判斷失真。往後營運明說活動海域也是漁場時再改。
 import type { SortieLogRow } from './db';
+import { nodeLetter } from './map-node-letters';
 import { isEventWorld, parseMapCode } from './sortie-detail';
 
 /** 道具捕撈統計收的結算：通常海域的戰鬥列（catchOnly 列照收）。 */
@@ -111,13 +113,24 @@ export interface ItemCatchQuery {
     grounds?: CatchGrounds;
 }
 
-/** 'all'＝該圖全部戰鬥都算撈魚場次；'boss'＝只算 Boss 戰。 */
-export type CatchGrounds = Readonly<Record<string, 'all' | 'boss'>>;
+/**
+ * 單張圖計入撈魚場次的範圍：
+ * - `'all'`：該圖全部戰鬥；`'boss'`：只算 Boss 戰。
+ * - `{ boss?, nodes }`：只算 Boss（若 `boss: true`）與指定節點字母（依 `nodeLetter` 比對）。
+ */
+export type CatchGroundScope = 'all' | 'boss' | { readonly boss?: boolean; readonly nodes: readonly string[] };
+export type CatchGrounds = Readonly<Record<string, CatchGroundScope>>;
 
-/** 這場戰鬥是否在換曲範圍內；沒有範圍時一律算。 */
+/** 這場戰鬥是否在參考漁場範圍內；沒有範圍時一律算。 */
 export function inGrounds(row: SortieLogRow, grounds: CatchGrounds | undefined): boolean {
-    const scope = grounds?.[row.map];
-    return !grounds || scope === 'all' || (scope === 'boss' && row.boss);
+    if (!grounds) return true;
+    const scope = grounds[row.map];
+    if (!scope) return false;
+    if (scope === 'all') return true;
+    if (scope === 'boss') return row.boss;
+    if (scope.boss && row.boss) return true;
+    const letter = nodeLetter(row.map, row.node);
+    return letter !== null && scope.nodes.includes(letter);
 }
 
 const HOUR = 3_600_000;

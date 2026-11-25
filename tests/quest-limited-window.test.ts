@@ -20,6 +20,12 @@ describe('期間限定任務的實裝期間', () => {
         }
     });
 
+    it('2026-11-24 秋刀魚祭任務群：11/24 更新後開始，結束日未公告', () => {
+        for (const no of [369, 866, 867, 868, 1110, 1144]) {
+            expect(def(no).limitedWindow, `任務 ${no}`).toEqual({ start: '2026-11-24', end: null });
+        }
+    });
+
     it('常設任務不給實裝期間（B218 有實裝日但不是期間限定；B82 只有單一實裝日）', () => {
         expect(def(1053).limited).toBe(false);
         expect(def(1053).limitedWindow).toBeUndefined();

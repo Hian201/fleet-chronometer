@@ -9,7 +9,7 @@ import type { SortieLogRow } from '@/utils/db';
 import { db } from '@/utils/db';
 import { useItemDisplayName } from '@/utils/item-catalog';
 import {
-    isCatchRow, itemCatchStats, type AreaCatchStat, type CatchCounts, type DryStreak, type MapCatchStat, type NodeCatchStat,
+    isCatchRow, itemCatchStats, type AreaCatchStat, type CatchCounts, type CatchGroundScope, type DryStreak, type MapCatchStat, type NodeCatchStat,
 } from '@/utils/item-catch-stats';
 import {
     catchesInWindow, isValidAlertNumber, loadCatchAlertRule, saveCatchAlertRule, type CatchAlertRule,
@@ -364,14 +364,21 @@ export const itemCatchSection: OverviewSection = {
             const season = selectedSeason();
             const sc = season ? seasonChip(season) : null;
             drawEnd(season);
-            // 換曲範圍只套在所選季的秋刀魚；其他道具或「全部期間」不限。
+            // 參考漁場範圍只套在所選季的秋刀魚；其他道具或「全部期間」不限。
             const likely = itemId === SAURY_ITEM ? season?.likelyGrounds : undefined;
-            const likelyMaps = Object.entries(likely ?? {})
-                .map(([map, scope]) => scope === 'boss' ? t('ov.icGroundBoss', { map }) : map);
+            const nodeSep = getLang() === 'en' ? ', ' : '・';
+            const mapSep = getLang() === 'en' ? ', ' : '、';
+            const formatGround = (map: string, scope: CatchGroundScope): string => {
+                if (scope === 'all') return map;
+                if (scope === 'boss') return t('ov.icGroundNodes', { map, nodes: t('ov.icGroundBossWord') });
+                const pts = scope.boss ? [...scope.nodes, t('ov.icGroundBossWord')] : [...scope.nodes];
+                return t('ov.icGroundNodes', { map, nodes: pts.join(nodeSep) });
+            };
+            const likelyMaps = Object.entries(likely ?? {}).map(([map, scope]) => formatGround(map, scope));
             grounds.hidden = !likelyMaps.length;
-            // 地圖代號不在連字號處折行。
+            // 地圖與點位不在中間折行。
             grounds.innerHTML = likelyMaps.length
-                ? esc(t('ov.icLikelyGrounds', { maps: '\u0000' })).replace('\u0000', likelyMaps.map(m => `<span class="ic-nowrap">${esc(m)}</span>`).join('、'))
+                ? esc(t('ov.icLikelyGrounds', { maps: '\u0000' })).replace('\u0000', likelyMaps.map(m => `<span class="ic-nowrap">${esc(m)}</span>`).join(mapSep))
                 : '';
             const { from, to } = period();
             drawItems();

@@ -1007,6 +1007,10 @@
     "name": "Annual DesDiv 16 Exercises - July",
     "detail": "Secure 3 S-Rank victories in Exercises within the same day using any 2 of Amatsukaze, Yukikaze, Tokitsukaze and Hatsukaze and up to 4 additional ships."
   },
+  "369": {
+    "name": "[Naval District Saury Festival] Salt-Grilled Saury Exercises!",
+    "detail": "Secure 4 A-Rank+ victories in Exercises within the same day with a fleet including at least 4 of DesDiv 7 (Oboro, Akebono, Sazanami, Ushio), Yuudachi Kai Ni, Shigure Kai Ni/Kai San, Akizuki, Hatsuzuki, Shikinami, Isokaze, Shouhou, Ootomari, Heian Maru, Béarn, Vautour and Mogador."
+  },
   "371": {
     "name": "Annual Spring Exercises - April",
     "detail": "Secure 4 A-Rank+ victiories in Exercises within the same day using Harusame as flagship, any 3 of Murasame, Yuudachi, Samidare, Shiratsuyu and Shigure, and up to 2 additional ships."
@@ -1905,7 +1909,15 @@
   },
   "866": {
     "name": "Saury Fishing: Naval District Saury Festival, CarDiv 2 Sets Out!",
-    "detail": "Obtain 8 fresh Saury within the short festival period."
+    "detail": "Hold 8 fresh Saury in your inventory during the festival (not consumed)."
+  },
+  "867": {
+    "name": "Saury Fishing: Tamonmaru's Gonna Scold Me for This Small Catch!",
+    "detail": "Hold 16 fresh Saury in your inventory during the festival (not consumed)."
+  },
+  "868": {
+    "name": "Saury Fishing: No Matter the Adversity, I'll Make It a Big Catch!",
+    "detail": "Hold 27 fresh Saury in your inventory during the festival (not consumed)."
   },
   "869": {
     "name": "Secure the Safety of the Supply Lines!",
@@ -2491,6 +2503,10 @@
     "name": "Equipment deployment to support landing operations",
     "detail": "Have 8 Flamethrowers, 10 Dev. Materials and 800 Steel. Set Shinshuu Maru as secretary with a ★max Daihatsu Landing Craft (Type 89 Medium Tank & Landing Force) in her 1st slot. Scrap 2 7.7mm Machine Gun and 2 Daihatsu Landing Craft."
   },
+  "1110": {
+    "name": "Saury Festival [Expansion] Cook Fresh Saury Deliciously!",
+    "detail": "Set Nosaki (Nankai) or a married Naganami (Lv100+) as Fleet 1 flagship with an unlocked Combat Ration (★+4 or higher) in slot 1, scrap 4 Skilled Lookouts, and prepare 8 Saury, 8 Instant Construction Materials and 32 Development Materials (slot 1 Combat Ration, Saury and materials are consumed)."
+  },
   "1111": {
     "name": "Formation of the Elite Type 1 Land-based Attack Aircraft Squadrons",
     "detail": "Have a ★max Type 1 Land-based Attack Aircraft Model 22A, two Type 1 Land-based Attack Aircraft and three Skilled Crew Members."
@@ -2594,6 +2610,10 @@
   "1143": {
     "name": "Kirishima Kai Ni C Arsenal Remodel Quest",
     "detail": "Have a 35.6cm Twin Gun Mount Kai, 2 New Model Artillery Armament Materials, 2 New Model Armament Materials and 7800 Steel. Set Kirishima Kai Ni C as secretary with a ★8+ 35.6cm Twin Gun Mount Kai 2 in her 1st slot. Scrap 8 35.6cm Twin Gun Mounts."
+  },
+  "1144": {
+    "name": "Super Saury Festival [Land-based Shinden Owners Only] Special Expansion",
+    "detail": "Have an unlocked Prototype Shinden (Land-based Fighter) (★+8 or higher, does not need to be equipped). With Hiryuu Kai Ni or Kai San as Fleet 1 flagship, scrap 4 Type 0 Fighter Model 52s and prepare 20 Saury, 2 Shiden Kai 2s, 2 New Model Aircraft Armament Materials, 60 Development Materials and 2 Arsenal Resources (Shinden, prepared equipment, Saury and materials are consumed)."
   },
   "1145": {
     "name": "I-Go Submarine Equipment Expansion",
