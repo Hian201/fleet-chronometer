@@ -1,6 +1,6 @@
 // 打撈紀錄 › 道具捕撈：方案 A 左右雙欄（左：漁場捕撈狀況；右：任務鏈與兌換；上：目標進度帶）。
 // 統計規則全在 utils/item-catch-stats.ts（k／n／u 的定義、場數與趟數分計、連續無魚場數、近期 12 場）；
-// 本檔只管殼、篩選、載入與重畫。規格見 docs/saury-layout-plan.md 與 docs/saury-plan.md §4.2。
+// 本檔只管殼、篩選、載入與重畫。規格見 docs/saury-plan.md §4.2、§4.6。
 //
 // 狀態保留（design-guidelines §4.2）：篩選與設定控制項只畫一次；重畫只換統計區，展開中的
 // <details> 依 data-key 記住後還原，捲動位置跟著頁面不動。查詢以遞增序號丟棄過期結果。
