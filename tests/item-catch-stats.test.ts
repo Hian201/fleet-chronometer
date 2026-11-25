@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SortieLogRow } from '../utils/db';
-import { itemCatchStats } from '../utils/item-catch-stats';
+import { compareDryCatch, itemCatchStats } from '../utils/item-catch-stats';
 import { CATCH_SEASONS } from '../utils/catch-season';
 
 const SAURY = 68;
@@ -232,6 +232,73 @@ describe('itemCatchStats', () => {
             expect(g['1-6']).toEqual({ nodes: ['D', 'I', 'J'] });
             expect(g['6-5']).toEqual({ boss: true, nodes: ['D', 'F', 'I', 'J'] });
             expect(g['7-4']).toBeUndefined();
+        });
+    });
+
+    describe('recentOutcomes（最近 12 場節奏）', () => {
+        it('依時間由舊到新（同時間依 eventId）只保留最後 12 場並區分三態與勝利等級', () => {
+            const ts = NOW - 2 * H;
+            const rows: SortieLogRow[] = [];
+            // 前 4 場應被截掉
+            for (let i = 0; i < 4; i++) rows.push(row({ eventId: 10 + i, ts: NOW - (10 - i) * H, map: '1-4', node: 8, useItemDrops: [SAURY] }));
+            // 接著 12 場（含同時間 eventId 順序、多尾、S/A/other、不可考）
+            rows.push(
+                row({ eventId: 201, ts, map: '1-4', node: 10, rank: 'S', useItemDrops: [SAURY, SAURY] }),
+                row({ eventId: 200, ts, map: '1-4', node: 8, rank: 'A', useItemDrops: [] }),
+                row({ eventId: 202, ts: ts + 1000, map: '1-1', node: 2, rank: 'B', useItemDrops: [] }),
+                row({ eventId: 203, ts: ts + 2000, map: '1-1', node: 2, rank: 'S', useItemDrops: undefined }),
+            );
+            for (let i = 0; i < 8; i++) {
+                rows.push(row({ eventId: 300 + i, ts: ts + (10 + i) * 1000, map: '1-4', node: 8, rank: 'S', useItemDrops: i === 7 ? [SAURY] : [] }));
+            }
+            const stats = itemCatchStats(rows, query);
+            const area1 = stats.areas[0];
+            expect(area1.recentOutcomes).toHaveLength(12);
+            expect(area1.recentOutcomes[0]).toEqual({ caught: 0, rank: 'A', ts, map: '1-4', node: 8 });
+            expect(area1.recentOutcomes[1]).toEqual({ caught: 2, rank: 'S', ts, map: '1-4', node: 10 });
+            expect(area1.recentOutcomes[2]).toEqual({ caught: 0, rank: 'other', ts: ts + 1000, map: '1-1', node: 2 });
+            expect(area1.recentOutcomes[3]).toEqual({ caught: null, rank: 'S', ts: ts + 2000, map: '1-1', node: 2 });
+            expect(area1.recentOutcomes[11]).toEqual({ caught: 1, rank: 'S', ts: ts + 17_000, map: '1-4', node: 8 });
+
+            // 1-4 自己也有前 4 場＋後 10 場＝14 場，會截成最後 12 場
+            const map14 = area1.maps.find(m => m.map === '1-4')!;
+            expect(map14.recentOutcomes).toHaveLength(12);
+            expect(map14.recentOutcomes[0].ts).toBe(NOW - 8 * H);
+            expect(map14.recentOutcomes[11].caught).toBe(1);
+        });
+    });
+
+    describe('compareDryCatch（連續無獲優先排序）', () => {
+        it('打過但全沒魚的海域排在較少連槓前，同場數時從未捕獲優先，只有不可考排最後', () => {
+            const stats = itemCatchStats([
+                // 3-3：有捕獲後 4 場沒魚
+                row({ map: '3-3', useItemDrops: [SAURY] }),
+                row({ map: '3-3', useItemDrops: [] }),
+                row({ map: '3-3', useItemDrops: [] }),
+                row({ map: '3-3', useItemDrops: [] }),
+                row({ map: '3-3', useItemDrops: [] }),
+                // 3-5：打 6 場全沒魚（dryStreak === null, total.n === 6）
+                row({ map: '3-5', useItemDrops: [] }),
+                row({ map: '3-5', useItemDrops: [] }),
+                row({ map: '3-5', useItemDrops: [] }),
+                row({ map: '3-5', useItemDrops: [] }),
+                row({ map: '3-5', useItemDrops: [] }),
+                row({ map: '3-5', useItemDrops: [] }),
+                // 3-2：有捕獲後 6 場沒魚（同場數 6，應排在從未捕獲的 3-5 後面）
+                row({ map: '3-2', useItemDrops: [SAURY] }),
+                row({ map: '3-2', useItemDrops: [] }),
+                row({ map: '3-2', useItemDrops: [] }),
+                row({ map: '3-2', useItemDrops: [] }),
+                row({ map: '3-2', useItemDrops: [] }),
+                row({ map: '3-2', useItemDrops: [] }),
+                row({ map: '3-2', useItemDrops: [] }),
+                // 3-1：只有不可考（應排在 0 場無獲的 3-4 後面）
+                row({ map: '3-1', useItemDrops: undefined }),
+                // 3-4：剛捕獲（0 場無獲）
+                row({ map: '3-4', useItemDrops: [SAURY] }),
+            ], query);
+            const sorted = [...stats.areas[0].maps].sort(compareDryCatch).map(m => m.map);
+            expect(sorted).toEqual(['3-5', '3-2', '3-3', '3-4', '3-1']);
         });
     });
 });

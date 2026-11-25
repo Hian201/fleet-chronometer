@@ -65,6 +65,17 @@ export interface NodeCatchStat extends CatchGroup {
     node: number;
 }
 
+export const RECENT_OUTCOME_LIMIT = 12;
+
+export interface RecentOutcome {
+    /** 該場捕獲條數；null＝不可考。 */
+    caught: number | null;
+    rank: CatchRank;
+    ts: number;
+    map: string;
+    node: number;
+}
+
 interface CatchTimeline extends CatchGroup {
     /** 截止時間前 6／24 小時內的捕獲條數（工具的查詢時窗，不是遊戲機制週期）。 */
     recent6h: number;
@@ -74,6 +85,8 @@ interface CatchTimeline extends CatchGroup {
     lastBattleTs: number | null;
     /** 期間內沒有任何捕獲時為 null（沒有「上次捕獲」可當起點）。 */
     dryStreak: DryStreak | null;
+    /** 最近 N 場（預設 12 場，左舊右新）的結算結果；純紀錄事實，不推算掉率。 */
+    recentOutcomes: RecentOutcome[];
 }
 
 export interface MapCatchStat extends CatchTimeline {
@@ -194,11 +207,19 @@ function timeline(rows: SortieLogRow[], itemId: number, cutoff: number, grounds:
             else if (rank === 'A') dryStreak.a++;
         }
     }
+    const recentOutcomes: RecentOutcome[] = rows.slice(-RECENT_OUTCOME_LIMIT).map(r => ({
+        caught: catchOf(r, itemId),
+        rank: catchRank(r.rank),
+        ts: r.ts,
+        map: r.map,
+        node: r.node,
+    }));
     return {
         ...group(rows, itemId, grounds),
         recent6h, recent24h, lastCatchTs,
         lastBattleTs: rows.length ? rows[rows.length - 1].ts : null,
         dryStreak,
+        recentOutcomes,
     };
 }
 
@@ -215,6 +236,20 @@ const mapOrder = (a: string, b: string) => {
     const x = parseMapCode(a), y = parseMapCode(b);
     return x.world - y.world || x.mapnum - y.mapnum || a.localeCompare(b);
 };
+
+/** 依已知連續無獲場數由高到低比較：本期間從未捕獲但有已知結果者，以已知場數視同連續無獲，且同場數時優先於曾有捕獲者；只有不可考場次者排最後。 */
+export function compareDryCatch(
+    a: Pick<CatchTimeline, 'dryStreak' | 'total'>,
+    b: Pick<CatchTimeline, 'dryStreak' | 'total'>,
+): number {
+    const score = (x: Pick<CatchTimeline, 'dryStreak' | 'total'>) =>
+        x.dryStreak !== null ? x.dryStreak.n : x.total.n > 0 ? x.total.n : -1;
+    const diff = score(b) - score(a);
+    if (diff !== 0) return diff;
+    const neverA = a.dryStreak === null && a.total.n > 0 ? 1 : 0;
+    const neverB = b.dryStreak === null && b.total.n > 0 ? 1 : 0;
+    return neverB - neverA;
+}
 
 /** 依所選期間彙總某一種道具的捕獲紀錄。 */
 export function itemCatchStats(sorties: readonly SortieLogRow[], q: ItemCatchQuery): ItemCatchStats {

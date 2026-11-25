@@ -30,6 +30,13 @@ const H = 3_600_000;
 // 假資料才落在期間內。400 小時前的匯入列刻意落在起點之前，用來確認會被排除。
 const NOW = CATCH_SEASON_START + 16 * 24 * H;
 Date.now = () => NOW;
+// 任務鏈：本季領過 866、369；868 只有去年（重用編號）的領獎紀錄，必須不算完成。蒲燒勾掉一次。
+if (scene === 'default') {
+    state.ingestArchivedQuestClaim(866, NOW - 48 * H);
+    state.ingestArchivedQuestClaim(369, NOW - 30 * H);
+    state.ingestArchivedQuestClaim(868, CATCH_SEASON_START - 300 * 24 * H);
+    localStorage.setItem('kc-saury-chain', JSON.stringify({ [latestSeason().id]: { kabayaki: 1 } }));
+} else localStorage.removeItem('kc-saury-chain');
 const rows: SortieLogRow[] = [];
 let id = 1;
 const add = (map: string, node: number, rank: string, ago: number, drops: number[] | undefined, sortieKey = id, extra: Partial<SortieLogRow> = {}) => {
@@ -62,60 +69,65 @@ if (scene === 'default') {
 } else if (scene === 'unknown') {
     for (let i = 0; i < 6; i++) add('1-4', 8, 'S', 10 + i, undefined);
 }
-await db.sorties.clear();
-await db.sorties.bulkPut(rows);
-if (scene === 'error') {
-    (db.sorties as unknown as { toArray: () => Promise<never> }).toArray = () => Promise.reject(new Error('preview: 模擬讀取失敗'));
-}
-try {
-    localStorage.setItem('kc-sortie-exclude-maps', JSON.stringify(scene === 'default' ? ['1-1', '1-5'] : []));
-    localStorage.setItem('kc-sortie-exclude-catch', params.get('catch') === '1' ? '1' : '0');
-    // 自訂換海域提醒：alert=1 設好「6 小時 2 條」並展開設定；alert=bad 是勾了但沒填
-    if (params.get('alert') === '1') localStorage.setItem('kc-catch-alert', JSON.stringify({ enabled: true, itemId: 68, hours: 6, count: 2 }));
-    else localStorage.removeItem('kc-catch-alert');
-    // season=inferred：本季結束已由回收推算（30 小時前最後一次捕獲、2 小時前重新登入時已回收）
-    if (params.get('season') === 'inferred') localStorage.setItem('kc-catch-season-end', JSON.stringify({ [latestSeason().id]: { after: NOW - 30 * H, before: NOW - 2 * H } }));
-    else localStorage.removeItem('kc-catch-season-end');
-    // season=user：玩家自填結束時刻（優先於推算）
-    if (params.get('season') === 'user') localStorage.setItem('kc-catch-season-user-end', JSON.stringify({ [latestSeason().id]: NOW - 2 * H }));
-    else localStorage.removeItem('kc-catch-season-user-end');
-    // dc=panel：爆雷提醒已從面板關閉
-    if (params.get('dc') === 'panel') localStorage.setItem('kc-dc-reminder-off', JSON.stringify({ season: CATCH_SEASON_START, from: 'panel' }));
-    else localStorage.removeItem('kc-dc-reminder-off');
-} catch { /* 預覽 */ }
-history.replaceState(null, '', `${location.pathname}${location.search}#/drop-log?sub=${params.get('sub') ?? 'item'}`);
+void (async () => {
+    await db.sorties.clear();
+    await db.sorties.bulkPut(rows);
+    if (scene === 'error') {
+        (db.sorties as unknown as { toArray: () => Promise<never> }).toArray = () => Promise.reject(new Error('preview: 模擬讀取失敗'));
+    }
+    try {
+        localStorage.setItem('kc-sortie-exclude-maps', JSON.stringify(scene === 'default' ? ['1-1', '1-5'] : []));
+        localStorage.setItem('kc-sortie-exclude-catch', params.get('catch') === '1' ? '1' : '0');
+        // 自訂換海域提醒：alert=1 設好「6 小時 2 條」並展開設定；alert=bad 是勾了但沒填
+        if (params.get('alert') === '1') localStorage.setItem('kc-catch-alert', JSON.stringify({ enabled: true, itemId: 68, hours: 6, count: 2 }));
+        else localStorage.removeItem('kc-catch-alert');
+        // season=inferred：本季結束已由回收推算（30 小時前最後一次捕獲、2 小時前重新登入時已回收）
+        if (params.get('season') === 'inferred') localStorage.setItem('kc-catch-season-end', JSON.stringify({ [latestSeason().id]: { after: NOW - 30 * H, before: NOW - 2 * H } }));
+        else localStorage.removeItem('kc-catch-season-end');
+        // season=user：玩家自填結束時刻（優先於推算）
+        if (params.get('season') === 'user') localStorage.setItem('kc-catch-season-user-end', JSON.stringify({ [latestSeason().id]: NOW - 2 * H }));
+        else localStorage.removeItem('kc-catch-season-user-end');
+        // dc=panel：爆雷提醒已從面板關閉
+        if (params.get('dc') === 'panel') localStorage.setItem('kc-dc-reminder-off', JSON.stringify({ season: CATCH_SEASON_START, from: 'panel' }));
+        else localStorage.removeItem('kc-dc-reminder-off');
+    } catch { /* 預覽 */ }
+    const hash = `#/drop-log?sub=${params.get('sub') ?? 'item'}`;
+    try { history.replaceState(null, '', `${location.pathname}${location.search}${hash}`); } catch { location.hash = hash; }
 
-const ctx: SectionContext = { rerender() { }, state, reloadState: async () => { }, onStateChange() { } };
-const host = document.createElement('div');
-host.className = 'ov-section-host';
-document.getElementById('frame')!.style.width = `${width}px`;
-document.getElementById('frame')!.append(host);
-await dropLogSection.render(host, ctx);
-await new Promise(resolve => setTimeout(resolve, 300));
-if (params.get('open') === '1') {
-    host.querySelector<HTMLDetailsElement>('.ic-area')?.setAttribute('open', '');
-    host.querySelector<HTMLDetailsElement>('.ic-map')?.setAttribute('open', '');
-    // 切換道具再切回：展開狀態要還在
-    const sel = host.querySelector<HTMLSelectElement>('.ic-item')!;
-    sel.value = '69'; sel.dispatchEvent(new Event('change'));
-    sel.value = '68'; sel.dispatchEvent(new Event('change'));
-}
-if (params.get('alert')) host.querySelector<HTMLDetailsElement>('.ic-alert')?.setAttribute('open', '');
-if (params.get('alert') === 'bad') {
-    const on = host.querySelector<HTMLInputElement>('.ic-alert-on')!;
-    on.checked = true; on.dispatchEvent(new Event('change'));
-}
-const grid = host.querySelector<HTMLElement>('.ic-grid');
-document.getElementById('measure')!.textContent = JSON.stringify({
-    scene, width,
-    activeTab: host.querySelector('.fa-tab[aria-selected="true"]')?.textContent ?? '',
-    areas: host.querySelectorAll('.ic-area').length,
-    shipRows: host.querySelectorAll('.dl-table tbody tr').length,
-    openKept: host.querySelectorAll('details[open]').length,
-    gridOverflow: grid ? grid.scrollWidth > grid.clientWidth : null,
-    summary: host.querySelector('.ic-summary')?.textContent?.replace(/\s+/g, ' ').trim(),
-    excludedNote: host.querySelector('.ic-excluded')?.textContent ?? '',
-    alertHits: host.querySelectorAll('.ic-alert-hit').length,
-    alertInvalid: !host.querySelector<HTMLElement>('.ic-alert-invalid')?.hidden,
-    body: host.querySelector('.ic-body > .ov-empty, .ic-body > .ov-note')?.textContent ?? '',
-});
+    const ctx: SectionContext = { rerender() { }, state, reloadState: async () => { }, onStateChange() { } };
+    const host = document.createElement('div');
+    host.className = 'ov-section-host';
+    document.getElementById('frame')!.style.width = `${width}px`;
+    document.getElementById('frame')!.append(host);
+    await dropLogSection.render(host, ctx);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    if (params.get('open') === '1') {
+        host.querySelector<HTMLDetailsElement>('.ic-area')?.setAttribute('open', '');
+        host.querySelector<HTMLDetailsElement>('.ic-map')?.setAttribute('open', '');
+        // 切換道具再切回：展開狀態要還在
+        const sel = host.querySelector<HTMLSelectElement>('.ic-item')!;
+        sel.value = '69'; sel.dispatchEvent(new Event('change'));
+        sel.value = '68'; sel.dispatchEvent(new Event('change'));
+    }
+    if (params.get('alert')) host.querySelector<HTMLDetailsElement>('.ic-settings')?.setAttribute('open', '');
+    if (params.get('alert') === 'bad') {
+        const on = host.querySelector<HTMLInputElement>('.ic-alert-on')!;
+        on.checked = true; on.dispatchEvent(new Event('change'));
+    }
+    const grid = host.querySelector<HTMLElement>('.ic-grid');
+    const split = host.querySelector<HTMLElement>('.ic-split');
+    document.getElementById('measure')!.textContent = JSON.stringify({
+        scene, width,
+        activeTab: host.querySelector('.fa-tab[aria-selected="true"]')?.textContent ?? '',
+        areas: host.querySelectorAll('.ic-area').length,
+        shipRows: host.querySelectorAll('.dl-table tbody tr').length,
+        openKept: host.querySelectorAll('details[open]').length,
+        splitCols: split ? getComputedStyle(split).gridTemplateColumns.split(' ').length : null,
+        gridOverflow: grid ? grid.scrollWidth > grid.clientWidth : null,
+        summary: host.querySelector('.ic-hero')?.textContent?.replace(/\s+/g, ' ').trim(),
+        excludedNote: host.querySelector('.ic-excluded')?.textContent ?? '',
+        alertHits: host.querySelectorAll('.ic-alert-hit').length,
+        alertInvalid: !host.querySelector<HTMLElement>('.ic-alert-invalid')?.hidden,
+        body: host.querySelector('.ic-body > .ov-empty, .ic-body > .ov-note')?.textContent ?? '',
+    });
+})();
