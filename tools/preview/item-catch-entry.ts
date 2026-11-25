@@ -35,7 +35,15 @@ if (scene === 'default') {
     state.ingestArchivedQuestClaim(866, NOW - 48 * H);
     state.ingestArchivedQuestClaim(369, NOW - 30 * H);
     state.ingestArchivedQuestClaim(868, CATCH_SEASON_START - 300 * 24 * H);
-    localStorage.setItem('kc-saury-chain', JSON.stringify({ [latestSeason().id]: { kabayaki: 1 } }));
+    // ?chain=done：持有任務全做完、1110（消耗 8）也交了
+    if (params.get('chain') === 'done') {
+        state.ingestArchivedQuestClaim(867, NOW - 20 * H);
+        state.ingestArchivedQuestClaim(868, NOW - 10 * H);
+        state.ingestArchivedQuestClaim(1110, NOW - 5 * H);
+    }
+    // ?chain=55：只放棄蒲燒（核心大獎全拿的目標量）
+    const marks = params.get('chain') === '55' ? { kabayaki: 2 } : { kabayaki: 1 };
+    localStorage.setItem('kc-saury-chain', JSON.stringify({ [latestSeason().id]: marks }));
 } else localStorage.removeItem('kc-saury-chain');
 const rows: SortieLogRow[] = [];
 let id = 1;

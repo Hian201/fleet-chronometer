@@ -284,21 +284,21 @@ function chainNameHtml(s: SauryStep): string {
     if (s.quest === undefined) return esc(t(`ov.icChainEx.${s.id}`));
     const def = QUEST_CATALOG_BY_NO.get(s.quest);
     const name = localizedQuestName(s.quest, getLang(), def?.name ?? String(s.quest));
-    const code = def?.wikiIds[0] ?? String(s.quest);
-    return `<a class="ic-link" href="#/quest-flow?no=${s.quest}" title="${esc(t('ov.icChainOpenQuest'))}"><span class="ic-chain-code">${esc(code)}</span>${esc(name)}</a>`;
+    return `<a class="ic-link" href="#/quest-flow?no=${s.quest}" title="${esc(t('ov.icChainOpenQuest'))}">${esc(name)}</a>`;
 }
 
 function chainStepRowHtml(s: SauryStep, marks: Readonly<Record<string, number>>): string {
     const skippable = s.kind === 'consume' || s.kind === 'exchange';
-    const checkedN = marks[s.id] ?? 0;
-    const boxes = skippable ? `<span class="ic-step-checks" title="${esc(t('ov.icChainColSkipTip'))}">${Array.from({ length: s.times }, (_, i) =>
-        `<input type="checkbox" data-chain-mark="${esc(s.id)}" aria-label="${esc(t('ov.icChainColSkip'))}"${i < checkedN ? ' checked' : ''}>`).join('')}</span>` : '';
+    // 勾選＝計入需求；存檔記的是「不計入」次數（kc-saury-chain），畫面上反過來呈現。
+    const countedN = s.times - Math.min(s.times, Math.max(0, Math.floor(marks[s.id] ?? 0)));
+    const boxes = skippable ? `<span class="ic-step-checks" title="${esc(t('ov.icChainColCountTip'))}">${Array.from({ length: s.times }, (_, i) =>
+        `<input type="checkbox" data-chain-mark="${esc(s.id)}" aria-label="${esc(t('ov.icChainColCount'))}"${i < countedN ? ' checked' : ''}>`).join('')}</span>` : '';
     const metTag = s.kind === 'hold' ? `<span class="ic-met-tag" hidden>${esc(t('ov.icChainMet'))}</span>` : '';
     const remTag = s.kind === 'exchange' && s.times > 1 ? `<span class="ic-step-rem"></span>` : '';
     return `<div class="ic-step" data-chain-step="${esc(s.id)}">
         <span class="ic-step-icon">·</span>
         <span class="ic-step-title">${chainNameHtml(s)}${remTag}</span>
-        <span class="ic-step-right">${metTag}<span class="ic-step-fish">${chainFishHtml(s)}</span>${boxes}</span>
+        <span class="ic-step-right">${metTag}<span class="ic-step-tag" hidden></span><span class="ic-step-fish">${chainFishHtml(s)}</span>${boxes}</span>
     </div>`;
 }
 
@@ -640,7 +640,7 @@ export const itemCatchSection: OverviewSection = {
             const model = buildQuestFlow(ctx.state, new Set(readQuestFlowBackupPrefs().manualComplete));
             const done = new Set<string>();
             const held = ctx.state.useItemCount(SAURY_ITEM);
-            let doneSteps = 0;
+            let doneSteps = 0, skippedSteps = 0;
 
             for (const s of steps) {
                 const rowEl = chainBody.querySelector<HTMLElement>(`[data-chain-step="${s.id}"]`);
@@ -649,6 +649,7 @@ export const itemCatchSection: OverviewSection = {
                 const metEl = rowEl.querySelector<HTMLElement>('.ic-met-tag');
                 const remEl = rowEl.querySelector<HTMLElement>('.ic-step-rem');
                 const checksEl = rowEl.querySelector<HTMLElement>('.ic-step-checks');
+                const tagEl = rowEl.querySelector<HTMLElement>('.ic-step-tag');
 
                 const st: ChainState = s.quest === undefined ? 'open' : chainState(model, s.quest, season.start);
                 const isDone = st === 'done';
@@ -656,14 +657,16 @@ export const itemCatchSection: OverviewSection = {
 
                 const checkedN = Math.min(s.times, Math.max(0, Math.floor(rawMarks[s.id] ?? 0)));
                 const isSkipped = !isDone && (s.kind === 'consume' || s.kind === 'exchange') && checkedN >= s.times;
-                if (isDone || isSkipped) doneSteps++;
+                // 進度只數做完的；不計入的步驟從分母扣掉，不當成完成。
+                if (isDone) doneSteps++;
+                if (isSkipped) skippedSteps++;
 
                 const isFocus = !isDone && (st === 'claim' || st === 'active' || st === 'open') && s.quest !== undefined;
                 rowEl.classList.toggle('is-done', isDone);
                 rowEl.classList.toggle('is-focus', isFocus);
                 rowEl.classList.toggle('is-skipped', isSkipped);
                 if (iconEl) {
-                    iconEl.textContent = isDone ? '✓' : st === 'claim' ? '★' : isFocus ? '●' : '·';
+                    iconEl.textContent = isDone ? '✓' : isSkipped ? '–' : st === 'claim' ? '★' : isFocus ? '●' : '·';
                     iconEl.title = t(CHAIN_STATE_KEY[st]);
                 }
                 if (metEl) metEl.hidden = !(s.kind === 'hold' && !isDone && held !== null && held >= s.fish);
@@ -672,6 +675,12 @@ export const itemCatchSection: OverviewSection = {
                     remEl.textContent = rem > 0 ? ` (${t('ov.icChainRem', { n: rem })})` : '';
                 }
                 if (checksEl) checksEl.hidden = isDone;
+                // 已完成（遊戲裡做完）與不計入（玩家取消勾選）是不同事實，標籤字樣與外框都分開。
+                if (tagEl) {
+                    tagEl.hidden = !(isDone || isSkipped);
+                    tagEl.classList.toggle('is-skipped-tag', isSkipped);
+                    tagEl.textContent = isDone ? t('ov.icChainDone') : isSkipped ? t('ov.icChainSkipped') : '';
+                }
             }
 
             // 已完成的任務若曾被勾「不計入」，勾選不再有意義；只算還沒做的部分。
@@ -679,7 +688,7 @@ export const itemCatchSection: OverviewSection = {
             const total = sauryNeed(steps, new Set(), {}, null);
             const need = sauryNeed(steps, done, marks, held);
             chainTotal.textContent = t('ov.icChainTotal', { n: num(total.need) });
-            chainProg.textContent = `${doneSteps} / ${steps.length}`;
+            chainProg.textContent = `${doneSteps} / ${steps.length - skippedSteps}`;
             const sep = chainBody.querySelector<HTMLElement>('.ic-guard-sep');
             if (sep) {
                 sep.classList.toggle('is-ok', need.hold === 0);
@@ -695,8 +704,9 @@ export const itemCatchSection: OverviewSection = {
             const season = selectedSeason();
             if (!box || !season) return;
             const id = box.dataset.chainMark!;
-            const n = chainBody.querySelectorAll(`input[data-chain-mark="${id}"]:checked`).length;
-            saveSauryMarks(season.id, { ...loadSauryMarks(season.id), [id]: n });
+            const boxes = chainBody.querySelectorAll(`input[data-chain-mark="${id}"]`);
+            const counted = chainBody.querySelectorAll(`input[data-chain-mark="${id}"]:checked`).length;
+            saveSauryMarks(season.id, { ...loadSauryMarks(season.id), [id]: boxes.length - counted });
             draw();
         });
         // 任務名稱的譯文非同步載入；到齊後重畫步驟骨架（勾選由存檔還原）。尚未讀完 DB 時只重畫任務鏈，不覆寫載入中或錯誤訊息。

@@ -9002,17 +9002,21 @@
         }
         .ic-step.is-focus { border-left-color: var(--sparkle); background: color-mix(in srgb, var(--brass) 10%, transparent); }
         .ic-step.is-done { color: var(--dim); }
-        .ic-step.is-skipped .ic-step-title { text-decoration: line-through; color: var(--dim); }
+        .ic-step.is-skipped .ic-step-title, .ic-step.is-skipped .ic-step-fish { color: var(--dim); }
+        .ic-step.is-skipped .ic-step-fish { text-decoration: line-through; }
         .ic-step-icon { text-align: center; font-size: 11px; line-height: 1.5; color: var(--dim); }
         .ic-step.is-focus .ic-step-icon { color: var(--sparkle); font-weight: 600; }
         .ic-step-title { min-width: 0; line-height: 1.35; overflow-wrap: anywhere; }
-        .ic-chain-code { color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; margin-right: 4px; }
         .ic-step-rem { color: var(--dim); font-size: 11px; }
         .ic-step-right { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 11px; }
         .ic-step-fish { color: var(--text); }
         .ic-step.is-done .ic-step-fish { color: var(--dim); }
         .ic-met-tag { padding: 0 4px; border: 1px solid var(--brass); border-radius: 4px; color: var(--sparkle); font-size: 10px; }
         .ic-met-tag[hidden] { display: none; }
+        /* 已完成：實心底；不計入：虛線框。兩者都不借語意色 */
+        .ic-step-tag { padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--line); color: var(--text); font-size: 10px; }
+        .ic-step-tag.is-skipped-tag { border-style: dashed; background: transparent; color: var(--dim); }
+        .ic-step-tag[hidden] { display: none; }
         .ic-step-checks { display: inline-flex; align-items: center; gap: 4px; }
         .ic-step-checks[hidden] { display: none; }
         .ic-step-checks input { margin: 0; cursor: pointer; accent-color: var(--brass); }
