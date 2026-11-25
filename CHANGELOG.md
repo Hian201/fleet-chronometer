@@ -2,9 +2,18 @@
 
 Changes for each Chrome Web Store release. While a version is in store review, its changes collect under **Unreleased** and each update is published as a pre-release tag (`v<version>-rc.N`). When the store approves it, the section is renamed to the version and the final tag `v<version>` is created on the approved commit.
 
-## [Unreleased] — 1.1.1.2
+## [1.1.1.2] - 2026-11-25
 
 ### Highlights
+
+**Saury Festival 2026**
+- **Item Drops** now opens on this season's saury with a progress bar for the fish you still need, a **Fishing Grounds Status** table on the left and the season's **Quest chain & exchanges** on the right.
+- The quest chain lists the holding quests, the weekly practice quest and the factory quests in the order you should do them, with their status from Quest Navigator, and warns you not to spend saury before the 27-fish quest is done (holding quests only check how many you have).
+- Factory quests and limited exchanges are ticked to **Count** toward the total; untick the ones you have already exchanged or will skip. Steps finished in game are marked **Done**, unticked ones **Skipped**, and the step count does not treat skipped steps as done.
+- The total is the most you need to hold at once or the fish you will spend, whichever is larger: 69 for everything this season, 55 without Kabayaki.
+- The grounds table counts only battles at this season's likely points (maps with seasonal music, last year's points, and 7-4). Catches elsewhere still count and are tagged **Outside**. Reference grounds you have not visited yet are listed under the table.
+- A collapsible **Fishing tips** block lists gear and ships that help, the depth charge caution, and what the canned saury from Kabayaki is used for.
+- All seven saury-season quests are in Quest Navigator with translations, prerequisites and rewards; the two weekly practice quests track their progress.
 
 **Anchorage repair timer**
 - The anchorage repair timer is now one timer for the whole account, as in the game. Changing a fleet whose flagship is a repair ship, or sending a fleet with a repair ship on an expedition, restarts it; sorties do not. When HP turns out to have been repaired at port, the timer is corrected to that moment.
@@ -17,15 +26,31 @@ Changes for each Chrome Web Store release. While a version is in store review, i
 - The plan remembers its route: after you reach a phase's target, reopening the page continues with the next phase. It only reroutes when a new route is clearly better, or when you change the settings. It also prefers to keep the expeditions your fleets are already running.
 
 **Monthly ranking points (regular, EO and quests)**
-- HQ Overview has a new **Ranking points** section showing your observed points this month (regular points from HQ experience, cleared EO maps, and quest rewards recorded in the quest catalog), today's gain, and a countdown to the next ranking update (on the last day of the month, separate close countdowns for regular/EO points at 22:00 JST and quest points at 14:00 JST). Carry-over points are not counted yet, and quests with choice rewards (such as B170) show a range.
+- HQ Overview has a new **Ranking points** section showing your observed points this month (regular points from HQ experience, cleared EO maps, and quest rewards recorded in the quest catalog), today's gain, and a countdown to the next ranking update (on the last day of the month, separate close countdowns for regular/EO points at 22:00 JST and quest points at 14:00 JST). Quests with choice rewards (such as B170) show a range.
 - The section also lists all 9 EO maps with their cleared status for the month and the quest points counted so far.
+- Viewing the in-game ranking records your own score and any 5th/20th/100th/500th place on that page. The monthly estimate is then calibrated to your ranking score, which includes carry-over points, and points earned since that round are added on top. Before your first ranking score of the month, carry-over points are not included.
+- Pick a **Target** (5th, 20th, 100th, 500th or a custom score) to see the gap at the last published round and the estimated gap now; the panel tray shows the same. The **Cutoff log** keeps every recorded line and lets you add other ranks yourself.
+- **Monthly reconciliation** lists up to 12 months with the estimated total and your last published rank. You can record the final result once the month has closed.
+- EO points come from the battle that clears the map, so EO maps missing from the built-in table also count.
 - Tick **Show monthly points in panel header** in that section to replace the admiral name in the panel header with your short **Pts** total. Clicking the number opens the details in place of the info area, so your fleet and heavy-damage warnings stay visible; it closes by itself when a sortie starts, at each node and at each battle.
 - Experience is only recorded from this version on. For the month you install it, the monthly start is unknown, so the section shows the points earned since recording began instead of a monthly total.
 
+**Map gauges**
+- Gauge clears are judged when the battle result arrives, so a cleared segment is marked right after the battle. Gauge values worked out after a battle show ≈ until the game sends the real value.
+- Transport gauges show a TP tag.
+
+**Other**
+- Expedition requirements update as soon as you change equipment.
+- Monthly expeditions you have already succeeded at this cycle count as completed on Unlocks, even before the in-game list refreshes, and open the monthly expeditions they unlock.
+- Exports to the air power simulator include support fleets and land base squadrons with their current plane counts.
+- Yura Kai Ni Tei, Sendai Kai Ni Tei, Takanami Kai Ni Tei and Aoba Kai Tei are recognized, and the Today improvement list follows the latest schedule.
+- The General tab is redrawn when you switch back to it, so fleet groups are not stale after events that arrived on another tab.
+- Resource icons on the expedition plan page reload once if they fail to load.
+
 ### Data compatibility
 
-- The backup format goes from v12 to v13 to carry your HQ experience recorded at each return to port. Backups made by earlier versions still import. A v13 backup cannot be imported by an earlier version of the extension.
-- IndexedDB schema is unchanged and nothing is backfilled.
+- IndexedDB schema goes from v17 to v18: two new tables for ranking scores and your monthly final results. Existing data is untouched and nothing is backfilled.
+- The backup format goes from v12 to v15 to carry HQ experience at each return to port, the battle-time gauge facts on each sortie, the two ranking tables and your ranking target. Backups made by earlier versions still import. A v15 backup cannot be imported by an earlier version of the extension.
 - No permission changes.
 
 ## [1.1.1.1] - 2026-11-20
