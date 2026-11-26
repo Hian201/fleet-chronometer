@@ -45,14 +45,22 @@ function battlePacket(opts: {
 const noDamecon = { main: [] as number[], escort: [] as number[] };
 
 describe('損管（応急修理要員／女神）', () => {
-    it('応急修理要員：致命傷時修復至中破（最大HP的50%）並消耗', () => {
+    it('応急修理要員：致命傷時回復至最大 HP 的 20%（無條件捨去）並消耗，復活後仍為大破', () => {
         const info = analyzeBattle(
-            [battlePacket({ fHp: [40], fMax: [40], hits: [{ target: 0, dmg: 99 }] })],
-            { main: [1], escort: [] });
-        const flagship = info.resultFleets!.playerMain[0];
-        expect(flagship.sunk).toBe(false);
-        expect(flagship.hp).toBe(20);
-        expect(flagship.damecon).toBe(0);
+            [battlePacket({ fHp: [40, 37], fMax: [40, 37], hits: [{ target: 1, dmg: 99 }] })],
+            { main: [0, 1], escort: [] });
+        const consort = info.resultFleets!.playerMain[1];
+        expect(consort.sunk).toBe(false);
+        expect(consort.hp).toBe(7);     // Math.floor(37 * 0.2) = 7（無條件捨去）
+        expect(consort.damecon).toBe(0);
+        // 復活後仍是大破（7/37 <= 25%）且損管已消耗，故須觸發一般隊員大破警告
+        expect(info.isTaiha).toBe(true);
+
+        const even = analyzeBattle(
+            [battlePacket({ fHp: [40, 40], fMax: [40, 40], hits: [{ target: 1, dmg: 99 }] })],
+            { main: [0, 1], escort: [] });
+        expect(even.resultFleets!.playerMain[1].hp).toBe(8);
+        expect(even.isTaiha).toBe(true);
     });
 
     it('応急修理女神：致命傷時修復至滿血並消耗', () => {
@@ -257,9 +265,10 @@ describe('損管與夜戰接續（GameState 端）', () => {
 
     it('応急修理要員：晝戰救回的船在夜戰不會變成轟沈', () => {
         const { state, day, night } = dayThenNight(DAMECON_TEAM);
-        expect(day).toMatchObject({ sunk: false, hp: 20, damecon: 0 });
-        expect(night).toMatchObject({ sunk: false, hp: 20 });
-        expect(state.fleets()[0].ships[1].hp).toBe(20);
+        expect(day).toMatchObject({ sunk: false, hp: 8, damecon: 0 });
+        expect(night).toMatchObject({ sunk: false, hp: 8 });
+        expect(state.fleets()[0].ships[1].hp).toBe(8);
+        expect(state.battleInfo!.isTaiha).toBe(true);
     });
 
     it('応急修理女神：同上，且結算不會去補一艘「沉船」的燃彈', () => {
@@ -276,7 +285,7 @@ describe('損管與夜戰接續（GameState 端）', () => {
         const { state } = dayThenNight(DAMECON_TEAM);
         // 下一個節點（新的晝戰）：同一顆損管不能再接一次，這次要如實判定轟沈。
         state.applyEvent('api_req_sortie/battle', battlePacket({
-            fHp: [40, 20], fMax: [40, 40], hits: [{ target: 1, dmg: 99 }],
+            fHp: [40, 8], fMax: [40, 40], hits: [{ target: 1, dmg: 99 }],
         }));
         expect(state.battleInfo!.resultFleets!.playerMain[1]).toMatchObject({ sunk: true, hp: 0 });
     });
@@ -846,7 +855,7 @@ describe('応急修理女神：燃彈也全快', () => {
         expect(other.fuel).toBe(12);   // 其他艦照常消耗
     });
 
-    it('応急修理要員只補 HP 到中破，不補燃彈', () => {
+    it('応急修理要員只補 HP 到 20%，不補燃彈', () => {
         const state = stateWithFleets([[{ mst: MUTSUKI, gears: [DAMECON_TEAM] }]]);
         sortie(state);
         state.applyEvent('api_req_sortie/battle', battlePacket({
@@ -854,8 +863,25 @@ describe('応急修理女神：燃彈也全快', () => {
         }));
         state.applyEvent('api_req_sortie/battleresult', { api_win_rank: 'B' });
         const [saved] = state.fleets()[0].ships;
-        expect(saved.hp).toBe(20);
+        expect(saved.hp).toBe(8);
         expect(saved.fuel).toBe(12);
+    });
+});
+
+describe('單艦隊雷達射擊點（api_req_sortie/ld_shooting）', () => {
+    it('建立 battleInfo、寫回我方血量並在結算套用 rank', () => {
+        const state = stateWithFleets([[{ mst: MUTSUKI }, { mst: MUTSUKI }]]);
+        sortie(state);
+        state.applyEvent('api_req_sortie/ld_shooting', battlePacket({
+            fHp: [40, 40], fMax: [40, 40], hits: [{ target: 1, dmg: 15 }],
+        }));
+        expect(state.battleInfo).not.toBeNull();
+        expect(state.battleInfo!.resultFleets!.playerMain[1]!.hp).toBe(25);
+        expect(state.fleets()[0].ships[1].hp).toBe(25);
+
+        state.applyEvent('api_req_sortie/battleresult', { api_win_rank: 'A' });
+        expect(state.battleInfo!.hasResult).toBe(true);
+        expect(state.battleInfo!.rank).toBe('A');
     });
 });
 

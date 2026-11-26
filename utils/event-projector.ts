@@ -363,7 +363,8 @@ export class EventProjector {
             && ((path.includes('midnight') && !path.includes('sp_midnight')) || isNightToDay);
         const isResult = path.endsWith('battleresult');
         const isDay = !isNight && !isResult && !isPractice
-            && (path.startsWith('api_req_sortie/battle') || path.startsWith('api_req_combined_battle/')
+            && (path.startsWith('api_req_sortie/battle') || path === 'api_req_sortie/ld_shooting'
+                || path.startsWith('api_req_combined_battle/')
                 || path.startsWith('api_req_battle_midnight/') || path.includes('airbattle'))
             && api?.api_f_nowhps;
         if (isDay) appendBattle(this.currentReplay, node, 'day', api);

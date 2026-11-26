@@ -2042,10 +2042,11 @@ function appendLogRow(ts: number, path: string) {
     while (log.children.length > LOG_LINE_LIMIT) log.lastChild?.remove();
 }
 // 出擊中的戰鬥相關 path（與 utils/state.ts 戰鬥分支同一組判準，含單艦隊的航空戰／
-// 空襲節點 `api_req_sortie/(ld_)airbattle`——只寫 `startsWith('api_req_sortie/battle')`
-// 會漏掉它們）。這一組進「出擊」分頁，含同節點的結算與退避。
+// 空襲節點 `api_req_sortie/(ld_)airbattle` 及單艦隊雷達射擊點 `api_req_sortie/ld_shooting`——
+// 只寫 `startsWith('api_req_sortie/battle')` 會漏掉它們）。這一組進「出擊」分頁，含同節點的結算與退避。
 const isSortieBattlePath = (path: string) =>
     path.startsWith('api_req_sortie/battle')
+    || path === 'api_req_sortie/ld_shooting'
     || path.includes('airbattle')
     || path.startsWith('api_req_combined_battle/')
     || path.startsWith('api_req_battle_midnight/')

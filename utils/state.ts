@@ -1735,6 +1735,7 @@ export class GameState {
             else console.warn('[Fleet Chronometer] 基地航空隊改名無法套用，面板仍顯示舊名', { req, bases: keys });
         } else if (
             (path.startsWith('api_req_sortie/battle')
+                || path === 'api_req_sortie/ld_shooting'   // 單艦隊雷達射擊點（連合艦隊版走 api_req_combined_battle/）
                 || path.includes('airbattle')   // api_req_sortie/(ld_)airbattle・api_req_combined_battle/(ld_)airbattle 航空戰/空襲節點
                 || path.startsWith('api_req_combined_battle/')
                 || path.startsWith('api_req_battle_midnight/')

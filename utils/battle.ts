@@ -384,13 +384,16 @@ export function analyzeBattle(
         if (s.hp <= 0) {
             if (isPlayer && s.unsinkable) {
                 // 連合艦隊第二艦隊旗艦不會被擊沉；不會沉就不需要損管，故損管也不發動、
-                // 留著給之後的節點。**殘 HP 值無真封包佐證**，取「存活的最低值 1」不猜
-                // 其他數字；重點是不誤報轟沈（rank 的 pSunk 與大破警告都會被牽動）。
+                // 留著給之後的節點。伺服器傷害值已含不沉保護（KC3Kai、EO 扣血都沒有此特例），
+                // 正常不會走到這裡；這是封包異常時的保底，重點是不誤報轟沈。
                 s.hp = 1;
             } else if (isPlayer && s.damecon > 0) {
-                // 応急修理要員＝修復至中破（最大HP的 50%）／女神＝全快（燃彈另在 state.ts
-                // 補回）。發動後即消耗消失。50% 為使用者提供之遊戲設定（非封包驗證）。
-                s.hp = s.damecon === 1 ? Math.floor(s.maxHp * 0.5) : s.maxHp;
+                // 応急修理要員在戰鬥中觸發致命傷復活時回復至最大 HP 的 20%（無條件捨去，復活後仍是大破）；
+                // 応急修理女神＝全快（燃彈另在 state.ts 補回），發動後即消耗消失。
+                // 依據：KC3Kai `src/library/modules/BattlePrediction/values/Ship.js`、
+                // ElectronicObserver `ElectronicObserver/Other/Information/kcmemo.md`（`int(HPMax * 0.2)`）與 wikiwiki「応急修理要員」。
+                // 旗艦大破帶損管進擊回復至 50%（中破）是下一場開戰時由伺服器反映在 `api_f_nowhps` 的另一條機制，不經此路徑。
+                s.hp = s.damecon === 1 ? Math.floor(s.maxHp * 0.2) : s.maxHp;
                 s.damecon = 0;
             } else {
                 s.sunk = true; s.hp = 0;

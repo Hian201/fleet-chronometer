@@ -295,4 +295,8 @@ describe('出擊面板的固定資訊密度', () => {
         expect(preview).toContain("t('sortie.taihaRetreatNoEscort')");
         expect(preview).toContain("t('sortie.taihaRetreatHint')");
     });
+
+    it('isSortieBattlePath 涵蓋單艦隊雷達射擊點 api_req_sortie/ld_shooting', () => {
+        expect(panelMain).toContain("path === 'api_req_sortie/ld_shooting'");
+    });
 });

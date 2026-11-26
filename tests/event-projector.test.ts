@@ -1024,4 +1024,42 @@ describe('出擊帳單與基地航空隊補充', () => {
             { deckId: 4, payable: [8, 16, 0, 65], planesLost: 13, estimated: false },
         ]);
     });
+
+    it('單艦隊雷達射擊點 api_req_sortie/ld_shooting 會歸檔出擊紀錄與重播', async () => {
+        const tables = mockTables();
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables });
+        const battle = {
+            api_f_nowhps: [40, 40], api_f_maxhps: [40, 40],
+            api_e_nowhps: [90], api_e_maxhps: [90],
+            api_ship_ke: [1501],
+            api_hougeki1: {
+                api_at_eflag: [1], api_at_list: [0],
+                api_df_list: [[1]], api_damage: [[31]],
+            },
+        };
+
+        await projector.project(row(1, 'api_port/port', portApi()));
+        await projector.project(row(2, 'api_req_map/start',
+            { api_maparea_id: 62, api_mapinfo_no: 1, api_no: 12, api_color_no: 4 }, { api_deck_id: '1' }));
+        await projector.project(row(3, 'api_req_sortie/ld_shooting', battle));
+        await projector.project(row(4, 'api_req_sortie/battleresult', { api_win_rank: 'B' }));
+
+        const savedReplay = tables.replays.put.mock.calls.at(-1)![0] as ReplayRow;
+        expect(savedReplay.battles).toHaveLength(1);
+        expect(savedReplay.battles[0]).toMatchObject({
+            node: 12,
+            data: battle,
+            rank: 'B',
+        });
+
+        const savedSortie = tables.sorties.put.mock.calls.at(-1)![0] as SortieLogRow;
+        expect(savedSortie).toMatchObject({
+            map: '62-1',
+            node: 12,
+            kind: 'battle',
+            rank: 'B',
+            enemyIds: [1501],
+            taiha: true,
+        });
+    });
 });
