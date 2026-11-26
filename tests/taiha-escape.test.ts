@@ -12,6 +12,7 @@ const master = JSON.parse(readFileSync(new URL('../samples/start2-master.json', 
 
 const MUTSUKI = 1;      // 睦月（駆逐、燃彈 max 15/15）
 const SHOUHOU = 74;     // 祥鳳（軽空母、maxeq [18,9,3]）
+const NAGATO = 80;      // 長門（戦艦、燃彈 max 100/130）
 const FIGHTER = 20;     // 零式艦戦21型（対空 5）
 const DAIHATSU = 68;    // 大発動艇（TP 8）
 const DAMECON_TEAM = 42;    // 応急修理要員
@@ -152,7 +153,7 @@ describe('大破警告的三種語意', () => {
 });
 
 // ── GameState 端：退避的擷取與下游影響 ─────────────────────────
-interface TestShip { mst: number; gears?: number[]; lv?: number; hp?: number }
+interface TestShip { mst: number; gears?: number[]; lv?: number; hp?: number; fuel?: number; bull?: number }
 
 function stateWithFleets(fleets: TestShip[][], combinedFlag = 0) {
     const state = new GameState();
@@ -173,7 +174,7 @@ function stateWithFleets(fleets: TestShip[][], combinedFlag = 0) {
                 api_id: id, api_ship_id: ship.mst, api_slot: slots, api_slot_ex: 0,
                 api_lv: ship.lv ?? 1, api_nowhp: ship.hp ?? 40, api_maxhp: 40, api_cond: 49,
                 api_onslot: slots.map(() => 18), api_soku: 10,
-                api_fuel: 15, api_bull: 15, api_sakuteki: [10],
+                api_fuel: ship.fuel ?? 15, api_bull: ship.bull ?? 15, api_sakuteki: [10],
             });
             return id;
         });
@@ -876,12 +877,55 @@ describe('單艦隊雷達射擊點（api_req_sortie/ld_shooting）', () => {
             fHp: [40, 40], fMax: [40, 40], hits: [{ target: 1, dmg: 15 }],
         }));
         expect(state.battleInfo).not.toBeNull();
+        expect(state.battleInfo!.rank).toBe('B');   // 15/80 = 18.75%（未滿 20%）→ B
         expect(state.battleInfo!.resultFleets!.playerMain[1]!.hp).toBe(25);
         expect(state.fleets()[0].ships[1].hp).toBe(25);
 
         state.applyEvent('api_req_sortie/battleresult', { api_win_rank: 'A' });
         expect(state.battleInfo!.hasResult).toBe(true);
         expect(state.battleInfo!.rank).toBe('A');
+    });
+
+    it('空襲與雷達射擊點無傷時依空襲規則預測為 S（非 D）', () => {
+        const state = stateWithFleets([[{ mst: MUTSUKI }, { mst: MUTSUKI }]]);
+        sortie(state);
+        state.applyEvent('api_req_sortie/ld_shooting', battlePacket({
+            fHp: [40, 40], fMax: [40, 40], hits: [],
+        }));
+        expect(state.battleInfo!.rank).toBe('S');
+
+        state.applyEvent('api_req_sortie/ld_airbattle', battlePacket({
+            fHp: [40, 40], fMax: [40, 40], hits: [],
+        }));
+        expect(state.battleInfo!.rank).toBe('S');
+    });
+
+    it('單艦隊與連合艦隊的雷達射擊點皆依 4% 油／0% 彈估算消耗', () => {
+        const single = stateWithFleets([[{ mst: NAGATO, fuel: 100, bull: 130 }, { mst: MUTSUKI }]]);
+        sortie(single);
+        single.applyEvent('api_req_sortie/ld_shooting', battlePacket({
+            fHp: [40, 40], fMax: [40, 40], hits: [],
+        }));
+        single.applyEvent('api_req_sortie/battleresult', { api_win_rank: 'S' });
+        const [nagatoSingle, mutsukiSingle] = single.fleets()[0].ships;
+        expect(nagatoSingle.fuel).toBe(96);    // 100 × 4% = 4
+        expect(nagatoSingle.bull).toBe(130);   // 彈藥 0%
+        expect(mutsukiSingle.fuel).toBe(14);   // 15 × 4% = 0.6 → 進位 1
+        expect(mutsukiSingle.bull).toBe(15);
+
+        const combined = stateWithFleets([
+            [{ mst: NAGATO, fuel: 100, bull: 130 }],
+            [{ mst: MUTSUKI }],
+        ], 1);
+        sortie(combined);
+        combined.applyEvent('api_req_combined_battle/ld_shooting', battlePacket({
+            fHp: [40], fMax: [40], fHpEsc: [40], fMaxEsc: [40], hits: [],
+        }));
+        combined.applyEvent('api_req_combined_battle/battleresult', { api_win_rank: 'S' });
+        expect(combined.fleets()[0].ships[0].fuel).toBe(96);
+        expect(combined.fleets()[0].ships[0].bull).toBe(130);
+        expect(combined.fleets()[1].ships[0].fuel).toBe(14);
+        expect(combined.fleets()[1].ships[0].bull).toBe(15);
     });
 });
 

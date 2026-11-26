@@ -3012,7 +3012,9 @@ export class GameState {
                         ...(ship?.api_ship_id > 0 ? { masterId: ship.api_ship_id } : {}),
                     };
                 });
+            const isAirRaid = path.includes('ld_airbattle') || path.includes('ld_shooting');
             const opts = {
+                airRaid: isAirRaid,
                 escapedMain: escaped.main,
                 escapedEscort: escaped.escort,
                 playerGearIds: {
@@ -3079,7 +3081,7 @@ export class GameState {
             this.queuePlaneLoss(api);
             // ── 依節點類型套用燃彈消耗率（日wiki「資材」頁實測值，2024/03 版）──
             // 每戰獨立計算、切捨（0<x<1 時進位為 1）；夜戰彈藥 = 晝彈×1.5 切り上げ。
-            // 活動特殊點（PT 4/8・雷達 4/0・對潛空襲 12/6）無法純靠 path 區分，按普通處理；回港校正。
+            // 活動特殊點（PT 4/8・對潛空襲 12/6）無法純靠 path 區分，按普通處理；回港校正。
             let fuelRate: number, bullRate: number;
             let nightAmmoBoost = false;
             const map = this.sortieInfo;
@@ -3089,6 +3091,9 @@ export class GameState {
                 const is64or65 = map?.mapArea === 6 && (map.mapNo === 4 || map.mapNo === 5);
                 fuelRate = is64or65 ? 0.04 : 0.06;
                 bullRate = is64or65 ? 0.08 : 0.04;
+            } else if (path.includes('ld_shooting')) {
+                // 雷達射擊點（單艦隊／連合艦隊皆同，日wiki「資材」頁）：燃料 4%／彈藥 0%
+                fuelRate = 0.04; bullRate = 0;
             } else if (path.includes('airbattle')) {       // 航空戰（雙向）
                 fuelRate = 0.20; bullRate = 0.20;
             } else if (isNightOnly) {                      // 開幕夜戰點

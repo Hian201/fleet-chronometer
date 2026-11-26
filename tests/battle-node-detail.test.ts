@@ -541,4 +541,56 @@ describe('戰鬥階段順序與評級的邊界修正', () => {
             expect(predictRank(player, enemy)).toBe('D');
         });
     });
+
+    describe('predictRank／analyzeBattle：空襲戰與雷達射擊點勝敗規則（KC3Kai AirRaid.js）', () => {
+        const ship = (over: Partial<BattleShipView>): BattleShipView => ({
+            hp: 100, maxHp: 100, beginHp: 100, damecon: 0, sunk: false, dealtDamage: 0, ...over,
+        });
+        const enemy = [ship({ beginHp: 90, hp: 90, maxHp: 90 })];
+
+        it('依我方損害比例判定 S／A／B／C／D／E 並避免浮點邊界誤差', () => {
+            expect(predictRank([ship({ beginHp: 100, hp: 100 })], enemy, { airRaid: true })).toBe('S');
+            expect(predictRank([ship({ beginHp: 100, hp: 91 })], enemy, { airRaid: true })).toBe('A');
+            expect(predictRank([ship({ beginHp: 100, hp: 90 })], enemy, { airRaid: true })).toBe('B');
+            expect(predictRank([ship({ beginHp: 100, hp: 81 })], enemy, { airRaid: true })).toBe('B');
+            expect(predictRank([ship({ beginHp: 100, hp: 80 })], enemy, { airRaid: true })).toBe('C');
+            expect(predictRank([ship({ beginHp: 100, hp: 51 })], enemy, { airRaid: true })).toBe('C');
+            expect(predictRank([ship({ beginHp: 100, hp: 50 })], enemy, { airRaid: true })).toBe('D');
+            expect(predictRank([ship({ beginHp: 100, hp: 21 })], enemy, { airRaid: true })).toBe('D');
+            expect(predictRank([ship({ beginHp: 100, hp: 20 })], enemy, { airRaid: true })).toBe('E');
+            // pBegin = 70：7/70 = 0.1（剛好 10% 為 B）、56/70 = 0.8（剛好 80% 為 E）
+            expect(predictRank([ship({ beginHp: 70, maxHp: 70, hp: 63 })], enemy, { airRaid: true })).toBe('B');
+            expect(predictRank([ship({ beginHp: 70, maxHp: 70, hp: 14 })], enemy, { airRaid: true })).toBe('E');
+            // 女神回復超過進場值視同無傷 S
+            expect(predictRank([ship({ beginHp: 10, maxHp: 40, hp: 40 })], enemy, { airRaid: true })).toBe('S');
+        });
+
+        it('5 份真實空襲封包（61-3/61-4/61-5）的預測 rank 與樣本實際 rating 一致', () => {
+            const cases: [string, number, string][] = [
+                ['61-3.json', 50, 'S'],
+                ['61-4.json', 51, 'A'],
+                ['61-5-jibun-rengou-node52.json', 48, 'S'],
+                ['61-5-jibun-rengou-node52.json', 37, 'A'],
+                ['61-5-jibun-rengou-node52.json', 51, 'A'],
+            ];
+            for (const [file, nodeNo, expectedRank] of cases) {
+                const b = load(file).battles.find((x: any) => x.node === nodeNo);
+                expect(analyze(b.data).rank, `${file} node ${nodeNo}`).toBe(expectedRank);
+            }
+        });
+
+        it('analyzeBattle 傳入 airRaid: true 時，無傷雷達射擊點預測為 S 而非 D', () => {
+            const packet = {
+                api_f_nowhps: [40, 40], api_f_maxhps: [40, 40],
+                api_e_nowhps: [90], api_e_maxhps: [90],
+                api_ship_ke: [1501],
+                api_hougeki1: {
+                    api_at_eflag: [1], api_at_list: [0],
+                    api_df_list: [[0]], api_damage: [[0]],
+                },
+            };
+            expect(analyzeBattle([packet], { main: [], escort: [] }).rank).toBe('D');
+            expect(analyzeBattle([packet], { main: [], escort: [] }, { airRaid: true }).rank).toBe('S');
+        });
+    });
 });

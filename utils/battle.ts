@@ -20,34 +20,58 @@ export function supportKindFromFlag(flag: number, hasAirSupport: boolean): 'air'
     return hasAirSupport ? 'air' : 'shelling';
 }
 
+/** 勝敗預測選項。 */
+export interface PredictRankOptions {
+    /** 空襲戰（ld_airbattle）與雷達射擊點（ld_shooting）採空襲勝敗規則，只看我方損害比例。 */
+    airRaid?: boolean;
+}
+
 // ── 戰鬥評級預測 ──────────────────────────────────────────────
 // clean-room 重寫，依公開文件化的艦これ勝利判定規則（inspired by KC3Kai, MIT）。
-// 損害率 = (戰鬥開始時殘HP合計 − 現在殘HP合計) / 戰鬥開始時殘HP合計
-// 判定由上而下：
+// 一般戰鬥：損害率 = (戰鬥開始時殘HP合計 − 現在殘HP合計) / 戰鬥開始時殘HP合計，由上而下：
 //   1. 敵全滅 + 我方無轟沈                        → S（無傷即遊戲的「完全勝利」，但 api_win_rank 同為 S）
 //   2. 敵全滅（但我方有轟沈）                     → A
 //   3. 我方無轟沈 + 敵數>1 + 敵撃沈數 ≥ ⌊敵數×0.7⌋ → A
 //   4. 敵損害率 > 我方損害率 × 2.5               → B
 //   5. 敵損害率 > 我方損害率 × 0.9               → C
 //   6. 其餘                                       → D
+// 空襲戰／雷達射擊點（KC3Kai BattlePrediction/rank/AirRaid.js & Rank.js）：只看我方損害比例：
+//   無傷 → S；未滿 10% → A；未滿 20% → B；未滿 50% → C；未滿 80% → D；其餘（≥ 80%）→ E。
 // 註1：遊戲結算 api_win_rank 對「完全勝利」也回傳 S（非 SS），故預測不區分 SS，以免與結算不一致。
 // 註2：A 的撃沈門檻是 floor（截斷）非 ceil——已用真實 1-1 boss 封包驗證（敵3艦沉2=A）。
 //      floor(1×0.7)=0 會讓單艦誤判，故加「敵數>1」守衛。
 // 註3：敵全滅但我方有轟沈=A、以及敵旗艦撃沈加成，這兩個 edge 尚無實測資料，待驗證。
 // 註4：退避艦（艦隊司令部施設）已離開艦隊，不算在我方損害率與轟沈數內——呼叫端負責
 //      先濾掉（見 analyzeBattle 末段）。此排除是機制推論、無真封包佐證，見檔末說明。
-export function predictRank(player: BattleShipView[], enemy: BattleShipView[]): string {
+export function predictRank(
+    player: BattleShipView[],
+    enemy: BattleShipView[],
+    opts: PredictRankOptions = {},
+): string {
     if (enemy.length === 0) return '?';
 
     const sum = (arr: BattleShipView[], f: (s: BattleShipView) => number) =>
         arr.reduce((a, s) => a + f(s), 0);
 
+    const pBegin = sum(player, s => s.beginHp);
+    const pNow = sum(player, s => Math.max(0, s.hp));
+    if (opts.airRaid) {
+        if (pBegin <= 0) return '?';
+        // 女神回復可讓我方現值高於進場值；損害下限為 0。
+        const damage = Math.max(0, pBegin - pNow);
+        if (damage === 0) return 'S';
+        // 整數交叉乘法避開浮點誤差（如 7/70 = 0.1）。
+        if (damage * 10 < pBegin) return 'A';
+        if (damage * 5 < pBegin) return 'B';
+        if (damage * 2 < pBegin) return 'C';
+        if (damage * 5 < pBegin * 4) return 'D';
+        return 'E';
+    }
+
     const pSunk = player.filter(s => s.sunk).length;
     const eSunk = enemy.filter(s => s.sunk).length;
     const eCount = enemy.length;
 
-    const pBegin = sum(player, s => s.beginHp);
-    const pNow = sum(player, s => Math.max(0, s.hp));
     const eBegin = sum(enemy, s => s.beginHp);
     const eNow = sum(enemy, s => Math.max(0, s.hp));
     // 女神回復可讓我方現值高於進場值；損害率下限 0，否則零輸出也會落在 B。
@@ -117,6 +141,8 @@ export function nightRankTargets(player: BattleShipView[], enemy: BattleShipView
 export interface BattleAnalyzeOptions {
     escapedMain?: boolean[];
     escapedEscort?: boolean[];
+    /** 空襲戰／雷達射擊點（只看我方損害比例的勝敗規則）；缺席時依封包 api_name 推斷。 */
+    airRaid?: boolean;
     /** 出擊快照中的我方裝備 master id，依主隊／隨伴與艦位對齊。 */
     playerGearIds?: { main: number[][]; escort: number[][] };
     /** 出擊快照中的我方艦實例／master id，保留主隊與隨伴的原始位置。 */
@@ -917,9 +943,17 @@ export function analyzeBattle(
     const escortMvp = fleets.playerEscort.length ? mvpOf(fleets.playerEscort) : 0;
 
     // 評級預測（我方＝主隊+隨伴，敵方＝主隊+隨伴）。退避艦已不在艦隊裡，不計入損害率。
+    // 空襲戰（ld_airbattle）與雷達射擊點（ld_shooting）採空襲勝敗規則；KC3Kai 匯出重播的
+    // 封包帶有 `api_name`（如 `ld_airbattle`／`fc_ld_airbattle`），缺 opts.airRaid 時可據此辨識。
+    const isAirRaidPacket = (api: any): boolean => {
+        const name = typeof api?.api_name === 'string' ? api.api_name : '';
+        return name.includes('ld_airbattle') || name.includes('ld_shooting');
+    };
+    const airRaid = opts.airRaid ?? apiList.some(isAirRaidPacket);
     const rank = predictRank(
         [...fleets.playerMain, ...fleets.playerEscort].filter(s => !s.escaped),
         [...fleets.enemyMain, ...fleets.enemyEscort],
+        { airRaid },
     );
 
     // ── 大破警告 ──

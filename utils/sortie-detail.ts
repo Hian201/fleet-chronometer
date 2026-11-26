@@ -526,7 +526,7 @@ function gearMasterIds(s: ReplayShip): number[] {
 }
 
 /** 對一個 replay 節點跑戰鬥重放。封包損壞時不讓整頁掛掉，回 null（UI 退回摘要欄位）。 */
-function analyzeNode(entry: ReplayNode, replay: ReplayRow): BattleInfoView | null {
+function analyzeNode(entry: ReplayNode, replay: ReplayRow, airRaid?: boolean): BattleInfoView | null {
     const day: any = entry.data;
     if (!day?.api_f_nowhps) return null;
     const damecons = {
@@ -542,9 +542,14 @@ function analyzeNode(entry: ReplayNode, replay: ReplayRow): BattleInfoView | nul
             main: replay.fleet1.map(ship => ({ id: 0, masterId: ship.mst_id })),
             escort: replay.fleet2.map(ship => ({ id: 0, masterId: ship.mst_id })),
         };
+        const opts = {
+            playerGearIds,
+            playerAaciShips,
+            ...(airRaid ? { airRaid: true } : {}),
+        };
         return entry.yasen
-            ? analyzeBattle([day, entry.yasen], damecons, { playerGearIds, playerAaciShips })
-            : analyzeBattle([day], damecons, { playerGearIds, playerAaciShips });
+            ? analyzeBattle([day, entry.yasen], damecons, opts)
+            : analyzeBattle([day], damecons, opts);
     } catch {
         return null;
     }
@@ -640,7 +645,7 @@ function supportFleet(replay: ReplayRow | undefined, deckId: number): SortieShip
 
 function nodeDetail(row: SortieLogRow | null, entry: ReplayNode | undefined, replay: ReplayRow | undefined, fallbackNode = 0): NodeDetail {
     const api: any = entry?.data;
-    const battle = entry && replay ? analyzeNode(entry, replay) : null;
+    const battle = entry && replay ? analyzeNode(entry, replay, row?.nodeEventKind === 6) : null;
     const enemyIds = row?.enemyIds ?? battle?.enemyIds ?? [];
     const enemyIdsEscort = row?.enemyIdsEscort ?? battle?.enemyIdsEscort ?? [];
     const search = Array.isArray(api?.api_search) ? api.api_search.map((v: number) => Number(v) || 0) : [];
