@@ -645,7 +645,10 @@ function supportFleet(replay: ReplayRow | undefined, deckId: number): SortieShip
 
 function nodeDetail(row: SortieLogRow | null, entry: ReplayNode | undefined, replay: ReplayRow | undefined, fallbackNode = 0): NodeDetail {
     const api: any = entry?.data;
-    const battle = entry && replay ? analyzeNode(entry, replay, row?.nodeEventKind === 6) : null;
+    // 本專案的重播封包沒有路徑與 api_name，空襲規則只能靠節點 eventKind 判定：
+    // 6＝空襲戰、8＝雷達射擊（ElectronicObserver `ElectronicObserver/Data/Constants.cs` GetMapEventKind）。
+    const airRaid = row?.nodeEventKind === 6 || row?.nodeEventKind === 8;
+    const battle = entry && replay ? analyzeNode(entry, replay, airRaid) : null;
     const enemyIds = row?.enemyIds ?? battle?.enemyIds ?? [];
     const enemyIdsEscort = row?.enemyIdsEscort ?? battle?.enemyIdsEscort ?? [];
     const search = Array.isArray(api?.api_search) ? api.api_search.map((v: number) => Number(v) || 0) : [];

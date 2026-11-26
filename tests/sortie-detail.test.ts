@@ -318,6 +318,22 @@ describe('buildSortieDetail：摘要 × 原始封包', () => {
         expect(d.nodes.map(n => n.node)).toEqual([40, 25, 50, 51, 52, 53]);
     });
 
+    it('本專案重播沒有 api_name：eventKind 6（空襲）與 8（雷達射擊）改用空襲勝敗規則', () => {
+        // 61-3 node50 是空襲戰；拿掉 KC3Kai 加上的 api_name，模擬本專案自存的重播封包。
+        const { api_name: _name, ...raw } = replay.battles[1]!.data as any;
+        const stripped: ReplayRow = {
+            ...replay,
+            battles: replay.battles.map((b, i) => i === 1 ? { ...b, data: raw } : b),
+        };
+        const rankWith = (kind?: number) => buildSortieDetail(
+            rows.map((r, i) => i === 1 && kind !== undefined ? { ...r, nodeEventKind: kind } : r),
+            stripped,
+        ).nodes[1].battle?.rank;
+        const airRaidRank = rankWith(6);
+        expect(rankWith(8)).toBe(airRaidRank);
+        expect(rankWith(1)).not.toBe(airRaidRank);
+    });
+
     it('replay 有、摘要沒有的節點補在最後且 rank 留空', () => {
         const d = buildSortieDetail(rows.slice(0, 2), replay);
         expect(d.nodes.map(n => n.node)).toEqual([25, 50, 51, 52, 53]);
