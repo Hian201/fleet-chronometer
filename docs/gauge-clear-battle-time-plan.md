@@ -41,7 +41,7 @@
 | battleresult `api_destsf` | 同上 | 樣本：6-5 三場 Boss 皆擊沉，值皆為 `1`。KC3Kai `Node.js` 以它判斷敵主隊旗艦是否擊沉 | 不作為判定依據，只在測試中與戰鬥分析的結果交叉核對（§5.2） |
 | battleresult `api_landing_hp` | 同上（運輸作戰，含 5-6 第一段） | KC3Kai `Node.js` gauge-tp：`api_now_hp` 為戰前剩餘量、`api_sub_value` 為本場登陸量；kcsapi.ts 由真實樣本產生的型別確認三個欄位名稱，數值可能是字串 | 已驗證：`samples/5-6-1-battleresult-landing.json` 與 `samples/5-6-mapinfo-after-landing.json`（280 − 79 = 已登陸 79/280）；聯合艦隊字串形式無樣本 |
 | `api_req_map/next` 的 `api_eventmap`（終點節點） | `api_next == 0` 的終點，含運輸點與 Boss 戰點 | KC3Kai `Node.js`：運輸點終點以 `api_now_maphp`（登陸後的值）更新剩餘 TP；Boss 戰終點帶戰前量表見本專案樣本 `samples/base-air-raid-3.json`（`api_event_id=5`、840/4840） | 可用；運輸點終點無本專案樣本；僅更新記憶體 `GameState.mapGauges`（§5.3） |
-| `api_req_map/next` 的 `api_get_eo_rate` | 1-6 終點（無 Boss 戰） | KancolleSniffer `ExMapInfo.cs` `InspectMapNext()` 以非 0 判定 EO 擊破並取其值；另與 KC3Kai `library/objects.js` `defineAsBounty`、ElectronicObserver `Data/CompassData.cs`（以 `api_itemget_eo_comment` 識別 1-6 終點）交叉比對 | 可用（見 §5.4） |
+| `api_req_map/next` 的 `api_get_eo_rate` | 1-6 終點（無 Boss 戰） | KancolleSniffer `ExMapInfo.cs` `InspectMapNext()` 以非 0 判定 EO 擊破並取其值；另與 KC3Kai `src/library/objects/Node.js` `defineAsBounty`、ElectronicObserver `Data/CompassData.cs`（以 `api_itemget_eo_comment` 識別 1-6 終點）交叉比對 | 可用（見 §5.4） |
 | HP 量表扣量＝Boss 旗艦受傷量，最終段未擊沉停在 1 | 機制 | [maps.md](engineering/maps.md) 第一節，已用 61-5、61-4 真封包驗證 | 已驗證 |
 
 採用時在程式註解寫明專案與檔案路徑，依 clean-room 重寫，並在 `THIRD-PARTY-NOTICES.md` 登錄 KancolleSniffer（Apache-2.0）與 KC3Kai 這兩處讀法。
@@ -179,7 +179,7 @@ HP 量表的扣量規則（[maps.md](engineering/maps.md) 第一節已驗證）�
 1. 打一次 EO 的最後一擊（下個月 1-5 最省事）：回港後（`api_port/port` 觸發刷新）面板與總括的 EO 戰果應已加上，不必開海域選擇；出擊紀錄裡被標斬殺的是擊破那一場。
 2. 活動期間打掉任一段 HP 量表：同上，且下一段開始時量表回到伺服器值、沒有 `≈` 推算標示。
 
-## 8. 已定案（2026-11-23 開發者確認）
+## 8. 已定案（2026-11-23 開發者確認；第 1 項 2026-11-26 更新）
 
 1. 1-6 終點以 `api_req_map/next` 的 `api_get_eo_rate` 標記量表並補標該趟最後一筆戰鬥列（§5.4）；該趟無戰鬥列時維持由 mapinfo 快照補記。
 2. 推算與伺服器值不一致時以伺服器為準，不持久化（§5.3）。

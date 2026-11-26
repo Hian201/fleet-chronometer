@@ -2531,7 +2531,8 @@ export class GameState {
             }
             // 無 Boss 戰的 EO 終點（如 1-6 抵達母港格）：api_get_eo_rate 解析為正整數即代表本趟擊破整圖
             // （KancolleSniffer KancolleSniffer/Model/ExMapInfo.cs InspectMapNext()；並與 KC3Kai
-            // defineAsBounty、ElectronicObserver Data/CompassData.cs 的 1-6 終點讀法交叉比對）。
+            // src/library/objects/Node.js defineAsBounty、ElectronicObserver ElectronicObserver/Data/CompassData.cs
+            // 的 1-6 終點讀法交叉比對）。
             // 與 battleresult 的 api_get_exmap_rate 相同，將既有量表標為整圖已通關（source: 'server'）。
             const eoRate = parsePacketInt(api?.api_get_eo_rate, 1);
             if (eoRate !== undefined) {

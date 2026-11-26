@@ -71,6 +71,7 @@ function mockTables(): EventProjectorTables & {
     return {
         sorties: {
             get: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined), update: vi.fn().mockResolvedValue(1),
+            where: vi.fn(() => ({ equals: () => ({ toArray: async () => [] }) })),
             filter: vi.fn(() => ({ toArray: async () => [] })),
         },
         factory: { put: vi.fn().mockResolvedValue(undefined) },

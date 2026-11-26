@@ -17,6 +17,7 @@ interface PutTable<T> {
 
 interface SortieTable extends PutTable<SortieLogRow> {
     get(key: number): PromiseLike<SortieLogRow | undefined>;
+    where(index: 'sortieKey'): { equals(value: number): { toArray(): PromiseLike<SortieLogRow[]> } };
     filter(predicate: (row: SortieLogRow) => boolean): { toArray(): PromiseLike<SortieLogRow[]> };
     update(key: number, changes: Partial<SortieLogRow>): PromiseLike<unknown>;
 }
@@ -269,8 +270,9 @@ export class EventProjector {
             const eoRate = parsePacketInt(api?.api_get_eo_rate, 1);
             if (eoRate !== undefined && this.shouldPersist && this.currentSortieKey > 0) {
                 const battles = (await this.tables.sorties
-                    .filter(row => row.sortieKey === this.currentSortieKey && row.kind === 'battle' && !row.catchOnly)
+                    .where('sortieKey').equals(this.currentSortieKey)
                     .toArray())
+                    .filter(row => row.kind === 'battle' && !row.catchOnly)
                     .sort((left, right) => right.ts - left.ts || right.eventId - left.eventId);
                 const latest = battles[0];
                 if (latest) {

@@ -137,6 +137,11 @@ function mockTables(): EventProjectorTables & {
             get: vi.fn().mockResolvedValue(undefined),
             put: vi.fn().mockResolvedValue(undefined),
             update: vi.fn().mockResolvedValue(1),
+            where: vi.fn((index: 'sortieKey') => ({
+                equals: (value: number) => ({
+                    toArray: async () => sorties.filter(sortie => sortie[index] === value),
+                }),
+            })),
             filter: vi.fn((predicate: (sortie: SortieLogRow) => boolean) => ({
                 toArray: async () => sorties.filter(predicate),
             })),
