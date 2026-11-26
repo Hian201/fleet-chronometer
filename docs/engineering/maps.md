@@ -86,6 +86,14 @@ letter  A    E    I    Q    Y    Z   ZZ
 查不到的海域（新活動開圖、上游還沒更新）**顯示原始 edge 編號並在 UI 說明原因，絕不推算**；
 原始編號一律留在 tooltip。`EDGE_LETTER_OVERRIDES` 供臨時人工覆蓋（平時應為空）。
 
+**查表順序**（`nodeLetter()`，逐 edge）：`EDGE_LETTER_OVERRIDES` → `EDGE_LETTERS`（靜態表）→
+遊戲內補充對照 → null。補充對照來自遊戲自己載入的地圖資源 `_info*.json`：`labels[]` 畫在地圖上的
+節點名，依 poi `fcd/gen-map.js` 的距離配對到路線終點（`utils/map-resource.ts`），background 存進
+`db.mapLabels`（旁路見 [capture.md](capture.md)「地圖資源旁路」），面板與情報總括啟動時載入、收到
+`kc:map-labels` 廣播時以 `setRuntimeEdgeLetters()` 整關覆蓋。只補得出活動中途開放的節點；初始節點
+的字母畫在背景圖上、不在 JSON 裡，仍顯示原始編號。靜態表與補充對照對同一 edge 不一致時以靜態表為準。
+`hasNodeLetters()` 只看靜態表：補充對照補不出初始節點，「此海域尚無字母對照」的說明依然成立。
+
 **顯示節點的地方一律走同一支 `nodeLabel()`**（面板出擊分頁、出擊紀錄的軌跡／節點卡／基地波次／
 支援出動節點、LLM 報告）。節點字母只能使用已驗證的對照表；查不到時顯示原始 edge 編號，
 不以 ASCII 或其他推算法補出字母。不同海域的 edge 編號並不共用同一字母順序，直接推算會產生

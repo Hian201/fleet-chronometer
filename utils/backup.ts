@@ -160,6 +160,7 @@ const TABLE_NAMES_V11 = [
     ...TABLE_NAMES_V10,
     'sortieBills',
 ] as const;
+// mapLabels（v19）刻意不列入：內容是遊戲地圖資源的配對結果，再開一次該地圖就會重新取得。
 const TABLE_NAMES = [
     ...TABLE_NAMES_V11,
     'senkaRankings',

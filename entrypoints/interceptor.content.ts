@@ -155,6 +155,15 @@ export default defineContentScript({
                         captureQueue.enqueue(path, reqBody, readText, sizeHint);
                     },
                     (path, error) => console.warn('[Fleet Chronometer] axios 擷取失敗，略過此筆', path, error),
+                    // 地圖資源 `_info*.json`：不是 kcsapi，不計入擷取健康度；檔案小，等 idle 讀成文字後
+                    // 以獨立訊息送出。
+                    (resource, readText) => requestIdle(() => {
+                        try {
+                            channel.send({ kind: 'mapResource', map: resource.map, part: resource.part, text: readText() });
+                        } catch (error) {
+                            console.warn('[Fleet Chronometer] 地圖資源讀取失敗，略過此筆', resource.map, error);
+                        }
+                    }),
                 );
                 if (dev) console.log('[Fleet Chronometer] 已掛上 axios 觀察');
             },

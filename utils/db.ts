@@ -5,6 +5,7 @@ import type { SortieBill } from './sortie-bill';
 import type { RemodelGoalRow } from './remodel-goals';
 import type { StockpileGoalRow } from './stockpile';
 import type { SenkaMonthRow, SenkaRankingRow } from './senka-store';
+import type { MapInfoPart } from './map-resource';
 import { listedQuestNos, mergeQuestSeen } from './quest-seen';
 
 // 事件日誌一筆 = provider 合約的載體。所有封包來源（目前 MAIN world interceptor；
@@ -518,6 +519,17 @@ export type SortieBillRow = { sortieKey: number; ts: number; map: string; diffic
 // 見 utils/stockpile.ts），不帶 order：它不參與改造目標的排序分配。
 export type GoalRow = RemodelGoalRow | StockpileGoalRow;
 
+// 遊戲地圖資源 `_info*.json` 補出的節點字母（utils/map-labels.ts）。由 background 收到地圖資源訊息後
+// 在 transaction 內讀、合併、寫回，冪等；不是 raw event 的衍生資料，不經 EventProjector。
+// parts 以 part 為鍵（基本檔為 MAP_INFO_BASE_PART），letters 是對全部 parts 的配對結果。
+// 內容隨時可從遊戲重新取得，不放進備份；新增於 v19，不回填。
+export interface MapLabelRow {
+    map: string;
+    parts: Record<string, MapInfoPart>;
+    letters: Record<number, string>;
+    ts: number;
+}
+
 export interface NotifiedRow {
     deckId: number;
     completeAt: number;   // 需比對到完全相同的完成時刻才算「已通知過」，避免誤殺同艦隊之後的新遠征
@@ -544,6 +556,7 @@ export class KcDb extends Dexie {
     sortieBills!: Table<SortieBillRow, number>;
     senkaRankings!: Table<SenkaRankingRow, string>;
     senkaMonths!: Table<SenkaMonthRow, string>;
+    mapLabels!: Table<MapLabelRow, string>;
     meta!: Table<DatabaseMetaRow, string>;
     constructor(name = 'kc-monitor') {
         super(name);
@@ -804,6 +817,31 @@ export class KcDb extends Dexie {
             sortieBills: 'sortieKey, ts, map',
             senkaRankings: 'key, publishedAt',
             senkaMonths: 'month',
+            meta: 'key',
+        });
+        // v19：遊戲地圖資源補出的節點字母（見 MapLabelRow）。純新增表，不回填：資料來自遊戲資源檔，
+        // 不在 raw events 裡；再開一次該地圖就會補上。
+        this.version(19).stores({
+            events: '++id, ts, path, &captureId, postProcessState',
+            wanted: '++id, eventId, tag, ts',
+            sorties: 'eventId, sortieKey, ts',
+            notified: 'deckId',
+            factory: 'eventId, ts, kind',
+            replays: 'sortieKey, ts, world',
+            expeditions: 'eventId, ts, deckId',
+            snapshot: 'path, ts',
+            shipObtained: 'id, mst',
+            eventPlans: 'areaId',
+            resources: 'eventId, ts',
+            resourceMarks: 'key, mapKey, ts',
+            questObserved: 'eventId, questNo, ts',
+            questSeen: 'questNo, lastTs',
+            goals: 'key',
+            materialUse: 'eventId, ts, kind',
+            sortieBills: 'sortieKey, ts, map',
+            senkaRankings: 'key, publishedAt',
+            senkaMonths: 'month',
+            mapLabels: 'map',
             meta: 'key',
         });
     }

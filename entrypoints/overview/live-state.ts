@@ -9,6 +9,8 @@
 //     游標之前（已含在載入結果裡）的事件不會重複套用。
 import { db } from '@/utils/db';
 import { GameState } from '@/utils/state';
+import { MSG_MAP_LABELS } from '@/utils/map-labels';
+import { setRuntimeEdgeLetters } from '@/utils/map-node-letters';
 import { loadGameStateWithCursor } from './lib';
 
 const READ_RETRY_DELAY_MS = 2000;
@@ -70,7 +72,10 @@ export function createLiveState(onLoaded: () => void, onApplied: (paths: string[
     };
 
     browser.runtime.onMessage.addListener((msg: unknown) => {
-        if ((msg as { type?: unknown } | null)?.type !== 'kc:live') return;
+        const m = msg as { type?: unknown; map?: unknown; letters?: unknown } | null;
+        // 遊戲內補出的節點字母：只更新查表，分區下次重繪節點時就會用上。
+        if (m?.type === MSG_MAP_LABELS) { setRuntimeEdgeLetters(m.map, m.letters); return; }
+        if (m?.type !== 'kc:live') return;
         dirty = true;
         void pump();
     });

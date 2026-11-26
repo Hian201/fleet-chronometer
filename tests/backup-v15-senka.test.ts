@@ -344,7 +344,7 @@ describe('Dexie v17 → v18 升級', () => {
         const current = new KcDb(name);
         databases.push(current);
         await current.open();
-        expect(current.verno).toBe(18);
+        expect(current.verno).toBe(19);
         // 明確不回填既有 raw events
         expect(await current.senkaRankings.count()).toBe(0);
         expect(await current.senkaMonths.count()).toBe(0);

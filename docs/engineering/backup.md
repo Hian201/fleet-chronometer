@@ -24,8 +24,8 @@ baseline，再以同一套 `GameState.applyEvent()` reducer 重播 raw events，
 
 **現行備份契約（`BACKUP_SCHEMA_VERSION = 15`，`kind: full`）**：一份完整檔帶 `snapshot`、`sorties`、
 `expeditions`、`factory`、`wanted`、`shipObtained`、`eventPlans`、`resources`、`resourceMarks`、
-`questObserved`、`questSeen`、`goals`、`materialUse`、`sortieBills`、`senkaRankings`、`senkaMonths` 與 `replays`。不含 raw `events`、`notified`、projection metadata，也不含
-語言／主題／各分區篩選等顯示偏好。
+`questObserved`、`questSeen`、`goals`、`materialUse`、`sortieBills`、`senkaRankings`、`senkaMonths` 與 `replays`。不含 raw `events`、`notified`、`mapLabels`（遊戲地圖資源的配對結果，再開一次該地圖即重新取得）、
+projection metadata，也不含語言／主題／各分區篩選等顯示偏好。
 
 - 選填欄位 `questFlow`：任務導覽的釘選與人工完成（`api_no` 名單），還原後覆寫本機這兩項；舊檔
   缺席則不碰既有釘選。

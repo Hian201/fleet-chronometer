@@ -9,6 +9,7 @@ import { GameState } from '@/utils/state';
 import { applyStateRecoveryPlan, planStateRecovery } from '@/utils/state-recovery';
 import { applyArchivedQuestObservations } from '@/utils/quest-observed';
 import { applyArchivedQuestSeen } from '@/utils/quest-seen';
+import { setRuntimeEdgeLetters } from '@/utils/map-node-letters';
 import { getLang, t } from '@/utils/ui-i18n';
 import { itemCatalog } from '@/utils/item-catalog';
 import { formatDateTime, formatShortDateTime } from '@/utils/date-format';
@@ -171,12 +172,16 @@ export async function loadGameState(): Promise<GameState> {
  */
 export async function loadGameStateWithCursor(): Promise<{ state: GameState; lastEventId: number }> {
     const gs = new GameState();
-    const [snapshots, events, observed, seen] = await Promise.all([
+    const [snapshots, events, observed, seen, mapLabels] = await Promise.all([
         db.snapshot.toArray(),
         db.events.orderBy('id').toArray(),
         db.questObserved.toArray(),
         db.questSeen.toArray(),
+        // 補充節點字母讀不到只是少了遊戲內字母，不擋載入。
+        db.mapLabels.toArray().catch(() => []),
     ]);
+    // 先於重播載入：任務進度在套用事件當下就查節點字母。
+    for (const row of mapLabels) setRuntimeEdgeLetters(row.map, row.letters);
     const plan = planStateRecovery(snapshots, events);
     applyStateRecoveryPlan(gs, plan);
     applyArchivedQuestObservations(

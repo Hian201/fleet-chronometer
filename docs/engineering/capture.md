@@ -57,6 +57,30 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
   會把被伺服器拒絕的動作當成已發生；連線不穩時遊戲重試成功，還會重複套用。判斷只看外層，
   `api_data` 內部有同名欄位。各錯誤碼的意義未驗證，不加以區分。
 
+## 地圖資源旁路（`_info*.json`）
+
+遊戲開海域時以同一個 `window.axios` 的 `axios.get` 讀 `kcs2/resources/map/<3位>/<2位>_info<N>.json`
+（N 省略為基本檔）。遊戲的 `path_root` 預設為空字串，axios 收到的是相對 `/kcs2/index.php` 的
+`resources/map/...`，所以沒有 `baseURL` 時要先依遊戲頁網址補全再比對（2026-11-27 開發者 live 確認的
+發起者為 axios 0.19.2）。這不是 kcsapi，走獨立的旁路，只用來補節點字母（[maps.md](maps.md)「節點字母」）：
+
+```
+axios response（utils/axios-capture.ts，parseMapResourceUrl 認得的網址）
+  ▼ 只交 map／part 與延後讀取的文字，不交完整網址；idle 時序列化（物件 → JSON 文字）
+interceptor → MessagePort { kind:'mapResource' }（與 kcsapi 共用私有通道，訊息 kind 獨立）
+  ▼ bridge 驗證 map／part 格式，runtime.sendMessage({ type:'kc:map-resource' })，不重試
+background：parseMapInfo → transaction 內讀出該關的列、覆蓋該 part、重算 letters、寫回 db.mapLabels
+  ▼ 廣播 { type:'kc:map-labels', map, letters }
+panel／情報總括：setRuntimeEdgeLetters()；啟動時從 db.mapLabels 載入
+```
+
+- 只觀察遊戲本來就送出的請求，不改回應、不 reject、不另發請求（硬約束 1）。
+- **不進 `db.events`、不經 `ingestEvent()`**，沒有 `captureId` envelope，也不計入 `capture-health`
+  的 kcsapi 配對（硬約束 3 的地圖資源例外）。
+- `db.mapLabels` 的唯一寫入者是 background；同一檔重複觀測結果相同（冪等）。格式不符只略過並
+  `console.warn`。
+- **不放進備份**：內容隨時可從遊戲重新取得；還原後再開一次該地圖就會補回。v19 升版不回填。
+
 ## 持久化與投影契約
 
 **IndexedDB**（目前版本見 `utils/db.ts`）：
@@ -72,6 +96,7 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 | `goals`（v15） | `key` | 情報總括「目標規劃」分區（使用者手輸） |
 | `senkaRankings`（v18） | `key, publishedAt` | background（自動解碼）＋ 情報總括「戰果」分區（手動登錄） |
 | `senkaMonths`（v18） | `month` | 情報總括「戰果」分區（玩家自填最終結果） |
+| `mapLabels`（v19） | `map` | background（地圖資源旁路，見下節） |
 | `shipObtained`、`eventPlans`、`notified`、`meta` | 見 db.ts | 各功能 |
 
 版本升級不回填歷史 `captureId`、`postProcessState` 或 projection metadata，所以歷史 events 不是

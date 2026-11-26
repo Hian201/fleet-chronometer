@@ -28,6 +28,8 @@ import { captureSenkaRanking } from '@/utils/senka-store';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
 import { parseCaptureTiming, wallNow, type CaptureTiming } from '@/utils/capture-timing';
+import { MSG_MAP_LABELS, MSG_MAP_RESOURCE, mergeMapLabelRow, parseMapResourceMessage } from '@/utils/map-labels';
+import { parseMapInfo } from '@/utils/map-resource';
 
 // 開發用延遲量測（utils/capture-timing.ts）：只在記憶體中從 kc:api 轉交到 kc:live，
 // 不進 ingestEvent() 的 row。重送的重複 envelope 不會再跑 postProcess，故設上限、丟最舊的。
@@ -286,6 +288,13 @@ export default defineBackground(() => {
         sendResponse,
       );
     }
+    // 地圖資源旁路（utils/map-labels.ts）：不是 raw event，不經 ingestEvent()。
+    if (msg?.type === MSG_MAP_RESOURCE) {
+      return replyWhenSettled(storeMapResource(msg), sendResponse, (error) => {
+        console.warn('[Fleet Chronometer] 地圖資源寫入失敗，略過此筆', error);
+        return undefined;
+      });
+    }
     if (msg?.type !== 'kc:api') return;
     const bgRecv = wallNow();
     // 新 bridge 交原始文字，讓大型封包在 service worker 解析，避開遊戲 renderer 主執行緒。
@@ -359,6 +368,28 @@ export default defineBackground(() => {
   // entrypoints/popup/）：MV3 規格下設了 default_popup 後 action.onClicked
   // 永遠不觸發，開面板邏輯由上方 kc:open-panel 訊息處理。
 });
+
+/**
+ * 解析一個地圖資源檔，在 transaction 內與該關既有的檔合併後寫回 db.mapLabels，再廣播給開著的
+ * 面板／情報總括。格式不符只略過，不寫入。
+ */
+async function storeMapResource(msg: unknown): Promise<void> {
+  const input = parseMapResourceMessage(msg);
+  if (!input) return;
+  let json: unknown = null;
+  try { json = JSON.parse(input.text); } catch { /* 交給 parseMapInfo 判為不合格 */ }
+  const info = parseMapInfo(json);
+  if (!info) {
+    console.warn('[Fleet Chronometer] 地圖資源格式不符，略過此筆', input.map, input.part);
+    return;
+  }
+  const row = await db.transaction('rw', db.mapLabels, async () => {
+    const next = mergeMapLabelRow(await db.mapLabels.get(input.map), input.map, input.part, info, Date.now());
+    await db.mapLabels.put(next);
+    return next;
+  });
+  browser.runtime.sendMessage({ type: MSG_MAP_LABELS, map: row.map, letters: row.letters }).catch(() => { });
+}
 
 /** 依 content script 的實際 outer-inner 差，讓內容區精準容納原始遊戲區與底部列。 */
 async function fitTheaterWindow(windowId: number | undefined, msg: TheaterFitWindowMessage): Promise<void> {

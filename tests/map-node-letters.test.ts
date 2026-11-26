@@ -1,8 +1,10 @@
 // 節點字母查表。edge id 與節點字母不是可由編號推導的關係，故沒有對照時必須保留原始
 // edge 編號；見 utils/map-node-letters.ts 檔頭。
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { EDGE_LETTERS } from '../utils/map-edge-letters';
-import { hasNodeLetters, nodeLabel, nodeLetter } from '../utils/map-node-letters';
+import {
+    clearRuntimeEdgeLetters, hasNodeLetters, nodeLabel, nodeLetter, setRuntimeEdgeLetters,
+} from '../utils/map-node-letters';
 
 describe('節點字母', () => {
     it('61-5 的實測路線逐筆相符（使用者提供的 ground truth）', () => {
@@ -49,5 +51,37 @@ describe('節點字母', () => {
         expect(nodeLabel('6-5', 0)).toBe('?');
         expect(nodeLabel('6-5', -1)).toBe('?');
         expect(nodeLetter('6-5', 0)).toBeNull();
+    });
+});
+
+describe('遊戲內補充對照', () => {
+    afterEach(() => clearRuntimeEdgeLetters());
+
+    it('靜態表優先，補充對照只補靜態表沒有的 edge', () => {
+        const known = EDGE_LETTERS['6-5'][3];
+        setRuntimeEdgeLetters('6-5', { 3: 'X', 9999: 'Q' });
+        expect(nodeLetter('6-5', 3)).toBe(known);
+        expect(nodeLetter('6-5', 9999)).toBe('Q');
+    });
+
+    it('靜態表沒有的海域由補充對照補上，hasNodeLetters 仍只看靜態表', () => {
+        setRuntimeEdgeLetters('99-9', { 3: 'C' });
+        expect(nodeLabel('99-9', 3)).toBe('C');
+        expect(nodeLabel('99-9', 4)).toBe('4');
+        expect(hasNodeLetters('99-9')).toBe(false);
+    });
+
+    it('整關覆蓋、略過不合格的鍵值，清除後回到原始編號', () => {
+        setRuntimeEdgeLetters('99-9', { 3: 'C', 4: 'D' });
+        setRuntimeEdgeLetters('99-9', { 4: 'E', 0: 'Z', '-1': 'Y', abc: 'W', 5: '', 6: 7 });
+        expect(nodeLetter('99-9', 3)).toBeNull();
+        expect(nodeLetter('99-9', 4)).toBe('E');
+        expect(nodeLetter('99-9', 5)).toBeNull();
+        expect(nodeLetter('99-9', 6)).toBeNull();
+        setRuntimeEdgeLetters('99-9', {});
+        expect(nodeLetter('99-9', 4)).toBeNull();
+        setRuntimeEdgeLetters('99-9', { 4: 'E' });
+        clearRuntimeEdgeLetters();
+        expect(nodeLabel('99-9', 4)).toBe('4');
     });
 });

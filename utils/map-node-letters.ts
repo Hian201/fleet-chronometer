@@ -24,10 +24,34 @@ import { EDGE_LETTERS } from './map-edge-letters';
  */
 export const EDGE_LETTER_OVERRIDES: Record<string, Record<number, string>> = {};
 
-/** 查該圖某 edge 的節點字母。沒有對照就回 null（呼叫端顯示原始編號）。 */
+// 遊戲地圖資源補出的字母（utils/map-labels.ts、db.mapLabels）。擴充頁面啟動時從 DB 載入、收到
+// 更新廣播時覆蓋；只在靜態表沒有該 edge 時才用，兩者不一致時以靜態表為準。
+const runtimeEdgeLetters = new Map<string, Record<number, string>>();
+
+/** 設定某關的補充對照（整關覆蓋）。輸入來自 DB 或訊息：不合格的鍵值略過，空對照等同清除該關。 */
+export function setRuntimeEdgeLetters(map: unknown, letters: unknown): void {
+    if (typeof map !== 'string' || !map) return;
+    const clean: Record<number, string> = {};
+    if (letters && typeof letters === 'object') {
+        for (const [key, value] of Object.entries(letters)) {
+            const edge = Number(key);
+            if (Number.isSafeInteger(edge) && edge > 0 && typeof value === 'string' && value) clean[edge] = value;
+        }
+    }
+    if (Object.keys(clean).length) runtimeEdgeLetters.set(map, clean);
+    else runtimeEdgeLetters.delete(map);
+}
+
+/** 清除全部補充對照。 */
+export function clearRuntimeEdgeLetters(): void {
+    runtimeEdgeLetters.clear();
+}
+
+/** 查該圖某 edge 的節點字母：人工覆蓋 → 靜態表 → 遊戲內補充對照。沒有就回 null（呼叫端顯示原始編號）。 */
 export function nodeLetter(map: string, edge: number): string | null {
     if (!Number.isSafeInteger(edge) || edge <= 0) return null;
-    return EDGE_LETTER_OVERRIDES[map]?.[edge] ?? EDGE_LETTERS[map]?.[edge] ?? null;
+    return EDGE_LETTER_OVERRIDES[map]?.[edge] ?? EDGE_LETTERS[map]?.[edge]
+        ?? runtimeEdgeLetters.get(map)?.[edge] ?? null;
 }
 
 /** 顯示用標籤：有對照給字母，沒有給原始 edge 編號（`?` 為連編號都沒有）。 */
@@ -36,7 +60,8 @@ export function nodeLabel(map: string, edge: number): string {
     return nodeLetter(map, edge) ?? String(edge);
 }
 
-/** 這張圖有沒有對照資料（UI 用來決定要不要說明「此海域尚無字母對照」）。 */
+/** 這張圖有沒有靜態對照資料（UI 用來決定要不要說明「此海域尚無字母對照」）。不看遊戲內補充對照：
+ *  補充對照只補得出中途開放的節點，初始節點仍顯示原始編號，說明依然成立。 */
 export function hasNodeLetters(map: string): boolean {
     return Object.keys(EDGE_LETTER_OVERRIDES[map] ?? EDGE_LETTERS[map] ?? {}).length > 0;
 }

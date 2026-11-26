@@ -147,4 +147,35 @@ describe('main-channel', () => {
         await settle();
         expect(health).toEqual([{ status: 'ok' }]);
     });
+
+    it('地圖資源走獨立的 kind，bridge 驗證格式後交給專用回呼，不進 capture', async () => {
+        const win = new FakeWindow();
+        const captures: string[] = [];
+        const resources: unknown[] = [];
+        const main = connectMainChannel(win.endpoint());
+        main.send({ kind: 'mapResource', map: '62-1', part: null, text: '{"spots":[]}' });
+        main.send(capture('a'));
+        offerBridgeChannel(win.endpoint(), m => captures.push(m.path), createChannel, undefined, m => resources.push(m));
+        await settle();
+        expect(captures).toEqual(['a']);
+        expect(resources).toEqual([{ kind: 'mapResource', map: '62-1', part: null, text: '{"spots":[]}' }]);
+    });
+
+    it('bridge 丟棄不合格的地圖資源訊息', async () => {
+        const win = new FakeWindow();
+        const resources: unknown[] = [];
+        offerBridgeChannel(win.endpoint(), () => { }, createChannel, undefined, m => resources.push(m));
+        let port: PortLike | undefined;
+        win.endpoint().listen((message, ports) => { if (message.kind === 'offer' && !port) port = ports[0]; });
+        await settle();
+        port!.onmessage = () => { };
+        port!.postMessage({ kind: 'ready' });
+        port!.postMessage({ kind: 'mapResource', map: 'https://x/kcs2/resources/map/062/01_info.json', part: null, text: '{}' });
+        port!.postMessage({ kind: 'mapResource', map: '62-1', part: -1, text: '{}' });
+        port!.postMessage({ kind: 'mapResource', map: '62-1', part: 1.5, text: '{}' });
+        port!.postMessage({ kind: 'mapResource', map: '62-1', part: 18, text: {} });
+        port!.postMessage({ kind: 'mapResource', map: '62-1', part: 18, text: '{}' });
+        await settle();
+        expect(resources).toEqual([{ kind: 'mapResource', map: '62-1', part: 18, text: '{}' }]);
+    });
 });

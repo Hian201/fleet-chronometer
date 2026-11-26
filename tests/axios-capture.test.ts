@@ -154,6 +154,89 @@ describe('attachAxiosResponseCapture', () => {
     });
 });
 
+describe('attachAxiosResponseCapture：地圖資源', () => {
+    const INFO = { spots: [{ no: 1, x: 10, y: 20 }], labels: [] };
+
+    it('_info*.json 交出 map／part 與文字，不經 kcsapi 佇列，回應原封交還', () => {
+        const mock = mockAxios();
+        const enqueue = vi.fn();
+        const onMap = vi.fn();
+        attachAxiosResponseCapture(mock.axios, enqueue, undefined, onMap);
+        const config = { url: 'https://w00g.kancolle-server.com/kcs2/resources/map/062/01_info18.json?version=5' };
+        const response: AxiosResponseLike = { data: INFO, config };
+        expect(mock.handler(response)).toBe(response);
+        expect(response.data).toBe(INFO);
+        expect(response.config).toBe(config);
+        expect(enqueue).not.toHaveBeenCalled();
+        expect(onMap).toHaveBeenCalledTimes(1);
+        const [resource, readText] = onMap.mock.calls[0];
+        expect(resource).toEqual({ map: '62-1', part: 18 });
+        expect(JSON.parse(readText())).toEqual(INFO);
+    });
+
+    it('字串回應原樣交出；基本檔與 baseURL + 相對 url 都認得', () => {
+        const mock = mockAxios();
+        const onMap = vi.fn();
+        attachAxiosResponseCapture(mock.axios, vi.fn(), undefined, onMap);
+        mock.handler({
+            data: '{"spots":[]}',
+            config: { baseURL: 'https://w00g.kancolle-server.com/', url: 'kcs2/resources/map/001/01_info.json' },
+        });
+        expect(onMap.mock.calls[0][0]).toEqual({ map: '1-1', part: null });
+        expect(onMap.mock.calls[0][1]()).toBe('{"spots":[]}');
+    });
+
+    it('沒有 baseURL 的相對 url 依遊戲頁網址補全（遊戲 path_root 預設為空字串）', () => {
+        vi.stubGlobal('location', { href: 'https://w08r.kancolle-server.com/kcs2/index.php?api_root=/kcsapi' });
+        try {
+            const mock = mockAxios();
+            const enqueue = vi.fn();
+            const onMap = vi.fn();
+            attachAxiosResponseCapture(mock.axios, enqueue, undefined, onMap);
+            mock.handler({ data: INFO, config: { url: 'resources/map/001/01_info.json' } });
+            expect(onMap.mock.calls[0][0]).toEqual({ map: '1-1', part: null });
+            mock.handler({ data: 'svdata={}', config: { url: '/kcsapi/api_port/port' } });
+            expect(enqueue.mock.calls[0][0]).toBe('api_port/port');
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it.each([
+        'https://w00g.kancolle-server.com/kcs2/resources/map/062/01_image.json',
+        'https://w00g.kancolle-server.com/kcs2/resources/map/062/01_image.png',
+        'https://w00g.kancolle-server.com/kcs2/resources/map/062/01.png',
+        'https://w00g.kancolle-server.com/kcs2/img/foo.png',
+    ])('其他網址不送（%s）', (url) => {
+        const mock = mockAxios();
+        const enqueue = vi.fn();
+        const onMap = vi.fn();
+        attachAxiosResponseCapture(mock.axios, enqueue, undefined, onMap);
+        mock.handler({ data: '{}', config: { url } });
+        expect(onMap).not.toHaveBeenCalled();
+        expect(enqueue).not.toHaveBeenCalled();
+    });
+
+    it('kcsapi 照舊入列，不交給地圖資源回呼', () => {
+        const mock = mockAxios();
+        const enqueue = vi.fn();
+        const onMap = vi.fn();
+        attachAxiosResponseCapture(mock.axios, enqueue, undefined, onMap);
+        mock.handler({ data: 'svdata={}', config: { url: '/kcsapi/api_port/port' } });
+        expect(enqueue).toHaveBeenCalledTimes(1);
+        expect(onMap).not.toHaveBeenCalled();
+    });
+
+    it('回呼失敗仍回傳原 response', () => {
+        const mock = mockAxios();
+        const onError = vi.fn();
+        attachAxiosResponseCapture(mock.axios, vi.fn(), onError, () => { throw new Error('send'); });
+        const response: AxiosResponseLike = { data: INFO, config: { url: '/kcs2/resources/map/062/01_info.json' } };
+        expect(mock.handler(response)).toBe(response);
+        expect(onError).toHaveBeenCalled();
+    });
+});
+
 describe('waitForAxios', () => {
     it('辨識有 response interceptor 的物件', () => {
         expect(isAxiosLike(undefined)).toBe(false);

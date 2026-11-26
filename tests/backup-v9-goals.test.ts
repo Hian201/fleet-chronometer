@@ -122,7 +122,7 @@ describe('v14 → v15 升級', () => {
 
         const current = new KcDb(name);
         await current.open();
-        expect(current.verno).toBe(18);
+        expect(current.verno).toBe(19);
         expect(await current.goals.count()).toBe(0);
         expect(await current.questObserved.toArray()).toEqual([{ eventId: 77, questNo: 201, ts: TS }]);
         expect(await current.resources.count()).toBe(1);

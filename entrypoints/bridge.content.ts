@@ -11,6 +11,7 @@ import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
 import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
 import { SENSITIVE_REQUEST_KEYS } from '../utils/kcsapi';
 import type { CaptureHealth } from '../utils/capture-health';
+import { MSG_MAP_RESOURCE, type MapResourceMessage } from '../utils/map-labels';
 
 // 「夠大才算遊戲畫布」的門檻（px）：小於此尺寸的 canvas 不視為遊戲畫面。
 const MIN_GAME_CANVAS_WIDTH = 200;
@@ -92,6 +93,11 @@ export default defineContentScript({
             },
             () => new MessageChannel() as unknown as ChannelLike,
             (health) => { latestHealth = health; reportHealth(); },
+            // 地圖資源不是 kcsapi：不建立 captureId envelope、不重試（再開一次地圖就會再送）。
+            (d) => {
+                browser.runtime.sendMessage({ type: MSG_MAP_RESOURCE, map: d.map, part: d.part, text: d.text } satisfies MapResourceMessage)
+                    .catch((e) => console.warn('[Fleet Chronometer] 送出地圖資源失敗，略過此筆', d.map, e));
+            },
         );
 
         // ── 遊戲分頁登記（靜音用）──────────────────────────

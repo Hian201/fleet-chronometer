@@ -1,5 +1,6 @@
 import { db, type ApiEventRow } from '@/utils/db';
-import { nodeLabel } from '@/utils/map-node-letters';
+import { nodeLabel, setRuntimeEdgeLetters } from '@/utils/map-node-letters';
+import { MSG_MAP_LABELS } from '@/utils/map-labels';
 import { diffLabel, isEventWorld, mapLabel } from '@/utils/sortie-detail';
 import { EventProjector, projectEventAndAdvance } from '@/utils/event-projector';
 import { advanceProjectionCursor, readProjectionCursor } from '@/utils/projection-cursor';
@@ -358,6 +359,8 @@ function applyCaptureHealth(value: unknown) {
 }
 browser.runtime.onMessage.addListener((msg) => {
     if (msg?.type === MSG_CAPTURE_HEALTH) applyCaptureHealth(msg.health);
+    // 遊戲內補出的節點字母：只更新查表，下次重繪節點時就會用上。
+    if (msg?.type === MSG_MAP_LABELS) setRuntimeEdgeLetters(msg.map, msg.letters);
 });
 void browser.runtime.sendMessage({ type: MSG_CAPTURE_HEALTH_GET })
     .then(applyCaptureHealth)
@@ -2463,13 +2466,17 @@ async function restoreGaugeBossHp(): Promise<boolean> {
 
 (async () => {
     try {
-        const [snapshots, events, storedProjectionCursor, observed, seen] = await Promise.all([
+        const [snapshots, events, storedProjectionCursor, observed, seen, mapLabels] = await Promise.all([
             db.snapshot.toArray(),
             db.events.orderBy('id').toArray(),
             readProjectionCursor(db),
             db.questObserved.toArray(),
             db.questSeen.toArray(),
+            // 補充節點字母讀不到只是少了遊戲內字母，不擋面板啟動。
+            db.mapLabels.toArray().catch(() => []),
         ]);
+        // 先於重播載入：任務進度在套用事件當下就查節點字母。
+        for (const row of mapLabels) setRuntimeEdgeLetters(row.map, row.letters);
         const plan = planStateRecovery(snapshots, events);
         projectionThroughEventId = storedProjectionCursor;
         // 背景累積的士氣回復相位推估當起點，重播時再以保留中的母港觀測補強（見 utils/cond-phase-store.ts）。

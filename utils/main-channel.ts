@@ -15,6 +15,7 @@
  */
 import type { MainCaptureTiming } from './capture-timing';
 import { parseCaptureHealth, type CaptureHealth } from './capture-health';
+import { isMapInfoPartNo, isMapKey } from './map-labels';
 
 export const CHANNEL_MARK = '__kc_channel__';
 
@@ -26,7 +27,11 @@ export type ChannelHandshake =
 export type MainToBridgeMessage =
     | { kind: 'ready' }
     | { kind: 'capture'; path: string; req: string; apiText: string; timing?: MainCaptureTiming }
+    // 地圖資源 `_info*.json`（utils/map-resource.ts）：不是 kcsapi，bridge 另以獨立訊息轉交。
+    | { kind: 'mapResource'; map: string; part: number | null; text: string }
     | { kind: 'health'; health: CaptureHealth };
+
+type MapResourceChannelMessage = Extract<MainToBridgeMessage, { kind: 'mapResource' }>;
 
 export interface PortLike {
     postMessage(message: unknown): void;
@@ -58,7 +63,7 @@ export function isChannelHandshake(value: unknown): value is ChannelHandshake {
 export const MAIN_PENDING_LIMIT = 500;
 
 export interface MainChannel {
-    send(message: Extract<MainToBridgeMessage, { kind: 'capture' }>): void;
+    send(message: Extract<MainToBridgeMessage, { kind: 'capture' | 'mapResource' }>): void;
     /** 擷取健康度只保留最新一筆；通道建立前不佔封包緩衝，建立後在積壓封包之後送出。 */
     sendHealth(health: CaptureHealth): void;
     isReady(): boolean;
@@ -113,6 +118,7 @@ export function offerBridgeChannel(
     onCapture: (message: Extract<MainToBridgeMessage, { kind: 'capture' }>) => void,
     createChannel: () => ChannelLike,
     onHealth?: (health: CaptureHealth) => void,
+    onMapResource?: (message: MapResourceChannelMessage) => void,
 ): BridgeChannel {
     let ready: PortLike | null = null;
     let offers = 0;
@@ -143,6 +149,12 @@ export function offerBridgeChannel(
             if (data?.kind === 'health') {
                 const health = parseCaptureHealth(data.health);
                 if (health) onHealth?.(health);
+                return;
+            }
+            if (data?.kind === 'mapResource') {
+                const { map, part, text } = data;
+                if (!isMapKey(map) || !isMapInfoPartNo(part) || typeof text !== 'string') return;
+                onMapResource?.({ kind: 'mapResource', map, part, text });
                 return;
             }
             if (data?.kind !== 'capture') return;
