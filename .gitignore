@@ -24,3 +24,5 @@ tools/map-geo/.cache/
 tools/route-suggest/.cache/
 # 改修日程產生器的抓取快取（wikiwiki 改修表 HTML、KC3Kai akashi.json）
 tools/akashi-schedule/.cache/
+# 字形庫產生器的 kcs2-mapdata 淺層 clone（遊戲地圖原圖，不得散布）
+tools/map-glyphs/.cache/

@@ -131,6 +131,18 @@
   —— https://github.com/KagamiChan/kcs2-mapdata `maps/062/` 收錄的遊戲地圖資源原檔副本，未修改，僅供
   `tests/map-resource.test.ts` 驗證，不隨擴充散布。
 
+## 5c-3. 地圖節點字形庫 (Map node glyph library)
+
+- **用途**：`utils/map-glyph-data.ts`（由 `tools/map-glyphs/generate.py` 產生）與 `utils/map-glyph.ts`——新活動開放時，
+  辨識只畫在地圖 point 圖層上的開場節點字母。
+- **資料來源**：KagamiChan/kcs2-mapdata（MIT License，Copyright (c) 2018 かがみ）收錄的遊戲地圖資源
+  —— https://github.com/KagamiChan/kcs2-mapdata 。字形庫只保存字身的二值遮罩（位元打包），不含原圖或 RGBA；
+  原圖只存在不進版本庫的 `tools/map-glyphs/.cache/`。`samples/map-glyph/` 為同一來源萃取出的 62 活動遮罩 fixture。
+- **名稱監督**：節點名稱取自 KC3Kai `edges.json`（見第 5 節，MIT）。
+- **方法來源**：poi `fcd/map-ocr.js` 以 point 圖層辨識初始節點名的做法 —— https://github.com/poooi/poi
+  （MIT License；Copyright (c) 2015-2021 poi contributors）。只參考做法，依 clean-room 重寫，不複製程式碼；
+  切字、指派與容錯比對的參數為本專案離線實驗的結果（docs/completion-plan.md 4.11）。
+
 ## 5d. 常規導航底圖 (Normal map routes base map)
 
 - **用途**：`utils/map-geo-data.ts`（由 `tools/map-geo/generate.py` 產生）——常規導航的陸地與珊瑚礁背景。
