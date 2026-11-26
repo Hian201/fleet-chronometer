@@ -76,15 +76,20 @@
 且包含旗艦，刻意不沿用 `isTaiha` 的排除規則：前者回答「進 boss 前是否已有大破」，後者回答
 「一般隊員繼續進擊是否有轟沈風險」。契約鎖在 `tests/boss-entry-taiha.test.ts`。
 
-**損管的回復量**（使用者提供之遊戲設定，非封包驗證）：応急修理要員＝修復至**中破（最大HP
-的 50%）**；応急修理女神＝HP＋**燃料彈藥全快**。20% 會讓修復後仍判定大破，與遊戲行為
-不符，因此不可採用。女神的燃彈補回排在 `battleresult` 套完
-`applyConsumption` 之後（`restoreGoddessSupply`），否則會被同一節點的消耗再扣一次。
+**損管的回復量**：戰鬥中遭受致命傷發動時，応急修理要員＝回復至最大 HP 的 **20%**
+（無條件捨去，復活後仍是大破，消耗後無損管故會觸發 `isTaiha`）；応急修理女神＝HP＋**燃料彈藥全快**
+（依據 KC3Kai `BattlePrediction/values/Ship.js`、ElectronicObserver 與 wikiwiki「応急修理要員」）。
+女神的燃彈補回排在 `battleresult` 套完 `applyConsumption` 之後（`restoreGoddessSupply`），
+否則會被同一節點的消耗再扣一次。旗艦大破時帶要員進擊、在下一場開戰時發動才會回復至
+最大 HP 的 50%（中破），該回復由伺服器直接反映在下一場戰鬥封包的 `api_f_nowhps`（及 `ship_deck`），
+不走 `takeDamage` 的戰鬥中復活分支。
 
 **連合艦隊第二艦隊旗艦不會被擊沉**（使用者提供之遊戲設定）：`BattleShipView.unsinkable`，
-致命傷時存活；不會沉就不需要損管，故該艦的損管**不發動、留給後面的節點**。殘 HP 取「存活
-的最低值 1」——**無真封包佐證**，重點在不誤報轟沈（`predictRank` 的 pSunk 與大破警告都會被
-牽動）。
+致命傷時存活；不會沉就不需要損管，故該艦的損管**不發動、留給後面的節點**。殘 HP 照封包傷害
+值計算：KC3Kai `src/library/modules/BattlePrediction/values/Ship.js` 與 ElectronicObserver
+`ElectronicObserver/Data/Battle/Phase/PhaseBase.cs` 的扣血都沒有這個特例，表示伺服器送出的傷害值
+已含不沉保護。「歸零時改為 1」只是封包異常時的保底，重點在不誤報轟沈（`predictRank` 的 pSunk 與
+大破警告都會被牽動）。
 
 **退避（艦隊司令部施設）**：`GameState.escapedShipIds`（艦實例 id），`api_req_map/start`
 與 `api_port/port` 清空。退避艦離開艦隊 → 不再參戰、**不再消耗燃彈**、戰鬥封包若仍帶著它
@@ -143,12 +148,17 @@
 
 ## 勝利判定 `predictRank`（clean-room 重寫，已用真實資料校準）
 
-損害率 = (開戰殘HP合計 − 現在殘HP合計) / 開戰殘HP合計。由上而下：
+一般戰鬥：損害率 = (開戰殘HP合計 − 現在殘HP合計) / 開戰殘HP合計。由上而下：
 
 1. 敵全滅＋我無轟沈 → `S`（遊戲對完全勝利也回 S，故**不吐 SS**）
 2. 敵全滅（我有轟沈）→ `A`（edge 未實測）
 3. 我無轟沈＋**敵數>1**＋敵沉 ≥ `floor(敵數×0.7)` → `A`（**floor 非 ceil**，1-1 boss 實證）
 4. 敵損害率 > 我×2.5 → `B`；5. 敵損害率 > 我×0.9 → `C`；6. 其餘 → `D`
+
+空襲戰（`ld_airbattle`）與雷達射擊點（`ld_shooting`）：依 KC3Kai `BattlePrediction/rank/AirRaid.js`／`Rank.js`
+採空襲規則，只看我方損害比例：無傷 → `S`、未滿 10% → `A`、未滿 20% → `B`、未滿 50% → `C`、
+未滿 80% → `D`、其餘（≥ 80%）→ `E`。已用 5 份真實空襲樣本（`61-3` node 50、`61-4` node 51、`61-5`
+nodes 48/37/51）交叉驗證皆與實際 `rating` 一致。
 
 ### 夜戰目標 `nightRankTargets`（演習）
 
@@ -197,10 +207,11 @@
 | 航空戰(雙向) | `airbattle`(非 ld_) | 20% | 20% |
 | 空襲戰(單向) | `ld_airbattle`＋6-4/6-5 | 4% | 8% |
 | 空襲戰(單向) | `ld_airbattle` 其他(5-2/7-2/活動) | 6% | 4% |
+| 雷達射擊點 | `ld_shooting` | 4% | 0% |
 | 反潛點 | 敵主隊全潛水(stype13/14)；boss(color=5)與4-1/4-3例外仍20/20 | 8% | 0% |
 
-> 未涵蓋：活動特殊點（PT 4/8・雷達 4/0・對潛空襲 12/6）按普通處理；
-> 大漩渦電探減免待 `api_req_map/next` 的 `api_happening` 真實封包。
+> 未涵蓋：活動特殊點（PT 4/8・對潛空襲 12/6）按普通處理；
+> PT 點可由敵艦組成判定，對潛空襲點目前沒有工具據以辨識。大漩渦見 `utils/maelstrom.ts`。
 
 ## 出擊途中的艦載機戰損（`GameState.queuePlaneLoss`／`spreadPlaneLoss`，與燃彈同屬估算）
 

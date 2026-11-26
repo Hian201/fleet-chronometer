@@ -43,10 +43,10 @@
 `api_port/port` 的 reducer 本來就 `ships.clear()` 後全量重建，**故 Layer 1 零攔截改動、
 零新權限**；標籤只能經出擊取得而出擊必以回港收尾，port 必發 → 自我修復，不需監聽 ship2/ship3。
 
-**未驗證（別當成已知）**：標籤 id 的實際語意（所有樣本取自非活動期，值全為 0）；
-**標籤名是否存在於任何封包**——start2 的 master 表清單沒有標籤表，上次活動的出擊紀錄
-（`samples/61-5-jibun-rengou-node52.json`）遞迴掃過 189 個 key 零命中，但該檔只含戰鬥封包、
-不含母港類封包，**答不了這題**。第三方工具（KC3Kai／poi）都手維護標籤名表，方向一致。
+**標籤 id 是第幾個標籤**：ElectronicObserver `ElectronicObserver/Window/Tools/EventLockPlanner/EventLockPlannerViewModel.cs`
+把 `SallyArea` N 放進第 N 個鎖船群組（`LockGroups[N - 1]`），KC3Kai `src/pages/devtools/themes/natsuiro/js/Shipbox.js`
+以 `api_sally_area` 直接當標籤色號，兩者一致。**標籤名不在封包裡**：start2 的 master 表沒有標籤表；
+KC3Kai、ElectronicObserver、poi 都不從封包讀標籤名（EO 群組名只是數字），全由使用者或工具自行命名。
 故 `PlanTag.nameSource` 的 `'auto'` 分支**預留但目前永遠不會被寫入**，UI 一律手動命名。
 
 **標籤名驗證只走 `wantedTag` 的未知 sally key 鉤子**（`findUnknownSallyKey()`）：已知只有
@@ -54,9 +54,8 @@
 深度上限 3、陣列只看首元素——實測掃 1MB＋ start2 僅 0.2ms，且對現有真封包**零誤觸**。
 「首見帶標籤的艦娘清單」不再列入擷取——那類封包會重複出現、洗版並永久釘住 raw event。
 
-**順帶的新假設**：`api_sally_flag`（`api_mst_mapinfo` 與 runtime mapinfo 皆有，1-1 為
-`[1,0,0]`）ElectronicObserver 視為剩餘挑戰次數，語意未解；依上述機制，它也可能是**該圖的出擊
-制限旗標**（允許哪幾個標籤）。下次活動一測便知。
+`api_sally_flag`（`api_mst_mapinfo` 與 runtime mapinfo 皆有）語意未解，各工具都不解讀；
+樣本與現況見 `maps.md`。
 
 **版面：自由池 × 標籤欄網格**（分區名「活動配船板」）。一次活動可有 **12 個標籤、5～7 個關卡**（使用者實測，非估計），
 版面按這個規模配置：

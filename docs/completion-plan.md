@@ -46,6 +46,7 @@
 | 順序 | 項目 | 小節 | 回答玩家的問題 | 放在哪裡 | 依賴 | 規模 | DB 版本 | 建議模型與 session 數 |
 |---|---|---|---|---|---|---|---|---|
 | 8 | 出擊前差異檢查 | 4.8 | 我這次的準備跟上次成功時哪裡不一樣？ | 面板母港檢視 | 無 | 中 | 不變 | 2 個；函式 Sonnet 5.5 高，面板 Opus 5.5 中 |
+| 10 | 遊戲內節點字母補齊 | 4.10 | 新活動剛開、擴充還沒更新時，這個節點是哪個字母？ | 面板與出擊紀錄的節點標籤 | 無 | 中 | 升一版（新表） | 2 個；純函式 Sonnet 5.5 高，擷取與資料表 Opus 5.5 高（先進 plan mode） |
 
 **三種畫面各有歸屬，不混在同一個分區**：
 
@@ -112,6 +113,54 @@ Haiku 5.5），是擬定者的判斷，不是量測結果。通則：
 **建議**：兩個 session。差異函式 Sonnet 5.5 高 effort；面板入口與版面 Opus 5.5 或
 Fable 5.2 中 effort，先給預覽。
 
+### 4.10 遊戲內節點字母補齊
+
+**問題**：節點字母只查 `utils/map-edge-letters.ts`（KC3Kai `edges.json` 的產生物）。新活動開放時
+KC3Kai 與 poi 通常當天更新，但本專案要等下一版過審才拿得到，這段期間面板與出擊紀錄只顯示原始
+edge 編號。
+
+**資料依據**
+- 遊戲開海域時以 `axios.get` 讀 `kcs2/resources/map/<海域3位>/<關2位>_info.json`，地圖逐步開放後再讀
+  `_info<N>.json`（N＝已載入的 spot 數）。所用 axios 是 main.js 外部傳入的 `self.axios`，即本專案
+  攔截器所在的同一個物件；地圖圖片與 `image*.json` 走 `PIXI.loaders.Loader`，看不到。依據：開發者
+  2026-11-26 另存的 main.js 靜態閱讀（`TaskCreateMap` 的 `_start`／`_loadAddingInfo`；主程式檔不放進專案）。
+- `spots[]`：每筆是一條路線（`no`＝edge id，與 `api_no` 同一套編號），`x`／`y` 是終點座標；沒有
+  `line` 的是出擊點。`labels[]`（只在追加檔）：`{x, y, img}`，`img` 就是節點字母（或
+  `<海域>_text_<字母>` 形式）。初始節點的字母畫在背景圖上，不在 JSON 裡。依據：poi `fcd/gen-map.js`
+  的註解與 `extract()`／`assignLabels()`，以及 KagamiChan/kcs2-mapdata（MIT）收錄的 62 活動原始檔。
+- 標籤與節點的配對：poi `assignLabels()` 的做法，所有「標籤 × 終點座標」距離 ≤ 45px 的組合由近到遠
+  取，每個標籤、每個節點各只配一次。
+- 實測（2026-11-26，kcs2-mapdata 的 62-1～62-3 全部 info 檔）：只靠 `labels` 可補出 29/48、39/59、
+  42/66 條 edge 的字母，與 KC3Kai `edges.json` 全部一致；其餘是初始節點。
+
+**範圍與限制**
+- 能補的是**活動中途開放的節點**；初始節點仍要等外部資料與下一版，期間照現行契約顯示原始編號。
+- 同一終點的多條 edge 會得到同一個字母；沒有標籤的終點不自行編字母（硬約束 8）。
+- 只觀察遊戲本來就送出的 `axios.get`，不自行請求資源（硬約束 1）。
+- 靜態表優先：`EDGE_LETTER_OVERRIDES` → `EDGE_LETTERS` → 遊戲內標籤 → 原始編號。常規海域照常
+  只用靜態表；遊戲內標籤與靜態表都有值卻不一致時，以靜態表為準並在開發用 UI 記一筆。
+
+**做法**
+1. 純函式（`utils/map-resource.ts`）：解析 info JSON、合併同一關的多個檔、配對標籤，輸出
+   `edge → 字母`。測試用 kcs2-mapdata 的 62-1 原始檔做 fixture，比對 KC3Kai 的結果。
+2. 擷取：`utils/axios-capture.ts` 另認 `/kcs2/resources/map/\d{3}/\d{2}_info\d*\.json` 這一種 GET 回應，
+   去掉 query 後經同一條 MessageChannel 以獨立訊息型別送出；bridge 照樣驗證同源。這不是 kcsapi
+   raw event，**不進 `db.events`、不經 `ingestEvent()`**，background 解析後只存配對結果。
+3. 資料表：DB 升一版，新增 `mapLabels`（主鍵 `map`，存 `edge → 字母` 與最後觀測時間），由 background
+   冪等寫入。內容隨時可從遊戲重新取得，**不放進備份**，升版不回填。
+4. 查表：`nodeLetter()` 改成可注入補充對照（`utils/state.ts` 不得依賴 DB，比照顯示命名的注入方式），
+   面板與情報總括啟動時從 `mapLabels` 載入，收到新的地圖資源訊息時更新。
+
+**已定案（開發者 2026-11-26）**：硬約束 3 已補上地圖資源的例外；`mapLabels` 不放進備份，還原後
+等再開一次該地圖才會補回。
+
+**驗收**：純函式以 fixture 自動驗證；擷取與資料表需要開發者 live 確認：開任一海域後
+`mapLabels` 出現該關（常規海域多半沒有 `labels`，只會是空對照），以及遊戲畫面與 DevTools
+Network 都沒有多出請求。活動期間再確認中途開放的節點顯示字母。
+
+**建議**：兩個 session。純函式與 fixture 用 Sonnet 5.5 高 effort；擷取、DB 升版與注入用 Opus 5.5
+高 effort，先進 plan mode 列出硬約束 1–3、7 與備份的影響點。
+
 ## 5. 不排入本計畫的項目
 
 | 項目 | 理由 |
@@ -132,6 +181,7 @@ Fable 5.2 中 effort，先給預覽。
 |---|---|---|---|
 | `api_req_kaisou/remodeling` | KC3Kai `Kcsapi.js`、`RemodelDb.js` | 無（消耗屬推算） | 4.6 |
 | `api_req_mission/result` 的回航道具 | KC3Kai `Kcsapi.js`、ElectronicObserver `api_req_mission/result.cs`；開發者備份中的實際紀錄 | 無 | 4.9 |
+| 地圖資源 `_info*.json`（非 kcsapi） | main.js 靜態閱讀（2026-11-26）；poi `fcd/gen-map.js`；KagamiChan/kcs2-mapdata 的 62 活動原始檔 | 開發者 live 確認攔截器確實收到 | 4.10 |
 
 ## 7. 查證來源
 
@@ -140,6 +190,7 @@ Fable 5.2 中 effort，先給預覽。
 - KC3Kai（MIT）：`src/library/modules/Kcsapi.js`、`src/library/objects/Ship.js`、
   `src/library/objects/LandBase.js`、`src/library/modules/RemodelDb.js`、
   `src/data/akashi.json`、`src/data/exp_ship.json`、`src/pages/devtools/themes/natsuiro/natsuiro.js`。
+- poi（MIT）：`fcd/gen-map.js`、`fcd/map-ocr.js`。KagamiChan/kcs2-mapdata（MIT）：`maps/062/*_info*.json`。
 - 本專案：`samples/`、`utils/db.ts`、`utils/state.ts`、`utils/quest-catalog-rewards.json`、
   `docs/engineering/`。
 

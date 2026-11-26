@@ -232,6 +232,9 @@ Chrome 截圖檢視。**完全離線、不連遊戲、不需登入**（帳號安
 - **回港後才付、讀取時歸屬**：`db.materialUse` 的 bucket（帶 `shipId`）歸給之前最近一趟
   `damagedShipIds` 含該艦的出擊，同一趟同一艘最多一個（之後再用桶是別的傷）；`airSupply`（基地航空隊補充；補充前餘額不可信時改用「缺機數 × 規則費率」推算，缺機數也查不到才為 null）歸給之前
   同海域最近一趟。兩者與支援艦隊都另列，不併入淨成本。
+- **強力友軍的高速建造材**：出擊前後兩筆母港餘額之差，落在 `specialDelta`，不另外推算。KC3Kai
+  `src/library/managers/SortieManager.js` 的做法相同：母港 `api_friendly_setting.api_request_type` 非 0（強力）時，
+  以「出擊前高速建造材＋途中取得−回港餘額」計消耗。
 - 用桶時 state 把該艦 `api_ndock_item` 清為 `[0, 0]`，否則用桶後不經母港直接出擊會少算修理費。
 - 卡片展開後帳單區塊預設折疊，摘要列淨成本；DB v17、備份 v11 起才有，不回填。
 

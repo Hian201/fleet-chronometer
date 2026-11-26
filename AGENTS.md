@@ -29,12 +29,12 @@
 
 1. **被動觀察**：只觀察遊戲既有流量，不重放、修改、延遲、重排或代發請求，不注入指令、不自動執行遊戲操作、不改變遊戲行為。攔截器只掛在遊戲 `window.axios` 的 response interceptor；**禁止**取代 `window.fetch` 或 `XMLHttpRequest.prototype`，以免影響其他擴充的 DevTools `getContent`。契約見 `tests/interceptor-capture.test.ts`。
 2. **資料安全**：axios 觀察器在入列前移除請求的 `api_token`／`api_verno`，避免憑證進入暫存佇列與頁面訊息；bridge 與 background 再次移除。永不寫入 DB、上傳或送出憑證；不得讀寫 DMM Cookie。不得以任何改動默默遺失、覆寫、重複或損壞 events、IndexedDB、出擊／遠征／工廠歷史、replays、備份與還原資料；資料格式變更必須有相容處理或遷移。
-3. **唯一擷取入口**：`ApiEventRow` 是 provider 邊界；raw event 只能經 `ingestEvent()` 寫入 `db.events`，bridge 建立的 `captureId` envelope 在 retry 時沿用。單場 JSON／CSV 匯入是例外：只寫 derived tables，不寫 raw event。
+3. **唯一擷取入口**：`ApiEventRow` 是 provider 邊界；raw event 只能經 `ingestEvent()` 寫入 `db.events`，bridge 建立的 `captureId` envelope 在 retry 時沿用。單場 JSON／CSV 匯入是例外：只寫 derived tables，不寫 raw event。地圖資源 `kcs2/resources/map/*_info*.json` 也是例外：同一個 axios 攔截器觀察遊戲自己的 GET 回應，走獨立訊息，background 只存解析後的節點字母對照，不寫 raw event（見 `docs/completion-plan.md` 4.10）。
 4. **持久化順序**：新 raw event 先存 `pending`，claim 後才進 `processing`，副作用成功才標 `done`，失敗回到 `pending`；同 `captureId` 的 path 或 timestamp 不同即拒絕。recovery 與新 ingestion 共用順序 queue。
 5. **投影與裁剪**：derived tables 只經 `EventProjector` 寫入，每筆投影成功才推進 cursor；raw event 已投影且通過保護規則才裁剪，投影 metadata 無效時停止裁剪。snapshot 只作 GameState baseline，不送入 projector。3–5 的細節見 `docs/engineering/capture.md`。
 6. **核心可獨立執行**：`utils/state.ts`、`utils/battle.ts` 及其他標示為純函式的核心不得依賴 `chrome.*` 或 DOM，要能用 samples 與 Node／Vitest 驗證。
 7. **權限精簡**：正式 manifest 的 permissions 以 `wxt.config.ts` 為準、`tests/manifest.test.ts` 把關；正式 build 的 `host_permissions` 必須為空。劇場模式的 DMM 存取權走 `optional_host_permissions`，只在使用者操作時請求。新增權限必須說明程式碼看不出的必要性。
-8. **未驗證欄位不得猜**：欄位佈局、索引與語意需要下列任一證據：`samples/` 的真實封包，或成熟開源工具（KC3Kai、ElectronicObserver、poi 等）實際解析該欄位的程式碼。採用外部專案時，在註解寫明專案與檔案路徑，能交叉比對兩個專案更好；依 clean-room 重寫、不複製程式碼，並登錄於 `THIRD-PARTY-NOTICES.md`。真實樣本與外部專案不一致時以樣本為準。兩者都沒有時保留原始值或回傳 `null`，UI 顯示「不可考」／「推算」並說明限制，同時註明需要手動驗證或真實封包。wiki 文字可作遊戲機制與公式依據，但不能單獨證明欄位佈局。
+8. **未驗證欄位不得猜，先查外部專案再問**：欄位佈局、索引與語意需要下列任一證據：`samples/` 的真實封包，或成熟開源工具（KC3Kai、ElectronicObserver、KancolleSniffer、poi 等）實際解析該欄位的程式碼。二期改版以來的常見欄位多半已有工具解析過，所以 samples 沒有時由 agent 自己找，不得把「請開發者抓封包」當成前置條件或下一步：先查本機已有的 KC3Kai 原始碼與專案 `docs/` 是否引用過，再以 raw 檔少量讀取 GitHub 上上述專案的原始碼（不大量呼叫 API，見硬約束 11）。採用外部專案時，在註解寫明專案與檔案路徑，能交叉比對兩個專案更好；依 clean-room 重寫、不複製程式碼，並登錄於 `THIRD-PARTY-NOTICES.md`。真實樣本與外部專案不一致時以樣本為準。全都查不到時才保留原始值或回傳 `null`，UI 顯示「不可考」／「推算」並說明限制，並向開發者回報查過哪些專案與檔案、缺哪個 API 的哪個欄位，這時才請開發者提供封包。wiki 文字可作遊戲機制與公式依據，但不能單獨證明欄位佈局。
 9. **UI 狀態與資訊**（細則在 design-guidelines，括號為節號）：
    - 同一事實只完整呈現一次；缺值不是 0，排序時缺值放最後。
    - 帶輸入或使用者展開／捲動狀態的分區，不得因每次變更而全量重繪控制項（§4.2）；非同步分區先畫 shell、綁事件，再讀 DB，載入中或錯誤不得留白（§4.2.1）。
@@ -95,7 +95,7 @@ npm run check       # 型別檢查＋全部測試＋正式 build；pre-commit ho
 
 - **IndexedDB**：`events` 以 `captureId` unique index 去重；`resources`、任務觀測與 derived rows 以來源 event id 冪等寫入。版本升級不回填歷史資料沒有的 capture／processing／projection metadata。各表與寫入者見 `docs/engineering/capture.md`，版本見 `utils/db.ts`。
 - **匯入與備份**：單場 JSON 只接受本專案 `toKc3Replay()` version 4，或已有 fixture 證實的 KC3Kai logger 格式；CSV 與單場匯入都借 event id 但不寫 raw event。備份還原是乾淨環境的完整 transaction，不是 merge；空資料不得寫成備份。
-- **關卡量表**：`mapInFinalPhase()` 對 gaugeType 2 使用同一血條的 Boss HP，門檻為 `nowHp <= bossHp`；`nowHp === 1` 是不需 Boss HP 的唯一特例。gaugeType 3 的量表欄位尚未以真封包驗證，不能用未證實的場數公式取代。
+- **關卡量表**：`mapInFinalPhase()` 對 gaugeType 2 使用同一血條的 Boss HP，門檻為 `nowHp <= bossHp`；`nowHp === 1` 是不需 Boss HP 的唯一特例。gaugeType 3（TP）讀 `api_eventmap` 的 now/max，一般海域讀擊破數欄位，戰後以 `api_landing_hp` 扣減（樣本與 KC3Kai 依據見 `docs/engineering/maps.md`）。
 - **戰鬥**：血量與敵方陣列為 0-indexed，沒有舊格式的 leading `-1`；`battleresult` 必須排除 battle 分支。聯合艦隊、航空／基地、友軍與支援欄位只依 samples 與 tests 維護。
 - **重播**：原始戰鬥封包存在 `db.replays`；裁剪只影響詳細重播，`db.sorties` 摘要保留。缺出擊開始事件或必要艦隊快照時，只保存可建立的摘要，不補猜編成。
 - **待驗證擷取**：`db.wanted` 會永久保護對應 raw event，所以不得擴充 `wantedTag()` 的鉤子，達上限必須明說、不可靜默略過；正式 build 預設關閉 debug UI。現有鉤子與上限見 `docs/engineering/capture.md`。
@@ -105,11 +105,12 @@ npm run check       # 型別檢查＋全部測試＋正式 build；pre-commit ho
 
 ## 尚未驗證、不得補猜的項目
 
-下列項目沒有真封包或資料佐證：維持估算／原始值／`null`，不得宣稱已驗證。詳細狀態見 `docs/engineering/` 對應主題檔。
+下列項目查過 samples 與外部專案（KC3Kai、ElectronicObserver、KancolleSniffer、poi）仍沒有佐證：維持估算／原始值／`null`，不得宣稱已驗證。詳細狀態見 `docs/engineering/` 對應主題檔。
 
-- 新活動的 edge 對照表、活動特殊燃彈費率、TP 量表與新裝備值。
-- 部分艦載機損耗後的熟練度下降量、第二艦隊旗艦不沉時的殘 HP。
-- 活動標籤 id／名稱、`api_sally_flag`、強力友軍消耗：待開發者以 live 遊戲手動驗證。
+- 部分艦載機損耗後的熟練度下降量：wikiwiki「艦載機熟練度」也列為要検証；只有全滅歸零是已知規則。
+- `api_sally_flag` 的語意：各工具只定義型別、不解讀；現有功能不依賴它，保留原始值。
+- 活動特殊點中對潛空襲點的辨識：費率已知，但沒有工具據以判定節點。
+- 新活動的 edge 對照表與新裝備值：外部資料更新前沒有對照，更新後重跑產生器（edge 見 `tools/map-edges/`）。
 
 ## 遠端同步現況
 

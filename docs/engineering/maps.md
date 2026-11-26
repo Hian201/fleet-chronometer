@@ -29,9 +29,11 @@
   `api_defeat_count`（樣本中已通關的 7-2 為 `api_cleared=1` 且 `3/4`）。
 - 剩餘次數：gaugeType 2 = `ceil(殘HP/boss旗艦HP)`（boss HP 實戰擷取；此為「最少場數」下界，
   假設每場都 S 沉 boss——`ceil(8400/1200)=7`＝使用者說的「最少 7 次」、`ceil(809/1200)=1`＝剩 1 次）；
-  gaugeType 3（TP輸送）的量表欄位與剩餘場數尚未以真實封包驗證；目前 UI 不以
-  `fleetTP()` 推估場數。`fleetTP()` 的理論公式可供未來驗證，但不能當成目前契約。
-- EO 的 `api_sally_flag` 語意未解（兩份樣本比對過，尚未實際消耗過次數）。
+  gaugeType 3（TP輸送）的量表欄位見下方「TP 式」：5-6 樣本與 KC3Kai `src/library/modules/Kcsapi.js`
+  （mapinfo 的 gauge-tp 分支）一致。剩餘場數目前 UI 不以 `fleetTP()` 推估，是尚未實作，不是欄位未知。
+- `api_sally_flag` 語意未解：KC3Kai、ElectronicObserver、KancolleSniffer、poi 都只定義型別、不解讀。
+  樣本值：一般海域 `[1,0,0]`；62 活動 E1 `[1,0,1]`、E2 `[1,7,1]`（`samples/mapinfo-sally-flag-{1,2}.json`），
+  poi fixture 的 `select_eventmap_rank` 回應為 `[1,7,0]`。現有功能不依賴它，保留原始值。
 
 ## 節點類型（`utils/map-node-kind.ts`）——這個**在**封包裡
 
