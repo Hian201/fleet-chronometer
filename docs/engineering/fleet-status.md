@@ -177,7 +177,8 @@ raw events 的 SW 恢復結果一致，且 state recovery 不建立 derived rows
 都是沒有專用結算封包下的**預估**測試，不把未驗證規則升格為封包事實。
 
 背景 `alarms`／`notifications` 提醒已由 `entrypoints/background.ts` 實作，面板倒數 badge 並非唯一
-提醒來源。士氣通知每次回母港重排：一般艦隊在全隊回到 49 時通知；野埼給糧發動中、且隊上有艦未滿 49 的艦隊
+提醒來源。士氣通知每次回母港重排：一般艦隊直接沿用 `fleetCondRecoveryEta` 在全隊回到 49 時通知
+（遠征中、出擊中的艦隊回港時士氣會再扣減，不排 49 通知）；野埼給糧發動中、且隊上有艦未滿 49 的艦隊
 不發 49 通知，改在給糧對象中士氣最低者到 54 時通知（`fleetSupplyCapAt`；野埼自身、入渠中、已達 54
 的艦不列入，沒有給糧對象時退回 49 通知）。面板編成摘要的狀態列用同一定義，顯示成士氣里程碑
 「士氣 [49] 時間 › [54] 時間」（無給糧時只有 49 一段），同樣只在有艦未滿 49 時出現。摘要不寫「給糧」：
@@ -192,20 +193,39 @@ raw events 的 SW 恢復結果一致，且 state recovery 不建立 derived rows
 提醒也會關閉。關閉紀錄存 localStorage `kc-dc-reminder-off`（季節起點＋來源，panel 與 overview 經 storage
 事件同步，不進備份），季節起點換了就自動回到打開；來源是面板時，總括註明「已從面板關閉」。
 排程在 `utils/cond-alarms.ts`：背景以 start2／母港快照＋母港之後的 raw events 重建 GameState，
-回母港時重排；**用高速修復材（`nyukyo/start` 的 `api_highspeed=1`、`nyukyo/speedchange`）時也只重排
-士氣通知**——cond 立即補到 40，原本入渠中的艦變成給糧對象，54 可能延後，不重排會提早響。
+回母港時重排；**入渠與高速修復（`nyukyo/start`、`nyukyo/speedchange`、`api_get_member/ndock`）時也只重排
+士氣通知**——一般入渠與出渠會改變補到 40 的時點與給糧對象，高速修復讓 cond 立即補到 40（49 可能提前、
+54 可能延後）；`api_get_member/ndock` 同時將各渠修理完了鬧鐘校正為伺服器 `api_complete_time`。
 給糧錨點在母港之後沒被重置時取該次進港時刻：真正的錨點不晚於此刻，故通知只會晚（最多一個週期），
 不會提早；面板用 GameState 的實際錨點，兩者可能相差一個週期以內。
 
-**士氣回到 49 的倒數**（`utils/cond.ts`、`tests/cond.test.ts`）：伺服器只在進入母港時、依伺服器時鐘的
-3 分鐘邊界補算自然回復（+3、上限 49），故以最近一次 `api_port/port` 時間（`GameState.portAt`→
-`FleetView.condAsOf`）起算。野埼給糧在同一次進港「先自然回復、再給糧」，給糧門檻沿用上面的 1 分鐘安全緩衝，
-野埼自身 cond 以自然回復後的值判定 ≥30。入渠（使用者確認之遊戲行為）：完成當下 cond 未滿 40 即補到 40，
-之後從完成時刻接續自然回復；自然結束取 `api_complete_time`，入渠時直接用高速修復材取 `nyukyo/start` 請求時刻
-（`GameState.bucketDockAtByShip`→`ShipView.condFloorAt`，回港清空）。入渠途中用高速修復材
-（`api_req_nyukyo/speedchange`）同樣以請求時刻補值，並清空該槽、撤掉 background 的入渠完成通知；
+**士氣回到 49 的倒數**（`utils/cond.ts`、`tests/cond.test.ts`）：伺服器只在進入母港時、依伺服器時鐘每
+3 分鐘補算自然回復（+3、上限 49），故自最近一次 `api_port/port` 時間（`GameState.portAt`→`FleetView.condAsOf`）
+起推算。回復時點對 3 分鐘取餘數的「相位」單憑一次母港無法得知（本機與伺服器時鐘也可能有誤差），由
+`GameState.condPhase`（→`FleetView.condPhase`）從前後兩次母港推估，做法同 ElectronicObserver
+`Data/FleetManager.cs` 的 `UpdateConditionPrediction`：兩次母港間隔 Δ 必含 `floor(Δ/3分)` 次回復，觀測到多一次
+表示相位落在前一次母港之後的餘數段內，否則在其外（`condPhaseConstraint`，兩端各放寬 2 秒）；多次觀測取交集，
+矛盾時改信新觀測（例如維護後相位改變）。只用兩次都未滿 49、期間沒出擊／演習／遠征／入渠／間宮伊良湖／改造、
+也不在野埼 1、2 號位艦隊的艦；任一艘增量不是 3 的倍數或各艦次數不一致，整次不採用。推算一律取相位範圍內最壞的
+情況：保證回復次數取下界、到 49 的時刻取上界（避免提早誤報），相位不可考時退回「從觀測時刻起每滿 3 分鐘」，
+即 `condAsOf + ceil((49 - cond) / 3) × 3分`。背景排士氣通知只用最近一次母港快照重建 GameState，看不到更早的母港，
+故 background 每次回港先以「上一次母港～這次母港」的 raw events 觀測一次，與既有結果取交集後存進
+`db.meta['cond-phase']`（`utils/cond-phase-store.ts`），排通知時帶入；面板啟動時也以它為起點，再以重播的保留中
+母港觀測補強，兩邊用同一份相位。這列只是推算提示：不引用 event id、不參與投影、不進備份，遺失只退回保守推算，
+備份還原的乾淨環境判定略過它。相隔超過 1 小時的兩次母港不採用（cond 0 回到 49 只要 51 分，多半跨了登入）。野埼給糧在同一次進港「先自然回復、再給糧」，給糧門檻沿用上面的 1 分鐘安全緩衝，
+野埼自身 cond 以自然回復後的值判定 ≥30。入渠自然結束（wikiwiki「疲労度」）：入渠期間的自然回復照算，完成當下
+仍未滿 40 才補到 40，之後從完成時刻接續自然回復；完成時刻取 `api_complete_time`。高速修復（使用者確認之遊戲行為，
+與 ElectronicObserver `Data/ShipData.cs` 的 `Repair()` 及 `FleetManager.CalculateConditionHealingEstimation`
+一致）：用桶當下把母港觀測的 cond 補到 40，自然回復仍從母港時刻起算，回港到用桶之間的時間照算、不從用桶時刻
+重新起算，到 49 的時刻取 `max(用桶時刻, condAsOf + 9分)`——伺服器只在進母港時補算自然回復，用桶改的是母港
+當時的值。入渠時直接用桶取 `nyukyo/start` 請求時刻（`GameState.bucketDockAtByShip`→`ShipView.condFloorAt`＋
+`condFloorByBucket`，回港清空）。入渠途中用高速修復材（`api_req_nyukyo/speedchange`）同樣以請求時刻補值，
+並清空該槽、撤掉 background 的入渠完成通知；
 `api_ndock_id` 無本專案樣本，依 KC3Kai 與 ElectronicObserver 的解析交叉比對（見 THIRD-PARTY-NOTICES）。
-出門中不推算。
+`api_get_member/ndock`（`samples/ndock-in-dock.json`：4 渠陣列，與 `api_port/port` 的 `api_ndock` 同形）
+會同步渠位與伺服器 `api_complete_time`；原在渠內的艦在 `ndock` 中離開渠位時，先以原 `api_complete_time`
+（上限為該筆封包時刻 `ts`）寫入 `bucketDockAtByShip`、補滿 HP 並歸零修理費，再覆蓋 `ndockData`，避免清除
+`inDock` 時遺失「完成時補到 40」的推算並讓該艦即時回到給糧對象。出門中不推算。
 
 **目前尚未實作**：**緊急泊地修理**（連合艦隊出擊中的機制，與母港泊地修理是不同層次）——使用者提供之規則：
 第1個修理裝置對二隊1~3號位、第2個對二隊4~6號位、第3個對一隊4~6號位，回復約最大HP 28%
@@ -249,8 +269,3 @@ design-guidelines §7.2）。只提醒，不排程、不通知；不做入渠順
 
 **限制**：圓點在面板重繪（收到遊戲封包）時才重算，05:00 或 03:00／15:00 換期瞬間沒有操作時，
 舊圓點會留到下一次重繪。艦全在入渠中的艦隊仍算遠征閒置；正接受泊地修理的待修艦仍算可入渠。
-
-## 疲勞回復通知
-
-cond < 49 時，回港後依 `ceil(缺口 / 3) × 3` 分鐘排 alarm（`entrypoints/background.ts`）：回復 tick
-的相位是伺服器全域計時、無法得知，取上界避免提早通知。

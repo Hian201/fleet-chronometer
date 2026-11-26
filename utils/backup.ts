@@ -133,6 +133,7 @@ export const MAX_RESTORABLE_SOURCE_EVENT_ID = Number.MAX_SAFE_INTEGER - 2;
 const BACKUP_RESTORE_META_KEY = 'backup-restore' as const;
 // 純顯示偏好（遊戲頁靜音／語言鏡像），不影響還原語意，故不算「來源不明的既有資料」。
 const GAME_PAGE_META_KEY = 'game-page' as const;
+const COND_PHASE_META_KEY = 'cond-phase' as const;
 
 type UnknownRecord = Record<string, unknown>;
 const TABLE_NAMES_V6 = [
@@ -1353,9 +1354,10 @@ function restoreMarker(allMetaRows: DatabaseMetaRow[]): BackupRestoreMetaRow | u
     // 「乾淨環境」判定看的是**會影響還原正確性**的 metadata：projection 游標（代表這台
     // 機器已投影過自己的 raw events）與前一次匯入的 marker。純顯示偏好不在此列——
     // `game-page`（遊戲頁靜音／語言鏡像，見 background.ts）既不引用任何 event id、也不
-    // 參與投影，它存在只代表使用者按過靜音鈕，不構成「來源不明的既有資料」。
+    // 參與投影，它存在只代表使用者按過靜音鈕，不構成「來源不明的既有資料」。`cond-phase`
+    // （士氣回復相位推估，見 utils/cond-phase-store.ts）同理：純推算提示，遺失只退回保守推算。
     // ⚠️ 新增 meta key 前先問：它能不能讓還原後的資料語意出錯？能，就不要放進這個白名單。
-    const metaRows = allMetaRows.filter(row => row.key !== GAME_PAGE_META_KEY);
+    const metaRows = allMetaRows.filter(row => row.key !== GAME_PAGE_META_KEY && row.key !== COND_PHASE_META_KEY);
     if (metaRows.length === 0) return undefined;
     if (metaRows.length !== 1 || metaRows[0].key !== BACKUP_RESTORE_META_KEY) {
         destinationInvalid('還原環境已有 projection 或來源不明的 metadata。');

@@ -2,6 +2,16 @@
 
 Changes for each Chrome Web Store release. While a version is in store review, its changes collect under **Unreleased** and each update is published as a pre-release tag (`v<version>-rc.N`). When the store approves it, the section is renamed to the version and the final tag `v<version>` is created on the approved commit.
 
+## [Unreleased] — 1.1.1.3
+
+### Highlights
+
+**Morale countdown**
+- Using a fast repair bucket on a ship below 40 morale updates the fleet's morale countdown right away. The ship counts from 40 as of your last return to port, and the fleet still waits for its lowest-morale ship.
+- When docking finishes, opening the docking screen shows it without returning to port: the ship has full HP and its morale counts from 40 from the finish time.
+- The game raises morale every 3 minutes at fixed times. The panel now learns those times from your returns to port, so after a few returns the countdown can be up to about 3 minutes shorter. Until then it waits for the latest possible time, so it never shows morale as recovered before the game does.
+- Morale notifications use the same timing as the panel. After a bucket, teammates keep the recovery they have already made instead of restarting from their morale at port, and fleets out on an expedition or sortie no longer get a 49 notification.
+
 ## [1.1.1.2] - 2026-11-25
 
 ### Highlights

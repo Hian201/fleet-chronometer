@@ -91,7 +91,8 @@ v1 與 v6 以後可單檔匯入；v2–v5 的拆檔可同次選取，或分兩�
 匯入**不是 merge，也不會警告後覆寫**。第一次僅接受沒有 raw events、notified、projection
 metadata、目標 rows，且 events generator 未被未知資料推進的乾淨環境。後續只有
 `meta['backup-restore']` marker 證明的 complementary split file 可接續；重複匯入與來源不明
-既有資料一律拒絕。validation、destination preflight、所有 writes、event-ID sequence reservation／
+既有資料一律拒絕。`meta['game-page']`（遊戲頁靜音／語言鏡像）與 `meta['cond-phase']`（士氣回復相位推估）
+不引用 event id、不參與投影，乾淨環境判定略過。validation、destination preflight、所有 writes、event-ID sequence reservation／
 high-water 與 import marker 在同一 transaction；任一失敗完整 rollback。future local raw event ID
 保證高於備份所有相關來源 event ID。restore/replays 可依受支援順序接續，但不表示兩檔必然同源。
 

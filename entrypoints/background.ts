@@ -17,6 +17,7 @@ import { CaptureHealthRegistry, MSG_CAPTURE_HEALTH, MSG_CAPTURE_HEALTH_GET } fro
 import { BackgroundIngestionLifecycle } from '@/utils/background-ingestion-lifecycle';
 import { createEventNotificationId } from '@/utils/event-notification';
 import { COND_ALARM_RE, planCondAlarms, type CondAlarm } from '@/utils/cond-alarms';
+import { learnCondPhaseAtPort, readCondPhase } from '@/utils/cond-phase-store';
 import { GameState } from '@/utils/state';
 import { pruneRawEventsBefore } from '@/utils/event-pruning';
 import { KcsapiResultError, parseKcsapiResponse, SENSITIVE_REQUEST_KEYS } from '@/utils/kcsapi';
@@ -521,11 +522,23 @@ async function postProcessEvent(event: ApiEventRow & { id: number }): Promise<vo
       await browser.alarms.create(`入渠ドック${req?.api_ndock_id} 修理完了`, { when: Date.now() + ndockMs });
     }
   }
+  // 入渠渠位快照（進入渠畫面或一般入渠後遊戲送出，samples/ndock-in-dock.json）：以伺服器完成時刻校正鬧鐘。
+  if (path === 'api_get_member/ndock' && Array.isArray(api)) {
+    for (const [i, n] of api.entries()) {
+      const dockId = Number(n?.api_id) || i + 1;
+      const name = `入渠ドック${dockId} 修理完了`;
+      if (Number(n?.api_state) > 0 && Number(n?.api_complete_time) > 0) {
+        await browser.alarms.create(name, { when: Number(n.api_complete_time) });
+      } else {
+        await browser.alarms.clear(name);
+      }
+    }
+  }
   // 入渠途中用高速修復材：當下已完成，撤掉原本排好的完成通知（api_ndock_id 依據見 state.ts 同名分支）。
   if (path === 'api_req_nyukyo/speedchange' && req?.api_ndock_id) {
     await browser.alarms.clear(`入渠ドック${req.api_ndock_id} 修理完了`);
   }
-  if ((path === 'api_req_nyukyo/start' && req?.api_highspeed === '1') || path === 'api_req_nyukyo/speedchange') {
+  if (path === 'api_req_nyukyo/start' || path === 'api_req_nyukyo/speedchange' || path === 'api_get_member/ndock') {
     await rescheduleCondAlarms();
   }
 }
@@ -617,6 +630,12 @@ async function scheduleAlarms(api: any, eventId: number) {
   }
 
   // 士氣（49／野埼給糧 54）通知，規則見 utils/cond-alarms.ts。母港快照已在 postProcessEvent 寫入。
+  // 先以上一次母港到這次母港的事件推估回復相位（失敗只會退回保守推算，不擋通知）。
+  try {
+    await learnCondPhaseAtPort(db, eventId);
+  } catch (e) {
+    console.warn('[Fleet Chronometer] 士氣回復相位推估失敗', e);
+  }
   for (const alarm of await condAlarmPlan()) await browser.alarms.create(alarm.name, { when: alarm.when });
 }
 
@@ -632,6 +651,7 @@ async function condAlarmPlan(): Promise<CondAlarm[]> {
   ]);
   if (!port) return [];
   const state = new GameState();
+  state.condPhase = await readCondPhase(db).catch(() => state.condPhase);
   try {
     if (master) state.applyEvent(master.path, master.api, master.req, master.ts);
     state.applyEvent(port.path, port.api, port.req, port.ts);

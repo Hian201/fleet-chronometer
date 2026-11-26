@@ -68,6 +68,34 @@ describe('planCondAlarms', () => {
         expect(COND_ALARM_RE.test('入渠ドック1 修理完了')).toBe(false);
     });
 
+    it('回港一段時間後才用高速修復材時，保留隊友已自然回復的進度而非從當下重算舊 cond', () => {
+        const state = new GameState();
+        state.applyEvent('api_port/port', {
+            api_ship: [rawShip(1, 2, 20, 5), rawShip(2, 2, 38)],
+            api_deck_port: [{ api_name: '第1艦隊', api_ship: [1, 2, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] }],
+            api_ndock: [{ api_id: 1, api_state: 0, api_ship_id: 0, api_complete_time: 0 }],
+        }, undefined, AS_OF);
+        // 6 分鐘後隊友已由 38 回復至 44（AS_OF+12 分到 49）；受損艦用桶後從母港時刻以 40 起算，
+        // 此刻 46、AS_OF+9 分到 49。全隊取較晚的隊友。
+        state.applyEvent('api_req_nyukyo/start', {}, { api_ship_id: '1', api_ndock_id: '1', api_highspeed: '1' }, AS_OF + 6 * MIN);
+        expect(planCondAlarms(state.fleets(), ['第1艦隊'], AS_OF, AS_OF + 6 * MIN))
+            .toEqual([{ name: '第1艦隊 疲労回復（cond 44→49）', when: AS_OF + 12 * MIN }]);
+    });
+
+    it('遠征中或出擊中的艦隊不排 49 通知', () => {
+        const state = new GameState();
+        state.applyEvent('api_port/port', {
+            api_ship: [rawShip(1, 2, 30), rawShip(2, 2, 30)],
+            api_deck_port: [
+                { api_name: '第1艦隊', api_ship: [1, -1, -1, -1, -1, -1], api_mission: [0, 0, 0, 0] },
+                { api_name: '第2艦隊', api_ship: [2, -1, -1, -1, -1, -1], api_mission: [1, 2, AS_OF + 30 * MIN, 0] },
+            ],
+            api_ndock: [],
+        }, undefined, AS_OF);
+        state.applyEvent('api_req_map/start', { api_maparea_id: 1, api_mapinfo_no: 1 }, { api_deck_id: '1' }, AS_OF + MIN);
+        expect(planCondAlarms(state.fleets(), ['第1艦隊', '第2艦隊'], AS_OF, AS_OF + MIN)).toEqual([]);
+    });
+
     it('只剩野埼自身未滿 49 時沒有給糧對象，改排 49 通知', () => {
         const state = new GameState();
         state.applyEvent('api_port/port', {

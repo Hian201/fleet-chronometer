@@ -8,6 +8,7 @@ import {
     type ShipView, type GearView, type FleetView, type BattleEnemyShipView, type SortieInfoView,
 } from '@/utils/state';
 import { condTier, fleetCondRecoveryEta, fleetSupplyCapAt } from '@/utils/cond';
+import { readCondPhase } from '@/utils/cond-phase-store';
 import {
     planAnchorageRepair, planMoraleSupply, nextSettlementIn, moraleTimer,
     type AnchorageRepairPlan, type MoralePlan,
@@ -2470,6 +2471,8 @@ async function restoreGaugeBossHp(): Promise<boolean> {
         ]);
         const plan = planStateRecovery(snapshots, events);
         projectionThroughEventId = storedProjectionCursor;
+        // 背景累積的士氣回復相位推估當起點，重播時再以保留中的母港觀測補強（見 utils/cond-phase-store.ts）。
+        state.condPhase = await readCondPhase(db).catch(() => state.condPhase);
         // baseline 只更新 GameState；不可交給 projector，避免建立 derived rows 或啟動 UI 副作用。
         applySnapshotBaseline(state, plan.baselineSnapshots);
         for (const row of plan.rawEvents) {

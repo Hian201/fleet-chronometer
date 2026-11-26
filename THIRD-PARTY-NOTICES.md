@@ -509,7 +509,12 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
   +2／+3、上限 54、先自然回復再給糧），核對日期 2026-10-04。給糧計時器全帳號共用、重置與不重置的條件、
   滿 15 分進港結算並捨去零頭，依 wikiwiki「野埼」與 NGA 玩家社群的野埼研究（2025-12）交叉比對，核對日期 2026-11-17。
   未改野埼只給糧 cond ≥49 的艦、士氣條件落空時計時器不重置且之後只結算 1 次，依同一份 NGA 研究的社群驗證結果。入渠完成時 cond 補到 40、40 以上維持原值，
-  由使用者確認，並與 ElectronicObserver `Data/ShipData.cs` 的入渠完成處理一致。
+  由使用者確認，並與 ElectronicObserver `Data/ShipData.cs` 的入渠完成處理一致。高速修復時把母港觀測的 cond 補到 40、
+  自然回復仍從母港時刻起算，由使用者確認，與 ElectronicObserver `Data/ShipData.cs`（`Repair()`）及
+  `Data/FleetManager.cs`（`CalculateConditionHealingEstimation`）一致。
+- **回復相位推估**：以前後兩次母港的 cond 增量推估 3 分鐘週期的相位，做法參考 ElectronicObserver
+  `Data/FleetManager.cs` 的 `UpdateConditionPrediction` — https://github.com/andanteyk/ElectronicObserver ，
+  MIT License，Copyright (c) 2014 Andante。只採用推估思路，區間表示、排除條件與取最壞情況的上下界為本專案自行設計。
 - **封包欄位**：`api_req_nyukyo/speedchange` 請求的 `api_ndock_id`（1 起算的入渠槽編號、回應不帶資料），
   本專案無樣本，依下列兩個專案的解析交叉比對：
   - KC3Kai `src/library/modules/Kcsapi.js` — https://github.com/KC3Kai/KC3Kai ，MIT License，

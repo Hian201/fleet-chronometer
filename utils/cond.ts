@@ -2,24 +2,29 @@
 //
 // **純函式、零 chrome.* 依賴**（同 repair.ts），可用 Node／Vitest 驗證。
 // 遊戲不推送士氣回復；伺服器只在「進入母港畫面」時，依伺服器時鐘每 3 分鐘一格補算
-// 自上次回復以來的份量。因此本模組只能從最近一次 `api_port/port` 的 cond 與其觀測時間推算，
+// 自上次回復以來的份量。單憑一次母港無法得知 3 分鐘週期的相位（且本機時鐘與伺服器可能有誤差），
+// 相位由 GameState 從前後兩次母港推估（CondPhase）；推算一律取相位範圍內最壞的情況，
+// 保證回復次數取下界、到 49 的時刻取上界，避免提早誤報。
 // 產出一律是推算值，UI 必須如實標示。
 //
 // 規則來源：wikiwiki.jp/kancolle「疲労度」「野埼」兩頁。
-//   ・自然回復：伺服器時鐘每 3 分鐘 +3，只回復到 49，不會自行進入キラ。
+//   ・自然回復：每 3 分鐘 +3，只回復到 49，不會自行進入キラ。
 //   ・野埼給糧：計時滿 15 分後進母港，同隊他艦 +2（野埼）／+3（野埼改），上限 54；
 //     多個週期一次結算（floor(經過時間 / 15 分)），且**先自然回復、再給糧**。
-//   ・入渠（使用者確認之遊戲行為）：完成當下 cond 未滿 40 即補到 40，之後從完成時刻起照常
-//     自然回復；入渠期間的自然回復也照算。自然結束以 api_complete_time 為完成時刻，入渠時直接
-//     用高速修復材則以該請求時刻為準（見 ShipView.condFloorAt）；此時面板 cond 已補到 40，
-//     推算改從 ShipView.condAtPort（母港觀測的原值）起算。
+//   ・入渠自然結束：入渠期間的自然回復照算，完成當下仍未滿 40 才補到 40，之後從完成時刻起照常
+//     自然回復（wikiwiki「疲労度」）。完成時刻取 api_complete_time 或 ndock 觀測出渠的時刻。
+//   ・高速修復（使用者確認之遊戲行為，與 ElectronicObserver Data/ShipData.cs `Repair()`＋
+//     FleetManager `CalculateConditionHealingEstimation` 一致）：用桶當下把母港觀測的 cond
+//     補到 40，自然回復仍從母港時刻起算——回港後到用桶之間的時間照樣算進去，不從用桶時刻重新起算。
+//     伺服器只在進母港時補算自然回復，用桶時改的是母港當時的值。到 49 不早於用桶時刻。
+//   補值後面板 cond 已是 40，推算一律從 ShipView.condAtPort（母港觀測的原值）起算。
 
 import type { FleetView, ShipView } from './state';
 import {
     MORALE_CAP, MORALE_INTERVAL_MS, MORALE_SOURCE_MIN_COND, TIMER_SAFETY_MS, moraleTimer, planMoraleSupply,
 } from './repair';
 
-export const COND_STEP_MS = 3 * 60_000;     // 自然回復週期（伺服器時鐘的 3 分鐘邊界）
+export const COND_STEP_MS = 3 * 60_000;     // 自然回復週期（3 分鐘）
 export const COND_STEP_GAIN = 3;            // 每週期回復量
 export const COND_NATURAL_CAP = 49;         // 自然回復上限
 export const COND_SPARKLE = 50;             // キラ（戰意高揚）下限
@@ -40,26 +45,87 @@ export function condTier(cond: number): CondTier {
     return 'heavy';
 }
 
-/** (from, to] 之間跨過的 3 分鐘邊界數。JST 與 UTC 相差整 9 小時，邊界位置不受時區影響。 */
-function stepsBetween(from: number, to: number): number {
+/**
+ * 自然回復週期的相位：伺服器回復時刻對 3 分鐘取餘數（毫秒）可能落在的範圍，以 [0, COND_STEP_MS]
+ * 內不重疊的閉區間表示。未觀測時為整圈（COND_PHASE_UNKNOWN），推算退回「從觀測時刻起每滿 3 分鐘」的
+ * 保守下界／上界；GameState 以前後兩次母港的 cond 變化逐次縮小（condPhaseConstraint）。
+ */
+export type CondPhase = readonly (readonly [number, number])[];
+export const COND_PHASE_UNKNOWN: CondPhase = [[0, COND_STEP_MS]];
+// 封包時間戳是本機收到回應的時刻，與伺服器結算時刻有往返延遲與時鐘誤差，每個觀測區間兩端各放寬。
+const COND_PHASE_MARGIN_MS = 2_000;
+
+const phaseOf = (t: number) => ((t % COND_STEP_MS) + COND_STEP_MS) % COND_STEP_MS;
+
+/** 從 `from` 起、長 `length` 的環狀區段（模 3 分鐘），拆成不跨 0 的閉區間；滿一圈即整圈。 */
+function phaseArc(from: number, length: number): CondPhase {
+    if (length >= COND_STEP_MS) return COND_PHASE_UNKNOWN;
+    const lo = phaseOf(from);
+    const hi = lo + length;
+    return hi <= COND_STEP_MS ? [[lo, hi]] : [[0, hi - COND_STEP_MS], [lo, COND_STEP_MS]];
+}
+
+/**
+ * 前後兩次母港 p1 < p2 之間回復了 `ticks` 次時，相位必須落在的範圍。(p1, p2] 必含
+ * floor(Δ/3分)＝m 次回復，剩下長 r 的尾段（模 3 分鐘即 p1 之後的 r）內有無回復決定多不多一次：
+ * m+1 次＝相位在 p1 之後的 r 內，m 次＝在其外。次數不是 m 或 m+1（有自然回復以外的增減）回 null。
+ */
+export function condPhaseConstraint(p1: number, p2: number, ticks: number): CondPhase | null {
+    if (!(p2 > p1) || !Number.isInteger(ticks)) return null;
+    const m = Math.floor((p2 - p1) / COND_STEP_MS);
+    const r = p2 - p1 - m * COND_STEP_MS;
+    if (ticks === m + 1) return phaseArc(p1 - COND_PHASE_MARGIN_MS, r + 2 * COND_PHASE_MARGIN_MS);
+    if (ticks === m) return phaseArc(p2 - COND_PHASE_MARGIN_MS, COND_STEP_MS - r + 2 * COND_PHASE_MARGIN_MS);
+    return null;
+}
+
+/** 既有範圍與新觀測取交集；互相矛盾（例如維護後伺服器相位改變）時改信新觀測。 */
+export function narrowCondPhase(current: CondPhase, constraint: CondPhase): CondPhase {
+    const next: [number, number][] = [];
+    for (const [al, ah] of current) {
+        for (const [bl, bh] of constraint) {
+            const lo = Math.max(al, bl);
+            const hi = Math.min(ah, bh);
+            if (lo <= hi) next.push([lo, hi]);
+        }
+    }
+    return next.length ? next.sort((a, b) => a[0] - b[0]) : constraint;
+}
+
+/** `asOf` 之後第一次回復最晚可能在多久後（相位範圍內取最壞），範圍 (0, 3 分鐘]。 */
+function latestFirstTickDelay(asOf: number, phase: CondPhase): number {
+    const x = phaseOf(asOf);
+    let worst = 0;
+    for (const [lo, hi] of phase) {
+        // 相位可能正好等於 asOf：那次回復算不算進觀測不確定，保守視為下一次在整 3 分鐘後。
+        if ((lo <= x && x <= hi) || (x === 0 && hi === COND_STEP_MS)) return COND_STEP_MS;
+        worst = Math.max(worst, phaseOf(hi - x));
+    }
+    return worst > 0 ? worst : COND_STEP_MS;
+}
+
+/** (from, to] 之間保證至少發生的回復次數（相位範圍內取最壞）。 */
+function stepsBetween(from: number, to: number, phase: CondPhase): number {
     if (to <= from) return 0;
-    return Math.floor(to / COND_STEP_MS) - Math.floor(from / COND_STEP_MS);
+    const first = latestFirstTickDelay(from, phase);
+    const span = to - from;
+    return span < first ? 0 : 1 + Math.floor((span - first) / COND_STEP_MS);
 }
 
-/** 只計自然回復時，cond 在 `at` 進母港會是多少。49 以上不受自然回復影響。 */
-export function projectNaturalCond(cond: number, asOf: number, at: number): number {
+/** 只計自然回復時，cond 在 `at` 進母港保證至少是多少。49 以上不受自然回復影響。 */
+export function projectNaturalCond(cond: number, asOf: number, at: number, phase: CondPhase = COND_PHASE_UNKNOWN): number {
     if (cond >= COND_NATURAL_CAP) return cond;
-    return Math.min(COND_NATURAL_CAP, cond + COND_STEP_GAIN * stepsBetween(asOf, at));
+    return Math.min(COND_NATURAL_CAP, cond + COND_STEP_GAIN * stepsBetween(asOf, at, phase));
 }
 
-/** 只計自然回復時到 49 的時刻；已達 49 回 null。 */
-export function naturalRecoveryAt(cond: number, asOf: number): number | null {
+/** 只計自然回復時保證已達 49 的時刻（相位範圍內取最晚）；已達 49 回 null。 */
+export function naturalRecoveryAt(cond: number, asOf: number, phase: CondPhase = COND_PHASE_UNKNOWN): number | null {
     if (cond >= COND_NATURAL_CAP) return null;
     const steps = Math.ceil((COND_NATURAL_CAP - cond) / COND_STEP_GAIN);
-    return (Math.floor(asOf / COND_STEP_MS) + steps) * COND_STEP_MS;
+    return asOf + latestFirstTickDelay(asOf, phase) + (steps - 1) * COND_STEP_MS;
 }
 
-type CondShip = Pick<ShipView, 'cond' | 'condAtPort' | 'inDock' | 'dockCompleteAt' | 'condFloorAt'>;
+type CondShip = Pick<ShipView, 'cond' | 'condAtPort' | 'inDock' | 'dockCompleteAt' | 'condFloorAt' | 'condFloorByBucket'>;
 
 /** 推算的起點：觀測時刻（母港）的 cond。高速修復已在畫面上補值時取補值前的原值。 */
 const portCond = (ship: CondShip) => ship.condAtPort ?? ship.cond;
@@ -74,22 +140,28 @@ function dockFloorAt(ship: CondShip, asOf: number): number | null {
 }
 
 /** cond 在 `at` 進母港會是多少：自然回復，加上入渠完成補到 40 後的接續回復。 */
-export function projectShipCond(ship: CondShip, asOf: number, at: number): number {
+export function projectShipCond(ship: CondShip, asOf: number, at: number, phase: CondPhase = COND_PHASE_UNKNOWN): number {
     const floorAt = dockFloorAt(ship, asOf);
     const cond = portCond(ship);
-    if (floorAt === null || at < floorAt) return projectNaturalCond(cond, asOf, at);
-    const floored = Math.max(projectNaturalCond(cond, asOf, floorAt), COND_DOCK_FLOOR);
-    return projectNaturalCond(floored, floorAt, at);
+    if (floorAt === null || at < floorAt) return projectNaturalCond(cond, asOf, at, phase);
+    // 高速修復：母港的值補到 40，自然回復仍從母港時刻起算。
+    if (ship.condFloorByBucket) return projectNaturalCond(Math.max(cond, COND_DOCK_FLOOR), asOf, at, phase);
+    const floored = Math.max(projectNaturalCond(cond, asOf, floorAt, phase), COND_DOCK_FLOOR);
+    return projectNaturalCond(floored, floorAt, at, phase);
 }
 
 /** 不計給糧時單艦到 49 的時刻（含入渠補值）；已達 49 回 null。 */
-export function shipRecoveryAt(ship: CondShip, asOf: number): number | null {
+export function shipRecoveryAt(ship: CondShip, asOf: number, phase: CondPhase = COND_PHASE_UNKNOWN): number | null {
     const cond = portCond(ship);
-    const natural = naturalRecoveryAt(cond, asOf);
+    const natural = naturalRecoveryAt(cond, asOf, phase);
     const floorAt = dockFloorAt(ship, asOf);
     if (natural === null || floorAt === null || floorAt >= natural) return natural;
-    const floored = Math.max(projectNaturalCond(cond, asOf, floorAt), COND_DOCK_FLOOR);
-    return Math.min(natural, naturalRecoveryAt(floored, floorAt) ?? floorAt);
+    // 高速修復：從母港時刻以 40 起算；用桶時已超過該時刻者在用桶當下就到 49。
+    if (ship.condFloorByBucket) {
+        return Math.max(floorAt, naturalRecoveryAt(Math.max(cond, COND_DOCK_FLOOR), asOf, phase) ?? floorAt);
+    }
+    const floored = Math.max(projectNaturalCond(cond, asOf, floorAt, phase), COND_DOCK_FLOOR);
+    return Math.min(natural, naturalRecoveryAt(floored, floorAt, phase) ?? floorAt);
 }
 
 export interface CondRecoveryEta {
@@ -122,7 +194,7 @@ export function fleetCondRecoveryEta(fleet: FleetView): CondRecoveryEta | undefi
     let naturalMax: number | null = null;
     let below = 0;
     for (const [index, ship] of fleet.ships.entries()) {
-        const natural = shipRecoveryAt(ship, asOf);
+        const natural = shipRecoveryAt(ship, asOf, fleet.condPhase);
         if (natural === null) continue;
         below += 1;
         naturalMax = Math.max(naturalMax ?? natural, natural);
@@ -190,11 +262,11 @@ export function fleetSupplyProgress(fleet: FleetView, now: number = Date.now()):
  * 所以候選時刻只需看各週期門檻。野埼自身 cond 會自然回復到 49，迴圈必定結束。
  */
 function supplyCapReachAt(ship: ShipView, asOf: number, supply: SupplyContext): number {
-    const { anchor, perTick, source, targetMin } = supply;
+    const { anchor, perTick, source, targetMin, phase } = supply;
     for (let ticks = 1; ; ticks++) {
         const at = anchor + ticks * MORALE_INTERVAL_MS + TIMER_SAFETY_MS;
-        if (at <= asOf || projectShipCond(source, asOf, at) < MORALE_SOURCE_MIN_COND) continue;
-        const natural = projectShipCond(ship, asOf, at);
+        if (at <= asOf || projectShipCond(source, asOf, at, phase) < MORALE_SOURCE_MIN_COND) continue;
+        const natural = projectShipCond(ship, asOf, at, phase);
         if (natural >= targetMin && natural + perTick * ticks >= MORALE_CAP) return at;
     }
 }
@@ -205,6 +277,7 @@ interface SupplyContext {
     /** 給糧對象自然回復後須達的 cond（未改野埼 49）。 */
     targetMin: number;
     source: ShipView;
+    phase: CondPhase;
     recovers(index: number): boolean;
 }
 
@@ -228,28 +301,37 @@ function supplyContext(fleet: FleetView): SupplyContext | undefined {
     const slots = plan.slots;
     return {
         anchor, perTick: plan.perTick, targetMin: plan.targetMinCond, source: fleet.ships[plan.sourceIndex]!,
+        phase: fleet.condPhase ?? COND_PHASE_UNKNOWN,
         recovers: index => slots[index]?.willRecover === true,
     };
 }
 
 /** 單艦納入給糧後到 49 的最早時刻；最晚等於純自然回復的時刻。 */
 function withSupplyAt(ship: ShipView, asOf: number, naturalAt: number, supply: SupplyContext): number {
-    const { anchor, perTick, source } = supply;
+    const { anchor, perTick, source, phase } = supply;
     const supplyTicks = (at: number) => Math.max(0, Math.floor((at - anchor - TIMER_SAFETY_MS) / MORALE_INTERVAL_MS));
-    // 候選時刻：自然回復的每個 3 分鐘邊界，加上每個給糧週期的門檻。
+    // 候選時刻：cond 推算值會跳動的時點——回港後與入渠／水桶補值後的每次保證回復、補值時刻本身，
+    // 加上每個給糧週期門檻。
     const candidates: number[] = [];
-    for (let at = (Math.floor(asOf / COND_STEP_MS) + 1) * COND_STEP_MS; at < naturalAt; at += COND_STEP_MS) {
-        candidates.push(at);
-    }
+    const addTicks = (start: number | null, includeStart: boolean) => {
+        if (start === null) return;
+        if (includeStart && start > asOf && start < naturalAt) candidates.push(start);
+        for (let at = start + latestFirstTickDelay(start, phase); at < naturalAt; at += COND_STEP_MS) {
+            if (at > asOf) candidates.push(at);
+        }
+    };
+    addTicks(asOf, false);
+    addTicks(dockFloorAt(ship, asOf), true);
+    addTicks(dockFloorAt(source, asOf), true);
     for (let at = anchor + MORALE_INTERVAL_MS + TIMER_SAFETY_MS; at < naturalAt; at += MORALE_INTERVAL_MS) {
         if (at > asOf) candidates.push(at);
     }
     candidates.sort((a, b) => a - b);
     for (const at of candidates) {
-        const natural = projectShipCond(ship, asOf, at);
+        const natural = projectShipCond(ship, asOf, at, phase);
         const ticks = supplyTicks(at);
         // 進母港時先自然回復，野埼的 cond 要在那之後仍 ≥30 才發動。
-        if (ticks === 0 || projectShipCond(source, asOf, at) < MORALE_SOURCE_MIN_COND) continue;
+        if (ticks === 0 || projectShipCond(source, asOf, at, phase) < MORALE_SOURCE_MIN_COND) continue;
         if (natural >= supply.targetMin && Math.min(MORALE_CAP, natural + perTick * ticks) >= COND_NATURAL_CAP) return at;
     }
     return naturalAt;

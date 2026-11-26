@@ -28,7 +28,9 @@ import {
 } from './quest-goals';
 import { nodeLetter } from './map-node-letters';
 import { checkPrep, prepGateOpen, questPrepDef, type PrepCheck, type PrepFacts, type PrepFleet, type QuestPrepDef } from './quest-prep';
-import { COND_DOCK_FLOOR } from './cond';
+import {
+    COND_DOCK_FLOOR, COND_NATURAL_CAP, COND_PHASE_UNKNOWN, COND_STEP_GAIN, condPhaseConstraint, narrowCondPhase, type CondPhase,
+} from './cond';
 import { MORALE_INTERVAL_MS, NOSAKI_MST, REPAIR_INTERVAL_MS, isRepairShip, planAnchorageRepair, planMoraleSupply } from './repair';
 import { collectLandingCraftGears, computeExpeditionBonus, applyExpeditionBonus } from './expedition-bonus';
 import {
@@ -112,9 +114,11 @@ export interface ShipView {
     inDock: boolean;
     // 入渠完成時刻（api_ndock 的 api_complete_time，毫秒）。未入渠為 null。
     dockCompleteAt: number | null;
-    // 自上次母港以來用高速修復材（入渠時直接用或入渠途中用）的請求時刻：cond 未滿 40 在此刻
-    // 補到 40（見 utils/cond.ts）。沒有這件事為 null／省略。
+    // 自上次母港以來完成入渠（高速修復或經 api_get_member/ndock 觀測出渠）的時刻：cond 未滿 40
+    // 在此刻補到 40（見 utils/cond.ts）。沒有這件事為 null／省略。
     condFloorAt?: number | null;
+    // condFloorAt 來自高速修復（true）或觀測出渠（省略）。兩者推算方式不同，見 utils/cond.ts。
+    condFloorByBucket?: boolean;
     // 補值前、最近一次母港觀測的 cond。`cond` 已是補到 40 後畫面上的值，推算自然回復仍須從
     // 母港時刻的原值起算，否則會把母港到補值之間的回復重複計入。沒有補值時省略。
     condAtPort?: number;
@@ -513,6 +517,8 @@ export interface FleetView {
     moraleHeld?: boolean;
     /** cond 的觀測時刻＝最近一次 api_port/port（伺服器在此刻補算自然回復）；未觀測過為 undefined。 */
     condAsOf?: number;
+    /** 自然回復週期相位的推估範圍（見 GameState.condPhase）；省略＝不可考。 */
+    condPhase?: CondPhase;
 }
 // missionId＝遠征 master id（`api_mission[1]`）。顯示層要靠它辨識活動限定的支援遠征
 // （301/302），dispNo 是給人看的字串、不當鍵用。
@@ -1151,18 +1157,35 @@ export class GameState {
     // 最近一次 api_port/port 的時間戳：伺服器只在進入母港時補算士氣自然回復，
     // 推算「何時回到 49」必須從這個時刻起算（見 utils/cond.ts）。
     portAt: number | undefined;
-    // 自上次母港以來用高速修復材的時刻與補值前的 cond（key: 艦實例 id；入渠時直接用與
-    // 入渠途中用皆記）。母港封包的 cond 已含補值，回港即清空。
-    bucketDockAtByShip = new Map<number, { at: number; condBefore: number }>();
+    // 自上次母港以來完成入渠（高速修復或經 api_get_member/ndock 觀測出渠）的時刻與補值前的 cond
+    // （key: 艦實例 id）。母港封包的 cond 已含補值，回港即清空。
+    bucketDockAtByShip = new Map<number, { at: number; condBefore: number; bucket: boolean }>();
+    // 士氣自然回復的 3 分鐘週期相位推估：前後兩次母港之間只受自然回復影響的艦，回復次數告訴我們
+    // 回復時點落在哪一段（見 utils/cond.ts condPhaseConstraint；ElectronicObserver
+    // Data/FleetManager.cs UpdateConditionPrediction 同樣以此推估）。
+    condPhase: CondPhase = COND_PHASE_UNKNOWN;
+    // 上次母港觀測的 cond（key: 艦實例 id），以及當時不能拿來推估的艦（入渠中、遠征中、給糧艦所在艦隊）。
+    private condAtLastPort = new Map<number, number>();
+    private condUnreliableAtLastPort = new Set<number>();
+    // 自上次母港以來 cond 可能被自然回復以外的因素改動的艦（出擊、演習、遠征、入渠、間宮伊良湖、改造）。
+    private condTouched = new Set<number>();
 
-    // 高速修復：遊戲當下就把未滿 40 的 cond 補到 40，面板跟著改，不必等母港封包。
-    // 同一次母港之間重複用桶時保留第一次的補值時刻與原值，推算才不會從已補過的值重算。
-    private applyBucketCondFloor(shipId: number, ship: any, ts: number) {
+    // 入渠完成：遊戲當下就把未滿 40 的 cond 補到 40，面板跟著改，不必等母港封包。
+    // 同一次母港之間重複觸發時保留第一次的補值時刻與原值，推算才不會從已補過的值重算。
+    private applyBucketCondFloor(shipId: number, ship: any, ts: number, bucket: boolean) {
         if (!ship) return;
         const cond = Number(ship.api_cond);
         if (!Number.isFinite(cond)) return;
-        if (!this.bucketDockAtByShip.has(shipId)) this.bucketDockAtByShip.set(shipId, { at: ts, condBefore: cond });
+        if (!this.bucketDockAtByShip.has(shipId)) this.bucketDockAtByShip.set(shipId, { at: ts, condBefore: cond, bucket });
         ship.api_cond = Math.max(cond, COND_DOCK_FLOOR);
+    }
+
+    // 修到滿＝HP 全快且修理費歸零（不清的話，不經母港直接出擊時出擊帳單會拿殘值當出擊前的修理費），
+    // 並記下補到 40 的時刻。高速修復與 ndock 觀測出渠共用。
+    private completeShipRepair(shipId: number, floorAt: number, bucket: boolean) {
+        const ship = this.ships.get(shipId);
+        if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; ship.api_ndock_item = [0, 0]; }
+        if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, floorAt, bucket);
     }
 
     // 編成變更後該隊旗艦是工作艦才重置全域修理計時器（見 repairAnchor）。
@@ -1533,6 +1556,7 @@ export class GameState {
     // ts：該封包的擷取時間戳。replay 時必須帶入原始 event.ts，否則泊地修理計時器會被
     // 重播當下的時間污染；live 事件未帶時退回 Date.now()。
     applyEvent(path: string, api: any, req?: Record<string, string>, ts: number = Date.now()) {
+        this.noteCondTouch(path, req);
         this.applyUseItemDelta(path, api, req);
         if (path === 'api_start2/getData') {
             this.onStart2GetData(path, api, req, ts);
@@ -1562,6 +1586,8 @@ export class GameState {
         } else if (path === 'api_get_member/ship_deck' || path === 'api_get_member/ship3'
             || path === 'api_get_member/ship2') {
             this.onGetMemberShipDeck(path, api, req, ts);
+        } else if (path === 'api_get_member/ndock') {
+            this.onGetMemberNdock(path, api, req, ts);
         } else if (path === 'api_get_member/kdock') {
             this.onGetMemberKdock(path, api, req, ts);
         } else if (path === 'api_req_kousyou/getship') {
@@ -1943,6 +1969,28 @@ export class GameState {
         }
     }
 
+    private onGetMemberNdock(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        // 入渠渠位快照（samples/ndock-in-dock.json：4 渠陣列，與 api_port/port 的 api_ndock 同形）。
+        // 原在渠內的艦離開渠位時，先以原 api_complete_time（上限 ts）記下補到 40 的時刻並補滿 HP，
+        // 再覆蓋 ndockData，否則 inDock／dockCompleteAt 一清掉就會弄丟「完成時補到 40」這一段。
+        if (!Array.isArray(api) || !api.every((d: any) => d && typeof d === 'object'
+            && Number.isInteger(d.api_id) && d.api_id > 0 && Number.isInteger(d.api_state))) return;
+        const stillInDock = new Set<number>();
+        for (const d of api) {
+            const shipId = Number(d.api_ship_id);
+            if (d.api_state > 0 && shipId > 0) stillInDock.add(shipId);
+        }
+        for (const prev of this.ndockData) {
+            const shipId = Number(prev?.api_ship_id);
+            if (!(Number(prev?.api_state) > 0) || !(shipId > 0) || stillInDock.has(shipId)) continue;
+            const prevCompleteAt = Number(prev?.api_complete_time);
+            let floorAt = Number.isFinite(prevCompleteAt) && prevCompleteAt > 0 ? Math.min(prevCompleteAt, ts) : ts;
+            if (this.portAt !== undefined && floorAt <= this.portAt && ts > this.portAt) floorAt = this.portAt + 1;
+            this.completeShipRepair(shipId, floorAt, false);
+        }
+        this.ndockData = api;
+    }
+
     private onGetMemberKdock(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
         // 建造渠狀態：api_port/port 只帶解鎖數（api_count_kdock），不含每個渠的即時狀態。
         // 這個端點是「動作觸發」而非「進畫面觸發」——已實測：單純進工廠/點建造分頁不會送，
@@ -2194,9 +2242,73 @@ export class GameState {
         }
     }
 
+    // 會讓 cond 出現自然回復以外增減的操作：記下涉及的艦，下次母港不拿它們推估相位。
+    private noteCondTouch(path: string, req: Record<string, string> | undefined) {
+        const deckShips = (deckId: unknown) => {
+            const deck = this.decks[Number(deckId) - 1];
+            for (const id of deck?.api_ship ?? []) if (id > 0) this.condTouched.add(id);
+        };
+        if (path === 'api_req_map/start' || path === 'api_req_practice/battle' || path === 'api_req_mission/start'
+            || path === 'api_req_member/itemuse_cond') {
+            deckShips(req?.api_deck_id);
+            if (path === 'api_req_map/start' && this.combinedFlag > 0 && req?.api_deck_id === '1') deckShips(2);
+        } else if (path === 'api_req_nyukyo/start') {
+            const id = Number(req?.api_ship_id);
+            if (id > 0) this.condTouched.add(id);
+        } else if (path === 'api_req_kaisou/remodeling') {
+            const id = Number(req?.api_id);
+            if (id > 0) this.condTouched.add(id);
+        }
+    }
+
+    // 母港封包當下不能拿來推估相位的艦：入渠中（可能完成補值）、遠征中，以及 1、2 號位有野埼的艦隊（給糧）。
+    private static condUnreliableShips(api: any): Set<number> {
+        const out = new Set<number>();
+        const mstById = new Map<number, number>((api.api_ship as any[]).map(s => [s?.api_id, s?.api_ship_id]));
+        for (const dock of Array.isArray(api.api_ndock) ? api.api_ndock : []) {
+            if (dock?.api_state > 0 && dock.api_ship_id > 0) out.add(dock.api_ship_id);
+        }
+        for (const deck of api.api_deck_port as any[]) {
+            const ids: number[] = (deck?.api_ship ?? []).filter((id: number) => id > 0);
+            const nosaki = ids.slice(0, 2).some(id => NOSAKI_MST.includes(mstById.get(id) ?? 0));
+            if (deck?.api_mission?.[0] > 0 || nosaki) for (const id of ids) out.add(id);
+        }
+        return out;
+    }
+
+    // 以上次母港到這次母港之間的 cond 變化縮小回復相位範圍。只用兩次都未滿 49、期間沒被其他操作
+    // 動過的艦；任一艘的增量不是 3 的倍數、或各艦回復次數不一致，表示有沒追蹤到的因素，整次不採用。
+    private observeCondPhase(api: any, ts: number) {
+        const p1 = this.portAt;
+        // 相隔超過 1 小時的兩次母港沒有資訊（cond 0 回到 49 只要 51 分），多半跨了登入或中間事件已裁剪，不用。
+        if (p1 === undefined || !(ts > p1) || ts - p1 > 60 * 60_000) return;
+        const excluded = new Set([...this.condTouched, ...this.bucketDockAtByShip.keys(),
+            ...this.condUnreliableAtLastPort, ...GameState.condUnreliableShips(api)]);
+        let ticks: number | undefined;
+        for (const s of api.api_ship as any[]) {
+            const before = this.condAtLastPort.get(s?.api_id);
+            const after = Number(s?.api_cond);
+            if (before === undefined || excluded.has(s.api_id) || !(before < COND_NATURAL_CAP)
+                || !Number.isInteger(after) || !(after < COND_NATURAL_CAP)) continue;
+            const gain = after - before;
+            if (gain < 0 || gain % COND_STEP_GAIN !== 0) return;
+            if (ticks !== undefined && ticks !== gain / COND_STEP_GAIN) return;
+            ticks = gain / COND_STEP_GAIN;
+        }
+        if (ticks === undefined) return;
+        const constraint = condPhaseConstraint(p1, ts, ticks);
+        if (constraint) this.condPhase = narrowCondPhase(this.condPhase, constraint);
+    }
+
     private onPortPort(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
         // 缺艦娘或艦隊陣列的畸形封包不得先清空現有狀態。
         if (!Array.isArray(api?.api_ship) || !Array.isArray(api?.api_deck_port)) return;
+        this.observeCondPhase(api, ts);
+        this.condAtLastPort = new Map((api.api_ship as any[])
+            .filter(s => Number.isInteger(s?.api_id) && Number.isInteger(s?.api_cond))
+            .map(s => [s.api_id as number, s.api_cond as number]));
+        this.condUnreliableAtLastPort = GameState.condUnreliableShips(api);
+        this.condTouched.clear();
         const previousPortAt = this.portAt;
         const repairTargetHp = this.repairTargetHp();
         this.portAt = ts;
@@ -2596,12 +2708,9 @@ export class GameState {
         const shipId = Number(req.api_ship_id);
         const ship = this.ships.get(shipId);
         if (req.api_highspeed === '1') {
-            // 高速修復（バケツ）：即時全快、不占入渠槽
-            // 修到滿＝修理費歸零；不清的話，用桶後不經母港直接出擊，出擊帳單會拿殘值當出擊前的修理費。
-            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; ship.api_ndock_item = [0, 0]; }
+            // 高速修復（バケツ）：即時全快、不占入渠槽，cond 未滿 40 在此刻補到 40。
             this.useBucket();
-            // 跳過入渠時間、當下完成：cond 未滿 40 在此刻補到 40（使用者確認之遊戲行為）。
-            if (Number.isFinite(shipId)) this.applyBucketCondFloor(shipId, ship, ts);
+            this.completeShipRepair(shipId, ts, true);
         } else {
             const idx = Number(req.api_ndock_id) - 1;
             const dock = this.ndockData[idx];
@@ -2650,9 +2759,7 @@ export class GameState {
         const dock = this.ndockData.find((d: any) => Number(d?.api_id) === dockId);
         const shipId = Number(dock?.api_ship_id);
         if (dock && dock.api_state === 1 && shipId > 0) {
-            const ship = this.ships.get(shipId);
-            if (ship) { ship.api_nowhp = ship.api_maxhp; ship.api_ndock_time = 0; ship.api_ndock_item = [0, 0]; }
-            this.applyBucketCondFloor(shipId, ship, ts);
+            this.completeShipRepair(shipId, ts, true);
             dock.api_state = 0;
             dock.api_ship_id = 0;
             dock.api_complete_time = 0;
@@ -4922,6 +5029,7 @@ export class GameState {
             moraleAnchor: this.sortieAwayDecks.has(i) || d.api_mission?.[0] > 0 ? null : this.moraleAnchor,
             moraleHeld: this.moraleHeld,
             condAsOf: this.portAt,
+            condPhase: this.condPhase,
             ships: d.api_ship
                 .filter((id: number) => id > 0)
                 .flatMap((id: number): ShipView[] => {
@@ -4947,7 +5055,10 @@ export class GameState {
                         inDock: dockCompleteById.has(id),
                         dockCompleteAt: dockCompleteById.get(id) || null,
                         condFloorAt: this.bucketDockAtByShip.get(id)?.at ?? null,
-                        ...(this.bucketDockAtByShip.has(id) ? { condAtPort: this.bucketDockAtByShip.get(id)!.condBefore } : {}),
+                        ...(this.bucketDockAtByShip.has(id) ? {
+                            condAtPort: this.bucketDockAtByShip.get(id)!.condBefore,
+                            ...(this.bucketDockAtByShip.get(id)!.bucket ? { condFloorByBucket: true } : {}),
+                        } : {}),
                         escaped: this.escapedShipIds.has(id),
                         lv: s.api_lv, hp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
                         fuel: s.api_fuel ?? 0, maxFuel: mst?.fuelMax ?? 0,

@@ -343,10 +343,23 @@ export interface GamePageMetaRow {
     updatedAt: number;
 }
 
+// 士氣自然回復的 3 分鐘週期相位推估（見 utils/cond-phase-store.ts）。背景排士氣通知只從最近一次
+// 母港重建 GameState，看不到更早的母港，故把每次回港推估的結果累積在這裡。純推算提示：
+// 不引用 event id、不參與投影、不進備份；遺失只會退回保守推算，還原的乾淨環境判定略過它。
+export interface CondPhaseMetaRow {
+    key: 'cond-phase';
+    // 回復時刻對 3 分鐘取餘數（毫秒）可能落在的閉區間，同 utils/cond.ts CondPhase。
+    phase: [number, number][];
+    // 已納入推估的最近一次母港時刻：同一筆母港重送或重排通知時不重複觀測。
+    throughPortTs: number;
+    updatedAt: number;
+}
+
 export type DatabaseMetaRow =
     | ProjectionMetaRow
     | BackupRestoreMetaRow
-    | GamePageMetaRow;
+    | GamePageMetaRow
+    | CondPhaseMetaRow;
 
 // 艦娘入手紀錄（收藏日誌）。遊戲 API 的艦娘物件**沒有入手日期欄位**——只有 api_id
 // （艦實例 id，單調遞增、不重用）代表「首次進入鎮守府的順序」，沒有時間戳。故本表補記
