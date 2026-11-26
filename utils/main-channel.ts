@@ -3,7 +3,8 @@
  *
  * `window.postMessage` 會把每筆封包廣播給頁面上所有 message 監聽者，遊戲程式也收得到。
  * 這裡改用 MessageChannel：只有建立通道時的握手經過 window，之後的封包都走兩端私有的
- * MessagePort，而且只有 MAIN → bridge 一個方向。兩支 content script 都在 document_start 注入、早於遊戲程式，
+ * MessagePort。資料以 MAIN → bridge 為主；反方向只承載「讀取地圖 point 圖層」一種要求（見下方
+ * BridgeToMainMessage）。兩支 content script 都在 document_start 注入、早於遊戲程式，
  * 正常情況下握手在遊戲掛上任何監聽之前就完成。
  *
  * 兩個 world 的注入先後不保證，故握手兩邊都會發起：bridge 啟動即送出一個 offer（附 port），
@@ -15,7 +16,10 @@
  */
 import type { MainCaptureTiming } from './capture-timing';
 import { parseCaptureHealth, type CaptureHealth } from './capture-health';
-import { isMapInfoPartNo, isMapKey } from './map-labels';
+import {
+    isMapInfoPartNo, isMapKey, parsePointLayerReadRequest, parsePointLayerReadResult,
+    type PointLayerReadRequest, type PointLayerReadResult,
+} from './map-labels';
 
 export const CHANNEL_MARK = '__kc_channel__';
 
@@ -29,7 +33,12 @@ export type MainToBridgeMessage =
     | { kind: 'capture'; path: string; req: string; apiText: string; timing?: MainCaptureTiming }
     // 地圖資源 `_info*.json`（utils/map-resource.ts）：不是 kcsapi，bridge 另以獨立訊息轉交。
     | { kind: 'mapResource'; map: string; part: number | null; text: string }
-    | { kind: 'health'; health: CaptureHealth };
+    | { kind: 'health'; health: CaptureHealth }
+    // 對 bridge 讀取要求的回覆（utils/map-point-layer.ts）：只含字身遮罩字串，不含材質或圖片。
+    | { kind: 'pointLayerCrops'; requestId: string; result: PointLayerReadResult };
+
+/** bridge → MAIN（私有 port 上）：只有讀取地圖 point 圖層這一種要求，其他內容 MAIN 一律丟棄。 */
+export type BridgeToMainMessage = { kind: 'readPointLayer' } & PointLayerReadRequest;
 
 type MapResourceChannelMessage = Extract<MainToBridgeMessage, { kind: 'mapResource' }>;
 
@@ -63,15 +72,23 @@ export function isChannelHandshake(value: unknown): value is ChannelHandshake {
 export const MAIN_PENDING_LIMIT = 500;
 
 export interface MainChannel {
-    send(message: Extract<MainToBridgeMessage, { kind: 'capture' | 'mapResource' }>): void;
+    send(message: Extract<MainToBridgeMessage, { kind: 'capture' | 'mapResource' | 'pointLayerCrops' }>): void;
     /** 擷取健康度只保留最新一筆；通道建立前不佔封包緩衝，建立後在積壓封包之後送出。 */
     sendHealth(health: CaptureHealth): void;
     isReady(): boolean;
 }
 
+/** MAIN 端驗證 bridge 的要求；不是讀取要求或格式不合回 null。 */
+export function parseBridgeToMainMessage(data: unknown): BridgeToMainMessage | null {
+    if ((data as Partial<BridgeToMainMessage> | null)?.kind !== 'readPointLayer') return null;
+    const request = parsePointLayerReadRequest(data);
+    return request ? { kind: 'readPointLayer', ...request } : null;
+}
+
 export function connectMainChannel(
     endpoint: HandshakeEndpoint,
     onOverflow?: (dropped: number) => void,
+    onReadPointLayer?: (request: BridgeToMainMessage) => void,
 ): MainChannel {
     let port: PortLike | null = null;
     const pending: MainToBridgeMessage[] = [];
@@ -82,6 +99,10 @@ export function connectMainChannel(
         if (port || message.kind !== 'offer' || !ports[0]) return;
         port = ports[0];
         stop();
+        port.onmessage = (event) => {
+            const request = parseBridgeToMainMessage(event.data);
+            if (request) onReadPointLayer?.(request);
+        };
         port.postMessage({ kind: 'ready' } satisfies MainToBridgeMessage);
         for (const message of pending.splice(0)) port.postMessage(message);
         if (latestHealth) port.postMessage({ kind: 'health', health: latestHealth } satisfies MainToBridgeMessage);
@@ -111,7 +132,18 @@ export const BRIDGE_OFFER_LIMIT = 5;
 
 export interface BridgeChannel {
     isReady(): boolean;
+    /**
+     * 經私有 port 要求 MAIN 讀取 point 圖層，等對應 requestId 的回覆。通道未建立、逾時或回覆格式
+     * 不合都回失敗結果，不重試。
+     */
+    readPointLayer(
+        request: PointLayerReadRequest,
+        timeoutMs: number,
+        schedule: (callback: () => void, delayMs: number) => void,
+    ): Promise<PointLayerReadResult>;
 }
+
+const failedRead = (reason: string): PointLayerReadResult => ({ ok: false, reason, totalMs: 0, maxMs: 0 });
 
 export function offerBridgeChannel(
     endpoint: HandshakeEndpoint,
@@ -124,6 +156,7 @@ export function offerBridgeChannel(
     let offers = 0;
     const offered: PortLike[] = [];
     let stop: (() => void) | null = null;
+    const pendingReads = new Map<string, (result: PointLayerReadResult) => void>();
 
     const accept = (port: PortLike) => {
         ready = port;
@@ -149,6 +182,12 @@ export function offerBridgeChannel(
             if (data?.kind === 'health') {
                 const health = parseCaptureHealth(data.health);
                 if (health) onHealth?.(health);
+                return;
+            }
+            if (data?.kind === 'pointLayerCrops') {
+                const settle = typeof data.requestId === 'string' ? pendingReads.get(data.requestId) : undefined;
+                if (!settle) return;
+                settle(parsePointLayerReadResult(data.result) ?? failedRead('bad-reply'));
                 return;
             }
             if (data?.kind === 'mapResource') {
@@ -177,5 +216,23 @@ export function offerBridgeChannel(
 
     return {
         isReady: () => ready !== null,
+        readPointLayer(request, timeoutMs, schedule) {
+            const port = ready;
+            if (!port) return Promise.resolve(failedRead('no-channel'));
+            if (pendingReads.has(request.requestId)) return Promise.resolve(failedRead('duplicate'));
+            return new Promise((resolve) => {
+                const settle = (result: PointLayerReadResult) => {
+                    if (pendingReads.get(request.requestId) !== settle) return;
+                    pendingReads.delete(request.requestId);
+                    resolve(result);
+                };
+                pendingReads.set(request.requestId, settle);
+                schedule(() => settle(failedRead('timeout')), timeoutMs);
+                const message: BridgeToMainMessage = {
+                    kind: 'readPointLayer', requestId: request.requestId, frame: request.frame, spots: request.spots,
+                };
+                try { port.postMessage(message); } catch { settle(failedRead('no-channel')); }
+            });
+        },
     };
 }

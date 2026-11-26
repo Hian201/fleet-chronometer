@@ -28,8 +28,15 @@ import { captureSenkaRanking } from '@/utils/senka-store';
 import { captureShipObtained } from '@/utils/ship-obtained';
 import { replyWhenSettled } from '@/utils/runtime-reply';
 import { parseCaptureTiming, wallNow, type CaptureTiming } from '@/utils/capture-timing';
-import { MSG_MAP_LABELS, MSG_MAP_RESOURCE, mergeMapLabelRow, parseMapResourceMessage } from '@/utils/map-labels';
+import {
+  MSG_MAP_LABELS, MSG_MAP_RESOURCE, MSG_POINT_LAYER_READ, PORT_POINT_LAYER, mergeMapLabelRow, parseMapResourceMessage,
+  parsePointLayerReadResult, type PointLayerReadMessage, type PointLayerReadResult, type PointLayerReplyMessage,
+} from '@/utils/map-labels';
 import { parseMapInfo } from '@/utils/map-resource';
+import {
+  applyPointLayerResult, formatPointLayerVerification, planPointLayerRead, pointLayerSkipReason, verifyPointLayerResult,
+} from '@/utils/map-point-ocr';
+import { POINT_LAYER_BRIDGE_TIMEOUT_MS } from '@/utils/map-point-layer';
 
 // 開發用延遲量測（utils/capture-timing.ts）：只在記憶體中從 kc:api 轉交到 kc:live，
 // 不進 ingestEvent() 的 row。重送的重複 envelope 不會再跑 postProcess，故設上限、丟最舊的。
@@ -181,6 +188,10 @@ export default defineBackground(() => {
     ));
   };
   browser.runtime.onConnect.addListener(port => {
+    if (port.name !== PORT_POINT_LAYER) return;
+    connectPointLayerPort(port);
+  });
+  browser.runtime.onConnect.addListener(port => {
     if (port.name !== PORT_GAME_FRAME) return;
     fleetPhotoCapture.connect(port);
     captureHealth.connect(port);
@@ -290,7 +301,7 @@ export default defineBackground(() => {
     }
     // 地圖資源旁路（utils/map-labels.ts）：不是 raw event，不經 ingestEvent()。
     if (msg?.type === MSG_MAP_RESOURCE) {
-      return replyWhenSettled(storeMapResource(msg), sendResponse, (error) => {
+      return replyWhenSettled(storeMapResource(msg, sender), sendResponse, (error) => {
         console.warn('[Fleet Chronometer] 地圖資源寫入失敗，略過此筆', error);
         return undefined;
       });
@@ -373,7 +384,7 @@ export default defineBackground(() => {
  * 解析一個地圖資源檔，在 transaction 內與該關既有的檔合併後寫回 db.mapLabels，再廣播給開著的
  * 面板／情報總括。格式不符只略過，不寫入。
  */
-async function storeMapResource(msg: unknown): Promise<void> {
+async function storeMapResource(msg: unknown, sender: MessageSenderLike): Promise<void> {
   const input = parseMapResourceMessage(msg);
   if (!input) return;
   let json: unknown = null;
@@ -389,6 +400,105 @@ async function storeMapResource(msg: unknown): Promise<void> {
     return next;
   });
   browser.runtime.sendMessage({ type: MSG_MAP_LABELS, map: row.map, letters: row.letters }).catch(() => { });
+  // 不等讀取完成：地圖資源訊息先回覆，bridge 不必等。
+  void readPointLayer(row.map, sender).catch((error) => {
+    console.warn('[Fleet Chronometer] 地圖圖層字母辨識失敗', row.map, error);
+  });
+}
+
+type MessageSenderLike = { tab?: { id?: number }; frameId?: number };
+type RuntimePort = Parameters<Parameters<typeof browser.runtime.onConnect.addListener>[0]>[0];
+
+// 驗證模式（只在開發建置）：每關在一個 SW 生命週期內只驗證一次。
+const pointLayerVerified = new Set<string>();
+
+// 各遊戲框 bridge 主動連上的 PORT_POINT_LAYER，以 `${tabId}:${frameId}` 為鍵（理由見 utils/map-labels.ts）。
+const pointLayerPorts = new Map<string, RuntimePort>();
+const pointLayerPending = new Map<string, { port: RuntimePort; settle: (result: PointLayerReadResult) => void }>();
+const pointLayerPortKey = (tabId: number, frameId: number) => `${tabId}:${frameId}`;
+const failedPointLayerRead = (reason: string): PointLayerReadResult => ({ ok: false, reason, totalMs: 0, maxMs: 0 });
+
+function connectPointLayerPort(port: RuntimePort): void {
+  const tabId = port.sender?.tab?.id;
+  const frameId = port.sender?.frameId;
+  if (typeof tabId !== 'number' || typeof frameId !== 'number') return;
+  const key = pointLayerPortKey(tabId, frameId);
+  pointLayerPorts.set(key, port);
+  port.onMessage.addListener((msg: unknown) => {
+    const reply = msg as Partial<PointLayerReplyMessage> | null;
+    const pending = typeof reply?.requestId === 'string' ? pointLayerPending.get(reply.requestId) : undefined;
+    if (!pending || pending.port !== port) return;
+    pending.settle(parsePointLayerReadResult(reply?.result) ?? failedPointLayerRead('bad-reply'));
+  });
+  port.onDisconnect.addListener(() => {
+    if (pointLayerPorts.get(key) === port) pointLayerPorts.delete(key);
+    for (const pending of [...pointLayerPending.values()]) if (pending.port === port) pending.settle(failedPointLayerRead('no-port'));
+  });
+}
+
+/** 對指定 frame 的 port 送讀取要求，依 requestId 等回覆；沒有 port、斷線或逾時都回失敗。 */
+function requestPointLayer(tabId: number, frameId: number, request: PointLayerReadMessage): Promise<PointLayerReadResult> {
+  const port = pointLayerPorts.get(pointLayerPortKey(tabId, frameId));
+  if (!port) return Promise.resolve(failedPointLayerRead('no-port'));
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => settle(failedPointLayerRead('timeout')), POINT_LAYER_BRIDGE_TIMEOUT_MS);
+    const settle = (result: PointLayerReadResult) => {
+      if (pointLayerPending.get(request.requestId)?.settle !== settle) return;
+      pointLayerPending.delete(request.requestId);
+      clearTimeout(timer);
+      resolve(result);
+    };
+    pointLayerPending.set(request.requestId, { port, settle });
+    try { port.postMessage(request); } catch { settle(failedPointLayerRead('no-port')); }
+  });
+}
+
+/**
+ * 地圖節點字母辨識（utils/map-point-ocr.ts）：缺字節點有沒讀過的，才經 PORT_POINT_LAYER 請傳來地圖資源
+ * 的那個 frame 裁切 point 圖層，再在這裡比對、寫回 db.mapLabels。先記下 ocrAttemptKey 再送要求，成功、
+ * 失敗、逾時都算讀過一次；那個 frame 沒有 port 時不送，也不記。
+ */
+async function readPointLayer(map: string, sender: MessageSenderLike): Promise<void> {
+  const tabId = sender.tab?.id;
+  const frameId = sender.frameId;
+  if (typeof tabId !== 'number' || typeof frameId !== 'number') return;
+  if (!pointLayerPorts.has(pointLayerPortKey(tabId, frameId))) {
+    if (DEV_BUILD) console.log('[Fleet Chronometer] 不讀地圖圖層', map, '傳來地圖資源的 frame 沒有圖層通道（no-port）');
+    return;
+  }
+  const plan = await db.transaction('rw', db.mapLabels, async () => {
+    const row = await db.mapLabels.get(map);
+    if (!row) return null;
+    const verify = DEV_BUILD && !pointLayerVerified.has(map);
+    const next = planPointLayerRead(row, verify);
+    if (DEV_BUILD && !next) console.log('[Fleet Chronometer] 不讀地圖圖層', map, pointLayerSkipReason(row, verify));
+    // 同一關的多個地圖資源訊息會並發進來；在交易內同步記下，後到的就不會重複送要求。
+    if (next?.mode === 'verify') pointLayerVerified.add(map);
+    if (next?.mode === 'fill') await db.mapLabels.put({ ...row, ocrAttemptKey: next.key });
+    return next;
+  });
+  if (!plan) return;
+  const request: PointLayerReadMessage = {
+    type: MSG_POINT_LAYER_READ, map, requestId: crypto.randomUUID(), frame: plan.frame, spots: plan.spots,
+  };
+  const result = await requestPointLayer(tabId, frameId, request);
+  if (!result.ok) {
+    console.info('[Fleet Chronometer] 未能讀取地圖圖層，維持原始編號', map, result.reason);
+    return;
+  }
+  if (DEV_BUILD && plan.mode === 'verify') {
+    const row = await db.mapLabels.get(map);
+    if (row) console.log(formatPointLayerVerification(verifyPointLayerResult(row, result.crops), result.totalMs, result.maxMs));
+    return;
+  }
+  if (plan.mode !== 'fill') return;
+  const updated = await db.transaction('rw', db.mapLabels, async () => {
+    const row = await db.mapLabels.get(map);
+    const next = row ? applyPointLayerResult(row, plan.spots, result.crops) : null;
+    if (next) await db.mapLabels.put(next);
+    return next;
+  });
+  if (updated) browser.runtime.sendMessage({ type: MSG_MAP_LABELS, map, letters: updated.letters }).catch(() => { });
 }
 
 /** 依 content script 的實際 outer-inner 差，讓內容區精準容納原始遊戲區與底部列。 */

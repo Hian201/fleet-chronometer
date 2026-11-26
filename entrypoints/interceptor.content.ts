@@ -3,7 +3,10 @@ import { getKcsapiPath, parseKcsapiResponse } from '../utils/kcsapi';
 import { CaptureHealthMonitor } from '../utils/capture-health';
 import { IdleCaptureQueue, type IdleDeadlineLike, type QueueTiming } from '../utils/idle-capture-queue';
 import { wallNow, type MainCaptureTiming } from '../utils/capture-timing';
-import { connectMainChannel, isChannelHandshake, type HandshakeEndpoint, type PortLike } from '../utils/main-channel';
+import {
+    connectMainChannel, isChannelHandshake, type BridgeToMainMessage, type HandshakeEndpoint, type PortLike,
+} from '../utils/main-channel';
+import { readPointLayer, type CanvasContextLike } from '../utils/map-point-layer';
 
 export default defineContentScript({
     matches: ['*://*.kancolle-server.com/*'],
@@ -37,9 +40,36 @@ export default defineContentScript({
                 return () => window.removeEventListener('message', listener);
             },
         };
+        // 地圖節點字母辨識（utils/map-point-layer.ts）：只在 bridge 轉來 background 的要求時動作，一次只處理
+        // 一個要求。只讀材質快取與材質屬性，畫到擴充自己的小畫布（不加入 DOM），送出的只有遮罩字串。
+        let pointLayerBusy = false;
+        const onReadPointLayer = (request: BridgeToMainMessage) => {
+            if (pointLayerBusy) {
+                channel.send({ kind: 'pointLayerCrops', requestId: request.requestId, result: { ok: false, reason: 'busy', totalMs: 0, maxMs: 0 } });
+                return;
+            }
+            pointLayerBusy = true;
+            void readPointLayer(request, {
+                getTexture: (frame) => (window as any).PIXI?.utils?.TextureCache?.[frame],
+                createContext: (w, h) => {
+                    const canvas = typeof OffscreenCanvas === 'function'
+                        ? new OffscreenCanvas(w, h)
+                        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+                    return canvas.getContext('2d', { willReadFrequently: true }) as unknown as CanvasContextLike | null;
+                },
+                now: () => performance.now(),
+                delay: (callback, delayMs) => { setTimeout(callback, delayMs); },
+                idle: (callback) => requestIdle(() => callback()),
+            }).then((result) => {
+                pointLayerBusy = false;
+                channel.send({ kind: 'pointLayerCrops', requestId: request.requestId, result });
+            });
+        };
+
         const channel = connectMainChannel(
             endpoint,
             (dropped) => console.warn('[Fleet Chronometer] 擷取通道尚未建立，已丟棄最舊的回應', dropped),
+            onReadPointLayer,
         );
 
         // 擷取健康度（utils/capture-health.ts）：以 resource timing 看遊戲實際完成的 kcsapi

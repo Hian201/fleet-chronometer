@@ -13,7 +13,10 @@
 
 export type MapSpot = { no: number; x: number; y: number; isStart: boolean };
 export type MapLabel = { x: number; y: number; name: string };
-export type MapInfoPart = { spots: MapSpot[]; labels: MapLabel[] };
+/** `pointLayer` 是基本檔 `bg` 中名稱以 `_point` 結尾的圖層（節點字母畫在這層，見 utils/map-point-ocr.ts）。 */
+export type MapInfoPart = { spots: MapSpot[]; labels: MapLabel[]; pointLayer?: string };
+/** 終點座標相距 ≤ 4px 併成的節點；`edges` 為抵達該節點的路線編號。 */
+export type MapNode = { x: number; y: number; edges: number[] };
 
 // 終點座標相距在此以內視為同一節點、標籤與節點相距在此以內才可配對（poi mergeDist／assignLabels）。
 const MERGE_DIST = 4;
@@ -48,26 +51,33 @@ export function parseMapInfo(json: unknown): MapInfoPart | null {
             if (name) labels.push({ x: l.x, y: l.y, name });
         }
     }
-    return { spots, labels };
+    // bg 的元素是圖層名字串或 `{ name, img }`（取 img），依據：samples/map-info/62-01_info.json。
+    const pointLayer = Array.isArray(json.bg)
+        ? json.bg.map((b) => (isRecord(b) ? b.img : b)).find((n): n is string => typeof n === 'string' && n.endsWith('_point'))
+        : undefined;
+    return pointLayer ? { spots, labels, pointLayer } : { spots, labels };
 }
 
-/** 合併同一關的多個 info 檔，配對標籤與終點節點，輸出 `edge no → 節點名`。 */
-export function edgeLettersFromMapInfo(parts: MapInfoPart[]): Record<number, string> {
+/**
+ * 合併同一關的多個 info 檔（依載入順序，後者的同編號路線覆蓋前者），取非出擊點的終點並把相距
+ * ≤ MERGE_DIST 的併成同一節點（以第一個進來的座標為準；edge 依編號處理以求穩定）。依座標排序。
+ */
+export function mapNodesFromMapInfo(parts: MapInfoPart[]): MapNode[] {
     const byNo = new Map<number, MapSpot>();
-    const labels: MapLabel[] = [];
-    for (const p of parts) {
-        for (const s of p.spots) byNo.set(s.no, s);
-        labels.push(...p.labels);
-    }
-
-    // 終點相距 ≤ MERGE_DIST 併成同一節點（以第一個進來的座標為準；edge 依編號處理以求穩定）。
-    const nodes: Array<{ x: number; y: number; edges: number[] }> = [];
+    for (const p of parts) for (const s of p.spots) byNo.set(s.no, s);
+    const nodes: MapNode[] = [];
     for (const s of [...byNo.values()].filter((v) => !v.isStart).sort((a, b) => a.no - b.no)) {
         const hit = nodes.find((n) => Math.hypot(n.x - s.x, n.y - s.y) <= MERGE_DIST);
         if (hit) hit.edges.push(s.no);
         else nodes.push({ x: s.x, y: s.y, edges: [s.no] });
     }
-    nodes.sort((a, b) => a.x - b.x || a.y - b.y);
+    return nodes.sort((a, b) => a.x - b.x || a.y - b.y);
+}
+
+/** 合併同一關的多個 info 檔，配對標籤與終點節點，輸出 `edge no → 節點名`。 */
+export function edgeLettersFromMapInfo(parts: MapInfoPart[]): Record<number, string> {
+    const labels = parts.flatMap((p) => p.labels);
+    const nodes = mapNodesFromMapInfo(parts);
 
     // 標籤 × 節點由近到遠，每個標籤、每個節點各取一次；距離相同依標籤原始順序再依節點順序。
     const pairs: Array<{ d: number; li: number; ni: number }> = [];

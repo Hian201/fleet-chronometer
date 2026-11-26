@@ -87,12 +87,19 @@ letter  A    E    I    Q    Y    Z   ZZ
 原始編號一律留在 tooltip。`EDGE_LETTER_OVERRIDES` 供臨時人工覆蓋（平時應為空）。
 
 **查表順序**（`nodeLetter()`，逐 edge）：`EDGE_LETTER_OVERRIDES` → `EDGE_LETTERS`（靜態表）→
-遊戲內補充對照 → null。補充對照來自遊戲自己載入的地圖資源 `_info*.json`：`labels[]` 畫在地圖上的
-節點名，依 poi `fcd/gen-map.js` 的距離配對到路線終點（`utils/map-resource.ts`），background 存進
-`db.mapLabels`（旁路見 [capture.md](capture.md)「地圖資源旁路」），面板與情報總括啟動時載入、收到
-`kc:map-labels` 廣播時以 `setRuntimeEdgeLetters()` 整關覆蓋。只補得出活動中途開放的節點；初始節點
-的字母畫在背景圖上、不在 JSON 裡，仍顯示原始編號。靜態表與補充對照對同一 edge 不一致時以靜態表為準。
-`hasNodeLetters()` 只看靜態表：補充對照補不出初始節點，「此海域尚無字母對照」的說明依然成立。
+遊戲內補充對照 → null。補充對照是 `db.mapLabels` 的 `letters`，由 background 合併兩個來源（同一 edge
+以前者為準）：
+
+1. **標籤**：遊戲自己載入的地圖資源 `_info*.json` 中 `labels[]` 畫在地圖上的節點名，依 poi
+   `fcd/gen-map.js` 的距離配對到路線終點（`utils/map-resource.ts`；旁路見 [capture.md](capture.md)
+   「地圖資源旁路」）。只補得出活動中途開放的節點。
+2. **point 圖層辨識**（`ocrLetters`）：初始節點的字母只畫在地圖背景的 point 圖層上，靜態表與標籤都沒有
+   時，才從遊戲已載入的圖層材質裁切節點附近、與字形庫比對（`utils/map-point-ocr.ts`；流程見
+   [capture.md](capture.md)「地圖節點字母辨識」）。字形庫沒有的名稱或比對不明確時不讀，維持原始編號。
+
+面板與情報總括啟動時載入、收到 `kc:map-labels` 廣播時以 `setRuntimeEdgeLetters()` 整關覆蓋。靜態表
+與補充對照對同一 edge 不一致時以靜態表為準。`hasNodeLetters()` 只看靜態表：補充對照不保證補齊，
+「此海域尚無字母對照」的說明依然成立。
 
 **顯示節點的地方一律走同一支 `nodeLabel()`**（面板出擊分頁、出擊紀錄的軌跡／節點卡／基地波次／
 支援出動節點、LLM 報告）。節點字母只能使用已驗證的對照表；查不到時顯示原始 edge 編號，

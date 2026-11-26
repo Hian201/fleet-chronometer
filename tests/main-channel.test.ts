@@ -178,4 +178,71 @@ describe('main-channel', () => {
         await settle();
         expect(resources).toEqual([{ kind: 'mapResource', map: '62-1', part: 18, text: '{}' }]);
     });
+
+    describe('bridge → MAIN：讀取 point 圖層', () => {
+        const request = { requestId: 'r1', frame: 'map06201_map62-1_point', spots: [{ x: 100, y: 200 }] };
+        const ok = { ok: true as const, crops: [{ x0: 45, y0: 145, w: 1, h: 1, bits: 'gA==' }], totalMs: 1.5, maxMs: 1 };
+        const immediate = (_: () => void, __: number) => { };
+
+        it('MAIN 收到要求交給回呼，回覆依 requestId 交回 bridge', async () => {
+            const win = new FakeWindow();
+            const requests: unknown[] = [];
+            const main = connectMainChannel(win.endpoint(), undefined, (r) => {
+                requests.push(r);
+                main.send({ kind: 'pointLayerCrops', requestId: 'other', result: { ...ok, crops: [] } });
+                main.send({ kind: 'pointLayerCrops', requestId: r.requestId, result: ok });
+            });
+            const bridge = offerBridgeChannel(win.endpoint(), () => { }, createChannel);
+            await settle();
+            const result = await bridge.readPointLayer(request, 1000, immediate);
+            expect(requests).toEqual([{ kind: 'readPointLayer', ...request }]);
+            expect(result).toEqual(ok);
+        });
+
+        it('通道未建立回 no-channel；逾時回 timeout', async () => {
+            const win = new FakeWindow();
+            const bridge = offerBridgeChannel(win.endpoint(), () => { }, createChannel);
+            expect(await bridge.readPointLayer(request, 1000, immediate)).toMatchObject({ ok: false, reason: 'no-channel' });
+            connectMainChannel(win.endpoint(), undefined, () => { /* 不回覆 */ });
+            await settle();
+            let fire: (() => void) | undefined;
+            const pending = bridge.readPointLayer(request, 1000, (cb) => { fire = cb; });
+            fire!();
+            expect(await pending).toMatchObject({ ok: false, reason: 'timeout' });
+        });
+
+        it('bridge 把格式不合的回覆當失敗', async () => {
+            const win = new FakeWindow();
+            const main = connectMainChannel(win.endpoint(), undefined, (r) => {
+                main.send({ kind: 'pointLayerCrops', requestId: r.requestId, result: { ...ok, crops: [{ x0: 0, y0: 0, w: 999, h: 1, bits: '' }] } as never });
+            });
+            const bridge = offerBridgeChannel(win.endpoint(), () => { }, createChannel);
+            await settle();
+            expect(await bridge.readPointLayer(request, 1000, immediate)).toMatchObject({ ok: false, reason: 'bad-reply' });
+        });
+
+        it('MAIN 只接受讀取要求，格式不合或其他 kind 一律丟棄', async () => {
+            const win = new FakeWindow();
+            const requests: unknown[] = [];
+            connectMainChannel(win.endpoint(), undefined, r => requests.push(r));
+            const channel = createChannel();
+            channel.port1.onmessage = () => { };
+            win.endpoint().post({ [CHANNEL_MARK]: 1, kind: 'offer' }, [channel.port2]);
+            await settle();
+            for (const bad of [
+                { kind: 'capture', path: 'x', apiText: '' },
+                { kind: 'readPointLayer', ...request, frame: 'map62-1_point' },
+                { kind: 'readPointLayer', ...request, frame: '../x_point' },
+                { kind: 'readPointLayer', ...request, spots: [] },
+                { kind: 'readPointLayer', ...request, spots: [{ x: -1, y: 0 }] },
+                { kind: 'readPointLayer', ...request, spots: [{ x: '1', y: 0 }] },
+                { kind: 'readPointLayer', ...request, spots: Array.from({ length: 101 }, () => ({ x: 1, y: 1 })) },
+                { kind: 'readPointLayer', ...request, requestId: '' },
+                null,
+            ]) channel.port1.postMessage(bad);
+            channel.port1.postMessage({ kind: 'readPointLayer', ...request, extra: 'dropped' });
+            await settle();
+            expect(requests).toEqual([{ kind: 'readPointLayer', ...request }]);
+        });
+    });
 });

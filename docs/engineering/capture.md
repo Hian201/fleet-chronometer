@@ -41,7 +41,7 @@ SW 隨時可能被回收，不持有跨事件狀態；面板關閉期間資料�
 - 送出經 `utils/idle-capture-queue.ts` 依序排程：輸入後至少讓出一幀；512K 字元以下排到下一個
   task，更大或大小未知者等 idle。延遲量測（`utils/capture-timing.ts`）只在開發用 UI 收集、不寫 DB。
 - MAIN 與 bridge 之間走 `utils/main-channel.ts` 的 MessageChannel：只有 document_start 的握手經過
-  window（驗證同一 window、同源），封包走私有 port（只有 MAIN → bridge 一個方向）、不在頁面上
+  window（驗證同一 window、同源），封包走私有 port（MAIN → bridge；反方向只承載「地圖節點字母辨識」的讀取要求）、不在頁面上
   廣播；通道建立前的封包在 MAIN 端依序緩衝，不改走 window 備援。MessagePort 從 ISOLATED 經 `window.postMessage`
   轉移到 MAIN world 已在 Edge／macOS 實機確認。
 - 正式建置的 MAIN world 不設除錯全域變數、不印封包（建置旗標在編譯期折掉）。腳本本身也不
@@ -80,6 +80,59 @@ panel／情報總括：setRuntimeEdgeLetters()；啟動時從 db.mapLabels 載�
 - `db.mapLabels` 的唯一寫入者是 background；同一檔重複觀測結果相同（冪等）。格式不符只略過並
   `console.warn`。
 - **不放進備份**：內容隨時可從遊戲重新取得；還原後再開一次該地圖就會補回。v19 升版不回填。
+
+## 地圖節點字母辨識（point 圖層）
+
+初始節點的字母只畫在地圖背景的 point 圖層上（`_info*.json` 的 `labels` 只有中途開放的節點）。靜態表、
+人工覆蓋、標籤都沒有字母時，才唯讀讀取遊戲已載入的圖層材質補字（AGENTS.md 硬約束 1 的唯一例外；
+規格與離線實驗見 `docs/completion-plan.md` 4.11）：
+
+```
+background storeMapResource 寫入 db.mapLabels 後（utils/map-point-ocr.ts planPointLayerRead）
+  ▼ 傳來該地圖資源的 frame 有圖層通道、且有沒讀過的缺字節點 → 先寫 ocrAttemptKey，再對該 frame 的
+    PORT_POINT_LAYER 送 { type:'kc:point-layer-read', map, requestId, frame:"map"+海域3位+關卡2位+"_"+pointLayer, spots }
+bridge：parsePointLayerReadMessage 驗證 → 私有 port { kind:'readPointLayer' }（bridge → MAIN 唯一的訊息）
+  ▼
+MAIN（utils/map-point-layer.ts）：每 500ms 檢查 PIXI.utils.TextureCache[frame]，最多等 10 秒；
+  每個閒置時段處理一個節點：以節點中心 [x-55, y-55] 起 110×110（截在影格內）畫到擴充自己的小畫布，
+  getImageData → 字身遮罩 → 位元打包
+  ▼ { kind:'pointLayerCrops', requestId, result:{ ok, crops | reason, totalMs, maxMs } }
+bridge：同一個 PORT_POINT_LAYER 回 { requestId, result }（background 等 30 秒，斷線或逾時算失敗）
+  ▼
+background：readNodeLetters(crops, 全部非出擊點節點) → applyPointLayerResult 寫回 ocrLetters
+  ▼ letters ＝ 標籤配對 ＋ ocrLetters（同一 edge 標籤優先），沿用 kc:map-labels 廣播
+```
+
+- **通道**：bridge 在 document_start 主動 `runtime.connect({ name: 'kc:point-layer' })`，斷線（SW 回收）後
+  250ms 重連，同 `PORT_MUTE`；background 以 `${tabId}:${frameId}` 記住 port、斷線時移除。不用
+  `tabs.sendMessage`：那需要遊戲分頁的 host permission（硬約束 7）。bridge 也**不掛 runtime 的訊息監聽**：
+  popup 的劇場模式以「遊戲分頁沒有接收端」決定要不要注入劇場腳本（`entrypoints/popup/main.ts`
+  `sendToTheaterScript`），掛了就會誤判已送達；`tests/interceptor-capture.test.ts` 把關。
+- **觸發條件**：基本檔帶有 `bg` 中以 `_point` 結尾的圖層（`pointLayer`），且有「缺字節點」：終點座標
+  ≤ 4px 合併後的節點，其每條 edge 在人工覆蓋、靜態表、標籤與先前辨識結果中都沒有字母。37 張常規海域
+  的靜態表完整，正式建置下永遠不讀；平常只會在新活動海域觸發。
+- **一次限制**：送要求前把缺字節點座標串寫進 `ocrAttemptKey`，成功、讀不出、逾時、分頁沒回應都算讀過；
+  傳來地圖資源的 frame 沒有圖層通道時不送，也不記。
+  之後只要目前的缺字節點都在這組裡就不再讀（用「涵蓋」不用「相等」：辨識補上一部分、或後續追加檔的
+  標籤補上，缺字組只會縮小）；地圖開放新階段、出現沒讀過的缺字節點才再讀。字形庫認不得的名稱不會
+  讓每次出擊都重讀。
+- **指派與採用**：全部非出擊點節點都參與一對一指派，避免鄰近節點的字被配錯；只採用「回覆時仍缺字、
+  且在這次要求內」的節點，同一節點的每條 edge 給同名，存在 `ocrLetters`，與標籤來源分開。
+- **不修改遊戲物件**：MAIN 只讀材質快取與材質屬性（live 為 PixiJS 4.8.8、`PIXI` 為遊戲框全域，底圖在
+  `baseTexture.source`；v5 以後的 `baseTexture.resource.source` 也嘗試），不修改、包裝或替換任何遊戲物件或原型，不發請求，不把材質或圖片物件傳出去，
+  只傳遮罩字串。材質不存在、處理途中消失或被換掉、影格旋轉／裁邊、解析度不是 1、畫布被汙染等任何
+  例外都回失敗，不重試。一次只處理一個要求，處理中再來的要求回 `busy`。
+- **MAIN 的模組界線**：遊戲頁只匯入 `utils/map-point-layer.ts` 與 `utils/map-glyph-mask.ts`；字形庫
+  （`map-glyph-data.ts`）、比對（`map-glyph.ts`）與靜態表只在 background。
+  `tests/interceptor-capture.test.ts` 把關。
+- **欄位**：`MapLabelRow.ocrLetters`／`ocrAttemptKey` 皆選填、不加索引，所以 DB 不升版；隨 `mapLabels`
+  不進備份。
+- **驗證模式（只在開發建置）**：不需補字的海域（例如靜態表完整的常規海域）也照樣對全部非出擊點節點
+  發出讀取要求，不寫回 row，只把結果與靜態表逐一比對，在 service worker console 印一行
+  `[Fleet Chronometer] 圖層字母驗證 <map>：節點、讀對、讀錯（列出差異）、讀不出；遊戲頁主執行緒 總／單節點最大`。
+  每關在一個 SW 生命週期內只驗證一次。開發建置另在決定不讀時印 `[Fleet Chronometer] 不讀地圖圖層 <map> <原因>`
+  （沒有 point 圖層、缺字節點都已讀過、沒有缺字且已驗證過、沒有圖層通道）。建置旗標在編譯期折掉，正式
+  建置不含驗證與診斷的比對和輸出。
 
 ## 持久化與投影契約
 

@@ -4,6 +4,9 @@
 // 打包格式與 tools/map-glyphs/generate.py 一致：列優先，第 i 個像素在第 i>>3 位元組的
 // (7 - (i & 7)) 位元，整串再做 base64。依據見 docs/completion-plan.md 4.11 的離線實驗。
 
+/** 節點附近裁切的邊長：以節點中心為準 [x-55, y-55] 起 110×110，超出圖層邊界就截斷。 */
+export const CROP_SIZE = 110;
+
 /** 字身遮罩：alpha ≥ 128 且亮度（299R＋587G＋114B）/1000 < 110 的像素為 1，其餘為 0。 */
 export function darkMaskFromRGBA(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number): Uint8Array {
     const mask = new Uint8Array(w * h);

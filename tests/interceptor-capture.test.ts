@@ -143,4 +143,28 @@ describe('kcsapi 擷取不得包裝原生網路 API', () => {
         }
         expect(hits).toEqual([]);
     });
+
+    it('地圖圖層讀取只在收到要求時動作，MAIN 不匯入字形庫、比對與靜態表', () => {
+        const code = withoutComments(interceptorSrc.replace("'*://*.kancolle-server.com/*'", "''"));
+        // 材質快取只在讀取要求的處理函式內存取
+        const handler = code.slice(code.indexOf('const onReadPointLayer'), code.indexOf('const channel = connectMainChannel'));
+        expect(code.match(/TextureCache/g)).toHaveLength(1);
+        expect(handler).toContain('TextureCache');
+        expect(code).toContain('onReadPointLayer,');
+        // MAIN 會載入的模組：字形庫、比對、靜態表一律不得在執行期匯入（map-glyph 只准 import type）
+        for (const file of ['../entrypoints/interceptor.content.ts', '../utils/map-point-layer.ts', '../utils/main-channel.ts', '../utils/map-labels.ts']) {
+            const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+            expect(src, file).not.toMatch(/from '(?:\.\.\/utils|\.)\/(?:map-glyph-data|map-edge-letters|map-node-letters|map-point-ocr)'/);
+            for (const m of src.matchAll(/import\s+(type\s+)?[^;]*?from '(?:\.\.\/utils|\.)\/map-glyph'/g)) expect(m[1], file).toBeTruthy();
+        }
+    });
+
+    it('bridge 不掛 runtime 訊息監聽：遊戲分頁對 tabs.sendMessage 必須維持「沒有接收端」', () => {
+        // popup 的劇場模式（entrypoints/popup/main.ts sendToTheaterScript）以 tabs.sendMessage 丟錯判斷
+        // 劇場腳本尚未注入、才 executeScript；bridge 一掛 onMessage，遊戲分頁就永遠有接收端，promise
+        // 改為 resolve undefined，popup 誤判已送達而不注入。background → bridge 一律走 bridge 主動連上的 port。
+        expect(bridgeSrc).not.toContain('runtime.onMessage');
+        expect(withoutComments(bridgeSrc)).not.toMatch(/\bonMessage\.addListener\(\s*\(\s*\w+\s*,\s*\w+\s*,\s*\w+/);
+        expect(bridgeSrc).toContain('PORT_POINT_LAYER');
+    });
 });

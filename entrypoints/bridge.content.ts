@@ -11,7 +11,11 @@ import { isBlankSample, regionToCanvasPx } from '../utils/fleet-photo';
 import { parseCaptureTiming, wallNow } from '../utils/capture-timing';
 import { SENSITIVE_REQUEST_KEYS } from '../utils/kcsapi';
 import type { CaptureHealth } from '../utils/capture-health';
-import { MSG_MAP_RESOURCE, type MapResourceMessage } from '../utils/map-labels';
+import {
+    MSG_MAP_RESOURCE, PORT_POINT_LAYER, parsePointLayerReadMessage,
+    type MapResourceMessage, type PointLayerReplyMessage,
+} from '../utils/map-labels';
+import { POINT_LAYER_BRIDGE_TIMEOUT_MS } from '../utils/map-point-layer';
 
 // 「夠大才算遊戲畫布」的門檻（px）：小於此尺寸的 canvas 不視為遊戲畫面。
 const MIN_GAME_CANVAS_WIDTH = 200;
@@ -72,7 +76,7 @@ export default defineContentScript({
             catch { /* 已斷線；重連後會再送 */ }
         };
 
-        offerBridgeChannel(
+        const bridgeChannel = offerBridgeChannel(
             endpoint,
             (d) => {
                 const req = Object.fromEntries(new URLSearchParams(d.req));
@@ -99,6 +103,35 @@ export default defineContentScript({
                     .catch((e) => console.warn('[Fleet Chronometer] 送出地圖資源失敗，略過此筆', d.map, e));
             },
         );
+
+        // ── 地圖節點字母辨識：background 的讀取要求轉給 MAIN（utils/map-point-layer.ts）──────
+        // 走 bridge 主動連上的專用長連線（理由同下方 PORT_MUTE：background 不能對遊戲分頁
+        // tabs.sendMessage）。**本檔不得掛 runtime 的訊息監聽**：popup 的劇場模式以「遊戲分頁沒有
+        // 接收端」判斷要不要注入劇場腳本（entrypoints/popup/main.ts sendToTheaterScript），這裡一掛
+        // 監聽就會讓它誤判已送達。要求格式不合即丟；MAIN 沒回應時以逾時失敗收尾，不重試。
+        const connectPointLayerPort = () => {
+            try {
+                const port = browser.runtime.connect({ name: PORT_POINT_LAYER });
+                port.onMessage.addListener((msg: unknown) => {
+                    const request = parsePointLayerReadMessage(msg);
+                    if (!request) return;
+                    void bridgeChannel.readPointLayer(
+                        request, POINT_LAYER_BRIDGE_TIMEOUT_MS, (callback, delayMs) => { setTimeout(callback, delayMs); },
+                    ).then((result) => {
+                        try { port.postMessage({ requestId: request.requestId, result } satisfies PointLayerReplyMessage); }
+                        catch { /* 已斷線；background 以逾時或斷線收尾 */ }
+                    });
+                });
+                // SW 閒置回收會斷線；同靜音通道，短延遲重連
+                port.onDisconnect.addListener(() => {
+                    setTimeout(connectPointLayerPort, PORT_RECONNECT_MS);
+                });
+            } catch (e) {
+                // 連線失敗只代表這個分頁讀不到地圖圖層，封包擷取完全不受影響。
+                console.warn('[Fleet Chronometer] 地圖圖層通道連線失敗', e);
+            }
+        };
+        connectPointLayerPort();
 
         // ── 遊戲分頁登記（靜音用）──────────────────────────
         // 靜音由 background 以 tabs.update 對「含有遊戲框的分頁」執行；這條長連線讓它知道是

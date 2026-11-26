@@ -521,12 +521,18 @@ export type GoalRow = RemodelGoalRow | StockpileGoalRow;
 
 // 遊戲地圖資源 `_info*.json` 補出的節點字母（utils/map-labels.ts）。由 background 收到地圖資源訊息後
 // 在 transaction 內讀、合併、寫回，冪等；不是 raw event 的衍生資料，不經 EventProjector。
-// parts 以 part 為鍵（基本檔為 MAP_INFO_BASE_PART），letters 是對全部 parts 的配對結果。
+// parts 以 part 為鍵（基本檔為 MAP_INFO_BASE_PART）；letters 是廣播與注入用的合併結果：
+// 對全部 parts 的標籤配對，再補上 point 圖層辨識（ocrLetters，標籤優先）。
+// ocrLetters／ocrAttemptKey 由 utils/map-point-ocr.ts 寫入，皆選填、不加索引，所以不升版。
 // 內容隨時可從遊戲重新取得，不放進備份；新增於 v19，不回填。
 export interface MapLabelRow {
     map: string;
     parts: Record<string, MapInfoPart>;
     letters: Record<number, string>;
+    /** point 圖層辨識出的字母，以 edge 為鍵（同一節點的每條 edge 同名），與標籤來源分開保存。 */
+    ocrLetters?: Record<number, string>;
+    /** 最近一次讀取 point 圖層時的缺字節點座標串（`x,y;x,y`）；涵蓋目前缺字節點時不再讀。 */
+    ocrAttemptKey?: string;
     ts: number;
 }
 

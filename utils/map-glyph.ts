@@ -12,15 +12,13 @@
 // `matchGlyph` 與字形庫容錯比對。寧可讀不出，也不讀錯（AGENTS.md 硬約束 8）。
 
 import { MAP_GLYPHS } from './map-glyph-data';
-import { unpackBits } from './map-glyph-mask';
+import { CROP_SIZE, unpackBits } from './map-glyph-mask';
 
-/** 節點附近的裁切：以節點中心為準 [x-55, y-55] 起 110×110，超出圖層邊界就截斷。 */
+/** 節點附近的裁切（見 map-glyph-mask.ts 的 CROP_SIZE）；x0／y0 為圖層座標。 */
 export type GlyphCrop = { x0: number; y0: number; w: number; h: number; bits: string };
 export type GlyphEntry = { name: string; w: number; h: number; bits: string };
 /** 圖層全域座標的字；x1／y1 不含，mask 為 (x1-x0)×(y1-y0) 的 0／1。 */
 export type GlyphWord = { x0: number; y0: number; x1: number; y1: number; mask: Uint8Array };
-
-export const CROP_SIZE = 110;
 
 // 以下參數與 tools/map-glyphs/generate.py 一致，改動要兩邊同步並重跑離線驗證。
 const WORD_GAP = 8; // 水平間距 ≤ 8px 併成一個字（4px 會把 A1 拆成 A 與 1）

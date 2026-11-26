@@ -82,6 +82,19 @@ describe('parseMapInfo', () => {
     });
 });
 
+describe('parseMapInfo：point 圖層名', () => {
+    it('基本檔 bg 中以 _point 結尾者（字串或 { img }）', () => {
+        expect(load('62-01_info.json').pointLayer).toBe('map62-1_point');
+        expect(load('62-02_info.json').pointLayer).toBe('map62-2_point');
+        expect(parseMapInfo({ spots: [], bg: ['m', { name: 'p', img: 'm_point' }] })?.pointLayer).toBe('m_point');
+    });
+    it('追加檔或 bg 沒有 point 圖層時不帶此欄位', () => {
+        expect(load('62-01_info18.json')).not.toHaveProperty('pointLayer');
+        expect(parseMapInfo({ spots: [], bg: ['m', { name: 'red', img: 'm_red' }, 1, null] })).toEqual({ spots: [], labels: [] });
+        expect(parseMapInfo({ spots: [], bg: 'm_point' })).toEqual({ spots: [], labels: [] });
+    });
+});
+
 describe('edgeLettersFromMapInfo：配對規則', () => {
     const spot = (no: number, x: number, y: number, isStart = false) => ({ no, x, y, isStart });
     const label = (x: number, y: number, name: string) => ({ x, y, name });

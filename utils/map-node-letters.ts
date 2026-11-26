@@ -61,7 +61,7 @@ export function nodeLabel(map: string, edge: number): string {
 }
 
 /** 這張圖有沒有靜態對照資料（UI 用來決定要不要說明「此海域尚無字母對照」）。不看遊戲內補充對照：
- *  補充對照只補得出中途開放的節點，初始節點仍顯示原始編號，說明依然成立。 */
+ *  補充對照（標籤與 point 圖層辨識）不保證補齊，認不出的節點仍顯示原始編號，說明依然成立。 */
 export function hasNodeLetters(map: string): boolean {
     return Object.keys(EDGE_LETTER_OVERRIDES[map] ?? EDGE_LETTERS[map] ?? {}).length > 0;
 }
