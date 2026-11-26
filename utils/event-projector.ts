@@ -2,6 +2,7 @@ import {
     db, type ApiEventRow, type ExpeditionGear, type ExpeditionRow, type ExpeditionShip, type FactoryLogRow, type MaterialUseRow, type ReplayRow, type SortieBillRow,
     type SortieLogRow,
 } from './db';
+import { parsePacketInt } from './gauge-clear';
 import { appendBattle, setDifficulty, startReplay } from './replay';
 import {
     airSupplyCost, billShipFromApi, keepsMaterialsTracked, sortieBill, supportBill, supportPlanesLost, type BillShip, type SupportShip,
@@ -237,25 +238,49 @@ export class EventProjector {
                 if (!row.cleared && existing?.cleared) {
                     row.cleared = true;
                     if (existing.clearedBy) row.clearedBy = existing.clearedBy;
+                    if (row.exmapRate === undefined && existing.exmapRate !== undefined) {
+                        row.exmapRate = existing.exmapRate;
+                    }
                 }
                 await this.tables.sorties.put(row);
             }
-        } else if (path === 'api_req_map/next' && api?.api_destruction_battle && !this.skipCurrentSortie) {
-            // 基地空襲欄位仍維持既有 best-effort 讀法，不新增或猜測任何 packet 欄位。
-            const destruction = api.api_destruction_battle;
-            const row: SortieLogRow = {
-                eventId: id, sortieKey: this.currentSortieKey, ts,
-                map: `${sortie.mapArea}-${sortie.mapNo}`,
-                node: api.api_no ?? 0, boss: false,
-                ...(Number.isSafeInteger(api?.api_event_id) ? { nodeEventId: api.api_event_id } : {}),
-                ...(Number.isSafeInteger(api?.api_event_kind) ? { nodeEventKind: api.api_event_kind } : {}),
-                kind: 'raid', rank: '',
-                seiku: destruction?.api_air_base_attack?.api_stage1?.api_disp_seiku ?? null,
-                enemyIds: [], enemyIdsEscort: [],
-                drop: null, taiha: false,
-                raidLostKind: destruction?.api_lost_kind ?? 0,
-            };
-            if (this.shouldPersist) await this.tables.sorties.put(row);
+        } else if (path === 'api_req_map/next' && !this.skipCurrentSortie) {
+            if (api?.api_destruction_battle) {
+                // 基地空襲欄位仍維持既有 best-effort 讀法，不新增或猜測任何 packet 欄位。
+                const destruction = api.api_destruction_battle;
+                const row: SortieLogRow = {
+                    eventId: id, sortieKey: this.currentSortieKey, ts,
+                    map: `${sortie.mapArea}-${sortie.mapNo}`,
+                    node: api.api_no ?? 0, boss: false,
+                    ...(Number.isSafeInteger(api?.api_event_id) ? { nodeEventId: api.api_event_id } : {}),
+                    ...(Number.isSafeInteger(api?.api_event_kind) ? { nodeEventKind: api.api_event_kind } : {}),
+                    kind: 'raid', rank: '',
+                    seiku: destruction?.api_air_base_attack?.api_stage1?.api_disp_seiku ?? null,
+                    enemyIds: [], enemyIdsEscort: [],
+                    drop: null, taiha: false,
+                    raidLostKind: destruction?.api_lost_kind ?? 0,
+                };
+                if (this.shouldPersist) await this.tables.sorties.put(row);
+            }
+            // 無 Boss 戰的 EO 終點（如 1-6 抵達母港格）：api_get_eo_rate 解析為正整數代表整圖擊破並給出戰果
+            // （KancolleSniffer KancolleSniffer/Model/ExMapInfo.cs InspectMapNext()）。
+            // 補標同一趟出擊最後一筆非 catchOnly 的戰鬥列，不新增列種類、不升 DB 版、不改備份格式；
+            // 若本趟沒有任何戰鬥列，維持由後續 mapinfo 快照補記。
+            const eoRate = parsePacketInt(api?.api_get_eo_rate, 1);
+            if (eoRate !== undefined && this.shouldPersist && this.currentSortieKey > 0) {
+                const battles = (await this.tables.sorties
+                    .filter(row => row.sortieKey === this.currentSortieKey && row.kind === 'battle' && !row.catchOnly)
+                    .toArray())
+                    .sort((left, right) => right.ts - left.ts || right.eventId - left.eventId);
+                const latest = battles[0];
+                if (latest) {
+                    await this.tables.sorties.update(latest.eventId, {
+                        cleared: true,
+                        exmapRate: eoRate,
+                        clearedBy: 'battle',
+                    });
+                }
+            }
         }
     }
 

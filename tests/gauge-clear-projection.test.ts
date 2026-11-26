@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KcDb } from '../utils/db';
 import { EventProjector, type ProjectableEvent } from '../utils/event-projector';
+import { eoClearsFromMapinfoSnapshot, eoSenkaForMonth } from '../utils/senka';
+import { calibrateMonthlySenka } from '../utils/senka-calibration';
 import { GameState } from '../utils/state';
 
 const databases: KcDb[] = [];
@@ -472,5 +474,189 @@ describe('EventProjector 與 GameState 戰鬥當下斬殺判定', () => {
         };
         await projector.project(ev(5, 'api_get_member/mapinfo', reset));
         expect(state.mapGauges.get(56)).toMatchObject({ defeatCount: 0, requiredDefeatCount: 280, nowHp: 0, maxHp: 0 });
+    });
+
+    it('1-6 終點帶 api_get_eo_rate: 75 時標記量表、補標最後一戰，戰果 +75 且校準不標為時間不確定', async () => {
+        const database = createDb();
+        const state = new GameState();
+        const projector = new EventProjector({ state, tables: database });
+
+        const month = { year: 2026, month: 11 };
+        const beforeMonthTs = Date.UTC(2026, 9, 31, 12, 0); // 10/31 21:00 JST（月界前）
+        const beforeTallyTs = Date.UTC(2026, 10, 10, 4, 30); // 11/10 13:30 JST（14:00 結算前）
+        const roundPubTs = Date.UTC(2026, 10, 10, 6, 0);     // 11/10 15:00 JST 公布榜單
+        const baseTs = Date.UTC(2026, 10, 10, 7, 0);         // 11/10 16:00 JST 出擊 1-6
+        const at = (id: number, offsetSec: number, path: string, api: any, req?: Record<string, string>): ProjectableEvent => ({
+            id, ts: baseTs + offsetSec * 1000, path, api, req,
+        });
+
+        await projector.project(at(1, 0, 'api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: 16, api_cleared: 0, api_defeat_count: 6, api_required_defeat_count: 7,
+                api_gauge_type: 1, api_gauge_num: 1,
+            }],
+        }));
+        await projector.project(at(2, 10, 'api_req_map/start', {
+            api_maparea_id: 1, api_mapinfo_no: 6, api_no: 1, api_color_no: 4, api_event_id: 4,
+        }, { api_deck_id: '1' }));
+        // 道中第一戰
+        await projector.project(at(3, 20, 'api_req_sortie/battle', simpleBattle(100, 100)));
+        await projector.project(at(4, 30, 'api_req_sortie/battleresult', {
+            api_win_rank: 'S', api_get_exmap_rate: 0, api_first_clear: 0,
+        }));
+        // 道中最後一戰（模擬 1-6 B 點空襲戰結算，api_get_exmap_rate 為 0）
+        await projector.project(at(5, 40, 'api_req_map/next', {
+            api_no: 7, api_color_no: 4, api_event_id: 4, api_event_kind: 6, api_next: 1,
+        }));
+        await projector.project(at(6, 50, 'api_req_sortie/ld_airbattle', simpleBattle(100, 0)));
+        await projector.project(at(7, 60, 'api_req_sortie/battleresult', {
+            api_win_rank: 'S', api_get_exmap_rate: 0, api_first_clear: 0,
+        }));
+        expect(state.mapGauges.get(16)?.cleared).toBe(false);
+        expect((await database.sorties.get(7))?.cleared).toBeUndefined();
+
+        // 抵達 1-6 終點（合成資料，依 KancolleSniffer ExMapInfo.cs InspectMapNext()）：第 7 次帶 api_get_eo_rate: 75
+        await projector.project(at(8, 70, 'api_req_map/next', {
+            api_no: 14, api_color_no: 8, api_event_id: 8, api_next: 0,
+            api_get_eo_rate: 75,
+            api_itemget_eo_comment: { api_id: 1, api_getcount: 1000 },
+        }));
+
+        expect(state.mapGauges.get(16)).toMatchObject({ cleared: true, source: 'server' });
+        expect((await database.sorties.get(4))?.cleared).toBeUndefined();
+        expect(await database.sorties.get(7)).toMatchObject({
+            map: '1-6',
+            cleared: true,
+            exmapRate: 75,
+            clearedBy: 'battle',
+        });
+
+        const sorties = await database.sorties.toArray();
+        const eo = eoSenkaForMonth(sorties, month);
+        expect(eo.total).toBe(75);
+        expect(eo.items.find(item => item.map === '1-6')).toMatchObject({
+            map: '1-6', points: 75, cleared: true,
+        });
+
+        const portTs = baseTs + 120_000;
+        const readings = [
+            { ts: beforeMonthTs, exp: 10_000_000 },
+            { ts: beforeTallyTs, exp: 10_000_000 },
+            { ts: portTs, exp: 10_000_000 },
+        ];
+        const cal = calibrateMonthlySenka({
+            month,
+            now: portTs + 60_000,
+            readings,
+            sorties,
+            questClaims: [],
+            questLookup: () => null,
+            selfRankings: [{ publishedAt: roundPubTs, score: 1000, rank: 100 }],
+        });
+        expect(cal.status).toBe('calibrated');
+        if (cal.status === 'calibrated') {
+            expect(cal.sinceTally).toEqual({ min: 75, max: 75 });
+            expect(cal.estimate).toEqual({ min: 1075, max: 1075 });
+            expect(cal.reasons).not.toContain('eo-timing-uncertain');
+        }
+
+        // 後續 mapinfo(api_cleared: 1) 到達：不誤標第一戰，合併快照進校準仍不標為時間不確定
+        const mapAfter = {
+            api_map_info: [{
+                api_id: 16, api_cleared: 1, api_gauge_type: 1, api_gauge_num: 1,
+            }],
+        };
+        await projector.project(at(9, 180, 'api_get_member/mapinfo', mapAfter));
+        expect((await database.sorties.get(4))?.cleared).toBeUndefined();
+        const calWithSnap = calibrateMonthlySenka({
+            month,
+            now: baseTs + 240_000,
+            readings,
+            sorties: [
+                ...(await database.sorties.toArray()),
+                ...eoClearsFromMapinfoSnapshot({ ts: baseTs + 180_000, api: mapAfter }),
+            ],
+            questClaims: [],
+            questLookup: () => null,
+            selfRankings: [{ publishedAt: roundPubTs, score: 1000, rank: 100 }],
+        });
+        expect(calWithSnap.status).toBe('calibrated');
+        if (calWithSnap.status === 'calibrated') {
+            expect(calWithSnap.estimate).toEqual({ min: 1075, max: 1075 });
+            expect(calWithSnap.reasons).not.toContain('eo-timing-uncertain');
+        }
+    });
+
+    it('1-6 終點 api_get_eo_rate: 0（前 6 次抵達）不計入戰果亦不標通關；不記錄海域無戰鬥列時僅更新量表', async () => {
+        const database = createDb();
+        const state = new GameState();
+        const projector = new EventProjector({ state, tables: database });
+
+        const month = { year: 2026, month: 11 };
+        const baseTs = Date.UTC(2026, 10, 10, 7, 0);
+        const at = (id: number, path: string, api: any, req?: Record<string, string>): ProjectableEvent => ({
+            id, ts: baseTs + id * 1000, path, api, req,
+        });
+
+        await projector.project(at(1, 'api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: 16, api_cleared: 0, api_defeat_count: 2, api_required_defeat_count: 7,
+                api_gauge_type: 1, api_gauge_num: 1,
+            }],
+        }));
+        await projector.project(at(2, 'api_req_map/start', {
+            api_maparea_id: 1, api_mapinfo_no: 6, api_no: 1, api_color_no: 4, api_event_id: 4,
+        }, { api_deck_id: '1' }));
+        await projector.project(at(3, 'api_req_sortie/battle', simpleBattle(100, 100)));
+        await projector.project(at(4, 'api_req_sortie/battleresult', {
+            api_win_rank: 'S', api_get_exmap_rate: 0, api_first_clear: 0,
+        }));
+        // 第 3 次抵達終點（未打爆量表）：api_get_eo_rate 為 0
+        await projector.project(at(5, 'api_req_map/next', {
+            api_no: 14, api_color_no: 8, api_event_id: 8, api_next: 0,
+            api_get_eo_rate: 0,
+            api_itemget_eo_comment: { api_id: 1, api_getcount: 500 },
+        }));
+
+        expect(state.mapGauges.get(16)).toMatchObject({ cleared: false, defeatCount: 2 });
+        const row = await database.sorties.get(4);
+        expect(row?.cleared).toBeUndefined();
+        expect(row?.exmapRate).toBeUndefined();
+        expect(row?.clearedBy).toBeUndefined();
+        const eo = eoSenkaForMonth(await database.sorties.toArray(), month);
+        expect(eo.total).toBe(0);
+        expect(eo.items.find(item => item.map === '1-6')?.cleared).toBe(false);
+
+        // 不記錄的海域（skipSortieMap 跳過 1-6，即使開啟 catchOnly）：無一般戰鬥列，只更新記憶體量表
+        const skippedDb = createDb();
+        const skippedState = new GameState();
+        const skippedProjector = new EventProjector({
+            state: skippedState,
+            tables: skippedDb,
+            skipSortieMap: map => map === '1-6',
+            recordExcludedCatch: () => true,
+        });
+        await skippedProjector.project(at(10, 'api_get_member/mapinfo', {
+            api_map_info: [{
+                api_id: 16, api_cleared: 0, api_defeat_count: 6, api_required_defeat_count: 7,
+                api_gauge_type: 1, api_gauge_num: 1,
+            }],
+        }));
+        await skippedProjector.project(at(11, 'api_req_map/start', {
+            api_maparea_id: 1, api_mapinfo_no: 6, api_no: 1, api_color_no: 4, api_event_id: 4,
+        }, { api_deck_id: '1' }));
+        await skippedProjector.project(at(12, 'api_req_sortie/battle', simpleBattle(100, 100)));
+        await skippedProjector.project(at(13, 'api_req_sortie/battleresult', {
+            api_win_rank: 'S', api_get_exmap_rate: 0,
+        }));
+        await skippedProjector.project(at(14, 'api_req_map/next', {
+            api_no: 14, api_color_no: 8, api_event_id: 8, api_next: 0,
+            api_get_eo_rate: '75',
+        }));
+        expect(skippedState.mapGauges.get(16)).toMatchObject({ cleared: true, source: 'server' });
+        const catchRow = await skippedDb.sorties.get(13);
+        expect(catchRow?.catchOnly).toBe(true);
+        expect(catchRow?.cleared).toBeUndefined();
+        expect(catchRow?.exmapRate).toBeUndefined();
     });
 });

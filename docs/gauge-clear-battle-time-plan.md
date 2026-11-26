@@ -41,7 +41,7 @@
 | battleresult `api_destsf` | 同上 | 樣本：6-5 三場 Boss 皆擊沉，值皆為 `1`。KC3Kai `Node.js` 以它判斷敵主隊旗艦是否擊沉 | 不作為判定依據，只在測試中與戰鬥分析的結果交叉核對（§5.2） |
 | battleresult `api_landing_hp` | 同上（運輸作戰，含 5-6 第一段） | KC3Kai `Node.js` gauge-tp：`api_now_hp` 為戰前剩餘量、`api_sub_value` 為本場登陸量；kcsapi.ts 由真實樣本產生的型別確認三個欄位名稱，數值可能是字串 | 已驗證：`samples/5-6-1-battleresult-landing.json` 與 `samples/5-6-mapinfo-after-landing.json`（280 − 79 = 已登陸 79/280）；聯合艦隊字串形式無樣本 |
 | `api_req_map/next` 的 `api_eventmap`（終點節點） | `api_next == 0` 的終點，含運輸點與 Boss 戰點 | KC3Kai `Node.js`：運輸點終點以 `api_now_maphp`（登陸後的值）更新剩餘 TP；Boss 戰終點帶戰前量表見本專案樣本 `samples/base-air-raid-3.json`（`api_event_id=5`、840/4840） | 可用；運輸點終點無本專案樣本；僅更新記憶體 `GameState.mapGauges`（§5.3） |
-| `api_req_map/next` 的 `api_get_eo_rate` | 1-6 終點（無 Boss 戰） | KancolleSniffer `ExMapInfo.cs` `InspectMapNext()` 以非 0 判定 EO 擊破並取其值 | **不採用**（見 §5.4） |
+| `api_req_map/next` 的 `api_get_eo_rate` | 1-6 終點（無 Boss 戰） | KancolleSniffer `ExMapInfo.cs` `InspectMapNext()` 以非 0 判定 EO 擊破並取其值；另與 KC3Kai `library/objects.js` `defineAsBounty`、ElectronicObserver `Data/CompassData.cs`（以 `api_itemget_eo_comment` 識別 1-6 終點）交叉比對 | 可用（見 §5.4） |
 | HP 量表扣量＝Boss 旗艦受傷量，最終段未擊沉停在 1 | 機制 | [maps.md](engineering/maps.md) 第一節，已用 61-5、61-4 真封包驗證 | 已驗證 |
 
 採用時在程式註解寫明專案與檔案路徑，依 clean-room 重寫，並在 `THIRD-PARTY-NOTICES.md` 登錄 KancolleSniffer（Apache-2.0）與 KC3Kai 這兩處讀法。
@@ -128,9 +128,14 @@ HP 量表的扣量規則（[maps.md](engineering/maps.md) 第一節已驗證）�
 
 `api_first_clear` 不參與判定，只在測試中核對它和 §5.2 的結果一致；目前證據只有 EO 一對樣本，活動多段量表的中間段是否為 1 未知。
 
-### 5.4 1-6（無戰鬥的 EO）
+### 5.4 1-6（無 Boss 戰的 EO）
 
-1-6 的擊破發生在 `api_req_map/next`，沒有 `SortieLogRow`，維持現行 mapinfo 快照補記，不新增資料表。唯一代價：月末 21:xx 擊破 1-6、22:00 後才開海域選擇，會漏算當月 +75。為了這個邊界新增表並升 DB 版本不划算。
+1-6 的擊破發生在終點 `api_req_map/next`（伺服器僅在讓量表歸零的那一次抵達送出非 0 的 `api_get_eo_rate`）：
+
+- `GameState.onReqMapNext()`：`api_get_eo_rate` 解析為正整數時，將該海域既有 `mapGauges` 標為 `cleared: true`、`source: 'server'`，面板標題列於抵達當下即顯示 `✓`。
+- `EventProjector.archiveSortie()`：不新增資料列種類、不升 DB 版本、不改備份格式，改為補標同一趟出擊最後一筆非 `catchOnly` 戰鬥列的 `cleared: true`、`exmapRate`（取封包值）與 `clearedBy: 'battle'`；戰果計算、校準時間判定與 `detectClear()` 後備皆直接沿用。
+- **已知代價**：通關時刻記成最後一場戰鬥時刻（比實際抵達終點早數分鐘，僅在榜單結算時刻恰好落於此間隔內有差）；該場戰鬥重播依「斬殺永久保留」規則保存（每月最多一場）。
+- 該趟出擊若無任何戰鬥列（例如不記錄的海域），維持由後續 mapinfo 快照補記。
 
 ### 5.5 EO 戰果（`utils/senka.ts`）
 
@@ -176,7 +181,7 @@ HP 量表的扣量規則（[maps.md](engineering/maps.md) 第一節已驗證）�
 
 ## 8. 已定案（2026-11-23 開發者確認）
 
-1. 1-6 維持 mapinfo 快照補記（§5.4）；不採用 `api_get_eo_rate`。
+1. 1-6 終點以 `api_req_map/next` 的 `api_get_eo_rate` 標記量表並補標該趟最後一筆戰鬥列（§5.4）；該趟無戰鬥列時維持由 mapinfo 快照補記。
 2. 推算與伺服器值不一致時以伺服器為準，不持久化（§5.3）。
 3. 每趟出擊都顯示當下這一段的量表，目標 Boss 戰結算後扣量以 `≈` 標推算（§5.3）；不加 `estimatedFromEventId`。
 4. HP／TP／擊破數歸零時不將 `MapGaugeView.cleared` 設為 `true`（僅 `exmapRate > 0` 確定整圖通關才設），由標題列依歸零顯示已擊破（§5.3）。

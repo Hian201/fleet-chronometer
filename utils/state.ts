@@ -2499,12 +2499,12 @@ export class GameState {
             if (Number.isSafeInteger(bossCellNo) && bossCellNo > 0) {
                 this.sortieInfo.bossCellNo = bossCellNo;
             }
+            const mapId = this.sortieInfo.mapArea * 10 + this.sortieInfo.mapNo;
             // 終點節點（api_next == 0）帶 api_eventmap 時直接以伺服器值更新記憶體 mapGauges，
             // 不寫 SortieLogRow：同時涵蓋運輸終點（KC3Kai src/library/objects/Node.js）與往 Boss 點
             // 帶戰前量表的情況（見 samples/base-air-raid-3.json：api_event_id=5、api_next=0、840/4840）。
             const eventmap = api?.api_eventmap;
             if (parsePacketInt(api?.api_next, 0) === 0 && eventmap && typeof eventmap === 'object') {
-                const mapId = this.sortieInfo.mapArea * 10 + this.sortieInfo.mapNo;
                 const previous = this.mapGauges.get(mapId);
                 const nowHp = parsePacketInt(eventmap.api_now_maphp, 0);
                 const maxHp = parsePacketInt(eventmap.api_max_maphp, 1) ?? previous?.maxHp;
@@ -2527,6 +2527,17 @@ export class GameState {
                         selectedRank,
                         ...(gaugeNum === undefined ? {} : { gaugeNum }),
                     });
+                }
+            }
+            // 無 Boss 戰的 EO 終點（如 1-6 抵達母港格）：api_get_eo_rate 解析為正整數即代表本趟擊破整圖
+            // （KancolleSniffer KancolleSniffer/Model/ExMapInfo.cs InspectMapNext()；並與 KC3Kai
+            // defineAsBounty、ElectronicObserver Data/CompassData.cs 的 1-6 終點讀法交叉比對）。
+            // 與 battleresult 的 api_get_exmap_rate 相同，將既有量表標為整圖已通關（source: 'server'）。
+            const eoRate = parsePacketInt(api?.api_get_eo_rate, 1);
+            if (eoRate !== undefined) {
+                const current = this.mapGauges.get(mapId);
+                if (current && (!current.cleared || current.source !== 'server')) {
+                    this.mapGauges.set(mapId, { ...current, cleared: true, source: 'server' });
                 }
             }
             // 血量此刻＝上一個節點戰鬥寫回後的值（戰鬥封包就即時寫回，見 applyEvent

@@ -662,15 +662,16 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
-## 戰鬥當下量表進度與 EO 擊破欄位（`api_get_exmap_rate`、`api_first_clear`、`api_landing_hp`、終點 `api_eventmap`）
+## 戰鬥當下量表進度與 EO 擊破欄位（`api_get_exmap_rate`、`api_get_eo_rate`、`api_first_clear`、`api_landing_hp`、終點 `api_eventmap`）
 
-- **用途**：`utils/gauge-clear.ts` 與 `utils/state.ts` 於戰鬥結算與終點節點當下解析量表原始欄位、判定段落／EO 斬殺並推算戰後量表殘量。
+- **用途**：`utils/gauge-clear.ts`、`utils/state.ts` 與 `utils/event-projector.ts` 於戰鬥結算與終點節點當下解析量表原始欄位、判定段落／EO 斬殺並推算戰後量表殘量。
 - **性質**：遊戲 API 欄位語意與公開判定規則，依 clean-room 獨立以 TypeScript 撰寫，未複製第三方程式碼。
 - **參照來源**：
-  - **KancolleSniffer** `KancolleSniffer/Model/ExMapInfo.cs`（`InspectBattleResult()`：以非 0 的 `api_get_exmap_rate` 判定 EO 擊破並取其戰果值，字串與數字皆處理）—— https://github.com/fujieda/KancolleSniffer ，Apache License 2.0，Copyright (C) 2014, 2015 Kazuhiro Fujieda。已與本專案真封包 `samples/6-5-battleresult-{before-clear,clear}.json`（`0` vs `"250"`）核對一致。
-  - **KC3Kai** `src/library/objects/Node.js`（戰鬥結算讀取 `api_first_clear`、`api_landing_hp` 的 `api_now_hp`／`api_max_hp`／`api_sub_value`、擊破數式最後一擊判定，以及 `api_req_map/next` 於 `api_next == 0` 帶 `api_eventmap` 時同步伺服器量表）—— https://github.com/KC3Kai/KC3Kai ，MIT License，Copyright (c) 2015-2026 dragonjet。gauge-tp 結算以 `api_now_hp` 為戰前剩餘量、`api_sub_value` 為本場登陸量，戰後值＝`api_now_hp − min(api_now_hp, api_sub_value)`；運輸點終點的 `api_eventmap.api_now_maphp` 為登陸後的值。
+  - **KancolleSniffer** `KancolleSniffer/Model/ExMapInfo.cs`（`InspectBattleResult()`：以非 0 的 `api_get_exmap_rate` 判定 EO 擊破並取其戰果值；`InspectMapNext()`：於 `api_req_map/next` 以非 0 的 `api_get_eo_rate` 判定 1-6 等無 Boss 戰 EO 的整圖擊破並取其戰果值，字串與數字皆處理）—— https://github.com/fujieda/KancolleSniffer ，Apache License 2.0，Copyright (C) 2014, 2015 Kazuhiro Fujieda。`api_get_exmap_rate` 已與本專案真封包 `samples/6-5-battleresult-{before-clear,clear}.json`（`0` vs `"250"`）核對一致。
+  - **KC3Kai** `src/library/objects/Node.js`（戰鬥結算讀取 `api_first_clear`、`api_landing_hp` 的 `api_now_hp`／`api_max_hp`／`api_sub_value`、擊破數式最後一擊判定，以及 `api_req_map/next` 於 `api_next == 0` 帶 `api_eventmap` 時同步伺服器量表）與 `library/objects.js` `defineAsBounty`（以 `api_itemget_eo_comment` 識別 1-6 終點並遞增擊破數，供交叉比對 1-6 終點行為）—— https://github.com/KC3Kai/KC3Kai ，MIT License，Copyright (c) 2015-2026 dragonjet。gauge-tp 結算以 `api_now_hp` 為戰前剩餘量、`api_sub_value` 為本場登陸量，戰後值＝`api_now_hp − min(api_now_hp, api_sub_value)`；運輸點終點的 `api_eventmap.api_now_maphp` 為登陸後的值。
+  - **ElectronicObserver** `ElectronicObserver/Data/CompassData.cs`（於 `api_req_map/next` 讀取 `api_itemget_eo_comment` 作為 1-6 終點獲得物，供交叉比對）—— https://github.com/andanteyk/ElectronicObserver ，MIT License，Copyright (c) 2014 Andante。
   - **kcsapi.ts** `api_req_sortie/battleresult/response.ts`、`api_req_combined_battle/battleresult/response.ts`（`api_landing_hp` 三個子欄位的名稱與型別：通常艦隊皆為 number | string，聯合艦隊 `api_now_hp`／`api_max_hp` 僅見字串；型別由真實擷取樣本經 quicktype 產生）—— https://github.com/KagamiChan/kcsapi.ts （npm `kcsapi` 1.260817.0），MIT License，Copyright (c) 2018- Poi contributors。只參照欄位形狀，未複製型別定義。
-- **限制**：`api_req_map/next` 帶 `api_eventmap` 在 Boss 戰終點已有本專案樣本 `samples/base-air-raid-3.json`（`api_event_id=5`、`api_next=0`、840/4840）；`api_landing_hp` 在通常艦隊已有本專案樣本 `samples/5-6-1-battleresult-landing.json`（與登陸後的 `samples/5-6-mapinfo-after-landing.json` 一致，證實 `api_now_hp` 為戰前值）；聯合艦隊的字串形式與運輸點終點的 `api_eventmap` 尚無本專案樣本（kcsapi.ts 的樣本已匿名化，看不到數值），取得後補進 `samples/` 交叉核對，不一致時以樣本為準。
+- **限制**：`api_req_map/next` 帶 `api_eventmap` 在 Boss 戰終點已有本專案樣本 `samples/base-air-raid-3.json`（`api_event_id=5`、`api_next=0`、840/4840）；`api_landing_hp` 在通常艦隊已有本專案樣本 `samples/5-6-1-battleresult-landing.json`（與登陸後的 `samples/5-6-mapinfo-after-landing.json` 一致，證實 `api_now_hp` 為戰前值）；聯合艦隊的字串形式、運輸點終點的 `api_eventmap` 與 1-6 終點的 `api_get_eo_rate` 尚無本專案樣本（kcsapi.ts 的樣本已匿名化，看不到數值），取得後補進 `samples/` 交叉核對，不一致時以樣本為準。
 
 ---
 

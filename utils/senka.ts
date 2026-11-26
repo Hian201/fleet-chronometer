@@ -51,7 +51,7 @@ export interface EoSortieInput {
     map: string;
     cleared?: boolean;
     catchOnly?: boolean;
-    /** battleresult `api_get_exmap_rate` 解析為正整數時的封包戰果值。 */
+    /** battleresult `api_get_exmap_rate` 或終點 `api_req_map/next` `api_get_eo_rate` 解析為正整數時的封包戰果值。 */
     exmapRate?: number;
     /** 寫入 `cleared` 的規則來源；`'battle'` 且無 `exmapRate` 時為中間段斬殺，不計入整圖 EO 戰果。 */
     clearedBy?: 'battle' | 'mapinfo';

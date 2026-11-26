@@ -82,7 +82,7 @@ export interface SortieLogRow {
     flagshipDamage?: number;
     /** 出擊起點 `api_req_map/start` 帶 `api_eventmap` 時的量表快照（僅寫於目標量表 Boss 戰）。 */
     gaugeAtStart?: GaugeAtStart;
-    /** battleresult `api_get_exmap_rate` 解析為正整數時的 EO 戰果值。 */
+    /** battleresult `api_get_exmap_rate` 或終點 `api_req_map/next` `api_get_eo_rate` 解析為正整數時的 EO 戰果值。 */
     exmapRate?: number;
     /** battleresult `api_first_clear` 原始值（0 或 1），供輔助核對。 */
     firstClear?: 0 | 1;
