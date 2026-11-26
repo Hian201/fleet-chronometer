@@ -27,7 +27,7 @@
 
 ## 硬約束
 
-1. **被動觀察**：只觀察遊戲既有流量，不重放、修改、延遲、重排或代發請求，不注入指令、不自動執行遊戲操作、不改變遊戲行為。攔截器只掛在遊戲 `window.axios` 的 response interceptor；**禁止**取代 `window.fetch` 或 `XMLHttpRequest.prototype`，以免影響其他擴充的 DevTools `getContent`。契約見 `tests/interceptor-capture.test.ts`。唯一例外是地圖節點字母辨識：出擊地圖畫面期間、且由擴充明確要求時，可唯讀讀取遊戲已載入的地圖 point 圖層材質（`PIXI.utils.TextureCache`）中節點附近的小區塊；不得修改、包裝或替換任何遊戲物件，不得因此發出請求，讀不到就放棄（見 `docs/completion-plan.md` 4.11）。
+1. **被動觀察**：只觀察遊戲既有流量，不重放、修改、延遲、重排或代發請求，不注入指令、不自動執行遊戲操作、不改變遊戲行為。攔截器只掛在遊戲 `window.axios` 的 response interceptor；**禁止**取代 `window.fetch` 或 `XMLHttpRequest.prototype`，以免影響其他擴充的 DevTools `getContent`。契約見 `tests/interceptor-capture.test.ts`。
 2. **資料安全**：axios 觀察器在入列前移除請求的 `api_token`／`api_verno`，避免憑證進入暫存佇列與頁面訊息；bridge 與 background 再次移除。永不寫入 DB、上傳或送出憑證；不得讀寫 DMM Cookie。不得以任何改動默默遺失、覆寫、重複或損壞 events、IndexedDB、出擊／遠征／工廠歷史、replays、備份與還原資料；資料格式變更必須有相容處理或遷移。
 3. **唯一擷取入口**：`ApiEventRow` 是 provider 邊界；raw event 只能經 `ingestEvent()` 寫入 `db.events`，bridge 建立的 `captureId` envelope 在 retry 時沿用。單場 JSON／CSV 匯入是例外：只寫 derived tables，不寫 raw event。地圖資源 `kcs2/resources/map/*_info*.json` 也是例外：同一個 axios 攔截器觀察遊戲自己的 GET 回應，走獨立訊息，background 只存解析後的節點字母對照，不寫 raw event（見 `docs/engineering/capture.md`「地圖資源旁路」）。
 4. **持久化順序**：新 raw event 先存 `pending`，claim 後才進 `processing`，副作用成功才標 `done`，失敗回到 `pending`；同 `captureId` 的 path 或 timestamp 不同即拒絕。recovery 與新 ingestion 共用順序 queue。
