@@ -119,6 +119,18 @@
 - **交叉比對**：產生器逐筆比對 route id → 終點與 KC3Kai `edges.json`（§5），37 張常規海域
   全數一致；唯一差異 7-4 route 3 的起點，以 wikiwiki 7-4 分岐表（出撃→A／C）判定 poi 正確。
 
+## 5c-2. 遊戲內節點字母補齊 (In-game node letters from map resources)
+
+- **用途**：`utils/map-resource.ts`——從遊戲載入的地圖資源 `_info*.json` 合併 `spots`／`labels`，以座標配對補出
+  新活動中途開放節點的字母。
+- **方法來源**：poi `fcd/gen-map.js` 的 `extract()`／`gameLabels()`／`assignLabels()`／`mergeNearby()`
+  —— https://github.com/poooi/poi
+- **授權**：MIT License；Copyright (c) 2015-2021 poi contributors
+- **使用方式**：只參考配對方法（終點座標合併、標籤與節點距離門檻與由近到遠取用），依 clean-room 重寫，不複製程式碼。
+- **測試資料**：`samples/map-info/` 為 KagamiChan/kcs2-mapdata（MIT，Copyright (c) 2018 かがみ）
+  —— https://github.com/KagamiChan/kcs2-mapdata `maps/062/` 收錄的遊戲地圖資源原檔副本，未修改，僅供
+  `tests/map-resource.test.ts` 驗證，不隨擴充散布。
+
 ## 5d. 常規導航底圖 (Normal map routes base map)
 
 - **用途**：`utils/map-geo-data.ts`（由 `tools/map-geo/generate.py` 產生）——常規導航的陸地與珊瑚礁背景。
