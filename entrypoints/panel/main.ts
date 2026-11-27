@@ -821,8 +821,38 @@ const shipStateSlot = (s: ShipView) => {
     return inner ? `<span class="ship-state">${inner}</span>` : '';
 };
 const FLEET_REGULAR_SLOTS = 5;
+const battleHpPhaseLabel = (phase: ShipView['battleHpPhase']) =>
+    phase === 'nightToDay' ? t('fleet.hpPhaseNightToDay')
+        : phase === 'night' ? t('fleet.hpPhaseNight')
+            : t('fleet.hpPhaseDay');
+// 單隊與連合共用同一組血條與扣血數字（方案 D，見 design-guidelines §7.4.1）。
+// 灰條用 span 避開 .st-* .hpbar>i 的損傷色覆寫；讀屏用 .sr-only 整句、畫面數字設 aria-hidden。
+function shipHpParts(s: ShipView) {
+    const maxhp = s.maxhp;
+    const nowPct = maxhp > 0 ? Math.max(0, Math.min(100, (s.hp / maxhp) * 100)) : 100;
+    const loss = s.battleHpStart != null && s.battleHpStart > s.hp && maxhp > 0 ? s.battleHpStart - s.hp : 0;
+    const beforePct = loss > 0 ? Math.max(0, Math.min(100, (s.battleHpStart! / maxhp) * 100)) : nowPct;
+    const phase = loss > 0 ? battleHpPhaseLabel(s.battleHpPhase) : '';
+    const title = loss > 0
+        ? t('fleet.hpLossTitle', { hp: s.hp, max: maxhp, phase, loss })
+        : t('fleet.hpTitle', { hp: s.hp, max: maxhp });
+    const sr = loss > 0
+        ? t('fleet.hpLossSr', { hp: s.hp, max: maxhp, phase, loss })
+        : title;
+    const lossBar = loss > 0
+        ? `<span class="hp-loss" style="width:max(${beforePct.toFixed(1)}%, calc(${nowPct.toFixed(1)}% + 1.5px))"></span>`
+        : '';
+    const bar = `<span class="hpbar" aria-hidden="true" title="${esc(title)}">${lossBar}<i style="width:${nowPct.toFixed(1)}%"></i></span>`;
+    const tail = `<span class="hp-tail${loss > 0 ? ' has-delta' : ''}${maxhp >= 100 ? ' hp3' : ''}" aria-hidden="true">` +
+        `<span class="hp-max">/${maxhp}</span>` +
+        `<span class="hp-ghost">−${maxhp}</span>` +
+        `${loss > 0 ? `<span class="hp-swap">−${loss}</span>` : ''}</span>` +
+        `<span class="sr-only">${esc(sr)}</span>`;
+    const value = `<span class="hp-num" aria-hidden="true">${s.hp}</span>${tail}`;
+    return { bar, value, title: esc(title) };
+}
 function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string }, fleetNo?: number) {
-    const r = s.maxhp ? s.hp / s.maxhp : 1;
+    const hp = shipHpParts(s);
     const st = stClass(s);
     // ★改修與熟練恆佔固定寬度的槽（即使該裝備無改修/熟練也保留空槽），使不同艦艇的
     // 同格數裝備列能等寬對齊。空槽由 CSS 的固定寬度撐出。
@@ -848,7 +878,7 @@ function shipRow(s: ShipView, _maxSlots: number, marks?: { cls: string }, fleetN
           <div class="ship-identity-row">
             <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow"${shipNameTitle(s)}>${esc(s.name)}</span>${openingAswBadge(s, { combined: state.combinedFlag > 0 && (fleetNo === 1 || fleetNo === 2), fleetNo })}</div>
           </div>
-          <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
+          <div class="ship-hp">${hp.bar}<span class="hp-pair" title="${hp.title}">${hp.value}</span></div>
           <div class="ship-gear-row"><span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
         </div>
       </div>
@@ -1035,8 +1065,8 @@ function compactGearRow(s: ShipView) {
     return `<div class="c-gear"><span class="c-gear-slots">${slots.join('')}</span>${exItem}</div>`;
 }
 function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }, fleetNo?: number) {
-    const r = s.maxhp ? s.hp / s.maxhp : 1;
-    const st = r <= 0.25 ? 'st-major' : r <= 0.5 ? 'st-mid' : r <= 0.75 ? 'st-minor' : '';
+    const hp = shipHpParts(s);
+    const st = stClass(s);
     const pct = (v: number, max: number) => max ? Math.round(100 * v / max) : 100;
     const fp = pct(s.fuel, s.maxFuel), bp = pct(s.bull, s.maxBull);
     // 燃彈沿用單隊檢視的雙色迷你量表，但去掉數字（寬度不夠），實數移到 title。
@@ -1052,8 +1082,8 @@ function compactShipRow(s: ShipView, marks?: { cls: string; mark: string }, flee
         </div>
         <span class="c-top-flags">${dockMark(s)}${marks?.mark ?? ''}</span>${openingAswBadge(s, { combined: state.combinedFlag > 0 && (fleetNo === 1 || fleetNo === 2), fleetNo }, true)}${condDisplay(s)}
       </div>
-      <div class="c-hp"><span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span>
-        <span class="c-hp-value"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span>
+      <div class="c-hp">${hp.bar}
+        <span class="c-hp-value" title="${hp.title}">${hp.value}</span>
         <span class="c-aux">${supply}</span>
       </div>
       ${compactGearRow(s)}

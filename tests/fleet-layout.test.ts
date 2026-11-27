@@ -213,7 +213,7 @@ describe('編成版面', () => {
         expect(preview).toContain('SIX_FLEET_TAIHA_HTML');
         expect(preview).toContain("id: 'six-fleet-taiha'");
         expect(shipRowFn).toContain('<span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}');
-        expect(shipRowFn).toContain('<span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair">');
+        expect(shipRowFn).toContain('<div class="ship-hp">${hp.bar}<span class="hp-pair" title="${hp.title}">${hp.value}</span></div>');
         expect(shipRowFn).not.toContain('condDisplay(s)');
         const dockMarkFn = panelMain.slice(
             panelMain.indexOf('function dockMark'),
@@ -232,8 +232,8 @@ describe('編成版面', () => {
         expect(combinedFn).not.toContain('repairMarks');
         expect(combinedFn).not.toContain('fsummary compact');
         expect(panelMain).toContain('class="c-hp"');
-        expect(panelMain.indexOf('<div class="c-hp"><span class="hpbar"')).toBeLessThan(
-            panelMain.indexOf('<span class="c-hp-value"'),
+        expect(compactShipRowFn.indexOf('<div class="c-hp">${hp.bar}')).toBeLessThan(
+            compactShipRowFn.indexOf('<span class="c-hp-value"'),
         );
         expect(compactShipRowFn).not.toContain('<span class="lv">Lv${s.lv}</span>');
         const previewCompactShipRowFn = preview.slice(
@@ -248,6 +248,36 @@ describe('編成版面', () => {
         expect(css).toMatch(/\.ship\.c \.c-hp \.hpbar\s*\{[\s\S]*?flex:\s*1 1 auto/);
         expect(css).toMatch(/\.hpbar::after\s*\{[^}]*75%[^}]*50%[^}]*25%/);
         expect(css).toMatch(/--hp-tick:\s*rgba\(255, 255, 255, \.92\)/);
+    });
+
+    it('戰鬥扣血採方案 D：四層血條用 span、/max 換 −N 零跳動槽與高對比語意色', () => {
+        const hpPartsFn = panelMain.slice(
+            panelMain.indexOf('function shipHpParts'),
+            panelMain.indexOf('function shipRow'),
+        );
+        expect(hpPartsFn).toContain('<span class="hp-loss"');
+        expect(hpPartsFn).not.toContain('<i class="hp-loss"');
+        expect(hpPartsFn).toContain('nowPct.toFixed(1)');
+        expect(hpPartsFn).toContain('+ 1.5px');
+        expect(hpPartsFn).toContain('class="hp-tail');
+        expect(hpPartsFn).toContain('class="hp-ghost">−${maxhp}');
+        expect(hpPartsFn).toContain('class="hp-swap">−${loss}');
+        expect(hpPartsFn).toContain('class="sr-only"');
+        expect(css).toMatch(/--hp-delta:\s*#ff6b6b/);
+        expect(css).toMatch(/--hp-loss:\s*#8d98ab/);
+        expect(css).toMatch(/--hp-delta:\s*#b42323/);
+        expect(css).toMatch(/--hp-loss:\s*#828d9f/);
+        expect(css).toMatch(/@media\s*\(prefers-contrast:\s*more\)[\s\S]*--hp-delta:\s*#ff8a80[\s\S]*--hp-loss:\s*#b7c2d6[\s\S]*--hp-delta:\s*#8f1717[\s\S]*--hp-loss:\s*#546072/);
+        expect(css).toMatch(/\.hpbar>\.hp-loss\s*\{[^}]*z-index:\s*0/);
+        expect(css).toMatch(/\.hpbar>i\s*\{[^}]*z-index:\s*1/);
+        expect(css).toMatch(/\.hpbar::after\s*\{[^}]*z-index:\s*2/);
+        expect(css).toMatch(/\.hp-tail\s*\{[^}]*display:\s*inline-grid/);
+        expect(css).toMatch(/\.ship-hp \.hp-tail\.hp3>\.hp-swap,\s*\.ship-hp \.hp-tail\.hp3>\.hp-ghost\s*\{[^}]*margin-left:\s*2px/);
+        expect(css).toMatch(/\.ship\.c \.hp-tail>\.hp-swap,\s*\.ship\.c \.hp-tail>\.hp-ghost\s*\{[^}]*margin-left:\s*3px/);
+        expect(css).toMatch(/\n\s*\.sr-only\s*\{[^}]*clip-path:\s*inset\(50%\)/);
+        expect(i18n).toMatch(/'fleet\.hpPhaseNightToDay': '拂曉戰'/);
+        expect(i18n).toMatch(/'fleet\.hpPhaseNightToDay': '払暁戦'/);
+        expect(i18n).toMatch(/'fleet\.hpPhaseNightToDay': 'Night-to-day'/);
     });
 
     it('聯合 compact 的五格空母裝備與搭載數維持同一列', () => {

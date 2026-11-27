@@ -82,6 +82,7 @@ type ExpeditionShipStat = typeof EXPEDITION_STAT_FIELDS[number][1];
 // countEst：`count`（搭載數）是出擊途中的**估算值**而非封包實數（見
 // GameState.queuePlaneLoss／spreadPlaneLoss）。UI 必須據此標示，回港後即恢復為 false。
 export interface GearView { mst: number; name: string; short: string; cat: string; type: number; asw: number; icon: number; level: number; alv: number; count?: number; countMax?: number; countEst?: boolean }
+export type BattleHpPhase = 'day' | 'night' | 'nightToDay';
 export interface ShipView {
     name: string;
     // nameJa：封包原始日文艦名（api_mst_ship 的 api_name）。面板以譯名顯示，hover 才
@@ -89,6 +90,9 @@ export interface ShipView {
     // 時退回 name（不留空字串，避免 tooltip 顯示成空白）。
     nameJa: string;
     stype: string; lv: number; hp: number; maxhp: number; cond: number;
+    // 本階段戰鬥開打前的 HP 與階段種類（只在本階段扣血量 > 0 時存在；回地圖／離開戰鬥即省略）。
+    battleHpStart?: number;
+    battleHpPhase?: BattleHpPhase;
     fuel: number; maxFuel: number; bull: number; maxBull: number;
     // 火力／運＝艦實例的顯示素質（api_karyoku[0]／api_lucky[0]，**已含裝備加成**，
     // 與 ownedShips() 的 stats 同一份封包事實）。艦隊全覽的艦卡要顯示運、艦隊列要顯示
@@ -976,6 +980,11 @@ export class GameState {
     // 演習艦隊開戰前的實際血量（艦實例 id → api_nowhp）。演習受損不會留下，戰鬥中寫回 this.ships 的
     // 血量只給編成面板顯示；入渠候選（damagedShips）在演習期間用這份，與 practiceBattle 同時清除。
     private practiceRealHp: Map<number, number> | null = null;
+    // 本階段戰鬥開打時的艦隊起點 HP（艦實例 id → 該封包自身的 api_f_nowhps／api_f_nowhps_combined，
+    // 只保存扣血量 > 0 的艦）與所屬階段。夜戰接續會以夜戰封包自己的起點整份覆寫；
+    // 離開戰鬥（ship_deck/ship3/ship2、map/next、map/start、*/goback_port、port、practice）即清空。
+    private battleHpStart = new Map<number, number>();
+    private battleHpPhase: BattleHpPhase | null = null;
     // clearitemget 是本機確實觀測到領取獎勵的證據。仍在 raw events 裡的領獎由 applyEvent
     // 記入；已裁剪或只存在備份 derived table 的列經 ingestArchivedQuestClaim 補回。
     questObservedCompletions = new Map<number, { count: number; lastTs: number }>();
@@ -1635,6 +1644,7 @@ export class GameState {
                 : null;
             this.practiceBattle = null;
             this.practiceRealHp = null;
+            this.clearBattleHpDelta();
         } else if ((path === 'api_req_quest/clearitemget' || path === 'api_req_quest/stop') && req) {
             this.onReqQuestClearitemget(path, api, req, ts);
         } else if (path === 'api_port/port') {
@@ -1962,6 +1972,7 @@ export class GameState {
         // ingestShips 會保留封包未送出的 api_slot／其他欄位，明確送出的欄位則照原值更新。
         // ship2 的 decks 在我們的 api_data 邊界外（KC3Kai 讀 response.api_data_deck），
         // 本管線拿不到就略過，等 port／ship3 校正。
+        this.clearBattleHpDelta();
         if (path === 'api_get_member/ship2') {
             this.ingestShips(api, { requireMaster: true });
         } else {
@@ -2338,6 +2349,7 @@ export class GameState {
         this.sortieInfo = null;
         this.practiceBattle = null;
         this.practiceRealHp = null;
+        this.clearBattleHpDelta();
         this.lastDayBattle = null;
         this.lastDayDamecons = null;
         this.battleMissingDayStart = false;
@@ -2421,6 +2433,7 @@ export class GameState {
         this.battleInfo = null;
         this.practiceBattle = null;
         this.practiceRealHp = null;
+        this.clearBattleHpDelta();
         this.lastDayBattle = null;
         this.lastDayDamecons = null;
         this.battleMissingDayStart = false;
@@ -2493,6 +2506,7 @@ export class GameState {
     }
 
     private onReqMapNext(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        this.clearBattleHpDelta();
         if (this.sortieInfo) {
             const node = sortieNodeOf(api);
             this.sortieInfo.nodes.push(node);
@@ -3072,6 +3086,7 @@ export class GameState {
             // 把戰鬥模擬後的 HP 寫回 this.ships，讓編成面板即時反映受損
             if (this.battleInfo?.resultFleets) {
                 this.applyBattleHp(this.battleInfo.resultFleets);
+                this.recordBattleHpDelta(api, isNightToDay ? 'nightToDay' : isNight ? 'night' : 'day');
                 // 比對基準同樣要用餵進去的那一份（Set 皆為冪等，夜戰重放時重複標記同一艘
                 // 不會有副作用）。
                 this.markDameconConsumed(usedDamecons, this.battleInfo.resultFleets);
@@ -3215,6 +3230,7 @@ export class GameState {
     }
 
     private onGobackPort(path: string, api: any, req: Record<string, string> | undefined, ts: number) {
+        this.clearBattleHpDelta();
         // 艦隊司令部施設的退避（KC3Kai 同：取各陣列 [0]）。解不出就不標。
         for (const at of this.pendingEscape ? this.resolveEscape(this.pendingEscape) : []) {
             this.escapedShipIds.add(at.id);
@@ -3840,6 +3856,37 @@ export class GameState {
         // analyzeBattle 的 playerEscort 會是空陣列、write 自然不寫入任何一艘——
         // 這是第2艦隊不被誤動的保證，改動 playerEscort 語意前先看 hasEscortFleet 的說明。
         if (this.currentSortieFleetId === 0 && this.decks[1]) write(this.decks[1], f.playerEscort);
+    }
+
+    private clearBattleHpDelta() {
+        this.battleHpStart.clear();
+        this.battleHpPhase = null;
+    }
+
+    // 記錄本階段戰鬥開打時的起點 HP（取當下這一包封包本身的 api_f_nowhps／api_f_nowhps_combined）。
+    // 夜戰接續一律先清空再覆寫，使晝戰受傷但夜戰未再被打的艦（含連合主隊，見 samples/61-3.json）
+    // 自動解除扣血顯示；退避艦與扣血量 ≤ 0（含女神回復到起點以上）皆不記錄。
+    private recordBattleHpDelta(api: any, phase: BattleHpPhase) {
+        this.battleHpStart.clear();
+        this.battleHpPhase = phase;
+        const collect = (deck: any, nowhps: unknown) => {
+            if (!deck || !Array.isArray(nowhps)) return;
+            const ids = (deck.api_ship ?? []).filter((id: number) => id > 0);
+            ids.forEach((id: number, i: number) => {
+                if (this.escapedShipIds.has(id)) return;
+                const startHp = Number(nowhps[i]);
+                const ship = this.ships.get(id);
+                const nowHp = ship ? Number(ship.api_nowhp) : NaN;
+                if (Number.isFinite(startHp) && Number.isFinite(nowHp) && startHp > nowHp) {
+                    this.battleHpStart.set(id, startHp);
+                }
+            });
+        };
+        collect(this.decks[this.currentSortieFleetId], api?.api_f_nowhps);
+        if (this.currentSortieFleetId === 0 && this.decks[1] && GameState.hasEscortFleet(api)) {
+            collect(this.decks[1], api?.api_f_nowhps_combined);
+        }
+        if (this.battleHpStart.size === 0) this.battleHpPhase = null;
     }
 
     /**
@@ -5079,6 +5126,12 @@ export class GameState {
                         } : {}),
                         escaped: this.escapedShipIds.has(id),
                         lv: s.api_lv, hp: s.api_nowhp, maxhp: s.api_maxhp, cond: s.api_cond,
+                        ...(() => {
+                            const startHp = this.battleHpStart.get(id);
+                            return startHp !== undefined && startHp > (s.api_nowhp ?? 0) && this.battleHpPhase
+                                ? { battleHpStart: startHp, battleHpPhase: this.battleHpPhase }
+                                : {};
+                        })(),
                         fuel: s.api_fuel ?? 0, maxFuel: mst?.fuelMax ?? 0,
                         bull: s.api_bull ?? 0, maxBull: mst?.bullMax ?? 0,
                         firepower: Array.isArray(s.api_karyoku) ? Number(s.api_karyoku[0]) || 0 : 0,

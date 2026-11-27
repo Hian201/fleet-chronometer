@@ -195,6 +195,12 @@ nodes 48/37/51）交叉驗證皆與實際 `rating` 一致。
 ——**只有連合艦隊出擊的封包才帶 `api_f_nowhps_combined`**，故以該欄位存在與否為唯一證據；
 費率 push 進 `pendingConsumption` 時就一併記下 `hasEscort`（結算時才套用，不能到那時才回頭猜）。
 `applyBattleHp` 不需額外判斷——非連合時 `analyzeBattle` 的 `playerEscort` 本來就是空陣列。
+**本階段扣血**：`applyBattleHp` 寫回後，`recordBattleHpDelta` 以**當下這包戰鬥封包自己的**
+`api_f_nowhps`／`api_f_nowhps_combined` 為起點，只記扣血量 >0、未退避的艦，經 `ShipView.battleHpStart`／
+`battleHpPhase` 給面板。夜戰接續整份覆寫（不用重放後的晝戰 `beginHp`），所以夜戰沒再被打的艦與不參戰的
+連合主隊會自動清除；`samples/61-3.json` 的連合夜戰封包可證主隊 `api_f_nowhps` 已是晝戰後血量。
+`battleresult` 不清；`ship_deck`／`ship3`／`ship2`、`map/next`、`map/start`、`*/goback_port`、`port`、
+`practice` 才清，演習與 `practiceRealHp` 同處清除。顯示規則見 design-guidelines §7.4.1。
 已用兩份真封包回歸驗證：`samples/6-5-ec_battle.json`（我方單艦隊 vs 敵連合，**無**
 `api_f_nowhps_combined`）第2艦隊須完全未動；`samples/61-5-jibun-rengou-node52.json`
 （自軍連合，**有**該欄位）第1＋第2艦隊都須扣除。

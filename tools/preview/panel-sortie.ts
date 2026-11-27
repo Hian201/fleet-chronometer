@@ -47,6 +47,8 @@ type Gear = {
 type Ship = {
     stype: string; name: string; nameJa: string; lv: number;
     hp: number; maxhp: number; cond: number;
+    battleHpStart?: number;
+    battleHpPhase?: 'day' | 'night' | 'nightToDay';
     fuel: number; maxFuel: number; bull: number; maxBull: number;
     escaped?: boolean; inDock?: boolean;
     gears: (Gear | null)[];
@@ -121,8 +123,37 @@ const shipStateSlot = (s: Ship) => {
     return inner ? `<span class="ship-state">${inner}</span>` : '';
 };
 
+const battleHpPhaseLabel = (phase: Ship['battleHpPhase']) =>
+    phase === 'nightToDay' ? t('fleet.hpPhaseNightToDay')
+        : phase === 'night' ? t('fleet.hpPhaseNight')
+            : t('fleet.hpPhaseDay');
+const shipHpParts = (s: Ship) => {
+    const maxhp = s.maxhp;
+    const nowPct = maxhp > 0 ? Math.max(0, Math.min(100, (s.hp / maxhp) * 100)) : 100;
+    const loss = s.battleHpStart != null && s.battleHpStart > s.hp && maxhp > 0 ? s.battleHpStart - s.hp : 0;
+    const beforePct = loss > 0 ? Math.max(0, Math.min(100, (s.battleHpStart! / maxhp) * 100)) : nowPct;
+    const phase = loss > 0 ? battleHpPhaseLabel(s.battleHpPhase) : '';
+    const title = loss > 0
+        ? t('fleet.hpLossTitle', { hp: s.hp, max: maxhp, phase, loss })
+        : t('fleet.hpTitle', { hp: s.hp, max: maxhp });
+    const sr = loss > 0
+        ? t('fleet.hpLossSr', { hp: s.hp, max: maxhp, phase, loss })
+        : title;
+    const lossBar = loss > 0
+        ? `<span class="hp-loss" style="width:max(${beforePct.toFixed(1)}%, calc(${nowPct.toFixed(1)}% + 1.5px))"></span>`
+        : '';
+    const bar = `<span class="hpbar" aria-hidden="true" title="${esc(title)}">${lossBar}<i style="width:${nowPct.toFixed(1)}%"></i></span>`;
+    const tail = `<span class="hp-tail${loss > 0 ? ' has-delta' : ''}${maxhp >= 100 ? ' hp3' : ''}" aria-hidden="true">` +
+        `<span class="hp-max">/${maxhp}</span>` +
+        `<span class="hp-ghost">−${maxhp}</span>` +
+        `${loss > 0 ? `<span class="hp-swap">−${loss}</span>` : ''}</span>` +
+        `<span class="sr-only">${esc(sr)}</span>`;
+    const value = `<span class="hp-num" aria-hidden="true">${s.hp}</span>${tail}`;
+    return { bar, value, title: esc(title) };
+};
+
 const shipRow = (s: Ship) => {
-    const r = s.maxhp ? s.hp / s.maxhp : 1;
+    const hp = shipHpParts(s);
     const st = stClass(s);
     const realChips = s.gears.map((g, i) => g ? gearChip(g) : blankChip('chip-empty', false, s.cap?.[i])).join('');
     const exChip = s.ex && s.ex !== 'none' && s.ex !== 'empty' ? gearChip(s.ex, true)
@@ -138,7 +169,7 @@ const shipRow = (s: Ship) => {
           <div class="ship-identity-row">
             <div class="ship-id"><span class="num">Lv<span class="lv-n">${s.lv}</span></span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span>${s.aswShip ? openingAswBadge(s.aswShip) : ''}</div>
           </div>
-          <div class="ship-hp"><span class="hpbar" aria-hidden="true"><i style="width:${Math.round(r * 100)}%"></i></span><span class="hp-pair"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span></div>
+          <div class="ship-hp">${hp.bar}<span class="hp-pair" title="${hp.title}">${hp.value}</span></div>
           <div class="ship-gear-row"><span class="cond ${condClass(s)}"><span class="cond-spark" aria-hidden="true">✦</span><span class="cond-value">${s.cond}</span></span>${vitSupply(s)}<div class="chips">${chips}${exChip}</div></div>
         </div>
       </div>
@@ -297,7 +328,7 @@ const compactGearRow = (s: Ship) => {
 };
 
 const compactShipRow = (s: Ship, fleetNo = 2) => {
-    const r = s.maxhp ? s.hp / s.maxhp : 1;
+    const hp = shipHpParts(s);
     const st = stClass(s);
     const pct = (v: number, max: number) => max ? Math.round(100 * v / max) : 100;
     const fp = pct(s.fuel, s.maxFuel), bp = pct(s.bull, s.maxBull);
@@ -306,7 +337,7 @@ const compactShipRow = (s: Ship, fleetNo = 2) => {
         `<i style="background-image:linear-gradient(to left,#a8763e ${bp}%,transparent ${bp}%)"></i></span>`;
     return `<div class="ship c ${st}">
       <div class="c-top"><div class="c-name"><span class="stype">${esc(s.stype)}</span><span class="grow" title="${esc(s.nameJa || s.name)}">${esc(s.name)}</span></div><span class="c-top-flags"></span>${s.aswShip ? openingAswBadge(s.aswShip, { combined: true, fleetNo }, true) : ''}${condDisplay(s)}</div>
-      <div class="c-hp"><span class="hpbar"><i style="width:${Math.round(r * 100)}%"></i></span><span class="c-hp-value"><span class="hp-num">${s.hp}</span><span class="hp-max">/${s.maxhp}</span></span><span class="c-aux">${supply}</span></div>
+      <div class="c-hp">${hp.bar}<span class="c-hp-value" title="${hp.title}">${hp.value}</span><span class="c-aux">${supply}</span></div>
       ${compactGearRow(s)}
     </div>`;
 };

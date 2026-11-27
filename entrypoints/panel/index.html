@@ -27,6 +27,9 @@
             --qc-modernization: #a783b9;
             /* 血條刻度要壓在填色與空軌上。暗底用深線，亮底改淺線。 */
             --hp-tick: rgba(16, 21, 29, .92);
+            /* 戰鬥扣血（第七組獨立語意色，依主題分值，見 design-guidelines §1.2／§7.4.1）。 */
+            --hp-delta: #ff6b6b;
+            --hp-loss: #8d98ab;
             --sparkle: #e6c35c;
             --alv-bar: #9dc3ef;
             /* 索敵/航向/觸接/航空戰數值色。刻意獨立於 --dmg-mid（傷害語意），
@@ -82,6 +85,8 @@
             --brass: #9a6b0b;
             --stub: #aab3c2;
             --hp-tick: rgba(255, 255, 255, .92);
+            --hp-delta: #b42323;
+            --hp-loss: #828d9f;
             --sparkle: #8a6d1a;
             --cond-heavy: #c43c3c;
             --cond-tired: #b8641c;
@@ -1615,10 +1620,19 @@
             align-self: center;
         }
 
+        .hpbar>.hp-loss {
+            position: absolute;
+            inset: 0;
+            right: auto;
+            z-index: 0;
+            background: var(--hp-loss);
+        }
+
         .hpbar>i {
             position: absolute;
             inset: 0;
             right: auto;
+            z-index: 1;
             background: #58a55c;
         }
 
@@ -1627,12 +1641,64 @@
             content: "";
             position: absolute;
             inset: 0;
-            z-index: 1;
+            z-index: 2;
             pointer-events: none;
             background:
                 linear-gradient(var(--hp-tick), var(--hp-tick)) 75% 0 / 1px 100% no-repeat,
                 linear-gradient(var(--hp-tick), var(--hp-tick)) 50% 0 / 1px 100% no-repeat,
                 linear-gradient(var(--hp-tick), var(--hp-tick)) 25% 0 / 1px 100% no-repeat;
+        }
+
+        /* 方案 D（單隊與連合共用，見 design-guidelines §7.4.1）：/max、−N 與隱形 −max 以 inline-grid
+           疊在同一格，格寬只由最大 HP 位數決定，開戰／夜戰／回地圖都不改變血條長度。 */
+        .hp-tail {
+            display: inline-grid;
+            justify-items: start;
+        }
+
+        .hp-tail>* {
+            grid-area: 1 / 1;
+        }
+
+        .hp-tail>.hp-ghost {
+            visibility: hidden;
+        }
+
+        .hp-tail.has-delta>.hp-max {
+            visibility: hidden;
+        }
+
+        .hp-tail>.hp-swap,
+        .hp-tail>.hp-ghost {
+            font-size: 10px;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .hp-tail>.hp-swap {
+            color: var(--hp-delta);
+        }
+
+        /* 單隊殘 HP 固定 3ch：兩位數自帶 1ch 空隙，只有最大 HP ≥100 的艦加 2px 左距避免 107−1 黏字。 */
+        .ship-hp .hp-tail.hp3>.hp-swap,
+        .ship-hp .hp-tail.hp3>.hp-ghost {
+            margin-left: 2px;
+        }
+
+        /* 連合殘 HP 12px／600 且不定寬，大破列殘 HP 與 −N 同屬紅色，一律加 3px 左距。 */
+        .ship.c .hp-tail>.hp-swap,
+        .ship.c .hp-tail>.hp-ghost {
+            margin-left: 3px;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
         }
 
         .st-minor .hpbar>i {
@@ -5973,12 +6039,16 @@
                 --line: #6b7a95;
                 --dim: #a9b4c6;
                 --stub: #7f8a9e;
+                --hp-delta: #ff8a80;
+                --hp-loss: #b7c2d6;
             }
 
             :root[data-theme="light"] {
                 --line: #8a8375;
                 --dim: #4a5160;
                 --stub: #7a8291;
+                --hp-delta: #8f1717;
+                --hp-loss: #546072;
             }
 
             /* 實心紅底：`.s-taiha.open` 的自帶底色選擇器較 specific，必須一併列出。 */
