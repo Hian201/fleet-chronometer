@@ -4,7 +4,7 @@ import { KcDb, type ShipObtainedRow } from '../utils/db';
 import { SHIP_NAMES } from '../utils/gamedata-names';
 import { GameState } from '../utils/state';
 import {
-    COLUMNS, buildRoster, loadOwnedShipRows, mergeSavedColumns, rosterCsv, rosterTableHtml, visibleColumns,
+    COLUMNS, buildRoster, describeFilter, loadOwnedShipRows, mergeSavedColumns, rosterCsv, rosterTableHtml, visibleColumns,
     type ColumnId, type TableView,
 } from '../entrypoints/overview/sections/ships';
 import {
@@ -192,5 +192,38 @@ describe('艦娘全覽的入手觀測關聯與畫面資料', () => {
         expect(html).toContain('Alpha &lt;Ship&gt;');
         expect(rosterCsv(roster, view(['lv']), ctx).split('\n')[0])
             .toBe(`${t('ov.rsColName')},${t('ov.rsColLv')}`);
+    });
+
+    it('艦型欄預設關閉、開啟後表格與 CSV 一併帶出；國籍欄顯示雙國籍標籤', () => {
+        expect(COLUMNS.find(c => c.id === 'ctype')?.on).toBe(false);
+        const base = createState().ownedShips().find(ship => ship.id === 101)!;
+        const ro500 = { ...base, id: 436, masterId: 436, name: '呂500', ctype: 86 };
+        const rows = buildRoster([ro500]);
+
+        setLang('zh-TW');
+        const htmlZh = rosterTableHtml(rows, view(['ctype', 'nation']), ctx);
+        expect(htmlZh).toContain('呂號潛水艦');
+        expect(htmlZh).toContain('德國／日本');
+        expect(rosterCsv(rows, view(['ctype', 'nation']), ctx).split('\n')[1])
+            .toBe('呂號潛水艦,德國／日本,呂500');
+
+        setLang('en');
+        expect(rosterCsv(rows, view(['ctype', 'nation']), ctx).split('\n')[1])
+            .toBe('Ro-series Submarine,Germany/Japan,呂500');
+    });
+
+    it('describeFilter 保留 0 艘已選艦型並標示 (0)', () => {
+        setLang('zh-TW');
+        const chips = describeFilter(
+            { ...emptyRosterFilter(), ctypes: [91, 54] },
+            new Map(),
+            id => `#${id}`,
+            c => (c === 91 ? 'Fletcher級' : '秋月型'),
+            new Map([[91, 0], [54, 3]]),
+        );
+        expect(chips).toEqual([
+            { key: 'ctype:91', label: 'Fletcher級（0）' },
+            { key: 'ctype:54', label: '秋月型' },
+        ]);
     });
 });

@@ -468,6 +468,16 @@
             box-shadow: 0 10px 28px color-mix(in srgb, #000 40%, transparent);
         }
         .od-menu[hidden] { display: none !important; }
+        .od-menu.od-menu-wide { min-width: 190px; max-width: 260px; }
+        .od-menu-search {
+            display: block; width: 100%; box-sizing: border-box;
+            margin-bottom: 4px; padding: 4px 7px;
+            border: 1px solid var(--line); border-radius: 5px;
+            background: var(--bg); color: var(--text);
+            font: inherit; font-size: 11px;
+        }
+        .od-menu-search:focus { outline: none; border-color: var(--brass); }
+        .od-menu-empty { padding: 6px 8px; font-size: 11px; color: var(--dim); text-align: center; }
         .od-menu .subhead {
             padding: 4px 8px 2px; font-size: 10px; color: var(--dim);
             letter-spacing: var(--track-tag);
@@ -482,11 +492,16 @@
             border: none; background: none; color: var(--text);
             padding: 5px 8px; border-radius: 5px; font-size: 11px; cursor: pointer;
         }
+        .od-menu button .od-m-label {
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         .od-menu button:hover {
             background: color-mix(in srgb, var(--brass) 12%, transparent);
         }
         .od-menu button.on { color: var(--sparkle); }
-        .od-menu button .meta { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+        .od-menu button.zero { color: var(--dim); }
+        .od-menu button.on.zero { color: var(--sparkle); opacity: .75; }
+        .od-menu button .meta { flex: none; margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
         .od-menu .row {
             display: flex; align-items: center; gap: 2px;
         }

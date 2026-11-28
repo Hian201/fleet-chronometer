@@ -288,11 +288,53 @@ describe('國籍篩選', () => {
         expect(sortRoster(roster(ships()), 'nation', 'asc').map(s => s.nation)).toEqual(['jp', 'us', 'gb']);
     });
 
-    it('Верный 可從日本與蘇聯國籍篩選找到', () => {
-        const rows = roster(build([{ id: 147, mst: 147 }]));
+    it('Верный 與呂500／伊503／伊504 可從雙國籍篩選找到', () => {
+        const rows = roster(build([
+            { id: 147, mst: 147 }, { id: 436, mst: 436 },
+            { id: 530, mst: 530 }, { id: 940, mst: 940 },
+        ]));
         expect(rows[0]).toMatchObject({ nation: 'jp', nations: ['jp', 'su'] });
-        expect(filterRoster(rows, { ...emptyRosterFilter(), nations: ['jp'] }).map(s => s.id)).toEqual([147]);
-        expect(filterRoster(rows, { ...emptyRosterFilter(), nations: ['su'] }).map(s => s.id)).toEqual([147]);
+        expect(rows[1]).toMatchObject({ nation: 'de', nations: ['de', 'jp'] });
+        expect(rows[2]).toMatchObject({ nation: 'it', nations: ['it', 'jp'] });
+        expect(rows[3]).toMatchObject({ nation: 'it', nations: ['it', 'jp'] });
+        const sortedIds = (nations: any[]) =>
+            filterRoster(rows, { ...emptyRosterFilter(), nations }).map(s => s.id).sort((a, b) => a - b);
+        expect(sortedIds(['jp'])).toEqual([147, 436, 530, 940]);
+        expect(sortedIds(['su'])).toEqual([147]);
+        expect(sortedIds(['de'])).toEqual([436]);
+        expect(sortedIds(['it'])).toEqual([530, 940]);
+    });
+});
+
+describe('艦型篩選與依最小図鑑番號排序', () => {
+    // 長門(mst 80, ctype 19, minBook=1)、睦月(mst 1, ctype 28, minBook=31)、Fletcher(mst 596, ctype 91, minBook=362)
+    const NAGATO = 80;
+    const state = new GameState();
+    state.applyEvent('api_start2/getData', master);
+
+    const buildWithBook = () => annotateRoster(
+        build([
+            { id: 1, mst: FLETCHER, lv: 50 },
+            { id: 2, mst: MUTSUKI, lv: 50 },
+            { id: 3, mst: NAGATO, lv: 50 },
+        ]),
+        { debutOf: () => null, obtainedOf: () => null, classMinBookNoOf: c => state.classMinBookNo(c) },
+    );
+
+    it('艦型多選＝聯集，空陣列＝不限', () => {
+        const rows = buildWithBook();
+        const ids = (ctypes: number[]) =>
+            filterRoster(rows, { ...emptyRosterFilter(), ctypes }).map(s => s.id).sort((a, b) => a - b);
+        expect(ids([91])).toEqual([1]);
+        expect(ids([19, 91])).toEqual([1, 3]);
+        expect(ids([])).toEqual([1, 2, 3]);
+    });
+
+    it('依艦型排序以最小図鑑番號為主鍵，缺值不論方向都排最後', () => {
+        const rows = buildWithBook();
+        const withUnknown = [...rows, { ...rows[0], id: 9, ctype: 0, classMinBookNo: null }];
+        expect(sortRoster(withUnknown, 'ctype', 'asc').map(s => s.id)).toEqual([3, 2, 1, 9]);
+        expect(sortRoster(withUnknown, 'ctype', 'desc').map(s => s.id)).toEqual([1, 2, 3, 9]);
     });
 });
 

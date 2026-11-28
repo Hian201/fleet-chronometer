@@ -10,8 +10,9 @@
 // · 可裝備類別：來自 `GameState.equipTypesOf()`，已用真實完整 start2 驗證逐艦覆蓋規則
 //   （`api_mst_equip_ship` 完整覆蓋艦種預設）。**不能只看艦種**——艦種表說駆逐艦不能裝
 //   上陸用舟艇，但遊戲裡有 41 艘驅逐艦裝得了大發系。
-// · 國籍（建造國）：`ship-nationality.ts` 的人工參照表，鍵＝艦型 ctype。**遊戲 API 不提供
-//   國籍**，故它是參照資料而非封包事實；`nation` 為 null＝master 未載入、不可考。
+// · 國籍（就役時所屬海軍＋篩選雙國籍標籤）：`ship-nationality.ts`／`ship-class.ts` 的人工參照表，
+//   鍵＝艦型 ctype。**遊戲 API 不提供國籍**，故它是參照資料而非封包事實；`nation` 為 null＝
+//   master 未載入或尚未收錄的新艦型、不可考。
 // · 艦種 id：`api_mst_stype` 22 種。注意「高速戦艦」**不是艦種**——id 8 與 9 都叫「戦艦」，
 //   高速/低速要靠 api_soku 合判，故本檔把它做成航速篩選 × 艦種篩選的組合，不另立艦種。
 
@@ -49,12 +50,14 @@ export type EquipFilter =
 export interface ShipFilterState {
     speed: SpeedFilter;
     /**
-     * 國籍（建造國）白名單；空陣列＝不限。**多選**——「英美」「地中海組」這種組合是實際
+     * 國籍篩選白名單；空陣列＝不限。**多選**——「英美」「地中海組」這種組合是實際
      * 會問的問題，做成單選會逼使用者篩三次再自己合併。同艦種篩選的形狀。
      */
     nations: Nation[];
     /** 艦種 id 白名單；空陣列＝不限。 */
     stypeIds: number[];
+    /** 艦型 ctype 白名單；空陣列或省略＝不限。一個 ctype 一個選項，不合併。 */
+    ctypes?: number[];
     equip: EquipFilter;
     /** 出擊標籤篩選：null＝不限、0＝只看無標籤（自由身）、>0＝只看該標籤。 */
     sallyArea: number | null;
@@ -63,7 +66,7 @@ export interface ShipFilterState {
 }
 
 export const emptyFilter = (): ShipFilterState => ({
-    speed: 'all', nations: [], stypeIds: [], equip: 'all', sallyArea: null, search: '',
+    speed: 'all', nations: [], stypeIds: [], ctypes: [], equip: 'all', sallyArea: null, search: '',
 });
 
 /** 篩選所需的最小艦娘資訊（`GameState.ownedShips()` 的子集）。 */
@@ -71,9 +74,11 @@ export interface FilterableShip {
     id: number;
     name: string;
     stypeId: number;
-    /** 國籍（建造國）。由 `nationOf(ctype)` 查得；null＝master 未載入、不可考。 */
+    /** 艦型 api_ctype；0 或未提供＝不可考。 */
+    ctype?: number;
+    /** 第一層基本國籍（就役時所屬海軍）。由 `nationOf(ctype)` 查得；null＝不可考。 */
     nation: Nation | null;
-    /** 國籍篩選標籤；未提供時回退成單一的 `nation`，供舊資料／純函式呼叫端相容。 */
+    /** 第二層國籍篩選標籤；未提供時回退成單一的 `nation`，供舊資料／純函式呼叫端相容。 */
     nations?: Nation[];
     lv: number;
     soku: number;
@@ -145,12 +150,14 @@ export function filterShips<T extends FilterableShip>(
 ): T[] {
     const needle = filter.search.trim().toLocaleLowerCase();
     const stypes = new Set(filter.stypeIds);
+    const ctypes = new Set(filter.ctypes ?? []);
     const nations = new Set(filter.nations);
     const out = ships.filter(s =>
         matchSpeed(s.soku, filter.speed)
         && (stypes.size === 0 || stypes.has(s.stypeId))
-        // 國籍不可考（master 未載入）時不落入任何白名單，這是對的——寧可不列，
-        // 也不要在缺 master 的情況下宣稱某艘是日艦。
+        && (ctypes.size === 0 || (s.ctype != null && s.ctype > 0 && ctypes.has(s.ctype)))
+        // 國籍不可考（master 未載入或尚未收錄的艦型）時不落入任何白名單，這是對的——
+        // 寧可不列，也不要宣稱未知艦是日艦。
         && (nations.size === 0 || filterNationsOf(s).some(n => nations.has(n)))
         && matchEquip(s.equipTypes, filter.equip)
         && (filter.sallyArea == null || s.sallyArea === filter.sallyArea)

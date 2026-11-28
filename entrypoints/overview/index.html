@@ -4880,6 +4880,64 @@
             margin-left: 4px;
         }
 
+        .rs-ctype-box {
+            display: grid;
+            gap: 5px;
+            min-width: 0;
+        }
+
+        .rs-ctype-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .rs-ctype-search {
+            flex: 1 1 180px;
+            max-width: 300px;
+            min-height: 24px;
+            padding: 2px 8px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--text);
+            font: inherit;
+            font-size: 11px;
+        }
+
+        .rs-ctype-search:focus {
+            outline: none;
+            border-color: var(--brass);
+        }
+
+        .rs-ctype-op[hidden] {
+            display: none;
+        }
+
+        .rs-ctype-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+            max-height: 132px;
+            overflow-y: auto;
+            padding: 2px 0;
+        }
+
+        .rs-ctype-empty {
+            color: var(--dim);
+            font-size: 11px;
+        }
+
+        .rs-ctype-list .eo-chip.zero {
+            opacity: .7;
+        }
+
+        .rs-ctype {
+            white-space: nowrap;
+        }
+
         .rs-range {
             display: flex;
             gap: 6px;

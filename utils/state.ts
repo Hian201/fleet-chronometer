@@ -3583,14 +3583,26 @@ export class GameState {
         return { kind: prep.kind, ready, fleet: result.fleet, anyFleet: prep.fleet === 'any', gate: !!prep.gate, checks: result.checks, names: { ships, classes, gears } };
     }
 
-    /** 艦級的代表艦名：該艦級中図鑑番号最小的艦娘（id < 1500 為艦娘，其餘為深海）。 */
-    private classRepresentative(ctype: number): string {
+    /** 該艦級中図鑑番号最小的艦娘（id < 1500 為艦娘，其餘為深海）。 */
+    private classRepresentativeEntry(ctype: number): [number, number] | null {
+        if (!ctype || ctype <= 0) return null;
         let best: [number, number] | null = null;
         for (const [id, ship] of this.master) {
             if (id >= 1500 || ship.ctype !== ctype || !(ship.sortno! > 0)) continue;
             if (!best || ship.sortno! < best[1]) best = [id, ship.sortno!];
         }
+        return best;
+    }
+
+    /** 艦級的代表艦名（未收錄艦型的顯示退路與任務艦型條件共用）。 */
+    classRepresentative(ctype: number): string {
+        const best = this.classRepresentativeEntry(ctype);
         return best ? localizeShip(best[0], this.master.get(best[0])?.name) : `#${ctype}`;
+    }
+
+    /** 艦級中最小図鑑番号（供三語一致的艦型排序使用；不可考為 null）。 */
+    classMinBookNo(ctype: number): number | null {
+        return this.classRepresentativeEntry(ctype)?.[1] ?? null;
     }
 
     /** 遠征成功：只看條件表的遠征子目標；不相關的遠征不記錄。 */

@@ -86,10 +86,22 @@ master 表已併入 `samples/start2-master.json`，該檔現有 12 張表）：
 的選項。參照圖裡「顯示滾動條／提示框／鎖定圖示／分頁 顯示隱藏」這類純顯示開關**不照做**
 （交給瀏覽器／直接畫在艦名旁／改成使用者要的 10・20・50・100・全部）。
 
-**排序欄位十九個**（表頭可點，數值欄第一次點由大到小）：ID、図鑑番号、艦種、國籍、艦名、Lv、
+**排序欄位二十個**（表頭可點，數值欄第一次點由大到小）：ID、図鑑番号、艦種、艦型、國籍、艦名、Lv、
 士氣、血量、火力、雷裝、對空、裝甲、對潛、迴避、索敵、運、夜戰（＝火力＋雷裝）、
 Released（實裝日）、Joined（上任日）。**缺值一律排最後、不論升冪降冪**——「沒有図鑑番号／
-日期不可考」是資訊缺席，不是「很小的值」，混進大小比較會讓排序看起來壞掉。
+日期不可考」是資訊缺席，不是「很小的值」，混進大小比較會讓排序看起來壞掉。艦型欄預設關閉（同國籍欄），
+排序主鍵採**該艦型的最小図鑑番号**（`GameState.classMinBookNo()`），同艦型內沿用 `compareGameOrder`，
+讓三語排序結果一致並貼近遊戲圖鑑順序。國籍欄與 CSV 顯示所有篩選國籍標籤（中／日文以 `／`、英文以 `/` 分隔），
+排序仍依第一層基本國籍。
+
+**艦型篩選與多面向收斂**：艦娘全覽（多選）與面板調度（單選）共用 `utils/ship-class.ts`。一個 `ctype`
+就是一個選項、**不合併同級的不同 `ctype`**（例：春日丸 `75`／大鷹型 `76`、IXC型U艇 `57`／呂號潛水艦 `86`、
+Courageous級 `134`／Glorious級 `135`），因為補強增設 `api_ctypes`、任務條件與先制對潛都直接以 `ctype` 判定。
+系別（特型、特 I/II/III 型、甲型、乙型、丙型、丁型等）不建第三層介面，只放進 `aliases` 供搜尋框命中；
+艦娘全覽在搜尋有字時提供「全選目前篩出／取消全選」加入既有選擇。艦型選項的艘數只依「艦型以外的其他條件」
+計算（多面向收斂，艦種與國籍抽屜維持固定清單不跳動）；已選中但在其他條件下變 0 艘的艦型**保留並標 0**、
+不自動清除，結果為空顯示「沒有符合」。未收錄的新 `ctype` 以 `GameState.classRepresentative()` 退回
+`#編號（代表艦名）`。
 裝備欄用圖示，**一律畫滿該艦的真實槽數、空槽畫虛線空框**（「這格空著」與「沒有這一格」
 是兩件事）；補強增設無孔時整格不畫，才分得出「沒開孔」與「開了孔沒裝」。
 
@@ -152,26 +164,29 @@ Released（實裝日）、Joined（上任日）。**缺值一律排最後、不�
 
 對照之下**開幕雷擊是事實**：裝備了特殊潜航艇（類別 22）即成立。
 
-**國籍（建造國）＝人工參照表，鍵是艦型 ctype**（`utils/ship-nationality.ts`）。遊戲 API
-不提供國籍，同「兩個日期」的處境。以 ctype 為鍵而非逐艦：國籍是艦型層級屬性，一個艦型一筆、
-新增改造形態不必回來補（逐艦列舉必然腐爛）。**未列出的 ctype 一律日本**——866 艘図鑑內艦分屬
-140 個 ctype，其中只有 58 個是外國艦型，逐一列出 82 個日本艦型只會更難維護。
+**艦型與國籍（兩層規則，鍵為 `ctype`）**（`utils/ship-class.ts`＋`utils/ship-nationality.ts`）。
+遊戲 API 不提供艦型名稱與國籍。`SHIP_CLASSES` 完整列舉真實 start2 全部 140 個図鑑內 `ctype` 的三語名稱、
+搜尋別名與基本國籍，**不設「未列出一律日本」預設**；兩支模組皆不得出現在 service worker／content script
+的匯入鏈（`tests/state-format.test.ts` 把關）。
 
-**「建造國」而非「最後的所屬國」——這條看起來像 bug，是刻意的**：遊戲收錄了數個戰後移交
-他國並改名的形態，它們沿用本體 ctype。已用真實 master 逐一確認：Верный＝響改二（暁型）→
-**日本**；General Belgrano＝Phoenix 的移交形態（Brooklyn級）→ **美國**；Leonardo da Vinci
-＝**Dace 的移交形態**（Gato級，改造鏈 Dace → Dace改 → Leonardo da Vinci，yomi 仍是
-「デイス」）→ **美國**。反方向同理：伊504（ex Luigi Torelli）／伊503（ex C.Cappellini）
-歸**義大利**。這條規則讓表自洽、零逐艦例外——**不要**為了個別艦名「看起來像哪一國」加覆蓋，
-那會讓同一艦型的不同形態分屬不同國，篩選結果變得無法解釋。`ctype` 為 0（master 未載入）
-時回傳 null＝不可考，**不可當成日本**。收錄國家共 12：日美英德義法蘇荷澳瑞挪泰（**沒有丹麥**，
-遊戲目前無丹麥艦）；篩選晶片只列名冊裡實際有船的國家，不做空選項。
+- **第一層：艦型基本國籍（`nationOf(ctype)`，每艦型一國）**：依該艦型**就役時所屬海軍**判定（金剛於英國建造
+  但就役日本海軍→`jp`；神威於美國建造→`jp`；Thonburi 於日本建造但就役泰國海軍→`th`）。用途為國籍欄排序鍵與
+  配裝參考的國別加成。`ctype 86` 呂號潛水艦（呂500）原為德國海軍 U-511，故歸 `de`（與 KC3Kai 單欄標日本刻意
+  不同）；`ctype 80` Guglielmo Marconi級（伊504）與 `ctype 124` Marcello級（伊503）歸 `it`；Верный（曉型
+  `5`）歸 `jp`；General Belgrano（Brooklyn級 `110`）與 Leonardo da Vinci（Gato級 `114`）歸 `us`。
+  `ctype` 為 0 或未收錄的新艦型一律回傳 `null`（不可考），配裝參考的 `nationToBonusCountry()` 亦回傳 `''`、
+  不回退成日本。收錄國家共 12：日美英德義法蘇荷澳瑞挪泰（**沒有丹麥**，遊戲目前無丹麥艦）；篩選晶片只列
+  名冊裡實際有船的國家，不做空選項。
+- **第二層：篩選國籍標籤（`nationsOf(masterId, ctype)`，逐艦可多國）**：活動倍率同時計入兩國的移交改名形態
+  掛載雙標籤——`147` Верный（`jp`＋`su`）、`436` 呂500（`de`＋`jp`）、`530` 伊504（`it`＋`jp`）、`940` 伊503
+  （`it`＋`jp`）；U-511、Luigi Torelli、UIT-25、C.Cappellini、UIT-24 維持單國。調度、艦娘全覽與活動配船板的
+  國籍篩選及艦娘全覽國籍欄／CSV 讀這一層；配裝參考只讀第一層。
 
-**測試**：`tests/ship-nationality.test.ts` 掃全 master 反向驗證——凡艦名含拉丁／西里爾字母者
-都必須有國籍歸屬（不得預設落回日本），且歸為外國的艦型裡不得混進日文艦名（已知的移交形態
-除外）；另 `tests/ship-roster.test.ts` 以 `samples/start2-master.json` 建 GameState 後餵
+**測試**：`tests/ship-nationality.test.ts` 鎖定 `samples/start2-master.json` 全部 140 個図鑑內 `ctype`
+在 `SHIP_CLASSES` 一對一覆蓋、呂500 第一層為 `de`、四艘雙國籍艦與非改名形態的 `nationsOf()`、未知 `ctype`
+回 `null`、系別搜尋別名與多面向收斂；另 `tests/ship-roster.test.ts` 以 `samples/start2-master.json` 建 GameState 後餵
 `ownedShips()`，不手捏 master；`tests/ships-overview.test.ts` 涵蓋表格 HTML escape、
-空槽佔位、CSV 匯出。vitest 需 `@` 別名才能載入用 `@/…` 的 entrypoint 模組，已補進
+空槽佔位、艦型欄與雙國籍 CSV 匯出。vitest 需 `@` 別名才能載入用 `@/…` 的 entrypoint 模組，已補進
 `vitest.config.ts`（WXT 建置時自帶，vitest 不經過 WXT）。
 
 ## 裝備全覽：`utils/gear-inventory.ts`＋`sections/equipment.ts`

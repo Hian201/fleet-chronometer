@@ -148,4 +148,15 @@ describe('equip-ref', () => {
         }
         expect(bonusLineMatches(line, shipOf('赤城改二'))).toBe(false);
     });
+
+    it('未收錄艦型的國籍為 null 時不回退成日本艦加成，且呂500改為 de 不影響可裝備加成', () => {
+        expect(nationToBonusCountry(null)).toBe('');
+        expect(nationToBonusCountry(undefined)).toBe('');
+        const { gears, fitRules, shipOf } = setup();
+        const ro = shipOf('呂500');
+        expect(ro.country).toBe('DE');
+        const asDe = collectEquipRef(ro, gears, EQUIP_BONUS_TABLE, fitRules);
+        const asJp = collectEquipRef({ ...ro, country: 'JP' }, gears, EQUIP_BONUS_TABLE, fitRules);
+        expect(asDe).toEqual(asJp);
+    });
 });

@@ -25,14 +25,17 @@ describe('未註冊時的預設行為', () => {
     });
 });
 
-describe('service worker 不帶字串表與譯名表', () => {
-    const banned = ['utils/ui-i18n.ts', 'utils/gamedata-i18n.ts', 'utils/gamedata-names.ts'];
+describe('service worker 不帶字串表、譯名表與艦型國籍表', () => {
+    const banned = [
+        'utils/ui-i18n.ts', 'utils/gamedata-i18n.ts', 'utils/gamedata-names.ts',
+        'utils/ship-class.ts', 'utils/ship-nationality.ts',
+    ];
 
-    it('state.ts 的遞移匯入不含兩張表', () => {
+    it('state.ts 的遞移匯入不含字串表、譯名表與艦型國籍表', () => {
         expect(importClosure('utils/state.ts').filter(f => banned.includes(f))).toEqual([]);
     });
 
-    it('background 的遞移匯入不含兩張表', () => {
+    it('background 的遞移匯入不含字串表、譯名表與艦型國籍表', () => {
         expect(importClosure('entrypoints/background.ts').filter(f => banned.includes(f))).toEqual([]);
     });
 

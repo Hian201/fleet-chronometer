@@ -3,6 +3,9 @@
 // 殼只建一次；篩選變更只重繪目標列＋表，避免整塊洗掉選取與捲動。
 // 下拉選單以 position:fixed 掛 body，不被 #tabpanel overflow 裁切。
 import type { GameState, OwnedShipView } from '@/utils/state';
+import {
+    matchShipClassQuery, shipClassLabel, shipClassOptions, type ShipClassOption,
+} from '@/utils/ship-class';
 import { nationOf, nationsOf, NATIONS, type Nation } from '@/utils/ship-nationality';
 import {
     compareGameOrder, EQUIP_TYPE, matchEquip, matchSpeed, type EquipFilter, type SpeedFilter,
@@ -18,7 +21,7 @@ import {
     filterGears, groupGears, sortGears, type GearGroup, type GearSortKey,
 } from '@/utils/gear-inventory';
 import { esc } from '@/utils/html-escape';
-import { t } from '@/utils/ui-i18n';
+import { getLang, t } from '@/utils/ui-i18n';
 
 type Mode = 'ship' | 'gear';
 /** 裝備表的呈現：素質欄，或改列裝備艦（收起素質欄、整表不需橫捲）。不影響篩選。 */
@@ -93,10 +96,14 @@ let command = false;
 let amphib: Amphib = 'all';
 let nation: Nation | 'all' = 'all';
 let stypeGroup = 'all';
+let ctypeFilter: number | 'all' = 'all';
 let speed: SpeedFilter = 'all';
 let groupFilter = 'all';
 let groups: OrderGroup[] = loadOrderGroups();
 const selected = new Set<number>();
+
+/** 目前開啟的艦型選單快取選項（搜尋框打字時只重繪列表、保留焦點）。 */
+let ctypeMenuOpts: ShipClassOption[] = [];
 
 let gearCat: string | null = null;
 let gearSub = 'all';
@@ -137,6 +144,7 @@ function ensureMenu(): void {
     menuEl.hidden = true;
     document.body.appendChild(menuEl);
     menuEl.addEventListener('click', onMenuClick);
+    menuEl.addEventListener('input', onMenuInput);
     document.addEventListener('click', e => {
         if (!openMenu) return;
         const node = e.target as Node;
@@ -220,6 +228,7 @@ function paintGoals(): void {
         parts.push(ddBtn('amphib', amphibLabel(), amphib !== 'all'));
         parts.push(ddBtn('nation', nation === 'all' ? t('order.nation') : t(`nation.${nation}`), nation !== 'all'));
         parts.push(ddBtn('stype', stypeLabel(), stypeGroup !== 'all'));
+        parts.push(ddBtn('ctype', ctypeLabel(), ctypeFilter !== 'all'));
         parts.push(ddBtn('speed', speedLabel(), speed !== 'all'));
         parts.push(ddBtn('group', groupLabel(), groupFilter !== 'all'));
     } else {
@@ -259,6 +268,11 @@ function stypeLabel(): string {
     if (stypeGroup === 'all') return t('order.stype');
     return ORDER_STYPE_GROUPS.find(g => g.id === stypeGroup)?.label ?? t('order.stype');
 }
+function ctypeLabel(): string {
+    if (ctypeFilter === 'all') return t('order.ctype');
+    const state = getState?.();
+    return shipClassLabel(ctypeFilter, getLang(), state?.classRepresentative(ctypeFilter)) || `#${ctypeFilter}`;
+}
 function speedLabel(): string {
     if (speed === 'all') return t('order.speed');
     if (speed === 'fast') return t('order.speedFast');
@@ -285,7 +299,8 @@ function paintSelBar(): void {
     (root!.querySelector('#od-clear') as HTMLButtonElement).textContent = t('order.clear');
 }
 
-function shipRows(): ShipRow[] {
+/** 套用艦型以外的所有條件（多面向篩選：艦型候選選項吃這份，不把自己的條件算進去）。 */
+function shipRowsWithoutCtype(): ShipRow[] {
     const state = getState!();
     let rows: ShipRow[] = state.ownedShips().map(s => ({
         ...s, night: nightBattlePower(s.stats), nation: nationOf(s.ctype), nations: nationsOf(s.masterId, s.ctype),
@@ -299,6 +314,12 @@ function shipRows(): ShipRow[] {
         return true;
     });
     if (groupFilter !== 'all') rows = filterByGroup(rows, groups, groupFilter);
+    return rows;
+}
+
+function shipRows(): ShipRow[] {
+    let rows = shipRowsWithoutCtype();
+    if (ctypeFilter !== 'all') rows = rows.filter(s => s.ctype === ctypeFilter);
     return sortShips(rows);
 }
 
@@ -492,6 +513,7 @@ function onGoalsClick(e: Event): void {
     if (open === 'amphib') openAmphibMenu(btn);
     else if (open === 'nation') openNationMenu(btn);
     else if (open === 'stype') openStypeMenu(btn);
+    else if (open === 'ctype') openCtypeMenu(btn);
     else if (open === 'speed') openSpeedMenu(btn);
     else if (open === 'group') openGroupFilterMenu(btn);
     else if (open === 'gcat' && btn.dataset.gcat) openGearCatMenu(btn.dataset.gcat, btn);
@@ -531,6 +553,7 @@ function onTableClick(e: Event): void {
 
 function placeMenu(anchor: HTMLElement): void {
     if (!menuEl) return;
+    menuEl.classList.toggle('od-menu-wide', openMenu?.kind === 'ctype');
     menuEl.hidden = false;
     const r = anchor.getBoundingClientRect();
     const pad = 4;
@@ -546,7 +569,12 @@ function placeMenu(anchor: HTMLElement): void {
 
 function closeMenu(): void {
     openMenu = null;
-    if (menuEl) { menuEl.hidden = true; menuEl.innerHTML = ''; }
+    ctypeMenuOpts = [];
+    if (menuEl) {
+        menuEl.classList.remove('od-menu-wide');
+        menuEl.hidden = true;
+        menuEl.innerHTML = '';
+    }
 }
 
 function menuButtons(items: { v: string; lab: string; on: boolean; attr: string }[]): string {
@@ -589,9 +617,60 @@ function openStypeMenu(anchor: HTMLElement): void {
             v: g.id, lab: g.label, on: stypeGroup === g.id, attr: 'data-stype',
         })),
     ];
+    menuEl!.classList.remove('od-menu-wide');
     menuEl!.innerHTML = menuButtons(opts);
     openMenu = { kind: 'stype', key: 'stype', anchor };
     placeMenu(anchor);
+}
+
+function ctypeMenuListHtml(query: string): string {
+    const state = getState!();
+    const trimmed = query.trim();
+    const matched = ctypeMenuOpts.filter(o =>
+        matchShipClassQuery(o.ctype, trimmed, state.classRepresentative(o.ctype)),
+    );
+    const parts: string[] = [];
+    if (!trimmed) {
+        parts.push(`<button type="button" data-ctype="all" class="${ctypeFilter === 'all' ? 'on' : ''}"><span class="od-m-label">${esc(t('order.all'))}</span></button>`);
+    }
+    if (!matched.length) {
+        parts.push(`<div class="od-menu-empty">${esc(t('order.empty'))}</div>`);
+        return parts.join('');
+    }
+    for (const o of matched) {
+        const cls = [o.selected ? 'on' : '', o.count === 0 ? 'zero' : ''].filter(Boolean).join(' ');
+        parts.push(
+            `<button type="button" data-ctype="${o.ctype}" class="${cls}" title="${esc(o.label)}">`
+            + `<span class="od-m-label">${esc(o.label)}</span>`
+            + `<span class="meta">${o.count}</span></button>`,
+        );
+    }
+    return parts.join('');
+}
+
+function openCtypeMenu(anchor: HTMLElement): void {
+    const state = getState!();
+    ctypeMenuOpts = shipClassOptions(
+        shipRowsWithoutCtype(),
+        ctypeFilter === 'all' ? [] : [ctypeFilter],
+        getLang(),
+        c => state.classRepresentative(c),
+        c => state.classMinBookNo(c),
+    );
+    menuEl!.classList.add('od-menu-wide');
+    menuEl!.innerHTML =
+        `<input type="search" class="od-menu-search" autocomplete="off" placeholder="${esc(t('order.ctypeSearch'))}">`
+        + `<div class="od-menu-list">${ctypeMenuListHtml('')}</div>`;
+    openMenu = { kind: 'ctype', key: 'ctype', anchor };
+    placeMenu(anchor);
+    menuEl!.querySelector<HTMLInputElement>('.od-menu-search')?.focus();
+}
+
+function onMenuInput(e: Event): void {
+    const input = (e.target as HTMLElement).closest<HTMLInputElement>('.od-menu-search');
+    if (!input || openMenu?.kind !== 'ctype' || !menuEl) return;
+    const list = menuEl.querySelector<HTMLElement>('.od-menu-list');
+    if (list) list.innerHTML = ctypeMenuListHtml(input.value);
 }
 
 function openSpeedMenu(anchor: HTMLElement): void {
@@ -665,6 +744,10 @@ function onMenuClick(e: Event): void {
     }
     if (btn.dataset.stype != null) {
         stypeGroup = btn.dataset.stype;
+        closeMenu(); paint(); return;
+    }
+    if (btn.dataset.ctype != null) {
+        ctypeFilter = btn.dataset.ctype === 'all' ? 'all' : Number(btn.dataset.ctype);
         closeMenu(); paint(); return;
     }
     if (btn.dataset.speed != null) {

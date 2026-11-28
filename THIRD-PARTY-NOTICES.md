@@ -740,6 +740,14 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
 ---
 
+## 艦型名稱對照（`api_ctype`）
+
+- **用途**：`utils/ship-class.ts` 的全部 140 個図鑑內艦型（`api_ctype`）三語名稱、搜尋別名與第一層基本國籍對照表，供面板調度與艦娘全覽的艦型篩選及欄位顯示使用。
+- **參照來源**：KC3Kai kc3-translations `data/en/ctype.json`（陣列索引＝`api_ctype`）—— https://github.com/KC3Kai/kc3-translations ，MIT License，Copyright (c) 2015-2021 KC3改（核對日 2026-11-28），並與 wikiwiki.jp/kancolle 艦娘頁面交叉比對。
+- **取用方式**：僅作為日文艦型名稱底本參考，不作為國籍判定依據（例如 `ctype 86` 呂號潛水艦依就役時所屬海軍歸德國 `de`，與 KC3Kai 刻意不同）；繁體中文與英文名稱、搜尋別名及兩層國籍規則由本專案自行編製。
+
+---
+
 ## MIT License 全文
 
 上述第 1、2、5、5b、6、7b、8、9、10、11、12（KC3Kai 部分）項均採用 MIT License，

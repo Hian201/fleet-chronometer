@@ -115,6 +115,8 @@ const EX_SLOT_TYPES: Record<Exclude<ExSlotFilter, 'all' | 'any'>, number[]> = {
 export interface RosterFilter {
     search: string;
     stypeIds: number[];
+    /** 艦型 ctype 白名單；空陣列＝不限。多選＝聯集。 */
+    ctypes: number[];
     speed: SpeedFilter;
     /** 射程 api_leng：null＝不限，1 短／2 中／3 長／4 超長。 */
     leng: number | null;
@@ -136,14 +138,14 @@ export interface RosterFilter {
     /** 出擊標籤：null＝不限、0＝只看無標籤、>0＝只看該標籤。 */
     sallyArea: number | null;
     /**
-     * 國籍（建造國）白名單；空陣列＝不限。**多選**——「英美」「地中海組」這種組合是實際
+     * 國籍篩選白名單；空陣列＝不限。**多選**——「英美」「地中海組」這種組合是實際
      * 會問的問題，做成單選會逼使用者篩三次再自己合併。同艦種篩選的形狀。
      */
     nations: Nation[];
 }
 
 export const emptyRosterFilter = (): RosterFilter => ({
-    search: '', stypeIds: [], speed: 'all', leng: null, lvMin: null, lvMax: null,
+    search: '', stypeIds: [], ctypes: [], speed: 'all', leng: null, lvMin: null, lvMax: null,
     married: 'all', inFleet: 'all', locked: 'all', sparkle: 'all', exSlotOpen: 'all',
     duplicate: 'all', remodel: 'all', modern: 'all', opening: 'all',
     equip: 'all', namedEquip: 'all', exSlot: 'all', sallyArea: null, nations: [],
@@ -170,10 +172,12 @@ export interface RosterShip extends OwnedShipView {
     openingTorpedo: boolean;
     /** 夜戰火力＝火力＋雷裝（遊戲夜戰攻擊力的基礎項）。排序欄位之一。 */
     night: number;
-    /** 國籍（建造國，由 ctype 查表）。master 未載入時為 null＝不可考，見 nationOf()。 */
+    /** 第一層基本國籍（就役時所屬海軍，由 ctype 查表）。不可考時為 null，見 nationOf()。 */
     nation: Nation | null;
-    /** 國籍篩選標籤；Верный 等因遊戲機制可同時屬於多個篩選國籍。 */
+    /** 第二層國籍篩選與顯示標籤；Верный／呂500／伊503／伊504 可同時屬於多個國籍。 */
     nations: Nation[];
+    /** 所屬艦型的最小図鑑番號（供三語一致的艦型欄排序使用）；不可考為 null。 */
+    classMinBookNo: number | null;
     /** 改修餘量，與 api_kyouka 同序 7 格；master 未載入時為空陣列。見 ModernRemain。 */
     modernRemain: ModernRemain[];
 }
@@ -208,6 +212,8 @@ export interface RosterAnnotations {
     debutOf(baseMst: number | null): string | null;
     /** 打撈上任日查表（傳入艦實例 id）。 */
     obtainedOf(shipId: number): number | null;
+    /** 該艦型最小図鑑番號（供艦型欄三語一致排序；未提供時退回名冊內同 ctype 最小 bookNo）。 */
+    classMinBookNoOf?(ctype: number): number | null;
 }
 
 export function nightBattlePower(stats: OwnedShipView['stats']): number {
@@ -219,9 +225,14 @@ export function annotateRoster(ships: OwnedShipView[], ann: RosterAnnotations): 
     // 多號機：以**基礎形態**計數，這樣「睦月＋睦月改」也會正確算成同一艘船的兩份。
     // baseMst 未知（master 未載入）時退回本形態 master id，至少不會把全部混成一類。
     const byBase = new Map<number, number>();
+    const minBookByCtype = new Map<number, number>();
     for (const s of ships) {
         const key = s.baseMst ?? s.masterId;
         byBase.set(key, (byBase.get(key) ?? 0) + 1);
+        if (s.ctype > 0 && s.bookNo != null && s.bookNo > 0) {
+            const prev = minBookByCtype.get(s.ctype);
+            if (prev == null || s.bookNo < prev) minBookByCtype.set(s.ctype, s.bookNo);
+        }
     }
     return ships.map(s => ({
         ...s,
@@ -237,6 +248,7 @@ export function annotateRoster(ships: OwnedShipView[], ann: RosterAnnotations): 
         night: nightBattlePower(s.stats),
         nation: nationOf(s.ctype),
         nations: nationsOf(s.masterId, s.ctype),
+        classMinBookNo: s.ctype > 0 ? (ann.classMinBookNoOf?.(s.ctype) ?? minBookByCtype.get(s.ctype) ?? null) : null,
         modernRemain: modernRemainOf(s),
     }));
 }
@@ -271,7 +283,7 @@ function matchExSlot(ship: RosterShip, f: ExSlotFilter): boolean {
 /** 篩選（不排序、不分頁）。共用維度委派 ship-filter，本檔只加艦娘全覽專屬的條件。 */
 export function filterRoster(ships: RosterShip[], f: RosterFilter): RosterShip[] {
     const shared: ShipFilterState = {
-        speed: f.speed, stypeIds: f.stypeIds, equip: f.equip,
+        speed: f.speed, stypeIds: f.stypeIds, ctypes: f.ctypes, equip: f.equip,
         sallyArea: f.sallyArea, search: f.search, nations: f.nations,
     };
     // filterShips 內建排序，但這裡的排序另有一整組欄位，故排序結果直接被下游覆蓋；
@@ -298,7 +310,7 @@ export function filterRoster(ships: RosterShip[], f: RosterFilter): RosterShip[]
 // ── 排序 ────────────────────────────────────────────────────────────────
 
 export type RosterSortKey =
-    'id' | 'book' | 'name' | 'stype' | 'nation' | 'level' | 'cond' | 'hp'
+    'id' | 'book' | 'name' | 'stype' | 'ctype' | 'nation' | 'level' | 'cond' | 'hp'
     | 'firepower' | 'torpedo' | 'aa' | 'armor' | 'asw' | 'evasion' | 'los' | 'luck'
     | 'night' | 'released' | 'joined';
 export type SortDir = 'asc' | 'desc';
@@ -350,7 +362,13 @@ export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir
         else if (key === 'name') r = sign * a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
         // 艦種欄比照遊戲的「艦種」排序＝api_sort_id（見 ship-filter.ts filterShips）；不可考排最後。
         else if (key === 'stype') r = compareWithMissingLast(a.sortId, b.sortId, dir);
-        // 國籍依 NATIONS 的顯示順序排，不用字母序（見 ship-nationality.ts）。
+        // 艦型欄主鍵用「該艦型的最小図鑑番號」，三語順序一致且接近遊戲圖鑑順序；缺值排最後。
+        // 同艦型同值時交由後方 compareGameOrder 排次序；若極端測試手造同最小番號再以 ctype 穩定。
+        else if (key === 'ctype') {
+            r = compareWithMissingLast(a.classMinBookNo, b.classMinBookNo, dir)
+                || (a.classMinBookNo != null && b.classMinBookNo != null ? sign * (a.ctype - b.ctype) : 0);
+        }
+        // 國籍依 NATIONS 的顯示順序排（第一層基本國籍），不用字母序（見 ship-nationality.ts）。
         // 不可考者比照缺值排最後。
         else if (key === 'nation') {
             r = compareWithMissingLast(
@@ -364,9 +382,9 @@ export function sortRoster(ships: RosterShip[], key: RosterSortKey, dir: SortDir
             else r = sign * a.debut.localeCompare(b.debut);
         } else if (key === 'joined') r = compareWithMissingLast(a.obtainedTs, b.obtainedTs, dir);
         else r = sign * ((NUMERIC[key]?.(a) ?? 0) - (NUMERIC[key]?.(b) ?? 0));
-        // 艦種（遊戲的艦種排序＝api_sort_id 升冪）與名稱的自然方向是 asc，其餘欄是 desc；
+        // 艦種、艦型與名稱的自然方向是 asc，其餘欄是 desc；
         // 依自然方向排時同值走遊戲次序，反向時整串反轉。
-        const gameDir: SortDir = key === 'stype' || key === 'name' ? (dir === 'asc' ? 'desc' : 'asc') : dir;
+        const gameDir: SortDir = key === 'stype' || key === 'ctype' || key === 'name' ? (dir === 'asc' ? 'desc' : 'asc') : dir;
         return r || compareGameOrder(a, b, gameDir);
     });
 }

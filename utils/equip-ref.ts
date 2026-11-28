@@ -104,8 +104,12 @@ const NATION_TO_COUNTRY: Record<Nation, string> = {
     su: 'RU', au: 'AU', se: 'SE', nl: 'NL', no: 'NO', th: 'TH',
 };
 
+/**
+ * 轉為藍字加成表的國家代碼。未收錄的新艦型或 master 缺席時 `nation` 為 null，
+ * 回傳空字串而非 `'JP'`（刻意不比照 KC3Kai 預設日本，避免未登錄的外國艦誤套日本艦加成）。
+ */
 export function nationToBonusCountry(nation: Nation | null | undefined): string {
-    return NATION_TO_COUNTRY[nation ?? 'jp'] ?? 'JP';
+    return nation ? (NATION_TO_COUNTRY[nation] ?? '') : '';
 }
 
 /** 適性表戰艦分群。taik0 必須是 master api_taik[0]，不能用實例 maxhp。 */

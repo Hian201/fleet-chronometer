@@ -19,11 +19,14 @@ import type { ShipObtainedRow } from '../../../utils/db';
 import type { OwnedShipView } from '../../../utils/state';
 import type { OverviewSection } from './types';
 import { db } from '../../../utils/db';
-import { t } from '../../../utils/ui-i18n';
+import { getLang, t } from '../../../utils/ui-i18n';
 import { debutDateOf } from '../../../utils/ship-debut-data';
 import { goalsFromRows, remodelTargets } from '../../../utils/remodel-goals';
 import { nationOptions, sallyOptions, stypeOptions } from '../../../utils/ship-filter';
 import { buildStypeLabels, stypeDisplayLabel } from '../../../utils/stype-label';
+import {
+    matchShipClassQuery, shipClassLabel, shipClassOptions, type ShipClassOption,
+} from '../../../utils/ship-class';
 import {
     annotateRoster, emptyRosterFilter, filterRoster, paginate, sortRoster, MODERN_INDEX, PAGE_SIZES,
     type ModernStat, type PageSize, type RosterFilter, type RosterShip, type RosterSortKey, type SortDir,
@@ -78,11 +81,15 @@ export async function loadOwnedShipRows(
 export type ShipsRow = RosterShip & { obtained?: ShipObtainedRow };
 
 /** 補上兩個日期與衍生旗標，交給 ship-roster 的純函式處理。 */
-export function buildRoster(rows: OwnedShipRow[]): ShipsRow[] {
+export function buildRoster(
+    rows: OwnedShipRow[],
+    classMinBookNoOf?: (ctype: number) => number | null,
+): ShipsRow[] {
     const obtainedById = new Map(rows.map(row => [row.id, row.obtained]));
     return annotateRoster(rows, {
         debutOf: baseMst => (baseMst == null ? null : debutDateOf(baseMst)),
         obtainedOf: id => obtainedById.get(id)?.obtainedTs ?? null,
+        classMinBookNoOf,
     }).map(row => ({ ...row, obtained: obtainedById.get(row.id) }));
 }
 
@@ -96,7 +103,7 @@ export function toDateInputValue(ts: number): string {
 // ── 欄位定義 ────────────────────────────────────────────────────────────
 
 export type ColumnId =
-    'id' | 'book' | 'stype' | 'nation' | 'name' | 'lv' | 'goal' | 'cond' | 'hp'
+    'id' | 'book' | 'stype' | 'ctype' | 'nation' | 'name' | 'lv' | 'goal' | 'cond' | 'hp'
     | 'firepower' | 'torpedo' | 'aa' | 'armor' | 'asw' | 'evasion' | 'los' | 'luck'
     | 'night' | 'released' | 'joined' | 'fleet' | 'sally' | 'gears';
 
@@ -114,6 +121,8 @@ interface RenderCtx {
     mode: StatMode;
     /** 依 sallyArea 取顯示名（供出擊標籤欄）。 */
     tagLabel(sallyArea: number): string;
+    /** 依 ctype 取艦型顯示名（含未收錄艦型的代表艦退路）；未提供時直接查靜態表。 */
+    classLabel?(ctype: number): string;
     /** 已設改造目標的艦（艦娘實例 id）；目標讀不到時為空集合。 */
     goalShips: ReadonlySet<number>;
     /** 這個艦型還有後續改造嗎（決定「加入目標」連結要不要出現）。 */
@@ -216,6 +225,16 @@ function joinedCell(ship: ShipsRow): string {
         title="${esc(t('ov.shipsDateEditTip'))}">`;
 }
 
+function nationDisplay(ship: ShipsRow): string {
+    const list = ship.nations.length ? ship.nations : (ship.nation ? [ship.nation] : []);
+    return list.map(n => t(`nation.${n}`)).join(t('nation.sep'));
+}
+
+function classDisplay(ship: ShipsRow, ctx: RenderCtx): string {
+    if (!ship.ctype || ship.ctype <= 0) return '';
+    return ctx.classLabel ? ctx.classLabel(ship.ctype) : shipClassLabel(ship.ctype, getLang());
+}
+
 export const COLUMNS: ColumnDef[] = [
     { id: 'id', labelKey: 'ov.rsColId', sort: 'id', numeric: true, on: true, cell: s => String(s.id), text: s => String(s.id) },
     {
@@ -229,13 +248,27 @@ export const COLUMNS: ColumnDef[] = [
         text: s => stypeDisplayLabel(s),
     },
     {
+        // 艦型預設關閉（同國籍欄）：平時靠篩選抽屜即可，需要逐列對照或匯出 CSV 時再開啟。
+        id: 'ctype', labelKey: 'ov.rsColCtype', sort: 'ctype', on: false,
+        cell: (s, c) => {
+            const label = classDisplay(s, c);
+            return label
+                ? `<span class="rs-ctype">${esc(label)}</span>`
+                : `<span class="dim">${esc(t('ov.shipsDateUnknown'))}</span>`;
+        },
+        text: (s, c) => classDisplay(s, c),
+    },
+    {
         // 國籍預設關閉：多數提督的名冊九成是日艦，常駐一整欄「日本」只是佔寬度；
-        // 要看的時候（或篩了外國艦之後）再打開即可。
+        // 要看的時候（或篩了外國艦之後）再打開即可。顯示全部篩選國籍標籤，排序仍用第一層基本國籍。
         id: 'nation', labelKey: 'ov.rsColNation', sort: 'nation', on: false, tipKey: 'ov.rsColNationTip',
-        cell: s => (s.nation
-            ? `<span class="rs-nation">${esc(t(`nation.${s.nation}`))}</span>`
-            : `<span class="dim">${esc(t('ov.shipsDateUnknown'))}</span>`),
-        text: s => (s.nation ? t(`nation.${s.nation}`) : ''),
+        cell: s => {
+            const text = nationDisplay(s);
+            return text
+                ? `<span class="rs-nation">${esc(text)}</span>`
+                : `<span class="dim">${esc(t('ov.shipsDateUnknown'))}</span>`;
+        },
+        text: s => nationDisplay(s),
     },
     {
         id: 'name', labelKey: 'ov.rsColName', sort: 'name', on: true, always: true,
@@ -462,12 +495,22 @@ function segValue(filter: RosterFilter, key: keyof RosterFilter): string {
 
 /** 生效中的條件（供 chip 列）。只列非預設值，順序照抽屜的排列，可預期。 */
 export function describeFilter(
-    filter: RosterFilter, stypeLabel: Map<number, string>, tagLabel: (id: number) => string,
+    filter: RosterFilter,
+    stypeLabel: Map<number, string>,
+    tagLabel: (id: number) => string,
+    ctypeLabel?: (ctype: number) => string,
+    ctypeCounts?: ReadonlyMap<number, number>,
 ): { key: string; label: string }[] {
     const out: { key: string; label: string }[] = [];
     if (filter.search.trim()) out.push({ key: 'search', label: `${t('ov.rsSearchLabel')}: ${filter.search.trim()}` });
     for (const id of filter.stypeIds) out.push({ key: `stype:${id}`, label: stypeLabel.get(id) ?? String(id) });
     for (const n of filter.nations) out.push({ key: `nation:${n}`, label: t(`nation.${n}`) });
+    for (const c of filter.ctypes) {
+        const base = ctypeLabel ? ctypeLabel(c) : (shipClassLabel(c, getLang()) || `#${c}`);
+        const zero = ctypeCounts?.get(c) === 0;
+        const suffix = zero ? (getLang() === 'en' ? ' (0)' : '（0）') : '';
+        out.push({ key: `ctype:${c}`, label: `${base}${suffix}` });
+    }
     for (const row of SEG_ROWS) {
         const value = segValue(filter, row.key);
         if (value === 'all') continue;
@@ -566,8 +609,10 @@ export const shipsSection: OverviewSection = {
         const stypeLabel = new Map<number, string>();
         // 標籤名 API 不提供（見 utils/event-plan.ts 檔頭），故只顯示遊戲給的數字 id。
         const tagLabel = (id: number) => `#${id}`;
+        const classLabel = (ctype: number) => shipClassLabel(ctype, getLang(), ctx.state.classRepresentative(ctype));
+        const classMinBookNoOf = (ctype: number) => ctx.state.classMinBookNo(ctype);
         const renderCtx: RenderCtx = {
-            mode: prefs.mode, tagLabel, goalShips: new Set(),
+            mode: prefs.mode, tagLabel, classLabel, goalShips: new Set(),
             remodelable: masterId => remodelTargets(ctx.state, masterId).length > 0,
         };
 
@@ -608,6 +653,16 @@ export const shipsSection: OverviewSection = {
                     <span class="rs-row-label" title="${esc(t('ov.rsNationTip'))}">${esc(t('ov.rsNation'))}<i class="rs-info">?</i></span>
                     <div class="rs-stypes rs-nation-chips"></div>
                 </div>
+                <div class="rs-row">
+                    <span class="rs-row-label">${esc(t('ov.rsCtype'))}</span>
+                    <div class="rs-ctype-box">
+                        <div class="rs-ctype-bar">
+                            <input type="search" class="rs-ctype-search" autocomplete="off" placeholder="${esc(t('ov.rsCtypeSearch'))}">
+                            <button type="button" class="rs-mini rs-ctype-op" hidden></button>
+                        </div>
+                        <div class="rs-ctype-list"></div>
+                    </div>
+                </div>
                 ${SEG_ROWS.map(row => seg(row, filter)).join('')}
                 <div class="rs-row">
                     <span class="rs-row-label">${esc(t('ov.rsLevel'))}</span>
@@ -644,22 +699,86 @@ export const shipsSection: OverviewSection = {
         const sallyEl = q<HTMLSelectElement>('.rs-sally');
         const stypeChipsEl = q<HTMLDivElement>('.rs-stype-chips');
         const nationChipsEl = q<HTMLDivElement>('.rs-nation-chips');
+        const ctypeSearchEl = q<HTMLInputElement>('.rs-ctype-search');
+        const ctypeOpEl = q<HTMLButtonElement>('.rs-ctype-op');
+        const ctypeListEl = q<HTMLDivElement>('.rs-ctype-list');
 
         /** 目前篩選後的全部列（不分頁）——匯出與分頁都吃它。 */
         let visible: ShipsRow[] = [];
+        /** 多面向算出的最新艦型候選選項（含已選但目前 0 艘者）。 */
+        let ctypeOpts: ShipClassOption[] = [];
+        /** 上次建出 `.rs-ctype-list` 的「艦型 id＋件數」簽章；未變時只同步狀態不重建 DOM，保住鍵盤焦點（§4.2）。 */
+        let ctypeListSig = '';
 
         function view(): TableView {
             return { cols: new Set(prefs.cols), sort: prefs.sort, dir: prefs.dir, mode: prefs.mode };
         }
 
+        function filteredCtypeOptions(): ShipClassOption[] {
+            const qStr = ctypeSearchEl.value.trim();
+            if (!qStr) return ctypeOpts;
+            return ctypeOpts.filter(o =>
+                matchShipClassQuery(o.ctype, qStr, ctx.state.classRepresentative(o.ctype)),
+            );
+        }
+
+        function drawCtypes() {
+            const qStr = ctypeSearchEl.value.trim();
+            const matched = filteredCtypeOptions();
+            if (qStr && matched.length > 0) {
+                const allPicked = matched.every(o => filter.ctypes.includes(o.ctype));
+                ctypeOpEl.hidden = false;
+                ctypeOpEl.dataset.op = allPicked ? 'clear' : 'select';
+                ctypeOpEl.textContent = t(
+                    allPicked ? 'ov.rsCtypeClearMatched' : 'ov.rsCtypeSelectMatched',
+                    { n: matched.length },
+                );
+            } else {
+                ctypeOpEl.hidden = true;
+            }
+            const sig = matched.length ? matched.map(o => `${o.ctype}:${o.count}`).join(',') : '__empty__';
+            if (sig === ctypeListSig) {
+                const selectedSet = new Set(filter.ctypes);
+                ctypeListEl.querySelectorAll<HTMLInputElement>('.rs-ctype-cb').forEach(box => {
+                    const on = selectedSet.has(Number(box.value));
+                    if (box.checked !== on) box.checked = on;
+                    box.closest('.eo-chip')?.classList.toggle('on', on);
+                });
+                return;
+            }
+            ctypeListSig = sig;
+            if (!matched.length) {
+                ctypeListEl.innerHTML = `<span class="rs-ctype-empty">${esc(t('ov.rsCtypeNoMatch'))}</span>`;
+                return;
+            }
+            const en = getLang() === 'en';
+            ctypeListEl.innerHTML = matched.map(o => {
+                const countTxt = en ? ` (${o.count})` : `（${o.count}）`;
+                const cls = ['eo-chip', o.selected ? 'on' : '', o.count === 0 ? 'zero' : ''].filter(Boolean).join(' ');
+                return `<label class="${cls}"><input type="checkbox" class="rs-ctype-cb" value="${o.ctype}" ${o.selected ? 'checked' : ''}>${esc(o.label)}${countTxt}</label>`;
+            }).join('');
+        }
+
         function draw() {
             renderCtx.mode = prefs.mode;
             q<HTMLParagraphElement>('.rs-remain-note').hidden = prefs.mode !== 'remain';
+            // 多面向篩選：艦型選項與件數只套用「艦型以外的其他條件」，已選但變 0 艘者保留並標 0。
+            const baseForCtype = filterRoster(roster, { ...filter, ctypes: [] });
+            ctypeOpts = shipClassOptions(
+                baseForCtype,
+                filter.ctypes,
+                getLang(),
+                c => ctx.state.classRepresentative(c),
+                classMinBookNoOf,
+            );
+            const ctypeCounts = new Map(ctypeOpts.map(o => [o.ctype, o.count]));
+            drawCtypes();
+
             visible = sortRoster(filterRoster(roster, filter), prefs.sort, prefs.dir, prefs.mode === 'remain');
             const p = paginate(visible, prefs.size, page);
             page = p.page;
 
-            const active = describeFilter(filter, stypeLabel, tagLabel);
+            const active = describeFilter(filter, stypeLabel, tagLabel, classLabel, ctypeCounts);
             badgeEl.textContent = active.length ? String(active.length) : '';
             badgeEl.hidden = !active.length;
             chipsEl.innerHTML = active.map(a =>
@@ -732,11 +851,33 @@ export const shipsSection: OverviewSection = {
                     : filter.nations.filter(x => x !== nation);
                 box.closest('.eo-chip')?.classList.toggle('on', box.checked);
                 changed();
+            } else if (target.matches('.rs-ctype-cb')) {
+                const box = target as HTMLInputElement;
+                const id = Number(box.value);
+                filter.ctypes = box.checked
+                    ? (filter.ctypes.includes(id) ? filter.ctypes : [...filter.ctypes, id])
+                    : filter.ctypes.filter(x => x !== id);
+                changed();
             } else if (target.matches('.rs-sally')) {
                 const value = (target as HTMLSelectElement).value;
                 filter.sallyArea = value === '' ? null : Number(value);
                 changed();
             }
+        });
+
+        ctypeSearchEl.addEventListener('input', drawCtypes);
+        ctypeOpEl.addEventListener('click', () => {
+            const matched = filteredCtypeOptions().map(o => o.ctype);
+            if (!matched.length) return;
+            if (ctypeOpEl.dataset.op === 'clear') {
+                const drop = new Set(matched);
+                filter.ctypes = filter.ctypes.filter(c => !drop.has(c));
+            } else {
+                const merged = new Set(filter.ctypes);
+                for (const c of matched) merged.add(c);
+                filter.ctypes = [...merged];
+            }
+            changed();
         });
 
         // 等級範圍用 input（邊打邊篩）；空字串＝不限，不要當成 0。
@@ -767,6 +908,9 @@ export const shipsSection: OverviewSection = {
                 filter.nations = filter.nations.filter(x => x !== nation);
                 const box = drawerEl.querySelector<HTMLInputElement>(`.rs-nation[value="${nation}"]`);
                 if (box) { box.checked = false; box.closest('.eo-chip')?.classList.remove('on'); }
+            } else if (key.startsWith('ctype:')) {
+                const id = Number(key.slice(6));
+                filter.ctypes = filter.ctypes.filter(x => x !== id);
             } else if (key === 'lv') {
                 filter.lvMin = filter.lvMax = null;
                 q<HTMLInputElement>('.rs-lvmin').value = '';
@@ -787,6 +931,7 @@ export const shipsSection: OverviewSection = {
         q<HTMLButtonElement>('.rs-reset').addEventListener('click', () => {
             Object.assign(filter, emptyRosterFilter());
             q<HTMLInputElement>('.rs-search').value = '';
+            ctypeSearchEl.value = '';
             q<HTMLInputElement>('.rs-lvmin').value = '';
             q<HTMLInputElement>('.rs-lvmax').value = '';
             sallyEl.value = '';
@@ -868,7 +1013,7 @@ export const shipsSection: OverviewSection = {
             const sync = (ts: number | null, source: ShipObtainedRow['source']) => {
                 row.obtained = { ...(row.obtained ?? { id: shipId, mst: row.masterId }), obtainedTs: ts, source };
                 // roster 是 rows 的投影，日期改了要重新投影才會反映到排序（Joined 欄可排序）。
-                roster = buildRoster(rows);
+                roster = buildRoster(rows, classMinBookNoOf);
             };
 
             if (!input.value) {   // 清空＝取消手填，回到「未知」
@@ -902,7 +1047,7 @@ export const shipsSection: OverviewSection = {
             // 目標讀不到只影響「目標」欄的標示（全部顯示為可加入），不擋名冊。
             const goalRows = await db.goals.toArray().catch(() => []);
             renderCtx.goalShips = new Set(goalsFromRows(goalRows).map(goal => goal.shipId));
-            roster = buildRoster(rows);
+            roster = buildRoster(rows, classMinBookNoOf);
             buildStypeLabels(roster, stypeLabel);
             // 艦種／國籍／標籤選項依名冊填充（殼上先留空容器，避免 await 前整區空白）。
             const stypeOps = stypeChipsEl.querySelector('.rs-stype-ops')!;
