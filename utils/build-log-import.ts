@@ -181,6 +181,90 @@ export function parseBuildLogCsv(text: string, resolveShipMst?: (name: string) =
     throw new BuildLogImportError('不是本分區匯出的 CSV，也不是航海日誌拡張版的建造報告書格式。');
 }
 
+// ── 合併同渠建造與高速加速 ──────────────────────────────────────────────────
+
+// 艦これ最長建造時間為 8 小時（大和／武藏）；取 12 小時作配對上界，容忍系統時鐘微調，
+// 同時避免先前未加速的同艦同渠建造，與數日後未錄到建造發起的孤立 speedup 誤合併。
+const MAX_SPEEDUP_GAP_MS = 12 * 60 * 60 * 1000;
+
+function sameShip(a: FactoryLogRow, b: FactoryLogRow): boolean {
+    if (a.shipMst && b.shipMst) return a.shipMst === b.shipMst;
+    if (a.shipMst || b.shipMst) return false;
+    return Boolean(a.importedShipName) && a.importedShipName === b.importedShipName;
+}
+
+function withAddedTorch(used: number[], add: number): number[] {
+    const next = Array.from({ length: Math.max(8, used.length) }, (_, i) => used[i] ?? 0);
+    next[4] += add;
+    return next;
+}
+
+/**
+ * 將同一次建造的 `build`（建造發起）與後續 `speedup`（高速建造材加速）合併成單筆建造紀錄。
+ * `db.factory` 仍保留兩筆原始列，讓離散資材分帳能依各自發生時刻對帳；建造紀錄介面與 CSV 匯出
+ * 則呈現為同一艘船的一次建造，並把高速建造材消耗量併入原 `build` 列的 `used[4]`（時間、旗艦、
+ * 司令部等級沿用建造發起當下）。未配對的孤立 `speedup`（例如安裝擴充前已開始建造）保留原列。
+ * 回傳依時間新到舊排序（同毫秒以 eventId 新到舊）。
+ */
+export function mergeBuildRows(rows: readonly FactoryLogRow[]): FactoryLogRow[] {
+    const ordered = rows
+        .filter(r => r.kind === 'build' || r.kind === 'speedup')
+        .sort((a, b) => (a.ts - b.ts)
+            || ((a.kind === 'speedup' ? 1 : 0) - (b.kind === 'speedup' ? 1 : 0))
+            || (a.eventId - b.eventId));
+    const merged: FactoryLogRow[] = [];
+    // 各建造渠目前最新、尚未加速的 build 在 merged 中的索引；同一渠開始新建造即覆蓋（前艦必已領取）。
+    const activeByDock = new Map<number, number>();
+    // 舊版 CSV 匯入列沒有 kdockId，另以無渠位的未加速 build 串列由新往舊配對。
+    const openNoDock: number[] = [];
+
+    for (const row of ordered) {
+        if (row.kind === 'build') {
+            const idx = merged.length;
+            merged.push(row);
+            if (row.kdockId != null) {
+                if ((row.used[4] ?? 0) === 0) activeByDock.set(row.kdockId, idx);
+                else activeByDock.delete(row.kdockId);
+            } else if ((row.used[4] ?? 0) === 0) {
+                openNoDock.push(idx);
+            }
+            continue;
+        }
+
+        const torch = row.used[4] ?? 0;
+        if (row.kdockId != null) {
+            const idx = activeByDock.get(row.kdockId);
+            if (idx !== undefined) {
+                activeByDock.delete(row.kdockId);
+                const target = merged[idx];
+                if (sameShip(target, row) && row.ts - target.ts <= MAX_SPEEDUP_GAP_MS) {
+                    merged[idx] = { ...target, used: withAddedTorch(target.used, torch) };
+                    continue;
+                }
+            }
+            merged.push(row);
+            continue;
+        }
+
+        let matchedPos = -1;
+        for (let pos = openNoDock.length - 1; pos >= 0; pos--) {
+            const target = merged[openNoDock[pos]];
+            if (row.ts - target.ts > MAX_SPEEDUP_GAP_MS) break;
+            if (sameShip(target, row)) { matchedPos = pos; break; }
+        }
+        if (matchedPos >= 0) {
+            const idx = openNoDock[matchedPos];
+            const target = merged[idx];
+            merged[idx] = { ...target, used: withAddedTorch(target.used, torch) };
+            openNoDock.splice(matchedPos, 1);
+        } else {
+            merged.push(row);
+        }
+    }
+
+    return merged.sort((a, b) => (b.ts - a.ts) || (b.eventId - a.eventId));
+}
+
 // ── 匯出 ────────────────────────────────────────────────────────────────
 
 export function buildLogCsvRows(rows: FactoryLogRow[], shipName: (mst: number | undefined) => string): string[][] {
@@ -230,8 +314,14 @@ export async function importBuildLogRows(database: KcDb, rows: ParsedBuildRow[])
     let duplicates = 0;
     await database.transaction('rw', [database.events, database.factory], async () => {
         const existing = new TimeBucketIndex<FactoryLogRow>(TIME_TOLERANCE_MS, r => r.kind, r => r.ts);
-        for (const r of await database.factory.toArray()) {
-            if (r.kind === 'build' || r.kind === 'speedup') existing.add(r);
+        const rawBuilds = (await database.factory.toArray())
+            .filter(r => r.kind === 'build' || r.kind === 'speedup');
+        for (const r of rawBuilds) existing.add(r);
+        // 匯出 CSV 已把同渠 build＋speedup 合併成帶 torch 的單筆 build，重匯入時也要認出它與既有配對重複。
+        if (rawBuilds.some(r => r.kind === 'speedup')) {
+            for (const r of mergeBuildRows(rawBuilds)) {
+                if (r.kind === 'build' && (r.used[4] ?? 0) > 0) existing.add(r);
+            }
         }
         const fresh: FactoryLogRow[] = [];
         for (const row of rows) {

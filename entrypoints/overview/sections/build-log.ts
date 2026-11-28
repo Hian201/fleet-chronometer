@@ -3,7 +3,7 @@
 import type { OverviewSection } from './types';
 import { db, type FactoryLogRow } from '@/utils/db';
 import {
-    buildLogCsvText, BuildLogImportError, importBuildLogRows, parseBuildLogCsv,
+    buildLogCsvText, BuildLogImportError, importBuildLogRows, mergeBuildRows, parseBuildLogCsv,
 } from '@/utils/build-log-import';
 import { reverseShipLookup } from '@/utils/drop-log-import';
 import { t } from '@/utils/ui-i18n';
@@ -159,9 +159,8 @@ export const buildLogSection: OverviewSection = {
         const changed = () => { page = 1; draw(); };
 
         async function load() {
-            // kind 索引先篩掉開發／改修；anyOf 依 kind 再依主鍵排序，須重排回 eventId 新到舊。
-            rows = (await db.factory.where('kind').anyOf('build', 'speedup').toArray())
-                .sort((a, b) => b.eventId - a.eventId);
+            // kind 索引先篩掉開發／改修；同建造渠的 build 與後續 speedup 合併為單筆建造紀錄。
+            rows = mergeBuildRows(await db.factory.where('kind').anyOf('build', 'speedup').toArray());
             const options = (names: string[]) => [...new Set(names)].map(name => `<option value="${esc(name)}"></option>`).join('');
             el.querySelector('#bl-secretaries')?.remove();
             el.querySelector('#bl-ships')?.remove();

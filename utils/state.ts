@@ -2047,8 +2047,10 @@ export class GameState {
         // 找到對應渠，直接標記為完成待領取（state 3, complete_time 0）。領取仍走 getship 分支。
         // 消耗顆數：普通1／大型10（LARGE_BUILD_MIN 判定，使用者提供之遊戲設定，見常數註解），
         // 用該渠自己的 api_item1-4（送出建造當下的真實投入量，此刻尚未被清空）判斷。
+        // 每次先清空 lastSpeedup，避免 kdockData 缺該渠時殘留上一筆加速被重覆歸檔。
+        this.lastSpeedup = null;
         const dock = this.kdockData.find((k: any) => k.api_id === Number(req.api_kdock_id));
-        if (dock) {
+        if (dock && dock.api_created_ship_id > 0) {
             const large = LARGE_BUILD_MIN.every((min, i) => (Number(dock[`api_item${i + 1}`]) || 0) >= min);
             const qty = large ? 10 : 1;
             // 餘額未知時不動，不把「不可考」寫成 0（同 useBucket）。

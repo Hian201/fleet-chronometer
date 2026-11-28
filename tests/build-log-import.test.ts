@@ -4,7 +4,7 @@ import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import { KcDb, type FactoryLogRow } from '../utils/db';
 import {
-    buildLogCsvText, BuildLogImportError, importBuildLogRows, parseBuildLogCsv,
+    buildLogCsvText, BuildLogImportError, importBuildLogRows, mergeBuildRows, parseBuildLogCsv,
 } from '../utils/build-log-import';
 
 const databases: KcDb[] = [];
@@ -185,5 +185,103 @@ describe('importBuildLogRows（落地）', () => {
         await importBuildLogRows(database, unresolved);
         const second = await importBuildLogRows(database, unresolved);
         expect(second).toEqual({ added: 0, duplicates: 1 });
+    });
+
+    it('資料庫有配對 build＋speedup 時，重匯入合併後的 CSV 仍判定為重複', async () => {
+        const database = createDb();
+        const baseTs = Date.parse('2026-07-23T12:00:00Z');
+        const buildRow = row({ eventId: 10, ts: baseTs, kdockId: 1, shipMst: 135, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const speedupRow = row({ eventId: 11, ts: baseTs + 5_000, kind: 'speedup', kdockId: 1, shipMst: 135, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        await database.factory.bulkPut([buildRow, speedupRow]);
+
+        const merged = mergeBuildRows([buildRow, speedupRow]);
+        expect(merged).toHaveLength(1);
+        const reimported = await importBuildLogRows(database, parseBuildLogCsv(buildLogCsvText(merged, shipName)).rows);
+        expect(reimported).toEqual({ added: 0, duplicates: 1 });
+        expect(await database.factory.count()).toBe(2);
+    });
+});
+
+describe('mergeBuildRows（同建造渠 build＋speedup 合併）', () => {
+    const T0 = Date.parse('2026-07-23T12:00:00Z');
+    const MIN = 60_000;
+    const HOUR = 60 * MIN;
+
+    it('同建造渠同艦的 build 與後續 speedup 合併為單筆，保留建造當下的時間／旗艦／司令部等級並併入火槍數', () => {
+        const build = row({
+            eventId: 10, ts: T0, kind: 'build', kdockId: 1, shipMst: 56,
+            used: [30, 30, 30, 30, 0, 0, 1, 0], secretary: 1, hqLv: 119,
+        });
+        const speedup = row({
+            eventId: 11, ts: T0 + 3 * MIN, kind: 'speedup', kdockId: 1, shipMst: 56,
+            used: [0, 0, 0, 0, 1, 0, 0, 0], secretary: 2, hqLv: 120,
+        });
+        const merged = mergeBuildRows([speedup, build]);
+        expect(merged).toHaveLength(1);
+        expect(merged[0]).toEqual({
+            eventId: 10, ts: T0, kind: 'build', kdockId: 1, shipMst: 56,
+            used: [30, 30, 30, 30, 1, 0, 1, 0], secretary: 1, hqLv: 119,
+        });
+        // 不改動輸入列
+        expect(build.used[4]).toBe(0);
+    });
+
+    it('大型建造消耗 10 支火槍與多渠同時造同船時，只併入對應建造渠', () => {
+        const dock1 = row({
+            eventId: 10, ts: T0, kind: 'build', kdockId: 1, shipMst: 86,
+            used: [1500, 1500, 2000, 1000, 0, 0, 1, 0],
+        });
+        const dock2 = row({
+            eventId: 11, ts: T0 + MIN, kind: 'build', kdockId: 2, shipMst: 86,
+            used: [4000, 6000, 6000, 2000, 0, 0, 20, 0],
+        });
+        const rushDock1 = row({
+            eventId: 12, ts: T0 + 2 * MIN, kind: 'speedup', kdockId: 1, shipMst: 86,
+            used: [0, 0, 0, 0, 10, 0, 0, 0],
+        });
+        const merged = mergeBuildRows([dock1, dock2, rushDock1]);
+        expect(merged).toHaveLength(2);
+        expect(merged[0].kdockId).toBe(2);
+        expect(merged[0].used[4]).toBe(0);
+        expect(merged[1].kdockId).toBe(1);
+        expect(merged[1].used[4]).toBe(10);
+    });
+
+    it('同建造渠連續建造同艦：先未加速再加速，加速只併入第二次建造', () => {
+        const first = row({ eventId: 10, ts: T0, kind: 'build', kdockId: 1, shipMst: 56, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const second = row({ eventId: 20, ts: T0 + 30 * MIN, kind: 'build', kdockId: 1, shipMst: 56, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const rushSecond = row({ eventId: 21, ts: T0 + 31 * MIN, kind: 'speedup', kdockId: 1, shipMst: 56, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        const merged = mergeBuildRows([first, second, rushSecond]);
+        expect(merged.map(r => [r.eventId, r.used[4]])).toEqual([[20, 1], [10, 0]]);
+    });
+
+    it('同建造渠連續建造同艦：兩次皆加速，各自合併成兩筆', () => {
+        const b1 = row({ eventId: 10, ts: T0, kind: 'build', kdockId: 1, shipMst: 56, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const s1 = row({ eventId: 11, ts: T0 + MIN, kind: 'speedup', kdockId: 1, shipMst: 56, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        const b2 = row({ eventId: 12, ts: T0 + 2 * MIN, kind: 'build', kdockId: 1, shipMst: 56, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const s2 = row({ eventId: 13, ts: T0 + 3 * MIN, kind: 'speedup', kdockId: 1, shipMst: 56, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        const merged = mergeBuildRows([b1, s1, b2, s2]);
+        expect(merged.map(r => [r.eventId, r.used[4]])).toEqual([[12, 1], [10, 1]]);
+    });
+
+    it('孤立 speedup、不同艦或相隔超過 12 小時不誤合併，保留原列', () => {
+        const orphan = row({ eventId: 1, ts: T0, kind: 'speedup', kdockId: 3, shipMst: 56, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        const oldBuild = row({ eventId: 2, ts: T0, kind: 'build', kdockId: 1, shipMst: 56, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const tooLate = row({ eventId: 3, ts: T0 + 13 * HOUR, kind: 'speedup', kdockId: 1, shipMst: 56, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        const otherBuild = row({ eventId: 4, ts: T0 + 14 * HOUR, kind: 'build', kdockId: 2, shipMst: 56, used: [30, 30, 30, 30, 0, 0, 1, 0] });
+        const diffShip = row({ eventId: 5, ts: T0 + 14 * HOUR + MIN, kind: 'speedup', kdockId: 2, shipMst: 99, used: [0, 0, 0, 0, 1, 0, 0, 0] });
+        const merged = mergeBuildRows([orphan, oldBuild, tooLate, otherBuild, diffShip]);
+        expect(merged).toHaveLength(5);
+        expect(merged.find(r => r.eventId === 2)!.used[4]).toBe(0);
+        expect(merged.find(r => r.eventId === 4)!.used[4]).toBe(0);
+    });
+
+    it('無 kdockId 的舊版匯入 build＋speedup（含同毫秒）也能配對合併', () => {
+        const b = row({ eventId: 50, ts: T0, kind: 'build', kdockId: undefined, shipMst: 135, used: [30, 30, 30, 30, 0, 0, 1, 0], imported: true });
+        const s = row({ eventId: 49, ts: T0, kind: 'speedup', kdockId: undefined, shipMst: 135, used: [0, 0, 0, 0, 1, 0, 0, 0], imported: true });
+        const merged = mergeBuildRows([s, b]);
+        expect(merged).toHaveLength(1);
+        expect(merged[0]).toMatchObject({ eventId: 50, kind: 'build', shipMst: 135, imported: true });
+        expect(merged[0].used[4]).toBe(1);
     });
 });

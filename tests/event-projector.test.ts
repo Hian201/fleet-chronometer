@@ -240,6 +240,20 @@ describe('EventProjector persist 模式', () => {
         expect(replay?.battles[0].yasen).toMatchObject({ marker: 'night' });
     });
 
+    it('createship_speedchange 找不到目標建造渠或為空渠時不沿用上一筆 lastSpeedup', async () => {
+        const database = createDb();
+        const projector = new EventProjector({ state: new GameState(), mode: 'persist', tables: database });
+        const builds = fixture<{ api_data: any[] }>('build_1.json').api_data;
+        await projector.project(row(1, 'api_get_member/kdock', builds));
+        await projector.project(row(2, 'api_req_kousyou/createship_speedchange', {}, { api_kdock_id: '1' }));
+        // dock 3 在 build_1.json 為 api_state -1、api_created_ship_id 0；不應重覆寫入上一筆 dock 1 的 speedup
+        await projector.project(row(3, 'api_req_kousyou/createship_speedchange', {}, { api_kdock_id: '3' }));
+
+        const speedups = (await database.factory.toArray()).filter(item => item.kind === 'speedup');
+        expect(speedups).toHaveLength(1);
+        expect(speedups[0]).toMatchObject({ eventId: 2, kdockId: 1, shipMst: 56 });
+    });
+
     it('不記錄的海域不寫 sorties／replays，也不標舊紀錄斬殺，但任務計數與其他表不變', async () => {
         const questlist = row(2.5, 'api_get_member/questlist', {
             api_list: [{ api_no: 201, api_state: 2, api_title: '敵艦隊を撃破せよ！', api_detail: '艦隊を出撃させ、敵艦隊を捕捉、これを撃滅せよ！' }],

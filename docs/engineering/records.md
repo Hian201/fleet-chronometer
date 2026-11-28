@@ -448,7 +448,10 @@ node 純函式＋`fake-indexeddb` 驗證，同 `sortie-import.test.ts` 的手法
   不從 `createship` 請求推測（曾猜測的 `api_large_flag`／`api_highspeed` 不在這個資料源）。
 - `createship_speedchange`（高速建造材完工）的消耗依使用者提供之遊戲設定：普通 1 個、大型 10 個；
   大型判定是投入量達 `LARGE_BUILD_MIN`（1500／1500／2000／1000，`utils/state.ts`），屬固定常數而非
-  封包驗證。
+  封包驗證。`db.factory` 維持 `build` 與 `speedup` 各自獨立一筆（離散資材分帳須依實際消耗時刻歸入所屬期間）；
+  建造紀錄分區（`sections/build-log.ts`）與 CSV 匯出入由 `mergeBuildRows()`（`utils/build-log-import.ts`）
+  把同建造渠、同艦、12 小時內緊接的 `speedup` 併回原 `build` 列的 `used[4]`（時間、旗艦與司令部等級沿用
+  建造發起當下），呈現與匯出為同一筆建造，未配對的孤立 `speedup` 保留原列。
 - 三種紀錄與改修日程合併成情報總括的「工廠」分區（`sections/factory.ts`，子分頁建造｜開發｜改修，
   預設改修、選擇存 localStorage），對齊遊戲工廠畫面與面板工廠分頁的結構。合併前的舊網址
   `#/build-log`、`#/dev-log`、`#/improve-plan` 由 `entrypoints/overview/routes.ts` 轉成
